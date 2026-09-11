@@ -23,15 +23,26 @@ class WaveformPlaybackControl(BaseModel):
     low_cut_hz: float | None = None
     high_cut_hz: float | None = None
     notch_hz: float | None = None
+    baseline_stabilization: bool | None = None
     channels: list[str] | None = None
 
 
 class WaveformPlaybackCreate(BaseModel):
     channels: list[str] | None = None
+    montage: str = "original"
+    average_exclude: list[str] | None = None
 
 
 def _service(request: Request) -> PlaybackService:
     return request.app.state.playback_service
+
+
+def _record_audit(request: Request, action: str, *, recording_id: str | None = None, session_id: str | None = None,
+                  parameters: dict[str, object] | None = None) -> None:
+    request.app.state.audit_service.record(
+        action, str(getattr(request.state, "request_id", "unknown")), recording_id=recording_id,
+        session_id=session_id, parameters=parameters,
+    )
 
 
 @router.post("/api/recordings/{recording_id}/playback", status_code=status.HTTP_201_CREATED)
@@ -42,6 +53,8 @@ def create_playback(recording_id: str, request: Request) -> dict:
                 "websocket_url": f"/api/playback/{session.id}/events"}
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -82,9 +95,20 @@ def create_waveform_playback(
     try:
         session: WaveformPlaybackService = request.app.state.waveform_playback_service
         requested_channels = payload.channels if payload else None
+        montage_id = payload.montage if payload else "original"
+        average_exclude = payload.average_exclude if payload else None
         if requested_channels is not None and not requested_channels:
             raise ValueError("至少选择一个有效显示通道")
-        created = session.create(recording_id, requested_channels=requested_channels)
+        if montage_id == "original":
+            if average_exclude is None:
+                created = session.create(recording_id, requested_channels=requested_channels)
+            else:
+                created = session.create(recording_id, requested_channels=requested_channels, average_exclude=average_exclude)
+        else:
+            created = session.create(recording_id, requested_channels=requested_channels, montage_id=montage_id, average_exclude=average_exclude)
+        _record_audit(request, "waveform.playback_create", recording_id=recording_id, session_id=created.id, parameters={
+            "channels": requested_channels, "montage": montage_id, "average_exclude": average_exclude or [],
+        })
         return {
             "session_id": created.id,
             "recording_id": recording_id,
@@ -93,6 +117,8 @@ def create_waveform_playback(
         }
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/api/waveform-playback/{session_id}/control")
@@ -103,7 +129,11 @@ def control_waveform_playback(session_id: str, payload: WaveformPlaybackControl,
         if "notch_hz" in payload.model_fields_set:
             values["notch_hz"] = payload.notch_hz
         values.pop("action", None)
-        return service.require(session_id).control(payload.action, **values)
+        session = service.require(session_id)
+        response = session.control(payload.action, **values)
+        _record_audit(request, "waveform.playback_control", recording_id=getattr(session, "recording_id", None), session_id=session_id,
+                      parameters={"action": payload.action, **values})
+        return response
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:

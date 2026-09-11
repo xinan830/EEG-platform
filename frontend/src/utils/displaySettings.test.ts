@@ -9,6 +9,7 @@ describe('EEG 阅图显示设置', () => {
       lowCutHz: 0.5,
       highCutHz: 70,
       notchHz: null,
+      baselineStabilization: false,
     })
   })
 

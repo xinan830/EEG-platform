@@ -13,6 +13,7 @@ from uuid import uuid4
 import numpy as np
 
 from app.eeg_core import EEGProcessor
+from app.eeg_core.analysis_contract import LIVE_ANALYSIS_CONTRACT
 from app.models.recording import RecordingSummary
 from app.services.recordings import RecordingService
 
@@ -115,7 +116,8 @@ class PlaybackSession:
             processor = EEGProcessor(sfreq, names)
             self._reset_processor(processor)
             self.status = "running"
-            self._emit({"type": "info", "sfreq": sfreq, "ch_names": names, "duration_s": len(data) / sfreq})
+            self._emit({"type": "info", "sfreq": sfreq, "ch_names": names, "duration_s": len(data) / sfreq,
+                        "algorithm_contract": LIVE_ANALYSIS_CONTRACT})
             position = 0
             event_index = 0
             chunk_samples = max(1, int(round(sfreq * 0.05)))
@@ -143,6 +145,7 @@ class PlaybackSession:
                     metrics, iapf, iapf_info, visualization, rbp = processor.calculate_metrics()
                     if metrics:
                         self._emit({"type": "metrics", "elapsed_s": processor.elapsed_s(), "metrics": metrics,
+                                    "algorithm_version": LIVE_ANALYSIS_CONTRACT["algorithm_version"],
                                     "iapf": iapf, "iapf_live": processor.iapf_live,
                                     "iapf_locked": processor.iapf_locked, "iapf_info": iapf_info,
                                     "rbp": rbp, "fatigue": processor.fatigue_index(), "hai": processor.hai_index(),

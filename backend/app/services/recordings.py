@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from app.core.config import ALLOWED_EXTENSIONS, DATABASE_PATH, RECORDINGS_DIR, ensure_storage_directories
 from app.models.recording import ChannelMapping, RecordingSummary
+from app.services.filter_checkpoint_cache import FilterCheckpointCache
 
 
 class RecordingService:
@@ -14,6 +15,7 @@ class RecordingService:
         self.database_path = Path(database_path)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
+        self._filter_checkpoints = FilterCheckpointCache()
         ensure_storage_directories()
         self._initialize_database()
 
@@ -114,6 +116,19 @@ class RecordingService:
         finally:
             raw.close()
 
+    def open_data_reader(self, recording: RecordingSummary):
+        """打开非预加载读取器，供连续回放按样本块读取；调用方必须 close。"""
+        import mne
+
+        path = self.storage_dir / recording.stored_name
+        reader = mne.io.read_raw_bdf if recording.extension == ".bdf" else mne.io.read_raw_edf
+        raw = reader(path, preload=False, verbose=False)
+        events = [
+            {"elapsed_s": float(onset), "label": str(label)}
+            for onset, label in zip(raw.annotations.onset, raw.annotations.description)
+        ]
+        return raw, float(raw.info["sfreq"]), list(raw.ch_names), events
+
     def load_preview_data(
         self,
         recording: RecordingSummary,
@@ -180,11 +195,15 @@ class RecordingService:
         notch_hz: float | None = None,
         reference: str = "original",
         channels: list[str] | None = None,
+        montage: str | None = None,
+        average_exclude: list[str] | None = None,
+        baseline_stabilization: bool = False,
     ) -> dict:
         """按需读取并处理一个阅图窗口；原始文件始终保持不变。"""
         import numpy as np
         import mne
-        from app.services.waveform_playback import DisplaySignalFilter
+        from app.services.waveform_playback import DISPLAY_FILTER_CONTRACT, DisplaySignalFilter
+        from app.services.montage import apply_montage, build_montage
 
         low = float(low_cut_hz)
         high = float(high_cut_hz)
@@ -207,60 +226,53 @@ class RecordingService:
             actual_stop = min(duration_s, actual_start + actual_window)
 
             available = list(raw.ch_names)
-            by_upper = {name.upper(): name for name in available}
-            if channels:
-                selected_names = []
-                for requested in channels:
-                    match = by_upper.get(str(requested).upper())
-                    if match and match not in selected_names:
-                        selected_names.append(match)
-                if not selected_names:
-                    raise ValueError("请求的通道不存在")
-            else:
-                selected_names = available
-            reference_name = None
             ref_mode = str(reference or "original")
-            if ref_mode not in {"original", "average"}:
-                reference_name = by_upper.get(ref_mode.upper())
-                if reference_name is None:
-                    raise ValueError("参考通道不存在")
-            # 平均参考按文件内全部通道计算，但返回仍只包含当前显示通道。
-            read_names = list(available) if ref_mode == "average" else list(selected_names)
-            if reference_name and reference_name not in read_names:
-                read_names.append(reference_name)
+            montage_id = str(montage or ("reference:" + ref_mode if ref_mode not in {"original", "average"} else ref_mode))
+            definition = build_montage(montage_id, available, channels, average_exclude)
+            read_names = list(definition.required_channels)
             indices = [available.index(name) for name in read_names]
 
-            # 扩展边界后滤波，再裁剪，避免窗口首尾出现明显滤波瞬态。
-            pad_s = max(1.0, min(10.0, 3.0 / low))
-            read_start = max(0.0, actual_start - pad_s)
-            read_stop = min(duration_s, actual_stop + pad_s)
-            start_sample = int(read_start * sfreq)
-            stop_sample = max(start_sample + 1, int(read_stop * sfreq))
-            values = np.asarray(raw.get_data(picks=indices, start=start_sample, stop=stop_sample), dtype=float).T
-            if values.shape[0] < 4:
-                raise ValueError("窗口数据不足")
-            # 与 WebSocket 播放完全复用同一个连续显示滤波器，避免导入静态图
-            # 和点击播放后的波形因零相位/因果滤波差异而不一致。
+            # 从最近检查点按播放相同的 50ms 块推进滤波器，再截取目标窗口。
+            # 首次访问仍从文件起点建立状态，后续窗口可复用同一滤波器状态。
+            n_times = int(raw.n_times)
+            start_sample = min(max(0, n_times - 1), int(actual_start * sfreq))
+            stop_sample = min(n_times, max(start_sample + 1, int(actual_stop * sfreq)))
+            chunk_samples = max(1, int(round(sfreq * 0.05)))
+            checkpoint_key = (recording.id, sfreq, low, high, notch_hz, bool(baseline_stabilization), tuple(read_names))
+            checkpoint_start, checkpoint_state = self._filter_checkpoints.nearest(checkpoint_key, start_sample)
             display_filter = DisplaySignalFilter(
                 sfreq=sfreq,
                 channel_count=len(read_names),
                 notch_freq=notch_hz,
                 bp_low=low,
                 bp_high=high,
+                baseline_stabilization=baseline_stabilization,
             )
-            filtered = display_filter.process(values)
-
-            if ref_mode == "average":
-                filtered = filtered - filtered.mean(axis=1, keepdims=True)
-            elif reference_name:
-                ref_index = read_names.index(reference_name)
-                filtered = filtered - filtered[:, ref_index : ref_index + 1]
-            selected_indices = [read_names.index(name) for name in selected_names]
-            filtered = filtered[:, selected_indices]
-
-            crop_start = max(0, int((actual_start - read_start) * sfreq))
-            crop_stop = min(len(filtered), crop_start + max(1, int((actual_stop - actual_start) * sfreq)))
-            cropped = filtered[crop_start:crop_stop]
+            if checkpoint_state is not None:
+                display_filter.restore(checkpoint_state)
+            pieces = []
+            cursor = checkpoint_start
+            checkpoint_interval = max(1, int(round(sfreq * 10.0)))
+            next_checkpoint = ((cursor // checkpoint_interval) + 1) * checkpoint_interval
+            while cursor < stop_sample:
+                end = min(stop_sample, cursor + chunk_samples)
+                values = np.asarray(raw.get_data(picks=indices, start=cursor, stop=end), dtype=float).T
+                if values.shape[0] == 0:
+                    break
+                filtered = display_filter.process(values)
+                derived = apply_montage(filtered, read_names, definition)
+                keep_start = max(0, start_sample - cursor)
+                keep_stop = min(len(derived), stop_sample - cursor)
+                if keep_start < keep_stop:
+                    pieces.append(derived[keep_start:keep_stop])
+                cursor = end
+                if cursor >= next_checkpoint:
+                    self._filter_checkpoints.put(checkpoint_key, cursor, display_filter.snapshot())
+                    while next_checkpoint <= cursor:
+                        next_checkpoint += checkpoint_interval
+            if not pieces:
+                raise ValueError("窗口数据不足")
+            cropped = np.concatenate(pieces, axis=0)
             elapsed = actual_start + np.arange(len(cropped), dtype=float) / sfreq
             events = [
                 {"elapsed_s": float(onset), "label": str(label)}
@@ -273,9 +285,9 @@ class RecordingService:
                 "window_start_s": actual_start,
                 "window_duration_s": float(len(cropped) / sfreq),
                 "elapsed_s": elapsed.round(6).tolist(),
-                "channels": {name: (cropped[:, index] * 1e6).round(4).tolist() for index, name in enumerate(selected_names)},
+                "channels": {item.name: (cropped[:, index] * 1e6).round(4).tolist() for index, item in enumerate(definition.channels)},
                 "events": events,
-                "settings": {"low_cut_hz": low, "high_cut_hz": high, "notch_hz": notch_hz, "reference": ref_mode},
+                "settings": {"low_cut_hz": low, "high_cut_hz": high, "notch_hz": notch_hz, "baseline_stabilization": bool(baseline_stabilization), "reference": ref_mode, "montage": definition.id, "average_exclude": list(definition.excluded_channels), "filter_contract": DISPLAY_FILTER_CONTRACT},
             }
         finally:
             raw.close()
@@ -317,6 +329,7 @@ class RecordingService:
             raw.close()
 
     def _delete_recording(self, recording: RecordingSummary) -> None:
+        self._filter_checkpoints.clear_recording(recording.id)
         (self.storage_dir / recording.stored_name).unlink(missing_ok=True)
         with self._connect() as connection:
             connection.execute("DELETE FROM recordings WHERE id = ?", (recording.id,))

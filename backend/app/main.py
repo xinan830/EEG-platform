@@ -6,6 +6,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.recordings import router as recordings_router
 from app.api.analyses import router as analyses_router
 from app.api.playback import router as playback_router
+from app.api.audit import router as audit_router
+from app.api.events import router as events_router
+from app.api.reports import router as reports_router
+from app.services.audit import AuditService
+from app.services.events import EventMarkerService
+from app.services.reports import ReportSnapshotService
 from app.services.recordings import RecordingService
 from app.services.playback import PlaybackService
 from app.services.waveform_playback import WaveformPlaybackService
@@ -32,9 +38,15 @@ app.add_middleware(
 app.state.recording_service = RecordingService()
 app.state.playback_service = PlaybackService(app.state.recording_service)
 app.state.waveform_playback_service = WaveformPlaybackService(app.state.recording_service)
+app.state.audit_service = AuditService()
+app.state.event_marker_service = EventMarkerService()
+app.state.report_snapshot_service = ReportSnapshotService()
 app.include_router(recordings_router)
 app.include_router(analyses_router)
 app.include_router(playback_router)
+app.include_router(audit_router)
+app.include_router(events_router)
+app.include_router(reports_router)
 
 
 @app.get("/api/health")

@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { DEFAULT_DISPLAY_SETTINGS, isValidDisplaySettings, type DisplaySettings } from '../utils/displaySettings'
 
 type DisplayPreset = 'general' | 'original' | 'custom'
-type DisplayChange = 'timebase' | 'sensitivity' | 'filter' | 'reference' | 'preset'
+type DisplayChange = 'timebase' | 'sensitivity' | 'filter' | 'baseline' | 'reference' | 'preset'
 
 interface DisplayControlActions {
   hasRecording: () => boolean
@@ -67,7 +67,7 @@ export function useDisplayControls(actions: DisplayControlActions) {
     void reloadForCurrentSettings()
   }
 
-  function change(kind: DisplayChange, value?: number | string | null) {
+  function change(kind: DisplayChange, value?: number | string | boolean | null) {
     if (kind === 'timebase') {
       settings.value.timebaseSeconds = value as 5 | 10 | 15 | 30
       applyTimebase()
@@ -75,11 +75,15 @@ export function useDisplayControls(actions: DisplayControlActions) {
       settings.value.sensitivityUvPerMm = value as 2 | 3 | 5 | 7 | 10 | 15 | 20
       applySensitivity()
     } else if (kind === 'filter') {
-      applyFilter(value)
+      applyFilter(value as number | string | null | undefined)
+    } else if (kind === 'baseline') {
+      settings.value.baselineStabilization = Boolean(value)
+      preset.value = 'custom'
+      void reloadForCurrentSettings()
     } else if (kind === 'reference') {
-      applyReference(value)
+      applyReference(value as number | string | null | undefined)
     } else {
-      applyPreset(value)
+      applyPreset(value as number | string | null | undefined)
     }
   }
 

@@ -4,6 +4,7 @@ export type DisplaySettings = {
   lowCutHz: number
   highCutHz: number
   notchHz: 50 | 60 | null
+  baselineStabilization: boolean
   reference?: 'original' | 'average' | string
 }
 
@@ -14,6 +15,7 @@ export const DEFAULT_DISPLAY_SETTINGS: DisplaySettings = {
   lowCutHz: 0.5,
   highCutHz: 70,
   notchHz: null,
+  baselineStabilization: false,
 }
 
 export function isValidDisplaySettings(settings: Pick<DisplaySettings, 'lowCutHz' | 'highCutHz'>): boolean {

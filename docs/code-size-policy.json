@@ -1,0 +1,6 @@
+{
+  "target_lines": 400,
+  "strong_review_lines": 600,
+  "critical_lines": 1000,
+  "reviews": {}
+}

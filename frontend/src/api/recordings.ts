@@ -23,7 +23,16 @@ export interface WaveformPreview {
   window_start_s: number
   window_duration_s: number
   sfreq: number
-  settings?: { low_cut_hz: number; high_cut_hz: number; notch_hz: number | null; reference: string }
+  settings?: {
+    low_cut_hz: number
+    high_cut_hz: number
+    notch_hz: number | null
+    baseline_stabilization: boolean
+    reference: string
+    montage?: string
+    average_exclude?: string[]
+    filter_contract?: Record<string, string | number | boolean>
+  }
 }
 
 export interface WaveformWindowOptions {
@@ -32,8 +41,75 @@ export interface WaveformWindowOptions {
   lowCutHz?: number
   highCutHz?: number
   notchHz?: number | null
+  baselineStabilization?: boolean
   reference?: string
   channels?: string[]
+  montage?: string
+  averageExclude?: string[]
+}
+
+export interface MontageOption {
+  id: string
+  label: string
+  available: boolean
+  channels: string[]
+  missing: string[]
+}
+
+export interface EventMarker {
+  id: string
+  recording_id: string
+  time_s: number
+  label: string
+  duration_s: number | null
+  created_at: string
+}
+
+export function getEventMarkers(id: string): Promise<EventMarker[]> {
+  return request(`/api/recordings/${id}/events`)
+}
+
+export function createEventMarker(id: string, payload: Pick<EventMarker, 'time_s' | 'label' | 'duration_s'>): Promise<EventMarker> {
+  return request(`/api/recordings/${id}/events`, { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function deleteEventMarker(recordingId: string, markerId: string): Promise<void> {
+  return request(`/api/recordings/${recordingId}/events/${markerId}`, { method: 'DELETE' })
+}
+
+export interface AlgorithmCheck {
+  time_s: number
+  montage: string
+  montage_label: string
+  average_participants: number
+  formulas: Record<string, string>
+  values_uv: Record<string, number | null>
+  settings: {
+    low_cut_hz: number
+    high_cut_hz: number
+    notch_hz: number | null
+    baseline_stabilization: boolean
+    montage: string
+    average_exclude?: string[]
+    filter_contract?: Record<string, string | number | boolean>
+  }
+}
+
+export function getMontages(id: string): Promise<{ recording_id: string; montages: MontageOption[] }> {
+  return request(`/api/recordings/${id}/montages`)
+}
+
+export function getAlgorithmCheck(id: string, options: WaveformWindowOptions & { timeS: number }): Promise<AlgorithmCheck> {
+  const query = new URLSearchParams({
+    time_s: String(options.timeS), low_cut_hz: String(options.lowCutHz ?? 0.5),
+    high_cut_hz: String(options.highCutHz ?? 70), reference: options.reference ?? 'original',
+  })
+  if (options.notchHz != null) query.set('notch_hz', String(options.notchHz))
+  query.set('baseline_stabilization', String(options.baselineStabilization ?? false))
+  if (options.channels?.length) query.set('channels', options.channels.join(','))
+  if (options.montage) query.set('montage', options.montage)
+  if (options.averageExclude?.length) query.set('average_exclude', options.averageExclude.join(','))
+  return request(`/api/recordings/${id}/algorithm-check?${query}`)
 }
 
 export function getWaveformWindow(id: string, options: WaveformWindowOptions = {}): Promise<WaveformPreview> {
@@ -45,7 +121,10 @@ export function getWaveformWindow(id: string, options: WaveformWindowOptions = {
     reference: options.reference ?? 'original',
   })
   if (options.notchHz != null) query.set('notch_hz', String(options.notchHz))
+  query.set('baseline_stabilization', String(options.baselineStabilization ?? false))
   if (options.channels?.length) query.set('channels', options.channels.join(','))
+  if (options.montage) query.set('montage', options.montage)
+  if (options.averageExclude?.length) query.set('average_exclude', options.averageExclude.join(','))
   return request(`/api/recordings/${id}/window?${query}`)
 }
 

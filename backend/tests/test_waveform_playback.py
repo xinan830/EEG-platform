@@ -51,6 +51,37 @@ def test_display_filter_supports_broad_review_settings_without_notch():
     assert np.isfinite(filtered).all()
 
 
+def test_display_filter_is_invariant_to_chunk_boundaries():
+    samples = np.sin(np.linspace(0, 12 * np.pi, 251, endpoint=False)).reshape(-1, 1) * 1e-5
+    whole = DisplaySignalFilter(sfreq=500.0, channel_count=1, notch_freq=50.0).process(samples)
+    chunked_filter = DisplaySignalFilter(sfreq=500.0, channel_count=1, notch_freq=50.0)
+    chunked = np.concatenate([
+        chunked_filter.process(samples[:25]),
+        chunked_filter.process(samples[25:73]),
+        chunked_filter.process(samples[73:]),
+    ])
+    np.testing.assert_allclose(whole, chunked, rtol=1e-12, atol=1e-15)
+
+
+def test_filter_state_warmup_matches_continuous_stream_after_seek():
+    samples = np.sin(np.linspace(0, 8 * np.pi, 180, endpoint=False)).reshape(-1, 1) * 1e-5
+    continuous = DisplaySignalFilter(sfreq=500.0, channel_count=1).process(samples)
+    resumed = DisplaySignalFilter(sfreq=500.0, channel_count=1)
+    for cursor in range(0, 100, 25):
+        resumed.process(samples[cursor:cursor + 25])
+    np.testing.assert_allclose(resumed.process(samples[100:125]), continuous[100:125], rtol=1e-12, atol=1e-15)
+
+
+def test_filter_snapshot_restore_matches_continuous_stream():
+    samples = np.sin(np.linspace(0, 8 * np.pi, 180, endpoint=False)).reshape(-1, 1) * 1e-5
+    continuous = DisplaySignalFilter(sfreq=500.0, channel_count=1).process(samples)
+    first = DisplaySignalFilter(sfreq=500.0, channel_count=1)
+    first.process(samples[:100])
+    resumed = DisplaySignalFilter(sfreq=500.0, channel_count=1)
+    resumed.restore(first.snapshot())
+    np.testing.assert_allclose(resumed.process(samples[100:125]), continuous[100:125], rtol=1e-12, atol=1e-15)
+
+
 def test_display_filter_rejects_an_invalid_cutoff_range():
     with np.testing.assert_raises_regex(ValueError, "低切"):
         DisplaySignalFilter(sfreq=500.0, channel_count=1, bp_low=70.0, bp_high=0.5)
@@ -103,7 +134,20 @@ def test_filter_change_resets_the_sweep_from_file_start():
 
     assert reset is True
     assert seek_to == 0.0
-    assert session._filter_settings == {"low_cut_hz": 1.0, "high_cut_hz": 35.0, "notch_hz": 50.0}
+    assert session._filter_settings == {
+        "low_cut_hz": 1.0, "high_cut_hz": 35.0, "notch_hz": 50.0,
+        "baseline_stabilization": False,
+    }
+
+
+def test_baseline_stabilization_is_explicit_and_defaults_off():
+    samples = np.linspace(0.001, 0.002, 100).reshape(-1, 1)
+    default = DisplaySignalFilter(sfreq=500.0, channel_count=1).process(samples)
+    enabled = DisplaySignalFilter(
+        sfreq=500.0, channel_count=1, baseline_stabilization=True,
+    ).process(samples)
+
+    assert not np.allclose(default, enabled, rtol=1e-6, atol=1e-12)
 
 
 def test_filter_change_resumes_a_paused_session_from_file_start():
@@ -241,6 +285,27 @@ def test_waveform_filter_control_keeps_an_explicit_notch_off_value(monkeypatch):
     assert response.json() == {"action": "set_filters"}
 
 
+def test_waveform_filter_control_forwards_baseline_stabilization(monkeypatch):
+    from app.main import app
+
+    class Session:
+        def control(self, action, **payload):
+            assert action == "set_filters"
+            assert payload == {"baseline_stabilization": True}
+            return {"action": action}
+
+    class Service:
+        def require(self, _session_id):
+            return Session()
+
+    monkeypatch.setattr(app.state, "waveform_playback_service", Service(), raising=False)
+    response = TestClient(app).post(
+        "/api/waveform-playback/waveform-session/control",
+        json={"action": "set_filters", "baseline_stabilization": True},
+    )
+    assert response.status_code == 200
+
+
 def test_waveform_channel_control_forwards_the_selected_channel_list(monkeypatch):
     from app.main import app
 
@@ -282,3 +347,51 @@ def test_waveform_event_socket_sends_binary_waveform_frames(monkeypatch):
 
     with TestClient(app).websocket_connect("/api/waveform-playback/waveform-session/events") as websocket:
         assert websocket.receive_bytes() == b"binary-waveform-frame"
+
+
+def test_waveform_session_reads_raw_data_in_display_chunks():
+    class Annotations:
+        onset = []
+        description = []
+
+    class Raw:
+        ch_names = ["Fz"]
+        n_times = 20
+        info = {"sfreq": 200.0}
+        annotations = Annotations()
+
+        def __init__(self):
+            self.calls = []
+            self.closed = False
+
+        def get_data(self, picks, start, stop):
+            self.calls.append((picks, start, stop))
+            return np.zeros((1, stop - start), dtype=float)
+
+        def close(self):
+            self.closed = True
+
+    class Readers:
+        def __init__(self, raw):
+            self.raw = raw
+
+        def open_data_reader(self, _recording):
+            return self.raw, 200.0, ["Fz"], []
+
+    raw = Raw()
+    recording = RecordingSummary(
+        id="recording-1", original_name="sample.bdf", stored_name="sample.bdf",
+        extension=".bdf", created_at="2026-09-09T00:00:00Z", mapping=None,
+    )
+    session = WaveformPlaybackSession(recording, Readers(raw), requested_channels=["Fz"])
+    session.start()
+    messages = []
+    while True:
+        message = session._outbound.get(timeout=2)
+        messages.append(message)
+        if isinstance(message, dict) and message.get("type") == "completed":
+            break
+    assert messages[0]["type"] == "info"
+    assert any(isinstance(message, bytes) for message in messages)
+    assert all(stop - start <= 10 for _, start, stop in raw.calls)
+    assert raw.closed is True

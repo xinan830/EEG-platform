@@ -1,0 +1,48 @@
+"""离线定量分析的公开算法契约。"""
+
+ANALYSIS_ALGORITHM_VERSION = "offline-spectral-v2"
+
+ANALYSIS_CONTRACT: dict[str, object] = {
+    "algorithm_version": ANALYSIS_ALGORITHM_VERSION,
+    "input_unit": "V",
+    "preprocessing_phase": "zero_phase",
+    "filter_form": "second_order_sections",
+    "bandpass_type": "butterworth",
+    "bandpass_prototype_order": 4,
+    "bandpass_hz": [1.0, 30.0],
+    "notch_hz": None,
+    "welch_epoch_s": 4.0,
+    "welch_epoch_overlap": 0.5,
+    "welch_window": "hann",
+    "welch_scaling": "density",
+    "artifact_peak_uv": 150.0,
+    "minimum_clean_epoch_ratio": 0.75,
+    "iapf_window_s": 30.0,
+    "iapf_step_s": 5.0,
+    "iapf_search_hz": [7.0, 13.0],
+    "iapf_lock_candidates": 3,
+    "aperiodic_model": "ordinary_least_squares_log10_power_vs_log10_frequency",
+    "aperiodic_fit_hz": [3.0, 30.0],
+    "aperiodic_fit_excludes_iapf_search_band": True,
+    "metric_start_s": 7.0,
+    "rhythm_stability_history_points": 8,
+    "brainbeat_formula": "relative_theta_Fz / relative_alpha_Pz",
+    "fatigue_formula": "theta / beta",
+    "reference": "original_recording_no_software_rereference",
+    "faa_formula": "ln(alpha_power_F4) - ln(alpha_power_F3)",
+    "faa_scope": "full_recording_after_12_seconds",
+    "metric_iapf_policy": "global_locked_else_last_candidate_else_10Hz",
+    "validation_status": "engineering_verified_not_clinically_validated",
+}
+
+LIVE_ANALYSIS_CONTRACT: dict[str, object] = {
+    "algorithm_version": "realtime-eegprocessor-v1",
+    "pipeline_status": "legacy_realtime_analysis",
+    "metric_filter_phase": "causal_sos",
+    "metric_bandpass_hz": [1.0, 30.0],
+    "iapf_preprocessing": "mne_fir_zero_phase",
+    "iapf_window_s": 30.0,
+    "iapf_step_s": 5.0,
+    "brainbeat_formula": "relative_theta_Fz / relative_alpha_Pz",
+    "note": "This pipeline is distinct from offline-spectral-v2 and may not produce identical values.",
+}

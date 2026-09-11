@@ -13,6 +13,9 @@ vi.mock('./api/recordings', () => ({
   saveMapping: vi.fn(),
   getWaveformWindow: vi.fn(),
   getPreview: vi.fn(),
+  getEventMarkers: vi.fn().mockResolvedValue([]),
+  createEventMarker: vi.fn(),
+  deleteEventMarker: vi.fn(),
 }))
 
 vi.mock('./api/waveformPlayback', () => ({
@@ -111,6 +114,25 @@ describe('导入后的通道选择流程', () => {
     expect(getWaveformWindow).toHaveBeenCalledTimes(1)
     expect(lastWindowOptions()?.startS).toBe(0)
     expect(lastWindowOptions()?.channels).toEqual(['Fz', 'Pz', 'O1', 'O2'])
+    wrapper.unmount()
+  })
+
+  it('重新导入第二个文件后会重置阅图状态，不需要刷新页面', async () => {
+    const wrapper = await mountImportedApp()
+    await findFooterButton(wrapper, '取消').trigger('click')
+    await flushPromises()
+    await wrapper.findComponent(ViewerToolbar).vm.$emit('open')
+    await flushPromises()
+    expect(wrapper.findComponent(FileImport).exists()).toBe(true)
+
+    const second: Recording = { ...fakeRecording, id: 'rec-2', original_name: 'second.edf', extension: '.edf' }
+    await wrapper.findComponent(FileImport).vm.$emit('imported', second)
+    await flushPromises()
+    expect(wrapper.find('.header-file').text()).toContain('second.edf')
+    expect(wrapper.find('.channel-dialog').exists()).toBe(true)
+    await findFooterButton(wrapper, '取消').trigger('click')
+    await flushPromises()
+    expect(lastWindowOptions()?.startS).toBe(0)
     wrapper.unmount()
   })
 })

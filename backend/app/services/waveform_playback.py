@@ -10,10 +10,11 @@ from typing import Any
 from uuid import uuid4
 
 import numpy as np
-from scipy import signal
 
 from app.models.recording import RecordingSummary
 from app.services.waveform_wire import WAVEFORM_BINARY_ENCODING, encode_waveform_binary
+from app.services.montage import apply_montage, build_montage
+from app.services.waveform_filter import DEFAULT_DISPLAY_FILTERS, DISPLAY_FILTER_CONTRACT, DisplaySignalFilter
 
 
 DISPLAY_CHANNEL_GROUPS = (
@@ -23,13 +24,6 @@ DISPLAY_CHANNEL_GROUPS = (
     ("F3",),
     ("F4",),
 )
-
-DEFAULT_DISPLAY_FILTERS = {
-    "low_cut_hz": 0.5,
-    "high_cut_hz": 70.0,
-    "notch_hz": None,
-}
-
 
 def select_display_channels(
     names: list[str],
@@ -63,78 +57,10 @@ def select_display_channels(
     return indices, [available[index] for index in indices]
 
 
-class DisplaySignalFilter:
-    """连续显示滤波；只作用于回放副本，绝不改写导入文件。"""
-
-    def __init__(
-        self,
-        sfreq: float,
-        channel_count: int,
-        notch_freq: float | None = None,
-        bp_low: float = 0.5,
-        bp_high: float = 70.0,
-    ):
-        self.sfreq = float(sfreq)
-        self.channel_count = int(channel_count)
-        if self.channel_count <= 0:
-            raise ValueError("至少需要一个 EEG 通道")
-        if not 0 < float(bp_low) < float(bp_high) < self.sfreq / 2:
-            raise ValueError("低切必须小于高切，且高切必须低于奈奎斯特频率")
-        if notch_freq is not None and not 0 < float(notch_freq) < self.sfreq / 2:
-            raise ValueError("陷波频率必须低于奈奎斯特频率")
-        self.notch_freq = None if notch_freq is None else float(notch_freq)
-        self.b_notch: np.ndarray | None = None
-        self.a_notch: np.ndarray | None = None
-        if self.notch_freq is not None:
-            self.b_notch, self.a_notch = signal.iirnotch(self.notch_freq, 30.0, self.sfreq)
-        self.b_bp, self.a_bp = signal.butter(4, [bp_low, bp_high], btype="bandpass", fs=self.sfreq)
-        self.dc_offset: np.ndarray | None = None
-        self.zi_notch: list[np.ndarray] | None = None
-        self.zi_bp: list[np.ndarray] | None = None
-
-    def process(self, samples: np.ndarray) -> np.ndarray:
-        """处理 `(samples, channels)` 输入，返回保持相同形状的伏特值。"""
-        chunk = np.asarray(samples, dtype=float)
-        if chunk.ndim != 2 or chunk.shape[1] != self.channel_count:
-            raise ValueError("EEG chunk 必须是 (samples, selected_channels) 矩阵")
-        if chunk.shape[0] == 0:
-            return chunk.copy()
-
-        extracted = chunk.T
-        if self.dc_offset is None:
-            self.dc_offset = np.mean(extracted, axis=1, keepdims=True)
-        self.dc_offset = 0.99 * self.dc_offset + 0.01 * np.mean(extracted, axis=1, keepdims=True)
-        no_dc = extracted - self.dc_offset
-
-        if self.zi_bp is None:
-            if self.b_notch is not None and self.a_notch is not None:
-                self.zi_notch = [
-                    signal.lfilter_zi(self.b_notch, self.a_notch) * no_dc[index, 0]
-                    for index in range(self.channel_count)
-                ]
-            self.zi_bp = [
-                signal.lfilter_zi(self.b_bp, self.a_bp) * no_dc[index, 0]
-                for index in range(self.channel_count)
-            ]
-
-        filtered = np.zeros_like(no_dc)
-        for index in range(self.channel_count):
-            current = no_dc[index]
-            if self.b_notch is not None and self.a_notch is not None and self.zi_notch is not None:
-                current, self.zi_notch[index] = signal.lfilter(
-                    self.b_notch, self.a_notch, current, zi=self.zi_notch[index],
-                )
-            current, self.zi_bp[index] = signal.lfilter(
-                self.b_bp, self.a_bp, current, zi=self.zi_bp[index],
-            )
-            filtered[index] = current
-        return filtered.T
-
-
 class WaveformPlaybackSession:
     """只负责波形的连续 BDF/EDF 回放，不依赖分析通道映射。"""
 
-    def __init__(self, recording: RecordingSummary, recordings: Any, requested_channels: list[str] | None = None):
+    def __init__(self, recording: RecordingSummary, recordings: Any, requested_channels: list[str] | None = None, montage_id: str = "original", average_exclude: list[str] | None = None):
         self.id = uuid4().hex
         self.recording_id = recording.id
         self._recording = recording
@@ -146,6 +72,8 @@ class WaveformPlaybackSession:
         self._speed = 1.0
         self._filter_settings = dict(DEFAULT_DISPLAY_FILTERS)
         self._requested_channels = requested_channels
+        self._montage_id = montage_id or "original"
+        self._average_exclude = average_exclude or []
         self._channels_changed = False
         self._thread: threading.Thread | None = None
         self.status = "created"
@@ -189,7 +117,14 @@ class WaveformPlaybackSession:
             notch_freq=self._filter_settings["notch_hz"],
             bp_low=self._filter_settings["low_cut_hz"],
             bp_high=self._filter_settings["high_cut_hz"],
+            baseline_stabilization=self._filter_settings["baseline_stabilization"],
         )
+
+    @staticmethod
+    def _prime_filter(display_filter: DisplaySignalFilter, read_chunk: Any, position: int, chunk_samples: int) -> None:
+        """定位后重放从文件起点到目标位置的状态，保证与静态窗口逐点一致。"""
+        for cursor in range(0, position, chunk_samples):
+            display_filter.process(read_chunk(cursor, min(position, cursor + chunk_samples)))
 
     @staticmethod
     def _resolve_reset_position(current: int, seek_to: float | None, sample_count: int, sfreq: float) -> int:
@@ -238,7 +173,7 @@ class WaveformPlaybackSession:
             elif action == "set_filters":
                 self._filter_settings = {
                     **self._filter_settings,
-                    **{key: command[key] for key in ("low_cut_hz", "high_cut_hz", "notch_hz") if key in command},
+                    **{key: command[key] for key in ("low_cut_hz", "high_cut_hz", "notch_hz", "baseline_stabilization") if key in command},
                 }
                 reset = True
                 # 修改任一滤波参数后统一从文件开头重新播放，避免新旧参数混在同一段波形中。
@@ -257,48 +192,57 @@ class WaveformPlaybackSession:
                 self.status = "stopped"
 
     def _run(self) -> None:
+        raw = None
         try:
-            raw_data, sfreq, all_names, events = self._recordings.load_data(self._recording)
-            data = np.asarray(raw_data, dtype=float)
-            indices, names = select_display_channels(list(all_names), requested_names=self._requested_channels)
-            if not indices:
-                raise RuntimeError("录制文件不包含可显示的 EEG 通道")
-            selected = data[:, indices]
-            chunk_samples = max(1, int(round(sfreq * 0.05)))
+            raw, sfreq, all_names, events = self._recordings.open_data_reader(self._recording)
+            requested = self._requested_channels
+            if requested is None and self._montage_id == "original":
+                _, requested = select_display_channels(list(all_names))
+            definition = build_montage(self._montage_id, list(all_names), requested, self._average_exclude)
+            source_indices = [all_names.index(name) for name in definition.required_channels]
+            names = [item.name for item in definition.channels]
+            chunk_samples = max(1, int(round(sfreq * DISPLAY_FILTER_CONTRACT["chunk_seconds"])))
+            sample_count = int(raw.n_times)
+
+            def read_chunk(start: int, stop: int) -> np.ndarray:
+                return np.asarray(raw.get_data(picks=source_indices, start=start, stop=stop), dtype=float).T
+
             position = 0
             event_index = 0
-            display_filter = self._create_filter(sfreq, len(names))
+            display_filter = self._create_filter(sfreq, len(definition.required_channels))
             self.status = "running"
             self._emit({
                 "type": "info", "sfreq": sfreq, "ch_names": names,
-                "duration_s": len(selected) / sfreq, "start_s": 0.0,
-                "filters": self._filter_settings, "waveform_encoding": WAVEFORM_BINARY_ENCODING,
+                "duration_s": sample_count / sfreq, "start_s": 0.0,
+                "filters": self._filter_settings, "filter_contract": DISPLAY_FILTER_CONTRACT, "waveform_encoding": WAVEFORM_BINARY_ENCODING,
             })
 
-            while not self._stop.is_set() and position < len(selected):
+            while not self._stop.is_set() and position < sample_count:
                 reset, seek_to = self._drain_controls()
                 if reset:
-                    # 参数变化与重播均在同一时间基准重新初始化滤波器。
-                    position = self._resolve_reset_position(position, seek_to, len(selected), sfreq)
+                    position = self._resolve_reset_position(position, seek_to, sample_count, sfreq)
                     if self._channels_changed:
-                        indices, names = select_display_channels(list(all_names), requested_names=self._requested_channels)
-                        selected = data[:, indices]
+                        definition = build_montage(self._montage_id, list(all_names), self._requested_channels, self._average_exclude)
+                        source_indices = [all_names.index(name) for name in definition.required_channels]
+                        names = [item.name for item in definition.channels]
                         self._channels_changed = False
                         self._emit({
                             "type": "info", "sfreq": sfreq, "ch_names": names,
-                            "duration_s": len(selected) / sfreq, "start_s": position / sfreq,
-                            "filters": self._filter_settings, "waveform_encoding": WAVEFORM_BINARY_ENCODING,
+                            "duration_s": sample_count / sfreq, "start_s": position / sfreq,
+                            "filters": self._filter_settings, "filter_contract": DISPLAY_FILTER_CONTRACT, "waveform_encoding": WAVEFORM_BINARY_ENCODING,
                         })
                     event_index = next((index for index, event in enumerate(events) if float(event["elapsed_s"]) >= position / sfreq), len(events))
-                    display_filter = self._create_filter(sfreq, len(names))
+                    display_filter = self._create_filter(sfreq, len(definition.required_channels))
+                    self._prime_filter(display_filter, read_chunk, position, chunk_samples)
                     self._emit({"type": "reset", "start_s": position / sfreq, "filters": self._filter_settings})
                 if self._paused.is_set():
                     time.sleep(0.02)
                     continue
 
-                end = min(len(selected), position + chunk_samples)
-                chunk = selected[position:end]
-                filtered_uv = display_filter.process(chunk) * 1e6
+                end = min(sample_count, position + chunk_samples)
+                chunk = read_chunk(position, end)
+                filtered = display_filter.process(chunk)
+                filtered_uv = apply_montage(filtered, list(definition.required_channels), definition) * 1e6
                 position = end
                 elapsed_s = position / sfreq
                 self._emit(encode_waveform_binary(elapsed_s, filtered_uv))
@@ -309,10 +253,13 @@ class WaveformPlaybackSession:
 
             if not self._stop.is_set():
                 self.status = "completed"
-                self._emit({"type": "completed", "elapsed_s": len(selected) / sfreq})
+                self._emit({"type": "completed", "elapsed_s": sample_count / sfreq})
         except Exception as exc:
             self.status = "failed"
             self._emit({"type": "error", "detail": str(exc)})
+        finally:
+            if raw is not None:
+                raw.close()
 
     async def next_message(self) -> dict[str, Any] | bytes:
         return await asyncio.to_thread(self._outbound.get)
@@ -323,9 +270,9 @@ class WaveformPlaybackService:
         self.recordings = recordings
         self.sessions: dict[str, WaveformPlaybackSession] = {}
 
-    def create(self, recording_id: str, requested_channels: list[str] | None = None) -> WaveformPlaybackSession:
+    def create(self, recording_id: str, requested_channels: list[str] | None = None, montage_id: str = "original", average_exclude: list[str] | None = None) -> WaveformPlaybackSession:
         recording = self.recordings.require_recording(recording_id)
-        session = WaveformPlaybackSession(recording, self.recordings, requested_channels)
+        session = WaveformPlaybackSession(recording, self.recordings, requested_channels, montage_id, average_exclude)
         self.sessions[session.id] = session
         session.start()
         return session

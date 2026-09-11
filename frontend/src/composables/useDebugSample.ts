@@ -10,6 +10,7 @@ export function useDebugSample(
   totalDurationS: Ref<number | undefined>,
   settings: Ref<DisplaySettings>,
   channelNames: Ref<string[]>,
+  montage: Ref<string>,
   error: Ref<string>,
 ) {
   const seconds = ref(0)
@@ -37,8 +38,10 @@ export function useDebugSample(
         lowCutHz: settings.value.lowCutHz,
         highCutHz: settings.value.highCutHz,
         notchHz: settings.value.notchHz,
+        baselineStabilization: settings.value.baselineStabilization,
         reference: settings.value.reference,
         channels: channelNames.value,
+        montage: montage.value,
       })
       const values = Object.fromEntries(Object.entries(payload.channels).map(([name, values]) => [name, values[0] ?? Number.NaN]))
       sample.value = { time: payload.elapsed_s[0] ?? absoluteSeconds, values }

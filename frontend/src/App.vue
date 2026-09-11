@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, shallowRef } from 'vue'
-import { getWaveformWindow } from './api/recordings'
+import { getMontages, getWaveformWindow, type MontageOption } from './api/recordings'
 import { controlWaveformPlayback, createWaveformPlayback, waveformPlaybackSocketUrl } from './api/waveformPlayback'
 import FileImport from './components/FileImport.vue'
 import ChannelSelectionDialog from './components/ChannelSelectionDialog.vue'
 import DisplaySettingsPanel from './components/DisplaySettingsPanel.vue'
+import MontageSelector from './components/MontageSelector.vue'
+import AlgorithmCheckDialog from './components/AlgorithmCheckDialog.vue'
 import DebugConsole from './components/DebugConsole.vue'
 import ViewerToolbar from './components/ViewerToolbar.vue'
 import WaveformPanel from './components/WaveformPanel.vue'
@@ -16,12 +18,11 @@ import { useDebugSample } from './composables/useDebugSample'
 import { useChannelSelection } from './composables/useChannelSelection'
 import { decodeWaveformBinary } from './utils/waveformBinary'
 import { useDisplayControls } from './composables/useDisplayControls'
+import { useAlgorithmCheck } from './composables/useAlgorithmCheck'
+import { useEventMarkers } from './composables/useEventMarkers'
+import { playbackFilterPayload } from './utils/displayFilter'
 
-type WaveformValues = ArrayLike<number>
-type Waveform = { elapsed_s: WaveformValues; channels: Record<string, WaveformValues> }
-type WaveformMessage = { type: string; sfreq?: number; ch_names?: string[]; duration_s?: number; start_s?: number; elapsed_s?: number; detail?: string }
-type WaveformPanelHandle = { appendBinaryWaveform: (buffer: ArrayBuffer) => boolean }
-type StreamInfo = { sfreq: number; channelNames: string[]; startS: number } | null
+type WaveformValues = ArrayLike<number>; type Waveform = { elapsed_s: WaveformValues; channels: Record<string, WaveformValues> }; type WaveformMessage = { type: string; sfreq?: number; ch_names?: string[]; duration_s?: number; start_s?: number; elapsed_s?: number; detail?: string }; type WaveformPanelHandle = { appendBinaryWaveform: (buffer: ArrayBuffer) => boolean }; type StreamInfo = { sfreq: number; channelNames: string[]; startS: number } | null
 
 const recording = ref<Recording | null>(null)
 // 波形采样本身由 TypedArray 缓冲拥有；浅响应式只通知画布数据帧已推进。
@@ -34,7 +35,8 @@ const playbackPositionS = ref(0)
 const totalDurationS = ref<number | undefined>()
 const sfreq = ref<number | undefined>()
 const windowStartS = ref(0)
-const displayChannelNames = ref<string[]>([])
+const displayChannelNames = ref<string[]>([]); const sourceChannelNames = ref<string[]>([])
+const montageId = ref('original'); const montageOptions = ref<MontageOption[]>([]); const averageExclude = ref<string[]>([])
 // Worker 消息必须是可结构化克隆的普通对象，流元数据不能被 Vue 深度代理。
 const streamInfo = shallowRef<StreamInfo>(null)
 const waveformPanel = ref<WaveformPanelHandle | null>(null)
@@ -42,6 +44,7 @@ let sessionId: string | null = null
 let socket: WebSocket | null = null
 let sweepBuffer: WaveformSweepBuffer | null = null
 let reviewRequestId = 0
+let fileGeneration = 0
 let packetStatsStartedAt = performance.now()
 let receivedPackets = 0
 let accumulatedPacketProcessingMs = 0
@@ -55,21 +58,36 @@ const displayControls = useDisplayControls({
 })
 const displaySettings = displayControls.settings
 const displayPreset = displayControls.preset
-const debug = useDebugSample(recording, totalDurationS, displaySettings, displayChannelNames, error)
+const debug = useDebugSample(recording, totalDurationS, displaySettings, sourceChannelNames, montageId, error)
+const algorithmCheck = useAlgorithmCheck(recording, displaySettings, sourceChannelNames, montageId, averageExclude, error)
+const algorithmOpen = algorithmCheck.open; const algorithmLoading = algorithmCheck.loading; const algorithmSeconds = algorithmCheck.seconds; const algorithmResult = algorithmCheck.result
 const debugSeconds = debug.seconds
 const debugLoading = debug.loading
 const debugSample = debug.sample
 const inspectDebugSample = debug.inspect
 const renderStats = ref('')
 const transportStats = ref('')
-const channelSelection = useChannelSelection(displayChannelNames, async () => {
+const eventMarkersState = useEventMarkers(recording, error)
+const eventMarkers = eventMarkersState.markers
+const channelSelection = useChannelSelection(sourceChannelNames, async () => {
   await stopPlayback()
   debug.reset()
   await loadReviewWindow(0)
 })
 // 模板只自动解包顶层 ref；嵌套在普通对象里的 ref 需先别名到顶层才能用于 v-if。
 const isChannelDialogOpen = channelSelection.isChannelDialogOpen
-
+async function changeAverageExclude(channels: string[]) { averageExclude.value = channels; await stopPlayback(); await loadReviewWindow(0) }
+function handleDisplayChange(kind: 'timebase' | 'sensitivity' | 'filter' | 'baseline' | 'reference' | 'preset', value?: number | string | boolean | null) {
+  if (kind === 'reference') {
+    const reference = String(value ?? 'original'); montageId.value = reference === 'original' || reference === 'average' ? reference : `reference:${reference}`
+    if (reference !== 'original' && reference !== 'average' && !montageOptions.value.some((item) => item.id === montageId.value)) montageOptions.value = [...montageOptions.value, { id: montageId.value, label: `${reference} 参考`, available: true, channels: [], missing: [] }]
+  }
+  displayControls.change(kind, value)
+}
+function handleDisplayReset() {
+  montageId.value = 'original'
+  displayControls.restoreDefaults()
+}
 function rebuildSweepBuffer(startS = playbackPositionS.value) {
   if (!sfreq.value || !displayChannelNames.value.length) return
   sweepBuffer = new WaveformSweepBuffer(
@@ -80,7 +98,6 @@ function rebuildSweepBuffer(startS = playbackPositionS.value) {
   )
   clearWaveform(startS)
 }
-
 function clearWaveform(startS = 0) {
   sweepBuffer?.reset(startS)
   waveform.value = sweepBuffer?.frame() ?? { elapsed_s: [], channels: {} }
@@ -97,7 +114,6 @@ function closeSocket() {
   }
   socket = null
 }
-
 async function stopPlayback() {
   if (sessionId) {
     try { await controlWaveformPlayback(sessionId, 'stop') } catch { /* 会话可能已结束。 */ }
@@ -106,7 +122,6 @@ async function stopPlayback() {
   sessionId = null
   playing.value = false
 }
-
 function handleWaveformMessage(message: WaveformMessage) {
   if (message.type === 'info' && message.sfreq && message.ch_names && message.duration_s !== undefined) {
     sfreq.value = message.sfreq
@@ -134,7 +149,6 @@ function handleWaveformMessage(message: WaveformMessage) {
     closeSocket()
   }
 }
-
 function handleWaveformBinary(buffer: ArrayBuffer) {
   if (waveformPanel.value?.appendBinaryWaveform(buffer)) return
   if (!sweepBuffer || !displayChannelNames.value.length) return
@@ -167,12 +181,7 @@ async function restartPlaybackFromBeginning() {
   clearWaveform(0)
   playing.value = true
   try {
-    await controlWaveformPlayback(sessionId, 'set_filters', {
-      low_cut_hz: displaySettings.value.lowCutHz,
-      high_cut_hz: displaySettings.value.highCutHz,
-      notch_hz: displaySettings.value.notchHz,
-      position_s: 0,
-    })
+    await controlWaveformPlayback(sessionId, 'set_filters', { ...playbackFilterPayload(displaySettings.value), position_s: 0 })
   } catch (cause) {
     playing.value = false
     error.value = cause instanceof Error ? cause.message : '无法从头应用波形设置'
@@ -198,8 +207,11 @@ async function loadReviewWindow(startS = 0) {
       lowCutHz: displaySettings.value.lowCutHz,
       highCutHz: displaySettings.value.highCutHz,
       notchHz: displaySettings.value.notchHz,
+      baselineStabilization: displaySettings.value.baselineStabilization,
       reference: displaySettings.value.reference,
-      channels: displayChannelNames.value.length ? displayChannelNames.value : chooseWaveformChannels(current.channels),
+      montage: montageId.value,
+      averageExclude: averageExclude.value,
+      channels: sourceChannelNames.value.length ? sourceChannelNames.value : chooseWaveformChannels(current.channels),
     })
     if (requestId !== reviewRequestId) return
     sfreq.value = payload.sfreq
@@ -220,19 +232,14 @@ async function startPlayback(positionS = 0) {
   loading.value = true
   error.value = ''
   try {
-    const created = await createWaveformPlayback(recording.value.id, displayChannelNames.value)
+    const created = await createWaveformPlayback(recording.value.id, sourceChannelNames.value, montageId.value, averageExclude.value)
     sessionId = created.session_id
     socket = new WebSocket(waveformPlaybackSocketUrl(created.websocket_url))
     socket.binaryType = 'arraybuffer'
     socket.onopen = async () => {
       if (!sessionId) return
       // 会话创建时已固定通道，避免先渲染默认通道再切换的首帧竞态。
-      await controlWaveformPlayback(sessionId, 'set_filters', {
-        low_cut_hz: displaySettings.value.lowCutHz,
-        high_cut_hz: displaySettings.value.highCutHz,
-        notch_hz: displaySettings.value.notchHz,
-        position_s: positionS,
-      })
+      await controlWaveformPlayback(sessionId, 'set_filters', { ...playbackFilterPayload(displaySettings.value), position_s: positionS })
     }
     socket.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
@@ -296,36 +303,44 @@ async function seekWindow(startS: number) {
   await loadReviewWindow(startS)
 }
 
-async function onImported(value: Recording) {
+async function changeMontage(value: string) {
+  if (value === montageId.value) return
+  montageId.value = value
   await stopPlayback()
-  recording.value = value
-  debug.reset()
-  sweepBuffer = null
-  streamInfo.value = null
-  displayChannelNames.value = chooseWaveformChannels(value.channels)
-  waveform.value = { elapsed_s: [], channels: {} }
-  totalDurationS.value = value.duration_s ?? undefined
-  sfreq.value = value.sfreq ?? undefined
-  playbackPositionS.value = 0
-  windowStartS.value = 0
+  await loadReviewWindow(0)
+}
+
+async function onImported(value: Recording) {
+  // 新文件开始后，旧文件的异步窗口/导联请求不得再写回界面。
+  fileGeneration += 1
+  reviewRequestId += 1
+  await stopPlayback()
+  recording.value = value; debug.reset(); sweepBuffer = null; streamInfo.value = null
+  displayChannelNames.value = chooseWaveformChannels(value.channels); sourceChannelNames.value = [...displayChannelNames.value]; montageId.value = 'original'; averageExclude.value = []
+  const importGeneration = fileGeneration
+  try {
+    const availableMontages = await getMontages(value.id)
+    if (importGeneration !== fileGeneration) return
+    montageOptions.value = availableMontages.montages
+  } catch {
+    if (importGeneration !== fileGeneration) return
+    montageOptions.value = [{ id: 'original', label: '原始记录（不重参考）', available: true, channels: value.channels, missing: [] }]
+  }
+  waveform.value = { elapsed_s: [], channels: {} }; totalDurationS.value = value.duration_s ?? undefined; sfreq.value = value.sfreq ?? undefined
+  playbackPositionS.value = 0; windowStartS.value = 0
   showStartup.value = false
   // 导入后先选通道再进入阅图；确认或取消都会从文件 0 秒读取（见 useChannelSelection）。
   channelSelection.openInitialChannelDialog()
 }
 
 async function newSession() {
+  fileGeneration += 1
+  reviewRequestId += 1
   await stopPlayback()
-  recording.value = null
-  debug.reset()
-  sweepBuffer = null
-  streamInfo.value = null
-  displayChannelNames.value = []
-  waveform.value = { elapsed_s: [], channels: {} }
-  totalDurationS.value = undefined
-  sfreq.value = undefined
-  playbackPositionS.value = 0
-  windowStartS.value = 0
-  error.value = ''
+  recording.value = null; debug.reset(); sweepBuffer = null; streamInfo.value = null
+  displayChannelNames.value = []; sourceChannelNames.value = []; montageId.value = 'original'; montageOptions.value = []; averageExclude.value = []
+  waveform.value = { elapsed_s: [], channels: {} }; totalDurationS.value = undefined; sfreq.value = undefined
+  playbackPositionS.value = 0; windowStartS.value = 0; error.value = ''; loading.value = false
   showStartup.value = true
 }
 
@@ -340,7 +355,8 @@ onBeforeUnmount(() => {
     <header class="app-header"><span class="brand-mark">▣</span><span>脑电文件波形查看器</span><span class="header-file">{{ recording?.original_name ? `- [${recording.original_name}]` : '' }}</span></header>
     <div class="app-body focused-body"><section class="main-column">
       <ViewerToolbar :recording="Boolean(recording)" :loading="loading" :playing="playing" :position-s="playbackPositionS" :total-duration-s="totalDurationS" :sfreq="sfreq" @open="newSession" @channels="channelSelection.openChannelDialog" @toggle="togglePlayback" @replay="replay" />
-      <DisplaySettingsPanel v-if="recording" :settings="displaySettings" :preset="displayPreset" :channel-names="displayChannelNames" @change="displayControls.change" @reset="displayControls.restoreDefaults" />
+      <DisplaySettingsPanel v-if="recording" :settings="displaySettings" :preset="displayPreset" :channel-names="sourceChannelNames" @change="handleDisplayChange" @reset="handleDisplayReset" @algorithm-check="algorithmCheck.show" />
+      <div v-if="recording && montageOptions.length" class="montage-bar"><MontageSelector :model-value="montageId" :options="montageOptions" :channels="recording.channels" :excluded-channels="averageExclude" @change="changeMontage" @update-excluded="changeAverageExclude" /><span class="montage-status">{{ montageOptions.find((item) => item.id === montageId)?.label }}{{ montageId === 'average' ? (averageExclude.length ? ` · 自定义排除 ${averageExclude.length} 个` : ' · AVG-All') : '' }}</span></div>
       <DebugConsole v-if="recording" :seconds="debugSeconds" :loading="debugLoading" :sample="debugSample" :render-stats="renderStats" :transport-stats="transportStats" @update-seconds="debugSeconds = $event" @inspect="inspectDebugSample" />
       <WaveformPanel
         ref="waveformPanel"
@@ -351,15 +367,20 @@ onBeforeUnmount(() => {
         :window-start-s="windowStartS"
         :window-duration-s="displaySettings.timebaseSeconds"
         :sensitivity-uv-per-mm="displaySettings.sensitivityUvPerMm"
+        :events="eventMarkers"
         @window-requested="seekWindow"
         @render-stats="renderStats = $event"
         @progress="handleWorkerProgress"
+        @create-event="eventMarkersState.create"
+        @jump-event="seekWindow"
+        @remove-event="eventMarkersState.remove"
       />
     </section></div>
     <div v-if="showStartup" class="modal-layer"><FileImport @imported="onImported" /></div>
     <div v-if="recording && isChannelDialogOpen" class="modal-layer channel-modal-layer" @click.self="channelSelection.closeChannelDialog">
-      <ChannelSelectionDialog :channels="recording.channels" :selected-channels="displayChannelNames" :on-cancel="channelSelection.closeChannelDialog" :on-confirm="channelSelection.applyChannels" />
+      <ChannelSelectionDialog :channels="recording.channels" :selected-channels="sourceChannelNames" :on-cancel="channelSelection.closeChannelDialog" :on-confirm="channelSelection.applyChannels" />
     </div>
+    <AlgorithmCheckDialog v-if="algorithmOpen" :loading="algorithmLoading" :seconds="algorithmSeconds" :result="algorithmResult" @close="algorithmCheck.close" @inspect="algorithmCheck.inspect" />
     <div v-if="error" class="error-toast">{{ error }}</div>
   </main>
 </template>

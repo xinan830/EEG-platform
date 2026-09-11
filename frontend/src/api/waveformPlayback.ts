@@ -9,17 +9,17 @@ export interface WaveformPlaybackSession {
   websocket_url: string
 }
 
-export function createWaveformPlayback(recordingId: string, channels: string[]): Promise<WaveformPlaybackSession> {
+export function createWaveformPlayback(recordingId: string, channels: string[], montage = 'original', averageExclude: string[] = []): Promise<WaveformPlaybackSession> {
   return request(`/api/recordings/${recordingId}/waveform-playback`, {
     method: 'POST',
-    body: JSON.stringify({ channels }),
+    body: JSON.stringify({ channels, montage, average_exclude: averageExclude }),
   })
 }
 
 export function controlWaveformPlayback(
   sessionId: string,
   action: 'pause' | 'resume' | 'restart' | 'seek' | 'set_filters' | 'set_channels' | 'stop',
-  payload: Record<string, number | string[] | null> = {},
+  payload: Record<string, number | string[] | boolean | null> = {},
 ) {
   return request(`/api/waveform-playback/${sessionId}/control`, {
     method: 'POST',

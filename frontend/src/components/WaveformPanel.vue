@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { CSS_PIXELS_PER_MM } from '../utils/waveformGeometry'
+import EventMarkerControls from './EventMarkerControls.vue'
+import type { EventMarker } from '../api/recordings'
 
 type NumericSeries = ArrayLike<number>
 type Waveform = { elapsed_s: NumericSeries; channels: Record<string, NumericSeries> }
 type StreamInfo = { sfreq: number; channelNames: string[]; startS: number } | null
 
-const props = defineProps<{ waveform: Waveform; stream?: StreamInfo; positionS?: number; totalDurationS?: number; windowStartS?: number; windowDurationS?: number; sensitivityUvPerMm?: number }>()
-const emit = defineEmits<{ windowRequested: [startS: number]; renderStats: [summary: string]; progress: [positionS: number, windowStartS: number] }>()
+const props = defineProps<{ waveform: Waveform; stream?: StreamInfo; positionS?: number; totalDurationS?: number; windowStartS?: number; windowDurationS?: number; sensitivityUvPerMm?: number; events?: EventMarker[] }>()
+const emit = defineEmits<{ windowRequested: [startS: number]; renderStats: [summary: string]; progress: [positionS: number, windowStartS: number]; createEvent: [timeS: number, label: string, durationS: number | null]; jumpEvent: [timeS: number]; removeEvent: [markerId: string] }>()
 const COLORS = ['#ef5350', '#5b9bd5', '#62bd69', '#ad65c7', '#ff943f']
 const PLOT_LEFT_PX = 74
 const PLOT_RIGHT_PX = 12
@@ -60,6 +62,8 @@ const shownTimelineStart = computed(() => pendingTimelineStart.value ?? viewStar
 const timelineWindowStyle = computed(() => ({ left: `${shownTimelineStart.value / totalS.value * 100}%`, width: `${Math.max(2, Math.min(100, viewDuration.value / totalS.value * 100))}%` }))
 const sensitivity = computed(() => props.sensitivityUvPerMm ?? 7)
 const referenceBarHeight = computed(() => `${50 / sensitivity.value * CSS_PIXELS_PER_MM}px`)
+const visibleEvents = computed(() => (props.events ?? []).filter((event) => event.time_s >= viewStart.value && event.time_s <= viewEnd.value))
+function createEvent(timeS: number, label: string, durationS: number | null) { emit('createEvent', timeS, label, durationS) }
 
 watch(() => [dataStart.value, dataDuration.value, props.windowDurationS] as const, ([start, duration, requested]) => {
   viewStart.value = start
@@ -75,7 +79,8 @@ watch(() => props.stream, (stream) => {
   sendFrame()
 })
 watch(() => props.waveform, () => { if (!props.stream) sendFrame() })
-watch(channelNames, () => nextTick(ensureRenderer))
+function attachWheel() { surface.value?.addEventListener('wheel', zoom, { passive: false }) }
+watch(channelNames, () => nextTick(() => { ensureRenderer(); attachWheel() }))
 
 function formatTime(seconds: number) {
   const value = Math.max(0, Math.round(seconds))
@@ -185,16 +190,16 @@ function ensureRenderer() {
   if (surface.value) resizeObserver.observe(surface.value)
   nextTick(() => { sendResize(); sendFrame() })
 }
-onMounted(() => nextTick(ensureRenderer))
-onBeforeUnmount(() => { resizeObserver?.disconnect(); renderer?.terminate() })
+onMounted(() => nextTick(() => { ensureRenderer(); attachWheel() }))
+onBeforeUnmount(() => { resizeObserver?.disconnect(); renderer?.terminate(); surface.value?.removeEventListener('wheel', zoom) })
 defineExpose({ appendBinaryWaveform })
 </script>
 
 <template>
   <section class="waveform-panel">
     <div class="waveform-titlebar"><span class="section-title">EEG 波形预览</span><span class="waveform-hint">{{ formatAxisTime(viewStart) }} – {{ formatAxisTime(viewEnd) }} · 滚轮调整时间尺度，拖动平移</span></div>
-    <div v-if="!channelNames.length" class="empty-waveform">导入文件后显示波形</div>
-    <div v-else ref="surface" class="plot-surface waveform-canvas-surface" :class="{ dragging: plotDragging }" @wheel="zoom" @pointerdown="beginDrag" @pointermove="moveDrag" @pointerup="plotDragging = false" @pointercancel="plotDragging = false">
+    <div ref="surface" class="plot-surface waveform-canvas-surface" :class="{ dragging: plotDragging }" @pointerdown="beginDrag" @pointermove="moveDrag" @pointerup="plotDragging = false" @pointercancel="plotDragging = false">
+      <div v-if="!channelNames.length" class="empty-waveform-overlay">导入文件后显示波形</div>
       <canvas ref="canvas" class="waveform-canvas" aria-label="脑电波形"></canvas>
       <span v-for="label in labels" :key="label.name" class="channel-label-text" :style="{ color: label.color, top: label.top }">{{ label.name }}</span>
       <div class="scale-marker" aria-label="50 微伏垂直标尺"><span class="scale-marker-line" :style="{ height: referenceBarHeight }"></span><span>50 µV</span></div>
@@ -204,8 +209,10 @@ defineExpose({ appendBinaryWaveform })
       <div class="time-axis" aria-label="波形时间轴"><span v-for="tick in ticks" :key="tick.time" :style="{ left: `${(tick.time - viewStart) / viewDuration * 100}%` }">{{ tick.label }}</span></div>
       <div ref="timelineSurface" class="timeline-overview" :class="{ dragging: timelineDragging }" aria-label="拖动时间轴浏览波形" @pointerdown.prevent="beginTimelineDrag" @pointermove="moveTimelineDrag" @pointerup="endTimelineDrag" @pointercancel="endTimelineDrag">
         <span v-for="tick in overviewTicks" :key="tick.time" class="overview-tick" :style="{ left: `${tick.time / totalS * 100}%` }">{{ tick.label }}</span>
+        <span v-for="event in visibleEvents" :key="`event-${event.id}`" class="event-marker-line" :style="{ left: `${(event.time_s - viewStart) / viewDuration * 100}%` }" :title="`${event.label} · ${event.time_s.toFixed(3)} s`"></span>
         <div class="timeline-window" :style="timelineWindowStyle" @pointerdown.prevent="beginTimelineWindowDrag"><span class="timeline-grip" aria-hidden="true"></span></div>
       </div>
     </template>
+    <EventMarkerControls :markers="events ?? []" :current-time-s="positionS ?? viewStart" :total-duration-s="totalDurationS" @create="createEvent" @jump="emit('jumpEvent', $event)" @remove="emit('removeEvent', $event)" />
   </section>
 </template>

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.models.recording import ChannelMapping, RecordingSummary
 from app.services.recordings import RecordingService
+from app.services.montage import build_montage, describe_montages, montage_formulas
 
 
 router = APIRouter(prefix="/api/recordings", tags=["recordings"])
@@ -29,6 +30,12 @@ def _service(request: Request) -> RecordingService:
     return request.app.state.recording_service
 
 
+def _record_audit(request: Request, action: str, recording_id: str, parameters: dict[str, object]) -> None:
+    request.app.state.audit_service.record(
+        action, str(getattr(request.state, "request_id", "unknown")), recording_id=recording_id, parameters=parameters,
+    )
+
+
 @router.post("/import", status_code=status.HTTP_201_CREATED)
 async def import_recording(request: Request, file: UploadFile = File(...)) -> dict:
     suffix = "." + file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else ""
@@ -36,12 +43,22 @@ async def import_recording(request: Request, file: UploadFile = File(...)) -> di
         recording = _service(request).create_imported_recording(file.filename or "recording", suffix, await file.read())
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _record_audit(request, "recording.import", recording.id, {"extension": recording.extension, "channel_count": len(recording.channels)})
     return _serialize(recording)
 
 
 @router.get("")
 def list_recordings(request: Request) -> list[dict]:
     return [_serialize(recording) for recording in _service(request).list_recordings()]
+
+
+@router.get("/{recording_id}/montages")
+def list_montages(recording_id: str, request: Request) -> dict:
+    try:
+        recording = _service(request).require_recording(recording_id)
+        return {"recording_id": recording_id, "montages": describe_montages(list(recording.channels))}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{recording_id}")
@@ -77,29 +94,91 @@ def get_window(
     low_cut_hz: float = Query(0.5, gt=0.0),
     high_cut_hz: float = Query(70.0, gt=0.0),
     notch_hz: Optional[float] = Query(None),
+    baseline_stabilization: bool = Query(False),
     reference: str = Query("original"),
+    montage: Optional[str] = Query(None),
+    average_exclude: Optional[str] = Query(None),
     channels: Optional[str] = Query(None),
 ) -> dict:
     """阅图模式：拖动时间轴时只读取并返回当前完整窗口。"""
     try:
         recording = _service(request).require_recording(recording_id)
         requested_channels = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
-        return _service(request).load_window(
+        payload = _service(request).load_window(
             recording,
             start_s=start_s,
             window_s=window_s,
             low_cut_hz=low_cut_hz,
             high_cut_hz=high_cut_hz,
             notch_hz=notch_hz,
+            baseline_stabilization=baseline_stabilization,
             reference=reference,
             channels=requested_channels,
+            montage=montage,
+            average_exclude=[item.strip() for item in average_exclude.split(",") if item.strip()] if average_exclude else None,
         )
+        _record_audit(request, "waveform.window", recording_id, {
+            "start_s": start_s, "window_s": window_s, "low_cut_hz": low_cut_hz, "high_cut_hz": high_cut_hz,
+            "notch_hz": notch_hz, "baseline_stabilization": baseline_stabilization, "reference": reference, "montage": montage, "channels": requested_channels,
+            "average_exclude": payload["settings"].get("average_exclude", []),
+        })
+        return payload
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"无法读取波形窗口：{exc}") from exc
+
+
+@router.get("/{recording_id}/algorithm-check")
+def algorithm_check(
+    recording_id: str,
+    request: Request,
+    time_s: float = Query(0.0, ge=0.0),
+    low_cut_hz: float = Query(0.5, gt=0.0),
+    high_cut_hz: float = Query(70.0, gt=0.0),
+    notch_hz: Optional[float] = Query(None),
+    baseline_stabilization: bool = Query(False),
+    reference: str = Query("original"),
+    montage: Optional[str] = Query(None),
+    average_exclude: Optional[str] = Query(None),
+    channels: Optional[str] = Query(None),
+) -> dict:
+    """Return one processed sample plus its montage formulas for diagnostics."""
+    try:
+        service = _service(request)
+        recording = service.require_recording(recording_id)
+        requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
+        payload = service.load_window(
+            recording, start_s=time_s, window_s=0.1, low_cut_hz=low_cut_hz,
+            high_cut_hz=high_cut_hz, notch_hz=notch_hz, baseline_stabilization=baseline_stabilization, reference=reference,
+            channels=requested, montage=montage,
+            average_exclude=[item.strip() for item in average_exclude.split(",") if item.strip()] if average_exclude else None,
+        )
+        definition = build_montage(payload["settings"]["montage"], list(recording.channels), requested, payload["settings"].get("average_exclude"))
+        values = {name: numbers[0] if numbers else None for name, numbers in payload["channels"].items()}
+        response = {
+            "time_s": payload["elapsed_s"][0] if payload["elapsed_s"] else time_s,
+            "montage": payload["settings"]["montage"],
+            "montage_label": definition.label,
+            "average_participants": len(definition.required_channels) if definition.id != "average" else len(definition.required_channels) - len(definition.excluded_channels),
+            "formulas": montage_formulas(definition),
+            "values_uv": values,
+            "settings": payload["settings"],
+        }
+        _record_audit(request, "waveform.algorithm_check", recording_id, {
+            "time_s": time_s, "montage": response["montage"], "channels": requested,
+            "low_cut_hz": low_cut_hz, "high_cut_hz": high_cut_hz, "notch_hz": notch_hz, "baseline_stabilization": baseline_stabilization,
+            "average_exclude": payload["settings"].get("average_exclude", []),
+        })
+        return response
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"无法执行算法检验：{exc}") from exc
 
 
 @router.put("/{recording_id}/mapping")

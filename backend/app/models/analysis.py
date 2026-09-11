@@ -8,3 +8,4 @@ class AnalysisSummary:
     status: str
     result_url: str
     locked_iapf: float | None = None
+    algorithm_version: str | None = None

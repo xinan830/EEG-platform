@@ -6,6 +6,7 @@ from uuid import uuid4
 from app.core.config import DATABASE_PATH
 from app.models.analysis import AnalysisSummary
 from app.processing.offline_analysis import analyze_recording
+from app.eeg_core.analysis_contract import ANALYSIS_ALGORITHM_VERSION
 from app.services.recordings import RecordingService
 
 
@@ -52,6 +53,7 @@ class AnalysisService:
             status="completed",
             result_url=f"/api/analyses/{analysis_id}",
             locked_iapf=result.locked_iapf,
+            algorithm_version=ANALYSIS_ALGORITHM_VERSION,
         )
 
     def get_result(self, analysis_id: str) -> dict:
@@ -60,4 +62,6 @@ class AnalysisService:
         if row is None:
             raise KeyError("分析结果不存在")
         result = json.loads(row["result_json"])
+        result.setdefault("algorithm_contract", {"algorithm_version": "legacy-unversioned"})
+        result.setdefault("faa", {"faa": None, "reason": "legacy_result_unavailable", "scope": "unknown"})
         return {"analysis_id": analysis_id, "recording_id": row["recording_id"], "status": row["status"], **result}

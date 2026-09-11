@@ -8,8 +8,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  change: [kind: 'timebase' | 'sensitivity' | 'filter' | 'reference' | 'preset', value?: number | string | null]
+  change: [kind: 'timebase' | 'sensitivity' | 'filter' | 'baseline' | 'reference' | 'preset', value?: number | string | boolean | null]
   reset: []
+  'algorithm-check': []
 }>()
 </script>
 
@@ -41,18 +42,15 @@ const emit = defineEmits<{
         <option value="">关闭</option><option :value="50">50 Hz</option><option :value="60">60 Hz</option>
       </select>
     </label>
-    <label>预设
-      <select :value="preset" @change="emit('change', 'preset', ($event.target as HTMLSelectElement).value)">
-        <option value="general">通用阅图</option><option value="original">原项目 1–30Hz + 50Hz</option><option value="custom">自定义</option>
-      </select>
-    </label>
+    <label class="baseline-toggle"><input type="checkbox" :checked="settings.baselineStabilization" @change="emit('change', 'baseline', ($event.target as HTMLInputElement).checked)">基线稳定</label>
     <label>参考
       <select :value="settings.reference" @change="emit('change', 'reference', ($event.target as HTMLSelectElement).value)">
-        <option value="original">原始参考</option><option value="average">平均参考</option>
+        <option value="original">原始记录（不重参考）</option><option value="average">平均参考</option>
         <option v-for="name in channelNames" :key="`ref-${name}`" :value="name">{{ name }} 参考</option>
       </select>
     </label>
     <button class="settings-reset" @click="emit('reset')">恢复默认</button>
-    <span class="settings-status">{{ settings.timebaseSeconds }} 秒/屏 · {{ settings.sensitivityUvPerMm }} µV/mm · {{ settings.lowCutHz }}–{{ settings.highCutHz }} Hz · 陷波：{{ settings.notchHz ? `${settings.notchHz} Hz` : '关闭' }}</span>
+    <button class="settings-reset" @click="emit('algorithm-check')">算法检验</button>
+    <span class="settings-status">{{ settings.timebaseSeconds }} 秒/屏 · {{ settings.sensitivityUvPerMm }} µV/mm · {{ settings.lowCutHz }}–{{ settings.highCutHz }} Hz · 陷波：{{ settings.notchHz ? `${settings.notchHz} Hz` : '关闭' }} · 基线稳定：{{ settings.baselineStabilization ? '开启' : '关闭' }}</span>
   </div>
 </template>

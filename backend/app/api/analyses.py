@@ -15,7 +15,12 @@ def _service(request: Request) -> AnalysisService:
 @router.post("/api/recordings/{recording_id}/analysis", status_code=status.HTTP_201_CREATED)
 def create_analysis(recording_id: str, request: Request) -> dict:
     try:
-        return asdict(_service(request).create_analysis(recording_id))
+        summary = _service(request).create_analysis(recording_id)
+        request.app.state.audit_service.record(
+            "analysis.create", str(getattr(request.state, "request_id", "unknown")),
+            recording_id=recording_id, parameters={"algorithm_version": summary.algorithm_version},
+        )
+        return asdict(summary)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
