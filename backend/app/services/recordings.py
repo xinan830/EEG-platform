@@ -197,6 +197,7 @@ class RecordingService:
         channels: list[str] | None = None,
         montage: str | None = None,
         average_exclude: list[str] | None = None,
+        custom_montage: list[dict[str, object]] | None = None,
         baseline_stabilization: bool = False,
     ) -> dict:
         """按需读取并处理一个阅图窗口；原始文件始终保持不变。"""
@@ -228,7 +229,9 @@ class RecordingService:
             available = list(raw.ch_names)
             ref_mode = str(reference or "original")
             montage_id = str(montage or ("reference:" + ref_mode if ref_mode not in {"original", "average"} else ref_mode))
-            definition = build_montage(montage_id, available, channels, average_exclude)
+            definition = build_montage(
+                montage_id, available, channels, average_exclude, custom_montage,
+            )
             read_names = list(definition.required_channels)
             indices = [available.index(name) for name in read_names]
 
@@ -287,7 +290,7 @@ class RecordingService:
                 "elapsed_s": elapsed.round(6).tolist(),
                 "channels": {item.name: (cropped[:, index] * 1e6).round(4).tolist() for index, item in enumerate(definition.channels)},
                 "events": events,
-                "settings": {"low_cut_hz": low, "high_cut_hz": high, "notch_hz": notch_hz, "baseline_stabilization": bool(baseline_stabilization), "reference": ref_mode, "montage": definition.id, "average_exclude": list(definition.excluded_channels), "filter_contract": DISPLAY_FILTER_CONTRACT},
+                "settings": {"low_cut_hz": low, "high_cut_hz": high, "notch_hz": notch_hz, "baseline_stabilization": bool(baseline_stabilization), "reference": ref_mode, "montage": definition.id, "average_exclude": list(definition.excluded_channels), "custom_montage": custom_montage or [], "filter_contract": DISPLAY_FILTER_CONTRACT},
             }
         finally:
             raw.close()

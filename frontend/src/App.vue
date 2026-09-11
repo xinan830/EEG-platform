@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, shallowRef } from 'vue'
-import { getMontages, getWaveformWindow, type MontageOption } from './api/recordings'
+import { getMontages, getWaveformWindow, type CustomMontageRow, type MontageOption } from './api/recordings'
 import { controlWaveformPlayback, createWaveformPlayback, waveformPlaybackSocketUrl } from './api/waveformPlayback'
 import FileImport from './components/FileImport.vue'
 import ChannelSelectionDialog from './components/ChannelSelectionDialog.vue'
 import DisplaySettingsPanel from './components/DisplaySettingsPanel.vue'
 import MontageSelector from './components/MontageSelector.vue'
+import CustomMontageDialog from './components/CustomMontageDialog.vue'
 import AlgorithmCheckDialog from './components/AlgorithmCheckDialog.vue'
 import DebugConsole from './components/DebugConsole.vue'
 import ViewerToolbar from './components/ViewerToolbar.vue'
@@ -37,6 +38,7 @@ const sfreq = ref<number | undefined>()
 const windowStartS = ref(0)
 const displayChannelNames = ref<string[]>([]); const sourceChannelNames = ref<string[]>([])
 const montageId = ref('original'); const montageOptions = ref<MontageOption[]>([]); const averageExclude = ref<string[]>([])
+const customMontage = ref<CustomMontageRow[]>([]); const customMontageOpen = ref(false)
 // Worker 消息必须是可结构化克隆的普通对象，流元数据不能被 Vue 深度代理。
 const streamInfo = shallowRef<StreamInfo>(null)
 const waveformPanel = ref<WaveformPanelHandle | null>(null)
@@ -58,8 +60,8 @@ const displayControls = useDisplayControls({
 })
 const displaySettings = displayControls.settings
 const displayPreset = displayControls.preset
-const debug = useDebugSample(recording, totalDurationS, displaySettings, sourceChannelNames, montageId, error)
-const algorithmCheck = useAlgorithmCheck(recording, displaySettings, sourceChannelNames, montageId, averageExclude, error)
+const debug = useDebugSample(recording, totalDurationS, displaySettings, sourceChannelNames, montageId, customMontage, error)
+const algorithmCheck = useAlgorithmCheck(recording, displaySettings, sourceChannelNames, montageId, averageExclude, customMontage, error)
 const algorithmOpen = algorithmCheck.open; const algorithmLoading = algorithmCheck.loading; const algorithmSeconds = algorithmCheck.seconds; const algorithmResult = algorithmCheck.result
 const debugSeconds = debug.seconds
 const debugLoading = debug.loading
@@ -77,6 +79,10 @@ const channelSelection = useChannelSelection(sourceChannelNames, async () => {
 // 模板只自动解包顶层 ref；嵌套在普通对象里的 ref 需先别名到顶层才能用于 v-if。
 const isChannelDialogOpen = channelSelection.isChannelDialogOpen
 async function changeAverageExclude(channels: string[]) { averageExclude.value = channels; await stopPlayback(); await loadReviewWindow(0) }
+async function applyCustomMontage(rows: CustomMontageRow[]) {
+  customMontage.value = rows; customMontageOpen.value = false; montageId.value = 'custom_bipolar'
+  await stopPlayback(); await loadReviewWindow(0)
+}
 function handleDisplayChange(kind: 'timebase' | 'sensitivity' | 'filter' | 'baseline' | 'reference' | 'preset', value?: number | string | boolean | null) {
   if (kind === 'reference') {
     const reference = String(value ?? 'original'); montageId.value = reference === 'original' || reference === 'average' ? reference : `reference:${reference}`
@@ -211,6 +217,7 @@ async function loadReviewWindow(startS = 0) {
       reference: displaySettings.value.reference,
       montage: montageId.value,
       averageExclude: averageExclude.value,
+      customMontage: customMontage.value,
       channels: sourceChannelNames.value.length ? sourceChannelNames.value : chooseWaveformChannels(current.channels),
     })
     if (requestId !== reviewRequestId) return
@@ -232,7 +239,7 @@ async function startPlayback(positionS = 0) {
   loading.value = true
   error.value = ''
   try {
-    const created = await createWaveformPlayback(recording.value.id, sourceChannelNames.value, montageId.value, averageExclude.value)
+    const created = await createWaveformPlayback(recording.value.id, sourceChannelNames.value, montageId.value, averageExclude.value, customMontage.value)
     sessionId = created.session_id
     socket = new WebSocket(waveformPlaybackSocketUrl(created.websocket_url))
     socket.binaryType = 'arraybuffer'
@@ -316,7 +323,7 @@ async function onImported(value: Recording) {
   reviewRequestId += 1
   await stopPlayback()
   recording.value = value; debug.reset(); sweepBuffer = null; streamInfo.value = null
-  displayChannelNames.value = chooseWaveformChannels(value.channels); sourceChannelNames.value = [...displayChannelNames.value]; montageId.value = 'original'; averageExclude.value = []
+  displayChannelNames.value = chooseWaveformChannels(value.channels); sourceChannelNames.value = [...displayChannelNames.value]; montageId.value = 'original'; averageExclude.value = []; customMontage.value = []; customMontageOpen.value = false
   const importGeneration = fileGeneration
   try {
     const availableMontages = await getMontages(value.id)
@@ -338,7 +345,7 @@ async function newSession() {
   reviewRequestId += 1
   await stopPlayback()
   recording.value = null; debug.reset(); sweepBuffer = null; streamInfo.value = null
-  displayChannelNames.value = []; sourceChannelNames.value = []; montageId.value = 'original'; montageOptions.value = []; averageExclude.value = []
+  displayChannelNames.value = []; sourceChannelNames.value = []; montageId.value = 'original'; montageOptions.value = []; averageExclude.value = []; customMontage.value = []; customMontageOpen.value = false
   waveform.value = { elapsed_s: [], channels: {} }; totalDurationS.value = undefined; sfreq.value = undefined
   playbackPositionS.value = 0; windowStartS.value = 0; error.value = ''; loading.value = false
   showStartup.value = true
@@ -356,7 +363,7 @@ onBeforeUnmount(() => {
     <div class="app-body focused-body"><section class="main-column">
       <ViewerToolbar :recording="Boolean(recording)" :loading="loading" :playing="playing" :position-s="playbackPositionS" :total-duration-s="totalDurationS" :sfreq="sfreq" @open="newSession" @channels="channelSelection.openChannelDialog" @toggle="togglePlayback" @replay="replay" />
       <DisplaySettingsPanel v-if="recording" :settings="displaySettings" :preset="displayPreset" :channel-names="sourceChannelNames" @change="handleDisplayChange" @reset="handleDisplayReset" @algorithm-check="algorithmCheck.show" />
-      <div v-if="recording && montageOptions.length" class="montage-bar"><MontageSelector :model-value="montageId" :options="montageOptions" :channels="recording.channels" :excluded-channels="averageExclude" @change="changeMontage" @update-excluded="changeAverageExclude" /><span class="montage-status">{{ montageOptions.find((item) => item.id === montageId)?.label }}{{ montageId === 'average' ? (averageExclude.length ? ` · 自定义排除 ${averageExclude.length} 个` : ' · AVG-All') : '' }}</span></div>
+      <div v-if="recording && montageOptions.length" class="montage-bar"><MontageSelector :model-value="montageId" :options="montageOptions" :channels="recording.channels" :excluded-channels="averageExclude" @change="changeMontage" @edit-custom="customMontageOpen = true" @update-excluded="changeAverageExclude" /><span class="montage-status">{{ montageOptions.find((item) => item.id === montageId)?.label }}{{ montageId === 'average' ? (averageExclude.length ? ` · 自定义排除 ${averageExclude.length} 个` : ' · AVG-All') : montageId === 'custom_bipolar' ? ` · ${customMontage.length} 条导联` : '' }}</span></div>
       <DebugConsole v-if="recording" :seconds="debugSeconds" :loading="debugLoading" :sample="debugSample" :render-stats="renderStats" :transport-stats="transportStats" @update-seconds="debugSeconds = $event" @inspect="inspectDebugSample" />
       <WaveformPanel
         ref="waveformPanel"
@@ -379,6 +386,9 @@ onBeforeUnmount(() => {
     <div v-if="showStartup" class="modal-layer"><FileImport @imported="onImported" /></div>
     <div v-if="recording && isChannelDialogOpen" class="modal-layer channel-modal-layer" @click.self="channelSelection.closeChannelDialog">
       <ChannelSelectionDialog :channels="recording.channels" :selected-channels="sourceChannelNames" :on-cancel="channelSelection.closeChannelDialog" :on-confirm="channelSelection.applyChannels" />
+    </div>
+    <div v-if="recording && customMontageOpen" class="modal-layer custom-montage-layer" @click.self="customMontageOpen = false">
+      <CustomMontageDialog :channels="recording.channels" :rows="customMontage" @cancel="customMontageOpen = false" @apply="applyCustomMontage" />
     </div>
     <AlgorithmCheckDialog v-if="algorithmOpen" :loading="algorithmLoading" :seconds="algorithmSeconds" :result="algorithmResult" @close="algorithmCheck.close" @inspect="algorithmCheck.inspect" />
     <div v-if="error" class="error-toast">{{ error }}</div>

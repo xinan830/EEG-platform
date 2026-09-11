@@ -1,4 +1,5 @@
 import { request } from './client'
+import type { CustomMontageRow } from './recordings'
 
 const apiBase = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000'
 
@@ -9,10 +10,16 @@ export interface WaveformPlaybackSession {
   websocket_url: string
 }
 
-export function createWaveformPlayback(recordingId: string, channels: string[], montage = 'original', averageExclude: string[] = []): Promise<WaveformPlaybackSession> {
+export function createWaveformPlayback(
+  recordingId: string,
+  channels: string[],
+  montage = 'original',
+  averageExclude: string[] = [],
+  customMontage: CustomMontageRow[] = [],
+): Promise<WaveformPlaybackSession> {
   return request(`/api/recordings/${recordingId}/waveform-playback`, {
     method: 'POST',
-    body: JSON.stringify({ channels, montage, average_exclude: averageExclude }),
+    body: JSON.stringify({ channels, montage, average_exclude: averageExclude, custom_montage: customMontage }),
   })
 }
 

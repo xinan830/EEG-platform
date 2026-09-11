@@ -1,5 +1,5 @@
 import { ref, type Ref } from 'vue'
-import { getWaveformWindow } from '../api/recordings'
+import { getWaveformWindow, type CustomMontageRow } from '../api/recordings'
 import type { Recording } from '../types/recording'
 import type { DisplaySettings } from '../utils/displaySettings'
 
@@ -11,6 +11,7 @@ export function useDebugSample(
   settings: Ref<DisplaySettings>,
   channelNames: Ref<string[]>,
   montage: Ref<string>,
+  customMontage: Ref<CustomMontageRow[]>,
   error: Ref<string>,
 ) {
   const seconds = ref(0)
@@ -42,6 +43,7 @@ export function useDebugSample(
         reference: settings.value.reference,
         channels: channelNames.value,
         montage: montage.value,
+        customMontage: customMontage.value,
       })
       const values = Object.fromEntries(Object.entries(payload.channels).map(([name, values]) => [name, values[0] ?? Number.NaN]))
       sample.value = { time: payload.elapsed_s[0] ?? absoluteSeconds, values }

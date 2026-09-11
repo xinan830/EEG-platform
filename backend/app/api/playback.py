@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from app.services.playback import PlaybackService
 from app.services.waveform_playback import WaveformPlaybackService
+from app.models.montage import CustomMontageChannelPayload
 
 
 router = APIRouter(tags=["playback"])
@@ -31,6 +32,7 @@ class WaveformPlaybackCreate(BaseModel):
     channels: list[str] | None = None
     montage: str = "original"
     average_exclude: list[str] | None = None
+    custom_montage: list[CustomMontageChannelPayload] | None = None
 
 
 def _service(request: Request) -> PlaybackService:
@@ -97,17 +99,18 @@ def create_waveform_playback(
         requested_channels = payload.channels if payload else None
         montage_id = payload.montage if payload else "original"
         average_exclude = payload.average_exclude if payload else None
+        custom_montage = [row.model_dump() for row in payload.custom_montage] if payload and payload.custom_montage else None
         if requested_channels is not None and not requested_channels:
             raise ValueError("至少选择一个有效显示通道")
         if montage_id == "original":
             if average_exclude is None:
                 created = session.create(recording_id, requested_channels=requested_channels)
             else:
-                created = session.create(recording_id, requested_channels=requested_channels, average_exclude=average_exclude)
+                created = session.create(recording_id, requested_channels=requested_channels, average_exclude=average_exclude, custom_montage=custom_montage)
         else:
-            created = session.create(recording_id, requested_channels=requested_channels, montage_id=montage_id, average_exclude=average_exclude)
+            created = session.create(recording_id, requested_channels=requested_channels, montage_id=montage_id, average_exclude=average_exclude, custom_montage=custom_montage)
         _record_audit(request, "waveform.playback_create", recording_id=recording_id, session_id=created.id, parameters={
-            "channels": requested_channels, "montage": montage_id, "average_exclude": average_exclude or [],
+            "channels": requested_channels, "montage": montage_id, "average_exclude": average_exclude or [], "custom_montage": custom_montage or [],
         })
         return {
             "session_id": created.id,

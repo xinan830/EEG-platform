@@ -1,10 +1,12 @@
 from dataclasses import asdict
+import json
 from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from app.models.recording import ChannelMapping, RecordingSummary
+from app.models.montage import CustomMontageChannelPayload
 from app.services.recordings import RecordingService
 from app.services.montage import build_montage, describe_montages, montage_formulas
 
@@ -18,6 +20,20 @@ class ChannelMappingPayload(BaseModel):
     oz: str
     f3: Optional[str] = None
     f4: Optional[str] = None
+
+
+def _custom_montage(value: str | None) -> list[dict[str, object]] | None:
+    if value is None:
+        return None
+    try:
+        payload = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError("自定义 Montage 定义不是有效 JSON") from exc
+    try:
+        rows = TypeAdapter(list[CustomMontageChannelPayload]).validate_python(payload)
+    except ValidationError as exc:
+        raise ValueError("自定义 Montage 定义格式不正确") from exc
+    return [row.model_dump() for row in rows]
 
 
 def _serialize(recording: RecordingSummary) -> dict:
@@ -98,6 +114,7 @@ def get_window(
     reference: str = Query("original"),
     montage: Optional[str] = Query(None),
     average_exclude: Optional[str] = Query(None),
+    custom_montage: Optional[str] = Query(None),
     channels: Optional[str] = Query(None),
 ) -> dict:
     """阅图模式：拖动时间轴时只读取并返回当前完整窗口。"""
@@ -116,11 +133,13 @@ def get_window(
             channels=requested_channels,
             montage=montage,
             average_exclude=[item.strip() for item in average_exclude.split(",") if item.strip()] if average_exclude else None,
+            custom_montage=_custom_montage(custom_montage),
         )
         _record_audit(request, "waveform.window", recording_id, {
             "start_s": start_s, "window_s": window_s, "low_cut_hz": low_cut_hz, "high_cut_hz": high_cut_hz,
             "notch_hz": notch_hz, "baseline_stabilization": baseline_stabilization, "reference": reference, "montage": montage, "channels": requested_channels,
             "average_exclude": payload["settings"].get("average_exclude", []),
+            "custom_montage": payload["settings"].get("custom_montage", []),
         })
         return payload
     except KeyError as exc:
@@ -143,6 +162,7 @@ def algorithm_check(
     reference: str = Query("original"),
     montage: Optional[str] = Query(None),
     average_exclude: Optional[str] = Query(None),
+    custom_montage: Optional[str] = Query(None),
     channels: Optional[str] = Query(None),
 ) -> dict:
     """Return one processed sample plus its montage formulas for diagnostics."""
@@ -155,8 +175,12 @@ def algorithm_check(
             high_cut_hz=high_cut_hz, notch_hz=notch_hz, baseline_stabilization=baseline_stabilization, reference=reference,
             channels=requested, montage=montage,
             average_exclude=[item.strip() for item in average_exclude.split(",") if item.strip()] if average_exclude else None,
+            custom_montage=_custom_montage(custom_montage),
         )
-        definition = build_montage(payload["settings"]["montage"], list(recording.channels), requested, payload["settings"].get("average_exclude"))
+        definition = build_montage(
+            payload["settings"]["montage"], list(recording.channels), requested,
+            payload["settings"].get("average_exclude"), payload["settings"].get("custom_montage"),
+        )
         values = {name: numbers[0] if numbers else None for name, numbers in payload["channels"].items()}
         response = {
             "time_s": payload["elapsed_s"][0] if payload["elapsed_s"] else time_s,
@@ -171,6 +195,7 @@ def algorithm_check(
             "time_s": time_s, "montage": response["montage"], "channels": requested,
             "low_cut_hz": low_cut_hz, "high_cut_hz": high_cut_hz, "notch_hz": notch_hz, "baseline_stabilization": baseline_stabilization,
             "average_exclude": payload["settings"].get("average_exclude", []),
+            "custom_montage": payload["settings"].get("custom_montage", []),
         })
         return response
     except KeyError as exc:

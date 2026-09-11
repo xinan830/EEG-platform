@@ -60,7 +60,7 @@ def select_display_channels(
 class WaveformPlaybackSession:
     """只负责波形的连续 BDF/EDF 回放，不依赖分析通道映射。"""
 
-    def __init__(self, recording: RecordingSummary, recordings: Any, requested_channels: list[str] | None = None, montage_id: str = "original", average_exclude: list[str] | None = None):
+    def __init__(self, recording: RecordingSummary, recordings: Any, requested_channels: list[str] | None = None, montage_id: str = "original", average_exclude: list[str] | None = None, custom_montage: list[dict[str, object]] | None = None):
         self.id = uuid4().hex
         self.recording_id = recording.id
         self._recording = recording
@@ -74,6 +74,7 @@ class WaveformPlaybackSession:
         self._requested_channels = requested_channels
         self._montage_id = montage_id or "original"
         self._average_exclude = average_exclude or []
+        self._custom_montage = custom_montage or []
         self._channels_changed = False
         self._thread: threading.Thread | None = None
         self.status = "created"
@@ -198,7 +199,7 @@ class WaveformPlaybackSession:
             requested = self._requested_channels
             if requested is None and self._montage_id == "original":
                 _, requested = select_display_channels(list(all_names))
-            definition = build_montage(self._montage_id, list(all_names), requested, self._average_exclude)
+            definition = build_montage(self._montage_id, list(all_names), requested, self._average_exclude, self._custom_montage)
             source_indices = [all_names.index(name) for name in definition.required_channels]
             names = [item.name for item in definition.channels]
             chunk_samples = max(1, int(round(sfreq * DISPLAY_FILTER_CONTRACT["chunk_seconds"])))
@@ -222,7 +223,7 @@ class WaveformPlaybackSession:
                 if reset:
                     position = self._resolve_reset_position(position, seek_to, sample_count, sfreq)
                     if self._channels_changed:
-                        definition = build_montage(self._montage_id, list(all_names), self._requested_channels, self._average_exclude)
+                        definition = build_montage(self._montage_id, list(all_names), self._requested_channels, self._average_exclude, self._custom_montage)
                         source_indices = [all_names.index(name) for name in definition.required_channels]
                         names = [item.name for item in definition.channels]
                         self._channels_changed = False
@@ -270,9 +271,9 @@ class WaveformPlaybackService:
         self.recordings = recordings
         self.sessions: dict[str, WaveformPlaybackSession] = {}
 
-    def create(self, recording_id: str, requested_channels: list[str] | None = None, montage_id: str = "original", average_exclude: list[str] | None = None) -> WaveformPlaybackSession:
+    def create(self, recording_id: str, requested_channels: list[str] | None = None, montage_id: str = "original", average_exclude: list[str] | None = None, custom_montage: list[dict[str, object]] | None = None) -> WaveformPlaybackSession:
         recording = self.recordings.require_recording(recording_id)
-        session = WaveformPlaybackSession(recording, self.recordings, requested_channels, montage_id, average_exclude)
+        session = WaveformPlaybackSession(recording, self.recordings, requested_channels, montage_id, average_exclude, custom_montage)
         self.sessions[session.id] = session
         session.start()
         return session

@@ -1,6 +1,16 @@
 import type { ChannelMapping, Recording } from '../types/recording'
 import { request } from './client'
 
+export interface CustomMontageTerm {
+  channel: string
+  weight: number
+}
+
+export interface CustomMontageRow {
+  name: string
+  terms: CustomMontageTerm[]
+}
+
 export function listRecordings(): Promise<Recording[]> {
   return request<Recording[]>('/api/recordings')
 }
@@ -31,6 +41,7 @@ export interface WaveformPreview {
     reference: string
     montage?: string
     average_exclude?: string[]
+    custom_montage?: CustomMontageRow[]
     filter_contract?: Record<string, string | number | boolean>
   }
 }
@@ -46,6 +57,7 @@ export interface WaveformWindowOptions {
   channels?: string[]
   montage?: string
   averageExclude?: string[]
+  customMontage?: CustomMontageRow[]
 }
 
 export interface MontageOption {
@@ -109,6 +121,7 @@ export function getAlgorithmCheck(id: string, options: WaveformWindowOptions & {
   if (options.channels?.length) query.set('channels', options.channels.join(','))
   if (options.montage) query.set('montage', options.montage)
   if (options.averageExclude?.length) query.set('average_exclude', options.averageExclude.join(','))
+  if (options.customMontage?.length) query.set('custom_montage', JSON.stringify(options.customMontage))
   return request(`/api/recordings/${id}/algorithm-check?${query}`)
 }
 
@@ -125,6 +138,7 @@ export function getWaveformWindow(id: string, options: WaveformWindowOptions = {
   if (options.channels?.length) query.set('channels', options.channels.join(','))
   if (options.montage) query.set('montage', options.montage)
   if (options.averageExclude?.length) query.set('average_exclude', options.averageExclude.join(','))
+  if (options.customMontage?.length) query.set('custom_montage', JSON.stringify(options.customMontage))
   return request(`/api/recordings/${id}/window?${query}`)
 }
 

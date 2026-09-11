@@ -235,6 +235,31 @@ def test_waveform_playback_create_passes_initial_channels_to_the_session(monkeyp
     assert response.status_code == 201
 
 
+def test_waveform_playback_create_passes_custom_montage_to_the_session(monkeypatch):
+    from app.main import app
+
+    rows = [{"name": "Left", "terms": [{"channel": "F3", "weight": 1.0}, {"channel": "Cz", "weight": -1.0}]}]
+
+    class Session:
+        id = "waveform-session"
+        status = "running"
+
+    class Service:
+        def create(self, recording_id, requested_channels=None, montage_id="original", average_exclude=None, custom_montage=None):
+            assert recording_id == "recording-1"
+            assert requested_channels == ["F3", "Cz"]
+            assert montage_id == "custom_bipolar"
+            assert custom_montage == rows
+            return Session()
+
+    monkeypatch.setattr(app.state, "waveform_playback_service", Service(), raising=False)
+    response = TestClient(app).post(
+        "/api/recordings/recording-1/waveform-playback",
+        json={"channels": ["F3", "Cz"], "montage": "custom_bipolar", "custom_montage": rows},
+    )
+    assert response.status_code == 201
+
+
 def test_waveform_playback_control_does_not_pass_action_twice(monkeypatch):
     from app.main import app
 

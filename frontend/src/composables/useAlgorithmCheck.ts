@@ -1,10 +1,10 @@
 import { ref, type Ref } from 'vue'
-import { getAlgorithmCheck, type AlgorithmCheck } from '../api/recordings'
+import { getAlgorithmCheck, type AlgorithmCheck, type CustomMontageRow } from '../api/recordings'
 import type { Recording } from '../types/recording'
 import type { DisplaySettings } from '../utils/displaySettings'
 
 export function useAlgorithmCheck(
-  recording: Ref<Recording | null>, settings: Ref<DisplaySettings>, channels: Ref<string[]>, montage: Ref<string>, averageExclude: Ref<string[]>, error: Ref<string>,
+  recording: Ref<Recording | null>, settings: Ref<DisplaySettings>, channels: Ref<string[]>, montage: Ref<string>, averageExclude: Ref<string[]>, customMontage: Ref<CustomMontageRow[]>, error: Ref<string>,
 ) {
   const open = ref(false)
   const loading = ref(false)
@@ -22,6 +22,7 @@ export function useAlgorithmCheck(
         notchHz: settings.value.notchHz, baselineStabilization: settings.value.baselineStabilization, reference: settings.value.reference,
         montage: montage.value, channels: channels.value,
         averageExclude: averageExclude.value,
+        customMontage: customMontage.value,
       })
     } catch (cause) { error.value = cause instanceof Error ? cause.message : '无法执行算法检验' }
     finally { loading.value = false }

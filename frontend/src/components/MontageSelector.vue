@@ -2,12 +2,14 @@
 import type { MontageOption } from '../api/recordings'
 
 const props = defineProps<{ modelValue: string; options: MontageOption[]; channels: string[]; excludedChannels: string[] }>()
-const emit = defineEmits<{ change: [value: string]; 'update-excluded': [channels: string[]] }>()
+const emit = defineEmits<{ change: [value: string]; 'edit-custom': []; 'update-excluded': [channels: string[]] }>()
 
 function choose(event: Event) {
   const value = (event.target as HTMLSelectElement).value
   const option = props.options.find((item) => item.id === value)
-  if (option?.available) emit('change', value)
+  if (!option?.available) return
+  if (value === 'custom_bipolar') emit('edit-custom')
+  else emit('change', value)
 }
 
 function toggleExcluded(channel: string) {
@@ -26,6 +28,7 @@ function toggleExcluded(channel: string) {
       </option>
     </select>
   </label>
+  <button v-if="modelValue === 'custom_bipolar'" type="button" class="settings-reset" @click="emit('edit-custom')">编辑导联</button>
   <details v-if="modelValue === 'average'" class="average-reference-options">
     <summary>{{ excludedChannels.length ? `配置平均参考（自定义排除 ${excludedChannels.length} 个）` : 'AVG-All（全部有效通道）' }}</summary>
     <div class="average-channel-grid">

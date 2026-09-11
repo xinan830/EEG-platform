@@ -7,11 +7,13 @@ same definitions are used by static windows and continuous playback.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 import numpy as np
 
 
 ALIASES = {"T3": "T7", "T4": "T8", "T5": "P7", "T6": "P8"}
+MAX_CUSTOM_MONTAGE_CHANNELS = 32
 
 
 @dataclass(frozen=True)
@@ -42,17 +44,8 @@ MONTAGE_CATALOG = (
     ("longitudinal_bipolar", "纵向双极"),
     ("transverse_bipolar", "横向双极"),
     ("cz_reference", "Cz 参考"),
-    ("standard_16", "标准 16 通道参考"),
-    ("standard_18", "标准 18 通道参考"),
-    ("standard_20", "标准 20 通道参考"),
-    ("custom_bipolar", "自定义双极"),
+    ("custom_bipolar", "自定义 Montage"),
 )
-
-STANDARD_CHANNEL_SETS = {
-    "standard_16": ("Fp1", "Fp2", "F7", "F3", "F4", "F8", "T7", "C3", "Cz", "C4", "T8", "P7", "P3", "Pz", "P4", "P8"),
-    "standard_18": ("Fp1", "Fp2", "F7", "F3", "F4", "F8", "T7", "C3", "Cz", "C4", "T8", "P7", "P3", "Pz", "P4", "P8", "O1", "O2"),
-    "standard_20": ("Fp1", "Fp2", "F7", "F3", "Fz", "F4", "F8", "T7", "C3", "Cz", "C4", "T8", "P7", "P3", "Pz", "P4", "P8", "O1", "O2", "Oz"),
-}
 
 
 def canonical_name(name: str) -> str:
@@ -93,13 +86,6 @@ def _difference(name: str, positive: str, negative: str) -> MontageChannel:
     return MontageChannel(name, (MontageTerm(positive, 1.0), MontageTerm(negative, -1.0)))
 
 
-def _referential_set(montage_id: str, label: str, available: list[str]) -> MontageDefinition:
-    requested = STANDARD_CHANNEL_SETS[montage_id]
-    selected = _require(list(requested), available)
-    channels = tuple(MontageChannel(name, (MontageTerm(name, 1.0),)) for name in selected)
-    return MontageDefinition(montage_id, label, channels, tuple(selected))
-
-
 def _require(names: list[str], available: list[str]) -> list[str]:
     missing = [name for name in names if resolve_channel(name, available) is None]
     if missing:
@@ -107,7 +93,58 @@ def _require(names: list[str], available: list[str]) -> list[str]:
     return [resolve_channel(name, available) or name for name in names]
 
 
-def build_montage(montage_id: str, available_names: list[str], requested_names: list[str] | None = None, excluded_names: list[str] | None = None) -> MontageDefinition:
+def _custom_bipolar(
+    available: list[str],
+    custom_channels: list[dict[str, object]] | None,
+) -> MontageDefinition:
+    if not custom_channels:
+        raise ValueError("自定义 Montage 至少需要一条导联")
+    if len(custom_channels) > MAX_CUSTOM_MONTAGE_CHANNELS:
+        raise ValueError(f"自定义 Montage 最多支持 {MAX_CUSTOM_MONTAGE_CHANNELS} 条导联")
+    channels: list[MontageChannel] = []
+    used_names: set[str] = set()
+    for index, item in enumerate(custom_channels, start=1):
+        name = str(item.get("name", "")).strip()
+        if not name or len(name) > 64:
+            raise ValueError(f"自定义导联第 {index} 行名称为空或超过 64 个字符")
+        if name.casefold() in used_names:
+            raise ValueError(f"自定义导联名称重复：{name}")
+        raw_terms = item.get("terms")
+        if not isinstance(raw_terms, list) or not raw_terms:
+            raise ValueError(f"自定义导联 {name} 至少需要一个计算项")
+        if len(raw_terms) > MAX_CUSTOM_MONTAGE_CHANNELS:
+            raise ValueError(f"自定义导联 {name} 最多支持 {MAX_CUSTOM_MONTAGE_CHANNELS} 个计算项")
+        terms: list[MontageTerm] = []
+        used_channels: set[str] = set()
+        for raw_term in raw_terms:
+            if not isinstance(raw_term, dict):
+                raise ValueError(f"自定义导联 {name} 的计算项格式不正确")
+            channel = resolve_channel(str(raw_term.get("channel", "")), available)
+            try:
+                weight = float(raw_term.get("weight", 0))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"自定义导联 {name} 的权重不是有效数字") from exc
+            if channel is None:
+                raise ValueError(f"自定义导联 {name} 使用了不存在的通道")
+            if canonical_name(channel) in used_channels:
+                raise ValueError(f"自定义导联 {name} 重复使用通道：{channel}")
+            if not math.isfinite(weight) or weight == 0:
+                raise ValueError(f"自定义导联 {name} 的权重必须是非零有限数")
+            used_channels.add(canonical_name(channel))
+            terms.append(MontageTerm(channel, weight))
+        used_names.add(name.casefold())
+        channels.append(MontageChannel(name, tuple(terms)))
+    required = _unique([term.channel for channel in channels for term in channel.terms])
+    return MontageDefinition("custom_bipolar", "自定义 Montage", tuple(channels), required)
+
+
+def build_montage(
+    montage_id: str,
+    available_names: list[str],
+    requested_names: list[str] | None = None,
+    excluded_names: list[str] | None = None,
+    custom_channels: list[dict[str, object]] | None = None,
+) -> MontageDefinition:
     """Build a validated montage for a concrete recording."""
     available = [str(name) for name in available_names]
     montage_id = str(montage_id or "original").strip()
@@ -191,16 +228,8 @@ def build_montage(montage_id: str, available_names: list[str], requested_names: 
         required = _unique([term.channel for item in channels for term in item.terms])
         return MontageDefinition(montage_id, "Cz 参考", channels, required)
 
-    if montage_id in STANDARD_CHANNEL_SETS:
-        labels = {"standard_16": "标准 16 通道参考", "standard_18": "标准 18 通道参考", "standard_20": "标准 20 通道参考"}
-        return _referential_set(montage_id, labels[montage_id], available)
-
     if montage_id == "custom_bipolar":
-        selected = _requested(available, requested_names)
-        if len(selected) < 2:
-            raise ValueError("自定义双极至少需要两个通道")
-        channels = tuple(_difference(f"{left}-{right}", left, right) for left, right in zip(selected, selected[1:]))
-        return MontageDefinition(montage_id, "自定义双极", channels, tuple(selected))
+        return _custom_bipolar(available, custom_channels)
 
     raise ValueError("不支持的导联方案")
 
@@ -224,6 +253,9 @@ def apply_montage(data: np.ndarray, available_names: list[str], definition: Mont
 def describe_montages(available_names: list[str]) -> list[dict[str, object]]:
     result = []
     for montage_id, label in MONTAGE_CATALOG:
+        if montage_id == "custom_bipolar":
+            result.append({"id": montage_id, "label": label, "available": True, "channels": [], "missing": []})
+            continue
         try:
             definition = build_montage(montage_id, available_names)
             result.append({"id": montage_id, "label": label, "available": True, "channels": [item.name for item in definition.channels], "missing": []})

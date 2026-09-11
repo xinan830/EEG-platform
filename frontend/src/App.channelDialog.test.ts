@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.vue'
 import FileImport from './components/FileImport.vue'
 import ViewerToolbar from './components/ViewerToolbar.vue'
-import { getWaveformWindow, type WaveformPreview } from './api/recordings'
+import { getMontages, getWaveformWindow, type WaveformPreview } from './api/recordings'
 import type { Recording } from './types/recording'
 
 vi.mock('./api/recordings', () => ({
@@ -12,6 +12,7 @@ vi.mock('./api/recordings', () => ({
   listRecordings: vi.fn(),
   saveMapping: vi.fn(),
   getWaveformWindow: vi.fn(),
+  getMontages: vi.fn(),
   getPreview: vi.fn(),
   getEventMarkers: vi.fn().mockResolvedValue([]),
   createEventMarker: vi.fn(),
@@ -50,6 +51,13 @@ const fakeWindow: WaveformPreview = {
 /** WaveformPanel 依赖 canvas 与 ResizeObserver，jsdom 中用桩替换，不影响弹窗接线。 */
 async function mountImportedApp() {
   vi.mocked(getWaveformWindow).mockResolvedValue(fakeWindow)
+  vi.mocked(getMontages).mockResolvedValue({
+    recording_id: fakeRecording.id,
+    montages: [
+      { id: 'original', label: '原始记录（不重参考）', available: true, channels: fakeRecording.channels, missing: [] },
+      { id: 'custom_bipolar', label: '自定义 Montage', available: true, channels: [], missing: [] },
+    ],
+  })
   const wrapper = mount(App, { global: { stubs: { WaveformPanel: true } } })
   await wrapper.findComponent(FileImport).vm.$emit('imported', fakeRecording)
   await flushPromises()
@@ -133,6 +141,30 @@ describe('导入后的通道选择流程', () => {
     await findFooterButton(wrapper, '取消').trigger('click')
     await flushPromises()
     expect(lastWindowOptions()?.startS).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('自定义 Montage 应用后从头读取并传递明确的正负极定义', async () => {
+    const wrapper = await mountImportedApp()
+    await findFooterButton(wrapper, '取消').trigger('click')
+    await flushPromises()
+    await wrapper.find('.montage-selector select').setValue('custom_bipolar')
+    await flushPromises()
+
+    expect(wrapper.find('.custom-montage-dialog').exists()).toBe(true)
+    await wrapper.find('.custom-montage-name input').setValue('F3-Fz')
+    const selects = wrapper.findAll('.custom-montage-term select')
+    await selects[0].setValue('F3')
+    await selects[1].setValue('Fz')
+    await wrapper.find('.custom-montage-dialog .channel-confirm').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.custom-montage-dialog').exists()).toBe(false)
+    expect(lastWindowOptions()).toMatchObject({
+      startS: 0,
+      montage: 'custom_bipolar',
+      customMontage: [{ name: 'F3-Fz', terms: [{ channel: 'F3', weight: 1 }, { channel: 'Fz', weight: -1 }] }],
+    })
     wrapper.unmount()
   })
 })
