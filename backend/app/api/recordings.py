@@ -173,6 +173,20 @@ def get_spectrum(
         raise HTTPException(status_code=422, detail=f"无法计算频谱：{exc}") from exc
 
 
+@router.get("/{recording_id}/spectrogram")
+def get_spectrogram(recording_id: str, request: Request, start_s: float = Query(0.0, ge=0.0), window_s: float = Query(30.0, ge=4.0, le=120.0), channels: Optional[str] = Query(None)) -> dict:
+    try:
+        recording = _service(request).require_recording(recording_id)
+        requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
+        payload = _service(request).load_spectrogram(recording, start_s, window_s, requested)
+        _record_audit(request, "analysis.spectrogram", recording_id, {"start_s": start_s, "window_s": window_s, "channels": requested or list(recording.channels)})
+        return payload
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.get("/{recording_id}/algorithm-check")
 def algorithm_check(
     recording_id: str,

@@ -1,0 +1,11 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { getSpectrogram } from '../api/spectrogram'
+const props = defineProps<{ recordingId?: string; startS: number; channels: string[] }>()
+const result = ref<Awaited<ReturnType<typeof getSpectrogram>> | null>(null); const loading = ref(false); const error = ref(''); const selected = ref(''); let requestId = 0
+const channel = computed(() => selected.value || result.value?.channels[0] || '')
+const cells = computed(() => { const matrix = result.value?.power[channel.value] ?? []; const flat = matrix.flat(); const max = Math.max(...flat, 1e-20); return matrix.map((row) => row.map((value) => Math.round((value / max) * 255))) })
+async function reload() { if (!props.recordingId || !props.channels.length) return; const current = ++requestId; loading.value = true; error.value = ''; try { const data = await getSpectrogram(props.recordingId, props.startS, 30, props.channels); if (current === requestId) result.value = data } catch (cause) { if (current === requestId) error.value = cause instanceof Error ? cause.message : '时频图读取失败' } finally { if (current === requestId) loading.value = false } }
+watch(() => [props.recordingId, props.channels], reload, { immediate: true })
+</script>
+<template><section class="spectrogram-panel" aria-label="时频图"><header class="spectrum-header"><strong>时频图</strong><span v-if="result">{{ result.algorithm_version }} · {{ result.units }}</span></header><p v-if="loading" class="spectrum-empty">正在计算时频图…</p><p v-else-if="error" class="spectrum-error">{{ error }}</p><template v-else-if="result"><div class="spectrum-controls"><label>通道 <select :value="channel" @change="selected = ($event.target as HTMLSelectElement).value"><option v-for="name in result.channels" :key="name">{{ name }}</option></select></label><button type="button" @click="reload">刷新时频图</button></div><div class="spectrogram-grid" :style="{ '--cols': String(result.times_s.length) }"><i v-for="(row, y) in cells" :key="y"><b v-for="(value, x) in row" :key="x" :style="{ backgroundColor: `rgb(${value},${Math.round(value * .45)},${255 - value})` }" /></i></div></template><p v-else class="spectrum-empty">暂无时频数据</p></section></template>

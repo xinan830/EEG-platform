@@ -1,0 +1,1 @@
+export interface SpectrogramResponse { recording_id: string; window_start_s: number; window_duration_s: number; channels: string[]; times_s: number[]; frequencies_hz: number[]; power: Record<string, number[][]>; units: string; algorithm_version: string; segment_s: number; step_s: number }

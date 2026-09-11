@@ -83,3 +83,23 @@ def band_power(freqs: np.ndarray, psd: np.ndarray, low: float, high: float) -> n
     result = np.trapezoid(integration_values, integration_freqs, axis=-1)
     result = result.reshape(values.shape[:-1])
     return float(result) if np.ndim(result) == 0 else result
+
+
+def estimate_spectrogram(data: np.ndarray, sfreq: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Compute a fixed 2 s Hann spectrogram; output power is in V²/Hz."""
+    values = np.asarray(data, dtype=float)
+    segment_samples = int(round(2.0 * sfreq))
+    step_samples = int(round(1.0 * sfreq))
+    if values.ndim != 2 or len(values) < segment_samples:
+        raise ValueError("时频图至少需要 2 秒数据")
+    frames = [values[start:start + segment_samples] for start in range(0, len(values) - segment_samples + 1, step_samples)]
+    window = signal.get_window("hann", segment_samples)
+    freqs = np.fft.rfftfreq(segment_samples, 1.0 / sfreq)
+    spectra = []
+    for frame in frames:
+        transformed = np.fft.rfft(frame * window[:, None], axis=0)
+        density = np.abs(transformed) ** 2 / (sfreq * np.sum(window ** 2))
+        density[1:-1] *= 2.0
+        spectra.append(density.T)
+    mask = (freqs >= 1.0) & (freqs <= 30.0)
+    return np.asarray([index / sfreq for index in range(0, len(values) - segment_samples + 1, step_samples)]), freqs[mask], np.stack(spectra)[:, :, mask]

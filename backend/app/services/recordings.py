@@ -259,6 +259,20 @@ class RecordingService:
             "quality": {"clean_segments": spectrum.clean_epochs, "total_segments": spectrum.total_epochs, "clean_ratio": spectrum.signal_quality, "gate_failed": spectrum.gate_failed},
         }
 
+    def load_spectrogram(self, recording: RecordingSummary, start_s: float = 0.0, window_s: float = 30.0, channels: list[str] | None = None) -> dict:
+        """Return a fixed v1 spectrogram from the continuous v3-preprocessed signal."""
+        from app.eeg_core.spectral import estimate_spectrogram
+        payload = self.load_spectrum(recording, start_s=start_s, window_s=window_s, channels=channels)
+        names = payload["channels"]
+        cached = self._analysis_preprocess_cache.get(recording.id, str(payload["algorithm_version"]))
+        assert cached is not None
+        indexes = [list(cached.channel_names).index(name) for name in names]
+        import numpy as np
+        start_index = int(np.floor(float(start_s) * cached.sfreq))
+        stop_index = min(len(cached.data), start_index + int(round(float(window_s) * cached.sfreq)))
+        times, freqs, values = estimate_spectrogram(cached.data[start_index:stop_index, :][:, indexes], cached.sfreq)
+        return {"recording_id": recording.id, "window_start_s": float(start_s), "window_duration_s": (stop_index - start_index) / cached.sfreq, "channels": names, "times_s": (times + float(start_s)).tolist(), "frequencies_hz": freqs.tolist(), "power": {name: (values[:, index, :] * 1e12).tolist() for index, name in enumerate(names)}, "units": "uV^2/Hz", "algorithm_version": "spectrogram-v1", "segment_s": 2.0, "step_s": 1.0}
+
     def load_window(
         self,
         recording: RecordingSummary,
