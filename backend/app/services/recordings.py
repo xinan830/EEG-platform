@@ -7,6 +7,7 @@ from uuid import uuid4
 from app.core.config import ALLOWED_EXTENSIONS, DATABASE_PATH, RECORDINGS_DIR, ensure_storage_directories
 from app.models.recording import ChannelMapping, RecordingSummary
 from app.services.filter_checkpoint_cache import FilterCheckpointCache
+from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
 
 
 class RecordingService:
@@ -16,6 +17,7 @@ class RecordingService:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         self._filter_checkpoints = FilterCheckpointCache()
+        self._analysis_preprocess_cache = AnalysisPreprocessCache()
         ensure_storage_directories()
         self._initialize_database()
 
@@ -202,7 +204,14 @@ class RecordingService:
         from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
         from app.eeg_core.spectral import band_power, estimate_welch_psd, preprocess_offline
 
-        data, sfreq, names, _events = self.load_data(recording)
+        version = str(ANALYSIS_CONTRACT["algorithm_version"])
+        cached = self._analysis_preprocess_cache.get(recording.id, version)
+        if cached is None:
+            data, sfreq, names, _events = self.load_data(recording)
+            filtered_all = preprocess_offline(np.asarray(data, dtype=float), sfreq)
+            cached = PreprocessedRecording(filtered_all, sfreq, tuple(names))
+            self._analysis_preprocess_cache.put(recording.id, version, cached)
+        filtered_all, sfreq, names = cached.data, cached.sfreq, list(cached.channel_names)
         available = {name.casefold(): name for name in names}
         requested = names if channels is None else [available.get(item.casefold()) for item in channels]
         if any(item is None for item in requested):
@@ -211,7 +220,7 @@ class RecordingService:
         if not requested_names:
             raise ValueError("频谱分析至少需要一个通道")
         indexes = [names.index(item) for item in requested_names]
-        filtered = preprocess_offline(np.asarray(data, dtype=float)[:, indexes], sfreq)
+        filtered = filtered_all[:, indexes]
         duration_s = len(filtered) / sfreq
         actual_start = max(0.0, min(float(start_s), duration_s))
         start_index = int(np.floor(actual_start * sfreq))
@@ -398,6 +407,7 @@ class RecordingService:
 
     def _delete_recording(self, recording: RecordingSummary) -> None:
         self._filter_checkpoints.clear_recording(recording.id)
+        self._analysis_preprocess_cache.clear_recording(recording.id)
         (self.storage_dir / recording.stored_name).unlink(missing_ok=True)
         with self._connect() as connection:
             connection.execute("DELETE FROM recordings WHERE id = ?", (recording.id,))
