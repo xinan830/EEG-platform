@@ -11,6 +11,7 @@ import AlgorithmCheckDialog from './components/AlgorithmCheckDialog.vue'
 import DebugConsole from './components/DebugConsole.vue'
 import ViewerToolbar from './components/ViewerToolbar.vue'
 import WaveformPanel from './components/WaveformPanel.vue'
+import SpectrumPanel from './components/SpectrumPanel.vue'
 import type { Recording } from './types/recording'
 import { isValidDisplaySettings } from './utils/displaySettings'
 import { WaveformSweepBuffer } from './utils/waveformSweepBuffer'
@@ -382,6 +383,7 @@ onBeforeUnmount(() => {
         @jump-event="seekWindow"
         @remove-event="eventMarkersState.remove"
       />
+      <SpectrumPanel v-if="recording" :recording-id="recording.id" :start-s="windowStartS" :channels="sourceChannelNames" />
     </section></div>
     <div v-if="showStartup" class="modal-layer"><FileImport @imported="onImported" /></div>
     <div v-if="recording && isChannelDialogOpen" class="modal-layer channel-modal-layer" @click.self="channelSelection.closeChannelDialog">
