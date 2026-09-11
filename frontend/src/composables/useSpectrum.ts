@@ -10,6 +10,6 @@ export function useSpectrum(recordingId: Ref<string | undefined>, startS: Ref<nu
     catch (cause) { if (current === requestId) error.value = cause instanceof Error ? cause.message : '频谱读取失败' }
     finally { if (current === requestId) loading.value = false }
   }
-  watch([recordingId, startS, channels], reload, { immediate: true })
+  watch([recordingId, channels], reload, { immediate: true })
   return { result, loading, error, reload }
 }
