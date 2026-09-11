@@ -1,6 +1,6 @@
 """离线定量分析的公开算法契约。"""
 
-ANALYSIS_ALGORITHM_VERSION = "offline-spectral-v2"
+ANALYSIS_ALGORITHM_VERSION = "offline-spectral-v3"
 
 ANALYSIS_CONTRACT: dict[str, object] = {
     "algorithm_version": ANALYSIS_ALGORITHM_VERSION,
@@ -11,12 +11,19 @@ ANALYSIS_CONTRACT: dict[str, object] = {
     "bandpass_prototype_order": 4,
     "bandpass_hz": [1.0, 30.0],
     "notch_hz": None,
-    "welch_epoch_s": 4.0,
-    "welch_epoch_overlap": 0.5,
+    "welch_segment_s": 4.0,
+    "welch_segment_overlap": 0.5,
     "welch_window": "hann",
     "welch_scaling": "density",
     "artifact_peak_uv": 150.0,
     "minimum_clean_epoch_ratio": 0.75,
+    "quality_gate_policy": "average_clean_segments_only_then_fail_below_ratio",
+    "frequency_band_edges": {
+        "delta": [1.0, 4.0, "left_closed_right_open"],
+        "theta": [4.0, 8.0, "left_closed_right_open"],
+        "alpha": [8.0, 13.0, "left_closed_right_open"],
+        "beta": [13.0, 30.0, "closed"],
+    },
     "iapf_window_s": 30.0,
     "iapf_step_s": 5.0,
     "iapf_search_hz": [7.0, 13.0],
@@ -44,5 +51,5 @@ LIVE_ANALYSIS_CONTRACT: dict[str, object] = {
     "iapf_window_s": 30.0,
     "iapf_step_s": 5.0,
     "brainbeat_formula": "relative_theta_Fz / relative_alpha_Pz",
-    "note": "This pipeline is distinct from offline-spectral-v2 and may not produce identical values.",
+    "note": "This pipeline is distinct from offline-spectral-v3 and may not produce identical values.",
 }

@@ -4,7 +4,7 @@ from scipy import signal
 from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
 from app.eeg_core.faa import compute_faa
 from app.eeg_core.offline_metrics import metric_values
-from app.eeg_core.spectral import SpectralEstimate, estimate_welch_psd, preprocess_offline
+from app.eeg_core.spectral import SpectralEstimate, band_power, estimate_welch_psd, preprocess_offline
 
 
 def test_offline_preprocessing_matches_independent_scipy_reference():
@@ -18,7 +18,7 @@ def test_offline_preprocessing_matches_independent_scipy_reference():
     expected = signal.sosfiltfilt(sos, source, axis=0)
 
     np.testing.assert_allclose(preprocess_offline(source, sfreq), expected, rtol=1e-12, atol=1e-15)
-    assert ANALYSIS_CONTRACT["algorithm_version"] == "offline-spectral-v2"
+    assert ANALYSIS_CONTRACT["algorithm_version"] == "offline-spectral-v3"
 
 
 def test_welch_rejects_paired_artifact_epochs_without_joining_samples():
@@ -34,6 +34,42 @@ def test_welch_rejects_paired_artifact_epochs_without_joining_samples():
     assert spectrum.signal_quality == 1 / 3
     assert spectrum.gate_failed == "low_quality"
     assert spectrum.psd.shape == (3, 0)
+
+
+def test_welch_segments_overlap_inside_long_analysis_window():
+    sfreq = 100.0
+    times = np.arange(30 * int(sfreq)) / sfreq
+    values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+
+    spectrum = estimate_welch_psd(values, sfreq)
+
+    assert spectrum.total_epochs == 14
+    assert spectrum.clean_epochs == 14
+    assert spectrum.gate_failed is None
+
+
+def test_known_amplitude_sine_integrates_to_mean_square_power():
+    sfreq = 200.0
+    amplitude = 20e-6
+    times = np.arange(30 * int(sfreq)) / sfreq
+    values = (amplitude * np.sin(2 * np.pi * 10 * times))[:, None]
+
+    spectrum = estimate_welch_psd(values, sfreq)
+    power = float(np.trapezoid(spectrum.psd[0], spectrum.freqs))
+
+    assert np.isclose(power, amplitude ** 2 / 2.0, rtol=0.02)
+
+
+def test_band_integration_interpolates_boundaries_without_losing_area():
+    freqs = np.arange(1.0, 31.0)
+    psd = np.ones_like(freqs)
+
+    delta = band_power(freqs, psd, 1.0, 4.0)
+    theta = band_power(freqs, psd, 4.0, 8.0)
+
+    assert delta == 3.0
+    assert theta == 4.0
+    assert delta + theta == band_power(freqs, psd, 1.0, 8.0)
 
 
 def test_metric_formulas_use_fz_theta_over_pz_alpha_and_frontal_posterior_alpha():

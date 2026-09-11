@@ -21,7 +21,7 @@ def test_offline_analysis_emits_iapf_attempts_every_five_seconds_after_thirty_se
     assert [point.elapsed_s for point in result.iapf_attempts] == [30.0, 35.0, 40.0, 45.0]
     assert result.locked_iapf is not None
     assert abs(result.locked_iapf - 10.0) < 0.5
-    assert result.algorithm_contract["algorithm_version"] == "offline-spectral-v2"
+    assert result.algorithm_contract["algorithm_version"] == "offline-spectral-v3"
     assert result.analysis_input["mapped_channels"]["pz"] == "Pz"
     assert all(point.gate_failed is None for point in result.metrics)
 

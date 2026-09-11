@@ -132,7 +132,7 @@ def analyze_recording(data: np.ndarray, sfreq: float, mapping: ChannelMapping, c
             estimate.model_error, None, estimate.peak_hz, estimate.cog,
         ))
 
-    metric_window = int(round(float(ANALYSIS_CONTRACT["welch_epoch_s"]) * sfreq))
+    metric_window = int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * sfreq))
     metric_start = int(round(float(ANALYSIS_CONTRACT["metric_start_s"]) * sfreq))
     active_iapf = locked_iapf if locked_iapf is not None else last_iapf
     active_iapf_source = "global_locked" if locked_iapf is not None else ("last_candidate" if candidates else "default_10Hz")

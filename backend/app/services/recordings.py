@@ -185,6 +185,71 @@ class RecordingService:
             "events": events,
         }
 
+    def load_spectrum(
+        self,
+        recording: RecordingSummary,
+        start_s: float = 0.0,
+        window_s: float = 30.0,
+        channels: list[str] | None = None,
+    ) -> dict:
+        """Return v3 PSD, absolute band power and relative band power.
+
+        The complete recording is filtered before slicing so zero-phase boundary
+        behavior is identical for every requested window. Analysis reference and
+        filter parameters are intentionally fixed by ``offline-spectral-v3``.
+        """
+        import numpy as np
+        from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+        from app.eeg_core.spectral import band_power, estimate_welch_psd, preprocess_offline
+
+        data, sfreq, names, _events = self.load_data(recording)
+        available = {name.casefold(): name for name in names}
+        requested = names if channels is None else [available.get(item.casefold()) for item in channels]
+        if any(item is None for item in requested):
+            raise ValueError("频谱分析请求包含不存在的通道")
+        requested_names = [item for item in requested if item is not None]
+        if not requested_names:
+            raise ValueError("频谱分析至少需要一个通道")
+        indexes = [names.index(item) for item in requested_names]
+        filtered = preprocess_offline(np.asarray(data, dtype=float)[:, indexes], sfreq)
+        duration_s = len(filtered) / sfreq
+        actual_start = max(0.0, min(float(start_s), duration_s))
+        start_index = int(np.floor(actual_start * sfreq))
+        stop_index = min(len(filtered), start_index + int(round(float(window_s) * sfreq)))
+        window = filtered[start_index:stop_index]
+        if len(window) < int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * sfreq)):
+            raise ValueError("频谱分析窗口至少需要 4 秒")
+        spectrum = estimate_welch_psd(window, sfreq)
+        if spectrum.gate_failed:
+            raise ValueError("频谱分析质量门未通过")
+        bands = {"delta": (1.0, 4.0), "theta": (4.0, 8.0), "alpha": (8.0, 13.0), "beta": (13.0, 30.0)}
+        psd_uv = spectrum.psd * 1e12
+        absolute = {
+            name: {band: float(band_power(spectrum.freqs, spectrum.psd[index], *edges) * 1e12) for band, edges in bands.items()}
+            for index, name in enumerate(requested_names)
+        }
+        relative = {}
+        for name, values in absolute.items():
+            total = sum(values.values())
+            relative[name] = {band: value / total if total > 0 else 0.0 for band, value in values.items()}
+        return {
+            "recording_id": recording.id,
+            "window_start_s": actual_start,
+            "window_duration_s": len(window) / sfreq,
+            "sfreq_hz": sfreq,
+            "channels": requested_names,
+            "analysis_reference": ANALYSIS_CONTRACT["reference"],
+            "algorithm_version": ANALYSIS_CONTRACT["algorithm_version"],
+            "filter_contract": {key: ANALYSIS_CONTRACT[key] for key in ("bandpass_type", "bandpass_prototype_order", "bandpass_hz", "preprocessing_phase", "filter_form")},
+            "welch_contract": {key: ANALYSIS_CONTRACT[key] for key in ("welch_segment_s", "welch_segment_overlap", "welch_window", "welch_scaling")},
+            "units": {"psd": "uV^2/Hz", "absolute_power": "uV^2", "relative_power": "ratio"},
+            "frequencies_hz": spectrum.freqs.tolist(),
+            "psd": {name: psd_uv[index].tolist() for index, name in enumerate(requested_names)},
+            "band_power": absolute,
+            "relative_band_power": relative,
+            "quality": {"clean_segments": spectrum.clean_epochs, "total_segments": spectrum.total_epochs, "clean_ratio": spectrum.signal_quality, "gate_failed": spectrum.gate_failed},
+        }
+
     def load_window(
         self,
         recording: RecordingSummary,

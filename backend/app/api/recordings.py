@@ -150,6 +150,29 @@ def get_window(
         raise HTTPException(status_code=422, detail=f"无法读取波形窗口：{exc}") from exc
 
 
+@router.get("/{recording_id}/spectrum")
+def get_spectrum(
+    recording_id: str,
+    request: Request,
+    start_s: float = Query(0.0, ge=0.0),
+    window_s: float = Query(30.0, ge=4.0, le=120.0),
+    channels: Optional[str] = Query(None),
+) -> dict:
+    """Return the frozen offline-spectral-v3 PSD and band-power contract."""
+    try:
+        recording = _service(request).require_recording(recording_id)
+        requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
+        payload = _service(request).load_spectrum(recording, start_s=start_s, window_s=window_s, channels=requested)
+        _record_audit(request, "analysis.spectrum", recording_id, {"start_s": start_s, "window_s": window_s, "channels": requested or list(recording.channels), "algorithm_version": payload["algorithm_version"]})
+        return payload
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"无法计算频谱：{exc}") from exc
+
+
 @router.get("/{recording_id}/algorithm-check")
 def algorithm_check(
     recording_id: str,

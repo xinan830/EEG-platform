@@ -8,8 +8,9 @@
 
 ## Welch PSD
 
-- epoch：4 s；50% 重叠配置用于步长计算。
-- 每个 epoch 实际调用 Welch 时 `noverlap=0`，窗函数 Hann，`scaling="density"`，`detrend="constant"`。
+- 分析窗口内部使用 4 s Hann segment、50% segment overlap。
+- 质量门逐个检查 segment；只平均 clean segment，clean 比例低于 0.75 时整段不可用。
+- 每个 clean segment 使用 `scaling="density"`，`detrend="constant"`。
 - 峰值阈值：150 µV；clean epoch 比例至少 0.75，否则质量门失败。
 - 输出频率限制为 1–30 Hz，PSD 不低于 `1e-20`。
 
@@ -19,7 +20,7 @@
 
 ## 频段与指标
 
-- Delta `[1,4]`、Theta `[4,8]`、Alpha `[8,13]`、Beta `[13,30]`，使用闭区间梯形积分。
+- Delta `[1,4)`、Theta `[4,8)`、Alpha `[8,13)`、Beta `[13,30]`；实现用边界线性插值后梯形积分，避免端点重复或丢失面积。
 - RBP = 频段功率 / 四个频段功率总和。
 - FAA = `ln(P_F4_alpha) - ln(P_F3_alpha)`，F3/F4 成对 epoch 质控。
 - Brainbeat = Fz 相对 theta / Pz 相对 alpha。
