@@ -1,0 +1,129 @@
+from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect, status
+from pydantic import BaseModel
+
+from app.services.playback import PlaybackService
+from app.services.waveform_playback import WaveformPlaybackService
+
+
+router = APIRouter(tags=["playback"])
+
+
+class PlaybackControl(BaseModel):
+    action: str
+    speed: float | None = None
+    notch: float | None = None
+    bp_low: float | None = None
+    bp_high: float | None = None
+
+
+class WaveformPlaybackControl(BaseModel):
+    action: str
+    speed: float | None = None
+    position_s: float | None = None
+    low_cut_hz: float | None = None
+    high_cut_hz: float | None = None
+    notch_hz: float | None = None
+    channels: list[str] | None = None
+
+
+class WaveformPlaybackCreate(BaseModel):
+    channels: list[str] | None = None
+
+
+def _service(request: Request) -> PlaybackService:
+    return request.app.state.playback_service
+
+
+@router.post("/api/recordings/{recording_id}/playback", status_code=status.HTTP_201_CREATED)
+def create_playback(recording_id: str, request: Request) -> dict:
+    try:
+        session = _service(request).create(recording_id)
+        return {"session_id": session.id, "recording_id": recording_id, "status": session.status,
+                "websocket_url": f"/api/playback/{session.id}/events"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/api/playback/{session_id}/control")
+def control_playback(session_id: str, payload: PlaybackControl, request: Request) -> dict:
+    try:
+        values = payload.model_dump(exclude_none=True)
+        values.pop("action", None)
+        return _service(request).require(session_id).control(payload.action, **values)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.websocket("/api/playback/{session_id}/events")
+async def playback_events(session_id: str, websocket: WebSocket) -> None:
+    await websocket.accept()
+    service: PlaybackService = websocket.app.state.playback_service
+    try:
+        session = service.require(session_id)
+        while True:
+            await websocket.send_json(await session.next_message())
+    except KeyError:
+        await websocket.send_json({"type": "error", "detail": "回放会话不存在"})
+        await websocket.close(code=4404)
+    except WebSocketDisconnect:
+        return
+
+
+@router.post("/api/recordings/{recording_id}/waveform-playback", status_code=status.HTTP_201_CREATED)
+def create_waveform_playback(
+    recording_id: str,
+    request: Request,
+    payload: WaveformPlaybackCreate | None = None,
+) -> dict:
+    try:
+        session: WaveformPlaybackService = request.app.state.waveform_playback_service
+        requested_channels = payload.channels if payload else None
+        if requested_channels is not None and not requested_channels:
+            raise ValueError("至少选择一个有效显示通道")
+        created = session.create(recording_id, requested_channels=requested_channels)
+        return {
+            "session_id": created.id,
+            "recording_id": recording_id,
+            "status": created.status,
+            "websocket_url": f"/api/waveform-playback/{created.id}/events",
+        }
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/api/waveform-playback/{session_id}/control")
+def control_waveform_playback(session_id: str, payload: WaveformPlaybackControl, request: Request) -> dict:
+    try:
+        service: WaveformPlaybackService = request.app.state.waveform_playback_service
+        values = payload.model_dump(exclude_none=True)
+        if "notch_hz" in payload.model_fields_set:
+            values["notch_hz"] = payload.notch_hz
+        values.pop("action", None)
+        return service.require(session_id).control(payload.action, **values)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.websocket("/api/waveform-playback/{session_id}/events")
+async def waveform_playback_events(session_id: str, websocket: WebSocket) -> None:
+    await websocket.accept()
+    service: WaveformPlaybackService = websocket.app.state.waveform_playback_service
+    try:
+        session = service.require(session_id)
+        while True:
+            message = await session.next_message()
+            if isinstance(message, bytes):
+                await websocket.send_bytes(message)
+            else:
+                await websocket.send_json(message)
+    except KeyError:
+        await websocket.send_json({"type": "error", "detail": "波形回放会话不存在"})
+        await websocket.close(code=4404)
+    except WebSocketDisconnect:
+        return
