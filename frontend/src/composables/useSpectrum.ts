@@ -10,6 +10,9 @@ export function useSpectrum(recordingId: Ref<string | undefined>, startS: Ref<nu
     catch (cause) { if (current === requestId) error.value = cause instanceof Error ? cause.message : '频谱读取失败' }
     finally { if (current === requestId) loading.value = false }
   }
-  watch([recordingId, channels], reload, { immediate: true })
+  // startS represents the waveform screen origin, not the continuously moving
+  // playback cursor. Refreshing on it updates PSD once per new screen while
+  // avoiding one expensive request for every playback frame.
+  watch([recordingId, startS, channels], reload, { immediate: true })
   return { result, loading, error, reload }
 }
