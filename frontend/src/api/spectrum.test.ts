@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { getSpectrum } from './spectrum'
+import { getConfiguredSpectrum, getSpectrum } from './spectrum'
+import { getConfiguredSpectrogram } from './spectrogram'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -14,4 +15,22 @@ it('sends absolute start, fixed window and requested channel order', async () =>
   expect(url.searchParams.get('start_s')).toBe('14.6')
   expect(url.searchParams.get('window_s')).toBe('30')
   expect(url.searchParams.get('channels')).toBe('Oz,Fz,Pz')
+})
+
+it('posts the complete configurable analysis request', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+  vi.stubGlobal('fetch', fetchMock)
+  const config = { mode: 'static', channels: ['F3'], time: { start_s: 10, end_s: 40 } }
+  await getConfiguredSpectrum('r1', config)
+  expect(fetchMock.mock.calls[0][1].method).toBe('POST')
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(config)
+})
+
+it('posts configured spectrogram requests and preserves backend errors', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: '文件实际结束时间为 7.634 s' }), { status: 422 }))
+  vi.stubGlobal('fetch', fetchMock)
+  const config = { mode: 'spectrogram', channels: ['F3'], time: { start_s: 1, end_s: 7.635 }, dynamic_window_s: 10, refresh_step_s: 1 }
+  await expect(getConfiguredSpectrogram('r/1', config)).rejects.toThrow('文件实际结束时间为 7.634 s')
+  expect(fetchMock.mock.calls[0][1].method).toBe('POST')
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(config)
 })

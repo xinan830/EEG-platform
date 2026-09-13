@@ -1,4 +1,5 @@
 import json
+import hashlib
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -6,6 +7,7 @@ from uuid import uuid4
 
 from app.core.config import ALLOWED_EXTENSIONS, DATABASE_PATH, RECORDINGS_DIR, ensure_storage_directories
 from app.models.recording import ChannelMapping, RecordingSummary
+from app.models.analysis_config import AnalysisConfigRequest
 from app.services.filter_checkpoint_cache import FilterCheckpointCache
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
 
@@ -261,7 +263,7 @@ class RecordingService:
 
     def load_spectrogram(self, recording: RecordingSummary, start_s: float = 0.0, window_s: float = 30.0, channels: list[str] | None = None) -> dict:
         """Return a fixed v1 spectrogram from the continuous v3-preprocessed signal."""
-        from app.eeg_core.spectral import estimate_spectrogram
+        from app.eeg_core.spectral import band_power, estimate_spectrogram_with_quality
         payload = self.load_spectrum(recording, start_s=start_s, window_s=window_s, channels=channels)
         names = payload["channels"]
         cached = self._analysis_preprocess_cache.get(recording.id, str(payload["algorithm_version"]))
@@ -270,8 +272,102 @@ class RecordingService:
         import numpy as np
         start_index = int(np.floor(float(start_s) * cached.sfreq))
         stop_index = min(len(cached.data), start_index + int(round(float(window_s) * cached.sfreq)))
-        times, freqs, values = estimate_spectrogram(cached.data[start_index:stop_index, :][:, indexes], cached.sfreq)
-        return {"recording_id": recording.id, "window_start_s": float(start_s), "window_duration_s": (stop_index - start_index) / cached.sfreq, "channels": names, "times_s": (times + float(start_s)).tolist(), "frequencies_hz": freqs.tolist(), "power": {name: (values[:, index, :] * 1e12).tolist() for index, name in enumerate(names)}, "units": "uV^2/Hz", "algorithm_version": "spectrogram-v1", "segment_s": 2.0, "step_s": 1.0}
+        times, freqs, values, quality = estimate_spectrogram_with_quality(cached.data[start_index:stop_index, :][:, indexes], cached.sfreq)
+        power_uv = values * 1e12
+        power_db = 10.0 * np.log10(np.maximum(power_uv, np.finfo(float).tiny))
+        linear_values = {name: power_uv[:, index, :].tolist() for index, name in enumerate(names)}
+        db_values = {name: power_db[:, index, :].tolist() for index, name in enumerate(names)}
+        bands = {"delta": (1.0, 4.0), "theta": (4.0, 8.0), "alpha": (8.0, 13.0), "beta": (13.0, 30.0)}
+        band_series: dict[str, dict[str, list[float]]] = {}
+        for index, name in enumerate(names):
+            band_series[name] = {}
+            for band, (low, high) in bands.items():
+                band_series[name][band] = [float(band_power(freqs, row, low, high) * 1e12) if np.isfinite(row).all() else float("nan") for row in values[:, index, :]]
+        for item in quality:
+            item["center_s"] = float(item["center_s"]) + float(start_s)
+            item["start_s"] = float(item["start_s"]) + float(start_s)
+            item["end_s"] = float(item["end_s"]) + float(start_s)
+        return {"recording_id": recording.id, "window_start_s": float(start_s), "window_duration_s": (stop_index - start_index) / cached.sfreq, "sfreq_hz": float(cached.sfreq), "channels": names, "times_s": (times + float(start_s)).tolist(), "frequencies_hz": freqs.tolist(), "power": linear_values, "power_linear": linear_values, "power_db": db_values, "band_power_timeseries": band_series, "units": "uV^2/Hz", "power_linear_units": "uV^2/Hz", "power_db_units": "dB re 1 uV^2/Hz", "band_power_timeseries_units": "uV^2", "analysis_algorithm_version": "offline-spectral-v3", "spectrogram_contract_version": "spectrogram-v2", "algorithm_version": "spectrogram-v2", "segment_s": 4.0, "step_s": 1.0, "quality": {"windows": quality, "clean_windows": sum(item["status"] == "clean" for item in quality), "total_windows": len(quality), "bad_windows": sum(item["status"] == "bad" for item in quality)}}
+
+    def load_configured_spectrum(self, recording: RecordingSummary, config: AnalysisConfigRequest) -> dict:
+        """Apply safe timing/channel configuration around the frozen v3 math."""
+        requested = config.model_dump(mode="json")
+        requested_duration = config.time.end_s - config.time.start_s
+        payload = self.load_spectrum(recording, config.time.start_s, requested_duration, config.channels)
+        actual_start = float(payload["window_start_s"])
+        actual_end = actual_start + float(payload["window_duration_s"])
+        # Sample-index slicing quantizes the end to the sampling period. A UI
+        # value rounded to milliseconds may be one sample beyond that boundary.
+        sample_tolerance = 1.5 / float(payload["sfreq_hz"])
+        if config.mode == "static" and config.time.end_s > actual_end + sample_tolerance:
+            raise ValueError(f"静态频谱分析区间超出文件范围，文件实际结束时间为 {actual_end:.3f} s")
+        execution = {
+            "mode": config.mode,
+            "channels": payload["channels"],
+            "requested_time": requested["time"],
+            "actual_time": {"start_s": actual_start, "end_s": actual_end, "duration_s": actual_end - actual_start},
+            "dynamic_window_s": config.dynamic_window_s,
+            "refresh_step_s": config.refresh_step_s,
+            "preprocessing": payload["filter_contract"],
+            "welch": payload["welch_contract"],
+        }
+        canonical = json.dumps(execution, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        payload.update({
+            "algorithm_version": "offline-spectral-v4-configurable",
+            "baseline_algorithm_version": "offline-spectral-v3",
+            "requested_config": requested,
+            "execution_config": execution,
+            "requested_start_s": config.time.start_s,
+            "requested_end_s": config.time.end_s,
+            "requested_window_s": requested_duration,
+            "actual_start_s": actual_start,
+            "actual_end_s": actual_end,
+            "actual_duration_s": actual_end - actual_start,
+            "analysis_config_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper(),
+            "warmup": config.mode == "dynamic" and payload["window_duration_s"] < config.dynamic_window_s,
+        })
+        return payload
+
+    def load_configured_spectrogram(self, recording: RecordingSummary, config: AnalysisConfigRequest) -> dict:
+        """Return spectrogram data with the same traceability envelope as PSD."""
+        if config.mode != "spectrogram":
+            raise ValueError("时频图配置的 mode 必须为 spectrogram")
+        requested = config.model_dump(mode="json")
+        requested_duration = config.time.end_s - config.time.start_s
+        payload = self.load_spectrogram(recording, config.time.start_s, requested_duration, config.channels)
+        actual_start = float(payload["window_start_s"])
+        actual_end = actual_start + float(payload["window_duration_s"])
+        # The UI sends milliseconds while the reader slices on sample indices.
+        # Permit the same one-sample rounding tolerance as configured PSD.
+        sample_tolerance = 1.5 / float(payload.get("sfreq_hz", 1.0))
+        if config.time.end_s > actual_end + sample_tolerance:
+            raise ValueError(f"时频图分析区间超出文件范围，文件实际结束时间为 {actual_end:.3f} s")
+        custom_range = config.custom_frequency_range
+        if custom_range is not None:
+            from app.eeg_core.spectral import band_power
+            import numpy as np
+            freqs = np.asarray(payload["frequencies_hz"], dtype=float)
+            source = payload.get("power_linear", payload["power"])
+            custom_series: dict[str, list[float]] = {}
+            for name in payload["channels"]:
+                rows = np.asarray(source[name], dtype=float)
+                custom_series[name] = [float(band_power(freqs, row, custom_range.low_hz, custom_range.high_hz)) if np.isfinite(row).all() else float("nan") for row in rows]
+            payload["custom_band_power_timeseries"] = custom_series
+            payload["custom_band"] = {
+                "low_hz": custom_range.low_hz,
+                "high_hz": custom_range.high_hz,
+                "unit": "uV^2",
+                "integration": "trapezoid_with_interpolated_boundaries",
+                "frequency_resolution_hz": float(freqs[1] - freqs[0]) if len(freqs) > 1 else None,
+                "frequency_points_hz": freqs[(freqs >= custom_range.low_hz) & (freqs <= custom_range.high_hz)].tolist(),
+                "algorithm_version": "spectrogram-custom-band-v1",
+            }
+        execution = {"mode": "spectrogram", "channels": payload["channels"], "requested_time": requested["time"], "actual_time": {"start_s": actual_start, "end_s": actual_end, "duration_s": actual_end - actual_start}, "segment_s": payload["segment_s"], "step_s": payload["step_s"], "frequency_range_hz": [1.0, 30.0], "custom_frequency_range": requested.get("custom_frequency_range"), "time_axis": "window_center", "matrix_shape": [len(payload["times_s"]), len(payload["frequencies_hz"])], "quality_gate": "shared_peak_threshold_per_window"}
+        canonical = json.dumps(execution, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        time_bins = len(payload["times_s"])
+        frequency_bins = len(payload["frequencies_hz"])
+        payload.update({"algorithm_version": "spectrogram-v2-configurable", "analysis_algorithm_version": "offline-spectral-v3", "spectrogram_contract_version": "spectrogram-v2", "baseline_algorithm_version": "spectrogram-v2", "requested_config": requested, "execution_config": execution, "requested_start_s": config.time.start_s, "requested_end_s": config.time.end_s, "requested_window_s": requested_duration, "actual_start_s": actual_start, "actual_end_s": actual_end, "actual_duration_s": actual_end - actual_start, "analysis_config_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper(), "warmup": False, "time_bins": time_bins, "frequency_bins": frequency_bins, "matrix_shape": [time_bins, frequency_bins], "first_center_s": payload["times_s"][0] if time_bins else None, "last_center_s": payload["times_s"][-1] if time_bins else None})
+        return payload
 
     def load_window(
         self,

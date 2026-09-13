@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from app.models.recording import ChannelMapping, RecordingSummary
+from app.models.analysis_config import AnalysisConfigRequest
 from app.models.montage import CustomMontageChannelPayload
 from app.services.recordings import RecordingService
 from app.services.montage import build_montage, describe_montages, montage_formulas
@@ -180,6 +181,37 @@ def get_spectrogram(recording_id: str, request: Request, start_s: float = Query(
         requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None
         payload = _service(request).load_spectrogram(recording, start_s, window_s, requested)
         _record_audit(request, "analysis.spectrogram", recording_id, {"start_s": start_s, "window_s": window_s, "channels": requested or list(recording.channels)})
+        return payload
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/{recording_id}/spectrum/configured")
+def get_configured_spectrum(recording_id: str, request: Request, config: AnalysisConfigRequest) -> dict:
+    """Return configurable timing/channel analysis backed by frozen v3 math."""
+    try:
+        recording = _service(request).require_recording(recording_id)
+        payload = _service(request).load_configured_spectrum(recording, config)
+        _record_audit(request, "analysis.spectrum.configured", recording_id, {
+            "requested_config": config.model_dump(mode="json"),
+            "analysis_config_hash": payload["analysis_config_hash"],
+        })
+        return payload
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/{recording_id}/spectrogram/configured")
+def get_configured_spectrogram(recording_id: str, request: Request, config: AnalysisConfigRequest) -> dict:
+    """Return configurable timing/channel spectrogram data."""
+    try:
+        recording = _service(request).require_recording(recording_id)
+        payload = _service(request).load_configured_spectrogram(recording, config)
+        _record_audit(request, "analysis.spectrogram.configured", recording_id, {"requested_config": config.model_dump(mode="json"), "analysis_config_hash": payload["analysis_config_hash"]})
         return payload
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -1,4 +1,5 @@
 import { isRenderableWaveformValue, mapWaveformValueToY } from '../utils/waveformGeometry'
+import { clampPageViewportStart, playbackPageStart } from '../utils/waveformViewport'
 
 type Series = ArrayLike<number>
 type StaticFrame = { elapsed: Series; channels: Record<string, Series> }
@@ -6,6 +7,7 @@ type StaticFrame = { elapsed: Series; channels: Record<string, Series> }
 const COLORS = ['#ef5350', '#5b9bd5', '#62bd69', '#ad65c7', '#ff943f']
 const PLOT_LEFT_PX = 74
 const PLOT_RIGHT_PX = 12
+const ERASE_GAP_SECONDS = 0.1
 let canvas: OffscreenCanvas | null = null
 let context: OffscreenCanvasRenderingContext2D | null = null
 let width = 1
@@ -17,10 +19,14 @@ let elapsed: Float64Array = new Float64Array()
 let sfreq = 1
 let sweepStartS = 0
 let sweepPointer = 0
+let playbackPageStartS = 0
+let pageDuration = 10
 let viewStart = 0
 let viewDuration = 10
 let sensitivityUvPerMm = 7
 let isStream = false
+let latestElapsedS = 0
+let lastProgressAt = 0
 let statsStartedAt = performance.now()
 let frames = 0
 let accumulatedMs = 0
@@ -33,12 +39,12 @@ self.onmessage = (event: MessageEvent) => {
   else if (message.type === 'stream') initializeStream(message as unknown as { sfreq: number; channelNames: string[]; startS: number; windowSeconds: number })
   else if (message.type === 'static') initializeStatic(message.frame as StaticFrame)
   else if (message.type === 'append') appendBinary(message.buffer as ArrayBuffer)
-  else if (message.type === 'viewport') updateViewport(message.startS as number, message.durationS as number, message.sensitivityUvPerMm as number)
+  else if (message.type === 'viewport') updateViewport(message.startS as number, message.durationS as number, message.pageDurationS as number, message.sensitivityUvPerMm as number)
 }
 
 function initializeCanvas(nextCanvas: OffscreenCanvas) {
   canvas = nextCanvas
-  context = canvas.getContext('2d')
+  context = canvas.getContext('2d', { alpha: false, desynchronized: true })
 }
 
 function resize(nextWidth: number, nextHeight: number, nextDpr: number) {
@@ -56,11 +62,17 @@ function initializeStream(message: { sfreq: number; channelNames: string[]; star
   sfreq = message.sfreq
   names = message.channelNames
   sweepStartS = message.startS
-  viewStart = message.startS
-  viewDuration = message.windowSeconds
+  pageDuration = message.windowSeconds
+  playbackPageStartS = playbackPageStart(message.startS, pageDuration)
+  viewStart = playbackPageStartS
+  viewDuration = pageDuration
   sweepPointer = 0
+  latestElapsedS = message.startS
+  lastProgressAt = 0
   isStream = true
-  const sampleCount = Math.max(1, Math.round(sfreq * message.windowSeconds))
+  // Screen duration is presentation state, not buffer policy. Sixty seconds
+  // covers two maximum (30 s) screens while keeping memory bounded.
+  const sampleCount = Math.max(1, Math.round(sfreq * 60))
   elapsed = new Float64Array(sampleCount)
   values = names.map(() => new Float64Array(sampleCount).fill(Number.NaN))
   updateElapsed()
@@ -84,28 +96,46 @@ function appendBinary(buffer: ArrayBuffer) {
   const elapsedS = new DataView(buffer).getFloat64(0, true)
   const chunk = new Float32Array(buffer, 8)
   if (chunk.length % names.length) return
+  const packetStartS = elapsedS - chunk.length / names.length / sfreq
   let chunkSample = 0
   const sampleCount = chunk.length / names.length
   while (chunkSample < sampleCount) {
-    const startPointer = sweepPointer
     const writable = Math.min(sampleCount - chunkSample, elapsed.length - sweepPointer)
     writeChunk(chunk, chunkSample, writable)
     sweepPointer += writable
     chunkSample += writable
-    clearSweepGap()
-    if (isWholeSweepView()) drawSweepSegment(startPointer, sweepPointer)
-    else draw()
-    if (sweepPointer === elapsed.length) resetSweep()
+    if (sweepPointer === elapsed.length) compactStreamBuffer()
   }
-  self.postMessage({ type: 'progress', elapsedS, sweepStartS })
+  latestElapsedS = elapsedS
+  const nextPageStart = playbackPageStart(elapsedS, pageDuration)
+  const pageChanged = Math.abs(nextPageStart - playbackPageStartS) >= 1 / sfreq
+  if (pageChanged) {
+    // Finish the old page before changing its time label. The next page keeps
+    // these pixels only as a visual overwrite background.
+    drawStreamRange(packetStartS, Math.min(elapsedS, nextPageStart))
+    const pageOffset = clampPageViewportStart(viewStart, viewDuration, playbackPageStartS, pageDuration) - playbackPageStartS
+    playbackPageStartS = nextPageStart
+    viewStart = playbackPageStartS + pageOffset
+    clearStreamGap(playbackPageStartS)
+  } else {
+    clearStreamGap(elapsedS)
+    drawStreamRange(packetStartS, elapsedS)
+  }
+  const now = performance.now()
+  if (pageChanged || now - lastProgressAt >= 100) {
+    lastProgressAt = now
+    self.postMessage({ type: 'progress', elapsedS, viewStartS: playbackPageStartS })
+  }
 }
 
-function updateViewport(startS: number, durationS: number, nextSensitivityUvPerMm: number) {
-  viewDuration = Math.max(0.1, durationS)
+function updateViewport(startS: number, durationS: number, nextPageDurationS: number, nextSensitivityUvPerMm: number) {
+  const pageDurationChanged = Math.abs(pageDuration - nextPageDurationS) >= 1 / sfreq
+  pageDuration = Math.max(0.1, nextPageDurationS)
+  viewDuration = Math.max(0.1, Math.min(pageDuration, durationS))
   sensitivityUvPerMm = nextSensitivityUvPerMm
   if (isStream && elapsed.length) {
-    const streamEnd = sweepStartS + elapsed.length / sfreq
-    viewStart = Math.max(sweepStartS, Math.min(streamEnd - viewDuration, startS))
+    if (pageDurationChanged) playbackPageStartS = playbackPageStart(latestElapsedS, pageDuration)
+    viewStart = clampPageViewportStart(pageDurationChanged ? playbackPageStartS : startS, viewDuration, playbackPageStartS, pageDuration)
   } else {
     viewStart = startS
   }
@@ -116,15 +146,7 @@ function updateElapsed() {
   for (let index = 0; index < elapsed.length; index += 1) elapsed[index] = sweepStartS + index / sfreq
 }
 
-function clearSweepGap() {
-  const gap = Math.max(1, Math.floor(sfreq * 0.2))
-  for (let offset = 0; offset < gap; offset += 1) {
-    const index = (sweepPointer + offset) % elapsed.length
-    for (const channel of values) channel[index] = Number.NaN
-  }
-}
-
-/** 默认扫屏只清除游标后的空白带，再补画本批采样，避免整屏 21 通道重复重绘。 */
+/** Write only real samples received from the server; future slots stay NaN. */
 function writeChunk(chunk: Float32Array, chunkStart: number, count: number) {
   for (let sample = 0; sample < count; sample += 1) {
     const source = (chunkStart + sample) * names.length
@@ -132,68 +154,58 @@ function writeChunk(chunk: Float32Array, chunkStart: number, count: number) {
   }
 }
 
-function isWholeSweepView() {
-  return Math.abs(viewStart - sweepStartS) < 1 / sfreq && Math.abs(viewDuration - elapsed.length / sfreq) < 1 / sfreq
+function compactStreamBuffer() {
+  const keepSamples = Math.max(1, Math.floor(elapsed.length / 2))
+  for (const series of values) {
+    series.copyWithin(0, keepSamples)
+    series.fill(Number.NaN, keepSamples)
+  }
+  sweepPointer = keepSamples
+  sweepStartS += keepSamples / sfreq
+  updateElapsed()
 }
 
-function drawSweepSegment(start: number, end: number) {
-  if (!context || end <= start) return
+function clearStreamGap(frontierS: number) {
+  if (!context || !names.length) return
+  if (frontierS < viewStart - 1 / sfreq || frontierS > viewStart + viewDuration + 1 / sfreq) return
+  const startRatio = Math.max(0, Math.min(1, (frontierS - viewStart) / viewDuration))
+  const endRatio = Math.max(startRatio, Math.min(1, startRatio + ERASE_GAP_SECONDS / viewDuration))
+  const plotWidth = Math.max(1, width - PLOT_LEFT_PX - PLOT_RIGHT_PX)
+  const x = PLOT_LEFT_PX + startRatio * plotWidth
+  const gapWidth = Math.max(1, (endRatio - startRatio) * plotWidth + 1)
+  const laneHeight = height / (names.length + 1)
+  context.setTransform(dpr, 0, 0, dpr, 0, 0)
+  context.fillStyle = '#fff'
+  context.fillRect(x, 0, gapWidth, height)
+  context.strokeStyle = '#e6e6e6'
+  for (let channelIndex = 0; channelIndex < names.length; channelIndex += 1) {
+    const centerY = laneHeight * (channelIndex + 1)
+    context.beginPath()
+    context.moveTo(x, centerY)
+    context.lineTo(x + gapWidth, centerY)
+    context.stroke()
+  }
+}
+
+function drawStreamRange(packetStartS: number, packetEndS: number) {
+  if (!context || !names.length) return
+  const visibleStart = Math.max(viewStart, packetStartS)
+  const visibleEnd = Math.min(viewStart + viewDuration, packetEndS)
+  if (visibleEnd <= visibleStart) return
   const startedAt = performance.now()
   const plotWidth = Math.max(1, width - PLOT_LEFT_PX - PLOT_RIGHT_PX)
   const laneHeight = height / (names.length + 1)
-  clearSweepColumns(end, plotWidth, laneHeight)
+  const pageStartIndex = lowerBound(viewStart)
+  const start = Math.max(pageStartIndex, lowerBound(visibleStart) - 1)
+  const end = lowerBound(visibleEnd + Number.EPSILON)
   let points = 0
   names.forEach((name, channelIndex) => {
     context!.strokeStyle = COLORS[channelIndex % COLORS.length]
     context!.beginPath()
-    points += drawSweepRaw(values[channelIndex], Math.max(0, start - 1), end, channelIndex, laneHeight, plotWidth)
+    points += drawRaw(values[channelIndex], start, end, laneHeight * (channelIndex + 1), laneHeight, plotWidth)
     context!.stroke()
   })
   recordDraw(points, startedAt)
-}
-
-function clearSweepColumns(pointer: number, plotWidth: number, laneHeight: number) {
-  if (!context) return
-  const gapSamples = Math.max(1, Math.floor(sfreq * 0.2))
-  const start = pointer % elapsed.length
-  const end = start + gapSamples
-  const clearRange = (from: number, to: number) => {
-    const x = PLOT_LEFT_PX + from / elapsed.length * plotWidth
-    const range = Math.max(1, (to - from) / elapsed.length * plotWidth + 1)
-    context!.clearRect(x, 0, range, height)
-    context!.strokeStyle = '#e6e6e6'
-    for (let index = 0; index < names.length; index += 1) {
-      const centerY = laneHeight * (index + 1)
-      context!.beginPath()
-      context!.moveTo(x, centerY)
-      context!.lineTo(x + range, centerY)
-      context!.stroke()
-    }
-  }
-  if (end <= elapsed.length) clearRange(start, end)
-  else { clearRange(start, elapsed.length); clearRange(0, end - elapsed.length) }
-}
-
-function drawSweepRaw(series: Float64Array, start: number, end: number, channelIndex: number, laneHeight: number, plotWidth: number) {
-  let started = false
-  let points = 0
-  const centerY = laneHeight * (channelIndex + 1)
-  for (let index = start; index < end; index += 1) {
-    if (!isRenderableWaveformValue(series[index])) { started = false; continue }
-    const x = PLOT_LEFT_PX + index / elapsed.length * plotWidth
-    const y = mapWaveformValueToY(series[index], centerY, laneHeight, sensitivityUvPerMm)
-    if (started) context!.lineTo(x, y); else { context!.moveTo(x, y); started = true }
-    points += 1
-  }
-  return points
-}
-
-function resetSweep() {
-  sweepPointer = 0
-  sweepStartS += elapsed.length / sfreq
-  updateElapsed()
-  viewStart = sweepStartS
-  draw()
 }
 
 function lowerBound(target: number) {
@@ -208,10 +220,12 @@ function lowerBound(target: number) {
 }
 
 function draw() {
-  if (!context || !names.length) return
+  if (!context) return
   const startedAt = performance.now()
   context.setTransform(dpr, 0, 0, dpr, 0, 0)
-  context.clearRect(0, 0, width, height)
+  context.fillStyle = '#fff'
+  context.fillRect(0, 0, width, height)
+  if (!names.length) return
   const plotWidth = Math.max(1, width - PLOT_LEFT_PX - PLOT_RIGHT_PX)
   const laneHeight = height / (names.length + 1)
   const visibleEnd = viewStart + viewDuration

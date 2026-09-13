@@ -144,6 +144,23 @@ describe('导入后的通道选择流程', () => {
     wrapper.unmount()
   })
 
+  it('下一屏按当前时基前进，并将新屏起点设为播放位置', async () => {
+    const wrapper = await mountImportedApp()
+    await findFooterButton(wrapper, '取消').trigger('click')
+    await flushPromises()
+    vi.mocked(getWaveformWindow).mockImplementation(async (_id, options) => {
+      const startS = options?.startS ?? 0
+      return { ...fakeWindow, elapsed_s: [startS, startS + 1], window_start_s: startS }
+    })
+
+    await wrapper.findComponent(ViewerToolbar).vm.$emit('nextScreen')
+    await flushPromises()
+
+    expect(lastWindowOptions()?.startS).toBe(10)
+    expect(wrapper.find('.file-summary').text()).toContain('10.0 / 60')
+    wrapper.unmount()
+  })
+
   it('自定义 Montage 应用后从头读取并传递明确的正负极定义', async () => {
     const wrapper = await mountImportedApp()
     await findFooterButton(wrapper, '取消').trigger('click')

@@ -24,6 +24,7 @@ import { useDisplayControls } from './composables/useDisplayControls'
 import { useAlgorithmCheck } from './composables/useAlgorithmCheck'
 import { useEventMarkers } from './composables/useEventMarkers'
 import { playbackFilterPayload } from './utils/displayFilter'
+import { pagedViewportStart } from './utils/waveformViewport'
 
 type WaveformValues = ArrayLike<number>; type Waveform = { elapsed_s: WaveformValues; channels: Record<string, WaveformValues> }; type WaveformMessage = { type: string; sfreq?: number; ch_names?: string[]; duration_s?: number; start_s?: number; elapsed_s?: number; detail?: string }; type WaveformPanelHandle = { appendBinaryWaveform: (buffer: ArrayBuffer) => boolean }; type StreamInfo = { sfreq: number; channelNames: string[]; startS: number } | null
 
@@ -35,6 +36,10 @@ const error = ref('')
 const playing = ref(false)
 const loading = ref(false)
 const playbackPositionS = ref(0)
+const spectrumSelection = ref<{ start: number; end: number } | null>(null)
+const activeAnalysisRange = ref<{ start: number; end: number; source: string } | null>(null)
+function setActiveAnalysisRange(start: number, end: number, source = 'custom') { activeAnalysisRange.value = { start, end, source } }
+function selectSpectrumRange(start: number, end: number) { spectrumSelection.value = { start, end } }
 const totalDurationS = ref<number | undefined>()
 const sfreq = ref<number | undefined>()
 const windowStartS = ref(0)
@@ -57,6 +62,7 @@ const displayControls = useDisplayControls({
   hasActivePlayback: () => Boolean(sessionId),
   restartPlayback: restartPlaybackFromBeginning,
   reloadFromStart: () => loadReviewWindow(0),
+  applyTimebase: applyTimebaseChange,
   rebuildEmptySweep: () => rebuildSweepBuffer(),
   showError: (message) => { error.value = message },
 })
@@ -123,12 +129,19 @@ function closeSocket() {
   socket = null
 }
 async function stopPlayback() {
+  playing.value = false
   if (sessionId) {
     try { await controlWaveformPlayback(sessionId, 'stop') } catch { /* 会话可能已结束。 */ }
   }
   closeSocket()
   sessionId = null
-  playing.value = false
+}
+
+async function applyTimebaseChange() {
+  if (!recording.value || sessionId) return
+  const duration = displaySettings.value.timebaseSeconds
+  const pageStart = Math.floor(playbackPositionS.value / duration) * duration
+  await loadReviewWindow(pageStart)
 }
 function handleWaveformMessage(message: WaveformMessage) {
   if (message.type === 'info' && message.sfreq && message.ch_names && message.duration_s !== undefined) {
@@ -178,9 +191,9 @@ function handleWaveformBinary(buffer: ArrayBuffer) {
   }
 }
 
-function handleWorkerProgress(positionS: number, workerWindowStartS: number) {
+function handleWorkerProgress(positionS: number, visibleWindowStartS: number) {
   playbackPositionS.value = positionS
-  windowStartS.value = workerWindowStartS
+  windowStartS.value = visibleWindowStartS
 }
 
 async function restartPlaybackFromBeginning() {
@@ -279,13 +292,14 @@ async function togglePlayback() {
   }
   try {
     if (playing.value) {
-      await controlWaveformPlayback(sessionId, 'pause')
       playing.value = false
+      await controlWaveformPlayback(sessionId, 'pause')
     } else {
-      await controlWaveformPlayback(sessionId, 'resume')
       playing.value = true
+      await controlWaveformPlayback(sessionId, 'resume')
     }
   } catch (cause) {
+    playing.value = !playing.value
     error.value = cause instanceof Error ? cause.message : '无法更新播放状态'
   }
 }
@@ -312,6 +326,13 @@ async function seekWindow(startS: number) {
   await loadReviewWindow(startS)
 }
 
+async function moveScreen(direction: -1 | 1) {
+  const duration = displaySettings.value.timebaseSeconds
+  const target = pagedViewportStart(windowStartS.value, direction, duration, totalDurationS.value ?? duration)
+  if (Math.abs(target - windowStartS.value) < 1e-9) return
+  await seekWindow(target)
+}
+
 async function changeMontage(value: string) {
   if (value === montageId.value) return
   montageId.value = value
@@ -324,7 +345,7 @@ async function onImported(value: Recording) {
   fileGeneration += 1
   reviewRequestId += 1
   await stopPlayback()
-  recording.value = value; debug.reset(); sweepBuffer = null; streamInfo.value = null
+  recording.value = value; debug.reset(); sweepBuffer = null; streamInfo.value = null; spectrumSelection.value = null; activeAnalysisRange.value = null
   displayChannelNames.value = chooseWaveformChannels(value.channels); sourceChannelNames.value = [...displayChannelNames.value]; montageId.value = 'original'; averageExclude.value = []; customMontage.value = []; customMontageOpen.value = false
   const importGeneration = fileGeneration
   try {
@@ -336,6 +357,7 @@ async function onImported(value: Recording) {
     montageOptions.value = [{ id: 'original', label: '原始记录（不重参考）', available: true, channels: value.channels, missing: [] }]
   }
   waveform.value = { elapsed_s: [], channels: {} }; totalDurationS.value = value.duration_s ?? undefined; sfreq.value = value.sfreq ?? undefined
+  if ((value.duration_s ?? 0) >= 4) activeAnalysisRange.value = { start: 0, end: Math.min(30, value.duration_s as number), source: 'current_30s' }
   playbackPositionS.value = 0; windowStartS.value = 0
   showStartup.value = false
   // 导入后先选通道再进入阅图；确认或取消都会从文件 0 秒读取（见 useChannelSelection）。
@@ -346,7 +368,7 @@ async function newSession() {
   fileGeneration += 1
   reviewRequestId += 1
   await stopPlayback()
-  recording.value = null; debug.reset(); sweepBuffer = null; streamInfo.value = null
+  recording.value = null; debug.reset(); sweepBuffer = null; streamInfo.value = null; spectrumSelection.value = null; activeAnalysisRange.value = null
   displayChannelNames.value = []; sourceChannelNames.value = []; montageId.value = 'original'; montageOptions.value = []; averageExclude.value = []; customMontage.value = []; customMontageOpen.value = false
   waveform.value = { elapsed_s: [], channels: {} }; totalDurationS.value = undefined; sfreq.value = undefined
   playbackPositionS.value = 0; windowStartS.value = 0; error.value = ''; loading.value = false
@@ -363,7 +385,7 @@ onBeforeUnmount(() => {
   <main class="desktop-app">
     <header class="app-header"><span class="brand-mark">▣</span><span>脑电文件波形查看器</span><span class="header-file">{{ recording?.original_name ? `- [${recording.original_name}]` : '' }}</span></header>
     <div class="app-body focused-body"><section class="main-column">
-      <ViewerToolbar :recording="Boolean(recording)" :loading="loading" :playing="playing" :position-s="playbackPositionS" :total-duration-s="totalDurationS" :sfreq="sfreq" @open="newSession" @channels="channelSelection.openChannelDialog" @toggle="togglePlayback" @replay="replay" />
+      <ViewerToolbar :recording="Boolean(recording)" :loading="loading" :playing="playing" :position-s="playbackPositionS" :window-start-s="windowStartS" :screen-duration-s="displaySettings.timebaseSeconds" :total-duration-s="totalDurationS" :sfreq="sfreq" @open="newSession" @channels="channelSelection.openChannelDialog" @previous-screen="moveScreen(-1)" @toggle="togglePlayback" @next-screen="moveScreen(1)" @replay="replay" />
       <DisplaySettingsPanel v-if="recording" :settings="displaySettings" :preset="displayPreset" :channel-names="sourceChannelNames" @change="handleDisplayChange" @reset="handleDisplayReset" @algorithm-check="algorithmCheck.show" />
       <div v-if="recording && montageOptions.length" class="montage-bar"><MontageSelector :model-value="montageId" :options="montageOptions" :channels="recording.channels" :excluded-channels="averageExclude" @change="changeMontage" @edit-custom="customMontageOpen = true" @update-excluded="changeAverageExclude" /><span class="montage-status">{{ montageOptions.find((item) => item.id === montageId)?.label }}{{ montageId === 'average' ? (averageExclude.length ? ` · 自定义排除 ${averageExclude.length} 个` : ' · AVG-All') : montageId === 'custom_bipolar' ? ` · ${customMontage.length} 条导联` : '' }}</span></div>
       <DebugConsole v-if="recording" :seconds="debugSeconds" :loading="debugLoading" :sample="debugSample" :render-stats="renderStats" :transport-stats="transportStats" @update-seconds="debugSeconds = $event" @inspect="inspectDebugSample" />
@@ -372,6 +394,7 @@ onBeforeUnmount(() => {
         :waveform="waveform"
         :stream="streamInfo"
         :position-s="playbackPositionS"
+        :playing="playing"
         :total-duration-s="totalDurationS"
         :window-start-s="windowStartS"
         :window-duration-s="displaySettings.timebaseSeconds"
@@ -383,9 +406,10 @@ onBeforeUnmount(() => {
         @create-event="eventMarkersState.create"
         @jump-event="seekWindow"
         @remove-event="eventMarkersState.remove"
+        @analysis-range-selected="selectSpectrumRange"
       />
-      <SpectrumPanel v-if="recording" :recording-id="recording.id" :start-s="windowStartS" :channels="sourceChannelNames" />
-      <SpectrogramPanel v-if="recording" :recording-id="recording.id" :start-s="windowStartS" :channels="sourceChannelNames" />
+      <SpectrumPanel v-if="recording" :recording-id="recording.id" :start-s="windowStartS" :position-s="playbackPositionS" :playing="playing" :total-duration-s="totalDurationS" :screen-duration-s="displaySettings.timebaseSeconds" :selected-range="spectrumSelection" :channels="sourceChannelNames" @active-range-change="setActiveAnalysisRange" />
+      <SpectrogramPanel v-if="recording" :recording-id="recording.id" :start-s="windowStartS" :duration-s="totalDurationS" :position-s="playbackPositionS" :playing="playing" :active-range="activeAnalysisRange" :channels="sourceChannelNames" />
     </section></div>
     <div v-if="showStartup" class="modal-layer"><FileImport @imported="onImported" /></div>
     <div v-if="recording && isChannelDialogOpen" class="modal-layer channel-modal-layer" @click.self="channelSelection.closeChannelDialog">

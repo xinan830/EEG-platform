@@ -2,5 +2,18 @@
   "target_lines": 400,
   "strong_review_lines": 600,
   "critical_lines": 1000,
-  "reviews": {}
+  "reviews": {
+    "backend/app/services/recordings.py": {
+      "decision": "split",
+      "max_lines": 600,
+      "reason": "Recording service currently owns legacy waveform loading plus the stable configurable spectrum/spectrogram orchestration; split is planned after the contract migration settles.",
+      "follow_up": "Extract spectrum and spectrogram orchestration into a dedicated analysis service after the current API contract is released."
+    },
+    "frontend/src/App.vue": {
+      "decision": "split",
+      "max_lines": 500,
+      "reason": "Application shell still coordinates playback, import, montage and analysis range state; splitting before the range contract stabilized would duplicate state ownership.",
+      "follow_up": "Extract shared analysis context and playback session orchestration into composables in the next UI maintenance pass."
+    }
+  }
 }

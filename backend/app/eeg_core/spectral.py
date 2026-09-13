@@ -86,12 +86,12 @@ def band_power(freqs: np.ndarray, psd: np.ndarray, low: float, high: float) -> n
 
 
 def estimate_spectrogram(data: np.ndarray, sfreq: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Compute a fixed 2 s Hann spectrogram; output power is in V²/Hz."""
+    """Compute a 4 s Hann spectrogram with 1 s steps; output power is V²/Hz."""
     values = np.asarray(data, dtype=float)
-    segment_samples = int(round(2.0 * sfreq))
+    segment_samples = int(round(4.0 * sfreq))
     step_samples = int(round(1.0 * sfreq))
     if values.ndim != 2 or len(values) < segment_samples:
-        raise ValueError("时频图至少需要 2 秒数据")
+        raise ValueError("时频图至少需要 4 秒数据")
     frames = [values[start:start + segment_samples] for start in range(0, len(values) - segment_samples + 1, step_samples)]
     window = signal.get_window("hann", segment_samples)
     freqs = np.fft.rfftfreq(segment_samples, 1.0 / sfreq)
@@ -102,4 +102,45 @@ def estimate_spectrogram(data: np.ndarray, sfreq: float) -> tuple[np.ndarray, np
         density[1:-1] *= 2.0
         spectra.append(density.T)
     mask = (freqs >= 1.0) & (freqs <= 30.0)
-    return np.asarray([index / sfreq for index in range(0, len(values) - segment_samples + 1, step_samples)]), freqs[mask], np.stack(spectra)[:, :, mask]
+    starts = np.arange(0, len(values) - segment_samples + 1, step_samples, dtype=float)
+    # A time bin denotes the center of its 4-second analysis window.
+    centers = (starts + segment_samples / 2.0) / sfreq
+    return centers, freqs[mask], np.stack(spectra)[:, :, mask]
+
+
+def estimate_spectrogram_with_quality(data: np.ndarray, sfreq: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, object]]]:
+    """Return spectrogram power plus one quality record for every time window.
+
+    The time axis and FFT math are identical to :func:`estimate_spectrogram`.
+    A window is bad when it contains a non-finite sample or exceeds the shared
+    analysis artifact peak threshold. Bad windows keep their time position and
+    are represented by NaN power so renderers can show a gap.
+    """
+    values = np.asarray(data, dtype=float)
+    segment_samples = int(round(4.0 * sfreq))
+    step_samples = int(round(1.0 * sfreq))
+    if values.ndim != 2 or len(values) < segment_samples:
+        raise ValueError("时频图至少需要 4 秒数据")
+    starts = np.arange(0, len(values) - segment_samples + 1, step_samples, dtype=int)
+    window = signal.get_window("hann", segment_samples)
+    freqs = np.fft.rfftfreq(segment_samples, 1.0 / sfreq)
+    mask = (freqs >= 1.0) & (freqs <= 30.0)
+    threshold_v = float(ANALYSIS_CONTRACT["artifact_peak_uv"]) * 1e-6
+    spectra: list[np.ndarray] = []
+    quality: list[dict[str, object]] = []
+    for start in starts:
+        frame = values[start:start + segment_samples]
+        finite = bool(np.isfinite(frame).all())
+        peak = float(np.max(np.abs(frame))) if finite else float("nan")
+        bad_reason = None if finite and peak <= threshold_v else ("non_finite" if not finite else "amplitude_threshold")
+        transformed = np.fft.rfft(np.nan_to_num(frame) * window[:, None], axis=0)
+        density = np.abs(transformed) ** 2 / (sfreq * np.sum(window ** 2))
+        density[1:-1] *= 2.0
+        power = density.T[:, mask]
+        if bad_reason is not None:
+            power[:] = np.nan
+        spectra.append(power)
+        center = (float(start) + segment_samples / 2.0) / sfreq
+        quality.append({"center_s": center, "start_s": float(start) / sfreq, "end_s": (float(start) + segment_samples) / sfreq, "status": "bad" if bad_reason else "clean", "reason": bad_reason, "peak_uv": peak * 1e6 if finite else None})
+    centers = np.asarray([item["center_s"] for item in quality], dtype=float)
+    return centers, freqs[mask], np.stack(spectra), quality

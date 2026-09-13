@@ -9,6 +9,7 @@ interface DisplayControlActions {
   hasActivePlayback: () => boolean
   restartPlayback: () => Promise<void>
   reloadFromStart: () => Promise<void>
+  applyTimebase: () => Promise<void>
   rebuildEmptySweep: () => void
   showError: (message: string) => void
 }
@@ -29,7 +30,7 @@ export function useDisplayControls(actions: DisplayControlActions) {
   }
 
   function applyTimebase() {
-    void reloadForCurrentSettings()
+    void actions.applyTimebase()
   }
 
   function applySensitivity() {

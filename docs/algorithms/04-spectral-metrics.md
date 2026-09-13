@@ -1,5 +1,11 @@
 # 频谱与离线指标
 
+## 算法版本
+
+`offline-spectral-v3` 是冻结的数学基线。`offline-spectral-v4-configurable` 只开放时间范围、通道、动态窗口和刷新步长，并复用 v3 的连续预处理、Welch、频段积分与质量门；它不会修改 PSD 数学结果。
+
+v4 响应同时包含请求配置、实际执行配置、warm-up 状态和 12 位 `analysis_config_hash`。静态分析严格拒绝越过文件末尾；动态分析允许播放初期实际窗口短于目标窗口，但至少需要 4 秒数据。
+
 实现位置：`backend/app/eeg_core/spectral.py`、`offline_metrics.py`、`faa.py`。
 
 ## 离线预处理
@@ -8,11 +14,13 @@
 
 ## Welch PSD
 
-- 分析窗口内部使用 4 s Hann segment、50% segment overlap。
+- 外层分析区间被切成 4 s segment，步长 2 s，即 segment 间 50% overlap。例如 30 s 区间有 `(30-4)/2+1=14` 个候选 segment。
 - 质量门逐个检查 segment；只平均 clean segment，clean 比例低于 0.75 时整段不可用。
-- 每个 clean segment 使用 `scaling="density"`，`detrend="constant"`。
+- 每个 clean segment 调用一次 Welch：`nperseg=4 s`、`noverlap=0`、Hann、`scaling="density"`、`detrend="constant"`。这里的 50% overlap 是外层 4 s segment 之间的重叠，不是单个 4 s segment 内再次重叠。
 - 峰值阈值：150 µV；clean epoch 比例至少 0.75，否则质量门失败。
 - 输出频率限制为 1–30 Hz，PSD 不低于 `1e-20`。
+
+多通道 PSD 逐通道计算后按通道请求顺序返回。后端内部 PSD 单位为 `V^2/Hz`，API 边界乘 `10^12` 转为 `uV^2/Hz`。
 
 ## IAPF
 
@@ -26,6 +34,10 @@
 - Brainbeat = Fz 相对 theta / Pz 相对 alpha。
 - Fatigue = theta / beta，当前输出 Fz/Pz/Oz。
 - HAI = `log10(beta[13,25] / low[1,8])`（实时纯函数）。
+
+频段积分会先用线性插值补入精确边界，再用梯形积分。离散频点未必落在 1、4、8、13、30 Hz，因此测试应使用相对误差，不应要求浮点严格相等。v3 的 RBP 分母是四个标准频段功率之和；在该分段下等价覆盖 1–30 Hz。
+
+FAA 独立使用 F3/F4：跳过记录前 12 s，2 s epoch、50% overlap、150 µV 成对质量门，至少 10 个 clean paired epochs，最长处理 1800 s。其功率单位在对数差中抵消。
 
 ## 状态
 
