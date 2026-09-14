@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { getMontages, getWaveformWindow, type CustomMontageRow, type MontageOption } from './api/recordings'
 import { controlWaveformPlayback, createWaveformPlayback, waveformPlaybackSocketUrl } from './api/waveformPlayback'
 import FileImport from './components/FileImport.vue'
@@ -17,6 +17,8 @@ import AlgorithmDefinitionWorkbench from './components/AlgorithmDefinitionWorkbe
 import ResultsDrawer from './components/ResultsDrawer.vue'
 import UserAlgorithmBuilder from './components/UserAlgorithmBuilder.vue'
 import AlgorithmDisplayWorkspace from './components/AlgorithmDisplayWorkspace.vue'
+import DefinitionMetricResultCard, { type DefinitionMetricResult } from './components/DefinitionMetricResultCard.vue'
+import DefinitionMetricTrendChart, { type DynamicMetric } from './components/DefinitionMetricTrendChart.vue'
 import type { Recording } from './types/recording'
 import { isValidDisplaySettings } from './utils/displaySettings'
 import { WaveformSweepBuffer } from './utils/waveformSweepBuffer'
@@ -57,6 +59,9 @@ const algorithmWorkbenchOpen = ref(false)
 const resultsOpen = ref(false)
 const userAlgorithmBuilderOpen = ref(false)
 const algorithmDisplayOpen = ref(false)
+const algorithmDisplayResults = ref<Record<string, { status: string; result: Record<string, unknown> | null; error?: string }>>({})
+const algorithmDisplayResultItems = computed(() => Object.entries(algorithmDisplayResults.value).map(([id, item]) => ({ id, ...item })))
+function isDynamicMetric(value: Record<string, unknown> | null): value is DynamicMetric { return Boolean(value && Array.isArray(value.series)) }
 const developerMode = ref(false)
 // Worker 消息必须是可结构化克隆的普通对象，流元数据不能被 Vue 深度代理。
 const streamInfo = shallowRef<StreamInfo>(null)
@@ -438,7 +443,8 @@ onBeforeUnmount(() => {
     </div>
     <AlgorithmCheckDialog v-if="algorithmOpen" :loading="algorithmLoading" :seconds="algorithmSeconds" :result="algorithmResult" @close="algorithmCheck.close" @inspect="algorithmCheck.inspect" />
     <AlgorithmDefinitionWorkbench v-if="recording && algorithmWorkbenchOpen" :recording="recording" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min((totalDurationS ?? windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" @close="algorithmWorkbenchOpen = false" />
-    <AlgorithmDisplayWorkspace v-if="recording && algorithmDisplayOpen" :recording="recording" :waveform="waveform" :stream="streamInfo" :position-s="playbackPositionS" :playing="playing" :total-duration-s="totalDurationS" :window-start-s="windowStartS" :window-duration-s="displaySettings.timebaseSeconds" :sensitivity-uv-per-mm="displaySettings.sensitivityUvPerMm" :active-range="activeAnalysisRange" :channels="sourceChannelNames" @close="algorithmDisplayOpen = false" @window-requested="seekWindow" />
+    <AlgorithmDisplayWorkspace v-if="recording && algorithmDisplayOpen" :recording="recording" :range-start="activeAnalysisRange?.start ?? windowStartS" :range-end="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? (windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" :active-range="activeAnalysisRange" :channels="sourceChannelNames" @close="algorithmDisplayOpen = false" @results="algorithmDisplayResults = $event" />
+    <section v-if="recording && algorithmDisplayResultItems.length" class="algorithm-results-on-main"><header><h2>当前波形算法结果</h2><button type="button" @click="algorithmDisplayResults = {}">清除结果</button></header><article v-for="item in algorithmDisplayResultItems" :key="item.id"><p v-if="item.error" class="algorithm-display-error">{{ item.error }}</p><DefinitionMetricResultCard v-if="item.result && !isDynamicMetric(item.result)" :result="item.result as unknown as DefinitionMetricResult" /><DefinitionMetricTrendChart v-if="item.result && isDynamicMetric(item.result)" :result="item.result" /></article></section>
     <UserAlgorithmBuilder v-if="recording && userAlgorithmBuilderOpen" @close="userAlgorithmBuilderOpen = false" @saved="userAlgorithmBuilderOpen = false" />
     <ResultsDrawer v-if="recording && resultsOpen" :recording-id="recording.id" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? windowStartS + displaySettings.timebaseSeconds, windowStartS + Math.max(4, displaySettings.timebaseSeconds))" :channels="sourceChannelNames" @close="resultsOpen = false" />
     <div v-if="error" class="error-toast">{{ error }}</div>

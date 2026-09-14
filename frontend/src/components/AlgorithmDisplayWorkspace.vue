@@ -4,19 +4,16 @@ import { listDefinitions, listDefinitionVersions } from '../api/algorithmDefinit
 import { createDefinitionMetricRun, getRun, type AnalysisRunResponse } from '../api/runs'
 import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/algorithmDefinition'
 import type { Recording } from '../types/recording'
-import WaveformPanel from './WaveformPanel.vue'
-import DefinitionMetricResultCard, { type DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
-import DefinitionMetricTrendChart, { type DynamicMetric } from './DefinitionMetricTrendChart.vue'
+import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
+import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
 import '../styles/algorithmDisplayWorkspace.css'
 
-type Waveform = { elapsed_s: ArrayLike<number>; channels: Record<string, ArrayLike<number>> }
-type StreamInfo = { sfreq: number; channelNames: string[]; startS: number } | null
 type Range = { start: number; end: number }
-type WorkspaceRun = { status: string; result: DefinitionMetricResult | DynamicMetric | null; error?: string }
+export type WorkspaceMetricRun = { status: string; result: DefinitionMetricResult | DynamicMetric | null; error?: string }
 const props = defineProps<{
-  recording: Recording; waveform: Waveform; stream: StreamInfo; positionS: number; playing: boolean; totalDurationS?: number; windowStartS: number; windowDurationS: number; sensitivityUvPerMm: number; activeRange?: Range | null; channels: string[]
+  recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]
 }>()
-const emit = defineEmits<{ close: []; windowRequested: [startS: number] }>()
+const emit = defineEmits<{ close: []; results: [runs: Record<string, WorkspaceMetricRun>] }>()
 const definitions = ref<AlgorithmDefinition[]>([])
 const versions = ref<Record<string, AlgorithmDefinitionVersion>>({})
 const selectedIds = ref<string[]>([])
@@ -25,8 +22,8 @@ const mode = ref<'static' | 'dynamic'>('static')
 const running = ref(false)
 const loading = ref(false)
 const message = ref('')
-const runs = ref<Record<string, WorkspaceRun>>({})
-const range = computed(() => props.activeRange ?? { start: props.windowStartS, end: Math.min(props.totalDurationS ?? props.windowStartS + props.windowDurationS, props.windowStartS + props.windowDurationS) })
+const runs = ref<Record<string, WorkspaceMetricRun>>({})
+const range = computed(() => props.activeRange ?? { start: props.rangeStart, end: props.rangeEnd })
 const rangeDuration = computed(() => range.value.end - range.value.start)
 const canRun = computed(() => selectedIds.value.length > 0 && Boolean(channel.value) && rangeDuration.value >= (mode.value === 'dynamic' ? 10 : 4) && !running.value)
 const userDefinitions = computed(() => definitions.value.filter((item) => item.owner !== 'platform-official'))
@@ -66,9 +63,8 @@ async function runSelected() {
         await poll(created.run_id, definitionId)
       } catch (cause) { runs.value[definitionId] = { status: 'failed', result: null, error: cause instanceof Error ? cause.message : '提交失败' } }
     }))
-  } finally { running.value = false }
+  } finally { running.value = false; emit('results', { ...runs.value }) }
 }
-function isDynamic(result: DefinitionMetricResult | DynamicMetric | null): result is DynamicMetric { return Boolean(result && 'series' in result) }
 function title(id: string) { return definitions.value.find((item) => item.definition_id === id)?.name ?? id }
 onMounted(load)
 </script>
@@ -84,10 +80,7 @@ onMounted(load)
       </div>
       <div class="algorithm-display-layout">
         <aside class="algorithm-display-sidebar"><h3>选择算法</h3><p class="algorithm-display-help">勾选要叠加到当前波形的用户算法。</p><label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label><p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无用户算法</p><p v-if="mode === 'dynamic' && rangeDuration < 10" class="algorithm-display-warning">动态分析至少需要 10 秒区间。</p><p v-else-if="mode === 'static' && rangeDuration < 4" class="algorithm-display-warning">静态分析至少需要 4 秒区间。</p></aside>
-        <main class="algorithm-display-main">
-          <div class="algorithm-display-waveform"><WaveformPanel :waveform="props.waveform" :stream="props.stream" :position-s="props.positionS" :playing="props.playing" :total-duration-s="props.totalDurationS" :window-start-s="props.windowStartS" :window-duration-s="props.windowDurationS" :sensitivity-uv-per-mm="props.sensitivityUvPerMm" @window-requested="(start) => emit('windowRequested', start)" /></div>
-          <section class="algorithm-display-results"><header><h3>算法结果</h3><span v-if="selectedIds.length">已选 {{ selectedIds.length }} 个</span></header><p v-if="!selectedIds.length" class="algorithm-display-empty">先勾选左侧算法，再运行分析。</p><article v-for="id in selectedIds" :key="id" class="algorithm-display-result"><h4>{{ title(id) }} <small v-if="runs[id]">· {{ runs[id].status }}</small></h4><p v-if="runs[id]?.error" class="algorithm-display-error">{{ runs[id]?.error }}</p><DefinitionMetricResultCard v-if="runs[id]?.result && !isDynamic(runs[id].result)" :result="runs[id].result" /><DefinitionMetricTrendChart v-if="runs[id]?.result && isDynamic(runs[id].result)" :result="runs[id].result" /><p v-if="runs[id]?.result && isDynamic(runs[id].result)" class="algorithm-display-meta">动态窗口：10 s · 步长：1 s · 横轴：窗口结束时间 (s) · 数值与质量来自后端</p></article></section>
-        </main>
+        <main class="algorithm-display-main"><p class="algorithm-display-empty">勾选算法并运行后，结果会显示在主页面波形下方。</p></main>
       </div>
       <p v-if="message" class="definition-error">{{ message }}</p>
     </section>
