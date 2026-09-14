@@ -109,6 +109,39 @@ def evaluate_formula(formula: str, inputs: Mapping[str, Scalar]) -> Scalar:
     return _formula_node(expression, inputs)
 
 
+def validate_parameters(schema: Mapping[str, object], parameters: Mapping[str, object]) -> None:
+    """Validate a deliberately small JSON-schema subset and reject unknown rules."""
+    allowed = {"type", "properties", "required", "additionalProperties", "enum", "minimum", "maximum", "items"}
+    unknown = set(schema) - allowed
+    if unknown or schema.get("type", "object") != "object":
+        raise DefinitionEngineError("PARAMETER_INVALID", "unsupported parameter schema", {"keywords": sorted(unknown)})
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+    if not isinstance(properties, dict) or not isinstance(required, list):
+        raise DefinitionEngineError("PARAMETER_INVALID", "parameter schema properties and required are invalid")
+    for name in required:
+        if name not in parameters:
+            raise DefinitionEngineError("PARAMETER_INVALID", "required parameter is missing", {"parameter": name})
+    if schema.get("additionalProperties") is False:
+        extras = set(parameters) - set(properties)
+        if extras:
+            raise DefinitionEngineError("PARAMETER_INVALID", "unknown parameter", {"parameters": sorted(extras)})
+    for name, value in parameters.items():
+        rule = properties.get(name)
+        if rule is None:
+            continue
+        if not isinstance(rule, dict) or set(rule) - {"type", "enum", "minimum", "maximum", "items"}:
+            raise DefinitionEngineError("PARAMETER_INVALID", "unsupported parameter rule", {"parameter": name})
+        kind = rule.get("type")
+        valid = {"number": isinstance(value, (int, float)) and not isinstance(value, bool), "integer": isinstance(value, int) and not isinstance(value, bool), "string": isinstance(value, str), "boolean": isinstance(value, bool), "array": isinstance(value, list)}.get(kind, False)
+        if not valid:
+            raise DefinitionEngineError("PARAMETER_INVALID", "parameter has invalid type", {"parameter": name})
+        if "enum" in rule and value not in rule["enum"]:
+            raise DefinitionEngineError("PARAMETER_INVALID", "parameter is outside enum", {"parameter": name})
+        if kind in {"number", "integer"} and (("minimum" in rule and value < rule["minimum"]) or ("maximum" in rule and value > rule["maximum"])):
+            raise DefinitionEngineError("PARAMETER_INVALID", "parameter is outside bounds", {"parameter": name})
+
+
 def _formula_node(node: ast.AST, inputs: Mapping[str, Scalar]) -> Scalar:
     if isinstance(node, ast.Name):
         try:

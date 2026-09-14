@@ -11,6 +11,7 @@ from app.api.events import router as events_router
 from app.api.reports import router as reports_router
 from app.api.runs import router as runs_router
 from app.api.validations import router as validations_router
+from app.api.algorithm_definitions import router as definition_router
 from app.services.audit import AuditService
 from app.services.events import EventMarkerService
 from app.services.reports import ReportSnapshotService
@@ -19,6 +20,7 @@ from app.services.playback import PlaybackService
 from app.services.waveform_playback import WaveformPlaybackService
 from app.services.runs import RunService
 from app.services.validations import ValidationService
+from app.services.definitions import DefinitionService
 from app.core.api_contract import (
     RequestContextMiddleware,
     http_exception_handler,
@@ -47,6 +49,7 @@ app.state.event_marker_service = EventMarkerService()
 app.state.report_snapshot_service = ReportSnapshotService()
 app.state.run_service = RunService(app.state.recording_service)
 app.state.validation_service = ValidationService()
+app.state.definition_service = DefinitionService()
 app.include_router(recordings_router)
 app.include_router(analyses_router)
 app.include_router(playback_router)
@@ -55,6 +58,7 @@ app.include_router(events_router)
 app.include_router(reports_router)
 app.include_router(runs_router)
 app.include_router(validations_router)
+app.include_router(definition_router)
 
 
 @app.get("/api/health")
