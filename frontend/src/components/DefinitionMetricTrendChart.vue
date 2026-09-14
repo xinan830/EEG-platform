@@ -4,6 +4,7 @@ import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkAreaComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { metricTrendTimeAxis } from '../utils/metricTrendAxis'
 
 export type MetricPoint = { time_s: number; window_start_s: number; window_end_s: number; value: number | null; quality?: { status?: string; reasons?: string[] } }
 export type DynamicMetric = {
@@ -22,6 +23,7 @@ let resizeObserver: ResizeObserver | null = null
 function render() {
   if (!chart) return
   const points = props.result.series ?? []
+  const timeAxis = metricTrendTimeAxis(points.map((point) => point.time_s))
   const values = points.map((point) => [point.time_s, point.value] as [number, number | null])
   const badAreas = points.filter((point) => point.value === null || point.quality?.status === 'bad').map((point) => [
     { xAxis: point.window_start_s }, { xAxis: point.window_end_s },
@@ -41,8 +43,22 @@ function render() {
         return `时间：${point.time_s.toFixed(3)} s<br/>窗口：${point.window_start_s.toFixed(3)}–${point.window_end_s.toFixed(3)} s<br/>${props.result.output.label}：${value}${quality}`
       },
     },
-    xAxis: { type: 'value', name: '窗口结束时间 (s)', nameLocation: 'middle', nameGap: 30 },
-    yAxis: { type: 'value', name: `${props.result.output.label} (${props.result.output.unit})`, nameLocation: 'middle', nameGap: 48 },
+    xAxis: {
+      type: 'value',
+      name: '窗口结束时间 (s)',
+      nameLocation: 'middle',
+      nameGap: 30,
+      min: timeAxis.min,
+      max: timeAxis.max,
+      scale: true,
+    },
+    yAxis: {
+      type: 'value',
+      name: `${props.result.output.label} (${props.result.output.unit})`,
+      nameLocation: 'middle',
+      nameGap: 48,
+      scale: true,
+    },
     series: [{ type: 'line', name: props.result.output.label, data: values, showSymbol: points.length <= 1, symbolSize: 8, connectNulls: false, lineStyle: { width: 2, color: '#2878bd' }, itemStyle: { color: '#2878bd' }, markArea: { silent: true, itemStyle: { color: 'rgba(190, 198, 205, .24)' }, data: badAreas } }],
   }, true)
 }
