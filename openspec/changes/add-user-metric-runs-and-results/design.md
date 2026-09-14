@@ -10,12 +10,13 @@ builder: absolute Delta/Theta/Alpha/Beta power (`uV^2`) and relative band power
 (`ratio`). It uses the existing offline-spectral-v3 preprocessing and Welch
 calculation, never Viewer settings.
 
-Static mode executes once over the committed range. Dynamic mode requires an
-outer range of at least 10 seconds and evaluates real trailing 10-second EEG
-windows at 1-second ends: `10-40 s` returns windows `10-20` through `30-40`,
-with X values `20` through `40` seconds. A quality failure retains a point with
-`value: null`; it is never removed or converted to zero. A run with no clean
-point becomes `gate_failed`.
+Static mode executes once over an explicitly selected start/end range. Dynamic
+mode is a persistent playback-synchronised session: at each whole playback
+second `t >= 10`, the browser requests the real trailing `t-10 → t` EEG window.
+For example, at `46.x s` it requests `36–46 s`, then at `47.x s` requests
+`37–47 s`. The browser appends backend-returned points but performs no EEG or
+metric calculation. A quality failure retains a point with `value: null`; it
+is never removed or converted to zero.
 
 The resolver supplies backend `Scalar` values to the existing closed graph
 executor. The output must retain the executor's unit and quality state. A
@@ -26,7 +27,8 @@ is never changed to zero.
 
 `RunCreateRequest.analysis_type` gains `definition_metric`. Its config has
 `channel` and absolute `time.start_s/end_s`. A run must identify both a saved
-definition and an existing immutable version. The resolved definition version,
+definition and an existing immutable version. Static requests use user-entered
+times; dynamic playback requests have an exact 10-second range. The resolved definition version,
 feature snapshot, analysis contract, range, channel, quality data, output and
 NPZ scalar artifact belong to the normal AnalysisRun provenance and cache key.
 

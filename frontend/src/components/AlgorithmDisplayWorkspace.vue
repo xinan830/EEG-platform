@@ -6,6 +6,7 @@ import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/a
 import type { Recording } from '../types/recording'
 import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
 import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
+import { appendDynamicMetricPoint, playbackMetricWindow } from '../utils/dynamicMetricPlayback'
 import '../styles/algorithmDisplayWorkspace.css'
 
 type Range = { start: number; end: number }
@@ -24,9 +25,12 @@ const loading = ref(false)
 const message = ref('')
 const runs = ref<Record<string, WorkspaceMetricRun>>({})
 const lastDynamicRefreshS = ref<number | null>(null)
+const dynamicEnabled = ref(false)
+const staticStartS = ref(props.rangeStart)
+const staticEndS = ref(props.rangeEnd)
 const range = computed(() => props.activeRange ?? { start: props.rangeStart, end: props.rangeEnd })
-const rangeDuration = computed(() => range.value.end - range.value.start)
-const canRun = computed(() => selectedIds.value.length > 0 && Boolean(channel.value) && rangeDuration.value >= (mode.value === 'dynamic' ? 10 : 4) && !running.value)
+const staticRangeDuration = computed(() => staticEndS.value - staticStartS.value)
+const canRun = computed(() => selectedIds.value.length > 0 && Boolean(channel.value) && !running.value && (mode.value === 'dynamic' || staticRangeDuration.value >= 4))
 const userDefinitions = computed(() => definitions.value.filter((item) => item.owner !== 'platform-official'))
 function resultFrom(run: AnalysisRunResponse): DefinitionMetricResult | DynamicMetric | null {
   const metric = run.result_summary?.metric
@@ -43,41 +47,67 @@ async function load() {
   } catch (cause) { message.value = cause instanceof Error ? cause.message : '无法读取算法库' }
   finally { loading.value = false }
 }
-async function poll(runId: string, definitionId: string) {
+function isDynamic(result: DefinitionMetricResult | DynamicMetric | null): result is DynamicMetric {
+  return Boolean(result && Array.isArray((result as DynamicMetric).series))
+}
+async function poll(runId: string, definitionId: string, append = false) {
   for (let attempt = 0; attempt < 120; attempt += 1) {
     const next = await getRun(runId)
-    runs.value[definitionId] = { status: next.status, result: resultFrom(next), error: next.error?.message }
+    const result = resultFrom(next)
+    const previous = runs.value[definitionId]?.result ?? null
+    runs.value[definitionId] = {
+      status: next.status,
+      result: append && isDynamic(previous) && isDynamic(result) ? appendDynamicMetricPoint(previous, result) : result,
+      error: next.error?.message,
+    }
     if (['completed', 'gate_failed', 'failed', 'cancelled'].includes(next.status)) return
     await new Promise<void>((resolve) => window.setTimeout(resolve, 250))
   }
 }
-async function runSelected(overrideEnd?: number) {
+async function runSelected(startS: number, endS: number, dynamic: boolean, append = false) {
   if (!canRun.value) return
-  running.value = true; message.value = ''; runs.value = {}
+  running.value = true; message.value = ''
+  if (!append) runs.value = {}
   try {
     await Promise.all(selectedIds.value.map(async (definitionId) => {
       const version = versions.value[definitionId]
       if (!version) { runs.value[definitionId] = { status: 'failed', result: null, error: '没有可运行的算法版本' }; return }
       try {
-        const endS = overrideEnd ?? range.value.end
-        const startS = overrideEnd === undefined ? range.value.start : Math.max(0, range.value.start)
-        if (endS - startS < (mode.value === 'dynamic' ? 10 : 4)) return
-        const created = await createDefinitionMetricRun({ recordingId: props.recording.id, definitionId, definitionVersion: version.semver, channel: channel.value, startS, endS, mode: mode.value })
-        runs.value[definitionId] = { status: created.status, result: resultFrom(created) }
-        await poll(created.run_id, definitionId)
+        const created = await createDefinitionMetricRun({ recordingId: props.recording.id, definitionId, definitionVersion: version.semver, channel: channel.value, startS, endS, mode: dynamic ? 'dynamic' : 'static' })
+        runs.value[definitionId] = { status: created.status, result: append ? (runs.value[definitionId]?.result ?? null) : resultFrom(created) }
+        await poll(created.run_id, definitionId, append)
       } catch (cause) { runs.value[definitionId] = { status: 'failed', result: null, error: cause instanceof Error ? cause.message : '提交失败' } }
     }))
   } finally { running.value = false; emit('results', { ...runs.value }) }
 }
-watch(() => [props.playing, props.playbackPositionS, mode.value] as const, ([playing, position, currentMode]) => {
-  if (!playing || currentMode !== 'dynamic' || position === undefined || running.value || selectedIds.value.length === 0) return
+async function runStatic() {
+  dynamicEnabled.value = false
+  if (staticRangeDuration.value < 4) { message.value = '静态分析区间至少需要 4 秒。'; return }
+  await runSelected(staticStartS.value, staticEndS.value, false)
+}
+async function enableDynamic() {
+  dynamicEnabled.value = true
+  lastDynamicRefreshS.value = null
+  message.value = '已启用播放同步分析：播放到 10 秒后，每整秒计算最近 10 秒。'
+  const position = props.playbackPositionS
+  if (position !== undefined && position >= 10 && !props.playing) await refreshDynamic(position)
+  emit('close')
+}
+async function refreshDynamic(position: number) {
   const second = Math.floor(position)
-  if (lastDynamicRefreshS.value === second) return
-  const start = range.value.start
-  if (position - start < 10) return
+  if (lastDynamicRefreshS.value === second || running.value) return
+  const window = playbackMetricWindow(second)
+  if (!window) return
   lastDynamicRefreshS.value = second
-  void runSelected(position)
+  await runSelected(window.startS, window.endS, true, true)
+}
+watch(() => [props.playing, props.playbackPositionS] as const, ([playing, position]) => {
+  if (!playing || !dynamicEnabled.value || position === undefined || selectedIds.value.length === 0) return
+  const second = Math.floor(position)
+  void refreshDynamic(second)
 })
+watch(mode, (nextMode) => { if (nextMode !== 'dynamic') dynamicEnabled.value = false })
+function useCurrentRange() { staticStartS.value = range.value.start; staticEndS.value = range.value.end }
 function title(id: string) { return definitions.value.find((item) => item.definition_id === id)?.name ?? id }
 onMounted(load)
 </script>
@@ -88,11 +118,11 @@ onMounted(load)
       <div class="algorithm-display-controls">
         <label>通道<select v-model="channel"><option v-for="item in props.channels.length ? props.channels : props.recording.channels" :key="item" :value="item">{{ item }}</option></select></label>
         <span class="algorithm-display-label">分析模式</span><div class="algorithm-display-segment"><button :class="{ active: mode === 'static' }" @click="mode = 'static'">静态分析</button><button :class="{ active: mode === 'dynamic' }" @click="mode = 'dynamic'">动态分析</button></div>
-        <span class="algorithm-display-range">分析区间：{{ range.start.toFixed(3) }}–{{ range.end.toFixed(3) }} s · {{ mode === 'dynamic' ? '最近 10 s / 每 1 s' : '当前区间一次计算' }}</span>
-        <button class="primary-action" :disabled="!canRun" @click="() => runSelected()">{{ running ? '计算中…' : '运行已选算法' }}</button>
+        <template v-if="mode === 'static'"><label>开始 <input v-model.number="staticStartS" type="number" min="0" step="0.001" /> s</label><label>结束 <input v-model.number="staticEndS" type="number" min="0" step="0.001" /> s</label><button type="button" @click="useCurrentRange">使用当前分析区间</button><button class="primary-action" :disabled="!canRun" @click="runStatic">{{ running ? '计算中…' : '计算此区间' }}</button></template>
+        <template v-else><span class="algorithm-display-range">播放同步：最近 10 s · 每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ dynamicEnabled ? '同步已启用' : '启用播放同步' }}</button></template>
       </div>
       <div class="algorithm-display-layout">
-        <aside class="algorithm-display-sidebar"><h3>选择算法</h3><p class="algorithm-display-help">勾选要叠加到当前波形的用户算法。</p><label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label><p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无用户算法</p><p v-if="mode === 'dynamic' && rangeDuration < 10" class="algorithm-display-warning">动态分析至少需要 10 秒区间。</p><p v-else-if="mode === 'static' && rangeDuration < 4" class="algorithm-display-warning">静态分析至少需要 4 秒区间。</p></aside>
+        <aside class="algorithm-display-sidebar"><h3>选择算法</h3><p class="algorithm-display-help">勾选要叠加到当前波形的用户算法。</p><label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label><p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无用户算法</p><p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析区间至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">动态模式不使用框选区间；播放达到 10 秒后开始计算。</p></aside>
         <main class="algorithm-display-main"><p class="algorithm-display-empty">勾选算法并运行后，结果会显示在主页面波形下方。</p></main>
       </div>
       <p v-if="message" class="definition-error">{{ message }}</p>
