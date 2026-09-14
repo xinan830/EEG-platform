@@ -21,6 +21,7 @@ from app.services.waveform_playback import WaveformPlaybackService
 from app.services.runs import RunService
 from app.services.validations import ValidationService
 from app.services.definitions import DefinitionService
+from app.eeg_core.official_definitions import ensure_official_definitions
 from app.core.api_contract import (
     RequestContextMiddleware,
     http_exception_handler,
@@ -50,6 +51,7 @@ app.state.report_snapshot_service = ReportSnapshotService()
 app.state.run_service = RunService(app.state.recording_service)
 app.state.validation_service = ValidationService()
 app.state.definition_service = DefinitionService()
+ensure_official_definitions(app.state.definition_service)
 app.include_router(recordings_router)
 app.include_router(analyses_router)
 app.include_router(playback_router)
