@@ -171,10 +171,32 @@ def _migration_003_run_foundation(connection: sqlite3.Connection) -> None:
         connection.execute(statement)
 
 
+def _migration_004_algorithm_definitions(connection: sqlite3.Connection) -> None:
+    statements = (
+        """CREATE TABLE IF NOT EXISTS algorithm_definitions (
+            definition_id TEXT PRIMARY KEY, name TEXT NOT NULL, owner TEXT NOT NULL,
+            status TEXT NOT NULL, description TEXT NOT NULL, created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS algorithm_definition_versions (
+            version_id TEXT PRIMARY KEY, definition_id TEXT NOT NULL, semver TEXT NOT NULL,
+            state TEXT NOT NULL, graph_json TEXT NOT NULL, parameter_schema_json TEXT NOT NULL,
+            inputs_json TEXT NOT NULL, outputs_json TEXT NOT NULL, units_json TEXT NOT NULL,
+            quality_rules_json TEXT NOT NULL, references_json TEXT NOT NULL, digest_sha256 TEXT NOT NULL,
+            created_at TEXT NOT NULL, published_at TEXT,
+            UNIQUE(definition_id, semver), UNIQUE(definition_id, digest_sha256),
+            FOREIGN KEY(definition_id) REFERENCES algorithm_definitions(definition_id))""",
+        "CREATE INDEX IF NOT EXISTS idx_algorithm_definitions_updated ON algorithm_definitions(updated_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_algorithm_versions_definition ON algorithm_definition_versions(definition_id, created_at DESC)",
+    )
+    for statement in statements:
+        connection.execute(statement)
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "legacy-tables", _migration_001_legacy_tables),
     Migration(2, "recording-identity", _migration_002_recording_identity),
     Migration(3, "run-foundation", _migration_003_run_foundation),
+    Migration(4, "algorithm-definitions", _migration_004_algorithm_definitions),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

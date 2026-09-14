@@ -1,6 +1,6 @@
 ## 1. Definition persistence and contracts
 
-- [ ] 1.1 Add non-destructive schema migration, typed models, repository, SemVer and immutable lifecycle validation.
+- [x] 1.1 Add non-destructive schema migration, typed models, repository, SemVer and immutable lifecycle validation.
 - [ ] 1.2 Add canonical graph/config digest and constrained parameter-schema validation.
 
 ## 2. Graph validation and execution
