@@ -1,4 +1,4 @@
-const apiBase = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000'
+export const apiBase = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000'
 
 export interface ApiErrorPayload {
   code?: string

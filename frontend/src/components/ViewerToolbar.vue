@@ -12,7 +12,7 @@ const props = defineProps<{
   sfreq?: number
 }>()
 
-const emit = defineEmits<{ open: []; channels: []; algorithms: []; toggle: []; replay: []; previousScreen: []; nextScreen: [] }>()
+const emit = defineEmits<{ open: []; channels: []; algorithms: []; results: []; toggle: []; replay: []; previousScreen: []; nextScreen: [] }>()
 const previousDisabled = computed(() => props.loading || props.windowStartS <= 0)
 const nextDisabled = computed(() => props.loading || props.totalDurationS === undefined || props.windowStartS >= Math.max(0, props.totalDurationS - props.screenDurationS))
 </script>
@@ -23,6 +23,7 @@ const nextDisabled = computed(() => props.loading || props.totalDurationS === un
     <template v-if="recording">
       <button :disabled="loading" @click="emit('channels')">通道设置</button>
       <button :disabled="loading" @click="emit('algorithms')">算法定义</button>
+      <button :disabled="loading" @click="emit('results')">结果工作台</button>
       <button class="screen-nav-button" :disabled="previousDisabled" title="上一屏" aria-label="上一屏" @click="emit('previousScreen')">◀ 上一屏</button>
       <button class="playback-button" :disabled="loading" @click="emit('toggle')">{{ playing ? '暂停' : '播放' }}</button>
       <button class="screen-nav-button" :disabled="nextDisabled" title="下一屏" aria-label="下一屏" @click="emit('nextScreen')">下一屏 ▶</button>

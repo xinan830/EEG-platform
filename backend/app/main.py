@@ -27,6 +27,8 @@ from app.services.projects import ProjectService
 from app.services.batch_runs import BatchRunService
 from app.api.projects import router as projects_router
 from app.api.batch_runs import router as batch_runs_router
+from app.api.results import router as results_router
+from app.services.results import ResultService
 from app.eeg_core.official_definitions import ensure_official_definitions
 from app.core.api_contract import (
     RequestContextMiddleware,
@@ -69,6 +71,7 @@ app.state.validation_service = ValidationService()
 app.state.definition_service = DefinitionService()
 app.state.project_service = ProjectService()
 app.state.batch_run_service = BatchRunService(app.state.project_service, app.state.run_service)
+app.state.result_service = ResultService(app.state.run_service, app.state.validation_service)
 ensure_official_definitions(app.state.definition_service)
 app.include_router(recordings_router)
 app.include_router(analyses_router)
@@ -81,6 +84,7 @@ app.include_router(validations_router)
 app.include_router(definition_router)
 app.include_router(projects_router)
 app.include_router(batch_runs_router)
+app.include_router(results_router)
 
 
 @app.get("/api/health")
