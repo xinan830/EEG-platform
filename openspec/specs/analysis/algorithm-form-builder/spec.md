@@ -77,4 +77,3 @@ requests, versions and provenance.
 - **WHEN** the workbench receives the official definition named `Official FAA`
 - **THEN** it SHALL display `额叶 Alpha 不对称性` and the `FAA` abbreviation
 - **AND THEN** it SHALL not modify the backend-returned definition name or ID.
-
