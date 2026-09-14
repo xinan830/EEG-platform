@@ -17,6 +17,7 @@ This roadmap evolves the existing EEG viewer into a local, single-user research 
 | 08 | `define-extension-and-governance-boundaries` | Safe module metadata and explicit future security boundaries | Complete, archived 2026-09-14 |
 | 09 | `surface-spectral-reference-validation` | Workbench UI for independent PSD reference evidence | Complete, archived 2026-09-14 |
 | 10 | `localize-official-algorithm-labels` | Chinese official algorithm display labels | Complete, archived 2026-09-14 |
+| 11 | `add-user-friendly-algorithm-workbench` | Chinese-readable default algorithm explanations with opt-in developer details | Complete, archived 2026-09-14 |
 
 ## Change gate
 

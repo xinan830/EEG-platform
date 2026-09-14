@@ -25,6 +25,7 @@ const validationError = ref('')
 const formError = ref('')
 const previewInputs = ref<Record<string, { value: number; unit: Unit }>>({ value: { value: 1, unit: 'ratio' } })
 const previewRun = ref<Awaited<ReturnType<typeof createDefinitionPreview>> | null>(null)
+const developerMode = ref(false)
 const draftState = useDefinitionDraft(DEFAULT_DRAFT)
 const selectionRequest = createLatestRequestGuard()
 const selected = computed(() => definitions.value.find((item) => item.definition_id === selectedId.value) ?? null)
@@ -85,6 +86,8 @@ async function selectDefinition(id: string) {
   loading.value = true
   validationError.value = ''
   compareResult.value = null
+  actionMessage.value = ''
+  previewRun.value = null
   try {
     const nextVersions = await listDefinitionVersions(id)
     if (!selectionRequest.isCurrent(requestId)) return
@@ -221,10 +224,28 @@ onMounted(loadDefinitions)
 <template>
   <div class="modal-layer definition-modal-layer" @click.self="emit('close')">
     <section class="definition-workbench" aria-label="算法定义工作台">
-      <header class="dialog-titlebar"><span class="app-glyph">◫</span><strong>算法定义工作台</strong><span class="definition-range">预览范围 {{ startS.toFixed(3) }}-{{ endS.toFixed(3) }} s</span><button class="dialog-close" title="关闭" aria-label="关闭" @click="emit('close')">×</button></header>
+      <header class="dialog-titlebar"><span class="app-glyph">◫</span><strong>{{ developerMode ? '算法定义工作台 · 开发者详情' : '算法说明' }}</strong><span class="definition-range">预览范围 {{ startS.toFixed(3) }}-{{ endS.toFixed(3) }} s</span><button class="definition-mode" @click="developerMode = !developerMode">{{ developerMode ? '返回简洁版' : '开发者详情' }}</button><button class="dialog-close" title="关闭" aria-label="关闭" @click="emit('close')">×</button></header>
       <div class="definition-layout">
-        <aside class="definition-sidebar"><button @click="newDraft">新建草稿</button><button :disabled="!selectedId || loading" @click="clone">克隆</button><p>定义</p><button v-for="item in definitions" :key="item.definition_id" class="definition-list-item" :class="{ selected: item.definition_id === selectedId }" @click="selectDefinition(item.definition_id)"><strong>{{ algorithmLabel(item).name }}</strong><small>{{ item.owner === 'platform-official' ? '官方' : '私有' }} · {{ item.status }}{{ algorithmLabel(item).abbreviation ? ` · ${algorithmLabel(item).abbreviation}` : '' }}</small></button><span v-if="!definitions.length && !loading" class="definition-muted">尚无保存的定义</span></aside>
+        <aside class="definition-sidebar"><template v-if="developerMode"><button @click="newDraft">新建草稿</button><button :disabled="!selectedId || loading" @click="clone">克隆</button></template><p>算法</p><button v-for="item in definitions" :key="item.definition_id" class="definition-list-item" :class="{ selected: item.definition_id === selectedId }" @click="selectDefinition(item.definition_id)"><strong>{{ algorithmLabel(item).name }}</strong><small>{{ item.owner === 'platform-official' ? (developerMode ? `官方 · ${item.status}` : '官方算法') : (developerMode ? `私有 · ${item.status}` : '私有算法') }}{{ algorithmLabel(item).abbreviation ? ` · ${algorithmLabel(item).abbreviation}` : '' }}</small></button><span v-if="!definitions.length && !loading" class="definition-muted">尚无保存的算法</span></aside>
         <main class="definition-editor">
+          <section v-if="!developerMode" class="algorithm-explainer">
+            <template v-if="selected">
+              <p class="algorithm-explainer-kicker">{{ selected.owner === 'platform-official' ? '官方算法说明' : '研究算法说明' }}</p>
+              <h2>{{ selectedLabel.name }}<span v-if="selectedLabel.abbreviation"> · {{ selectedLabel.abbreviation }}</span></h2>
+              <p class="algorithm-explainer-purpose">{{ selectedLabel.purpose }}</p>
+              <section>
+                <h3>后端如何计算</h3>
+                <ol><li v-for="step in selectedLabel.steps" :key="step">{{ step }}</li></ol>
+              </section>
+              <section>
+                <h3>结果如何理解</h3>
+                <p>{{ selectedLabel.result }}</p>
+              </section>
+              <p class="algorithm-explainer-note">实际数值请在频谱分析、时频图或结果工作台查看。本页只解释已保存的算法定义，不在前端重新计算 EEG。</p>
+            </template>
+            <p v-else class="definition-muted">正在读取算法说明...</p>
+          </section>
+          <template v-else>
           <div class="definition-actions"><button :disabled="loading || !draftState.isJsonValid.value" @click="validate">校验</button><button :disabled="loading || isCompositeOfficial" @click="saveVersion">保存版本</button><button :disabled="loading || !selectedId || isCompositeOfficial" @click="publish">发布</button><button :disabled="loading || isCompositeOfficial" @click="preview">运行预览</button><span v-if="loading">处理中...</span></div>
           <p v-if="isCompositeOfficial" class="definition-warning">这是官方复合定义：可检查和克隆，但通用图执行器不会伪造其运行语义。</p>
           <p v-if="selected?.owner === 'platform-official'" class="definition-message">{{ selectedLabel.name }}（{{ selectedLabel.abbreviation }}）：{{ selectedLabel.purpose }}</p>
@@ -239,6 +260,7 @@ onMounted(loadDefinitions)
           <section class="definition-section"><h3>高级 JSON</h3><textarea class="definition-json" :value="draftState.jsonText.value" :disabled="isCompositeOfficial" @input="draftState.applyJson(eventValue($event))" /></section>
           <section class="definition-section"><h3>版本比较</h3><div class="definition-compare"><select v-model="compareLeft"><option v-for="item in versions" :key="item.semver" :value="item.semver">{{ item.semver }}</option></select><select v-model="compareRight"><option v-for="item in versions" :key="item.semver" :value="item.semver">{{ item.semver }}</option></select><button :disabled="!selectedId || loading" @click="compare">比较</button><span v-if="compareResult">摘要相同：{{ compareResult.same_digest ? '是' : '否' }} · 图变更：{{ compareResult.graph_changed ? '是' : '否' }} · 参数变更：{{ compareResult.parameter_schema_changed ? '是' : '否' }}</span></div></section>
           <section class="definition-section"><h3>标量模拟预览</h3><div class="definition-preview-inputs"><label v-for="key in inputNames" :key="key">{{ key }}<input v-model.number="previewInputs[key].value" type="number" step="any" :disabled="isCompositeOfficial" /><select v-model="previewInputs[key].unit" :disabled="isCompositeOfficial"><option v-for="unit in capabilities?.units ?? []" :key="unit" :value="unit">{{ unit }}</option></select></label></div><div v-if="previewRun" class="definition-preview-result"><strong>{{ previewRun.status === 'completed' ? '预览完成' : '预览不可用' }}</strong><span v-for="(output, key) in previewRun.result_summary?.outputs" :key="key">{{ key }} = {{ output.value ?? '不可用' }} {{ output.unit }}</span></div></section>
+          </template>
         </main>
       </div>
     </section>
