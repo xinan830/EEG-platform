@@ -18,6 +18,15 @@ For example, at `46.x s` it requests `36–46 s`, then at `47.x s` requests
 metric calculation. A quality failure retains a point with `value: null`; it
 is never removed or converted to zero.
 
+If a researcher enables dynamic mode in the middle of playback, the browser
+first requests a bounded real-history range: `max(0, t-30) → t`. The backend
+therefore returns the corresponding one-second dynamic points immediately
+(for example, enabling at `25 s` returns `10…25 s` endpoints), rather than a
+misleading one-point chart. This is a display bootstrap, not interpolation;
+every point remains a backend-computed trailing 10-second window. If playback
+advances while a Run is pending, the next request covers every missed
+one-second endpoint before ordinary one-second appends resume.
+
 The resolver supplies backend `Scalar` values to the existing closed graph
 executor. The output must retain the executor's unit and quality state. A
 quality-gated spectrum produces `gate_failed` with null numerical output; it

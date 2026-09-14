@@ -1,10 +1,22 @@
 import { expect, it } from 'vitest'
-import { appendDynamicMetricPoint, playbackMetricWindow } from './dynamicMetricPlayback'
+import { appendDynamicMetricPoint, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow } from './dynamicMetricPlayback'
 
 it('derives one trailing ten-second window from the playback head', () => {
   expect(playbackMetricWindow(9.999)).toBeNull()
   expect(playbackMetricWindow(10)).toEqual({ startS: 0, endS: 10 })
   expect(playbackMetricWindow(46.2)).toEqual({ startS: 36.2, endS: 46.2 })
+})
+
+it('backfills a bounded real history when dynamic analysis starts mid-recording', () => {
+  expect(dynamicMetricBootstrapRange(9)).toBeNull()
+  expect(dynamicMetricBootstrapRange(25)).toEqual({ startS: 0, endS: 25 })
+  expect(dynamicMetricBootstrapRange(442)).toEqual({ startS: 412, endS: 442 })
+})
+
+it('requests every missed one-second endpoint after an asynchronous dynamic run', () => {
+  expect(dynamicMetricCatchupRange(25, 26)).toEqual({ startS: 16, endS: 26 })
+  expect(dynamicMetricCatchupRange(25, 29)).toEqual({ startS: 16, endS: 29 })
+  expect(dynamicMetricCatchupRange(25, 25)).toBeNull()
 })
 
 it('keeps one backend point per end time while preserving earlier dynamic results', () => {

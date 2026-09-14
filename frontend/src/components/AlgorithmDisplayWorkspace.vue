@@ -6,7 +6,7 @@ import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/a
 import type { Recording } from '../types/recording'
 import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
 import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
-import { appendDynamicMetricPoint, playbackMetricWindow } from '../utils/dynamicMetricPlayback'
+import { appendDynamicMetricPoint, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow } from '../utils/dynamicMetricPlayback'
 import '../styles/algorithmDisplayWorkspace.css'
 
 type Range = { start: number; end: number }
@@ -85,20 +85,31 @@ async function runStatic() {
   await runSelected(staticStartS.value, staticEndS.value, false)
 }
 async function enableDynamic() {
-  lastDynamicRefreshS.value = null
+  const position = props.playbackPositionS
+  const second = position === undefined ? null : Math.floor(position)
+  lastDynamicRefreshS.value = second !== null && second >= 10 ? second : null
   message.value = '已启用播放同步分析：播放到 10 秒后，每整秒计算最近 10 秒。'
   emit('dynamicSession', { enabled: true, channel: channel.value, definitionCount: selectedIds.value.length })
-  const position = props.playbackPositionS
-  if (position !== undefined && position >= 10 && !props.playing) await refreshDynamic(position)
+  const bootstrap = position === undefined ? null : dynamicMetricBootstrapRange(second ?? position)
+  if (bootstrap) {
+    await runSelected(bootstrap.startS, bootstrap.endS, true)
+    const latestPosition = props.playbackPositionS
+    if (latestPosition !== undefined && Math.floor(latestPosition) > (second ?? -1)) await refreshDynamic(latestPosition)
+  }
   emit('close')
 }
 async function refreshDynamic(position: number) {
   const second = Math.floor(position)
-  if (lastDynamicRefreshS.value === second || running.value) return
-  const window = playbackMetricWindow(second)
+  const previousSecond = lastDynamicRefreshS.value
+  if (previousSecond === second || running.value) return
+  const window = previousSecond === null ? playbackMetricWindow(second) : dynamicMetricCatchupRange(previousSecond, second)
   if (!window) return
   lastDynamicRefreshS.value = second
   await runSelected(window.startS, window.endS, true, true)
+  const latestPosition = props.playbackPositionS
+  if (props.playing && props.dynamicActive && latestPosition !== undefined && Math.floor(latestPosition) > second) {
+    await refreshDynamic(latestPosition)
+  }
 }
 watch(() => [props.playing, props.playbackPositionS] as const, ([playing, position]) => {
   if (!playing || !props.dynamicActive || position === undefined || selectedIds.value.length === 0) return
@@ -122,7 +133,7 @@ onMounted(load)
         <template v-else><span class="algorithm-display-range">播放同步：最近 10 s · 每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ props.dynamicActive ? '同步已启用' : '启用播放同步' }}</button></template>
       </div>
       <div class="algorithm-display-layout">
-        <aside class="algorithm-display-sidebar"><h3>选择算法</h3><p class="algorithm-display-help">勾选要叠加到当前波形的用户算法。</p><label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label><p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无用户算法</p><p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析区间至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">动态模式不使用框选区间；播放达到 10 秒后开始计算。</p></aside>
+        <aside class="algorithm-display-sidebar"><h3>选择算法</h3><p class="algorithm-display-help">勾选要叠加到当前波形的用户算法。</p><label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label><p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无用户算法</p><p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析区间至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">动态模式启动时补算最近 30 秒的真实窗口；之后每秒追加一个真实结果点。</p></aside>
         <main class="algorithm-display-main"><p class="algorithm-display-empty">勾选算法并运行后，结果会显示在主页面波形下方。</p></main>
       </div>
       <p v-if="message" class="definition-error">{{ message }}</p>
