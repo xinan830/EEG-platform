@@ -42,6 +42,9 @@ const spectrumSelection = ref<{ start: number; end: number } | null>(null)
 const activeAnalysisRange = ref<{ start: number; end: number; source: string } | null>(null)
 function setActiveAnalysisRange(start: number, end: number, source = 'custom') { activeAnalysisRange.value = { start, end, source } }
 function selectSpectrumRange(start: number, end: number) { spectrumSelection.value = { start, end } }
+function goToWorkflowSection(sectionId: string) {
+  document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 const totalDurationS = ref<number | undefined>()
 const sfreq = ref<number | undefined>()
 const windowStartS = ref(0)
@@ -50,6 +53,7 @@ const montageId = ref('original'); const montageOptions = ref<MontageOption[]>([
 const customMontage = ref<CustomMontageRow[]>([]); const customMontageOpen = ref(false)
 const algorithmWorkbenchOpen = ref(false)
 const resultsOpen = ref(false)
+const developerMode = ref(false)
 // Worker 消息必须是可结构化克隆的普通对象，流元数据不能被 Vue 深度代理。
 const streamInfo = shallowRef<StreamInfo>(null)
 const waveformPanel = ref<WaveformPanelHandle | null>(null)
@@ -387,12 +391,17 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="desktop-app">
-    <header class="app-header"><span class="brand-mark">▣</span><span>脑电文件波形查看器</span><span class="header-file">{{ recording?.original_name ? `- [${recording.original_name}]` : '' }}</span></header>
+    <header class="app-header"><div class="app-brand"><span class="brand-mark">▣</span><span>脑电科研工作台</span><span class="header-file">{{ recording?.original_name ? `· ${recording.original_name}` : '' }}</span></div><button class="app-mode-toggle" :class="{ active: developerMode }" @click="developerMode = !developerMode">{{ developerMode ? '退出开发者模式' : '开发者模式' }}</button></header>
     <div class="app-body focused-body"><section class="main-column">
+      <nav v-if="recording" class="workflow-nav" aria-label="科研工作流">
+        <button type="button" @click="goToWorkflowSection('waveform-section')">1 波形查看</button><button type="button" @click="goToWorkflowSection('spectrum-section')">2 频谱分析</button><button type="button" @click="goToWorkflowSection('spectrogram-section')">3 时频分析</button><button type="button" @click="algorithmWorkbenchOpen = true">算法库</button><button type="button" @click="resultsOpen = true">结果</button>
+      </nav>
       <ViewerToolbar :recording="Boolean(recording)" :loading="loading" :playing="playing" :position-s="playbackPositionS" :window-start-s="windowStartS" :screen-duration-s="displaySettings.timebaseSeconds" :total-duration-s="totalDurationS" :sfreq="sfreq" @open="newSession" @channels="channelSelection.openChannelDialog" @algorithms="algorithmWorkbenchOpen = true" @results="resultsOpen = true" @previous-screen="moveScreen(-1)" @toggle="togglePlayback" @next-screen="moveScreen(1)" @replay="replay" />
+      <section v-if="recording" id="waveform-section" class="workflow-section waveform-workflow-section">
+      <header class="workflow-section-heading"><div><p>数据与阅图</p><h1>波形查看</h1></div><span>通道、页宽和播放仅影响阅图</span></header>
       <DisplaySettingsPanel v-if="recording" :settings="displaySettings" :preset="displayPreset" :channel-names="sourceChannelNames" @change="handleDisplayChange" @reset="handleDisplayReset" @algorithm-check="algorithmCheck.show" />
       <div v-if="recording && montageOptions.length" class="montage-bar"><MontageSelector :model-value="montageId" :options="montageOptions" :channels="recording.channels" :excluded-channels="averageExclude" @change="changeMontage" @edit-custom="customMontageOpen = true" @update-excluded="changeAverageExclude" /><span class="montage-status">{{ montageOptions.find((item) => item.id === montageId)?.label }}{{ montageId === 'average' ? (averageExclude.length ? ` · 自定义排除 ${averageExclude.length} 个` : ' · AVG-All') : montageId === 'custom_bipolar' ? ` · ${customMontage.length} 条导联` : '' }}</span></div>
-      <DebugConsole v-if="recording" :seconds="debugSeconds" :loading="debugLoading" :sample="debugSample" :render-stats="renderStats" :transport-stats="transportStats" @update-seconds="debugSeconds = $event" @inspect="inspectDebugSample" />
+      <DebugConsole v-if="developerMode" :seconds="debugSeconds" :loading="debugLoading" :sample="debugSample" :render-stats="renderStats" :transport-stats="transportStats" @update-seconds="debugSeconds = $event" @inspect="inspectDebugSample" />
       <WaveformPanel
         ref="waveformPanel"
         :waveform="waveform"
@@ -412,8 +421,9 @@ onBeforeUnmount(() => {
         @remove-event="eventMarkersState.remove"
         @analysis-range-selected="selectSpectrumRange"
       />
-      <SpectrumPanel v-if="recording" :recording-id="recording.id" :start-s="windowStartS" :position-s="playbackPositionS" :playing="playing" :total-duration-s="totalDurationS" :screen-duration-s="displaySettings.timebaseSeconds" :selected-range="spectrumSelection" :channels="sourceChannelNames" @active-range-change="setActiveAnalysisRange" />
-      <SpectrogramPanel v-if="recording" :recording-id="recording.id" :start-s="windowStartS" :duration-s="totalDurationS" :position-s="playbackPositionS" :playing="playing" :active-range="activeAnalysisRange" :channels="sourceChannelNames" />
+      </section>
+      <section v-if="recording" id="spectrum-section" class="workflow-section"><header class="workflow-section-heading"><div><p>稳定定量分析</p><h1>频谱分析</h1></div><span>选择通道和分析区间，查看 PSD 与频段功率</span></header><SpectrumPanel :recording-id="recording.id" :start-s="windowStartS" :position-s="playbackPositionS" :playing="playing" :total-duration-s="totalDurationS" :screen-duration-s="displaySettings.timebaseSeconds" :selected-range="spectrumSelection" :channels="sourceChannelNames" @active-range-change="setActiveAnalysisRange" /></section>
+      <section v-if="recording" id="spectrogram-section" class="workflow-section"><header class="workflow-section-heading"><div><p>时间变化</p><h1>时频分析</h1></div><span>使用已提交的分析区间观察频段随时间的变化</span></header><SpectrogramPanel :recording-id="recording.id" :start-s="windowStartS" :duration-s="totalDurationS" :position-s="playbackPositionS" :playing="playing" :active-range="activeAnalysisRange" :channels="sourceChannelNames" /></section>
     </section></div>
     <div v-if="showStartup" class="modal-layer"><FileImport @imported="onImported" /></div>
     <div v-if="recording && isChannelDialogOpen" class="modal-layer channel-modal-layer" @click.self="channelSelection.closeChannelDialog">

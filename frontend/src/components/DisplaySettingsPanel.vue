@@ -16,7 +16,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="display-settings" aria-label="波形显示设置">
-    <strong>显示设置</strong>
+    <div class="display-settings-heading"><strong>波形阅图设置</strong><span>仅影响当前波形显示，不改变频谱或时频分析算法</span></div>
     <label>时间基
       <select :value="settings.timebaseSeconds" @change="emit('change', 'timebase', Number(($event.target as HTMLSelectElement).value))">
         <option :value="5">5 秒/屏</option><option :value="10">10 秒/屏</option><option :value="15">15 秒/屏</option><option :value="30">30 秒/屏</option>

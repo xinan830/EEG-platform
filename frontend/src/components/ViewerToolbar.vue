@@ -22,7 +22,7 @@ const nextDisabled = computed(() => props.loading || props.totalDurationS === un
     <button class="open-file" @click="emit('open')">{{ recording ? '打开其他文件' : '选择 BDF/EDF 文件' }}</button>
     <template v-if="recording">
       <button :disabled="loading" @click="emit('channels')">通道设置</button>
-      <button :disabled="loading" @click="emit('algorithms')">算法定义</button>
+      <button :disabled="loading" @click="emit('algorithms')">算法库</button>
       <button :disabled="loading" @click="emit('results')">结果工作台</button>
       <button class="screen-nav-button" :disabled="previousDisabled" title="上一屏" aria-label="上一屏" @click="emit('previousScreen')">◀ 上一屏</button>
       <button class="playback-button" :disabled="loading" @click="emit('toggle')">{{ playing ? '暂停' : '播放' }}</button>

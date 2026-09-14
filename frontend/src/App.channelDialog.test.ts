@@ -86,6 +86,22 @@ describe('导入后的通道选择流程', () => {
     wrapper.unmount()
   })
 
+  it('默认展示科研工作流而不展示开发者诊断，开发者模式按需打开', async () => {
+    const wrapper = await mountImportedApp()
+    await findFooterButton(wrapper, '取消').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('1 波形查看')
+    expect(wrapper.text()).toContain('2 频谱分析')
+    expect(wrapper.text()).toContain('3 时频分析')
+    expect(wrapper.find('.debug-console').exists()).toBe(false)
+    expect(wrapper.text()).toContain('仅影响当前波形显示，不改变频谱或时频分析算法')
+
+    await wrapper.get('.app-mode-toggle').trigger('click')
+    expect(wrapper.find('.debug-console').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('首次弹窗取消后按默认通道从 0 秒进入阅图；此后工具栏打开的弹窗取消只关闭', async () => {
     const wrapper = await mountImportedApp()
     await findFooterButton(wrapper, '取消').trigger('click')
