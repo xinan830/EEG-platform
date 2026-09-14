@@ -1,4 +1,5 @@
 import { request } from './client'
+import type { DynamicWindowS } from '../utils/dynamicMetricPlayback'
 
 export interface DefinitionMetricRunRequest {
   recordingId: string
@@ -8,7 +9,7 @@ export interface DefinitionMetricRunRequest {
   startS: number
   endS: number
   mode?: 'static' | 'dynamic'
-  dynamicWindowS?: 10
+  dynamicWindowS?: DynamicWindowS
   refreshStepS?: 1
 }
 

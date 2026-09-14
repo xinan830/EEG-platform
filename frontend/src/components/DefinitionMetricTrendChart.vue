@@ -11,6 +11,7 @@ export type DynamicMetric = {
   output: { label: string; unit: string }
   channel: string
   series: MetricPoint[]
+  dynamic_contract?: { window_s: number; step_s: number; alignment?: string }
   chart?: { y_axis?: { label?: string; unit?: string } }
 }
 
@@ -73,7 +74,7 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); chart = 
 <template>
   <section class="definition-metric-trend-wrap" aria-label="动态算法趋势图">
     <header class="definition-metric-trend-meta">
-      <span>{{ result.output.label }}（{{ result.output.unit }}）</span>
+      <span>{{ result.output.label }}（{{ result.output.unit }}）<template v-if="result.dynamic_contract"> · 最近 {{ result.dynamic_contract.window_s }} s · 每 {{ result.dynamic_contract.step_s }} s</template></span>
       <strong v-if="latestPoint">当前：{{ latestPoint.value }} {{ result.output.unit }}</strong>
       <span v-else>当前：等待可用结果</span>
     </header>

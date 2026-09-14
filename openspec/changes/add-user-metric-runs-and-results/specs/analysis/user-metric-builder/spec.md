@@ -68,20 +68,30 @@ axis. The user SHALL NOT assign arbitrary physical units to an axis.
 
 ### Requirement: Run saved metrics across dynamic EEG windows
 
-The system SHALL support a persistent dynamic playback mode. Starting at
-playback time 10 seconds, it SHALL evaluate saved definitions against one real
-trailing 10-second spectral window for each whole playback second. Each
-returned point SHALL retain its window start, window end, output value or null,
-and quality state.
+The system SHALL support a persistent dynamic playback mode with a selectable
+real trailing spectral window of `5`, `10`, `20`, or `30` seconds and a fixed
+one-second step. Starting when playback reaches the selected window duration,
+it SHALL evaluate saved definitions against that real trailing EEG window for
+each whole playback second. Each returned point SHALL retain its window start,
+window end, output value or null, and quality state. The selected duration
+SHALL be persisted in the Run configuration and returned dynamic contract.
 
 #### Scenario: Dynamic Theta/Beta trend
 
-- **WHEN** dynamic mode is enabled and playback reaches `46.x s`
-- **THEN** the client requests the backend result for `36–46 s`
+- **WHEN** a user selects a `20 s` dynamic window and playback reaches `46.x s`
+- **THEN** the client requests the backend result for `26–46 s`
 - **AND WHEN** playback reaches `47.x s`
-- **THEN** it requests `37–47 s` and appends that returned point to the trend
-- **AND THEN** every point represents a real 10-second window
+- **THEN** it requests `27–47 s` and appends that returned point to the trend
+- **AND THEN** every point represents a real selected-duration window
 - **AND THEN** a quality-gated point remains present with null value.
+
+#### Scenario: Enable dynamic mode in the middle of playback
+
+- **WHEN** a user enables a `10 s` dynamic metric at `25 s`
+- **THEN** the browser requests a bounded real-history range that returns
+  the `10…25 s` one-second endpoints
+- **AND THEN** the chart connects only backend-returned points
+- **AND THEN** it does not interpolate missing metric values in the browser.
 
 ### Requirement: Keep algorithm execution outside the definition library
 

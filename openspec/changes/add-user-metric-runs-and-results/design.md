@@ -27,6 +27,13 @@ every point remains a backend-computed trailing 10-second window. If playback
 advances while a Run is pending, the next request covers every missed
 one-second endpoint before ordinary one-second appends resume.
 
+The dynamic-window selector is shared with the time-frequency workflow and
+allows `5`, `10`, `20`, or `30` seconds, with a fixed one-second step. The
+chosen duration is part of the Run configuration, cache identity, provenance,
+returned dynamic contract, and visible chart label. Ten seconds remains the
+default; five seconds is allowed as a fast but higher-variance view because it
+contains fewer 4-second Welch segments.
+
 The resolver supplies backend `Scalar` values to the existing closed graph
 executor. The output must retain the executor's unit and quality state. A
 quality-gated spectrum produces `gate_failed` with null numerical output; it

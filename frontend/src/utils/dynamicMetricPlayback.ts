@@ -13,13 +13,15 @@ export type DynamicMetricPayload = {
   chart?: { y_axis?: { label?: string; unit?: string } }
 }
 
-const DYNAMIC_METRIC_WINDOW_S = 10
-const DYNAMIC_METRIC_BOOTSTRAP_HISTORY_S = 30
+export const DYNAMIC_WINDOW_OPTIONS = [5, 10, 20, 30] as const
+export type DynamicWindowS = typeof DYNAMIC_WINDOW_OPTIONS[number]
+const DEFAULT_DYNAMIC_METRIC_WINDOW_S: DynamicWindowS = 10
+const DYNAMIC_METRIC_BOOTSTRAP_POINT_COUNT = 21
 
 /** The real dynamic contract is a trailing 10-second window ending at playback time. */
-export function playbackMetricWindow(positionS: number): { startS: number; endS: number } | null {
-  if (!Number.isFinite(positionS) || positionS < DYNAMIC_METRIC_WINDOW_S) return null
-  return { startS: Math.max(0, positionS - DYNAMIC_METRIC_WINDOW_S), endS: positionS }
+export function playbackMetricWindow(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): { startS: number; endS: number } | null {
+  if (!Number.isFinite(positionS) || positionS < windowS) return null
+  return { startS: Math.max(0, positionS - windowS), endS: positionS }
 }
 
 /**
@@ -27,9 +29,10 @@ export function playbackMetricWindow(positionS: number): { startS: number; endS:
  * on playback analysis in the middle of a recording. The returned range is
  * still interpreted by the backend as 10-second trailing windows.
  */
-export function dynamicMetricBootstrapRange(positionS: number): { startS: number; endS: number } | null {
-  if (!Number.isFinite(positionS) || positionS < DYNAMIC_METRIC_WINDOW_S) return null
-  return { startS: Math.max(0, positionS - DYNAMIC_METRIC_BOOTSTRAP_HISTORY_S), endS: positionS }
+export function dynamicMetricBootstrapRange(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): { startS: number; endS: number } | null {
+  if (!Number.isFinite(positionS) || positionS < windowS) return null
+  const historyS = windowS + DYNAMIC_METRIC_BOOTSTRAP_POINT_COUNT - 1
+  return { startS: Math.max(0, positionS - historyS), endS: positionS }
 }
 
 /**
@@ -37,10 +40,10 @@ export function dynamicMetricBootstrapRange(positionS: number): { startS: number
  * first output is the second immediately after `previousEndS`, so no metric
  * time point is invented or silently skipped while a prior request runs.
  */
-export function dynamicMetricCatchupRange(previousEndS: number, currentEndS: number): { startS: number; endS: number } | null {
+export function dynamicMetricCatchupRange(previousEndS: number, currentEndS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): { startS: number; endS: number } | null {
   if (!Number.isFinite(previousEndS) || !Number.isFinite(currentEndS) || currentEndS <= previousEndS) return null
   return {
-    startS: Math.max(0, previousEndS + 1 - DYNAMIC_METRIC_WINDOW_S),
+    startS: Math.max(0, previousEndS + 1 - windowS),
     endS: currentEndS,
   }
 }

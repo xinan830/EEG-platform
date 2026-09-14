@@ -107,3 +107,32 @@ def test_dynamic_definition_metric_persists_real_trailing_windows(tmp_path: Path
     with np.load((tmp_path / "artifacts" / artifact.relative_path)) as arrays:
         assert arrays["metric_time_s"].shape == (21,)
         assert arrays["metric_values"].shape == (21,)
+
+
+def test_dynamic_definition_metric_supports_selected_twenty_second_window(tmp_path: Path):
+    queue, recording_id, definition_id = _queue_with_metric_definition(tmp_path)
+    queued = queue.enqueue(RunCreateRequest.model_validate({
+        "recording_id": recording_id,
+        "analysis_type": "definition_metric",
+        "definition_id": definition_id,
+        "definition_version": "1.0.0",
+        "config": {
+            "channel": "F3",
+            "time": {"start_s": 0, "end_s": 30},
+            "mode": "dynamic",
+            "dynamic_window_s": 20,
+            "refresh_step_s": 1,
+        },
+    }))
+
+    completed = queue.process_next()
+
+    assert completed is not None and completed.status is RunStatus.COMPLETED
+    metric = completed.result_summary["metric"]
+    assert metric["dynamic_contract"] == {"window_s": 20, "step_s": 1, "alignment": "window_end"}
+    assert len(metric["series"]) == 11
+    assert metric["series"][0]["time_s"] == 20.0
+    assert metric["series"][0]["window_start_s"] == 0.0
+    assert metric["series"][-1]["time_s"] == 30.0
+    assert metric["series"][-1]["window_start_s"] == 10.0
+    assert queue.list_artifacts(queued.run_id)

@@ -11,7 +11,7 @@ class DefinitionMetricConfig(BaseModel):
     channel: str = Field(min_length=1, max_length=160)
     time: AnalysisTimeRange
     mode: Literal["static", "dynamic"] = "static"
-    dynamic_window_s: Literal[10] = 10
+    dynamic_window_s: Literal[5, 10, 20, 30] = 10
     refresh_step_s: Literal[1] = 1
 
     @model_validator(mode="after")

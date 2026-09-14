@@ -7,15 +7,23 @@ it('derives one trailing ten-second window from the playback head', () => {
   expect(playbackMetricWindow(46.2)).toEqual({ startS: 36.2, endS: 46.2 })
 })
 
+it('derives trailing windows from the selected dynamic duration', () => {
+  expect(playbackMetricWindow(19.999, 20)).toBeNull()
+  expect(playbackMetricWindow(20, 20)).toEqual({ startS: 0, endS: 20 })
+  expect(playbackMetricWindow(46, 20)).toEqual({ startS: 26, endS: 46 })
+})
+
 it('backfills a bounded real history when dynamic analysis starts mid-recording', () => {
   expect(dynamicMetricBootstrapRange(9)).toBeNull()
   expect(dynamicMetricBootstrapRange(25)).toEqual({ startS: 0, endS: 25 })
   expect(dynamicMetricBootstrapRange(442)).toEqual({ startS: 412, endS: 442 })
+  expect(dynamicMetricBootstrapRange(442, 20)).toEqual({ startS: 402, endS: 442 })
 })
 
 it('requests every missed one-second endpoint after an asynchronous dynamic run', () => {
   expect(dynamicMetricCatchupRange(25, 26)).toEqual({ startS: 16, endS: 26 })
   expect(dynamicMetricCatchupRange(25, 29)).toEqual({ startS: 16, endS: 29 })
+  expect(dynamicMetricCatchupRange(25, 29, 20)).toEqual({ startS: 6, endS: 29 })
   expect(dynamicMetricCatchupRange(25, 25)).toBeNull()
 })
 
