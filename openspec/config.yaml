@@ -1,0 +1,28 @@
+schema: spec-driven
+context: |
+  Product: local single-user EEG research workstation.
+  Stack: FastAPI, Python, SQLite, NumPy, SciPy, MNE, Vue 3, TypeScript, Vite.
+  Scientific calculations run only in the backend; the frontend renders and formats returned values.
+  Preserve existing recording, waveform, PSD, spectrogram, analysis, event, audit, and report APIs during incremental migration.
+  Keep Viewer and Analysis pipelines separate. Internal EEG values are V/float64; public units are explicit.
+  Engineering validation must never be represented as clinical validation.
+  Follow AGENTS.md and docs/工程开发契约.md, including the 400-line soft limit and structured error requirements.
+rules:
+  proposal:
+    - Include compatibility impact, non-goals, scientific-contract impact, and migration strategy.
+  specs:
+    - State time, channel-order, unit, quality, provenance, and failure semantics where relevant.
+    - Use WHEN/THEN scenarios with observable outcomes.
+  design:
+    - Record alternatives, migration/rollback behavior, storage ownership, and testing strategy.
+  tasks:
+    - Order tasks so schema and compatibility tests precede behavior changes.
+    - Include OpenSpec validation, backend tests, frontend checks when applicable, and documentation updates.
+operations:
+  apply:
+    guidance:
+      - Do not open another change until the current change is validated and archived.
+      - Keep legacy APIs operational until a separately approved removal change.
+  archive:
+    guidance:
+      - Generate and retain a concise validation report before archiving.
