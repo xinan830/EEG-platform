@@ -52,4 +52,3 @@ spectrogram, Viewer, or official algorithm API behaviour.
 #### Scenario: Request frozen spectrum
 - **WHEN** a caller uses `/spectrum/configured`
 - **THEN** it SHALL continue to use `offline-spectral-v3`, independent of draft definitions
-
