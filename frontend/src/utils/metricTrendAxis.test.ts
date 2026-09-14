@@ -1,12 +1,13 @@
 import { expect, it } from 'vitest'
 import { metricTrendTimeAxis, metricTrendValueAxis } from './metricTrendAxis'
 
-it('keeps a live metric chart centred on its returned playback points', () => {
-  expect(metricTrendTimeAxis([67, 68])).toEqual({ min: 66, max: 69 })
+it('uses the selected dynamic duration as the trend time viewport', () => {
+  expect(metricTrendTimeAxis([30, 31, 32], 10)).toEqual({ min: 22, max: 32 })
+  expect(metricTrendTimeAxis([30, 31, 32], 20)).toEqual({ min: 12, max: 32 })
 })
 
-it('gives a single first dynamic point a readable local time span', () => {
-  expect(metricTrendTimeAxis([10])).toEqual({ min: 9, max: 11 })
+it('uses the available recording beginning as the first trend viewport boundary', () => {
+  expect(metricTrendTimeAxis([10], 10)).toEqual({ min: 0, max: 10 })
 })
 
 it('pads a nearly-flat metric series so the chart has readable tick spacing', () => {

@@ -93,6 +93,15 @@ SHALL be persisted in the Run configuration and returned dynamic contract.
 - **AND THEN** the chart connects only backend-returned points
 - **AND THEN** it does not interpolate missing metric values in the browser.
 
+#### Scenario: Change the active dynamic window
+
+- **WHEN** a user changes an active dynamic metric from `10 s` to `20 s`
+- **THEN** the prior trend is cleared and a new real-history bootstrap uses the
+  `20 s` contract
+- **AND THEN** the visible X-axis covers the most recent `20 s` ending at the
+  newest returned endpoint, rather than a range derived from the count of
+  available points.
+
 ### Requirement: Keep algorithm execution outside the definition library
 
 The ordinary definition library SHALL provide explanation, version information

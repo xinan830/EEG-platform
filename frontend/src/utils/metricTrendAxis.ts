@@ -1,17 +1,16 @@
 /**
- * Returns a compact absolute-time viewport for dynamic metric points.
+ * Returns the selected dynamic duration as an absolute-time trend viewport.
  * The metric contract uses file time in seconds; this helper only controls
  * display bounds and never converts the underlying timestamps.
  */
-export function metricTrendTimeAxis(timesS: number[]): { min: number; max: number } {
+export function metricTrendTimeAxis(timesS: number[], windowS = 10): { min: number; max: number } {
   const finiteTimes = timesS.filter((timeS) => Number.isFinite(timeS))
-  if (!finiteTimes.length) return { min: 0, max: 1 }
+  if (!finiteTimes.length) return { min: 0, max: windowS }
 
-  const firstTimeS = Math.min(...finiteTimes)
   const lastTimeS = Math.max(...finiteTimes)
   return {
-    min: Math.max(0, firstTimeS - 1),
-    max: lastTimeS + 1,
+    min: Math.max(0, lastTimeS - windowS),
+    max: lastTimeS,
   }
 }
 

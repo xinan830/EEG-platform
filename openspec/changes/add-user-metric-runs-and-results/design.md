@@ -34,6 +34,12 @@ returned dynamic contract, and visible chart label. Ten seconds remains the
 default; five seconds is allowed as a fast but higher-variance view because it
 contains fewer 4-second Welch segments.
 
+The displayed trend viewport is the selected duration ending at its newest
+returned time point: a `10 s` selection at endpoint `32 s` displays `22–32 s`,
+not an arbitrary narrow span based on the count of received points. Changing
+the selector while a dynamic session is active invalidates its prior results
+and starts a new bounded real-history bootstrap with the selected duration.
+
 The resolver supplies backend `Scalar` values to the existing closed graph
 executor. The output must retain the executor's unit and quality state. A
 quality-gated spectrum produces `gate_failed` with null numerical output; it

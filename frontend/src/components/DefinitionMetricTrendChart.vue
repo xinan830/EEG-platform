@@ -25,7 +25,7 @@ const latestPoint = computed(() => [...(props.result.series ?? [])].reverse().fi
 function render() {
   if (!chart) return
   const points = props.result.series ?? []
-  const timeAxis = metricTrendTimeAxis(points.map((point) => point.time_s))
+  const timeAxis = metricTrendTimeAxis(points.map((point) => point.time_s), props.result.dynamic_contract?.window_s ?? 10)
   const values = points.map((point) => [point.time_s, point.value] as [number, number | null])
   const valueAxis = metricTrendValueAxis(points.map((point) => point.value))
   const badAreas = points.filter((point) => point.value === null || point.quality?.status === 'bad').map((point) => [

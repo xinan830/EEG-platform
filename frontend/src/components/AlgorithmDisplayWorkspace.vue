@@ -85,7 +85,8 @@ async function runStatic() {
   if (staticRangeDuration.value < 4) { message.value = '静态分析区间至少需要 4 秒。'; return }
   await runSelected(staticStartS.value, staticEndS.value, false)
 }
-async function enableDynamic() {
+async function startDynamic(closeAfterStart: boolean) {
+  if (running.value) return
   const position = props.playbackPositionS
   const second = position === undefined ? null : Math.floor(position)
   lastDynamicRefreshS.value = second !== null && second >= dynamicWindowS.value ? second : null
@@ -97,7 +98,10 @@ async function enableDynamic() {
     const latestPosition = props.playbackPositionS
     if (latestPosition !== undefined && Math.floor(latestPosition) > (second ?? -1)) await refreshDynamic(latestPosition)
   }
-  emit('close')
+  if (closeAfterStart) emit('close')
+}
+async function enableDynamic() {
+  await startDynamic(true)
 }
 async function refreshDynamic(position: number) {
   const second = Math.floor(position)
@@ -120,6 +124,9 @@ watch(() => [props.playing, props.playbackPositionS] as const, ([playing, positi
   void refreshDynamic(second)
 })
 watch(mode, (nextMode) => { if (nextMode !== 'dynamic') emit('dynamicSession', { enabled: false, channel: channel.value, definitionCount: 0 }) })
+watch(dynamicWindowS, (nextWindowS, previousWindowS) => {
+  if (nextWindowS !== previousWindowS && mode.value === 'dynamic' && props.dynamicActive) void startDynamic(false)
+})
 watch(() => props.dynamicActive, (active) => { if (!active) lastDynamicRefreshS.value = null })
 function useCurrentRange() { staticStartS.value = range.value.start; staticEndS.value = range.value.end }
 function title(id: string) { return definitions.value.find((item) => item.definition_id === id)?.name ?? id }
