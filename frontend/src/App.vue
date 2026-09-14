@@ -424,7 +424,7 @@ onBeforeUnmount(() => {
     </div>
     <AlgorithmCheckDialog v-if="algorithmOpen" :loading="algorithmLoading" :seconds="algorithmSeconds" :result="algorithmResult" @close="algorithmCheck.close" @inspect="algorithmCheck.inspect" />
     <AlgorithmDefinitionWorkbench v-if="recording && algorithmWorkbenchOpen" :recording="recording" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min((totalDurationS ?? windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" @close="algorithmWorkbenchOpen = false" />
-    <ResultsDrawer v-if="recording && resultsOpen" :recording-id="recording.id" @close="resultsOpen = false" />
+    <ResultsDrawer v-if="recording && resultsOpen" :recording-id="recording.id" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? windowStartS + displaySettings.timebaseSeconds, windowStartS + Math.max(4, displaySettings.timebaseSeconds))" :channels="sourceChannelNames" @close="resultsOpen = false" />
     <div v-if="error" class="error-toast">{{ error }}</div>
   </main>
 </template>

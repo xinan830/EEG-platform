@@ -5,4 +5,4 @@ export interface ResultView { run: RunSummary; artifacts: Array<{ artifact_id: s
 
 export function listRunSummaries(recordingId: string): Promise<RunSummary[]> { return request(`/api/runs?recording_id=${encodeURIComponent(recordingId)}`) }
 export function getResultView(runId: string): Promise<ResultView> { return request(`/api/runs/${encodeURIComponent(runId)}/result`) }
-export function exportUrl(runId: string): string { return `${apiBase}/api/runs/${encodeURIComponent(runId)}/export` }
+export function exportUrl(runId: string, validationId?: string): string { const suffix = validationId ? `?validation_id=${encodeURIComponent(validationId)}` : ''; return `${apiBase}/api/runs/${encodeURIComponent(runId)}/export${suffix}` }

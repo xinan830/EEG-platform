@@ -15,6 +15,7 @@ This roadmap evolves the existing EEG viewer into a local, single-user research 
 | 07 | `add-results-validation-and-export` | Result workbench, independent validation, and reproducible exports | Complete, archived 2026-09-14 |
 | 07a | `add-independent-spectral-reference-validation` | Persisted SciPy/MNE pointwise PSD reference evidence | Complete, archived 2026-09-14 |
 | 08 | `define-extension-and-governance-boundaries` | Safe module metadata and explicit future security boundaries | Complete, archived 2026-09-14 |
+| 09 | `surface-spectral-reference-validation` | Workbench UI for independent PSD reference evidence | Complete, archived 2026-09-14 |
 
 ## Change gate
 
