@@ -10,7 +10,7 @@ from typing import Any
 from app.eeg_core.primitives.math_nodes import add, divide, multiply, natural_log, subtract
 from app.eeg_core.primitives.registry import UnknownNodeError, resolve_node
 from app.eeg_core.primitives.types import Scalar
-from app.eeg_core.primitives.units import Unit
+from app.eeg_core.primitives.units import Unit, UnitError
 
 
 class DefinitionEngineError(ValueError):
@@ -93,6 +93,8 @@ def execute_graph(graph: Mapping[str, object], inputs: Mapping[str, object]) -> 
             values[node.node_id] = resolve_node(node.node_type)(**bindings, **node.parameters)
         except DefinitionEngineError:
             raise
+        except UnitError as exc:
+            raise DefinitionEngineError("UNIT_MISMATCH", str(exc), {"node_id": node.node_id}) from exc
         except (TypeError, ValueError) as exc:
             raise DefinitionEngineError("DEFINITION_INVALID", str(exc), {"node_id": node.node_id}) from exc
     return {node_id: values[node_id] for node_id in graph["outputs"]}

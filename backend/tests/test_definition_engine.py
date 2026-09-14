@@ -42,3 +42,10 @@ def test_formula_preserves_division_by_zero_as_unavailable():
     result = evaluate_formula("a / b", {"a": Scalar(2.0, Unit.V2), "b": Scalar(0.0, Unit.V2)})
     assert result.value is None
     assert result.quality.reasons == ("division_by_zero",)
+
+
+def test_graph_reports_incompatible_units_with_a_stable_code():
+    graph = {"nodes": [{"id": "out", "type": "add", "inputs": {"left": "$input.power", "right": "$input.frequency"}}], "outputs": ["out"]}
+    with pytest.raises(DefinitionEngineError) as exc:
+        execute_graph(graph, {"power": Scalar(1.0, Unit.V2), "frequency": Scalar(1.0, Unit.HZ)})
+    assert exc.value.code == "UNIT_MISMATCH"

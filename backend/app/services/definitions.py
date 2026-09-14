@@ -1,9 +1,11 @@
 """Use cases for safe, versioned algorithm definitions."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 from app.core.config import DATABASE_PATH
-from app.eeg_core.definition_engine import DefinitionEngineError, validate_graph, validate_parameters
+from app.eeg_core.definition_engine import DefinitionEngineError, execute_graph, validate_graph, validate_parameters
 from app.models.algorithm_definition import AlgorithmDefinition, AlgorithmDefinitionVersion, DefinitionCreateRequest, DefinitionVersionDraft
 from app.services.definition_repository import DefinitionRepository
 
@@ -23,6 +25,14 @@ class DefinitionService:
         if value is None:
             raise KeyError("definition not found")
         return value
+
+    def list_versions(self, definition_id: str) -> list[AlgorithmDefinitionVersion]:
+        self.get(definition_id)
+        return self.repository.list_versions(definition_id)
+
+    def clone(self, definition_id: str, name: str | None = None) -> AlgorithmDefinition:
+        original = self.get(definition_id)
+        return self.create(DefinitionCreateRequest(name=name or f"{original.name} copy", owner=original.owner, description=original.description))
 
     def validate(self, draft: DefinitionVersionDraft, parameters: dict[str, object] | None = None) -> dict[str, object]:
         order = validate_graph(draft.graph)
@@ -46,3 +56,7 @@ class DefinitionService:
             raise KeyError("definition version not found")
         return {"left": first, "right": second, "same_digest": first.digest_sha256 == second.digest_sha256,
                 "graph_changed": first.graph != second.graph, "parameter_schema_changed": first.parameter_schema != second.parameter_schema}
+
+    def preview(self, draft: DefinitionVersionDraft, inputs: dict[str, object]) -> dict[str, object]:
+        self.validate(draft)
+        return {"preview": True, "persisted": False, "outputs": execute_graph(draft.graph, inputs)}

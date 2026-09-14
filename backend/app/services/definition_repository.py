@@ -52,6 +52,11 @@ class DefinitionRepository:
             row = connection.execute("SELECT * FROM algorithm_definition_versions WHERE definition_id = ? AND semver = ?", (definition_id, semver)).fetchone()
         return self._version(row) if row else None
 
+    def list_versions(self, definition_id: str) -> list[AlgorithmDefinitionVersion]:
+        with self._connect() as connection:
+            rows = connection.execute("SELECT * FROM algorithm_definition_versions WHERE definition_id = ? ORDER BY created_at DESC", (definition_id,)).fetchall()
+        return [self._version(row) for row in rows]
+
     def create_version(self, definition_id: str, draft: DefinitionVersionDraft) -> AlgorithmDefinitionVersion:
         if self.get(definition_id) is None:
             raise KeyError("definition not found")
