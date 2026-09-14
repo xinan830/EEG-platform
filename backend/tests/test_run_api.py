@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.recording import RecordingSummary
 from app.services.recordings import RecordingService
+from app.services.definitions import DefinitionService
 from app.services.runs import RunService
 from app.services.validations import ValidationService
 
@@ -38,6 +39,7 @@ def _configure_services(tmp_path: Path) -> tuple[TestClient, RecordingSummary]:
     app.state.recording_service = service
     app.state.run_service = RunService(service, service.database_path, tmp_path / "artifacts")
     app.state.validation_service = ValidationService(service.database_path)
+    app.state.definition_service = DefinitionService(tmp_path / "definitions.sqlite3")
     return TestClient(app), recording
 
 
@@ -132,3 +134,59 @@ def test_unknown_validation_uses_stable_error_code(tmp_path: Path):
 
     assert response.status_code == 404
     assert response.json()["code"] == "VALIDATION_NOT_FOUND"
+
+
+def test_definition_preview_run_is_traceable_and_never_overwrites_formal_results(tmp_path: Path):
+    client, recording = _configure_services(tmp_path)
+    draft = {
+        "semver": "0.1.0",
+        "graph": {"nodes": [{"id": "out", "type": "output", "inputs": {"source": "$input.value"}}], "outputs": ["out"]},
+        "parameter_schema": {"type": "object", "additionalProperties": False},
+    }
+    response = client.post("/api/algorithm-definitions/preview-run", json={
+        "recording_id": recording.id,
+        "time": {"start_s": 1.0, "end_s": 2.0},
+        "draft": draft,
+        "inputs": {"value": {"value": 2.5, "unit": "ratio"}},
+    })
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["analysis_type"] == "definition_preview"
+    assert body["is_preview"] is True
+    assert body["result_summary"]["preview"] is True
+    assert body["result_summary"]["outputs"]["out"]["value"] == 2.5
+    assert body["result_summary"]["outputs"]["out"]["unit"] == "ratio"
+    assert client.get(f"/api/runs/{body['run_id']}/artifacts").json() == []
+
+
+def test_definition_preview_rejects_invalid_unit_without_creating_zero_output(tmp_path: Path):
+    client, recording = _configure_services(tmp_path)
+    response = client.post("/api/algorithm-definitions/preview-run", json={
+        "recording_id": recording.id,
+        "time": {"start_s": 1.0, "end_s": 2.0},
+        "draft": {"semver": "0.1.0", "graph": {"nodes": [{"id": "out", "type": "output", "inputs": {"source": "$input.value"}}], "outputs": ["out"]}},
+        "inputs": {"value": {"value": 1.0, "unit": "not-a-unit"}},
+    })
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "INVALID_REQUEST"
+
+
+def test_definition_preview_persists_unavailable_output_as_gate_failed_not_zero(tmp_path: Path):
+    client, recording = _configure_services(tmp_path)
+    response = client.post("/api/algorithm-definitions/preview-run", json={
+        "recording_id": recording.id,
+        "time": {"start_s": 1.0, "end_s": 2.0},
+        "draft": {
+            "semver": "0.1.0",
+            "graph": {"nodes": [{"id": "out", "type": "divide", "inputs": {"left": "$input.one", "right": "$input.zero"}}], "outputs": ["out"]},
+        },
+        "inputs": {"one": {"value": 1.0, "unit": "ratio"}, "zero": {"value": 0.0, "unit": "ratio"}},
+    })
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["status"] == "gate_failed"
+    assert body["result_summary"]["outputs"]["out"]["value"] is None
+    assert body["error"]["code"] == "PREVIEW_OUTPUT_UNAVAILABLE"

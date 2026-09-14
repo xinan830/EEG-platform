@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 from app.core.api_contract import error_response
 from app.eeg_core.definition_engine import DefinitionEngineError
 from app.models.algorithm_definition import DefinitionCreateRequest, DefinitionVersionDraft
+from app.models.definition_preview import DefinitionPreviewRunRequest
+from app.eeg_core.official_definitions import OFFICIAL_DEFINITIONS
+from app.eeg_core.primitives.registry import NODE_REGISTRY
 from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.primitives.units import Unit
 from app.services.definitions import DefinitionService
@@ -36,6 +39,19 @@ def _service(request: Request) -> DefinitionService:
     return request.app.state.definition_service
 
 
+@router.get("/capabilities")
+def capabilities() -> dict[str, object]:
+    """Expose closed authoring vocabulary; the browser does not infer it."""
+    return {
+        "nodes": sorted(NODE_REGISTRY),
+        "units": [item.value for item in Unit],
+        "official_execution": {
+            name: "generic_research_primitives" if name == "rbp" else "official_composite_shadow_only"
+            for name in OFFICIAL_DEFINITIONS
+        },
+    }
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create(payload: DefinitionCreateRequest, request: Request):
     return _service(request).create(payload).model_dump(mode="json")
@@ -62,6 +78,19 @@ def preview(payload: PreviewRequest, request: Request):
         return {"preview": True, "persisted": False, "outputs": {key: value.__dict__ for key, value in result["outputs"].items()}}
     except DefinitionEngineError as exc:
         return error_response(request, 422, exc.code, str(exc))
+
+
+@router.post("/preview-run", status_code=status.HTTP_201_CREATED)
+def preview_run(payload: DefinitionPreviewRunRequest, request: Request):
+    try:
+        run = request.app.state.run_service.create_definition_preview(payload, _service(request))
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except DefinitionEngineError as exc:
+        return error_response(request, 422, exc.code, str(exc))
+    except ValueError as exc:
+        return error_response(request, 422, "PREVIEW_REQUEST_INVALID", str(exc))
+    return run.model_dump(mode="json")
 
 
 @router.post("/{definition_id}/versions", status_code=status.HTTP_201_CREATED)

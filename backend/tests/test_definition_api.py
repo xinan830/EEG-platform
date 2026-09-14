@@ -29,3 +29,13 @@ def test_definition_api_persists_versions_publish_clone_compare_and_errors(tmp_p
     invalid = client.post("/api/algorithm-definitions/validate", json={"draft": {**_draft(), "parameter_schema": {"type": "object", "patternProperties": {}}}})
     assert invalid.status_code == 422
     assert invalid.json()["code"] == "PARAMETER_INVALID"
+
+
+def test_definition_capabilities_expose_closed_backend_authoring_vocabulary(tmp_path: Path):
+    app.state.definition_service = DefinitionService(tmp_path / "definitions.sqlite3")
+    response = TestClient(app).get("/api/algorithm-definitions/capabilities")
+
+    assert response.status_code == 200
+    assert "welch_psd" in response.json()["nodes"]
+    assert "V^2/Hz" in response.json()["units"]
+    assert response.json()["official_execution"]["iapf"] == "official_composite_shadow_only"

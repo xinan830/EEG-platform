@@ -7,6 +7,18 @@ export interface ApiErrorPayload {
   request_id?: string
 }
 
+export class ApiRequestError extends Error {
+  readonly code: string | undefined
+  readonly requestId: string | undefined
+
+  constructor(payload: unknown) {
+    super(normalizeApiError(payload))
+    this.name = 'ApiRequestError'
+    this.code = typeof payload === 'object' && payload !== null ? (payload as ApiErrorPayload).code : undefined
+    this.requestId = typeof payload === 'object' && payload !== null ? (payload as ApiErrorPayload).request_id : undefined
+  }
+}
+
 export function normalizeApiError(payload: unknown): string {
   if (typeof payload === 'object' && payload !== null) {
     const value = payload as ApiErrorPayload
@@ -21,6 +33,6 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json')
   const response = await fetch(`${apiBase}${path}`, { ...init, headers })
   const payload: unknown = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(normalizeApiError(payload))
+  if (!response.ok) throw new ApiRequestError(payload)
   return payload as T
 }

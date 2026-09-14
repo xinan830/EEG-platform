@@ -13,6 +13,7 @@ import ViewerToolbar from './components/ViewerToolbar.vue'
 import WaveformPanel from './components/WaveformPanel.vue'
 import SpectrumPanel from './components/SpectrumPanel.vue'
 import SpectrogramPanel from './components/SpectrogramPanel.vue'
+import AlgorithmDefinitionWorkbench from './components/AlgorithmDefinitionWorkbench.vue'
 import type { Recording } from './types/recording'
 import { isValidDisplaySettings } from './utils/displaySettings'
 import { WaveformSweepBuffer } from './utils/waveformSweepBuffer'
@@ -46,6 +47,7 @@ const windowStartS = ref(0)
 const displayChannelNames = ref<string[]>([]); const sourceChannelNames = ref<string[]>([])
 const montageId = ref('original'); const montageOptions = ref<MontageOption[]>([]); const averageExclude = ref<string[]>([])
 const customMontage = ref<CustomMontageRow[]>([]); const customMontageOpen = ref(false)
+const algorithmWorkbenchOpen = ref(false)
 // Worker 消息必须是可结构化克隆的普通对象，流元数据不能被 Vue 深度代理。
 const streamInfo = shallowRef<StreamInfo>(null)
 const waveformPanel = ref<WaveformPanelHandle | null>(null)
@@ -385,7 +387,7 @@ onBeforeUnmount(() => {
   <main class="desktop-app">
     <header class="app-header"><span class="brand-mark">▣</span><span>脑电文件波形查看器</span><span class="header-file">{{ recording?.original_name ? `- [${recording.original_name}]` : '' }}</span></header>
     <div class="app-body focused-body"><section class="main-column">
-      <ViewerToolbar :recording="Boolean(recording)" :loading="loading" :playing="playing" :position-s="playbackPositionS" :window-start-s="windowStartS" :screen-duration-s="displaySettings.timebaseSeconds" :total-duration-s="totalDurationS" :sfreq="sfreq" @open="newSession" @channels="channelSelection.openChannelDialog" @previous-screen="moveScreen(-1)" @toggle="togglePlayback" @next-screen="moveScreen(1)" @replay="replay" />
+      <ViewerToolbar :recording="Boolean(recording)" :loading="loading" :playing="playing" :position-s="playbackPositionS" :window-start-s="windowStartS" :screen-duration-s="displaySettings.timebaseSeconds" :total-duration-s="totalDurationS" :sfreq="sfreq" @open="newSession" @channels="channelSelection.openChannelDialog" @algorithms="algorithmWorkbenchOpen = true" @previous-screen="moveScreen(-1)" @toggle="togglePlayback" @next-screen="moveScreen(1)" @replay="replay" />
       <DisplaySettingsPanel v-if="recording" :settings="displaySettings" :preset="displayPreset" :channel-names="sourceChannelNames" @change="handleDisplayChange" @reset="handleDisplayReset" @algorithm-check="algorithmCheck.show" />
       <div v-if="recording && montageOptions.length" class="montage-bar"><MontageSelector :model-value="montageId" :options="montageOptions" :channels="recording.channels" :excluded-channels="averageExclude" @change="changeMontage" @edit-custom="customMontageOpen = true" @update-excluded="changeAverageExclude" /><span class="montage-status">{{ montageOptions.find((item) => item.id === montageId)?.label }}{{ montageId === 'average' ? (averageExclude.length ? ` · 自定义排除 ${averageExclude.length} 个` : ' · AVG-All') : montageId === 'custom_bipolar' ? ` · ${customMontage.length} 条导联` : '' }}</span></div>
       <DebugConsole v-if="recording" :seconds="debugSeconds" :loading="debugLoading" :sample="debugSample" :render-stats="renderStats" :transport-stats="transportStats" @update-seconds="debugSeconds = $event" @inspect="inspectDebugSample" />
@@ -419,6 +421,7 @@ onBeforeUnmount(() => {
       <CustomMontageDialog :channels="recording.channels" :rows="customMontage" @cancel="customMontageOpen = false" @apply="applyCustomMontage" />
     </div>
     <AlgorithmCheckDialog v-if="algorithmOpen" :loading="algorithmLoading" :seconds="algorithmSeconds" :result="algorithmResult" @close="algorithmCheck.close" @inspect="algorithmCheck.inspect" />
+    <AlgorithmDefinitionWorkbench v-if="recording && algorithmWorkbenchOpen" :recording="recording" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min((totalDurationS ?? windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" @close="algorithmWorkbenchOpen = false" />
     <div v-if="error" class="error-toast">{{ error }}</div>
   </main>
 </template>

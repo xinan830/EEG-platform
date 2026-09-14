@@ -16,8 +16,10 @@ from app.core.provenance import (
     sha256_json,
 )
 from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
+from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.quality import SpectralQualityGateError
 from app.models.analysis_config import AnalysisConfigRequest
+from app.models.definition_preview import DefinitionPreviewRunRequest
 from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredRunError
 from app.processing.offline_analysis import analyze_recording
 from app.services.artifacts import ArtifactStore
@@ -155,6 +157,113 @@ class RunService:
         run = self.get(run_id)
         source_id = run.reused_from_run_id or run.run_id
         return self.repository.list_artifacts(source_id)
+
+    def create_definition_preview(self, request: DefinitionPreviewRunRequest, definition_service: Any) -> AnalysisRun:
+        """Persist a scalar simulation preview without claiming an EEG measurement.
+
+        The draft is validated and evaluated only by the closed backend graph
+        engine. The recording and absolute time range supply ordinary run
+        provenance, while no raw samples are read or written for this preview.
+        """
+        recording = self.recordings.require_recording(request.recording_id)
+        if not recording.source_sha256:
+            raise ValueError("recording source identity is unavailable")
+        scalar_inputs = {
+            name: Scalar(item.value, item.unit)
+            for name, item in request.inputs.items()
+        }
+        result = definition_service.preview(request.draft, scalar_inputs)
+        requested_range = request.time.model_dump(mode="json")
+        duration = float(recording.duration_s or 0.0)
+        actual_start = min(float(request.time.start_s), duration)
+        actual_end = min(float(request.time.end_s), duration)
+        if actual_end <= actual_start:
+            raise ValueError("preview range is outside recording duration")
+        actual_range = {"start_s": actual_start, "end_s": actual_end}
+        draft = request.draft.model_dump(mode="json")
+        config = {
+            "kind": "scalar_definition_preview",
+            "draft": draft,
+            "simulation_inputs": {
+                name: {"value": item.value, "unit": item.unit.value}
+                for name, item in request.inputs.items()
+            },
+        }
+        definition_sha256 = sha256_json(draft)
+        config_sha256 = sha256_json(config)
+        build = implementation_version()
+        cache_key = build_cache_key(
+            source_sha256=recording.source_sha256,
+            definition_sha256=definition_sha256,
+            config_sha256=config_sha256,
+            implementation_build=build,
+            actual_range=actual_range,
+        )
+        now = utc_now()
+        mapping = recording.mapping.__dict__ if recording.mapping else {}
+        run = AnalysisRun(
+            run_id=uuid4().hex,
+            recording_id=recording.id,
+            analysis_type="definition_preview",
+            status=RunStatus.QUEUED,
+            definition_id=None,
+            definition_version=request.draft.semver,
+            scientific_version="definition-draft-preview-v1",
+            implementation_version=build,
+            config=config,
+            config_sha256=config_sha256,
+            cache_key=cache_key,
+            requested_range=requested_range,
+            actual_range=None,
+            channel_mapping={"channels": [], "semantic_mapping": mapping},
+            reference={"mode": "not_applicable_scalar_simulation"},
+            filters={"mode": "not_applicable_scalar_simulation"},
+            window={"mode": "absolute_provenance_range_only"},
+            quality_rules={"unavailable_output": "gate_failed_never_zero"},
+            environment=execution_environment(),
+            is_preview=True,
+            created_at=now,
+            updated_at=now,
+        )
+        self.repository.create(run)
+        self.repository.update_status(run.run_id, RunStatus.RUNNING)
+        outputs = {name: self._scalar_output(value) for name, value in result["outputs"].items()}
+        unavailable = {name: value for name, value in outputs.items() if value["value"] is None}
+        if unavailable:
+            return self.repository.update_status(
+                run.run_id,
+                RunStatus.GATE_FAILED,
+                actual_range=actual_range,
+                result_summary={"preview": True, "outputs": outputs, "artifacts": []},
+                error=StructuredRunError(
+                    code="PREVIEW_OUTPUT_UNAVAILABLE",
+                    message="preview output is unavailable",
+                    stage="preview",
+                    details={"outputs": unavailable},
+                ),
+            )
+        return self.repository.update_status(
+            run.run_id,
+            RunStatus.COMPLETED,
+            actual_range=actual_range,
+            result_summary={"preview": True, "outputs": outputs, "artifacts": []},
+        )
+
+    @staticmethod
+    def _scalar_output(value: Any) -> dict[str, object]:
+        return {
+            "value": value.value,
+            "unit": value.unit.value,
+            "quality": {
+                "status": value.quality.status,
+                "reasons": list(value.quality.reasons),
+                "rejected_reasons": list(value.quality.rejected_reasons),
+            },
+            "provenance": [
+                {"node": item.node, "parameters": dict(item.parameters)}
+                for item in value.provenance
+            ],
+        }
 
     @staticmethod
     def _resolve_request(request: RunCreateRequest, recording: Any) -> dict[str, Any]:
