@@ -66,3 +66,15 @@ and quality state, and SHALL NOT overwrite a formal run or its artifacts.
 #### Scenario: Reject unavailable preview data
 - **WHEN** a preview input is absent, invalid, or has an incompatible unit
 - **THEN** the system SHALL return a structured error and SHALL NOT fabricate a zero-valued output
+
+### Requirement: Localize official algorithm labels without changing identity
+
+The workbench SHALL display Chinese names and concise purpose text for known
+official definitions while retaining the backend definition identity for all
+requests, versions and provenance.
+
+#### Scenario: Display Official FAA
+- **WHEN** the workbench receives the official definition named `Official FAA`
+- **THEN** it SHALL display `额叶 Alpha 不对称性` and the `FAA` abbreviation
+- **AND THEN** it SHALL not modify the backend-returned definition name or ID.
+

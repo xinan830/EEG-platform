@@ -6,6 +6,7 @@ import { useDefinitionDraft } from '../composables/useDefinitionDraft'
 import { DEFAULT_DRAFT, type AlgorithmDefinition, type AlgorithmDefinitionVersion, type DefinitionCapabilities, type Unit } from '../types/algorithmDefinition'
 import type { Recording } from '../types/recording'
 import { createLatestRequestGuard } from '../utils/latestRequest'
+import { algorithmLabel } from '../utils/algorithmLabels'
 
 const props = defineProps<{ recording: Recording; startS: number; endS: number }>()
 const emit = defineEmits<{ close: [] }>()
@@ -29,6 +30,7 @@ const selectionRequest = createLatestRequestGuard()
 const selected = computed(() => definitions.value.find((item) => item.definition_id === selectedId.value) ?? null)
 const activeVersion = computed(() => versions.value.find((item) => item.semver === draftState.draft.value.semver) ?? versions.value[0] ?? null)
 const isCompositeOfficial = computed(() => selected.value?.owner === 'platform-official' && activeVersion.value?.quality_rules.execution_kind === 'official_composite_shadow_only')
+const selectedLabel = computed(() => algorithmLabel(selected.value))
 const inputNames = computed(() => Object.keys(draftState.draft.value.inputs))
 
 function displayError(cause: unknown) {
@@ -89,7 +91,7 @@ async function selectDefinition(id: string) {
     versions.value = nextVersions
     const latest = nextVersions[0]
     const item = definitions.value.find((entry) => entry.definition_id === id)
-    if (item) { name.value = item.name; description.value = item.description }
+    if (item) { const label = algorithmLabel(item); name.value = label.name; description.value = label.purpose }
     if (latest) draftState.replace(latest)
     compareLeft.value = latest?.semver ?? ''
     compareRight.value = versions.value[1]?.semver ?? latest?.semver ?? ''
@@ -221,10 +223,11 @@ onMounted(loadDefinitions)
     <section class="definition-workbench" aria-label="算法定义工作台">
       <header class="dialog-titlebar"><span class="app-glyph">◫</span><strong>算法定义工作台</strong><span class="definition-range">预览范围 {{ startS.toFixed(3) }}-{{ endS.toFixed(3) }} s</span><button class="dialog-close" title="关闭" aria-label="关闭" @click="emit('close')">×</button></header>
       <div class="definition-layout">
-        <aside class="definition-sidebar"><button @click="newDraft">新建草稿</button><button :disabled="!selectedId || loading" @click="clone">克隆</button><p>定义</p><button v-for="item in definitions" :key="item.definition_id" class="definition-list-item" :class="{ selected: item.definition_id === selectedId }" @click="selectDefinition(item.definition_id)"><strong>{{ item.name }}</strong><small>{{ item.owner === 'platform-official' ? '官方' : '私有' }} · {{ item.status }}</small></button><span v-if="!definitions.length && !loading" class="definition-muted">尚无保存的定义</span></aside>
+        <aside class="definition-sidebar"><button @click="newDraft">新建草稿</button><button :disabled="!selectedId || loading" @click="clone">克隆</button><p>定义</p><button v-for="item in definitions" :key="item.definition_id" class="definition-list-item" :class="{ selected: item.definition_id === selectedId }" @click="selectDefinition(item.definition_id)"><strong>{{ algorithmLabel(item).name }}</strong><small>{{ item.owner === 'platform-official' ? '官方' : '私有' }} · {{ item.status }}{{ algorithmLabel(item).abbreviation ? ` · ${algorithmLabel(item).abbreviation}` : '' }}</small></button><span v-if="!definitions.length && !loading" class="definition-muted">尚无保存的定义</span></aside>
         <main class="definition-editor">
           <div class="definition-actions"><button :disabled="loading || !draftState.isJsonValid.value" @click="validate">校验</button><button :disabled="loading || isCompositeOfficial" @click="saveVersion">保存版本</button><button :disabled="loading || !selectedId || isCompositeOfficial" @click="publish">发布</button><button :disabled="loading || isCompositeOfficial" @click="preview">运行预览</button><span v-if="loading">处理中...</span></div>
           <p v-if="isCompositeOfficial" class="definition-warning">这是官方复合定义：可检查和克隆，但通用图执行器不会伪造其运行语义。</p>
+          <p v-if="selected?.owner === 'platform-official'" class="definition-message">{{ selectedLabel.name }}（{{ selectedLabel.abbreviation }}）：{{ selectedLabel.purpose }}</p>
           <p v-if="actionMessage" class="definition-message">{{ actionMessage }}</p><p v-if="validationError || formError || draftState.jsonError.value" class="definition-error">{{ validationError || formError || draftState.jsonError.value }}</p>
           <div class="definition-grid">
             <label>名称<input v-model="name" :disabled="isCompositeOfficial" /></label><label>版本<input v-model="draftState.draft.value.semver" :disabled="isCompositeOfficial" @change="draftState.syncJson" /></label>
