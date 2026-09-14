@@ -15,6 +15,7 @@ import SpectrumPanel from './components/SpectrumPanel.vue'
 import SpectrogramPanel from './components/SpectrogramPanel.vue'
 import AlgorithmDefinitionWorkbench from './components/AlgorithmDefinitionWorkbench.vue'
 import ResultsDrawer from './components/ResultsDrawer.vue'
+import UserAlgorithmBuilder from './components/UserAlgorithmBuilder.vue'
 import type { Recording } from './types/recording'
 import { isValidDisplaySettings } from './utils/displaySettings'
 import { WaveformSweepBuffer } from './utils/waveformSweepBuffer'
@@ -53,6 +54,7 @@ const montageId = ref('original'); const montageOptions = ref<MontageOption[]>([
 const customMontage = ref<CustomMontageRow[]>([]); const customMontageOpen = ref(false)
 const algorithmWorkbenchOpen = ref(false)
 const resultsOpen = ref(false)
+const userAlgorithmBuilderOpen = ref(false)
 const developerMode = ref(false)
 // Worker 消息必须是可结构化克隆的普通对象，流元数据不能被 Vue 深度代理。
 const streamInfo = shallowRef<StreamInfo>(null)
@@ -394,7 +396,7 @@ onBeforeUnmount(() => {
     <header class="app-header"><div class="app-brand"><span class="brand-mark">▣</span><span>脑电科研工作台</span><span class="header-file">{{ recording?.original_name ? `· ${recording.original_name}` : '' }}</span></div><button class="app-mode-toggle" :class="{ active: developerMode }" @click="developerMode = !developerMode">{{ developerMode ? '退出开发者模式' : '开发者模式' }}</button></header>
     <div class="app-body focused-body"><section class="main-column">
       <nav v-if="recording" class="workflow-nav" aria-label="科研工作流">
-        <button type="button" @click="goToWorkflowSection('waveform-section')">1 波形查看</button><button type="button" @click="goToWorkflowSection('spectrum-section')">2 频谱分析</button><button type="button" @click="goToWorkflowSection('spectrogram-section')">3 时频分析</button><button type="button" @click="algorithmWorkbenchOpen = true">算法库</button><button type="button" @click="resultsOpen = true">结果</button>
+        <button type="button" @click="goToWorkflowSection('waveform-section')">1 波形查看</button><button type="button" @click="goToWorkflowSection('spectrum-section')">2 频谱分析</button><button type="button" @click="goToWorkflowSection('spectrogram-section')">3 时频分析</button><button type="button" @click="algorithmWorkbenchOpen = true">算法库</button><button type="button" @click="userAlgorithmBuilderOpen = true">创建算法</button><button type="button" @click="resultsOpen = true">结果</button>
       </nav>
       <ViewerToolbar :recording="Boolean(recording)" :loading="loading" :playing="playing" :position-s="playbackPositionS" :window-start-s="windowStartS" :screen-duration-s="displaySettings.timebaseSeconds" :total-duration-s="totalDurationS" :sfreq="sfreq" @open="newSession" @channels="channelSelection.openChannelDialog" @algorithms="algorithmWorkbenchOpen = true" @results="resultsOpen = true" @previous-screen="moveScreen(-1)" @toggle="togglePlayback" @next-screen="moveScreen(1)" @replay="replay" />
       <section v-if="recording" id="waveform-section" class="workflow-section waveform-workflow-section">
@@ -434,6 +436,7 @@ onBeforeUnmount(() => {
     </div>
     <AlgorithmCheckDialog v-if="algorithmOpen" :loading="algorithmLoading" :seconds="algorithmSeconds" :result="algorithmResult" @close="algorithmCheck.close" @inspect="algorithmCheck.inspect" />
     <AlgorithmDefinitionWorkbench v-if="recording && algorithmWorkbenchOpen" :recording="recording" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min((totalDurationS ?? windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" @close="algorithmWorkbenchOpen = false" />
+    <UserAlgorithmBuilder v-if="recording && userAlgorithmBuilderOpen" @close="userAlgorithmBuilderOpen = false" @saved="userAlgorithmBuilderOpen = false" />
     <ResultsDrawer v-if="recording && resultsOpen" :recording-id="recording.id" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? windowStartS + displaySettings.timebaseSeconds, windowStartS + Math.max(4, displaySettings.timebaseSeconds))" :channels="sourceChannelNames" @close="resultsOpen = false" />
     <div v-if="error" class="error-toast">{{ error }}</div>
   </main>
