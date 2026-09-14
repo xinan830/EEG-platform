@@ -43,7 +43,7 @@ function render() {
     },
     xAxis: { type: 'value', name: '窗口结束时间 (s)', nameLocation: 'middle', nameGap: 30 },
     yAxis: { type: 'value', name: `${props.result.output.label} (${props.result.output.unit})`, nameLocation: 'middle', nameGap: 48 },
-    series: [{ type: 'line', name: props.result.output.label, data: values, showSymbol: false, connectNulls: false, lineStyle: { width: 2, color: '#2878bd' }, itemStyle: { color: '#2878bd' }, markArea: { silent: true, itemStyle: { color: 'rgba(190, 198, 205, .24)' }, data: badAreas } }],
+    series: [{ type: 'line', name: props.result.output.label, data: values, showSymbol: points.length <= 1, symbolSize: 8, connectNulls: false, lineStyle: { width: 2, color: '#2878bd' }, itemStyle: { color: '#2878bd' }, markArea: { silent: true, itemStyle: { color: 'rgba(190, 198, 205, .24)' }, data: badAreas } }],
   }, true)
 }
 onMounted(() => { if (element.value) { chart = echarts.init(element.value); resizeObserver = new ResizeObserver(() => chart?.resize()); resizeObserver.observe(element.value); render() } })

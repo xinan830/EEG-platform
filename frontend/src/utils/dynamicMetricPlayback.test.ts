@@ -20,3 +20,16 @@ it('keeps one backend point per end time while preserving earlier dynamic result
     { time_s: 21, window_start_s: 11, window_end_s: 21, value: 1.5, quality: { status: 'clean' } },
   ])
 })
+
+it('replaces the same playback second instead of drawing duplicate dynamic points', () => {
+  const previous = { output: { label: 'Theta/Beta 比值', unit: 'dimensionless' }, channel: 'F3', series: [
+    { time_s: 20, window_start_s: 10, window_end_s: 20, value: 1.25, quality: { status: 'clean' } },
+  ] }
+  const replacement = { output: { label: 'Theta/Beta 比值', unit: 'dimensionless' }, channel: 'F3', series: [
+    { time_s: 20, window_start_s: 10, window_end_s: 20, value: 1.5, quality: { status: 'clean' } },
+  ] }
+
+  expect(appendDynamicMetricPoint(previous, replacement).series).toEqual([
+    { time_s: 20, window_start_s: 10, window_end_s: 20, value: 1.5, quality: { status: 'clean' } },
+  ])
+})

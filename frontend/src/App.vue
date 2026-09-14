@@ -60,8 +60,14 @@ const resultsOpen = ref(false)
 const userAlgorithmBuilderOpen = ref(false)
 const algorithmDisplayOpen = ref(false)
 const algorithmDisplayResults = ref<Record<string, { status: string; result: Record<string, unknown> | null; error?: string }>>({})
+const dynamicAlgorithmSession = ref<{ channel: string; definitionCount: number } | null>(null)
 const algorithmDisplayResultItems = computed(() => Object.entries(algorithmDisplayResults.value).map(([id, item]) => ({ id, ...item })))
 function isDynamicMetric(value: Record<string, unknown> | null): value is DynamicMetric { return Boolean(value && Array.isArray(value.series)) }
+function updateDynamicAlgorithmSession(value: { enabled: boolean; channel: string; definitionCount: number }) {
+  dynamicAlgorithmSession.value = value.enabled ? { channel: value.channel, definitionCount: value.definitionCount } : null
+  if (value.enabled) algorithmDisplayResults.value = {}
+}
+function clearAlgorithmResults() { algorithmDisplayResults.value = {}; dynamicAlgorithmSession.value = null }
 const developerMode = ref(false)
 // Worker 消息必须是可结构化克隆的普通对象，流元数据不能被 Vue 深度代理。
 const streamInfo = shallowRef<StreamInfo>(null)
@@ -411,7 +417,7 @@ onBeforeUnmount(() => {
       <DisplaySettingsPanel v-if="recording" :settings="displaySettings" :preset="displayPreset" :channel-names="sourceChannelNames" @change="handleDisplayChange" @reset="handleDisplayReset" @algorithm-check="algorithmCheck.show" />
       <div v-if="recording && montageOptions.length" class="montage-bar"><MontageSelector :model-value="montageId" :options="montageOptions" :channels="recording.channels" :excluded-channels="averageExclude" @change="changeMontage" @edit-custom="customMontageOpen = true" @update-excluded="changeAverageExclude" /><span class="montage-status">{{ montageOptions.find((item) => item.id === montageId)?.label }}{{ montageId === 'average' ? (averageExclude.length ? ` · 自定义排除 ${averageExclude.length} 个` : ' · AVG-All') : montageId === 'custom_bipolar' ? ` · ${customMontage.length} 条导联` : '' }}</span></div>
       <DebugConsole v-if="developerMode" :seconds="debugSeconds" :loading="debugLoading" :sample="debugSample" :render-stats="renderStats" :transport-stats="transportStats" @update-seconds="debugSeconds = $event" @inspect="inspectDebugSample" />
-      <section v-if="recording && algorithmDisplayResultItems.length" class="algorithm-results-on-main"><header><h2>当前波形算法结果</h2><button type="button" @click="algorithmDisplayResults = {}">清除结果</button></header><article v-for="item in algorithmDisplayResultItems" :key="item.id"><p v-if="item.error" class="algorithm-display-error">{{ item.error }}</p><DefinitionMetricResultCard v-if="item.result && !isDynamicMetric(item.result)" :result="item.result as unknown as DefinitionMetricResult" /><DefinitionMetricTrendChart v-if="item.result && isDynamicMetric(item.result)" :result="item.result" /></article></section>
+      <section v-if="recording && (algorithmDisplayResultItems.length || dynamicAlgorithmSession)" class="algorithm-results-on-main"><header><h2>{{ dynamicAlgorithmSession ? '播放同步算法趋势' : '当前波形算法结果' }}</h2><button type="button" @click="clearAlgorithmResults">{{ dynamicAlgorithmSession ? '停止并清除' : '清除结果' }}</button></header><p v-if="dynamicAlgorithmSession && !algorithmDisplayResultItems.length" class="algorithm-dynamic-pending">已选择 {{ dynamicAlgorithmSession.definitionCount }} 个算法 · {{ dynamicAlgorithmSession.channel }} · 等待播放到 10.000 s 后生成第一个动态点。</p><article v-for="item in algorithmDisplayResultItems" :key="item.id"><p v-if="item.error" class="algorithm-display-error">{{ item.error }}</p><DefinitionMetricResultCard v-if="item.result && !isDynamicMetric(item.result)" :result="item.result as unknown as DefinitionMetricResult" /><DefinitionMetricTrendChart v-if="item.result && isDynamicMetric(item.result)" :result="item.result" /></article></section>
       <WaveformPanel
         ref="waveformPanel"
         :waveform="waveform"
@@ -444,7 +450,7 @@ onBeforeUnmount(() => {
     </div>
     <AlgorithmCheckDialog v-if="algorithmOpen" :loading="algorithmLoading" :seconds="algorithmSeconds" :result="algorithmResult" @close="algorithmCheck.close" @inspect="algorithmCheck.inspect" />
     <AlgorithmDefinitionWorkbench v-if="recording && algorithmWorkbenchOpen" :recording="recording" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min((totalDurationS ?? windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" @close="algorithmWorkbenchOpen = false" />
-    <AlgorithmDisplayWorkspace v-show="recording && algorithmDisplayOpen" v-if="recording" :recording="recording" :range-start="activeAnalysisRange?.start ?? windowStartS" :range-end="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? (windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" :active-range="activeAnalysisRange" :channels="sourceChannelNames" :playback-position-s="playbackPositionS" :playing="playing" @close="algorithmDisplayOpen = false" @results="algorithmDisplayResults = $event" />
+    <AlgorithmDisplayWorkspace v-show="recording && algorithmDisplayOpen" v-if="recording" :recording="recording" :range-start="activeAnalysisRange?.start ?? windowStartS" :range-end="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? (windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" :active-range="activeAnalysisRange" :channels="sourceChannelNames" :playback-position-s="playbackPositionS" :playing="playing" :dynamic-active="Boolean(dynamicAlgorithmSession)" @close="algorithmDisplayOpen = false" @results="algorithmDisplayResults = $event" @dynamic-session="updateDynamicAlgorithmSession" />
     <UserAlgorithmBuilder v-if="recording && userAlgorithmBuilderOpen" @close="userAlgorithmBuilderOpen = false" @saved="userAlgorithmBuilderOpen = false" />
     <ResultsDrawer v-if="recording && resultsOpen" :recording-id="recording.id" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? windowStartS + displaySettings.timebaseSeconds, windowStartS + Math.max(4, displaySettings.timebaseSeconds))" :channels="sourceChannelNames" @close="resultsOpen = false" />
     <div v-if="error" class="error-toast">{{ error }}</div>

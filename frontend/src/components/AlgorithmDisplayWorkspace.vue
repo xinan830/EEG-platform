@@ -12,9 +12,9 @@ import '../styles/algorithmDisplayWorkspace.css'
 type Range = { start: number; end: number }
 export type WorkspaceMetricRun = { status: string; result: DefinitionMetricResult | DynamicMetric | null; error?: string }
 const props = defineProps<{
-  recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean
+  recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean; dynamicActive?: boolean
 }>()
-const emit = defineEmits<{ close: []; results: [runs: Record<string, WorkspaceMetricRun>] }>()
+const emit = defineEmits<{ close: []; results: [runs: Record<string, WorkspaceMetricRun>]; dynamicSession: [session: { enabled: boolean; channel: string; definitionCount: number }] }>()
 const definitions = ref<AlgorithmDefinition[]>([])
 const versions = ref<Record<string, AlgorithmDefinitionVersion>>({})
 const selectedIds = ref<string[]>([])
@@ -25,7 +25,6 @@ const loading = ref(false)
 const message = ref('')
 const runs = ref<Record<string, WorkspaceMetricRun>>({})
 const lastDynamicRefreshS = ref<number | null>(null)
-const dynamicEnabled = ref(false)
 const staticStartS = ref(props.rangeStart)
 const staticEndS = ref(props.rangeEnd)
 const range = computed(() => props.activeRange ?? { start: props.rangeStart, end: props.rangeEnd })
@@ -81,14 +80,14 @@ async function runSelected(startS: number, endS: number, dynamic: boolean, appen
   } finally { running.value = false; emit('results', { ...runs.value }) }
 }
 async function runStatic() {
-  dynamicEnabled.value = false
+  emit('dynamicSession', { enabled: false, channel: channel.value, definitionCount: 0 })
   if (staticRangeDuration.value < 4) { message.value = '静态分析区间至少需要 4 秒。'; return }
   await runSelected(staticStartS.value, staticEndS.value, false)
 }
 async function enableDynamic() {
-  dynamicEnabled.value = true
   lastDynamicRefreshS.value = null
   message.value = '已启用播放同步分析：播放到 10 秒后，每整秒计算最近 10 秒。'
+  emit('dynamicSession', { enabled: true, channel: channel.value, definitionCount: selectedIds.value.length })
   const position = props.playbackPositionS
   if (position !== undefined && position >= 10 && !props.playing) await refreshDynamic(position)
   emit('close')
@@ -102,11 +101,12 @@ async function refreshDynamic(position: number) {
   await runSelected(window.startS, window.endS, true, true)
 }
 watch(() => [props.playing, props.playbackPositionS] as const, ([playing, position]) => {
-  if (!playing || !dynamicEnabled.value || position === undefined || selectedIds.value.length === 0) return
+  if (!playing || !props.dynamicActive || position === undefined || selectedIds.value.length === 0) return
   const second = Math.floor(position)
   void refreshDynamic(second)
 })
-watch(mode, (nextMode) => { if (nextMode !== 'dynamic') dynamicEnabled.value = false })
+watch(mode, (nextMode) => { if (nextMode !== 'dynamic') emit('dynamicSession', { enabled: false, channel: channel.value, definitionCount: 0 }) })
+watch(() => props.dynamicActive, (active) => { if (!active) lastDynamicRefreshS.value = null })
 function useCurrentRange() { staticStartS.value = range.value.start; staticEndS.value = range.value.end }
 function title(id: string) { return definitions.value.find((item) => item.definition_id === id)?.name ?? id }
 onMounted(load)
@@ -119,7 +119,7 @@ onMounted(load)
         <label>通道<select v-model="channel"><option v-for="item in props.channels.length ? props.channels : props.recording.channels" :key="item" :value="item">{{ item }}</option></select></label>
         <span class="algorithm-display-label">分析模式</span><div class="algorithm-display-segment"><button :class="{ active: mode === 'static' }" @click="mode = 'static'">静态分析</button><button :class="{ active: mode === 'dynamic' }" @click="mode = 'dynamic'">动态分析</button></div>
         <template v-if="mode === 'static'"><label>开始 <input v-model.number="staticStartS" type="number" min="0" step="0.001" /> s</label><label>结束 <input v-model.number="staticEndS" type="number" min="0" step="0.001" /> s</label><button type="button" @click="useCurrentRange">使用当前分析区间</button><button class="primary-action" :disabled="!canRun" @click="runStatic">{{ running ? '计算中…' : '计算此区间' }}</button></template>
-        <template v-else><span class="algorithm-display-range">播放同步：最近 10 s · 每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ dynamicEnabled ? '同步已启用' : '启用播放同步' }}</button></template>
+        <template v-else><span class="algorithm-display-range">播放同步：最近 10 s · 每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ props.dynamicActive ? '同步已启用' : '启用播放同步' }}</button></template>
       </div>
       <div class="algorithm-display-layout">
         <aside class="algorithm-display-sidebar"><h3>选择算法</h3><p class="algorithm-display-help">勾选要叠加到当前波形的用户算法。</p><label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label><p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无用户算法</p><p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析区间至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">动态模式不使用框选区间；播放达到 10 秒后开始计算。</p></aside>
