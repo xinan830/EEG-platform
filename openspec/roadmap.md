@@ -6,7 +6,7 @@ This roadmap evolves the existing EEG viewer into a local, single-user research 
 
 | Order | Change | Outcome | Status |
 | --- | --- | --- | --- |
-| 01 | `complete-traceable-analysis-foundation` | Reproducible recordings, runs, artifacts, cache identities, and validation reports | Planned |
+| 01 | `complete-traceable-analysis-foundation` | Reproducible recordings, runs, artifacts, cache identities, and validation reports | Complete, archived 2026-09-14 |
 | 02 | `standardize-research-primitives` | Typed scientific values, units, quality propagation, and reusable nodes | Planned |
 | 03 | `add-algorithm-definition-engine` | Immutable versioned definitions and a validated DAG executor | Planned |
 | 04 | `migrate-official-algorithms` | Shadow parity and controlled migration of official metrics | Planned |

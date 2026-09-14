@@ -16,8 +16,14 @@ ANALYSIS_CONTRACT: dict[str, object] = {
     "welch_window": "hann",
     "welch_scaling": "density",
     "artifact_peak_uv": 150.0,
+    "flatline_peak_to_peak_uv": 0.5,
+    "clipping_minimum_samples": 3,
+    "clipping_minimum_ratio": 0.01,
     "minimum_clean_epoch_ratio": 0.75,
     "quality_gate_policy": "average_clean_segments_only_then_fail_below_ratio",
+    "quality_reason_codes": [
+        "non_finite", "amplitude_threshold", "flatline", "clipping", "missing_samples",
+    ],
     "frequency_band_edges": {
         "delta": [1.0, 4.0, "left_closed_right_open"],
         "theta": [4.0, 8.0, "left_closed_right_open"],

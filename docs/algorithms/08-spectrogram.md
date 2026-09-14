@@ -27,7 +27,7 @@
 
 时间坐标是窗口中心，不是窗口起点。10–14 s 的中心为 12 s。响应矩阵按 `time × frequency` 组织，`matrix_shape = [time_bins, frequency_bins]`，每个通道各有一份矩阵。
 
-质量失败的窗口不会被删除：时间中心保留，对应功率使用 NaN/非有限值，`quality.windows` 给出 `bad` 及原因。这样热力图不会因为坏窗而把后续时间向左移动。当前坏窗原因包括非有限样本和去均值后峰值超过 150 µV。
+质量失败的窗口不会被删除：时间中心保留，对应功率使用 NaN/非有限值，`quality.windows` 给出 `bad` 及原因。这样热力图不会因为坏窗而把后续时间向左移动。共享质量原因包括 `non_finite`、`amplitude_threshold`、`flatline`、`clipping` 和 `missing_samples`；阈值和实现身份随 Run provenance 记录。质量失败不得伪装为零功率。
 
 ## 单窗校验
 

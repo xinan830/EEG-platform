@@ -38,7 +38,11 @@ def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypa
 def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
     sfreq = 100.0
-    data = np.zeros((30 * int(sfreq), 2))
+    times = np.arange(30 * int(sfreq)) / sfreq
+    data = np.column_stack([
+        10e-6 * np.sin(2 * np.pi * 10 * times),
+        8e-6 * np.sin(2 * np.pi * 6 * times),
+    ])
     monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz", "Pz"], []))
     calls = {"count": 0}
 
@@ -80,7 +84,9 @@ def test_configured_v4_defaults_equal_frozen_v3(tmp_path, monkeypatch):
 
 def test_configured_static_range_rejects_file_overflow(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
-    monkeypatch.setattr(service, "load_data", lambda _recording: (np.zeros((1000, 1)), 100.0, ["F3"], []))
+    times = np.arange(1000) / 100.0
+    values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    monkeypatch.setattr(service, "load_data", lambda _recording: (values, 100.0, ["F3"], []))
     config = AnalysisConfigRequest(mode="static", channels=["F3"], time={"start_s": 5, "end_s": 15})
     import pytest
     with pytest.raises(ValueError, match="超出文件范围"):
@@ -89,7 +95,9 @@ def test_configured_static_range_rejects_file_overflow(tmp_path, monkeypatch):
 
 def test_configured_static_range_accepts_one_sample_rounding_error(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
-    monkeypatch.setattr(service, "load_data", lambda _recording: (np.zeros((7634, 1)), 1000.0, ["F3"], []))
+    times = np.arange(7634) / 1000.0
+    values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    monkeypatch.setattr(service, "load_data", lambda _recording: (values, 1000.0, ["F3"], []))
     config = AnalysisConfigRequest(mode="static", channels=["F3"], time={"start_s": 1.022, "end_s": 7.635})
     payload = service.load_configured_spectrum(recording, config)
     assert payload["actual_end_s"] == 7.634

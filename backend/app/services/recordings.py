@@ -10,6 +10,13 @@ from app.models.recording import ChannelMapping, RecordingSummary
 from app.models.analysis_config import AnalysisConfigRequest
 from app.services.filter_checkpoint_cache import FilterCheckpointCache
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
+from app.persistence import migrate_database
+from app.services.recording_identity import (
+    RECORDING_IMPORT_VERSION,
+    backfill_recording_identity,
+    canonical_channel_label,
+)
+from app.eeg_core.quality import SpectralQualityGateError
 
 
 class RecordingService:
@@ -29,22 +36,8 @@ class RecordingService:
         return connection
 
     def _initialize_database(self) -> None:
-        with self._connect() as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS recordings (
-                    id TEXT PRIMARY KEY,
-                    original_name TEXT NOT NULL,
-                    stored_name TEXT NOT NULL UNIQUE,
-                    extension TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    sfreq REAL,
-                    duration_s REAL,
-                    channels_json TEXT NOT NULL DEFAULT '[]',
-                    mapping_json TEXT
-                )
-                """
-            )
+        migrate_database(self.database_path)
+        backfill_recording_identity(self.database_path, self.storage_dir)
 
     def create_recording(self, original_name: str, suffix: str, raw_bytes: bytes) -> RecordingSummary:
         normalized_suffix = str(suffix).lower()
@@ -56,15 +49,23 @@ class RecordingService:
         recording_id = uuid4().hex
         stored_name = f"{recording_id}{normalized_suffix}"
         created_at = datetime.now(timezone.utc).isoformat()
+        source_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+        file_size_bytes = len(raw_bytes)
         (self.storage_dir / stored_name).write_bytes(raw_bytes)
 
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO recordings (id, original_name, stored_name, extension, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO recordings (
+                    id, original_name, stored_name, extension, created_at,
+                    source_sha256, file_size_bytes, import_version
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (recording_id, Path(str(original_name)).name, stored_name, normalized_suffix, created_at),
+                (
+                    recording_id, Path(str(original_name)).name, stored_name,
+                    normalized_suffix, created_at, source_sha256,
+                    file_size_bytes, RECORDING_IMPORT_VERSION,
+                ),
             )
 
         return RecordingSummary(
@@ -73,16 +74,23 @@ class RecordingService:
             stored_name=stored_name,
             extension=normalized_suffix,
             created_at=created_at,
+            source_sha256=source_sha256,
+            file_size_bytes=file_size_bytes,
+            import_version=RECORDING_IMPORT_VERSION,
         )
 
     def create_imported_recording(self, original_name: str, suffix: str, raw_bytes: bytes) -> RecordingSummary:
         recording = self.create_recording(original_name, suffix, raw_bytes)
         try:
-            sfreq, duration_s, channels = self._read_metadata(self.storage_dir / recording.stored_name)
+            sfreq, duration_s, channels, channel_types, channel_units = self._read_metadata(
+                self.storage_dir / recording.stored_name
+            )
         except Exception:
             self._delete_recording(recording)
             raise ValueError("无法读取 BDF/EDF 脑电文件") from None
-        self._set_metadata(recording.id, sfreq, duration_s, channels)
+        self._set_metadata(
+            recording.id, sfreq, duration_s, channels, channel_types, channel_units
+        )
         return self.require_recording(recording.id)
 
     def list_recordings(self) -> list[RecordingSummary]:
@@ -232,7 +240,13 @@ class RecordingService:
             raise ValueError("频谱分析窗口至少需要 4 秒")
         spectrum = estimate_welch_psd(window, sfreq)
         if spectrum.gate_failed:
-            raise ValueError("频谱分析质量门未通过")
+            raise SpectralQualityGateError({
+                "clean_segments": spectrum.clean_epochs,
+                "total_segments": spectrum.total_epochs,
+                "clean_ratio": spectrum.signal_quality,
+                "gate_failed": spectrum.gate_failed,
+                "rejected_reasons": list(spectrum.rejected_reasons),
+            })
         bands = {"delta": (1.0, 4.0), "theta": (4.0, 8.0), "alpha": (8.0, 13.0), "beta": (13.0, 30.0)}
         psd_uv = spectrum.psd * 1e12
         absolute = {
@@ -258,7 +272,13 @@ class RecordingService:
             "psd": {name: psd_uv[index].tolist() for index, name in enumerate(requested_names)},
             "band_power": absolute,
             "relative_band_power": relative,
-            "quality": {"clean_segments": spectrum.clean_epochs, "total_segments": spectrum.total_epochs, "clean_ratio": spectrum.signal_quality, "gate_failed": spectrum.gate_failed},
+            "quality": {
+                "clean_segments": spectrum.clean_epochs,
+                "total_segments": spectrum.total_epochs,
+                "clean_ratio": spectrum.signal_quality,
+                "gate_failed": spectrum.gate_failed,
+                "rejected_reasons": list(spectrum.rejected_reasons),
+            },
         }
 
     def load_spectrogram(self, recording: RecordingSummary, start_s: float = 0.0, window_s: float = 30.0, channels: list[str] | None = None) -> dict:
@@ -497,21 +517,52 @@ class RecordingService:
             raise ValueError("映射通道不存在于录制文件")
         return mapping
 
-    def _set_metadata(self, recording_id: str, sfreq: float, duration_s: float, channels: list[str]) -> None:
+    def _set_metadata(
+        self,
+        recording_id: str,
+        sfreq: float,
+        duration_s: float,
+        channels: list[str],
+        channel_types: list[str],
+        channel_units: list[str],
+    ) -> None:
+        raw_labels = [str(name) for name in channels]
+        canonical = [canonical_channel_label(name) for name in raw_labels]
+        if len({name.casefold() for name in canonical}) != len(canonical):
+            raise ValueError("规范化通道标签存在重复")
         with self._connect() as connection:
             connection.execute(
-                "UPDATE recordings SET sfreq = ?, duration_s = ?, channels_json = ? WHERE id = ?",
-                (sfreq, duration_s, json.dumps(channels, ensure_ascii=False), recording_id),
+                """UPDATE recordings SET sfreq = ?, duration_s = ?, channels_json = ?,
+                   raw_channel_labels_json = ?, canonical_channel_labels_json = ?,
+                   channel_types_json = ?, channel_units_json = ?, import_version = ?
+                   WHERE id = ?""",
+                (
+                    sfreq, duration_s, json.dumps(raw_labels, ensure_ascii=False),
+                    json.dumps(raw_labels, ensure_ascii=False),
+                    json.dumps(canonical, ensure_ascii=False),
+                    json.dumps(channel_types, ensure_ascii=False),
+                    json.dumps(channel_units, ensure_ascii=False),
+                    RECORDING_IMPORT_VERSION, recording_id,
+                ),
             )
 
     @staticmethod
-    def _read_metadata(path: Path) -> tuple[float, float, list[str]]:
+    def _read_metadata(path: Path) -> tuple[float, float, list[str], list[str], list[str]]:
         import mne
 
         reader = mne.io.read_raw_bdf if path.suffix.lower() == ".bdf" else mne.io.read_raw_edf
         raw = reader(path, preload=False, verbose=False)
         try:
-            return float(raw.info["sfreq"]), float(raw.n_times / raw.info["sfreq"]), list(raw.ch_names)
+            names = list(raw.ch_names)
+            original_units = getattr(raw, "_orig_units", {}) or {}
+            units = [str(original_units.get(name, "unknown")) for name in names]
+            return (
+                float(raw.info["sfreq"]),
+                float(raw.n_times / raw.info["sfreq"]),
+                names,
+                list(raw.get_channel_types()),
+                units,
+            )
         finally:
             raw.close()
 
@@ -536,4 +587,11 @@ class RecordingService:
             duration_s=row["duration_s"],
             channels=tuple(json.loads(row["channels_json"])),
             mapping=mapping,
+            source_sha256=row["source_sha256"],
+            file_size_bytes=row["file_size_bytes"],
+            raw_channel_labels=tuple(json.loads(row["raw_channel_labels_json"] or "[]")),
+            canonical_channel_labels=tuple(json.loads(row["canonical_channel_labels_json"] or "[]")),
+            channel_types=tuple(json.loads(row["channel_types_json"] or "[]")),
+            channel_units=tuple(json.loads(row["channel_units_json"] or "[]")),
+            import_version=row["import_version"],
         )

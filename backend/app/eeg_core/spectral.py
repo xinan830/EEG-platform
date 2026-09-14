@@ -8,6 +8,7 @@ import numpy as np
 from scipy import signal
 
 from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+from app.eeg_core.quality import evaluate_spectral_window
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class SpectralEstimate:
     clean_epochs: int
     total_epochs: int
     gate_failed: str | None
+    rejected_reasons: tuple[str, ...] = ()
 
 
 def preprocess_offline(data: np.ndarray, sfreq: float) -> np.ndarray:
@@ -46,12 +48,20 @@ def estimate_welch_psd(data: np.ndarray, sfreq: float) -> SpectralEstimate:
     step = max(1, int(round(segment_samples * (1.0 - overlap))))
     bounds = range(0, max(0, len(values) - segment_samples + 1), step)
     segments = [values[start:start + segment_samples] for start in bounds]
-    threshold_v = float(ANALYSIS_CONTRACT["artifact_peak_uv"]) * 1e-6
-    clean = [item for item in segments if np.isfinite(item).all() and np.max(np.abs(item)) <= threshold_v]
+    checks = [evaluate_spectral_window(item, segment_samples) for item in segments]
+    clean = [item for item, check in zip(segments, checks) if check.status == "clean"]
+    rejected_reasons = tuple(dict.fromkeys(
+        reason for check in checks for reason in check.reasons
+    ))
+    if not segments:
+        rejected_reasons = ("missing_samples",)
     quality = len(clean) / len(segments) if segments else 0.0
     minimum = float(ANALYSIS_CONTRACT["minimum_clean_epoch_ratio"])
     if not segments or not clean or quality < minimum:
-        return SpectralEstimate(np.array([]), np.empty((values.shape[1], 0)), quality, len(clean), len(segments), "low_quality")
+        return SpectralEstimate(
+            np.array([]), np.empty((values.shape[1], 0)), quality,
+            len(clean), len(segments), "low_quality", rejected_reasons,
+        )
     spectra = []
     freqs = np.array([])
     for item in clean:
@@ -63,7 +73,10 @@ def estimate_welch_psd(data: np.ndarray, sfreq: float) -> SpectralEstimate:
         spectra.append(segment_psd.T)
     mask = (freqs >= 1.0) & (freqs <= 30.0)
     averaged = np.mean(np.stack(spectra), axis=0)[:, mask]
-    return SpectralEstimate(freqs[mask], np.maximum(averaged, 1e-20), quality, len(clean), len(segments), None)
+    return SpectralEstimate(
+        freqs[mask], np.maximum(averaged, 1e-20), quality,
+        len(clean), len(segments), None, rejected_reasons,
+    )
 
 
 def band_power(freqs: np.ndarray, psd: np.ndarray, low: float, high: float) -> np.ndarray | float:
@@ -128,14 +141,12 @@ def estimate_spectrogram_with_quality(data: np.ndarray, sfreq: float) -> tuple[n
     window = signal.get_window("hann", segment_samples)
     freqs = np.fft.rfftfreq(segment_samples, 1.0 / sfreq)
     mask = (freqs >= 1.0) & (freqs <= 30.0)
-    threshold_v = float(ANALYSIS_CONTRACT["artifact_peak_uv"]) * 1e-6
     spectra: list[np.ndarray] = []
     quality: list[dict[str, object]] = []
     for start in starts:
         frame = values[start:start + segment_samples]
-        finite = bool(np.isfinite(frame).all())
-        peak = float(np.max(np.abs(frame))) if finite else float("nan")
-        bad_reason = None if finite and peak <= threshold_v else ("non_finite" if not finite else "amplitude_threshold")
+        check = evaluate_spectral_window(frame, segment_samples)
+        bad_reason = check.reasons[0] if check.reasons else None
         centered = np.nan_to_num(frame)
         centered = centered - np.mean(centered, axis=0, keepdims=True)
         transformed = np.fft.rfft(centered * window[:, None], axis=0)
@@ -146,6 +157,14 @@ def estimate_spectrogram_with_quality(data: np.ndarray, sfreq: float) -> tuple[n
             power[:] = np.nan
         spectra.append(power)
         center = (float(start) + segment_samples / 2.0) / sfreq
-        quality.append({"center_s": center, "start_s": float(start) / sfreq, "end_s": (float(start) + segment_samples) / sfreq, "status": "bad" if bad_reason else "clean", "reason": bad_reason, "peak_uv": peak * 1e6 if finite else None})
+        quality.append({
+            "center_s": center,
+            "start_s": float(start) / sfreq,
+            "end_s": (float(start) + segment_samples) / sfreq,
+            "status": check.status,
+            "reason": bad_reason,
+            "reasons": list(check.reasons),
+            "peak_uv": check.peak_uv,
+        })
     centers = np.asarray([item["center_s"] for item in quality], dtype=float)
     return centers, freqs[mask], np.stack(spectra), quality
