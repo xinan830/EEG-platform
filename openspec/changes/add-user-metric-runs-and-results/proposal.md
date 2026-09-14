@@ -13,8 +13,11 @@ inspect the resulting value with its unit, quality state, and provenance.
 - Add a `definition_metric` AnalysisRun that resolves curated spectral inputs
   from a frozen offline-spectral-v3 static PSD result and executes a saved
   definition version in the backend.
-- Add a researcher-facing run control and a compact result presentation for a
-  saved user algorithm.
+- Add a separate waveform-and-algorithms workspace. It is the ordinary user
+  surface that runs saved algorithms and presents their measured results; the
+  algorithm library remains definition-oriented.
+- Support both a single static result and a dynamic 10-second trailing-window
+  series at one-second steps over a committed outer range.
 - Present a scalar as a value card, not a fabricated one-point chart; provide
   a same-unit input comparison only when the underlying inputs are compatible.
 - Keep future multi-window trend charts separate: their X axis is real time in
@@ -23,6 +26,6 @@ inspect the resulting value with its unit, quality state, and provenance.
 
 ## Non-goals
 
-- Dynamic metric trends, batch visualizations, arbitrary axis/unit overrides,
-  official composite algorithm execution, and clinical interpretation.
+- Batch visualizations, arbitrary axis/unit overrides, official composite
+  algorithm execution, and clinical interpretation.
 - Browser-side PSD, band-power, or formula computation.

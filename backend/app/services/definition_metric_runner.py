@@ -43,24 +43,40 @@ class DefinitionMetricRunner:
         draft: DefinitionVersionDraft,
         config: DefinitionMetricConfig,
     ) -> MetricInputResolution:
+        return self.resolve_window(
+            recording,
+            draft,
+            config.channel,
+            float(config.time.start_s),
+            float(config.time.end_s),
+        )
+
+    def resolve_window(
+        self,
+        recording: Any,
+        draft: DefinitionVersionDraft,
+        channel: str,
+        start_s: float,
+        end_s: float,
+    ) -> MetricInputResolution:
         try:
             payload = self.recordings.load_spectrum(
                 recording,
-                float(config.time.start_s),
-                float(config.time.end_s - config.time.start_s),
-                [config.channel],
+                start_s,
+                end_s - start_s,
+                [channel],
             )
         except SpectralQualityGateError:
             raise
         except ValueError as exc:
             raise DefinitionEngineError(
-                "METRIC_CHANNEL_UNAVAILABLE", "metric channel is unavailable", {"channel": config.channel}
+                "METRIC_CHANNEL_UNAVAILABLE", "metric channel is unavailable", {"channel": channel}
             ) from exc
 
         channels = payload.get("channels", [])
-        if config.channel not in channels:
+        if channel not in channels:
             raise DefinitionEngineError(
-                "METRIC_CHANNEL_UNAVAILABLE", "metric channel is unavailable", {"channel": config.channel}
+                "METRIC_CHANNEL_UNAVAILABLE", "metric channel is unavailable", {"channel": channel}
             )
 
         inputs: dict[str, Scalar] = {}
@@ -74,16 +90,16 @@ class DefinitionMetricRunner:
                 )
             source, band, unit = resolved
             try:
-                value = float(payload[source][config.channel][band])
+                value = float(payload[source][channel][band])
             except (KeyError, TypeError, ValueError) as exc:
                 raise DefinitionEngineError(
                     "METRIC_FEATURE_UNAVAILABLE", "metric feature is unavailable", {"input": input_name, "feature": feature}
                 ) from exc
             inputs[input_name] = Scalar(value, unit)
-            snapshot[input_name] = {"feature": str(feature), "value": value, "unit": unit.value, "channel": config.channel}
+            snapshot[input_name] = {"feature": str(feature), "value": value, "unit": unit.value, "channel": channel}
 
-        start = float(payload.get("window_start_s", config.time.start_s))
-        duration = float(payload.get("window_duration_s", config.time.end_s - config.time.start_s))
+        start = float(payload.get("window_start_s", start_s))
+        duration = float(payload.get("window_duration_s", end_s - start_s))
         return MetricInputResolution(
             inputs=inputs,
             snapshot=snapshot,

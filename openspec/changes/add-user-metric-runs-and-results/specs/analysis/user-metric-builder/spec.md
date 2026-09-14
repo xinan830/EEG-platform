@@ -58,3 +58,30 @@ axis. The user SHALL NOT assign arbitrary physical units to an axis.
 - **WHEN** a future run returns multiple metric windows
 - **THEN** the trend uses `时间（s）` and the backend-declared output unit
 - **AND THEN** a browser-side unit override is unavailable.
+
+### Requirement: Run saved metrics across dynamic EEG windows
+
+The system SHALL support a dynamic metric mode over a committed outer range of
+at least 10 seconds. It SHALL evaluate the saved definition against trailing
+10-second spectral windows at 1-second steps. Each returned point SHALL retain
+its window start, window end, output value or null, and quality state.
+
+#### Scenario: Dynamic Theta/Beta trend
+
+- **WHEN** a user runs Theta/Beta over `10-40 s` in dynamic mode
+- **THEN** the backend returns 21 points with `window_end_s` from `20` through
+  `40` seconds
+- **AND THEN** every point represents a real 10-second window
+- **AND THEN** a quality-gated point remains present with null value.
+
+### Requirement: Keep algorithm execution outside the definition library
+
+The ordinary definition library SHALL provide explanation, version information
+and deletion only. The waveform-and-algorithms workspace SHALL provide saved
+algorithm selection, static/dynamic execution, and measured result display.
+
+#### Scenario: Open the algorithm library
+
+- **WHEN** a user opens the algorithm library
+- **THEN** the page shows definitions, formulas, versions and deletion actions
+- **AND THEN** it does not show EEG run controls or measured result cards.
