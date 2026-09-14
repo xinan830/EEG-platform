@@ -1,14 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { getConfiguredSpectrum } from '../api/spectrum'
 import type { SpectrumResponse, SpectrumBand } from '../types/spectrum'
 
-const props = defineProps<{ result: SpectrumResponse; channel: string; mode?: 'static' | 'dynamic'; dynamicWindowS?: number; refreshStepS?: number }>()
+const props = defineProps<{ result: SpectrumResponse; channel: string; recordingId?: string; mode?: 'static' | 'dynamic'; dynamicWindowS?: number; refreshStepS?: number }>()
 const emit = defineEmits<{ close: [] }>()
 const bands: SpectrumBand[] = ['delta', 'theta', 'alpha', 'beta']
 const bounds: Record<SpectrumBand, string> = { delta: '[1,4)', theta: '[4,8)', alpha: '[8,13)', beta: '[13,30]' }
 const totalPower = computed(() => bands.reduce((sum, band) => sum + (props.result.band_power[props.channel]?.[band] ?? 0), 0))
 const executedMode = computed(() => props.result.execution_config?.mode ?? props.mode ?? 'static')
 const modeLabel = computed(() => executedMode.value === 'dynamic' ? '动态 PSD' : '静态 PSD')
+const singleStart = ref(Math.max(0, (props.result.actual_start_s ?? props.result.window_start_s)))
+const singleResult = ref<SpectrumResponse | null>(null)
+const singleLoading = ref(false)
+const singleError = ref('')
+const singleEnd = computed(() => singleStart.value + 4)
+async function loadSingleWindow() {
+  if (!props.recordingId || executedMode.value !== 'static') return
+  singleLoading.value = true; singleError.value = ''
+  try {
+    singleResult.value = await getConfiguredSpectrum(props.recordingId, { mode: 'static', channels: [props.channel], time: { start_s: singleStart.value, end_s: singleEnd.value }, dynamic_window_s: 10, refresh_step_s: 1 })
+  } catch (cause) { singleResult.value = null; singleError.value = cause instanceof Error ? cause.message : '单窗口 PSD 读取失败' }
+  finally { singleLoading.value = false }
+}
+watch(() => [singleStart.value, props.channel, props.recordingId, executedMode.value], loadSingleWindow, { immediate: true })
 </script>
 
 <template>
@@ -22,6 +37,11 @@ const modeLabel = computed(() => executedMode.value === 'dynamic' ? '动态 PSD'
         <p class="algorithm-meta">对当前通道的 PSD 使用梯形积分：Pband = ∫<sub>low</sub><sup>high</sup> PSD<sub>{{ channel }}</sub>(f) df。接口输出 µV²；RBP = Pband / P<sub>1–30</sub>。</p>
         <div class="algorithm-table"><div v-for="band in bands" :key="band" class="algorithm-row"><strong>{{ band[0].toUpperCase() + band.slice(1) }}</strong><code>{{ bounds[band] }} Hz</code><span>P = {{ result.band_power[channel][band].toFixed(4) }} µV²<br>RBP = {{ (result.relative_band_power[channel][band] * 100).toFixed(2) }}%</span></div></div>
         <p class="algorithm-meta">{{ channel }} 四频段功率合计 P<sub>1–30</sub> ≈ {{ totalPower.toFixed(4) }} µV² · RBP 合计 {{ (bands.reduce((sum, band) => sum + result.relative_band_power[channel][band], 0) * 100).toFixed(3) }}% · PSD 单位：{{ result.units.psd }}</p>
+        <template v-if="executedMode === 'static'">
+          <h3>单窗口 PSD 调试数据</h3>
+          <div class="algorithm-debug-controls"><label>窗口开始 <input v-model.number="singleStart" type="number" min="0" step="0.001" /> s</label><span>窗口范围：{{ singleStart.toFixed(3) }}–{{ singleEnd.toFixed(3) }} s</span><span>频率点：{{ singleResult?.frequencies_hz.length ?? result.frequencies_hz.length }}</span></div>
+          <p v-if="singleLoading" class="algorithm-meta">正在读取单窗口 PSD…</p><p v-else-if="singleError" class="spectrum-error">{{ singleError }}</p><div v-else-if="singleResult" class="algorithm-psd-table" role="table" aria-label="静态 PSD 单窗口数据"><div class="algorithm-channel-head"><span>频率 Hz</span><span>线性 PSD（{{ singleResult.units.psd }}）</span></div><div v-for="(frequency, index) in singleResult.frequencies_hz" :key="frequency" class="algorithm-channel-row"><span>{{ frequency.toFixed(2) }}</span><code>{{ singleResult.psd[channel]?.[index]?.toExponential(10) ?? 'NaN' }}</code></div></div>
+        </template>
         <h3>全部通道频段结果</h3>
         <div class="algorithm-channel-table"><div class="algorithm-channel-head"><span>通道</span><span v-for="band in bands" :key="band">{{ band[0].toUpperCase() + band.slice(1) }}（RBP）</span></div><div v-for="name in result.channels" :key="name" class="algorithm-channel-row"><strong>{{ name }}</strong><span v-for="band in bands" :key="band">{{ result.band_power[name][band].toFixed(2) }} µV² / {{ (result.relative_band_power[name][band] * 100).toFixed(1) }}%</span></div></div>
       </div>

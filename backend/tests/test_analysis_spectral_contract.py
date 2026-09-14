@@ -4,7 +4,13 @@ from scipy import signal
 from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
 from app.eeg_core.faa import compute_faa
 from app.eeg_core.offline_metrics import metric_values
-from app.eeg_core.spectral import SpectralEstimate, band_power, estimate_welch_psd, preprocess_offline
+from app.eeg_core.spectral import (
+    SpectralEstimate,
+    band_power,
+    estimate_spectrogram_with_quality,
+    estimate_welch_psd,
+    preprocess_offline,
+)
 
 
 def test_offline_preprocessing_matches_independent_scipy_reference():
@@ -58,6 +64,22 @@ def test_known_amplitude_sine_integrates_to_mean_square_power():
     power = float(np.trapezoid(spectrum.psd[0], spectrum.freqs))
 
     assert np.isclose(power, amplitude ** 2 / 2.0, rtol=0.02)
+
+
+def test_four_second_spectrogram_row_matches_single_welch_psd():
+    sfreq = 500.0
+    times = np.arange(4 * int(sfreq)) / sfreq
+    values = np.column_stack([
+        20e-6 * np.sin(2 * np.pi * 10 * times) + 3e-6,
+        8e-6 * np.sin(2 * np.pi * 6 * times),
+    ])
+
+    centers, frequencies, matrix, quality = estimate_spectrogram_with_quality(values, sfreq)
+    static = estimate_welch_psd(values, sfreq)
+
+    assert centers.tolist() == [2.0]
+    assert quality[0]["status"] == "clean"
+    np.testing.assert_allclose(matrix[0], static.psd, rtol=1e-12, atol=1e-18)
 
 
 def test_band_integration_interpolates_boundaries_without_losing_area():

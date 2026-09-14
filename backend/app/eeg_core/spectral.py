@@ -97,7 +97,10 @@ def estimate_spectrogram(data: np.ndarray, sfreq: float) -> tuple[np.ndarray, np
     freqs = np.fft.rfftfreq(segment_samples, 1.0 / sfreq)
     spectra = []
     for frame in frames:
-        transformed = np.fft.rfft(frame * window[:, None], axis=0)
+        # Match scipy.signal.welch(..., detrend="constant") used by the
+        # static PSD path: every 4 s frame is demeaned before Hann/FFT.
+        centered = frame - np.mean(frame, axis=0, keepdims=True)
+        transformed = np.fft.rfft(centered * window[:, None], axis=0)
         density = np.abs(transformed) ** 2 / (sfreq * np.sum(window ** 2))
         density[1:-1] *= 2.0
         spectra.append(density.T)
@@ -133,7 +136,9 @@ def estimate_spectrogram_with_quality(data: np.ndarray, sfreq: float) -> tuple[n
         finite = bool(np.isfinite(frame).all())
         peak = float(np.max(np.abs(frame))) if finite else float("nan")
         bad_reason = None if finite and peak <= threshold_v else ("non_finite" if not finite else "amplitude_threshold")
-        transformed = np.fft.rfft(np.nan_to_num(frame) * window[:, None], axis=0)
+        centered = np.nan_to_num(frame)
+        centered = centered - np.mean(centered, axis=0, keepdims=True)
+        transformed = np.fft.rfft(centered * window[:, None], axis=0)
         density = np.abs(transformed) ** 2 / (sfreq * np.sum(window ** 2))
         density[1:-1] *= 2.0
         power = density.T[:, mask]

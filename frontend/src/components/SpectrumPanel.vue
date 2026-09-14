@@ -98,6 +98,6 @@ function useCurrentScreen() {
     <p v-else-if="loading" class="spectrum-empty">正在计算频谱…</p>
     <p v-else-if="error" class="spectrum-error" role="alert">{{ error }}</p>
     <p v-else class="spectrum-empty">暂无频谱数据</p>
-    <SpectrumAlgorithmDialog v-if="algorithmOpen && result" :result="result" :channel="firstChannel" :mode="mode" :dynamic-window-s="dynamicWindow" :refresh-step-s="refreshStep" @close="algorithmOpen = false" />
+    <SpectrumAlgorithmDialog v-if="algorithmOpen && result" :result="result" :channel="firstChannel" :recording-id="props.recordingId" :mode="mode" :dynamic-window-s="dynamicWindow" :refresh-step-s="refreshStep" @close="algorithmOpen = false" />
   </section>
 </template>
