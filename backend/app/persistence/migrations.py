@@ -251,6 +251,11 @@ def _migration_006_persistent_run_queue(connection: sqlite3.Connection) -> None:
         connection.execute(statement)
 
 
+def _migration_007_validation_evidence(connection: sqlite3.Connection) -> None:
+    """Keep derived validation vectors separate from source EEG samples."""
+    _add_column(connection, "validation_runs", "evidence_json TEXT")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "legacy-tables", _migration_001_legacy_tables),
     Migration(2, "recording-identity", _migration_002_recording_identity),
@@ -258,6 +263,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(4, "algorithm-definitions", _migration_004_algorithm_definitions),
     Migration(5, "research-projects", _migration_005_research_projects),
     Migration(6, "persistent-run-queue", _migration_006_persistent_run_queue),
+    Migration(7, "validation-evidence", _migration_007_validation_evidence),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

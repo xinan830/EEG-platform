@@ -29,6 +29,7 @@ from app.api.projects import router as projects_router
 from app.api.batch_runs import router as batch_runs_router
 from app.api.results import router as results_router
 from app.services.results import ResultService
+from app.services.independent_spectral_reference import IndependentSpectralReferenceService
 from app.eeg_core.official_definitions import ensure_official_definitions
 from app.core.api_contract import (
     RequestContextMiddleware,
@@ -72,6 +73,9 @@ app.state.definition_service = DefinitionService()
 app.state.project_service = ProjectService()
 app.state.batch_run_service = BatchRunService(app.state.project_service, app.state.run_service)
 app.state.result_service = ResultService(app.state.run_service, app.state.validation_service)
+app.state.independent_spectral_reference_service = IndependentSpectralReferenceService(
+    app.state.recording_service, app.state.validation_service
+)
 ensure_official_definitions(app.state.definition_service)
 app.include_router(recordings_router)
 app.include_router(analyses_router)

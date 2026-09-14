@@ -124,6 +124,7 @@ class ValidationRun(BaseModel):
     pass_rate: float | None = None
     passed: bool | None = None
     environment: dict[str, str]
+    evidence: dict[str, Any] | None = None
     error: StructuredRunError | None = None
     created_at: str
     completed_at: str | None = None

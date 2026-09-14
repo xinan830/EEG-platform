@@ -243,8 +243,8 @@ class ValidationRepository:
                    validation_id, kind, status, subject_run_id, algorithm_id, algorithm_version,
                    dataset_identity_json, config_sha256, tolerances_json, expected_summary_json,
                    actual_summary_json, max_absolute_error, max_relative_error, point_count,
-                   passed_point_count, pass_rate, passed, environment_json, error_json, created_at, completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   passed_point_count, pass_rate, passed, environment_json, evidence_json, error_json, created_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     validation.validation_id, validation.kind, validation.status, validation.subject_run_id,
                     validation.algorithm_id, validation.algorithm_version, _json(values["dataset_identity"]),
@@ -255,6 +255,7 @@ class ValidationRepository:
                     validation.passed_point_count, validation.pass_rate,
                     int(validation.passed) if validation.passed is not None else None,
                     _json(values["environment"]),
+                    _json(values["evidence"]) if values["evidence"] is not None else None,
                     _json(values["error"]) if values["error"] is not None else None,
                     validation.created_at, validation.completed_at,
                 ),
@@ -286,7 +287,7 @@ class ValidationRepository:
             max_absolute_error=row["max_absolute_error"], max_relative_error=row["max_relative_error"],
             point_count=row["point_count"], passed_point_count=row["passed_point_count"], pass_rate=row["pass_rate"],
             passed=bool(row["passed"]) if row["passed"] is not None else None,
-            environment=_loads(row["environment_json"], {}),
+            environment=_loads(row["environment_json"], {}), evidence=_loads(row["evidence_json"]),
             error=StructuredRunError(**_loads(row["error_json"])) if row["error_json"] else None,
             created_at=row["created_at"], completed_at=row["completed_at"],
         )

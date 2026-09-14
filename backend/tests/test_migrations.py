@@ -32,8 +32,10 @@ def test_migration_upgrades_legacy_database_without_losing_rows(tmp_path: Path):
             "SELECT id, original_name, channels_json FROM recordings WHERE id = 'r1'"
         ).fetchone()
         columns = {item[1] for item in connection.execute("PRAGMA table_info(recordings)")}
+        validation_columns = {item[1] for item in connection.execute("PRAGMA table_info(validation_runs)")}
     assert row == ("r1", "a.edf", '["F3"]')
     assert {"source_sha256", "file_size_bytes", "raw_channel_labels_json"} <= columns
+    assert "evidence_json" in validation_columns
     assert get_schema_version(database) == CURRENT_SCHEMA_VERSION
 
 

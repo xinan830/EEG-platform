@@ -8,6 +8,9 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from app.models.recording import ChannelMapping, RecordingSummary
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.montage import CustomMontageChannelPayload
+from app.models.spectral_validation import SpectralReferenceValidationRequest
+from app.services.independent_spectral_reference import SpectralReferenceUnavailable
+from app.core.api_contract import error_response
 from app.services.recordings import RecordingService
 from app.services.montage import build_montage, describe_montages, montage_formulas
 
@@ -45,6 +48,10 @@ def _serialize(recording: RecordingSummary) -> dict:
 
 def _service(request: Request) -> RecordingService:
     return request.app.state.recording_service
+
+
+def _spectral_reference_service(request: Request):
+    return request.app.state.independent_spectral_reference_service
 
 
 def _record_audit(request: Request, action: str, recording_id: str, parameters: dict[str, object]) -> None:
@@ -217,6 +224,33 @@ def get_configured_spectrogram(recording_id: str, request: Request, config: Anal
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/{recording_id}/validations/spectral-reference", status_code=status.HTTP_201_CREATED)
+def validate_spectral_reference(
+    recording_id: str,
+    payload: SpectralReferenceValidationRequest,
+    request: Request,
+) -> dict:
+    """Persist an engineering-only, independently calculated PSD comparison."""
+    try:
+        recording = _service(request).require_recording(recording_id)
+        validation = _spectral_reference_service(request).validate(recording, payload)
+        _record_audit(request, "validation.spectral_reference", recording_id, {
+            "start_s": payload.start_s,
+            "end_s": payload.end_s,
+            "channels": payload.channels,
+            "validation_id": validation.validation_id,
+            "kind": validation.kind,
+        })
+        return validation.model_dump(mode="json")
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except SpectralReferenceUnavailable as exc:
+        return error_response(
+            request, 422, "SPECTRAL_REFERENCE_UNAVAILABLE",
+            f"独立频谱校验不可用：{exc.reason}",
+        )
 
 
 @router.get("/{recording_id}/algorithm-check")

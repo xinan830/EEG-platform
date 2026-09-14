@@ -13,6 +13,7 @@ This roadmap evolves the existing EEG viewer into a local, single-user research 
 | 05 | `add-algorithm-form-builder` | Form and JSON authoring, validation, preview, versioning, and comparison | Complete, archived 2026-09-14 |
 | 06 | `add-projects-and-batch-runs` | Research hierarchy, persistent jobs, and batch execution | Complete, archived 2026-09-14 |
 | 07 | `add-results-validation-and-export` | Result workbench, independent validation, and reproducible exports | Complete, archived 2026-09-14 |
+| 07a | `add-independent-spectral-reference-validation` | Persisted SciPy/MNE pointwise PSD reference evidence | Complete, archived 2026-09-14 |
 | 08 | `define-extension-and-governance-boundaries` | Safe module metadata and explicit future security boundaries | Planned |
 
 ## Change gate

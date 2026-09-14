@@ -8,7 +8,7 @@ from uuid import uuid4
 import numpy as np
 
 from app.core.config import DATABASE_PATH
-from app.core.provenance import execution_environment
+from app.core.provenance import canonical_json, execution_environment
 from app.models.run import ValidationCreateRequest, ValidationRun
 from app.services.run_repository import ValidationRepository, utc_now
 
@@ -19,7 +19,7 @@ class ValidationService:
     def __init__(self, database_path: Path = DATABASE_PATH):
         self.repository = ValidationRepository(database_path)
 
-    def create(self, request: ValidationCreateRequest) -> ValidationRun:
+    def create(self, request: ValidationCreateRequest, *, evidence: dict[str, object] | None = None) -> ValidationRun:
         expected = np.asarray(request.expected, dtype=float)
         actual = np.asarray(request.actual, dtype=float)
         if expected.ndim != 1 or actual.ndim != 1 or len(expected) == 0 or expected.shape != actual.shape:
@@ -30,6 +30,13 @@ class ValidationService:
         atol = float(request.tolerances.get("atol", 0.0))
         if rtol < 0 or atol < 0:
             raise ValueError("validation tolerances must be non-negative")
+        if evidence is not None:
+            if not isinstance(evidence, dict):
+                raise ValueError("validation evidence must be an object")
+            try:
+                canonical_json(evidence)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("validation evidence must be finite JSON") from exc
         absolute = np.abs(actual - expected)
         denominator = np.maximum(np.maximum(np.abs(actual), np.abs(expected)), np.finfo(float).tiny)
         relative = absolute / denominator
@@ -54,6 +61,7 @@ class ValidationService:
             pass_rate=float(np.mean(passing)),
             passed=bool(np.all(passing)),
             environment=execution_environment(),
+            evidence=evidence,
             created_at=now,
             completed_at=now,
         )
@@ -75,6 +83,7 @@ class ValidationService:
             "report_schema_version": self.REPORT_SCHEMA_VERSION,
             "scope": "engineering_validation_only_not_clinical_validation",
             "validation": validation.model_dump(mode="json"),
+            "evidence": validation.evidence,
             "interpretation": (
                 "PASS means numerical agreement under the declared engineering tolerance; "
                 "it is not evidence of clinical validity."
