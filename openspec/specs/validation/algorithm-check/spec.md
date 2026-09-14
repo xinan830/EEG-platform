@@ -52,4 +52,3 @@ render only the returned engineering validation result.
 - **THEN** the browser SHALL submit the range and channel order to the backend
 - **AND THEN** display PASS/failure, point count, maximum errors and the
   backend-defined engineering-only scope without calculating PSD locally.
-
