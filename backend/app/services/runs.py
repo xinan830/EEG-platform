@@ -16,13 +16,17 @@ from app.core.provenance import (
     sha256_json,
 )
 from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
+from app.eeg_core.definition_engine import DefinitionEngineError, execute_graph
 from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.quality import SpectralQualityGateError
 from app.models.analysis_config import AnalysisConfigRequest
+from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.definition_preview import DefinitionPreviewRunRequest
 from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredRunError
 from app.processing.offline_analysis import analyze_recording
 from app.services.artifacts import ArtifactStore
+from app.services.definition_metric_runner import DefinitionMetricRunner
+from app.services.definitions import DefinitionService
 from app.services.recordings import RecordingService
 from app.services.run_repository import RunRepository, utc_now
 
@@ -41,6 +45,8 @@ class RunService:
         self.recordings = recordings
         self.repository = RunRepository(database_path)
         self.artifacts = ArtifactStore(self.repository, artifacts_dir)
+        self.definition_service = DefinitionService(database_path)
+        self.metric_runner = DefinitionMetricRunner(recordings)
 
     def create(self, request: RunCreateRequest) -> AnalysisRun:
         recording = self.recordings.require_recording(request.recording_id)
@@ -265,8 +271,7 @@ class RunService:
             ],
         }
 
-    @staticmethod
-    def _resolve_request(request: RunCreateRequest, recording: Any) -> dict[str, Any]:
+    def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
         mapping = recording.mapping.__dict__ if recording.mapping else {}
         if request.analysis_type == "legacy_analysis":
             config = {"analysis_type": "legacy_analysis", **request.config}
@@ -279,6 +284,25 @@ class RunService:
                 "welch_segment_s": ANALYSIS_CONTRACT["welch_segment_s"],
                 "welch_overlap": ANALYSIS_CONTRACT["welch_segment_overlap"],
             }
+        elif request.analysis_type == "definition_metric":
+            if not request.definition_id or not request.definition_version:
+                raise ValueError("definition metric requires a definition ID and version")
+            version = self.definition_service.repository.get_version(request.definition_id, request.definition_version)
+            if version is None:
+                raise ValueError("definition metric version does not exist")
+            metric_config = DefinitionMetricConfig.model_validate(request.config)
+            duration = float(recording.duration_s or 0.0)
+            if metric_config.time.end_s > duration + 1.5 / float(recording.sfreq or 1.0):
+                raise ValueError(f"metric analysis range exceeds recording duration of {duration:.3f} s")
+            config = metric_config.model_dump(mode="json")
+            requested_range = metric_config.time.model_dump(mode="json")
+            actual_range = dict(requested_range)
+            channels = [metric_config.channel]
+            definition = {"kind": "definition_metric", "definition_id": request.definition_id,
+                          "definition_version": request.definition_version, "digest_sha256": version.digest_sha256}
+            scientific_version = "user-metric-run-v1"
+            window = {"mode": "static", "welch_segment_s": ANALYSIS_CONTRACT["welch_segment_s"],
+                      "welch_overlap": ANALYSIS_CONTRACT["welch_segment_overlap"]}
         else:
             raw = dict(request.config)
             time = raw.get("time") or {}
@@ -317,6 +341,8 @@ class RunService:
             }
         return {
             "config": config,
+            "definition_id": request.definition_id,
+            "definition_version": request.definition_version,
             "requested_range": requested_range,
             "actual_range": actual_range,
             "channel_mapping": {"channels": channels, "semantic_mapping": mapping},
@@ -331,7 +357,7 @@ class RunService:
                 "artifact_peak_uv": ANALYSIS_CONTRACT["artifact_peak_uv"],
                 "reasons": ["non_finite", "amplitude_threshold", "flatline", "clipping", "missing_samples"],
             },
-            "definition_sha256": sha256_json(definition),
+            "definition_sha256": definition["digest_sha256"] if request.analysis_type == "definition_metric" else sha256_json(definition),
             "scientific_version": scientific_version,
         }
 
@@ -355,6 +381,51 @@ class RunService:
                 "waveform_unit": waveform["unit"],
             })
             return result, arrays, "mixed; see result_summary"
+
+        if analysis_type == "definition_metric":
+            config = DefinitionMetricConfig.model_validate(resolved["config"])
+            definition_id = str(resolved["definition_id"])
+            definition_version = str(resolved["definition_version"])
+            version = self.definition_service.repository.get_version(definition_id, definition_version)
+            if version is None:
+                raise ValueError("definition metric version does not exist")
+            resolution = self.metric_runner.resolve_inputs(recording, version, config)
+            outputs = execute_graph(version.graph, resolution.inputs)
+            if len(outputs) != 1:
+                raise ValueError("definition metric requires exactly one scalar output")
+            output_id, output = next(iter(outputs.items()))
+            if not isinstance(output, Scalar):
+                raise ValueError("definition metric output must be a scalar")
+            if output.value is None:
+                raise SpectralQualityGateError({
+                    **resolution.quality,
+                    "metric_output": None,
+                    "metric_rejected_reasons": list(output.quality.reasons),
+                })
+            output_metadata = version.outputs.get(output_id, {})
+            output_label = output_metadata.get("label", output_id) if isinstance(output_metadata, dict) else output_id
+            input_items = [
+                {"key": key, "label": key, **value}
+                for key, value in resolution.snapshot.items()
+            ]
+            input_units = {str(item["unit"]) for item in input_items if item.get("value") is not None}
+            chart = {
+                "kind": "input_comparison" if len(input_items) >= 2 and len(input_units) == 1 else "none",
+                "x_axis": {"field": "input_label"},
+                "y_axis": {"unit": next(iter(input_units), None)},
+                "values": input_items if len(input_units) == 1 else [],
+            }
+            metric = {
+                "output": {"id": output_id, "label": output_label, **self._scalar_output(output)},
+                "inputs": resolution.snapshot,
+                "channel": config.channel,
+                "actual_range": resolution.actual_range,
+                "source_quality": resolution.quality,
+                "chart": chart,
+            }
+            arrays = {"metric_value": np.asarray([output.value], dtype=float)}
+            arrays.update({f"input_{index}_value": np.asarray([value["value"]], dtype=float) for index, value in enumerate(resolution.snapshot.values())})
+            return {"metric": metric}, arrays, output.unit.value
 
         config = AnalysisConfigRequest.model_validate(resolved["config"])
         if analysis_type == "spectrum":

@@ -7,6 +7,8 @@ import { DEFAULT_DRAFT, type AlgorithmDefinition, type AlgorithmDefinitionVersio
 import type { Recording } from '../types/recording'
 import { createLatestRequestGuard } from '../utils/latestRequest'
 import { algorithmLabel } from '../utils/algorithmLabels'
+import { createDefinitionMetricRun, getRun, type AnalysisRunResponse } from '../api/runs'
+import DefinitionMetricResultCard, { type DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
 
 const props = defineProps<{ recording: Recording; startS: number; endS: number }>()
 const emit = defineEmits<{ close: [] }>()
@@ -26,6 +28,10 @@ const formError = ref('')
 const previewInputs = ref<Record<string, { value: number; unit: Unit }>>({ value: { value: 1, unit: 'ratio' } })
 const previewRun = ref<Awaited<ReturnType<typeof createDefinitionPreview>> | null>(null)
 const developerMode = ref(false)
+const metricChannel = ref('')
+const metricRun = ref<AnalysisRunResponse | null>(null)
+const metricResult = ref<DefinitionMetricResult | null>(null)
+const metricRunning = ref(false)
 const draftState = useDefinitionDraft(DEFAULT_DRAFT)
 const selectionRequest = createLatestRequestGuard()
 const selected = computed(() => definitions.value.find((item) => item.definition_id === selectedId.value) ?? null)
@@ -72,6 +78,37 @@ function definitionSummary(item: AlgorithmDefinition): string {
   const label = algorithmLabel(item)
   if (item.owner === 'platform-official') return `官方算法 · ${label.abbreviation || label.name}`
   return item.definition_id === selectedId.value && userFormula.value ? `用户算法 · ${userFormula.value}` : '用户算法 · 已保存公式'
+}
+
+function metricFromRun(run: AnalysisRunResponse): DefinitionMetricResult | null {
+  const summary = run.result_summary
+  if (!summary || typeof summary.metric !== 'object' || summary.metric === null) return null
+  return summary.metric as DefinitionMetricResult
+}
+
+async function pollMetricRun(runId: string) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const next = await getRun(runId)
+    metricRun.value = next
+    metricResult.value = metricFromRun(next)
+    if (['completed', 'gate_failed', 'failed', 'cancelled'].includes(next.status)) return
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 250))
+  }
+}
+
+async function runMetricDefinition() {
+  if (!selectedId.value || !activeVersion.value || !metricChannel.value || !isUserDefinition.value) return
+  metricRunning.value = true
+  validationError.value = ''
+  metricResult.value = null
+  try {
+    const run = await createDefinitionMetricRun({ recordingId: props.recording.id, definitionId: selectedId.value,
+      definitionVersion: activeVersion.value.semver, channel: metricChannel.value, startS: props.startS, endS: props.endS })
+    metricRun.value = run
+    await pollMetricRun(run.run_id)
+  } catch (cause) {
+    validationError.value = displayError(cause)
+  } finally { metricRunning.value = false }
 }
 
 function displayError(cause: unknown) {
@@ -139,6 +176,9 @@ async function selectDefinition(id: string) {
     compareLeft.value = latest?.semver ?? ''
     compareRight.value = versions.value[1]?.semver ?? latest?.semver ?? ''
     syncPreviewInputs()
+    metricChannel.value = props.recording.channels[0] ?? ''
+    metricRun.value = null
+    metricResult.value = null
   } catch (cause) {
     if (selectionRequest.isCurrent(requestId)) validationError.value = displayError(cause)
   } finally {
@@ -316,6 +356,14 @@ onMounted(loadDefinitions)
                   <span><small>输出</small>{{ userOutput.label }}<em>{{ userOutput.unit }}</em></span>
                 </div>
                 <p>公式：{{ userFormula || '用户设定的研究计算' }}</p>
+              </section>
+              <section v-if="isUserDefinition" class="definition-metric-run-controls">
+                <h3>运行此算法</h3>
+                <p>使用离线频谱分析（offline-spectral-v3）读取当前选择的固定时间范围；计算与单位均由后端决定。</p>
+                <label>分析通道<select v-model="metricChannel"><option v-for="channel in recording.channels" :key="channel" :value="channel">{{ channel }}</option></select></label>
+                <button data-testid="run-definition-metric" class="primary-action" :disabled="metricRunning || !metricChannel || endS - startS < 4" @click="runMetricDefinition">{{ metricRunning ? '正在运行…' : '运行此算法' }}</button>
+                <p v-if="metricRun && !metricResult">Run {{ metricRun.run_id.slice(0, 8) }} · {{ metricRun.status }}</p>
+                <DefinitionMetricResultCard v-if="metricResult" :result="metricResult" />
               </section>
               <section>
                 <h3>{{ isUserDefinition ? '这个算法做什么' : '后端如何计算' }}</h3>
