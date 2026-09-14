@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkAreaComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { metricTrendTimeAxis } from '../utils/metricTrendAxis'
+import { metricTrendTimeAxis, metricTrendValueAxis } from '../utils/metricTrendAxis'
 
 export type MetricPoint = { time_s: number; window_start_s: number; window_end_s: number; value: number | null; quality?: { status?: string; reasons?: string[] } }
 export type DynamicMetric = {
@@ -19,18 +19,20 @@ const props = defineProps<{ result: DynamicMetric }>()
 const element = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
 let resizeObserver: ResizeObserver | null = null
+const latestPoint = computed(() => [...(props.result.series ?? [])].reverse().find((point) => point.value !== null) ?? null)
 
 function render() {
   if (!chart) return
   const points = props.result.series ?? []
   const timeAxis = metricTrendTimeAxis(points.map((point) => point.time_s))
   const values = points.map((point) => [point.time_s, point.value] as [number, number | null])
+  const valueAxis = metricTrendValueAxis(points.map((point) => point.value))
   const badAreas = points.filter((point) => point.value === null || point.quality?.status === 'bad').map((point) => [
     { xAxis: point.window_start_s }, { xAxis: point.window_end_s },
   ])
   chart.setOption({
     animation: false,
-    grid: { left: 68, right: 18, top: 18, bottom: 48 },
+    grid: { left: 62, right: 18, top: 10, bottom: 36 },
     tooltip: {
       trigger: 'axis',
       formatter: (params: unknown) => {
@@ -47,17 +49,19 @@ function render() {
       type: 'value',
       name: '窗口结束时间 (s)',
       nameLocation: 'middle',
-      nameGap: 30,
+      nameGap: 24,
       min: timeAxis.min,
       max: timeAxis.max,
       scale: true,
+      splitNumber: 3,
     },
     yAxis: {
       type: 'value',
-      name: `${props.result.output.label} (${props.result.output.unit})`,
-      nameLocation: 'middle',
-      nameGap: 48,
+      min: valueAxis.min,
+      max: valueAxis.max,
       scale: true,
+      splitNumber: 3,
+      axisLabel: { formatter: (value: number) => Number(value).toPrecision(5) },
     },
     series: [{ type: 'line', name: props.result.output.label, data: values, showSymbol: points.length <= 1, symbolSize: 8, connectNulls: false, lineStyle: { width: 2, color: '#2878bd' }, itemStyle: { color: '#2878bd' }, markArea: { silent: true, itemStyle: { color: 'rgba(190, 198, 205, .24)' }, data: badAreas } }],
   }, true)
@@ -66,4 +70,13 @@ onMounted(() => { if (element.value) { chart = echarts.init(element.value); resi
 watch(() => props.result, render, { deep: true })
 onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); chart = null })
 </script>
-<template><div ref="element" class="definition-metric-trend" aria-label="动态算法趋势图"></div></template>
+<template>
+  <section class="definition-metric-trend-wrap" aria-label="动态算法趋势图">
+    <header class="definition-metric-trend-meta">
+      <span>{{ result.output.label }}（{{ result.output.unit }}）</span>
+      <strong v-if="latestPoint">当前：{{ latestPoint.value }} {{ result.output.unit }}</strong>
+      <span v-else>当前：等待可用结果</span>
+    </header>
+    <div ref="element" class="definition-metric-trend"></div>
+  </section>
+</template>
