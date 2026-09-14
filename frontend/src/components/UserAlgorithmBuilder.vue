@@ -45,7 +45,7 @@ async function save() {
   try {
     const value = draft()
     await validateDefinition(value)
-    const definition = await createDefinition(name.value.trim(), description.value.trim())
+    const definition = await createDefinition(name.value.trim(), `${description.value.trim()} 公式：${formula.value}`)
     await createDefinitionVersion(definition.definition_id, value)
     message.value = '算法已保存为 1.0.0 版本。'
     emit('saved', definition.definition_id)

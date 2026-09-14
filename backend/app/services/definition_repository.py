@@ -47,6 +47,22 @@ class DefinitionRepository:
             rows = connection.execute("SELECT * FROM algorithm_definitions ORDER BY updated_at DESC").fetchall()
         return [AlgorithmDefinition(**dict(row)) for row in rows]
 
+    def delete(self, definition_id: str) -> bool:
+        """Delete an unreferenced private definition and all of its versions."""
+        with self._connect() as connection:
+            definition = connection.execute("SELECT owner FROM algorithm_definitions WHERE definition_id = ?", (definition_id,)).fetchone()
+            if definition is None:
+                return False
+            if definition["owner"] == "platform-official":
+                raise PermissionError("official definitions cannot be deleted")
+            run_reference = connection.execute("SELECT 1 FROM analysis_runs WHERE definition_id = ? LIMIT 1", (definition_id,)).fetchone()
+            batch_reference = connection.execute("SELECT 1 FROM batch_runs WHERE definition_id = ? LIMIT 1", (definition_id,)).fetchone()
+            if run_reference or batch_reference:
+                raise RuntimeError("definition is referenced by a saved run or batch run")
+            connection.execute("DELETE FROM algorithm_definition_versions WHERE definition_id = ?", (definition_id,))
+            connection.execute("DELETE FROM algorithm_definitions WHERE definition_id = ?", (definition_id,))
+        return True
+
     def get_version(self, definition_id: str, semver: str) -> AlgorithmDefinitionVersion | None:
         with self._connect() as connection:
             row = connection.execute("SELECT * FROM algorithm_definition_versions WHERE definition_id = ? AND semver = ?", (definition_id, semver)).fetchone()

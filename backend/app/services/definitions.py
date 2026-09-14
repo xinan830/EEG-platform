@@ -32,7 +32,13 @@ class DefinitionService:
 
     def clone(self, definition_id: str, name: str | None = None) -> AlgorithmDefinition:
         original = self.get(definition_id)
-        return self.create(DefinitionCreateRequest(name=name or f"{original.name} copy", owner=original.owner, description=original.description))
+        # A clone is an editable researcher-owned fork, even when its source is
+        # a protected platform definition.
+        return self.create(DefinitionCreateRequest(name=name or f"{original.name} copy", owner="local-user", description=original.description))
+
+    def delete(self, definition_id: str) -> None:
+        if not self.repository.delete(definition_id):
+            raise KeyError("definition not found")
 
     def validate(self, draft: DefinitionVersionDraft, parameters: dict[str, object] | None = None) -> dict[str, object]:
         order = validate_graph(draft.graph)

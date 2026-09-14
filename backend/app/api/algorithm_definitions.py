@@ -54,6 +54,10 @@ def capabilities() -> dict[str, object]:
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create(payload: DefinitionCreateRequest, request: Request):
+    # Platform-owned definitions are installed by the backend, never claimed by
+    # a browser request.  This keeps the delete guard meaningful even locally.
+    if payload.owner != "local-user":
+        return error_response(request, 422, "DEFINITION_OWNER_FORBIDDEN", "浏览器只能创建用户私有算法")
     return _service(request).create(payload).model_dump(mode="json")
 
 
@@ -119,6 +123,18 @@ def get(definition_id: str, request: Request):
         return _service(request).get(definition_id).model_dump(mode="json")
     except KeyError:
         return error_response(request, 404, "DEFINITION_NOT_FOUND", "算法定义不存在")
+
+
+@router.delete("/{definition_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete(definition_id: str, request: Request):
+    try:
+        _service(request).delete(definition_id)
+    except KeyError:
+        return error_response(request, 404, "DEFINITION_NOT_FOUND", "算法定义不存在")
+    except PermissionError:
+        return error_response(request, 409, "DEFINITION_DELETE_FORBIDDEN", "官方算法不可删除")
+    except RuntimeError:
+        return error_response(request, 409, "DEFINITION_IN_USE", "算法已被分析结果或批处理引用，不能删除")
 
 
 @router.post("/{definition_id}/clone", status_code=status.HTTP_201_CREATED)

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ApiRequestError } from '../api/client'
-import { cloneDefinition, compareDefinitionVersions, createDefinition, createDefinitionPreview, createDefinitionVersion, getDefinitionCapabilities, listDefinitions, listDefinitionVersions, publishDefinitionVersion, validateDefinition } from '../api/algorithmDefinitions'
+import { cloneDefinition, compareDefinitionVersions, createDefinition, createDefinitionPreview, createDefinitionVersion, deleteDefinition as deleteDefinitionApi, getDefinitionCapabilities, listDefinitions, listDefinitionVersions, publishDefinitionVersion, validateDefinition } from '../api/algorithmDefinitions'
 import { useDefinitionDraft } from '../composables/useDefinitionDraft'
 import { DEFAULT_DRAFT, type AlgorithmDefinition, type AlgorithmDefinitionVersion, type DefinitionCapabilities, type Unit } from '../types/algorithmDefinition'
 import type { Recording } from '../types/recording'
@@ -33,6 +33,46 @@ const activeVersion = computed(() => versions.value.find((item) => item.semver =
 const isCompositeOfficial = computed(() => selected.value?.owner === 'platform-official' && activeVersion.value?.quality_rules.execution_kind === 'official_composite_shadow_only')
 const selectedLabel = computed(() => algorithmLabel(selected.value))
 const inputNames = computed(() => Object.keys(draftState.draft.value.inputs))
+const isUserDefinition = computed(() => Boolean(selected.value && selected.value.owner !== 'platform-official'))
+const userFeatureLabel = (key: string) => {
+  const metadata = draftState.draft.value.inputs[key]
+  if (typeof metadata !== 'object' || metadata === null) return key
+  const feature = (metadata as { feature?: unknown }).feature
+  const labels: Record<string, string> = { delta_power: 'Delta 功率', theta_power: 'Theta 功率', alpha_power: 'Alpha 功率', beta_power: 'Beta 功率', delta_rbp: 'Delta 相对功率', theta_rbp: 'Theta 相对功率', alpha_rbp: 'Alpha 相对功率', beta_rbp: 'Beta 相对功率' }
+  return labels[String(feature)] ?? key
+}
+const userFormula = computed(() => {
+  if (!isUserDefinition.value) return ''
+  const nodes = draftState.draft.value.graph.nodes
+  const calculation = nodes.find((node) => ['divide', 'add', 'subtract', 'multiply'].includes(node.type))
+  if (!calculation) return ''
+  const inputKeys = inputNames.value
+  const leftKey = calculation.inputs.left?.replace('$input.', '') ?? inputKeys[0] ?? 'A'
+  const rightKey = calculation.inputs.right?.replace('$input.', '') ?? inputKeys[1] ?? 'B'
+  const symbol: Record<string, string> = { divide: '÷', add: '+', subtract: '−', multiply: '×' }
+  return `${userFeatureLabel(leftKey)} ${symbol[calculation.type] ?? calculation.type} ${userFeatureLabel(rightKey)}`
+})
+const readablePurpose = computed(() => isUserDefinition.value ? (selected.value?.description || '由已选择的基础指标组合生成的研究指标。') : selectedLabel.value.purpose)
+const readableSteps = computed(() => isUserDefinition.value ? [`输入 A：${userFeatureLabel(inputNames.value[0] ?? 'A')}（后端基础指标）`, `输入 B：${userFeatureLabel(inputNames.value[1] ?? 'B')}（后端基础指标）`, `按照“${userFormula.value || '用户设定的运算'}”进行计算`, '结果由后端按当前录制、分析区间和质量门生成'] : selectedLabel.value.steps)
+const readableResult = computed(() => {
+  if (!isUserDefinition.value) return selectedLabel.value.result
+  const output = Object.values(draftState.draft.value.outputs)[0]
+  const unit = typeof output === 'object' && output !== null ? String((output as { unit?: unknown }).unit ?? '以定义为准') : '以定义为准'
+  return `输出名称：${typeof output === 'object' && output !== null ? String((output as { label?: unknown }).label ?? selected.value?.name ?? '研究指标') : selected.value?.name ?? '研究指标'}；单位：${unit}。这是研究指标，不是临床结论。`
+})
+const userOutput = computed(() => {
+  const output = Object.values(draftState.draft.value.outputs)[0]
+  if (typeof output !== 'object' || output === null) return { label: selected.value?.name ?? '研究指标', unit: '以定义为准' }
+  return {
+    label: String((output as { label?: unknown }).label ?? selected.value?.name ?? '研究指标'),
+    unit: String((output as { unit?: unknown }).unit ?? '以定义为准'),
+  }
+})
+function definitionSummary(item: AlgorithmDefinition): string {
+  const label = algorithmLabel(item)
+  if (item.owner === 'platform-official') return `官方算法 · ${label.abbreviation || label.name}`
+  return item.definition_id === selectedId.value && userFormula.value ? `用户算法 · ${userFormula.value}` : '用户算法 · 已保存公式'
+}
 
 function displayError(cause: unknown) {
   if (cause instanceof ApiRequestError) return `${cause.code ?? 'REQUEST_FAILED'}: ${cause.message}`
@@ -164,6 +204,29 @@ async function clone() {
   } finally { loading.value = false }
 }
 
+async function deleteSavedDefinition(item: AlgorithmDefinition) {
+  if (item.owner === 'platform-official' || loading.value) return
+  const confirmed = window.confirm(`删除“${algorithmLabel(item).name}”及其所有未引用版本？\n\n已用于分析结果或批处理的算法无法删除，以保证结果可追溯。`)
+  if (!confirmed) return
+  loading.value = true
+  validationError.value = ''
+  actionMessage.value = ''
+  try {
+    await deleteDefinitionApi(item.definition_id)
+    definitions.value = definitions.value.filter((entry) => entry.definition_id !== item.definition_id)
+    if (selectedId.value === item.definition_id) {
+      selectedId.value = null
+      versions.value = []
+      draftState.replace(DEFAULT_DRAFT)
+      const next = definitions.value[0]
+      if (next) await selectDefinition(next.definition_id)
+    }
+    actionMessage.value = `已删除“${algorithmLabel(item).name}”。`
+  } catch (cause) {
+    validationError.value = displayError(cause)
+  } finally { loading.value = false }
+}
+
 async function compare() {
   if (!selectedId.value || !compareLeft.value || !compareRight.value) return
   loading.value = true
@@ -226,20 +289,41 @@ onMounted(loadDefinitions)
     <section class="definition-workbench" aria-label="算法定义工作台">
       <header class="dialog-titlebar"><span class="app-glyph">◫</span><strong>{{ developerMode ? '算法定义工作台 · 开发者详情' : '算法说明' }}</strong><span class="definition-range">预览范围 {{ startS.toFixed(3) }}-{{ endS.toFixed(3) }} s</span><button class="definition-mode" @click="developerMode = !developerMode">{{ developerMode ? '返回简洁版' : '开发者详情' }}</button><button class="dialog-close" title="关闭" aria-label="关闭" @click="emit('close')">×</button></header>
       <div class="definition-layout">
-        <aside class="definition-sidebar"><template v-if="developerMode"><button @click="newDraft">新建草稿</button><button :disabled="!selectedId || loading" @click="clone">克隆</button></template><p>算法</p><button v-for="item in definitions" :key="item.definition_id" class="definition-list-item" :class="{ selected: item.definition_id === selectedId }" @click="selectDefinition(item.definition_id)"><strong>{{ algorithmLabel(item).name }}</strong><small>{{ item.owner === 'platform-official' ? (developerMode ? `官方 · ${item.status}` : '官方算法') : (developerMode ? `私有 · ${item.status}` : '私有算法') }}{{ algorithmLabel(item).abbreviation ? ` · ${algorithmLabel(item).abbreviation}` : '' }}</small></button><span v-if="!definitions.length && !loading" class="definition-muted">尚无保存的算法</span></aside>
+        <aside class="definition-sidebar">
+          <template v-if="developerMode"><button @click="newDraft">新建草稿</button><button :disabled="!selectedId || loading" @click="clone">克隆</button></template>
+          <p>算法库</p>
+          <div v-for="item in definitions" :key="item.definition_id" class="definition-list-entry">
+            <button class="definition-list-item" :class="{ selected: item.definition_id === selectedId }" @click="selectDefinition(item.definition_id)">
+              <strong>{{ algorithmLabel(item).name }}</strong><small>{{ definitionSummary(item) }}</small>
+            </button>
+            <button v-if="item.owner !== 'platform-official'" class="definition-delete" :disabled="loading" :aria-label="`删除 ${algorithmLabel(item).name}`" title="删除此用户算法" @click.stop="deleteSavedDefinition(item)">删除</button>
+          </div>
+          <span v-if="!definitions.length && !loading" class="definition-muted">尚无保存的算法</span>
+        </aside>
         <main class="definition-editor">
           <section v-if="!developerMode" class="algorithm-explainer">
             <template v-if="selected">
               <p class="algorithm-explainer-kicker">{{ selected.owner === 'platform-official' ? '官方算法说明' : '研究算法说明' }}</p>
               <h2>{{ selectedLabel.name }}<span v-if="selectedLabel.abbreviation"> · {{ selectedLabel.abbreviation }}</span></h2>
-              <p class="algorithm-explainer-purpose">{{ selectedLabel.purpose }}</p>
+              <p class="algorithm-explainer-purpose">{{ readablePurpose }}</p>
+              <section v-if="isUserDefinition" class="algorithm-formula-card">
+                <h3>你保存的计算方式</h3>
+                <div class="algorithm-formula-flow">
+                  <span><small>输入 A</small>{{ userFeatureLabel(inputNames[0] ?? 'A') }}</span>
+                  <b>{{ userFormula.includes('÷') ? '÷' : userFormula.includes('×') ? '×' : userFormula.includes('−') ? '−' : '+' }}</b>
+                  <span><small>输入 B</small>{{ userFeatureLabel(inputNames[1] ?? 'B') }}</span>
+                  <b>=</b>
+                  <span><small>输出</small>{{ userOutput.label }}<em>{{ userOutput.unit }}</em></span>
+                </div>
+                <p>公式：{{ userFormula || '用户设定的研究计算' }}</p>
+              </section>
               <section>
-                <h3>后端如何计算</h3>
-                <ol><li v-for="step in selectedLabel.steps" :key="step">{{ step }}</li></ol>
+                <h3>{{ isUserDefinition ? '这个算法做什么' : '后端如何计算' }}</h3>
+                <ol><li v-for="step in readableSteps" :key="step">{{ step }}</li></ol>
               </section>
               <section>
                 <h3>结果如何理解</h3>
-                <p>{{ selectedLabel.result }}</p>
+                <p>{{ readableResult }}</p>
               </section>
               <p class="algorithm-explainer-note">实际数值请在频谱分析、时频图或结果工作台查看。本页只解释已保存的算法定义，不在前端重新计算 EEG。</p>
             </template>

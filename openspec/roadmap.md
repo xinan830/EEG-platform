@@ -19,7 +19,8 @@ This roadmap evolves the existing EEG viewer into a local, single-user research 
 | 10 | `localize-official-algorithm-labels` | Chinese official algorithm display labels | Complete, archived 2026-09-14 |
 | 11 | `add-user-friendly-algorithm-workbench` | Chinese-readable default algorithm explanations with opt-in developer details | Complete, archived 2026-09-14 |
 | 12 | `improve-core-research-workbench-ux` | Task-oriented navigation and ordinary/developer presentation separation | Complete, archived 2026-09-14 |
-| 13 | `add-research-metric-formula-builder` | Chinese user-facing feature selection and safe formula composition | In progress |
+| 13 | `add-research-metric-formula-builder` | Chinese user-facing feature selection and safe formula composition | Complete, archived 2026-09-14 |
+| 14 | `improve-algorithm-library-readability` | Readable saved formulas and provenance-safe private deletion | Complete, archived 2026-09-14 |
 
 ## Change gate
 

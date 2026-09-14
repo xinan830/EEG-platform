@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { createDefinitionPreview } from './algorithmDefinitions'
+import { createDefinitionPreview, deleteDefinition } from './algorithmDefinitions'
 import { DEFAULT_DRAFT } from '../types/algorithmDefinition'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -14,4 +14,14 @@ it('posts explicit scalar preview inputs and absolute recording range', async ()
   expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
     recording_id: 'recording/1', time: { start_s: 10, end_s: 14 }, inputs: { value: { value: 2, unit: 'ratio' } },
   })
+})
+
+it('deletes a definition through the backend rather than hiding it locally', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+  vi.stubGlobal('fetch', fetchMock)
+
+  await deleteDefinition('my-definition')
+
+  expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/api/algorithm-definitions/my-definition')
+  expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'DELETE' })
 })
