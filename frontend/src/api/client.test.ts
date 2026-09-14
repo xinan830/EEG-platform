@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { ApiRequestError, request } from './client'
+import { request } from './client'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -8,7 +8,7 @@ it('retains the backend error code and request ID for UI state handling', async 
     code: 'UNIT_MISMATCH', message: '单位不兼容', request_id: 'request-42',
   }), { status: 422 })))
 
-  await expect(request('/api/example')).rejects.toMatchObject<ApiRequestError>({
+  await expect(request('/api/example')).rejects.toMatchObject({
     name: 'ApiRequestError', code: 'UNIT_MISMATCH', requestId: 'request-42', message: '单位不兼容',
   })
 })

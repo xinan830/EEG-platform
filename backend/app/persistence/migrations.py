@@ -192,11 +192,72 @@ def _migration_004_algorithm_definitions(connection: sqlite3.Connection) -> None
         connection.execute(statement)
 
 
+def _migration_005_research_projects(connection: sqlite3.Connection) -> None:
+    statements = (
+        """CREATE TABLE IF NOT EXISTS projects (
+            project_id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS subjects (
+            subject_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, local_code TEXT NOT NULL,
+            created_at TEXT NOT NULL, UNIQUE(project_id, local_code),
+            FOREIGN KEY(project_id) REFERENCES projects(project_id))""",
+        """CREATE TABLE IF NOT EXISTS conditions (
+            condition_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, code TEXT NOT NULL,
+            label TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(project_id, code),
+            FOREIGN KEY(project_id) REFERENCES projects(project_id))""",
+        """CREATE TABLE IF NOT EXISTS sessions (
+            session_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, subject_id TEXT NOT NULL,
+            recording_id TEXT NOT NULL, condition_id TEXT, label TEXT NOT NULL, created_at TEXT NOT NULL,
+            FOREIGN KEY(project_id) REFERENCES projects(project_id),
+            FOREIGN KEY(subject_id) REFERENCES subjects(subject_id),
+            FOREIGN KEY(condition_id) REFERENCES conditions(condition_id),
+            FOREIGN KEY(recording_id) REFERENCES recordings(id))""",
+        "CREATE INDEX IF NOT EXISTS idx_subjects_project ON subjects(project_id, local_code)",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_recording ON sessions(recording_id)",
+    )
+    for statement in statements:
+        connection.execute(statement)
+
+
+def _migration_006_persistent_run_queue(connection: sqlite3.Connection) -> None:
+    additions = (
+        "project_id TEXT",
+        "batch_run_id TEXT",
+        "idempotency_key TEXT",
+        "parent_run_id TEXT",
+        "cancel_requested INTEGER NOT NULL DEFAULT 0",
+    )
+    for declaration in additions:
+        _add_column(connection, "analysis_runs", declaration)
+    statements = (
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_analysis_runs_idempotency ON analysis_runs(idempotency_key) WHERE idempotency_key IS NOT NULL",
+        "CREATE INDEX IF NOT EXISTS idx_analysis_runs_queue ON analysis_runs(status, created_at)",
+        """CREATE TABLE IF NOT EXISTS batch_runs (
+            batch_run_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, analysis_type TEXT NOT NULL,
+            definition_id TEXT, definition_version TEXT, config_json TEXT NOT NULL,
+            config_sha256 TEXT NOT NULL, idempotency_key TEXT UNIQUE, status TEXT NOT NULL,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+            FOREIGN KEY(project_id) REFERENCES projects(project_id))""",
+        """CREATE TABLE IF NOT EXISTS batch_run_items (
+            batch_run_id TEXT NOT NULL, recording_id TEXT NOT NULL, run_id TEXT,
+            outcome TEXT NOT NULL, error_code TEXT,
+            PRIMARY KEY(batch_run_id, recording_id),
+            FOREIGN KEY(batch_run_id) REFERENCES batch_runs(batch_run_id),
+            FOREIGN KEY(run_id) REFERENCES analysis_runs(run_id))""",
+        "CREATE INDEX IF NOT EXISTS idx_batch_items_run ON batch_run_items(run_id)",
+    )
+    for statement in statements:
+        connection.execute(statement)
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "legacy-tables", _migration_001_legacy_tables),
     Migration(2, "recording-identity", _migration_002_recording_identity),
     Migration(3, "run-foundation", _migration_003_run_foundation),
     Migration(4, "algorithm-definitions", _migration_004_algorithm_definitions),
+    Migration(5, "research-projects", _migration_005_research_projects),
+    Migration(6, "persistent-run-queue", _migration_006_persistent_run_queue),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,9 +20,13 @@ from app.services.reports import ReportSnapshotService
 from app.services.recordings import RecordingService
 from app.services.playback import PlaybackService
 from app.services.waveform_playback import WaveformPlaybackService
-from app.services.runs import RunService
+from app.services.run_queue import PersistentRunQueue, RunWorker
 from app.services.validations import ValidationService
 from app.services.definitions import DefinitionService
+from app.services.projects import ProjectService
+from app.services.batch_runs import BatchRunService
+from app.api.projects import router as projects_router
+from app.api.batch_runs import router as batch_runs_router
 from app.eeg_core.official_definitions import ensure_official_definitions
 from app.core.api_contract import (
     RequestContextMiddleware,
@@ -30,7 +36,16 @@ from app.core.api_contract import (
 )
 
 
-app = FastAPI(title="Brain Platform API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    application.state.run_worker.start()
+    try:
+        yield
+    finally:
+        application.state.run_worker.stop()
+
+
+app = FastAPI(title="Brain Platform API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(RequestContextMiddleware)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -48,9 +63,12 @@ app.state.waveform_playback_service = WaveformPlaybackService(app.state.recordin
 app.state.audit_service = AuditService()
 app.state.event_marker_service = EventMarkerService()
 app.state.report_snapshot_service = ReportSnapshotService()
-app.state.run_service = RunService(app.state.recording_service)
+app.state.run_service = PersistentRunQueue(app.state.recording_service)
+app.state.run_worker = RunWorker(app.state.run_service)
 app.state.validation_service = ValidationService()
 app.state.definition_service = DefinitionService()
+app.state.project_service = ProjectService()
+app.state.batch_run_service = BatchRunService(app.state.project_service, app.state.run_service)
 ensure_official_definitions(app.state.definition_service)
 app.include_router(recordings_router)
 app.include_router(analyses_router)
@@ -61,6 +79,8 @@ app.include_router(reports_router)
 app.include_router(runs_router)
 app.include_router(validations_router)
 app.include_router(definition_router)
+app.include_router(projects_router)
+app.include_router(batch_runs_router)
 
 
 @app.get("/api/health")

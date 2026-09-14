@@ -46,7 +46,8 @@ class RunRepository:
                     requested_range_json, actual_range_json, channel_mapping_json, reference_json,
                     filter_json, window_json, quality_rules_json, environment_json, result_summary_json,
                     error_json, is_preview, reused_from_run_id, created_at, updated_at, started_at, completed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    , project_id, batch_run_id, idempotency_key, parent_run_id, cancel_requested
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     run.run_id, run.recording_id, run.analysis_type, run.status.value,
                     run.definition_id, run.definition_version, run.scientific_version,
@@ -60,6 +61,7 @@ class RunRepository:
                     _json(values["error"]) if values["error"] is not None else None,
                     int(run.is_preview), run.reused_from_run_id, run.created_at, run.updated_at,
                     run.started_at, run.completed_at,
+                    run.project_id, run.batch_run_id, run.idempotency_key, run.parent_run_id, int(run.cancel_requested),
                 ),
             )
 
@@ -89,6 +91,51 @@ class RunRepository:
             ).fetchone()
         return self._run(row) if row else None
 
+    def find_idempotency_key(self, idempotency_key: str) -> AnalysisRun | None:
+        with self._connect() as connection:
+            row = connection.execute("SELECT * FROM analysis_runs WHERE idempotency_key = ?", (idempotency_key,)).fetchone()
+        return self._run(row) if row else None
+
+    def claim_next_queued(self) -> AnalysisRun | None:
+        """Atomically claim one job; only the local single worker calls this."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute("SELECT run_id FROM analysis_runs WHERE status = 'queued' ORDER BY created_at LIMIT 1").fetchone()
+            if row is None:
+                connection.execute("COMMIT")
+                return None
+            now = utc_now()
+            updated = connection.execute(
+                "UPDATE analysis_runs SET status = 'running', updated_at = ?, started_at = ? WHERE run_id = ? AND status = 'queued'",
+                (now, now, row["run_id"]),
+            ).rowcount
+            connection.execute("COMMIT")
+        return self.get(str(row["run_id"])) if updated else None
+
+    def request_cancel(self, run_id: str) -> AnalysisRun:
+        run = self.get(run_id)
+        if run is None:
+            raise KeyError("run not found")
+        if run.status is RunStatus.QUEUED:
+            return self.update_status(run_id, RunStatus.CANCELLED)
+        if run.status is not RunStatus.RUNNING:
+            raise ValueError(f"run in {run.status.value} state cannot be cancelled")
+        with self._connect() as connection:
+            connection.execute("UPDATE analysis_runs SET cancel_requested = 1, updated_at = ? WHERE run_id = ?", (utc_now(), run_id))
+        updated = self.get(run_id)
+        assert updated is not None
+        return updated
+
+    def recover_interrupted(self) -> int:
+        """Record a startup interruption then make jobs eligible for re-claim."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            now = utc_now()
+            count = connection.execute("UPDATE analysis_runs SET status = 'interrupted', updated_at = ? WHERE status = 'running'", (now,)).rowcount
+            connection.execute("UPDATE analysis_runs SET status = 'queued', updated_at = ? WHERE status = 'interrupted'", (now,))
+            connection.execute("COMMIT")
+        return int(count)
+
     def update_status(
         self,
         run_id: str,
@@ -104,7 +151,8 @@ class RunRepository:
             raise KeyError("run not found")
         allowed = {
             RunStatus.QUEUED: {RunStatus.RUNNING, RunStatus.CANCELLED, RunStatus.FAILED},
-            RunStatus.RUNNING: {RunStatus.COMPLETED, RunStatus.GATE_FAILED, RunStatus.FAILED},
+            RunStatus.RUNNING: {RunStatus.COMPLETED, RunStatus.GATE_FAILED, RunStatus.FAILED, RunStatus.CANCELLED, RunStatus.INTERRUPTED},
+            RunStatus.INTERRUPTED: {RunStatus.QUEUED, RunStatus.CANCELLED},
         }
         if status not in allowed.get(current.status, set()):
             raise ValueError(f"invalid run transition: {current.status.value} -> {status.value}")
@@ -170,6 +218,8 @@ class RunRepository:
             result_summary=_loads(row["result_summary_json"]),
             error=StructuredRunError(**_loads(row["error_json"])) if row["error_json"] else None,
             is_preview=bool(row["is_preview"]), reused_from_run_id=row["reused_from_run_id"],
+            project_id=row["project_id"], batch_run_id=row["batch_run_id"], idempotency_key=row["idempotency_key"],
+            parent_run_id=row["parent_run_id"], cancel_requested=bool(row["cancel_requested"]),
             created_at=row["created_at"], updated_at=row["updated_at"], started_at=row["started_at"],
             completed_at=row["completed_at"],
         )

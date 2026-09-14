@@ -15,10 +15,14 @@ def _service(request: Request) -> RunService:
     return request.app.state.run_service
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_202_ACCEPTED)
 def create_run(payload: RunCreateRequest, request: Request):
     try:
-        run = _service(request).create(payload)
+        service = _service(request)
+        run = service.enqueue(payload) if hasattr(service, "enqueue") else service.create(payload)
+        worker = getattr(request.app.state, "run_worker", None)
+        if worker is not None:
+            worker.wake()
     except KeyError:
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
@@ -50,8 +54,25 @@ def cancel_run(run_id: str, request: Request):
         return _service(request).cancel(run_id).model_dump(mode="json")
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
-    except RunConflictError as exc:
+    except (RunConflictError, ValueError) as exc:
         return error_response(request, 409, "RUN_NOT_CANCELLABLE", str(exc))
+
+
+@router.post("/{run_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+def retry_run(run_id: str, request: Request):
+    try:
+        service = _service(request)
+        if not hasattr(service, "retry"):
+            return error_response(request, 409, "RUN_RETRY_UNAVAILABLE", "当前运行服务不支持队列重试")
+        run = service.retry(run_id)
+        worker = getattr(request.app.state, "run_worker", None)
+        if worker is not None:
+            worker.wake()
+        return run.model_dump(mode="json")
+    except KeyError:
+        return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
+    except ValueError as exc:
+        return error_response(request, 409, "RUN_NOT_RETRYABLE", str(exc))
 
 
 @router.get("/{run_id}/artifacts")

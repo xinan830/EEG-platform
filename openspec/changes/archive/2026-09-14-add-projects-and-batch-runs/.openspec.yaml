@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-14
+goal: Implement roadmap Change 06 without altering legacy viewer or spectral
+  endpoints.

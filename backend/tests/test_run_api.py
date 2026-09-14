@@ -58,7 +58,7 @@ def test_spectrum_run_records_provenance_artifact_and_cache_reuse(tmp_path: Path
     first = client.post("/api/runs", json=request)
     second = client.post("/api/runs", json=request)
 
-    assert first.status_code == 201
+    assert first.status_code == 202
     assert first.json()["status"] == "completed"
     assert first.json()["channel_mapping"]["channels"] == ["Fz", "F3"]
     assert first.json()["result_summary"]["artifact_channel_order"] == ["Fz", "F3"]
@@ -120,7 +120,7 @@ def test_gate_failed_run_uses_null_outputs_and_structured_quality_reasons(tmp_pa
         "config": {"channels": ["F3"], "time": {"start_s": 0, "end_s": 10}},
     })
 
-    assert response.status_code == 201
+    assert response.status_code == 202
     body = response.json()
     assert body["status"] == "gate_failed"
     assert body["result_summary"]["psd"] is None

@@ -15,6 +15,7 @@ class RunStatus(str, Enum):
     GATE_FAILED = "gate_failed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    INTERRUPTED = "interrupted"
 
 
 TERMINAL_RUN_STATUSES = {
@@ -39,6 +40,9 @@ class RunCreateRequest(BaseModel):
     definition_id: str | None = None
     definition_version: str | None = None
     preview: bool = False
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=256)
+    project_id: str | None = None
+    batch_run_id: str | None = None
 
 
 class AnalysisRun(BaseModel):
@@ -65,6 +69,11 @@ class AnalysisRun(BaseModel):
     error: StructuredRunError | None = None
     is_preview: bool = False
     reused_from_run_id: str | None = None
+    project_id: str | None = None
+    batch_run_id: str | None = None
+    idempotency_key: str | None = None
+    parent_run_id: str | None = None
+    cancel_requested: bool = False
     created_at: str
     updated_at: str
     started_at: str | None = None
