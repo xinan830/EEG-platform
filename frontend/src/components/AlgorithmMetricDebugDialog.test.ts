@@ -36,15 +36,17 @@ const dynamicRun = {
   } },
 }
 
-it('renders selected dynamic evidence without calculating an EEG value', () => {
-  const wrapper = mount(AlgorithmMetricDebugDialog, { props: { run: dynamicRun, definitionName: 'Theta/Beta 比值' } as never })
+it('shows the unified playback context while rendering dynamic evidence without calculating an EEG value', () => {
+  const wrapper = mount(AlgorithmMetricDebugDialog, { props: { run: dynamicRun, definitionName: 'Theta/Beta 比值', playbackPositionS: 22.6 } as never })
 
   expect(wrapper.text()).toContain('实际分析区间')
-  expect(wrapper.text()).toContain('分析范围结束时间')
+  expect(wrapper.text()).toContain('波形播放位置')
+  expect(wrapper.text()).toContain('22.600 s')
   expect(wrapper.text()).toContain('频谱计算片段：4 s Hann')
   expect(wrapper.text()).toContain('12.000–22.000 s')
   expect(wrapper.text()).toContain('Theta 功率')
   expect(wrapper.text()).toContain('4 s Hann')
   expect(wrapper.text()).toContain('117 个频率点')
   expect(wrapper.text()).toContain('1.8')
+  expect(wrapper.find('.algorithm-debug-window select').exists()).toBe(false)
 })
