@@ -7,7 +7,7 @@ from app.core.api_contract import error_response
 from app.eeg_core.definition_engine import DefinitionEngineError
 from app.models.algorithm_definition import DefinitionCreateRequest, DefinitionVersionDraft
 from app.models.definition_preview import DefinitionPreviewRunRequest
-from app.eeg_core.official_definitions import OFFICIAL_DEFINITIONS
+from app.eeg_core.official_algorithms.registry import OFFICIAL_ALGORITHM_MANIFESTS
 from app.eeg_core.primitives.registry import NODE_REGISTRY
 from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.primitives.units import Unit
@@ -46,8 +46,8 @@ def capabilities() -> dict[str, object]:
         "nodes": sorted(NODE_REGISTRY),
         "units": [item.value for item in Unit],
         "official_execution": {
-            name: "generic_research_primitives" if name == "rbp" else "official_composite_shadow_only"
-            for name in OFFICIAL_DEFINITIONS
+            item.algorithm_id: item.execution_kind
+            for item in OFFICIAL_ALGORITHM_MANIFESTS
         },
     }
 

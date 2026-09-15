@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from app.eeg_core.official_algorithms.brainbeat import segment_brainbeat
+
 
 RBP_BAND_EDGES = {
     "delta": (1.0, 4.0),
@@ -61,17 +63,6 @@ def residual_spectrum(freqs, psd, offset, exponent):
         offset - exponent * np.log10(freqs[valid]),
     )
     return np.clip(psd - ap_lin, 0.0, None)
-
-
-def segment_brainbeat(freqs, fz_psd, pz_psd, iapf, epsilon=1e-20):
-    """Compute relative theta power at Fz divided by relative alpha power at Pz."""
-    theta_low, theta_high = max(4.0, iapf - 6.0), iapf - 2.0
-    alpha_low, alpha_high = iapf - 2.0, iapf + 2.0
-    total_fz = band_power(freqs, fz_psd, 1.0, 30.0) + epsilon
-    total_pz = band_power(freqs, pz_psd, 1.0, 30.0) + epsilon
-    theta_fz = band_power(freqs, fz_psd, theta_low, theta_high) / total_fz
-    alpha_pz = band_power(freqs, pz_psd, alpha_low, alpha_high) / total_pz
-    return float(theta_fz / (alpha_pz + epsilon))
 
 
 def clip_map(v, v_min, v_max):
