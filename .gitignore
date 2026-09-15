@@ -19,3 +19,6 @@ storage/*.sqlite3
 
 # 本地编辑器/临时文件
 新建 文本文档.txt
+
+# Codex isolated worktrees
+.worktrees/
