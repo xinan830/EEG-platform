@@ -28,6 +28,7 @@ from app.services.artifacts import ArtifactStore
 from app.services.definition_metric_runner import DefinitionMetricRunner
 from app.services.definitions import DefinitionService
 from app.services.recordings import RecordingService
+from app.services.run_analysis_executor import RunAnalysisExecutor
 from app.services.run_repository import RunRepository, utc_now
 
 
@@ -47,6 +48,7 @@ class RunService:
         self.artifacts = ArtifactStore(self.repository, artifacts_dir)
         self.definition_service = DefinitionService(database_path)
         self.metric_runner = DefinitionMetricRunner(recordings)
+        self.executor = RunAnalysisExecutor(recordings, self.definition_service, self.metric_runner)
 
     def create(self, request: RunCreateRequest) -> AnalysisRun:
         recording = self.recordings.require_recording(request.recording_id)
@@ -101,7 +103,7 @@ class RunService:
             )
 
         try:
-            result, arrays, unit = self._execute(request.analysis_type, recording, resolved)
+            result, arrays, unit = self.executor.execute(request.analysis_type, recording, resolved)
             artifact = self.artifacts.write_npz(run.run_id, request.analysis_type, arrays, unit)
             summary = {**result, "artifacts": [artifact.model_dump(mode="json")]}
             return self.repository.update_status(
@@ -374,6 +376,11 @@ class RunService:
         }
 
     def _execute(self, analysis_type: str, recording: Any, resolved: dict[str, Any]):
+        """Deprecated compatibility facade; all execution lives in ``executor``."""
+        return self.executor.execute(analysis_type, recording, resolved)
+
+        # Kept below temporarily only as unreachable source compatibility while
+        # downstream integrations migrate from this private method.
         if analysis_type == "legacy_analysis":
             if recording.mapping is None:
                 raise ValueError("saved semantic channel mapping is required")

@@ -9,6 +9,7 @@ from app.models.algorithm_definition import DefinitionCreateRequest, DefinitionV
 from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
+from app.services.run_analysis_executor import RunAnalysisExecutor
 from app.services.run_queue import PersistentRunQueue
 
 
@@ -37,6 +38,11 @@ def _queue_with_metric_definition(tmp_path: Path) -> tuple[PersistentRunQueue, s
         "outputs": {"output": {"label": "Theta/Beta 比值", "unit": "dimensionless"}},
     }))
     return queue, recording.id, definition.definition_id
+
+
+def test_persistent_run_queue_uses_the_dedicated_analysis_executor(tmp_path: Path):
+    queue, _recording_id, _definition_id = _queue_with_metric_definition(tmp_path)
+    assert isinstance(queue.base.executor, RunAnalysisExecutor)
 
 
 def test_definition_metric_run_persists_ratio_and_provenance(tmp_path: Path):

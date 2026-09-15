@@ -73,7 +73,7 @@ class PersistentRunQueue:
             if cached is not None and cached.run_id != run.run_id:
                 return self.repository.update_status(run.run_id, RunStatus.COMPLETED, actual_range=cached.actual_range,
                                                      result_summary=cached.result_summary, reused_from_run_id=cached.run_id)
-            result, arrays, unit = self.base._execute(run.analysis_type, recording, resolved)
+            result, arrays, unit = self.base.executor.execute(run.analysis_type, recording, resolved)
             if self._is_cancelled(run.run_id):
                 return self.repository.update_status(run.run_id, RunStatus.CANCELLED, actual_range=resolved["actual_range"])
             artifact = self.base.artifacts.write_npz(run.run_id, run.analysis_type, arrays, unit)
