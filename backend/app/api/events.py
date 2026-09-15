@@ -1,7 +1,9 @@
 """人工事件标记 API；时间统一使用文件绝对秒数。"""
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, Field
+
+from app.core.api_contract import error_response
 
 
 router = APIRouter(prefix="/api/recordings", tags=["events"])
@@ -19,26 +21,25 @@ class EventMarkerResponse(EventMarkerPayload):
     created_at: str
 
 
-def _recording(request: Request, recording_id: str):
-    try:
-        return request.app.state.recording_service.require_recording(recording_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
 @router.get("/{recording_id}/events", response_model=list[EventMarkerResponse])
 def list_events(recording_id: str, request: Request):
-    _recording(request, recording_id)
+    try:
+        request.app.state.recording_service.require_recording(recording_id)
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     return request.app.state.event_marker_service.list_markers(recording_id)
 
 
 @router.post("/{recording_id}/events", response_model=EventMarkerResponse, status_code=status.HTTP_201_CREATED)
 def create_event(recording_id: str, payload: EventMarkerPayload, request: Request):
-    recording = _recording(request, recording_id)
+    try:
+        recording = request.app.state.recording_service.require_recording(recording_id)
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     if recording.duration_s is not None and payload.time_s > recording.duration_s:
-        raise HTTPException(status_code=422, detail="事件时间不能超过文件时长")
+        return error_response(request, 422, "EVENT_TIME_OUT_OF_RANGE", "事件时间不能超过文件时长")
     if payload.duration_s is not None and recording.duration_s is not None and payload.time_s + payload.duration_s > recording.duration_s:
-        raise HTTPException(status_code=422, detail="事件结束时间不能超过文件时长")
+        return error_response(request, 422, "EVENT_TIME_OUT_OF_RANGE", "事件结束时间不能超过文件时长")
     marker = request.app.state.event_marker_service.create(recording_id, payload.time_s, payload.label.strip(), payload.duration_s)
     request.app.state.audit_service.record(
         "event.create", str(getattr(request.state, "request_id", "unknown")), recording_id=recording_id,
@@ -49,9 +50,12 @@ def create_event(recording_id: str, payload: EventMarkerPayload, request: Reques
 
 @router.delete("/{recording_id}/events/{marker_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_event(recording_id: str, marker_id: str, request: Request):
-    _recording(request, recording_id)
+    try:
+        request.app.state.recording_service.require_recording(recording_id)
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     if not request.app.state.event_marker_service.delete(recording_id, marker_id):
-        raise HTTPException(status_code=404, detail="事件标记不存在")
+        return error_response(request, 404, "EVENT_NOT_FOUND", "事件标记不存在")
     request.app.state.audit_service.record(
         "event.delete", str(getattr(request.state, "request_id", "unknown")), recording_id=recording_id,
         parameters={"marker_id": marker_id},

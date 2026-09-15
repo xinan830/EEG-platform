@@ -2,7 +2,7 @@ from dataclasses import asdict
 import json
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, File, Query, Request, UploadFile, status
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from app.models.recording import ChannelMapping, RecordingSummary
@@ -66,7 +66,7 @@ async def import_recording(request: Request, file: UploadFile = File(...)) -> di
     try:
         recording = _service(request).create_imported_recording(file.filename or "recording", suffix, await file.read())
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return error_response(request, 422, "RECORDING_IMPORT_INVALID", str(exc))
     _record_audit(request, "recording.import", recording.id, {"extension": recording.extension, "channel_count": len(recording.channels)})
     return _serialize(recording)
 
@@ -81,16 +81,16 @@ def list_montages(recording_id: str, request: Request) -> dict:
     try:
         recording = _service(request).require_recording(recording_id)
         return {"recording_id": recording_id, "montages": describe_montages(list(recording.channels))}
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
 
 
 @router.get("/{recording_id}")
 def get_recording(recording_id: str, request: Request) -> dict:
     try:
         return _serialize(_service(request).require_recording(recording_id))
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
 
 
 @router.get("/{recording_id}/preview")
@@ -103,10 +103,10 @@ def get_preview(
     try:
         recording = _service(request).require_recording(recording_id)
         return _service(request).load_preview(recording, start_s=start_s, window_s=window_s)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"无法读取波形预览：{exc}") from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "WAVEFORM_PREVIEW_INVALID", str(exc))
 
 
 @router.get("/{recording_id}/window")
@@ -150,12 +150,10 @@ def get_window(
             "custom_montage": payload["settings"].get("custom_montage", []),
         })
         return payload
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"无法读取波形窗口：{exc}") from exc
+        return error_response(request, 422, "WAVEFORM_WINDOW_INVALID", str(exc))
 
 
 @router.get("/{recording_id}/spectrum")
@@ -173,12 +171,10 @@ def get_spectrum(
         payload = _service(request).load_spectrum(recording, start_s=start_s, window_s=window_s, channels=requested)
         _record_audit(request, "analysis.spectrum", recording_id, {"start_s": start_s, "window_s": window_s, "channels": requested or list(recording.channels), "algorithm_version": payload["algorithm_version"]})
         return payload
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"无法计算频谱：{exc}") from exc
+        return error_response(request, 422, "SPECTRUM_REQUEST_INVALID", str(exc))
 
 
 @router.get("/{recording_id}/spectrogram")
@@ -189,10 +185,10 @@ def get_spectrogram(recording_id: str, request: Request, start_s: float = Query(
         payload = _service(request).load_spectrogram(recording, start_s, window_s, requested)
         _record_audit(request, "analysis.spectrogram", recording_id, {"start_s": start_s, "window_s": window_s, "channels": requested or list(recording.channels)})
         return payload
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return error_response(request, 422, "SPECTROGRAM_REQUEST_INVALID", str(exc))
 
 
 @router.post("/{recording_id}/spectrum/configured")
@@ -206,10 +202,10 @@ def get_configured_spectrum(recording_id: str, request: Request, config: Analysi
             "analysis_config_hash": payload["analysis_config_hash"],
         })
         return payload
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return error_response(request, 422, "SPECTRUM_REQUEST_INVALID", str(exc))
 
 
 @router.post("/{recording_id}/spectrogram/configured")
@@ -220,10 +216,10 @@ def get_configured_spectrogram(recording_id: str, request: Request, config: Anal
         payload = _service(request).load_configured_spectrogram(recording, config)
         _record_audit(request, "analysis.spectrogram.configured", recording_id, {"requested_config": config.model_dump(mode="json"), "analysis_config_hash": payload["analysis_config_hash"]})
         return payload
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return error_response(request, 422, "SPECTROGRAM_REQUEST_INVALID", str(exc))
 
 
 @router.post("/{recording_id}/validations/spectral-reference", status_code=status.HTTP_201_CREATED)
@@ -301,12 +297,10 @@ def algorithm_check(
             "custom_montage": payload["settings"].get("custom_montage", []),
         })
         return response
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"无法执行算法检验：{exc}") from exc
+        return error_response(request, 422, "ALGORITHM_CHECK_INVALID", str(exc))
 
 
 @router.put("/{recording_id}/mapping")
@@ -314,8 +308,8 @@ def save_mapping(recording_id: str, payload: ChannelMappingPayload, request: Req
     mapping = ChannelMapping(**payload.model_dump())
     try:
         recording = _service(request).update_mapping(recording_id, mapping)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return error_response(request, 422, "MAPPING_INVALID", str(exc))
     return _serialize(recording)

@@ -2,8 +2,10 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
+
+from app.core.api_contract import error_response
 
 router = APIRouter(prefix="/api/recordings", tags=["reports"])
 
@@ -21,16 +23,12 @@ class ReportSnapshotResponse(BaseModel):
     payload: dict[str, Any]
 
 
-def _require_recording(request: Request, recording_id: str):
-    try:
-        return request.app.state.recording_service.require_recording(recording_id)
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
 @router.post("/{recording_id}/reports", response_model=ReportSnapshotResponse, status_code=status.HTTP_201_CREATED)
 def create_report(recording_id: str, payload: ReportSnapshotPayload, request: Request):
-    _require_recording(request, recording_id)
+    try:
+        request.app.state.recording_service.require_recording(recording_id)
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     report = request.app.state.report_snapshot_service.create(recording_id, payload.title.strip(), payload.snapshot)
     request.app.state.audit_service.record(
         "report.create", str(getattr(request.state, "request_id", "unknown")), recording_id=recording_id,
@@ -41,14 +39,20 @@ def create_report(recording_id: str, payload: ReportSnapshotPayload, request: Re
 
 @router.get("/{recording_id}/reports", response_model=list[ReportSnapshotResponse])
 def list_reports(recording_id: str, request: Request):
-    _require_recording(request, recording_id)
+    try:
+        request.app.state.recording_service.require_recording(recording_id)
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     return request.app.state.report_snapshot_service.list_reports(recording_id)
 
 
 @router.get("/{recording_id}/reports/{report_id}", response_model=ReportSnapshotResponse)
 def get_report(recording_id: str, report_id: str, request: Request):
-    _require_recording(request, recording_id)
+    try:
+        request.app.state.recording_service.require_recording(recording_id)
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     report = request.app.state.report_snapshot_service.get(recording_id, report_id)
     if report is None:
-        raise HTTPException(status_code=404, detail="报告快照不存在")
+        return error_response(request, 404, "REPORT_NOT_FOUND", "报告快照不存在")
     return report
