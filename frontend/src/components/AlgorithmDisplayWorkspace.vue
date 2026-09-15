@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { listDefinitions, listDefinitionVersions } from '../api/algorithmDefinitions'
+import { listOfficialAlgorithms, type OfficialAlgorithmCatalogItem } from '../api/officialAlgorithms'
 import { createDefinitionMetricRun, getRun, type AnalysisRunResponse } from '../api/runs'
 import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/algorithmDefinition'
 import type { Recording } from '../types/recording'
@@ -17,6 +18,8 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: []; results: [runs: Record<string, WorkspaceMetricRun>]; dynamicSession: [session: DynamicSession] }>()
 const definitions = ref<AlgorithmDefinition[]>([])
+const officialAlgorithms = ref<OfficialAlgorithmCatalogItem[]>([])
+const officialCatalogError = ref('')
 const versions = ref<Record<string, AlgorithmDefinitionVersion>>({})
 const selectedIds = ref<string[]>([])
 const channel = ref(props.channels[0] ?? props.recording.channels[0] ?? '')
@@ -33,15 +36,6 @@ const range = computed(() => props.activeRange ?? { start: props.rangeStart, end
 const staticRangeDuration = computed(() => staticEndS.value - staticStartS.value)
 const canRun = computed(() => selectedIds.value.length > 0 && Boolean(channel.value) && !loading.value && !running.value && (mode.value === 'dynamic' || staticRangeDuration.value >= 4))
 const userDefinitions = computed(() => definitions.value.filter((item) => item.owner !== 'platform-official'))
-const officialDefinitions = computed(() => definitions.value.filter((item) => item.owner === 'platform-official'))
-const officialLabels: Record<string, string> = {
-  'official rbp': '相对频段功率（RBP）',
-  'official theta_beta': 'Theta/Beta 比值',
-  'official theta/beta': 'Theta/Beta 比值',
-  'official faa': '额叶 Alpha 不对称（FAA）',
-  'official brainbeat': '脑节律指标（BrainBeat）',
-  'official iapf': '个体 Alpha 峰频（IAPF）',
-}
 function resultFrom(run: AnalysisRunResponse): DefinitionMetricResult | DynamicMetric | null {
   const metric = run.result_summary?.metric
   return metric && typeof metric === 'object' ? metric as DefinitionMetricResult | DynamicMetric : null
@@ -51,7 +45,7 @@ async function load() {
   try {
     const catalog = await listDefinitions()
     definitions.value = catalog
-    const availableIds = new Set(catalog.map((item) => item.definition_id))
+    const availableIds = new Set(catalog.filter((item) => item.owner !== 'platform-official').map((item) => item.definition_id))
     const removedIds = selectedIds.value.filter((id) => !availableIds.has(id))
     if (removedIds.length) {
       selectedIds.value = selectedIds.value.filter((id) => availableIds.has(id))
@@ -66,8 +60,14 @@ async function load() {
       const items = await listDefinitionVersions(item.definition_id)
       if (items[0]) versions.value[item.definition_id] = items[0]
     }))
-  } catch (cause) { message.value = cause instanceof Error ? cause.message : '无法读取算法库' }
+  } catch (cause) { message.value = cause instanceof Error ? cause.message : '无法读取我的算法库' }
   finally { loading.value = false }
+  await loadOfficialCatalog()
+}
+async function loadOfficialCatalog() {
+  officialCatalogError.value = ''
+  try { officialAlgorithms.value = await listOfficialAlgorithms() }
+  catch { officialAlgorithms.value = []; officialCatalogError.value = '官方算法目录暂不可读取；我的算法不受影响。' }
 }
 function isDynamic(result: DefinitionMetricResult | DynamicMetric | null): result is DynamicMetric {
   return Boolean(result && Array.isArray((result as DynamicMetric).series))
@@ -180,7 +180,9 @@ watch(() => props.definitionsEpoch, (next, previous) => {
 })
 function useCurrentRange() { staticStartS.value = range.value.start; staticEndS.value = range.value.end }
 function title(id: string) { return definitions.value.find((item) => item.definition_id === id)?.name ?? id }
-function officialTitle(item: AlgorithmDefinition) { return officialLabels[item.name.trim().toLowerCase()] ?? item.name.replace(/^official\s+/i, '') }
+function officialAvailability(item: OfficialAlgorithmCatalogItem) {
+  return item.availability === 'shadow_validation' ? '工程验证中，暂不可运行' : '当前不可运行'
+}
 onMounted(load)
 </script>
 <template>
@@ -197,13 +199,14 @@ onMounted(load)
         <aside class="algorithm-display-sidebar">
           <h3>选择算法</h3>
           <p class="algorithm-display-help">可运行的我的算法可叠加到当前波形；官方算法会在完成执行器验证后开放运行。</p>
-          <section v-if="officialDefinitions.length" class="algorithm-definition-group" aria-label="官方内置算法">
+          <section v-if="officialAlgorithms.length" class="algorithm-definition-group" aria-label="官方内置算法">
             <h4>官方内置算法</h4>
-            <label v-for="item in officialDefinitions" :key="item.definition_id" :data-testid="`official-algorithm-${item.definition_id}`" class="algorithm-checkbox algorithm-checkbox-disabled">
+            <label v-for="item in officialAlgorithms" :key="item.algorithm_id" :data-testid="`official-algorithm-${item.definition_id}`" class="algorithm-checkbox algorithm-checkbox-disabled">
               <input type="checkbox" disabled />
-              <span>{{ officialTitle(item) }}</span><small>工程验证中，暂不可运行</small>
+              <span>{{ item.display_name_zh }}（{{ item.abbreviation }}）</span><small>{{ item.purpose_zh }} · {{ officialAvailability(item) }}</small>
             </label>
           </section>
+          <p v-else-if="officialCatalogError" class="definition-muted">{{ officialCatalogError }}</p>
           <section class="algorithm-definition-group" aria-label="我的算法">
             <h4>我的算法</h4>
             <label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label>

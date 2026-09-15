@@ -32,6 +32,7 @@ from app.services.results import ResultService
 from app.services.independent_spectral_reference import IndependentSpectralReferenceService
 from app.services.extension_governance import ExtensionGovernanceService
 from app.api.extensions import router as extensions_router
+from app.api.official_algorithms import router as official_algorithms_router
 from app.eeg_core.official_definitions import ensure_official_definitions
 from app.core.api_contract import (
     RequestContextMiddleware,
@@ -93,6 +94,7 @@ app.include_router(projects_router)
 app.include_router(batch_runs_router)
 app.include_router(results_router)
 app.include_router(extensions_router)
+app.include_router(official_algorithms_router)
 
 
 @app.get("/api/health")

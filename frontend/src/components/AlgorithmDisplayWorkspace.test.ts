@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { listDefinitions } from '../api/algorithmDefinitions'
+import { listOfficialAlgorithms } from '../api/officialAlgorithms'
 import AlgorithmDisplayWorkspace from './AlgorithmDisplayWorkspace.vue'
 
 const createDefinitionMetricRun = vi.fn()
@@ -22,6 +23,10 @@ vi.mock('../api/runs', () => ({
   })),
 }))
 
+vi.mock('../api/officialAlgorithms', () => ({
+  listOfficialAlgorithms: vi.fn(async () => []),
+}))
+
 describe('AlgorithmDisplayWorkspace', () => {
   it('restarts an active dynamic session when the selected window changes', async () => {
     createDefinitionMetricRun.mockResolvedValue({ run_id: 'run-1', status: 'queued' })
@@ -31,7 +36,7 @@ describe('AlgorithmDisplayWorkspace', () => {
         channels: ['F3'], playbackPositionS: 32, playing: false, dynamicActive: true,
       } as never,
     })
-    await Promise.resolve()
+    await flushPromises()
     await nextTick()
     await wrapper.find('input[type="checkbox"]').setValue(true)
     await wrapper.findAll('button').find((button) => button.text() === '动态分析')!.trigger('click')
@@ -113,13 +118,18 @@ describe('AlgorithmDisplayWorkspace', () => {
         description: '', created_at: '', updated_at: '',
       },
     ])
+    vi.mocked(listOfficialAlgorithms).mockResolvedValueOnce([{
+      algorithm_id: 'rbp', display_name_zh: '相对频段功率', abbreviation: 'RBP', purpose_zh: '展示四个基础频段在总功率中的占比',
+      scientific_version: 'offline-spectral-v3', implementation_identity: 'offline-spectral-v3', execution_kind: 'generic_research_primitives',
+      availability: 'shadow_validation', is_runnable: false, required_channel_roles: [], supported_modes: [], definition_id: 'official-rbp', definition_version: '1.0.0',
+    }])
     const wrapper = mount(AlgorithmDisplayWorkspace, {
       props: {
         recording: { id: 'recording-1', channels: ['F3'] }, rangeStart: 0, rangeEnd: 30,
         channels: ['F3'],
       } as never,
     })
-    await Promise.resolve()
+    await flushPromises()
     await nextTick()
 
     expect(wrapper.text()).toContain('官方内置算法')
