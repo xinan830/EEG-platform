@@ -26,6 +26,11 @@ misleading one-point chart. This is a display bootstrap, not interpolation;
 every point remains a backend-computed trailing 10-second window. If playback
 advances while a Run is pending, the next request covers every missed
 one-second endpoint before ordinary one-second appends resume.
+While an appended Run is queued or running and therefore has no metric payload,
+the client retains the currently rendered backend history. Only a returned
+dynamic payload may replace a same-endpoint point or append a new endpoint;
+the client must never clear historical points merely because a pending Run has
+`result: null`.
 
 The dynamic-window selector is shared with the time-frequency workflow and
 allows `5`, `10`, `20`, or `30` seconds, with a fixed one-second step. The

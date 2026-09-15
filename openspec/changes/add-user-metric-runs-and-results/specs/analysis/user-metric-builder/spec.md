@@ -93,6 +93,15 @@ SHALL be persisted in the Run configuration and returned dynamic contract.
 - **AND THEN** the chart connects only backend-returned points
 - **AND THEN** it does not interpolate missing metric values in the browser.
 
+#### Scenario: Retain trend while an appended Run is pending
+
+- **WHEN** a dynamic append Run is `queued` or `running` and its response has
+  no metric result yet
+- **THEN** the client keeps the previously rendered backend-derived trend
+- **AND WHEN** the appended Run completes with a dynamic payload
+- **THEN** the client merges its real points by `window_end_s` without
+  duplicating or removing earlier points.
+
 #### Scenario: Change the active dynamic window
 
 - **WHEN** a user changes an active dynamic metric from `10 s` to `20 s`

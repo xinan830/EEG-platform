@@ -6,7 +6,7 @@ import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/a
 import type { Recording } from '../types/recording'
 import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
 import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
-import { DYNAMIC_WINDOW_OPTIONS, appendDynamicMetricPoint, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow, type DynamicWindowS } from '../utils/dynamicMetricPlayback'
+import { DYNAMIC_WINDOW_OPTIONS, appendOrRetainDynamicMetric, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow, type DynamicWindowS } from '../utils/dynamicMetricPlayback'
 import '../styles/algorithmDisplayWorkspace.css'
 
 type Range = { start: number; end: number }
@@ -57,7 +57,9 @@ async function poll(runId: string, definitionId: string, append = false) {
     const previous = runs.value[definitionId]?.result ?? null
     runs.value[definitionId] = {
       status: next.status,
-      result: append && isDynamic(previous) && isDynamic(result) ? appendDynamicMetricPoint(previous, result) : result,
+      result: append && isDynamic(previous)
+        ? appendOrRetainDynamicMetric(previous, isDynamic(result) ? result : null)
+        : result,
       error: next.error?.message,
     }
     if (['completed', 'gate_failed', 'failed', 'cancelled'].includes(next.status)) return

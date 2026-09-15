@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { appendDynamicMetricPoint, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow } from './dynamicMetricPlayback'
+import { appendDynamicMetricPoint, appendOrRetainDynamicMetric, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow } from './dynamicMetricPlayback'
 
 it('derives one trailing ten-second window from the playback head', () => {
   expect(playbackMetricWindow(9.999)).toBeNull()
@@ -52,4 +52,18 @@ it('replaces the same playback second instead of drawing duplicate dynamic point
   expect(appendDynamicMetricPoint(previous, replacement).series).toEqual([
     { time_s: 20, window_start_s: 10, window_end_s: 20, value: 1.5, quality: { status: 'clean' } },
   ])
+})
+
+it('retains history while an appended dynamic run is queued without a result', () => {
+  const history = { output: { label: 'Theta/Beta 比值', unit: 'dimensionless' }, channel: 'F3', series: [
+    { time_s: 20, window_start_s: 10, window_end_s: 20, value: 1.25 },
+    { time_s: 21, window_start_s: 11, window_end_s: 21, value: 1.5 },
+  ] }
+
+  expect(appendOrRetainDynamicMetric(history, null)).toEqual(history)
+  const merged = appendOrRetainDynamicMetric(history, {
+    ...history,
+    series: [{ time_s: 22, window_start_s: 12, window_end_s: 22, value: 1.75 }],
+  })
+  expect(merged?.series).toHaveLength(3)
 })

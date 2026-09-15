@@ -55,3 +55,16 @@ export function appendDynamicMetricPoint(previous: DynamicMetricPayload | null, 
   for (const point of next.series) byTime.set(point.time_s, point)
   return { ...next, series: [...byTime.values()].sort((left, right) => left.time_s - right.time_s) }
 }
+
+/**
+ * A queued/running appended Run has no result yet. Retain the already rendered
+ * backend history until a new backend payload arrives, then merge by endpoint.
+ */
+export function appendOrRetainDynamicMetric(
+  previous: DynamicMetricPayload | null,
+  next: DynamicMetricPayload | null,
+): DynamicMetricPayload | null {
+  if (previous === null) return next
+  if (next === null) return previous
+  return appendDynamicMetricPoint(previous, next)
+}
