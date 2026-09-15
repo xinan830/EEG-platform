@@ -45,7 +45,7 @@ function welchText(): string {
   const overlap = Number(contract.welch_segment_overlap ?? 0.5)
   const overlapPercent = overlap <= 1 ? overlap * 100 : overlap
   const window = String(contract.welch_window ?? 'hann')
-  return `${seconds} s ${window.toLowerCase() === 'hann' ? 'Hann' : window}，${overlapPercent}% overlap（${(seconds * overlapPercent / 100).toFixed(0)} s 步进）`
+  return `频谱计算片段：${seconds} s ${window.toLowerCase() === 'hann' ? 'Hann' : window}，${overlapPercent}% overlap（${(seconds * overlapPercent / 100).toFixed(0)} s 步进）`
 }
 </script>
 
@@ -55,8 +55,8 @@ function welchText(): string {
       <header class="dialog-titlebar"><strong>算法调试台 · {{ definitionName }}</strong><button type="button" class="dialog-close" aria-label="关闭算法调试台" @click="emit('close')">×</button></header>
       <main class="algorithm-metric-debug-body">
         <p class="algorithm-debug-note">只读展示后端 Run 已保存的结果与证据；前端不重新计算 EEG、PSD、频段功率或公式。</p>
-        <label v-if="isDynamic" class="algorithm-debug-window">动态窗口结束时间<select v-model.number="selectedEndS"><option v-for="item in points" :key="item.window_end_s" :value="item.window_end_s">{{ item.window_end_s.toFixed(3) }} s（{{ item.window_start_s.toFixed(3) }}–{{ item.window_end_s.toFixed(3)}} s）</option></select></label>
-        <section class="algorithm-debug-section"><h3>本次窗口</h3><dl><dt>模式</dt><dd>{{ isDynamic ? '动态算法' : '静态算法' }}</dd><dt>实际分析区间</dt><dd>{{ actualRange.start_s.toFixed(3) }}–{{ actualRange.end_s.toFixed(3) }} s</dd><dt>通道</dt><dd>{{ metric.channel ?? '' }}</dd><dt v-if="isDynamic">刷新步长</dt><dd v-if="isDynamic">{{ asRecord(metric.dynamic_contract).step_s ?? 1 }} s</dd></dl></section>
+        <label v-if="isDynamic" class="algorithm-debug-window">分析范围结束时间<select v-model.number="selectedEndS"><option v-for="item in points" :key="item.window_end_s" :value="item.window_end_s">{{ item.window_end_s.toFixed(3) }} s（分析范围 {{ item.window_start_s.toFixed(3) }}–{{ item.window_end_s.toFixed(3)}} s）</option></select></label>
+        <section class="algorithm-debug-section"><h3>本次分析范围</h3><dl><dt>模式</dt><dd>{{ isDynamic ? '动态算法' : '静态算法' }}</dd><dt>实际分析区间</dt><dd>{{ actualRange.start_s.toFixed(3) }}–{{ actualRange.end_s.toFixed(3) }} s</dd><dt>通道</dt><dd>{{ metric.channel ?? '' }}</dd><dt v-if="isDynamic">更新间隔</dt><dd v-if="isDynamic">{{ asRecord(metric.dynamic_contract).step_s ?? 1 }} s</dd></dl></section>
         <section class="algorithm-debug-section"><h3>运行与频谱契约</h3><dl><dt>算法版本</dt><dd>{{ run.definition_version ?? '—' }}</dd><dt>频谱算法</dt><dd>{{ evidence.algorithm_version ?? run.scientific_version ?? '—' }}</dd><dt>配置指纹</dt><dd><code>{{ run.config_sha256 ?? '—' }}</code></dd><dt>参考方式</dt><dd>{{ evidence.analysis_reference ?? run.reference?.mode ?? '—' }}</dd><dt>采样率</dt><dd>{{ evidence.sfreq_hz ?? '—' }} Hz</dd><dt>Welch</dt><dd>{{ welchText() }}</dd></dl></section>
         <section class="algorithm-debug-section"><h3>频段积分 · {{ metric.channel ?? '' }} 计算明细</h3><p>频段功率、相对功率和算法输入均为后端保存值。</p><div class="algorithm-debug-bands"><div v-for="band in ['delta', 'theta', 'alpha', 'beta']" :key="band"><strong>{{ band[0].toUpperCase() + band.slice(1) }}</strong><span>P = {{ number(evidence.band_power?.[band]) }} µV²</span><span>RBP = {{ ratio(evidence.relative_band_power?.[band]) }}</span></div></div></section>
         <section class="algorithm-debug-section"><h3>算法输入与输出</h3><div class="algorithm-debug-inputs"><div v-for="([key, input]) in inputs" :key="key"><strong>{{ inputLabel(input) }}</strong><span>{{ number(input.value) }} {{ input.unit }}</span><small>{{ input.channel }}</small></div></div><p class="algorithm-debug-output">{{ output.label ?? definitionName }} = <strong>{{ number(outputValue) }}</strong> {{ output.unit ?? '—' }}</p></section>

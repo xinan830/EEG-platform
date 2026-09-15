@@ -29,7 +29,7 @@ const displayed = computed<DynamicMetric>(() => props.result ?? {
   series: [],
 })
 const latestPoint = computed(() => [...(displayed.value.series ?? [])].reverse().find((point) => point.value !== null) ?? null)
-const firstWindowText = computed(() => `等待第一个完整窗口：0.000–${(displayed.value.dynamic_contract?.window_s ?? 10).toFixed(3)} s`)
+const firstWindowText = computed(() => `等待第一个完整分析范围：0.000–${(displayed.value.dynamic_contract?.window_s ?? 10).toFixed(3)} s`)
 
 function render() {
   if (!chart) return
@@ -53,12 +53,12 @@ function render() {
         if (!point) return ''
         const value = point.value === null ? '不可用' : `${point.value} ${result.output.unit}`
         const quality = point.quality?.status === 'bad' ? ` · 质量门拒绝${point.quality.reasons?.length ? `（${point.quality.reasons.join('、')}）` : ''}` : ' · Clean'
-        return `时间：${point.time_s.toFixed(3)} s<br/>窗口：${point.window_start_s.toFixed(3)}–${point.window_end_s.toFixed(3)} s<br/>${result.output.label}：${value}${quality}`
+        return `时间：${point.time_s.toFixed(3)} s<br/>分析范围：${point.window_start_s.toFixed(3)}–${point.window_end_s.toFixed(3)} s<br/>${result.output.label}：${value}${quality}`
       },
     },
     xAxis: {
       type: 'value',
-      name: '窗口结束时间 (s)',
+      name: '分析范围结束时间 (s)',
       nameLocation: 'middle',
       nameGap: 24,
       min: timeAxis.min,
@@ -84,9 +84,9 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); chart = 
 <template>
   <section class="definition-metric-trend-wrap" aria-label="动态算法趋势图">
     <header class="definition-metric-trend-meta">
-      <span>{{ displayed.output.label }}（{{ displayed.output.unit }}）<template v-if="displayed.dynamic_contract"> · 最近 {{ displayed.dynamic_contract.window_s }} s · 每 {{ displayed.dynamic_contract.step_s }} s</template></span>
+      <span>{{ displayed.output.label }}（{{ displayed.output.unit }}）<template v-if="displayed.dynamic_contract"> · 分析范围最近 {{ displayed.dynamic_contract.window_s }} s · 每 {{ displayed.dynamic_contract.step_s }} s 更新</template></span>
       <strong v-if="latestPoint">当前：{{ latestPoint.value }} {{ displayed.output.unit }}</strong>
-      <span v-else>当前：等待完整窗口</span>
+      <span v-else>当前：等待完整分析范围</span>
     </header>
     <p v-if="!result" class="definition-metric-trend-pending">{{ firstWindowText }}；获得完整 EEG 前不会生成算法值。</p>
     <div ref="element" class="definition-metric-trend"></div>

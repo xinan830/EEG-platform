@@ -132,7 +132,7 @@ async function startDynamic(closeAfterStart: boolean) {
   const position = props.playbackPositionS
   const second = position === undefined ? null : Math.floor(position)
   lastDynamicRefreshS.value = second !== null && second >= dynamicWindowS.value ? second : null
-  message.value = `已启用播放同步分析：播放到 ${dynamicWindowS.value} 秒后，每整秒计算最近 ${dynamicWindowS.value} 秒。`
+  message.value = `已启用播放同步分析：播放到 ${dynamicWindowS.value} 秒后，每整秒计算最近 ${dynamicWindowS.value} 秒的分析范围。`
   emit('dynamicSession', dynamicSession(true))
   const bootstrap = position === undefined ? null : dynamicMetricBootstrapRange(second ?? position, dynamicWindowS.value)
   if (bootstrap) {
@@ -188,12 +188,12 @@ onMounted(load)
 <template>
   <div class="algorithm-display-layer" @click.self="emit('close')">
     <section class="algorithm-display-workspace" aria-label="波形与算法">
-      <header class="dialog-titlebar"><span class="app-glyph">◈</span><strong>波形与算法</strong><span class="definition-range">{{ range.start.toFixed(3) }}–{{ range.end.toFixed(3) }} s</span><button class="dialog-close" title="关闭" aria-label="关闭" @click="emit('close')">×</button></header>
+      <header class="dialog-titlebar"><span class="app-glyph">◈</span><strong>波形与算法</strong><span class="definition-range">分析范围：{{ range.start.toFixed(3) }}–{{ range.end.toFixed(3) }} s</span><button class="dialog-close" title="关闭" aria-label="关闭" @click="emit('close')">×</button></header>
       <div class="algorithm-display-controls">
         <label>通道<select v-model="channel"><option v-for="item in props.channels.length ? props.channels : props.recording.channels" :key="item" :value="item">{{ item }}</option></select></label>
         <span class="algorithm-display-label">分析模式</span><div class="algorithm-display-segment"><button :class="{ active: mode === 'static' }" @click="mode = 'static'">静态分析</button><button :class="{ active: mode === 'dynamic' }" @click="mode = 'dynamic'">动态分析</button></div>
         <template v-if="mode === 'static'"><label>开始 <input v-model.number="staticStartS" type="number" min="0" step="0.001" /> s</label><label>结束 <input v-model.number="staticEndS" type="number" min="0" step="0.001" /> s</label><button type="button" @click="useCurrentRange">使用当前分析区间</button><button class="primary-action" :disabled="!canRun" @click="runStatic">{{ running ? '计算中…' : '计算此区间' }}</button></template>
-        <template v-else><label>动态窗口<select v-model.number="dynamicWindowS"><option v-for="windowS in DYNAMIC_WINDOW_OPTIONS" :key="windowS" :value="windowS">最近 {{ windowS }} s</option></select></label><span class="algorithm-display-range">每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ props.dynamicActive ? '同步已启用' : '启用播放同步' }}</button></template>
+        <template v-else><label>分析范围<select v-model.number="dynamicWindowS"><option v-for="windowS in DYNAMIC_WINDOW_OPTIONS" :key="windowS" :value="windowS">最近 {{ windowS }} s</option></select></label><span class="algorithm-display-range">每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ props.dynamicActive ? '同步已启用' : '启用播放同步' }}</button></template>
       </div>
       <div class="algorithm-display-layout">
         <aside class="algorithm-display-sidebar">
@@ -212,7 +212,7 @@ onMounted(load)
             <label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label>
             <p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无我的算法</p>
           </section>
-          <p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析区间至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">动态模式启动时补算所选窗口的真实历史；之后每秒追加一个真实结果点。5 s 响应更快，但稳定性低于默认的 10 s。</p>
+          <p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析范围至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">动态模式启动时补算所选分析范围的真实历史；之后每秒追加一个真实结果点。5 s 响应更快，但稳定性低于默认的 10 s。</p>
         </aside>
         <main class="algorithm-display-main"><p class="algorithm-display-empty">勾选算法并运行后，结果会显示在主页面波形下方。</p></main>
       </div>

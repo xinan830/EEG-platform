@@ -29,8 +29,8 @@ it('shows an empty first-window chart without fabricating a metric value', async
     } as never,
   })
 
-  expect(wrapper.text()).toContain('等待第一个完整窗口：0.000–10.000 s')
-  expect(wrapper.text()).toContain('当前：等待完整窗口')
+  expect(wrapper.text()).toContain('等待第一个完整分析范围：0.000–10.000 s')
+  expect(wrapper.text()).toContain('当前：等待完整分析范围')
   expect(chartSetOption).toHaveBeenCalledWith(expect.objectContaining({
     series: [expect.objectContaining({ data: [] })],
     xAxis: expect.objectContaining({ min: 0, max: 10 }),

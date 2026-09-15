@@ -28,7 +28,7 @@ const nextDisabled = computed(() => props.loading || props.totalDurationS === un
       <button class="playback-button" :disabled="loading" @click="emit('toggle')">{{ playing ? '暂停' : '播放' }}</button>
       <button class="screen-nav-button" :disabled="nextDisabled" title="下一屏" aria-label="下一屏" @click="emit('nextScreen')">下一屏 ▶</button>
       <button class="replay-button" :disabled="loading" @click="emit('replay')">重播</button>
-      <span class="file-summary">{{ positionS.toFixed(1) }} / {{ totalDurationS ?? '--' }} s　采样率：{{ sfreq ?? '--' }} Hz</span>
+      <span class="file-summary">播放：{{ positionS.toFixed(1) }} / {{ totalDurationS ?? '--' }} s　波形显示范围：{{ windowStartS.toFixed(1) }}–{{ Math.min(totalDurationS ?? (windowStartS + screenDurationS), windowStartS + screenDurationS).toFixed(1) }} s（{{ screenDurationS }} s/屏）　采样率：{{ sfreq ?? '--' }} Hz</span>
     </template>
     <span v-else class="file-summary">导入 BDF 或 EDF 文件后即可查看原始波形</span>
   </div>

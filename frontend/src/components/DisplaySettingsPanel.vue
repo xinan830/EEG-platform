@@ -51,6 +51,6 @@ const emit = defineEmits<{
     </label>
     <button class="settings-reset" @click="emit('reset')">恢复默认</button>
     <button class="settings-reset" @click="emit('algorithm-check')">算法检验</button>
-    <span class="settings-status">{{ settings.timebaseSeconds }} 秒/屏 · {{ settings.sensitivityUvPerMm }} µV/mm · {{ settings.lowCutHz }}–{{ settings.highCutHz }} Hz · 陷波：{{ settings.notchHz ? `${settings.notchHz} Hz` : '关闭' }} · 基线稳定：{{ settings.baselineStabilization ? '开启' : '关闭' }}</span>
+    <span class="settings-status">波形显示范围：{{ settings.timebaseSeconds }} 秒/屏 · {{ settings.sensitivityUvPerMm }} µV/mm · {{ settings.lowCutHz }}–{{ settings.highCutHz }} Hz · 陷波：{{ settings.notchHz ? `${settings.notchHz} Hz` : '关闭' }} · 基线稳定：{{ settings.baselineStabilization ? '开启' : '关闭' }}</span>
   </div>
 </template>

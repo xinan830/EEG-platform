@@ -2,9 +2,9 @@
 
 ## 算法版本
 
-`offline-spectral-v3` 是冻结的数学基线。`offline-spectral-v4-configurable` 只开放时间范围、通道、动态窗口和刷新步长，并复用 v3 的连续预处理、Welch、频段积分与质量门；它不会修改 PSD 数学结果。
+`offline-spectral-v3` 是冻结的数学基线。`offline-spectral-v4-configurable` 只开放分析范围、通道、动态分析范围长度和刷新步长，并复用 v3 的连续预处理、Welch、频段积分与质量门；它不会修改 PSD 数学结果。
 
-v4 响应同时包含请求配置、实际执行配置、warm-up 状态和 12 位 `analysis_config_hash`。静态分析严格拒绝越过文件末尾；动态分析允许播放初期实际窗口短于目标窗口，但至少需要 4 秒数据。
+v4 响应同时包含请求配置、实际执行配置、warm-up 状态和 12 位 `analysis_config_hash`。静态分析严格拒绝越过文件末尾；动态分析允许播放初期实际分析范围短于目标范围，但至少需要 4 秒数据。
 
 实现位置：`backend/app/eeg_core/spectral.py`、`offline_metrics.py`、`faa.py`。
 
@@ -14,9 +14,9 @@ v4 响应同时包含请求配置、实际执行配置、warm-up 状态和 12 �
 
 ## Welch PSD
 
-- 外层分析区间被切成 4 s segment，步长 2 s，即 segment 间 50% overlap。例如 30 s 区间有 `(30-4)/2+1=14` 个候选 segment。
-- 质量门逐个检查 segment；只平均 clean segment，clean 比例低于 0.75 时整段不可用。
-- 每个 clean segment 调用一次 Welch：`nperseg=4 s`、`noverlap=0`、Hann、`scaling="density"`、`detrend="constant"`。这里的 50% overlap 是外层 4 s segment 之间的重叠，不是单个 4 s segment 内再次重叠。
+- 外层分析范围被切成 4 s 频谱计算片段，步长 2 s，即计算片段间 50% overlap。例如 30 s 分析范围有 `(30-4)/2+1=14` 个候选计算片段。
+- 质量门逐个检查计算片段；只平均 clean 计算片段，clean 比例低于 0.75 时整段不可用。
+- 每个 clean 计算片段调用一次 Welch：`nperseg=4 s`、`noverlap=0`、Hann、`scaling="density"`、`detrend="constant"`。这里的 50% overlap 是外层 4 s 计算片段之间的重叠，不是单个 4 s 计算片段内再次重叠。
 - 峰值阈值：150 µV；clean epoch 比例至少 0.75，否则质量门失败。
 - 输出频率限制为 1–30 Hz，PSD 不低于 `1e-20`。
 
