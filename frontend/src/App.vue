@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
-import { getMontages, getWaveformWindow, type CustomMontageRow, type MontageOption } from './api/recordings'
+import { getMontages, getWaveformWindow, type CustomMontageRow } from './api/recordings'
 import { controlWaveformPlayback, createWaveformPlayback, waveformPlaybackSocketUrl } from './api/waveformPlayback'
 import FileImport from './components/FileImport.vue'
 import ChannelSelectionDialog from './components/ChannelSelectionDialog.vue'
@@ -33,50 +33,58 @@ import { decodeWaveformBinary } from './utils/waveformBinary'
 import { useDisplayControls } from './composables/useDisplayControls'
 import { useAlgorithmCheck } from './composables/useAlgorithmCheck'
 import { useEventMarkers } from './composables/useEventMarkers'
+import { useRecordingContext } from './composables/useRecordingContext'
+import { useViewerContext } from './composables/useViewerContext'
+import { useAnalysisTimeContext } from './composables/useAnalysisTimeContext'
+import { useAlgorithmWorkspaceState } from './composables/useAlgorithmWorkspaceState'
 import { playbackFilterPayload } from './utils/displayFilter'
 import { pagedViewportStart } from './utils/waveformViewport'
 
 type WaveformValues = ArrayLike<number>; type Waveform = { elapsed_s: WaveformValues; channels: Record<string, WaveformValues> }; type WaveformMessage = { type: string; sfreq?: number; ch_names?: string[]; duration_s?: number; start_s?: number; elapsed_s?: number; detail?: string }; type WaveformPanelHandle = { appendBinaryWaveform: (buffer: ArrayBuffer) => boolean }; type StreamInfo = { sfreq: number; channelNames: string[]; startS: number } | null
 
-const recording = ref<Recording | null>(null)
+const recordingContext = useRecordingContext()
+const recording = recordingContext.recording
+const totalDurationS = recordingContext.totalDurationS
+const sfreq = recordingContext.sfreq
+const sourceChannelNames = recordingContext.sourceChannelNames
+const displayChannelNames = recordingContext.displayChannelNames
+const viewerContext = useViewerContext()
+const playing = viewerContext.playing
+const loading = viewerContext.loading
+const playbackPositionS = viewerContext.playbackPositionS
+const windowStartS = viewerContext.windowStartS
+const montageId = viewerContext.montageId
+const montageOptions = viewerContext.montageOptions
+const averageExclude = viewerContext.averageExclude
+const customMontage = viewerContext.customMontage
+const analysisTimeContext = useAnalysisTimeContext()
+const spectrumSelection = analysisTimeContext.spectrumSelection
+const activeAnalysisRange = analysisTimeContext.activeAnalysisRange
+const algorithmWorkspaceState = useAlgorithmWorkspaceState<WorkspaceMetricRun>()
+const algorithmDisplayResults = algorithmWorkspaceState.results
+const dynamicAlgorithmSession = algorithmWorkspaceState.dynamicSession
+const dynamicPlaybackEpoch = algorithmWorkspaceState.playbackEpoch
+const algorithmDisplayResultItems = algorithmWorkspaceState.resultItems
 // 波形采样本身由 TypedArray 缓冲拥有；浅响应式只通知画布数据帧已推进。
 const waveform = shallowRef<Waveform>({ elapsed_s: [], channels: {} })
 const showStartup = ref(true)
 const error = ref('')
-const playing = ref(false)
-const loading = ref(false)
-const playbackPositionS = ref(0)
-const spectrumSelection = ref<{ start: number; end: number } | null>(null)
-const activeAnalysisRange = ref<{ start: number; end: number; source: string } | null>(null)
-function setActiveAnalysisRange(start: number, end: number, source = 'custom') { activeAnalysisRange.value = { start, end, source } }
-function selectSpectrumRange(start: number, end: number) { spectrumSelection.value = { start, end } }
+function setActiveAnalysisRange(start: number, end: number, source = 'custom') { analysisTimeContext.commitStaticRange(start, end, source) }
+function selectSpectrumRange(start: number, end: number) { analysisTimeContext.selectWaveformRange(start, end) }
 function goToWorkflowSection(sectionId: string) {
   document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
-const totalDurationS = ref<number | undefined>()
-const sfreq = ref<number | undefined>()
-const windowStartS = ref(0)
-const displayChannelNames = ref<string[]>([]); const sourceChannelNames = ref<string[]>([])
-const montageId = ref('original'); const montageOptions = ref<MontageOption[]>([]); const averageExclude = ref<string[]>([])
-const customMontage = ref<CustomMontageRow[]>([]); const customMontageOpen = ref(false)
+const customMontageOpen = ref(false)
 const algorithmWorkbenchOpen = ref(false)
 const resultsOpen = ref(false)
 const userAlgorithmBuilderOpen = ref(false)
 const algorithmDisplayOpen = ref(false)
 const algorithmDefinitionsEpoch = ref(0)
-const algorithmDisplayResults = ref<Record<string, WorkspaceMetricRun>>({})
-type DynamicAlgorithmSession = { channel: string; definitions: Array<{ id: string; label: string; unit: string }>; windowS: number; displayRangeS: number }
-const dynamicAlgorithmSession = ref<DynamicAlgorithmSession | null>(null)
-const dynamicPlaybackEpoch = ref(0)
-const algorithmDisplayResultItems = computed(() => Object.entries(algorithmDisplayResults.value).map(([id, item]) => ({ id, ...item })))
 function isDynamicMetric(value: WorkspaceMetricRun['result']): value is DynamicMetric { return Boolean(value && Array.isArray((value as DynamicMetric).series)) }
 function updateDynamicAlgorithmSession(value: { enabled: boolean; channel: string; definitions: Array<{ id: string; label: string; unit: string }>; windowS: number; displayRangeS: number }) {
-  const previous = dynamicAlgorithmSession.value
-  const changedCalculation = !previous || previous.channel !== value.channel || previous.windowS !== value.windowS || previous.definitions.map((item) => item.id).join('|') !== value.definitions.map((item) => item.id).join('|')
-  dynamicAlgorithmSession.value = value.enabled ? { channel: value.channel, definitions: value.definitions, windowS: value.windowS, displayRangeS: value.displayRangeS } : null
-  if (value.enabled && changedCalculation) algorithmDisplayResults.value = {}
+  algorithmWorkspaceState.updateDynamicSession(value)
 }
-function clearAlgorithmResults() { algorithmDisplayResults.value = {}; dynamicAlgorithmSession.value = null }
+function clearAlgorithmResults() { algorithmWorkspaceState.clear() }
 const algorithmDebug = ref<{ definitionId: string; fallbackRun: AnalysisRunResponse; definitionName: string } | null>(null)
 const activeAlgorithmDebugRun = computed(() => algorithmDebug.value
   ? currentAlgorithmDebugRun(algorithmDebug.value, algorithmDisplayResults.value)
@@ -345,10 +353,7 @@ async function togglePlayback() {
 
 async function replay() {
   if (!recording.value) return
-  if (dynamicAlgorithmSession.value) {
-    algorithmDisplayResults.value = {}
-    dynamicPlaybackEpoch.value += 1
-  }
+  algorithmWorkspaceState.resetForReplay()
   if (!sessionId) {
     playing.value = true
     await startPlayback(0)
@@ -388,8 +393,11 @@ async function onImported(value: Recording) {
   fileGeneration += 1
   reviewRequestId += 1
   await stopPlayback()
-  recording.value = value; debug.reset(); sweepBuffer = null; streamInfo.value = null; spectrumSelection.value = null; activeAnalysisRange.value = null
-  displayChannelNames.value = chooseWaveformChannels(value.channels); sourceChannelNames.value = [...displayChannelNames.value]; montageId.value = 'original'; averageExclude.value = []; customMontage.value = []; customMontageOpen.value = false
+  viewerContext.reset()
+  recordingContext.begin(value, chooseWaveformChannels(value.channels))
+  analysisTimeContext.initializeForRecording(value.duration_s)
+  algorithmWorkspaceState.clear()
+  debug.reset(); sweepBuffer = null; streamInfo.value = null; customMontageOpen.value = false
   const importGeneration = fileGeneration
   try {
     const availableMontages = await getMontages(value.id)
@@ -399,9 +407,7 @@ async function onImported(value: Recording) {
     if (importGeneration !== fileGeneration) return
     montageOptions.value = [{ id: 'original', label: '原始记录（不重参考）', available: true, channels: value.channels, missing: [] }]
   }
-  waveform.value = { elapsed_s: [], channels: {} }; totalDurationS.value = value.duration_s ?? undefined; sfreq.value = value.sfreq ?? undefined
-  if ((value.duration_s ?? 0) >= 4) activeAnalysisRange.value = { start: 0, end: Math.min(30, value.duration_s as number), source: 'current_30s' }
-  playbackPositionS.value = 0; windowStartS.value = 0
+  waveform.value = { elapsed_s: [], channels: {} }
   showStartup.value = false
   // 导入后先选通道再进入阅图；确认或取消都会从文件 0 秒读取（见 useChannelSelection）。
   channelSelection.openInitialChannelDialog()
@@ -411,10 +417,12 @@ async function newSession() {
   fileGeneration += 1
   reviewRequestId += 1
   await stopPlayback()
-  recording.value = null; debug.reset(); sweepBuffer = null; streamInfo.value = null; spectrumSelection.value = null; activeAnalysisRange.value = null
-  displayChannelNames.value = []; sourceChannelNames.value = []; montageId.value = 'original'; montageOptions.value = []; averageExclude.value = []; customMontage.value = []; customMontageOpen.value = false
-  waveform.value = { elapsed_s: [], channels: {} }; totalDurationS.value = undefined; sfreq.value = undefined
-  playbackPositionS.value = 0; windowStartS.value = 0; error.value = ''; loading.value = false
+  recordingContext.reset()
+  viewerContext.reset()
+  analysisTimeContext.reset()
+  algorithmWorkspaceState.clear()
+  debug.reset(); sweepBuffer = null; streamInfo.value = null; customMontageOpen.value = false
+  waveform.value = { elapsed_s: [], channels: {} }; error.value = ''
   showStartup.value = true
 }
 
