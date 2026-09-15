@@ -133,8 +133,6 @@ def delete(definition_id: str, request: Request):
         return error_response(request, 404, "DEFINITION_NOT_FOUND", "算法定义不存在")
     except PermissionError:
         return error_response(request, 409, "DEFINITION_DELETE_FORBIDDEN", "官方算法不可删除")
-    except RuntimeError:
-        return error_response(request, 409, "DEFINITION_IN_USE", "算法已被分析结果或批处理引用，不能删除")
 
 
 @router.post("/{definition_id}/clone", status_code=status.HTTP_201_CREATED)

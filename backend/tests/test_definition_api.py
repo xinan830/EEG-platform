@@ -74,13 +74,14 @@ def test_definition_api_rejects_platform_owner_and_protects_installed_official_d
     assert cloned.json()["owner"] == "local-user"
 
 
-def test_definition_api_preserves_definitions_referenced_by_runs_or_batches(tmp_path: Path):
+def test_definition_api_deletes_private_definitions_referenced_by_completed_runs_or_batches(tmp_path: Path):
     database_path = tmp_path / "definitions.sqlite3"
     service = DefinitionService(database_path)
     app.state.definition_service = service
     client = TestClient(app)
     run_definition = service.create(DefinitionCreateRequest(name="Run referenced"))
     batch_definition = service.create(DefinitionCreateRequest(name="Batch referenced"))
+    queued_definition = service.create(DefinitionCreateRequest(name="Queued referenced"))
 
     with sqlite3.connect(database_path) as connection:
         connection.execute(
@@ -103,9 +104,25 @@ def test_definition_api_preserves_definitions_referenced_by_runs_or_batches(tmp_
             ("batch-1", "project-1", "definition", batch_definition.definition_id, "{}", "config",
              "batch-key", "completed", "now", "now"),
         )
+        connection.execute(
+            """INSERT INTO analysis_runs (
+                run_id, recording_id, analysis_type, status, definition_id,
+                scientific_version, implementation_version, config_json, config_sha256,
+                cache_key, requested_range_json, channel_mapping_json, reference_json,
+                filter_json, window_json, quality_rules_json, environment_json,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("queued-run", "recording-1", "definition", "queued", queued_definition.definition_id,
+             "research-primitives-v1", "test-build", "{}", "config", "cache", "{}", "{}", "{}",
+             "{}", "{}", "{}", "{}", "now", "now"),
+        )
 
-    for definition in (run_definition, batch_definition):
+    for definition in (run_definition, batch_definition, queued_definition):
         response = client.delete(f"/api/algorithm-definitions/{definition.definition_id}")
-        assert response.status_code == 409
-        assert response.json()["code"] == "DEFINITION_IN_USE"
-        assert client.get(f"/api/algorithm-definitions/{definition.definition_id}").status_code == 200
+        assert response.status_code == 204
+        assert client.get(f"/api/algorithm-definitions/{definition.definition_id}").status_code == 404
+
+    with sqlite3.connect(database_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM analysis_runs WHERE definition_id = ?", (run_definition.definition_id,)).fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM batch_runs WHERE definition_id = ?", (batch_definition.definition_id,)).fetchone()[0] == 1
+        assert connection.execute("SELECT status FROM analysis_runs WHERE run_id = 'queued-run'").fetchone()[0] == "cancelled"

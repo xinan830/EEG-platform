@@ -5,7 +5,7 @@ export function listDefinitions(): Promise<AlgorithmDefinition[]> {
   return request('/api/algorithm-definitions')
 }
 
-/** Remove a private definition only after the server has checked its provenance. */
+/** Remove a private definition; completed results retain their saved evidence. */
 export function deleteDefinition(definitionId: string): Promise<void> {
   return request(`/api/algorithm-definitions/${encodeURIComponent(definitionId)}`, { method: 'DELETE' })
 }

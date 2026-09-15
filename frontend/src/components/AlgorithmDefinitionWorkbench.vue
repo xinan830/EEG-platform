@@ -206,7 +206,7 @@ async function clone() {
 
 async function deleteSavedDefinition(item: AlgorithmDefinition) {
   if (item.owner === 'platform-official' || loading.value) return
-  const confirmed = window.confirm(`删除“${algorithmLabel(item).name}”及其所有未引用版本？\n\n已用于分析结果或批处理的算法无法删除，以保证结果可追溯。`)
+  const confirmed = window.confirm(`删除“${algorithmLabel(item).name}”及其所有版本？\n\n历史分析结果会保留当时已保存的数值、参数与频谱证据，但不能再从历史结果打开该算法定义。未完成的分析任务将被取消。`)
   if (!confirmed) return
   loading.value = true
   validationError.value = ''

@@ -86,6 +86,15 @@ persisted unit. Incompatible input units get no comparison chart. Trend axes
 are fixed: window-end time in seconds on X and the persisted metric unit on Y.
 Algorithms with different output units render in separate charts.
 
+For the local single-user product, a private definition remains deletable
+after use. The deletion removes the definition and immutable version rows from
+the library, while historical Runs and BatchRun records retain their persisted
+outputs and evidence as detached read-only records. This deliberately trades
+the ability to reopen the old definition graph for straightforward local
+deletion. Queued associated Runs are cancelled and running Runs receive a
+cancellation request before removal; platform-official definitions remain
+protected.
+
 ## Replay reset, pending view and algorithm evidence
 
 Replay is a new playback epoch, not a continuation of an existing dynamic

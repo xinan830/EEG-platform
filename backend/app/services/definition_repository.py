@@ -48,17 +48,32 @@ class DefinitionRepository:
         return [AlgorithmDefinition(**dict(row)) for row in rows]
 
     def delete(self, definition_id: str) -> bool:
-        """Delete an unreferenced private definition and all of its versions."""
+        """Delete a private definition while retaining completed result records.
+
+        Analysis runs and batch rows intentionally have no foreign key to the
+        definition table: their persisted output/provenance remains readable
+        after a local user removes an algorithm. Queued work cannot execute a
+        deleted definition, so it is cancelled in the same transaction.
+        """
         with self._connect() as connection:
             definition = connection.execute("SELECT owner FROM algorithm_definitions WHERE definition_id = ?", (definition_id,)).fetchone()
             if definition is None:
                 return False
             if definition["owner"] == "platform-official":
                 raise PermissionError("official definitions cannot be deleted")
-            run_reference = connection.execute("SELECT 1 FROM analysis_runs WHERE definition_id = ? LIMIT 1", (definition_id,)).fetchone()
-            batch_reference = connection.execute("SELECT 1 FROM batch_runs WHERE definition_id = ? LIMIT 1", (definition_id,)).fetchone()
-            if run_reference or batch_reference:
-                raise RuntimeError("definition is referenced by a saved run or batch run")
+            now = utc_now()
+            connection.execute(
+                """UPDATE analysis_runs
+                    SET status = 'cancelled', cancel_requested = 1, updated_at = ?, completed_at = COALESCE(completed_at, ?)
+                    WHERE definition_id = ? AND status = 'queued'""",
+                (now, now, definition_id),
+            )
+            connection.execute(
+                """UPDATE analysis_runs
+                    SET cancel_requested = 1, updated_at = ?
+                    WHERE definition_id = ? AND status = 'running'""",
+                (now, definition_id),
+            )
             connection.execute("DELETE FROM algorithm_definition_versions WHERE definition_id = ?", (definition_id,))
             connection.execute("DELETE FROM algorithm_definitions WHERE definition_id = ?", (definition_id,))
         return True

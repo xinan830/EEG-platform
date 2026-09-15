@@ -85,6 +85,8 @@ describe('AlgorithmDefinitionWorkbench', () => {
     await nextTick()
 
     expect(confirmation).toHaveBeenCalledOnce()
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('历史分析结果会保留'))
+    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining('未完成的分析任务将被取消'))
     expect(api.deleteDefinition).toHaveBeenCalledWith('my-ratio')
     expect(wrapper.text()).not.toContain('我的 Theta/Beta')
   })

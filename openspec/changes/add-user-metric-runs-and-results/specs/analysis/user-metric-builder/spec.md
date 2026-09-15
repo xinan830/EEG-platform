@@ -156,3 +156,24 @@ algorithm selection, static/dynamic execution, and measured result display.
 - **WHEN** a user opens the algorithm library
 - **THEN** the page shows definitions, formulas, versions and deletion actions
 - **AND THEN** it does not show EEG run controls or measured result cards.
+
+### Requirement: Allow a local user to delete a private algorithm after use
+
+The system SHALL allow a local user to delete a private algorithm definition
+and its versions even when completed analysis runs or batch records reference
+it. Those historical records SHALL retain their already persisted values,
+provenance and spectral evidence as read-only data. The deletion confirmation
+SHALL state that the historical record cannot subsequently reopen the deleted
+definition. Queued work referencing the definition SHALL be cancelled, and
+running work SHALL receive a cancellation request before the definition is
+removed. Platform-official definitions SHALL remain protected.
+
+#### Scenario: Delete a private algorithm with historical results
+
+- **WHEN** a user deletes a private Theta/Beta definition that has completed
+  analysis results
+- **THEN** the definition no longer appears in the library or run selector
+- **AND THEN** the existing result records remain readable with their saved
+  evidence
+- **AND THEN** a queued run using that definition is cancelled rather than
+  executing a now-deleted algorithm.

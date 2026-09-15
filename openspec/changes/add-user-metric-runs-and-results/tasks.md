@@ -14,6 +14,7 @@
 - [x] Reset a dynamic session on replay while retaining its user selections.
 - [x] Render a truthful empty dynamic chart before its first complete trailing window.
 - [x] Persist per-window spectral evidence and render it in a read-only algorithm debug workbench.
+- [x] Allow deletion of private definitions after use while retaining completed Run evidence and cancelling unfinished work.
 - [ ] Extend Results Workbench rendering for definition-metric results.
 
 ## 3. Verification
