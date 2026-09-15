@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
+import { ApiRequestError } from './client'
 import { getConfiguredSpectrum, getSpectrum } from './spectrum'
 import { getConfiguredSpectrogram } from './spectrogram'
 
@@ -26,11 +27,13 @@ it('posts the complete configurable analysis request', async () => {
   expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(config)
 })
 
-it('posts configured spectrogram requests and preserves backend errors', async () => {
-  const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: '文件实际结束时间为 7.634 s' }), { status: 422 }))
+it('posts configured spectrogram requests through the common structured error path', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'SPECTROGRAM_REQUEST_INVALID', message: '文件实际结束时间为 7.634 s', request_id: 'spectrogram-42' }), { status: 422 }))
   vi.stubGlobal('fetch', fetchMock)
   const config = { mode: 'spectrogram', channels: ['F3'], time: { start_s: 1, end_s: 7.635 }, dynamic_window_s: 10, refresh_step_s: 1 }
-  await expect(getConfiguredSpectrogram('r/1', config)).rejects.toThrow('文件实际结束时间为 7.634 s')
+  await expect(getConfiguredSpectrogram('r/1', config)).rejects.toMatchObject({
+    name: 'ApiRequestError', code: 'SPECTROGRAM_REQUEST_INVALID', requestId: 'spectrogram-42', message: '文件实际结束时间为 7.634 s',
+  } satisfies Partial<ApiRequestError>)
   expect(fetchMock.mock.calls[0][1].method).toBe('POST')
   expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(config)
 })
