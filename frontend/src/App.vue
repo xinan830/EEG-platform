@@ -22,6 +22,7 @@ import DefinitionMetricResultCard, { type DefinitionMetricResult } from './compo
 import DefinitionMetricTrendChart, { type DynamicMetric } from './components/DefinitionMetricTrendChart.vue'
 import AlgorithmMetricDebugDialog from './components/AlgorithmMetricDebugDialog.vue'
 import type { AnalysisRunResponse } from './api/runs'
+import { currentAlgorithmDebugRun } from './utils/algorithmDebugRun'
 import type { Recording } from './types/recording'
 import { isValidDisplaySettings } from './utils/displaySettings'
 import { WaveformSweepBuffer } from './utils/waveformSweepBuffer'
@@ -73,9 +74,12 @@ function updateDynamicAlgorithmSession(value: { enabled: boolean; channel: strin
   if (value.enabled) algorithmDisplayResults.value = {}
 }
 function clearAlgorithmResults() { algorithmDisplayResults.value = {}; dynamicAlgorithmSession.value = null }
-const algorithmDebug = ref<{ run: AnalysisRunResponse; definitionName: string } | null>(null)
-function openAlgorithmDebug(item: WorkspaceMetricRun, fallbackName: string) {
-  if (item.run) algorithmDebug.value = { run: item.run, definitionName: item.definitionName ?? fallbackName }
+const algorithmDebug = ref<{ definitionId: string; fallbackRun: AnalysisRunResponse; definitionName: string } | null>(null)
+const activeAlgorithmDebugRun = computed(() => algorithmDebug.value
+  ? currentAlgorithmDebugRun(algorithmDebug.value, algorithmDisplayResults.value)
+  : null)
+function openAlgorithmDebug(item: WorkspaceMetricRun, definitionId: string) {
+  if (item.run) algorithmDebug.value = { definitionId, fallbackRun: item.run, definitionName: item.definitionName ?? definitionId }
 }
 const developerMode = ref(false)
 // Worker 消息必须是可结构化克隆的普通对象，流元数据不能被 Vue 深度代理。
@@ -464,7 +468,7 @@ onBeforeUnmount(() => {
     <AlgorithmCheckDialog v-if="algorithmOpen" :loading="algorithmLoading" :seconds="algorithmSeconds" :result="algorithmResult" @close="algorithmCheck.close" @inspect="algorithmCheck.inspect" />
     <AlgorithmDefinitionWorkbench v-if="recording && algorithmWorkbenchOpen" :recording="recording" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min((totalDurationS ?? windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" @close="algorithmWorkbenchOpen = false" />
     <AlgorithmDisplayWorkspace v-show="recording && algorithmDisplayOpen" v-if="recording" :recording="recording" :range-start="activeAnalysisRange?.start ?? windowStartS" :range-end="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? (windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" :active-range="activeAnalysisRange" :channels="sourceChannelNames" :playback-position-s="playbackPositionS" :playing="playing" :dynamic-active="Boolean(dynamicAlgorithmSession)" :playback-epoch="dynamicPlaybackEpoch" @close="algorithmDisplayOpen = false" @results="algorithmDisplayResults = $event" @dynamic-session="updateDynamicAlgorithmSession" />
-    <AlgorithmMetricDebugDialog v-if="algorithmDebug" :run="algorithmDebug.run" :definition-name="algorithmDebug.definitionName" @close="algorithmDebug = null" />
+    <AlgorithmMetricDebugDialog v-if="algorithmDebug && activeAlgorithmDebugRun" :run="activeAlgorithmDebugRun" :definition-name="algorithmDebug.definitionName" @close="algorithmDebug = null" />
     <UserAlgorithmBuilder v-if="recording && userAlgorithmBuilderOpen" @close="userAlgorithmBuilderOpen = false" @saved="userAlgorithmBuilderOpen = false" />
     <ResultsDrawer v-if="recording && resultsOpen" :recording-id="recording.id" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? windowStartS + displaySettings.timebaseSeconds, windowStartS + Math.max(4, displaySettings.timebaseSeconds))" :channels="sourceChannelNames" @close="resultsOpen = false" />
     <div v-if="error" class="error-toast">{{ error }}</div>
