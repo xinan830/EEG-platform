@@ -1,3 +1,5 @@
+import type { AnalysisProvenance } from './analysisProvenance'
+
 export type SpectrumBand = 'delta' | 'theta' | 'alpha' | 'beta'
 export interface SpectrumExecutionConfig {
   mode: 'static' | 'dynamic'; channels: string[]; dynamic_window_s: number; refresh_step_s: number
@@ -15,4 +17,5 @@ export interface SpectrumResponse {
   quality: { clean_segments: number; total_segments: number; clean_ratio: number; gate_failed: string | null }
   baseline_algorithm_version?: string; requested_config?: Record<string, unknown>; execution_config?: SpectrumExecutionConfig; analysis_config_hash?: string; warmup?: boolean
   requested_start_s?: number; requested_end_s?: number; requested_window_s?: number; actual_start_s?: number; actual_end_s?: number; actual_duration_s?: number
+  analysis_provenance?: AnalysisProvenance
 }

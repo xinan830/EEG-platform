@@ -90,6 +90,10 @@ def test_configured_v4_defaults_equal_frozen_v3(tmp_path, monkeypatch):
     np.testing.assert_allclose(configured["psd"]["F3"], frozen["psd"]["F3"])
     assert configured["band_power"] == frozen["band_power"]
     assert configured["relative_band_power"] == frozen["relative_band_power"]
+    provenance = configured["analysis_provenance"]
+    assert provenance["contract_version"] == "analysis-provenance-v1"
+    assert provenance["welch"]["step_s"] == 2.0
+    assert provenance["actual_range"] == {"start_s": 0.0, "end_s": 30.0}
     # Golden values for the deterministic 10 Hz / 6 Hz synthetic fixture.
     assert configured["band_power"]["F3"]["alpha"] == pytest.approx(49.99998294, rel=1e-7)
     assert configured["band_power"]["Fz"]["theta"] == pytest.approx(32.00000006, rel=1e-7)
@@ -133,6 +137,8 @@ def test_configured_spectrogram_accepts_one_sample_rounding_error(tmp_path, monk
     assert payload["matrix_shape"] == [1, 1]
     assert payload["first_center_s"] == 1.022
     assert "band_power_timeseries" in payload
+    assert payload["analysis_provenance"]["contract_version"] == "analysis-provenance-v1"
+    assert payload["analysis_provenance"]["welch"]["step_s"] == 1.0
 
 
 def test_configured_spectrogram_returns_backend_custom_band_trend(tmp_path, monkeypatch):

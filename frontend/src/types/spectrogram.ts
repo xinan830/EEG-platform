@@ -1,3 +1,5 @@
+import type { AnalysisProvenance } from './analysisProvenance'
+
 export interface SpectrogramResponse {
   recording_id: string
   window_start_s: number
@@ -39,4 +41,5 @@ export interface SpectrogramResponse {
   last_center_s?: number | null
   quality?: { windows: Array<{ center_s: number; start_s: number; end_s: number; status: 'clean' | 'bad'; reason: string | null; peak_uv: number | null }>; clean_windows: number; total_windows: number; bad_windows: number }
   single_window_psd?: Record<string, number[]>
+  analysis_provenance?: AnalysisProvenance
 }

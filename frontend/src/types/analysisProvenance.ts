@@ -6,13 +6,13 @@ export interface AnalysisTimeRange {
 export interface AnalysisProvenanceWelch {
   segment_s: number
   window: string
-  overlap_fraction: number
+  overlap_fraction: number | null
   step_s: number
 }
 
 export interface AnalysisProvenanceFrequency {
-  low_hz: number
-  high_hz: number
+  low_hz: number | null
+  high_hz: number | null
   point_count: number
 }
 

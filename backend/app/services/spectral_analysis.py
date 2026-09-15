@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 
 from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+from app.core.provenance import implementation_version
 from app.eeg_core.quality import SpectralQualityGateError
 from app.eeg_core.spectral import band_power, estimate_spectrogram_with_quality, estimate_welch_psd, preprocess_offline
 from app.models.analysis_config import AnalysisConfigRequest
@@ -29,6 +30,31 @@ FREQUENCY_BANDS = {
     "alpha": (8.0, 13.0),
     "beta": (13.0, 30.0),
 }
+
+
+def _configured_provenance(payload: dict[str, object], *, mode: str, requested_time: dict[str, float], actual_start: float, actual_end: float, config_hash: str, quality: dict[str, object]) -> dict[str, object]:
+    frequencies = list(payload["frequencies_hz"])
+    welch_source = payload.get("welch_contract")
+    if isinstance(welch_source, dict):
+        welch = {
+            "segment_s": welch_source.get("welch_segment_s"), "window": welch_source.get("welch_window"),
+            "overlap_fraction": welch_source.get("welch_segment_overlap"), "step_s": welch_source.get("welch_step_s"),
+        }
+        filter_contract = payload.get("filter_contract")
+    else:
+        welch = {"segment_s": payload.get("segment_s"), "window": "hann", "overlap_fraction": None, "step_s": payload.get("step_s")}
+        filter_contract = {"bandpass_hz": [1.0, 30.0], "preprocessing_phase": "zero_phase"}
+    return {
+        "contract_version": "analysis-provenance-v1", "status": "completed", "analysis_type": mode,
+        "definition_version": None, "scientific_algorithm_version": payload.get("analysis_algorithm_version", payload.get("baseline_algorithm_version", payload.get("algorithm_version"))),
+        "implementation_version": implementation_version(), "config_sha256": config_hash, "mode": mode,
+        "requested_range": requested_time, "actual_range": {"start_s": actual_start, "end_s": actual_end},
+        "channel": list(payload["channels"])[0] if payload["channels"] else None,
+        "channel_mapping": {"channels": list(payload["channels"])}, "analysis_reference": payload.get("analysis_reference"),
+        "sfreq_hz": payload.get("sfreq_hz"), "filter": filter_contract, "welch": welch,
+        "frequency": {"low_hz": frequencies[0] if frequencies else None, "high_hz": frequencies[-1] if frequencies else None, "point_count": len(frequencies)},
+        "quality": quality, "extensions": [],
+    }
 
 
 class SpectralAnalysisService:
@@ -212,6 +238,7 @@ class SpectralAnalysisService:
             "welch": payload["welch_contract"],
         }
         canonical = json.dumps(execution, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        config_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper()
         payload.update({
             "algorithm_version": "offline-spectral-v4-configurable",
             "baseline_algorithm_version": "offline-spectral-v3",
@@ -223,9 +250,10 @@ class SpectralAnalysisService:
             "actual_start_s": actual_start,
             "actual_end_s": actual_end,
             "actual_duration_s": actual_end - actual_start,
-            "analysis_config_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper(),
+            "analysis_config_hash": config_hash,
             "warmup": config.mode == "dynamic" and payload["window_duration_s"] < config.dynamic_window_s,
         })
+        payload["analysis_provenance"] = _configured_provenance(payload, mode=config.mode, requested_time=requested["time"], actual_start=actual_start, actual_end=actual_end, config_hash=config_hash, quality=dict(payload["quality"]))
         return payload
 
     def load_configured_spectrogram(
@@ -284,6 +312,7 @@ class SpectralAnalysisService:
         canonical = json.dumps(execution, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
         time_bins = len(payload["times_s"])
         frequency_bins = len(payload["frequencies_hz"])
+        config_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper()
         payload.update({
             "algorithm_version": "spectrogram-v2-configurable",
             "analysis_algorithm_version": "offline-spectral-v3",
@@ -297,7 +326,7 @@ class SpectralAnalysisService:
             "actual_start_s": actual_start,
             "actual_end_s": actual_end,
             "actual_duration_s": actual_end - actual_start,
-            "analysis_config_hash": hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper(),
+            "analysis_config_hash": config_hash,
             "warmup": False,
             "time_bins": time_bins,
             "frequency_bins": frequency_bins,
@@ -305,4 +334,5 @@ class SpectralAnalysisService:
             "first_center_s": payload["times_s"][0] if time_bins else None,
             "last_center_s": payload["times_s"][-1] if time_bins else None,
         })
+        payload["analysis_provenance"] = _configured_provenance(payload, mode="spectrogram", requested_time=requested["time"], actual_start=actual_start, actual_end=actual_end, config_hash=config_hash, quality=dict(payload.get("quality", {})))
         return payload
