@@ -4,7 +4,7 @@ import { getConfiguredSpectrogram } from '../api/spectrogram'
 import SpectrogramAlgorithmDialog from './SpectrogramAlgorithmDialog.vue'
 import SpectrogramChart from './SpectrogramChart.vue'
 import BandPowerTrendChart from './BandPowerTrendChart.vue'
-import { mergeSpectrogramHistory, visibleSpectrogramHistory } from '../utils/spectrogramHistory'
+import { mergeSpectrogramHistory, shouldResetSpectrogramHistoryForPlaybackJump, visibleSpectrogramHistory } from '../utils/spectrogramHistory'
 type Band = 'all' | 'delta' | 'theta' | 'alpha' | 'beta' | 'custom'
 
 const props = defineProps<{ recordingId?: string; startS: number; durationS?: number; channels: string[]; positionS?: number; playing?: boolean; activeRange?: { start: number; end: number; source: string } | null }>()
@@ -32,6 +32,8 @@ const customMaxHz = ref(13)
 const dynamicStart = ref(0)
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let queued = false
+let dynamicHistoryEpoch = 0
+let lastDynamicPlaybackPositionS: number | null = null
 const requestedRange = computed(() => {
   const duration = props.durationS
   if (mode.value === 'dynamic') {
@@ -56,6 +58,11 @@ function syncDynamicStart() {
   const end = Math.max(0, props.positionS ?? 0)
   dynamicStart.value = Math.max(0, end - dynamicWindow.value)
 }
+function clearDynamicHistory() {
+  dynamicHistory.value = null
+  dynamicHistoryEpoch += 1
+  queued = false
+}
 function stopTimer() { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = undefined } }
 function updateTimer() {
   stopTimer()
@@ -69,7 +76,7 @@ async function reload() {
   if (!props.recordingId || !props.channels.length) return
   if (loading.value) { queued = true; return }
   if (requestedRange.value.end - requestedRange.value.start < 4) return
-  const current = ++requestId; loading.value = true; error.value = ''
+  const current = ++requestId; const requestMode = mode.value; const requestHistoryEpoch = dynamicHistoryEpoch; loading.value = true; error.value = ''
   try {
     const data = await getConfiguredSpectrogram(props.recordingId, {
       mode: 'spectrogram',
@@ -80,8 +87,8 @@ async function reload() {
       custom_frequency_range: selectedBand.value === 'custom' ? { low_hz: frequencyRange.value.min, high_hz: frequencyRange.value.max } : undefined,
     })
     if (current === requestId) {
-      if (mode.value === 'dynamic') dynamicHistory.value = mergeSpectrogramHistory(dynamicHistory.value, data, MAX_DYNAMIC_HISTORY_S)
-      else staticResult.value = data
+      if (requestMode === 'dynamic' && mode.value === 'dynamic' && requestHistoryEpoch === dynamicHistoryEpoch) dynamicHistory.value = mergeSpectrogramHistory(dynamicHistory.value, data, MAX_DYNAMIC_HISTORY_S)
+      else if (requestMode === 'static' && mode.value === 'static') staticResult.value = data
       if (!data.channels.includes(selected.value)) selected.value = ''
     }
   }
@@ -90,7 +97,16 @@ async function reload() {
 }
 
 watch(() => [props.recordingId, props.durationS, props.channels.join('|'), props.activeRange?.start, props.activeRange?.end, mode.value, dynamicWindow.value], reload, { immediate: true })
-watch(() => [props.recordingId, props.channels.join('|'), mode.value, dynamicWindow.value, refreshStep.value, selectedBand.value, customMinHz.value, customMaxHz.value], () => { dynamicHistory.value = null })
+watch(() => [props.recordingId, props.channels.join('|'), mode.value, dynamicWindow.value, refreshStep.value, selectedBand.value, customMinHz.value, customMaxHz.value], clearDynamicHistory)
+watch(() => [mode.value, props.positionS] as const, ([currentMode, currentPosition]) => {
+  if (currentMode !== 'dynamic') {
+    lastDynamicPlaybackPositionS = null
+    return
+  }
+  const nextPositionS = Math.max(0, currentPosition ?? 0)
+  if (shouldResetSpectrogramHistoryForPlaybackJump(lastDynamicPlaybackPositionS, nextPositionS)) clearDynamicHistory()
+  lastDynamicPlaybackPositionS = nextPositionS
+}, { immediate: true })
 watch(() => [props.playing, mode.value, dynamicWindow.value, refreshStep.value], updateTimer)
 watch(selectedBand, (band) => { if (band === 'custom') void reload() })
 watch(() => [customMinHz.value, customMaxHz.value], () => { if (selectedBand.value === 'custom' && frequencyRange.value.max > frequencyRange.value.min) void reload() })

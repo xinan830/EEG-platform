@@ -2,6 +2,11 @@ import type { SpectrogramResponse } from '../types/spectrogram'
 
 type SourceColumn = { response: SpectrogramResponse; index: number }
 
+/** A backward seek begins a different playback timeline and must not retain old chart columns. */
+export function shouldResetSpectrogramHistoryForPlaybackJump(previousPositionS: number | null, nextPositionS: number): boolean {
+  return previousPositionS !== null && Number.isFinite(nextPositionS) && nextPositionS < previousPositionS
+}
+
 function centerKey(center: number): string { return center.toFixed(9) }
 
 function sameAxis(left: SpectrogramResponse, right: SpectrogramResponse): boolean {

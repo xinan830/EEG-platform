@@ -54,4 +54,28 @@ describe('playback analysis isolation', () => {
 
     expect(getConfiguredSpectrogram).toHaveBeenCalledTimes(1)
   })
+
+  it('动态时频图在播放位置回跳时清除上一轮的历史', async () => {
+    getConfiguredSpectrogram.mockResolvedValue({
+      recording_id: 'recording-1', window_start_s: 16, window_duration_s: 10,
+      actual_start_s: 16, actual_end_s: 26, channels: ['F3'],
+      times_s: [18, 19, 20, 21, 22, 23, 24], frequencies_hz: [1, 2],
+      power: { F3: [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]] },
+      power_linear: { F3: [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]] },
+      power_db: { F3: [[1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1]] },
+      band_power_timeseries: { F3: { delta: [1, 1, 1, 1, 1, 1, 1], theta: [1, 1, 1, 1, 1, 1, 1], alpha: [1, 1, 1, 1, 1, 1, 1], beta: [1, 1, 1, 1, 1, 1, 1] } },
+      units: 'dB re 1 uV^2/Hz', algorithm_version: 'offline-spectral-v4-configurable', segment_s: 4, step_s: 1,
+    })
+    const wrapper = mount(SpectrogramPanel, {
+      props: { recordingId: 'recording-1', startS: 0, durationS: 100, channels: ['F3'], positionS: 26, playing: false },
+      global: { stubs: { SpectrogramChart: true, BandPowerTrendChart: true, SpectrogramAlgorithmDialog: true } },
+    })
+    await vi.waitFor(() => expect(getConfiguredSpectrogram).toHaveBeenCalledTimes(1))
+    await wrapper.find('select').setValue('dynamic')
+    await vi.waitFor(() => expect(getConfiguredSpectrogram).toHaveBeenCalledTimes(2))
+
+    await wrapper.setProps({ positionS: 0 })
+
+    expect(wrapper.text()).toContain('暂无时频数据')
+  })
 })

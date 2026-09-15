@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SpectrogramResponse } from '../types/spectrogram'
-import { mergeSpectrogramHistory, visibleSpectrogramHistory } from './spectrogramHistory'
+import { mergeSpectrogramHistory, shouldResetSpectrogramHistoryForPlaybackJump, visibleSpectrogramHistory } from './spectrogramHistory'
 
 function response(times: number[], offset = 0): SpectrogramResponse {
   return {
@@ -15,6 +15,13 @@ function response(times: number[], offset = 0): SpectrogramResponse {
 }
 
 describe('spectrogram history', () => {
+  it('starts a new dynamic history when playback jumps backwards', () => {
+    expect(shouldResetSpectrogramHistoryForPlaybackJump(null, 26.6)).toBe(false)
+    expect(shouldResetSpectrogramHistoryForPlaybackJump(26.6, 27.1)).toBe(false)
+    expect(shouldResetSpectrogramHistoryForPlaybackJump(26.6, 0)).toBe(true)
+    expect(shouldResetSpectrogramHistoryForPlaybackJump(26.6, 12)).toBe(true)
+  })
+
   it('merges overlapping backend columns by center and keeps the newer returned column', () => {
     const history = mergeSpectrogramHistory(response([2, 3, 4]), response([3, 4, 5], 100), 60)
 
