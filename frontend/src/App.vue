@@ -36,6 +36,7 @@ import { useViewerContext } from './composables/useViewerContext'
 import { useAnalysisTimeContext } from './composables/useAnalysisTimeContext'
 import { useAlgorithmWorkspaceState } from './composables/useAlgorithmWorkspaceState'
 import { useAlgorithmDebugWorkbench } from './composables/useAlgorithmDebugWorkbench'
+import { useAlgorithmCatalog } from './composables/useAlgorithmCatalog'
 import { playbackFilterPayload } from './utils/displayFilter'
 import { pagedViewportStart } from './utils/waveformViewport'
 
@@ -60,6 +61,7 @@ const analysisTimeContext = useAnalysisTimeContext()
 const spectrumSelection = analysisTimeContext.spectrumSelection
 const activeAnalysisRange = analysisTimeContext.activeAnalysisRange
 const algorithmWorkspaceState = useAlgorithmWorkspaceState<WorkspaceMetricRun>()
+const algorithmCatalog = useAlgorithmCatalog()
 const algorithmDisplayResults = algorithmWorkspaceState.results
 const dynamicAlgorithmSession = algorithmWorkspaceState.dynamicSession
 const dynamicPlaybackEpoch = algorithmWorkspaceState.playbackEpoch
@@ -85,7 +87,6 @@ const algorithmWorkbenchOpen = ref(false)
 const resultsOpen = ref(false)
 const userAlgorithmBuilderOpen = ref(false)
 const algorithmDisplayOpen = ref(false)
-const algorithmDefinitionsEpoch = ref(0)
 function isDynamicMetric(value: WorkspaceMetricRun['result']): value is DynamicMetric { return Boolean(value && Array.isArray((value as DynamicMetric).series)) }
 function updateDynamicAlgorithmSession(value: { enabled: boolean; channel: string; definitions: Array<{ id: string; label: string; unit: string }>; windowS: number; displayRangeS: number }) {
   algorithmWorkspaceState.updateDynamicSession(value)
@@ -479,10 +480,10 @@ onBeforeUnmount(() => {
       <CustomMontageDialog :channels="recording.channels" :rows="customMontage" @cancel="customMontageOpen = false" @apply="applyCustomMontage" />
     </div>
     <AlgorithmCheckDialog v-if="algorithmOpen" :loading="algorithmLoading" :seconds="algorithmSeconds" :result="algorithmResult" @close="algorithmCheck.close" @inspect="algorithmCheck.inspect" />
-    <AlgorithmDefinitionWorkbench v-if="recording && algorithmWorkbenchOpen" :recording="recording" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min((totalDurationS ?? windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" @close="algorithmWorkbenchOpen = false; algorithmDefinitionsEpoch += 1" />
-    <AlgorithmDisplayWorkspace v-show="recording && algorithmDisplayOpen" v-if="recording" :recording="recording" :range-start="activeAnalysisRange?.start ?? windowStartS" :range-end="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? (windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" :active-range="activeAnalysisRange" :channels="sourceChannelNames" :playback-position-s="playbackPositionS" :playing="playing" :dynamic-active="Boolean(dynamicAlgorithmSession)" :playback-epoch="dynamicPlaybackEpoch" :definitions-epoch="algorithmDefinitionsEpoch" @close="algorithmDisplayOpen = false" @results="algorithmDisplayResults = $event" @dynamic-session="updateDynamicAlgorithmSession" />
+    <AlgorithmDefinitionWorkbench v-if="recording && algorithmWorkbenchOpen" :recording="recording" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min((totalDurationS ?? windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" @close="algorithmWorkbenchOpen = false; void algorithmCatalog.refresh()" />
+    <AlgorithmDisplayWorkspace v-show="recording && algorithmDisplayOpen" v-if="recording" :recording="recording" :range-start="activeAnalysisRange?.start ?? windowStartS" :range-end="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? (windowStartS + displaySettings.timebaseSeconds), windowStartS + displaySettings.timebaseSeconds)" :active-range="activeAnalysisRange" :channels="sourceChannelNames" :playback-position-s="playbackPositionS" :playing="playing" :dynamic-active="Boolean(dynamicAlgorithmSession)" :playback-epoch="dynamicPlaybackEpoch" :catalog="algorithmCatalog" @close="algorithmDisplayOpen = false" @results="algorithmDisplayResults = $event" @dynamic-session="updateDynamicAlgorithmSession" />
     <AlgorithmMetricDebugDialog v-if="algorithmDebugOpen && activeAlgorithmDebugRun" :run="activeAlgorithmDebugRun" :definition-name="algorithmDebugDefinitionName" :playback-position-s="playbackPositionS" @close="closeAlgorithmDebugWorkbench" />
-    <UserAlgorithmBuilder v-if="recording && userAlgorithmBuilderOpen" @close="userAlgorithmBuilderOpen = false" @saved="userAlgorithmBuilderOpen = false; algorithmDefinitionsEpoch += 1" />
+    <UserAlgorithmBuilder v-if="recording && userAlgorithmBuilderOpen" @close="userAlgorithmBuilderOpen = false" @saved="userAlgorithmBuilderOpen = false; void algorithmCatalog.refresh()" />
     <ResultsDrawer v-if="recording && resultsOpen" :recording-id="recording.id" :start-s="activeAnalysisRange?.start ?? windowStartS" :end-s="activeAnalysisRange?.end ?? Math.min(totalDurationS ?? windowStartS + displaySettings.timebaseSeconds, windowStartS + Math.max(4, displaySettings.timebaseSeconds))" :channels="sourceChannelNames" @close="resultsOpen = false" />
     <div v-if="error" class="error-toast">{{ error }}</div>
   </main>
