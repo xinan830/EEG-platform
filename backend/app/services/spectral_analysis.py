@@ -20,6 +20,7 @@ from app.eeg_core.spectral import band_power, estimate_spectrogram_with_quality,
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.recording import RecordingSummary
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
+from app.services.analysis_input_validation import validate_recording_analysis_input
 
 
 FREQUENCY_BANDS = {
@@ -64,6 +65,7 @@ class SpectralAnalysisService:
         filtered = filtered_all[:, indexes]
         duration_s = len(filtered) / sfreq
         actual_start = max(0.0, min(float(start_s), duration_s))
+        validate_recording_analysis_input(duration_s, sfreq, names, actual_start, duration_s, requested_names, (1.0, 30.0))
         start_index = int(np.floor(actual_start * sfreq))
         stop_index = min(len(filtered), start_index + int(round(float(window_s) * sfreq)))
         window = filtered[start_index:stop_index]
