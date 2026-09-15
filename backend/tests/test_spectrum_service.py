@@ -35,6 +35,20 @@ def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypa
     )
 
 
+def test_spectrum_exposes_backend_declared_welch_step(tmp_path, monkeypatch):
+    service, recording = _service(tmp_path)
+    sfreq = 100.0
+    times = np.arange(10 * int(sfreq)) / sfreq
+    data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["F3"], []))
+
+    payload = service.load_spectrum(recording, 0.0, 10.0, ["F3"])
+
+    assert payload["welch_contract"]["welch_segment_s"] == 4.0
+    assert payload["welch_contract"]["welch_segment_overlap"] == 0.5
+    assert payload["welch_contract"]["welch_step_s"] == 2.0
+
+
 def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
     sfreq = 100.0

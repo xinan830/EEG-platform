@@ -102,7 +102,7 @@ class SpectralAnalysisService:
                 "bandpass_type", "bandpass_prototype_order", "bandpass_hz", "preprocessing_phase", "filter_form",
             )},
             "welch_contract": {key: ANALYSIS_CONTRACT[key] for key in (
-                "welch_segment_s", "welch_segment_overlap", "welch_window", "welch_scaling",
+                "welch_segment_s", "welch_segment_overlap", "welch_step_s", "welch_window", "welch_scaling",
             )},
             "units": {"psd": "uV^2/Hz", "absolute_power": "uV^2", "relative_power": "ratio"},
             "frequencies_hz": spectrum.freqs.tolist(),
