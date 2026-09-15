@@ -29,4 +29,19 @@ describe('DefinitionMetricResultCard', () => {
     const wrapper = mount(DefinitionMetricResultCard, { props: { result: { ...result, chart: { ...result.chart, kind: 'none' } } } })
     expect(wrapper.find('[data-testid="metric-input-chart"]').exists()).toBe(false)
   })
+
+  it('renders official role values supplied by the backend without averaging them', () => {
+    const wrapper = mount(DefinitionMetricResultCard, { props: { result: { ...result, chart: { kind: 'official_role_values', values: [{ role: 'Fz', value: 1.2 }, { role: 'Pz', value: 0.9 }, { role: 'Oz', value: 1.1 }] } } } as never })
+    expect(wrapper.get('[data-testid="official-role-values"]').text()).toContain('Fz')
+    expect(wrapper.text()).toContain('1.2')
+    expect(wrapper.text()).toContain('未做前端计算或平均')
+  })
+
+  it('renders an official composite result without generic graph inputs', () => {
+    const wrapper = mount(DefinitionMetricResultCard, {
+      props: { result: { ...result, inputs: undefined, chart: { kind: 'none' } } },
+    })
+
+    expect(wrapper.text()).toContain('Theta/Beta 比值')
+  })
 })

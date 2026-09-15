@@ -12,21 +12,24 @@ engineering tolerance.  It is not evidence of clinical validity.
 
 On demand, `ensure_official_definitions()` stores and publishes `1.0.0`
 records owned by `platform-official`.  The RBP definition is a normal graph of
-closed primitives. FAA, Theta/Beta, BrainBeat, and IAPF use an explicitly
-declared `official_composite_shadow_only` boundary because the generic graph
-engine cannot faithfully express all of their semantics yet.
+closed primitives. FAA and BrainBeat use an explicitly declared
+`official_composite_shadow_only` boundary because the generic graph engine
+cannot faithfully express all of their semantics yet. IAPF and Theta/Beta use
+the separate `official_composite_run_adapter` path: they remain composite
+algorithms, but run through their owned backend modules rather than a
+simplified generic graph.
 
 | Metric | Current contract | Migration boundary |
 | --- | --- | --- |
 | RBP | `offline-spectral-v3` PSD, interpolated bands, 1-30 Hz denominator | primitive graph |
-| Theta/Beta | IAPF-relative bands for logical Fz/Pz/Oz roles | composite, explicit channel mapping |
+| Theta/Beta | IAPF-relative bands for logical Fz/Pz/Oz roles | executable composite adapter, explicit channel mapping |
 | FAA | filtered F3/F4, 2 s paired epochs, 50% overlap, min 10 clean epochs | composite, paired quality |
 | BrainBeat | legacy realtime 2 s Welch plus three-frame log-domain EMA warmup | formula and EMA shadow separately |
-| IAPF | 3-30 Hz log10 1/f OLS excluding 7-13 Hz; residual Peak then COG | composite fit and decision |
+| IAPF | 3-30 Hz log10 1/f OLS excluding 7-13 Hz; residual Peak then COG | executable composite adapter |
 
 No definition graph is allowed to silently change a composite metric into a
-different static calculation.  A later cutover change needs separate evidence
-for any adapter that executes a composite definition.
+different static calculation. IAPF and Theta/Beta have separate adapter
+evidence; FAA and BrainBeat still require their own future cutover evidence.
 
 ## Shadow evidence
 

@@ -40,7 +40,7 @@ def test_definition_capabilities_expose_closed_backend_authoring_vocabulary(tmp_
     assert response.status_code == 200
     assert "welch_psd" in response.json()["nodes"]
     assert "V^2/Hz" in response.json()["units"]
-    assert response.json()["official_execution"]["iapf"] == "official_composite_shadow_only"
+    assert response.json()["official_execution"]["iapf"] == "official_composite_run_adapter"
 
 
 def test_definition_api_deletes_unpublished_private_definition_only(tmp_path: Path):

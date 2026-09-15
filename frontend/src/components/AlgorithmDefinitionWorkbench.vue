@@ -31,7 +31,9 @@ const definitions = computed<AlgorithmDefinition[]>(() => props.catalog.definiti
 const versions = computed<AlgorithmDefinitionVersion[]>(() => selectedId.value ? props.catalog.versionsByDefinition.value[selectedId.value] ?? [] : [])
 const selected = computed(() => definitions.value.find((item) => item.definition_id === selectedId.value) ?? null)
 const activeVersion = computed(() => versions.value.find((item) => item.semver === draftState.draft.value.semver) ?? versions.value[0] ?? null)
-const isCompositeOfficial = computed(() => selected.value?.owner === 'platform-official' && activeVersion.value?.quality_rules.execution_kind === 'official_composite_shadow_only')
+const isCompositeOfficial = computed(() => selected.value?.owner === 'platform-official' && [
+  'official_composite_shadow_only', 'official_composite_run_adapter',
+].includes(String(activeVersion.value?.quality_rules.execution_kind)))
 const selectedLabel = computed(() => algorithmLabel(selected.value))
 const inputNames = computed(() => Object.keys(draftState.draft.value.inputs))
 const isUserDefinition = computed(() => Boolean(selected.value && selected.value.owner !== 'platform-official'))
