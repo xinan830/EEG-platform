@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.api_contract import error_response
 from app.models.run import RunCreateRequest
+from app.services.analysis_provenance import serialize_analysis_run
 from app.services.runs import RunConflictError, RunService
 
 
@@ -32,18 +33,18 @@ def create_run(payload: RunCreateRequest, request: Request):
         recording_id=run.recording_id,
         parameters={"run_id": run.run_id, "analysis_type": run.analysis_type, "status": run.status.value},
     )
-    return run.model_dump(mode="json")
+    return serialize_analysis_run(run)
 
 
 @router.get("")
 def list_runs(request: Request, recording_id: str | None = None, limit: int = Query(100, ge=1, le=1000)):
-    return [item.model_dump(mode="json") for item in _service(request).list(recording_id, limit)]
+    return [serialize_analysis_run(item) for item in _service(request).list(recording_id, limit)]
 
 
 @router.get("/{run_id}")
 def get_run(run_id: str, request: Request):
     try:
-        return _service(request).get(run_id).model_dump(mode="json")
+        return serialize_analysis_run(_service(request).get(run_id))
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
 
@@ -51,7 +52,7 @@ def get_run(run_id: str, request: Request):
 @router.post("/{run_id}/cancel")
 def cancel_run(run_id: str, request: Request):
     try:
-        return _service(request).cancel(run_id).model_dump(mode="json")
+        return serialize_analysis_run(_service(request).cancel(run_id))
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
     except (RunConflictError, ValueError) as exc:
@@ -68,7 +69,7 @@ def retry_run(run_id: str, request: Request):
         worker = getattr(request.app.state, "run_worker", None)
         if worker is not None:
             worker.wake()
-        return run.model_dump(mode="json")
+        return serialize_analysis_run(run)
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
     except ValueError as exc:

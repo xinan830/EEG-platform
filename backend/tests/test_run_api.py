@@ -69,6 +69,22 @@ def test_spectrum_run_records_provenance_artifact_and_cache_reuse(tmp_path: Path
     assert artifacts[0]["unit"] == "uV^2/Hz"
 
 
+def test_run_resource_adds_backend_authored_analysis_provenance(tmp_path: Path):
+    client, recording = _configure_services(tmp_path)
+
+    response = client.post("/api/runs", json={
+        "recording_id": recording.id,
+        "analysis_type": "spectrum",
+        "config": {"mode": "static", "channels": ["F3"], "time": {"start_s": 0.0, "end_s": 10.0}},
+    })
+
+    assert response.status_code == 202
+    body = client.get(f"/api/runs/{response.json()['run_id']}").json()
+    assert body["analysis_provenance"]["contract_version"] == "analysis-provenance-v1"
+    assert body["analysis_provenance"]["config_sha256"] == body["config_sha256"]
+    assert body["analysis_provenance"]["welch"]["step_s"] == 2.0
+
+
 def test_run_errors_and_terminal_cancellation_use_stable_codes(tmp_path: Path):
     client, recording = _configure_services(tmp_path)
 
