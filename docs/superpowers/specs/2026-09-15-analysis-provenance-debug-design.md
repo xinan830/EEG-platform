@@ -146,3 +146,19 @@ evidence visible; a completed or gate-failed replacement replaces it.
 - turning frontend formatters into signal-processing code;
 - rendering every raw array expanded by default;
 - clinical conclusion generation.
+
+## Implemented v1
+
+`analysis-provenance-v1` is returned additively by every successful `/api/runs`
+create/list/get/cancel/retry response and by `ResultService.view(...)["run"]`.
+The backend declares the frozen `welch_contract.welch_step_s` and projects it
+as `analysis_provenance.welch.step_s`; no frontend code derives that value.
+
+The first UI migration is the Run-backed algorithm debug workbench. Its shared
+`AnalysisProvenancePanel` renders the complete common base, and its finite
+extension renderer supports only `spectral_band_power` and
+`metric_inputs_output`, because those are the only evidence schemas the
+backend currently produces for runnable user metrics. The PSD and spectrogram
+configured-response dialogs retain their separate API contracts in this
+revision; migrating them requires their own additive backend provenance
+projection rather than a frontend adapter that guesses or rebuilds evidence.

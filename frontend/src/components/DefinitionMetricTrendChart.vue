@@ -5,6 +5,7 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkAreaComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { metricTrendTimeAxis, metricTrendValueAxis } from '../utils/metricTrendAxis'
+import { unitDisplay } from '../utils/scientificDisplay'
 
 export type MetricPoint = { time_s: number; window_start_s: number; window_end_s: number; value: number | null; warmup?: boolean; quality?: { status?: string; reasons?: string[] } }
 export type DynamicMetric = {
@@ -52,7 +53,7 @@ function render() {
         const time = item?.data?.[0]
         const point = points.find((candidate) => Math.abs(candidate.time_s - Number(time)) < 1e-7)
         if (!point) return ''
-        const value = point.value === null ? '不可用' : `${point.value} ${result.output.unit}`
+        const value = point.value === null ? '不可用' : `${point.value} ${unitDisplay(result.output.unit)}`
         const warmup = point.warmup ? ` · 预热值（尚未达到完整 ${result.dynamic_contract?.window_s ?? 10} s 分析范围）` : ''
         const quality = point.quality?.status === 'bad' ? ` · 质量门拒绝${point.quality.reasons?.length ? `（${point.quality.reasons.join('、')}）` : ''}` : ' · Clean'
         return `时间：${point.time_s.toFixed(3)} s<br/>分析范围：${point.window_start_s.toFixed(3)}–${point.window_end_s.toFixed(3)} s<br/>${result.output.label}：${value}${warmup}${quality}`
@@ -86,8 +87,8 @@ onBeforeUnmount(() => { resizeObserver?.disconnect(); chart?.dispose(); chart = 
 <template>
   <section class="definition-metric-trend-wrap" aria-label="动态算法趋势图">
     <header class="definition-metric-trend-meta">
-      <span>{{ displayed.output.label }}（{{ displayed.output.unit }}）<template v-if="displayed.dynamic_contract"> · 分析范围最近 {{ displayed.dynamic_contract.window_s }} s · 每 {{ displayed.dynamic_contract.step_s }} s 更新</template> · 结果展示范围最近 {{ resultDisplayRangeS }} s</span>
-      <strong v-if="latestPoint">当前<template v-if="latestPoint.warmup">（预热）</template>：{{ latestPoint.value }} {{ displayed.output.unit }}</strong>
+      <span>{{ displayed.output.label }}（{{ unitDisplay(displayed.output.unit) }}）<template v-if="displayed.dynamic_contract"> · 分析范围最近 {{ displayed.dynamic_contract.window_s }} s · 每 {{ displayed.dynamic_contract.step_s }} s 更新</template> · 结果展示范围最近 {{ resultDisplayRangeS }} s</span>
+      <strong v-if="latestPoint">当前<template v-if="latestPoint.warmup">（预热）</template>：{{ latestPoint.value }} {{ unitDisplay(displayed.output.unit) }}</strong>
       <span v-else>当前：等待首个可计算分析范围</span>
     </header>
     <p v-if="!result" class="definition-metric-trend-pending">{{ firstWindowText }}；获得完整 EEG 前不会生成算法值。</p>

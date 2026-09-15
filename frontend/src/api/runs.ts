@@ -1,5 +1,6 @@
 import { request } from './client'
 import type { DynamicWindowS } from '../utils/dynamicMetricPlayback'
+import type { AnalysisProvenance } from '../types/analysisProvenance'
 
 export interface DefinitionMetricRunRequest {
   recordingId: string
@@ -31,6 +32,7 @@ export interface AnalysisRunResponse {
   environment?: Record<string, string>
   result_summary?: Record<string, unknown> | null
   error?: { code: string; message: string } | null
+  analysis_provenance?: AnalysisProvenance
 }
 
 export function createDefinitionMetricRun(value: DefinitionMetricRunRequest): Promise<AnalysisRunResponse> {

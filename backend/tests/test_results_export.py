@@ -43,6 +43,17 @@ def test_result_export_rejects_corrupt_artifact_and_keeps_cancelled_output_null(
     assert view["run"]["result_summary"] is None
 
 
+def test_result_view_uses_same_analysis_provenance_projection(tmp_path):
+    queue, recording_id = _queue(tmp_path)
+    run = queue.enqueue(_request(recording_id))
+    queue.process_next()
+
+    view = ResultService(queue, ValidationService(queue.repository.database_path)).view(run.run_id)
+
+    assert view["run"]["analysis_provenance"]["contract_version"] == "analysis-provenance-v1"
+    assert view["run"]["analysis_provenance"]["config_sha256"] == run.config_sha256
+
+
 def test_result_export_includes_persisted_independent_reference_evidence(tmp_path):
     queue, recording_id = _queue(tmp_path)
     run = queue.enqueue(_request(recording_id))

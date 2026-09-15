@@ -13,6 +13,7 @@ ANALYSIS_CONTRACT: dict[str, object] = {
     "notch_hz": None,
     "welch_segment_s": 4.0,
     "welch_segment_overlap": 0.5,
+    "welch_step_s": 2.0,
     "welch_window": "hann",
     "welch_scaling": "density",
     "artifact_peak_uv": 150.0,

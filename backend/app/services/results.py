@@ -12,6 +12,7 @@ import numpy as np
 
 from app.models.run import AnalysisRun
 from app.services.artifacts import ArtifactIntegrityError
+from app.services.analysis_provenance import serialize_analysis_run
 from app.services.run_queue import PersistentRunQueue
 from app.services.validations import ValidationService
 
@@ -26,7 +27,7 @@ class ResultService:
         run = self.runs.get(run_id)
         artifacts = self.runs.list_artifacts(run_id)
         return {
-            "run": run.model_dump(mode="json"),
+            "run": serialize_analysis_run(run),
             "artifacts": [item.model_dump(mode="json") for item in artifacts],
             "data_classification": {"measured_data": False, "algorithm_output": True, "clinical_interpretation": False},
         }
