@@ -7,12 +7,12 @@ import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/a
 import type { Recording } from '../types/recording'
 import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
 import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
-import { DYNAMIC_WINDOW_OPTIONS, appendOrRetainDynamicMetric, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow, type DynamicWindowS } from '../utils/dynamicMetricPlayback'
+import { DYNAMIC_WINDOW_OPTIONS, MIN_DYNAMIC_METRIC_WINDOW_S, appendOrRetainDynamicMetric, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow, type DynamicWindowS } from '../utils/dynamicMetricPlayback'
 import '../styles/algorithmDisplayWorkspace.css'
 
 type Range = { start: number; end: number }
 export type WorkspaceMetricRun = { status: string; result: DefinitionMetricResult | DynamicMetric | null; error?: string; run?: AnalysisRunResponse; definitionName?: string }
-type DynamicSession = { enabled: boolean; channel: string; definitions: Array<{ id: string; label: string; unit: string }>; windowS: DynamicWindowS }
+type DynamicSession = { enabled: boolean; channel: string; definitions: Array<{ id: string; label: string; unit: string }>; windowS: DynamicWindowS; displayRangeS: number }
 const props = defineProps<{
   recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean; dynamicActive?: boolean; playbackEpoch?: number; definitionsEpoch?: number
 }>()
@@ -25,6 +25,8 @@ const selectedIds = ref<string[]>([])
 const channel = ref(props.channels[0] ?? props.recording.channels[0] ?? '')
 const mode = ref<'static' | 'dynamic'>('static')
 const dynamicWindowS = ref<DynamicWindowS>(10)
+const dynamicResultDisplayRangeS = ref(30)
+const DYNAMIC_RESULT_DISPLAY_RANGE_OPTIONS = [10, 20, 30, 60] as const
 const running = ref(false)
 const loading = ref(false)
 const message = ref('')
@@ -86,6 +88,7 @@ function dynamicSession(enabled: boolean): DynamicSession {
     channel: channel.value,
     definitions: selectedIds.value.map((id) => ({ id, label: title(id), unit: outputUnit(id) })),
     windowS: dynamicWindowS.value,
+    displayRangeS: dynamicResultDisplayRangeS.value,
   }
 }
 async function poll(runId: string, definitionId: string, append = false) {
@@ -131,8 +134,8 @@ async function startDynamic(closeAfterStart: boolean) {
   if (running.value) return
   const position = props.playbackPositionS
   const second = position === undefined ? null : Math.floor(position)
-  lastDynamicRefreshS.value = second !== null && second >= dynamicWindowS.value ? second : null
-  message.value = `已启用播放同步分析：播放到 ${dynamicWindowS.value} 秒后，每整秒计算最近 ${dynamicWindowS.value} 秒的分析范围。`
+  lastDynamicRefreshS.value = second !== null && second >= MIN_DYNAMIC_METRIC_WINDOW_S ? second : null
+  message.value = `已启用播放同步分析：${MIN_DYNAMIC_METRIC_WINDOW_S}–${dynamicWindowS.value - 1} 秒显示预热值；从 ${dynamicWindowS.value} 秒起，每整秒计算最近 ${dynamicWindowS.value} 秒的正式分析范围。`
   emit('dynamicSession', dynamicSession(true))
   const bootstrap = position === undefined ? null : dynamicMetricBootstrapRange(second ?? position, dynamicWindowS.value)
   if (bootstrap) {
@@ -169,6 +172,9 @@ watch(mode, (nextMode) => { if (nextMode !== 'dynamic') emit('dynamicSession', d
 watch(dynamicWindowS, (nextWindowS, previousWindowS) => {
   if (nextWindowS !== previousWindowS && mode.value === 'dynamic' && props.dynamicActive) void startDynamic(false)
 })
+watch(dynamicResultDisplayRangeS, () => {
+  if (mode.value === 'dynamic' && props.dynamicActive) emit('dynamicSession', dynamicSession(true))
+})
 watch(() => props.dynamicActive, (active) => { if (!active) lastDynamicRefreshS.value = null })
 watch(() => props.playbackEpoch, () => {
   runs.value = {}
@@ -193,7 +199,7 @@ onMounted(load)
         <label>通道<select v-model="channel"><option v-for="item in props.channels.length ? props.channels : props.recording.channels" :key="item" :value="item">{{ item }}</option></select></label>
         <span class="algorithm-display-label">分析模式</span><div class="algorithm-display-segment"><button :class="{ active: mode === 'static' }" @click="mode = 'static'">静态分析</button><button :class="{ active: mode === 'dynamic' }" @click="mode = 'dynamic'">动态分析</button></div>
         <template v-if="mode === 'static'"><label>开始 <input v-model.number="staticStartS" type="number" min="0" step="0.001" /> s</label><label>结束 <input v-model.number="staticEndS" type="number" min="0" step="0.001" /> s</label><button type="button" @click="useCurrentRange">使用当前分析区间</button><button class="primary-action" :disabled="!canRun" @click="runStatic">{{ running ? '计算中…' : '计算此区间' }}</button></template>
-        <template v-else><label>分析范围<select v-model.number="dynamicWindowS"><option v-for="windowS in DYNAMIC_WINDOW_OPTIONS" :key="windowS" :value="windowS">最近 {{ windowS }} s</option></select></label><span class="algorithm-display-range">每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ props.dynamicActive ? '同步已启用' : '启用播放同步' }}</button></template>
+        <template v-else><label>分析范围<select v-model.number="dynamicWindowS"><option v-for="windowS in DYNAMIC_WINDOW_OPTIONS" :key="windowS" :value="windowS">最近 {{ windowS }} s</option></select></label><label>结果展示范围<select v-model.number="dynamicResultDisplayRangeS"><option v-for="seconds in DYNAMIC_RESULT_DISPLAY_RANGE_OPTIONS" :key="seconds" :value="seconds">最近 {{ seconds }} s</option></select></label><span class="algorithm-display-range">每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ props.dynamicActive ? '同步已启用' : '启用播放同步' }}</button></template>
       </div>
       <div class="algorithm-display-layout">
         <aside class="algorithm-display-sidebar">
@@ -212,7 +218,7 @@ onMounted(load)
             <label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label>
             <p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无我的算法</p>
           </section>
-          <p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析范围至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">动态模式启动时补算所选分析范围的真实历史；之后每秒追加一个真实结果点。5 s 响应更快，但稳定性低于默认的 10 s。</p>
+          <p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析范围至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">分析范围决定后端每次使用的 EEG：先在 {{ MIN_DYNAMIC_METRIC_WINDOW_S }} s 起显示预热值，达到 {{ dynamicWindowS }} s 后使用固定最近 {{ dynamicWindowS }} s。结果展示范围只改变趋势图横轴，不改变计算。</p>
         </aside>
         <main class="algorithm-display-main"><p class="algorithm-display-empty">勾选算法并运行后，结果会显示在主页面波形下方。</p></main>
       </div>

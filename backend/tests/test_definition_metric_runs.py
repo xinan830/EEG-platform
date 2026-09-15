@@ -152,15 +152,52 @@ def test_dynamic_definition_metric_supports_selected_twenty_second_window(tmp_pa
     assert queue.list_artifacts(queued.run_id)
 
 
-def test_dynamic_metric_requires_the_selected_window_duration():
-    with pytest.raises(ValueError, match="至少需要 20 秒"):
+def test_dynamic_metric_accepts_a_four_second_warmup_range_but_rejects_shorter_input():
+    warmup = DefinitionMetricConfig.model_validate({
+        "channel": "F3",
+        "time": {"start_s": 0, "end_s": 4},
+        "mode": "dynamic",
+        "dynamic_window_s": 20,
+        "refresh_step_s": 1,
+    })
+    assert warmup.time.end_s - warmup.time.start_s == 4
+
+    with pytest.raises(ValueError, match="至少需要 4 秒"):
         DefinitionMetricConfig.model_validate({
             "channel": "F3",
-            "time": {"start_s": 0, "end_s": 10},
+            "time": {"start_s": 0, "end_s": 3.999},
             "mode": "dynamic",
             "dynamic_window_s": 20,
             "refresh_step_s": 1,
         })
+
+
+def test_dynamic_definition_metric_marks_a_short_initial_range_as_warmup(tmp_path: Path):
+    queue, recording_id, definition_id = _queue_with_metric_definition(tmp_path)
+    queued = queue.enqueue(RunCreateRequest.model_validate({
+        "recording_id": recording_id,
+        "analysis_type": "definition_metric",
+        "definition_id": definition_id,
+        "definition_version": "1.0.0",
+        "config": {
+            "channel": "F3",
+            "time": {"start_s": 0, "end_s": 4},
+            "mode": "dynamic",
+            "dynamic_window_s": 10,
+            "refresh_step_s": 1,
+        },
+    }))
+
+    completed = queue.process_next()
+
+    assert completed is not None and completed.status is RunStatus.COMPLETED
+    points = completed.result_summary["metric"]["series"]
+    assert len(points) == 1
+    assert points[0]["window_start_s"] == 0.0
+    assert points[0]["window_end_s"] == 4.0
+    assert points[0]["warmup"] is True
+    assert points[0]["value"] is not None
+    assert queue.list_artifacts(queued.run_id)
 
 
 def test_definition_metric_evidence_contract_does_not_reuse_legacy_cache(tmp_path: Path):

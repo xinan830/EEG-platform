@@ -17,22 +17,32 @@ export const DYNAMIC_WINDOW_OPTIONS = [5, 10, 20, 30] as const
 export type DynamicWindowS = typeof DYNAMIC_WINDOW_OPTIONS[number]
 const DEFAULT_DYNAMIC_METRIC_WINDOW_S: DynamicWindowS = 10
 const DYNAMIC_METRIC_BOOTSTRAP_POINT_COUNT = 21
+export const MIN_DYNAMIC_METRIC_WINDOW_S = 4
+export type DynamicMetricWindow = { startS: number; endS: number; warmup: boolean }
 
-/** The real dynamic contract is a trailing 10-second window ending at playback time. */
-export function playbackMetricWindow(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): { startS: number; endS: number } | null {
-  if (!Number.isFinite(positionS) || positionS < windowS) return null
-  return { startS: Math.max(0, positionS - windowS), endS: positionS }
+/**
+ * Emits no point before one full Welch segment is available. Before the chosen
+ * dynamic duration fills, the returned input is an explicitly marked warmup;
+ * afterwards it is the fixed trailing analysis window.
+ */
+export function playbackMetricWindow(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): DynamicMetricWindow | null {
+  if (!Number.isFinite(positionS) || positionS < MIN_DYNAMIC_METRIC_WINDOW_S) return null
+  if (positionS < windowS) return { startS: 0, endS: positionS, warmup: true }
+  return { startS: Math.max(0, positionS - windowS), endS: positionS, warmup: false }
 }
 
 /**
  * Requests a bounded set of real one-second dynamic windows when a user turns
- * on playback analysis in the middle of a recording. The returned range is
- * still interpreted by the backend as 10-second trailing windows.
+ * on playback analysis in the middle of a recording. Before the selected
+ * window fills it returns one marked warmup range; otherwise the backend
+ * expands the bounded range into fixed trailing windows.
  */
-export function dynamicMetricBootstrapRange(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): { startS: number; endS: number } | null {
-  if (!Number.isFinite(positionS) || positionS < windowS) return null
+export function dynamicMetricBootstrapRange(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): DynamicMetricWindow | null {
+  const warmup = playbackMetricWindow(positionS, windowS)
+  if (!warmup) return null
+  if (warmup.warmup) return warmup
   const historyS = windowS + DYNAMIC_METRIC_BOOTSTRAP_POINT_COUNT - 1
-  return { startS: Math.max(0, positionS - historyS), endS: positionS }
+  return { startS: Math.max(0, positionS - historyS), endS: positionS, warmup: false }
 }
 
 /**

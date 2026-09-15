@@ -16,6 +16,6 @@ class DefinitionMetricConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_dynamic_range(self) -> "DefinitionMetricConfig":
-        if self.mode == "dynamic" and self.time.end_s - self.time.start_s < self.dynamic_window_s:
-            raise ValueError(f"动态算法分析区间至少需要 {self.dynamic_window_s} 秒")
+        if self.mode == "dynamic" and self.time.end_s - self.time.start_s < 4.0:
+            raise ValueError("动态算法分析区间至少需要 4 秒")
         return self

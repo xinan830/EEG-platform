@@ -481,10 +481,13 @@ class RunService:
         end = float(config.time.end_s)
         window = float(config.dynamic_window_s)
         step = float(config.refresh_step_s)
-        # Each point is a real trailing EEG range; the X coordinate is its end.
-        point_end = start + window
+        # A short initial range is a real preheat point, never a fabricated
+        # full-length window. Once the selected duration is available, every
+        # point reverts to the fixed trailing-window contract.
+        warmup = end - start < window
+        point_end = end if warmup else start + window
         while point_end <= end + 1e-9:
-            point_start = point_end - window
+            point_start = start if warmup else point_end - window
             try:
                 resolution = self.metric_runner.resolve_window(recording, version, config.channel, point_start, point_end)
                 current_output_id, output = self._execute_metric_graph(version, resolution.inputs)
@@ -496,16 +499,22 @@ class RunService:
                 quality = self._scalar_output(output)["quality"]
                 if value is None:
                     quality = {**quality, "status": "bad"}
-                points.append({"time_s": round(point_end, 9), "window_start_s": round(point_start, 9),
+                point = {"time_s": round(point_end, 9), "window_start_s": round(point_start, 9),
                                "window_end_s": round(point_end, 9), "value": value, "quality": quality,
                                "inputs": resolution.snapshot, "source_quality": resolution.quality,
-                               "spectral_evidence": resolution.spectral_evidence})
+                               "spectral_evidence": resolution.spectral_evidence}
+                if warmup:
+                    point["warmup"] = True
+                points.append(point)
                 values.append(np.nan if value is None else value)
             except SpectralQualityGateError as exc:
-                points.append({"time_s": round(point_end, 9), "window_start_s": round(point_start, 9),
+                point = {"time_s": round(point_end, 9), "window_start_s": round(point_start, 9),
                                "window_end_s": round(point_end, 9), "value": None,
                                "quality": {"status": "bad", "reasons": list(exc.quality.get("reasons", [])),
-                                           "source_quality": exc.quality}})
+                                           "source_quality": exc.quality}}
+                if warmup:
+                    point["warmup"] = True
+                points.append(point)
                 values.append(np.nan)
             point_end += step
         if not points:

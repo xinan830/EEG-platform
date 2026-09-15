@@ -2,22 +2,25 @@ import { expect, it } from 'vitest'
 import { appendDynamicMetricPoint, appendOrRetainDynamicMetric, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow } from './dynamicMetricPlayback'
 
 it('derives one trailing ten-second window from the playback head', () => {
-  expect(playbackMetricWindow(9.999)).toBeNull()
-  expect(playbackMetricWindow(10)).toEqual({ startS: 0, endS: 10 })
-  expect(playbackMetricWindow(46.2)).toEqual({ startS: 36.2, endS: 46.2 })
+  expect(playbackMetricWindow(3.999)).toBeNull()
+  expect(playbackMetricWindow(4)).toEqual({ startS: 0, endS: 4, warmup: true })
+  expect(playbackMetricWindow(9)).toEqual({ startS: 0, endS: 9, warmup: true })
+  expect(playbackMetricWindow(10)).toEqual({ startS: 0, endS: 10, warmup: false })
+  expect(playbackMetricWindow(46.2)).toEqual({ startS: 36.2, endS: 46.2, warmup: false })
 })
 
 it('derives trailing windows from the selected dynamic duration', () => {
-  expect(playbackMetricWindow(19.999, 20)).toBeNull()
-  expect(playbackMetricWindow(20, 20)).toEqual({ startS: 0, endS: 20 })
-  expect(playbackMetricWindow(46, 20)).toEqual({ startS: 26, endS: 46 })
+  expect(playbackMetricWindow(4, 20)).toEqual({ startS: 0, endS: 4, warmup: true })
+  expect(playbackMetricWindow(19.999, 20)).toEqual({ startS: 0, endS: 19.999, warmup: true })
+  expect(playbackMetricWindow(20, 20)).toEqual({ startS: 0, endS: 20, warmup: false })
+  expect(playbackMetricWindow(46, 20)).toEqual({ startS: 26, endS: 46, warmup: false })
 })
 
 it('backfills a bounded real history when dynamic analysis starts mid-recording', () => {
-  expect(dynamicMetricBootstrapRange(9)).toBeNull()
-  expect(dynamicMetricBootstrapRange(25)).toEqual({ startS: 0, endS: 25 })
-  expect(dynamicMetricBootstrapRange(442)).toEqual({ startS: 412, endS: 442 })
-  expect(dynamicMetricBootstrapRange(442, 20)).toEqual({ startS: 402, endS: 442 })
+  expect(dynamicMetricBootstrapRange(9)).toEqual({ startS: 0, endS: 9, warmup: true })
+  expect(dynamicMetricBootstrapRange(25)).toEqual({ startS: 0, endS: 25, warmup: false })
+  expect(dynamicMetricBootstrapRange(442)).toEqual({ startS: 412, endS: 442, warmup: false })
+  expect(dynamicMetricBootstrapRange(442, 20)).toEqual({ startS: 402, endS: 442, warmup: false })
 })
 
 it('requests every missed one-second endpoint after an asynchronous dynamic run', () => {
