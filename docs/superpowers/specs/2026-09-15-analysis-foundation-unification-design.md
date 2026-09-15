@@ -126,3 +126,12 @@ chart data, time axes, quality semantics, or frequency bounds.
 - All migrated views use the same visible scientific unit labels.
 - A rule requiring real EEG metadata is not duplicated in the browser.
 - No EEG/PSD/metric output changes under existing golden fixtures.
+
+## Implemented v1
+
+The spectrum and spectrogram API modules now use the common browser
+`request<T>()` transport. `scientificDisplay.ts` is the only canonical mapping
+for visible scientific units in migrated metric-result and debug components;
+it does not alter numerical values. `analysis_input_validation.py` owns the
+recording-dependent sampling-rate, channel, duration, and Nyquist checks used
+by spectral loading, while Pydantic models retain parameter-shape validation.
