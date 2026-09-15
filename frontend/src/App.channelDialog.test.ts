@@ -79,6 +79,17 @@ describe('导入后的通道选择流程', () => {
     vi.clearAllMocks()
   })
 
+  it('always exposes the saved semantic channel mapping editor after import', async () => {
+    const wrapper = await mountImportedApp()
+    await findFooterButton(wrapper, '应用并从头显示').trigger('click')
+    await flushPromises()
+
+    await wrapper.findAll('.workflow-nav button').find((button) => button.text() === '通道映射')!.trigger('click')
+
+    expect(wrapper.find('.channel-mapping-dialog').exists()).toBe(true)
+    expect(wrapper.text()).toContain('通道映射')
+  })
+
   it('导入完成后自动弹出通道设置，确认前不读取波形', async () => {
     const wrapper = await mountImportedApp()
     expect(wrapper.find('.channel-dialog').exists()).toBe(true)

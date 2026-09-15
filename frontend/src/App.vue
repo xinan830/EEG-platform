@@ -4,6 +4,7 @@ import { getMontages, getWaveformWindow, type CustomMontageRow } from './api/rec
 import { controlWaveformPlayback, createWaveformPlayback, waveformPlaybackSocketUrl } from './api/waveformPlayback'
 import FileImport from './components/FileImport.vue'
 import ChannelSelectionDialog from './components/ChannelSelectionDialog.vue'
+import ChannelMapping from './components/ChannelMapping.vue'
 import DisplaySettingsPanel from './components/DisplaySettingsPanel.vue'
 import MontageSelector from './components/MontageSelector.vue'
 import CustomMontageDialog from './components/CustomMontageDialog.vue'
@@ -83,6 +84,7 @@ function goToWorkflowSection(sectionId: string) {
   document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 const customMontageOpen = ref(false)
+const channelMappingOpen = ref(false)
 const algorithmWorkbenchOpen = ref(false)
 const resultsOpen = ref(false)
 const userAlgorithmBuilderOpen = ref(false)
@@ -92,6 +94,10 @@ function updateDynamicAlgorithmSession(value: { enabled: boolean; channel: strin
   algorithmWorkspaceState.updateDynamicSession(value)
 }
 function clearAlgorithmResults() { algorithmWorkspaceState.clear() }
+function saveChannelMapping(value: Recording) {
+  recording.value = value
+  channelMappingOpen.value = false
+}
 function openAlgorithmDebug(item: WorkspaceMetricRun, definitionId: string) {
   if (item.run) openAlgorithmDebugWorkbench(definitionId)
 }
@@ -440,7 +446,7 @@ onBeforeUnmount(() => {
     <header class="app-header"><div class="app-brand"><span class="brand-mark">▣</span><span>脑电科研工作台</span><span class="header-file">{{ recording?.original_name ? `· ${recording.original_name}` : '' }}</span></div><button class="app-mode-toggle" :class="{ active: developerMode }" @click="developerMode = !developerMode">{{ developerMode ? '退出开发者模式' : '开发者模式' }}</button></header>
     <div class="app-body focused-body"><section class="main-column">
       <nav v-if="recording" class="workflow-nav" aria-label="科研工作流">
-        <button type="button" @click="goToWorkflowSection('waveform-section')">1 波形查看</button><button type="button" @click="goToWorkflowSection('spectrum-section')">2 频谱分析</button><button type="button" @click="goToWorkflowSection('spectrogram-section')">3 时频分析</button><button type="button" @click="algorithmDisplayOpen = true">波形与算法</button><button type="button" @click="algorithmWorkbenchOpen = true">算法库</button><button type="button" @click="userAlgorithmBuilderOpen = true">创建算法</button><button type="button" @click="resultsOpen = true">结果</button>
+        <button type="button" @click="goToWorkflowSection('waveform-section')">1 波形查看</button><button type="button" @click="goToWorkflowSection('spectrum-section')">2 频谱分析</button><button type="button" @click="goToWorkflowSection('spectrogram-section')">3 时频分析</button><button type="button" @click="channelMappingOpen = true">通道映射</button><button type="button" @click="algorithmDisplayOpen = true">波形与算法</button><button type="button" @click="algorithmWorkbenchOpen = true">算法库</button><button type="button" @click="userAlgorithmBuilderOpen = true">创建算法</button><button type="button" @click="resultsOpen = true">结果</button>
       </nav>
       <ViewerToolbar :recording="Boolean(recording)" :loading="loading" :playing="playing" :position-s="playbackPositionS" :window-start-s="windowStartS" :screen-duration-s="displaySettings.timebaseSeconds" :total-duration-s="totalDurationS" :sfreq="sfreq" @open="newSession" @channels="channelSelection.openChannelDialog" @algorithms="algorithmWorkbenchOpen = true" @results="resultsOpen = true" @previous-screen="moveScreen(-1)" @toggle="togglePlayback" @next-screen="moveScreen(1)" @replay="replay" />
       <section v-if="recording" id="waveform-section" class="workflow-section waveform-workflow-section">
@@ -475,6 +481,9 @@ onBeforeUnmount(() => {
     <div v-if="showStartup" class="modal-layer"><FileImport @imported="onImported" /></div>
     <div v-if="recording && isChannelDialogOpen" class="modal-layer channel-modal-layer" @click.self="channelSelection.closeChannelDialog">
       <ChannelSelectionDialog :channels="recording.channels" :selected-channels="sourceChannelNames" :on-cancel="channelSelection.closeChannelDialog" :on-confirm="channelSelection.applyChannels" />
+    </div>
+    <div v-if="recording && channelMappingOpen" class="modal-layer channel-mapping-layer" @click.self="channelMappingOpen = false">
+      <ChannelMapping :recording="recording" @close="channelMappingOpen = false" @saved="saveChannelMapping" />
     </div>
     <div v-if="recording && customMontageOpen" class="modal-layer custom-montage-layer" @click.self="customMontageOpen = false">
       <CustomMontageDialog :channels="recording.channels" :rows="customMontage" @cancel="customMontageOpen = false" @apply="applyCustomMontage" />

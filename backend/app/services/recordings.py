@@ -90,7 +90,30 @@ class RecordingService:
         self._set_metadata(
             recording.id, sfreq, duration_s, channels, channel_types, channel_units
         )
+        # Exact labels are already an explicit semantic declaration in the
+        # source file.  Only persist a complete mapping in that narrow case;
+        # never turn O1/O2 or a positional channel into Oz automatically.
+        automatic_mapping = self._exact_label_mapping(channels)
+        if automatic_mapping is not None:
+            self.update_mapping(recording.id, automatic_mapping)
         return self.require_recording(recording.id)
+
+    @staticmethod
+    def _exact_label_mapping(channels: list[str]) -> ChannelMapping | None:
+        def one_exact(label: str) -> str | None:
+            matches = [name for name in channels if name.strip().upper() == label]
+            return matches[0] if len(matches) == 1 else None
+
+        fz, pz, oz = (one_exact(label) for label in ("FZ", "PZ", "OZ"))
+        if not all((fz, pz, oz)):
+            return None
+        return ChannelMapping(
+            fz=fz,
+            pz=pz,
+            oz=oz,
+            f3=one_exact("F3"),
+            f4=one_exact("F4"),
+        )
 
     def list_recordings(self) -> list[RecordingSummary]:
         with self._connect() as connection:
