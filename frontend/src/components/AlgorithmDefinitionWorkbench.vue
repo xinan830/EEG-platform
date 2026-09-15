@@ -1,19 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ApiRequestError } from '../api/client'
-import { cloneDefinition, compareDefinitionVersions, createDefinition, createDefinitionPreview, createDefinitionVersion, deleteDefinition as deleteDefinitionApi, getDefinitionCapabilities, listDefinitions, listDefinitionVersions, publishDefinitionVersion, validateDefinition } from '../api/algorithmDefinitions'
+import { cloneDefinition, compareDefinitionVersions, createDefinition, createDefinitionPreview, createDefinitionVersion, deleteDefinition as deleteDefinitionApi, getDefinitionCapabilities, publishDefinitionVersion, validateDefinition } from '../api/algorithmDefinitions'
 import { useDefinitionDraft } from '../composables/useDefinitionDraft'
+import type { AlgorithmCatalogContext } from '../composables/useAlgorithmCatalog'
 import { DEFAULT_DRAFT, type AlgorithmDefinition, type AlgorithmDefinitionVersion, type DefinitionCapabilities, type Unit } from '../types/algorithmDefinition'
 import type { Recording } from '../types/recording'
 import { createLatestRequestGuard } from '../utils/latestRequest'
 import { algorithmLabel } from '../utils/algorithmLabels'
 
-const props = defineProps<{ recording: Recording; startS: number; endS: number }>()
+const props = defineProps<{ recording: Recording; startS: number; endS: number; catalog: AlgorithmCatalogContext }>()
 const emit = defineEmits<{ close: [] }>()
-const definitions = ref<AlgorithmDefinition[]>([])
 const capabilities = ref<DefinitionCapabilities | null>(null)
 const selectedId = ref<string | null>(null)
-const versions = ref<AlgorithmDefinitionVersion[]>([])
 const compareLeft = ref('')
 const compareRight = ref('')
 const compareResult = ref<{ same_digest: boolean; graph_changed: boolean; parameter_schema_changed: boolean } | null>(null)
@@ -28,6 +27,8 @@ const previewRun = ref<Awaited<ReturnType<typeof createDefinitionPreview>> | nul
 const developerMode = ref(false)
 const draftState = useDefinitionDraft(DEFAULT_DRAFT)
 const selectionRequest = createLatestRequestGuard()
+const definitions = computed<AlgorithmDefinition[]>(() => props.catalog.definitions.value)
+const versions = computed<AlgorithmDefinitionVersion[]>(() => selectedId.value ? props.catalog.versionsByDefinition.value[selectedId.value] ?? [] : [])
 const selected = computed(() => definitions.value.find((item) => item.definition_id === selectedId.value) ?? null)
 const activeVersion = computed(() => versions.value.find((item) => item.semver === draftState.draft.value.semver) ?? versions.value[0] ?? null)
 const isCompositeOfficial = computed(() => selected.value?.owner === 'platform-official' && activeVersion.value?.quality_rules.execution_kind === 'official_composite_shadow_only')
@@ -98,7 +99,6 @@ function mutateDraft(change: () => void) {
 
 function newDraft() {
   selectedId.value = null
-  versions.value = []
   name.value = '研究算法草稿'
   description.value = ''
   draftState.replace(DEFAULT_DRAFT)
@@ -110,10 +110,10 @@ function newDraft() {
 async function loadDefinitions() {
   loading.value = true
   try {
-    const [items, nextCapabilities] = await Promise.all([listDefinitions(), getDefinitionCapabilities()])
-    definitions.value = items
+    const [, nextCapabilities] = await Promise.all([props.catalog.refresh(), getDefinitionCapabilities()])
     capabilities.value = nextCapabilities
-    if (!selectedId.value && items.length) await selectDefinition(items[0].definition_id)
+    if (props.catalog.userError.value) validationError.value = props.catalog.userError.value
+    if (!selectedId.value && definitions.value.length) await selectDefinition(definitions.value[0].definition_id)
     syncPreviewInputs()
   } catch (cause) {
     validationError.value = displayError(cause)
@@ -129,9 +129,8 @@ async function selectDefinition(id: string) {
   actionMessage.value = ''
   previewRun.value = null
   try {
-    const nextVersions = await listDefinitionVersions(id)
+    const nextVersions = await props.catalog.ensureVersions(id)
     if (!selectionRequest.isCurrent(requestId)) return
-    versions.value = nextVersions
     const latest = nextVersions[0]
     const item = definitions.value.find((entry) => entry.definition_id === id)
     if (item) { const label = algorithmLabel(item); name.value = label.name; description.value = label.purpose }
@@ -144,6 +143,11 @@ async function selectDefinition(id: string) {
   } finally {
     if (selectionRequest.isCurrent(requestId)) loading.value = false
   }
+}
+
+async function afterDefinitionMutation(definitionId?: string) {
+  if (definitionId) props.catalog.removeDefinitionVersionCache(definitionId)
+  await props.catalog.refresh()
 }
 
 async function validate() {
@@ -167,12 +171,12 @@ async function saveVersion() {
     let definitionId = selectedId.value
     if (!definitionId) {
       const created = await createDefinition(name.value.trim() || '未命名研究算法', description.value)
-      definitions.value = [created, ...definitions.value]
       definitionId = created.definition_id
       selectedId.value = definitionId
     }
     const version = await createDefinitionVersion(definitionId, draftState.draft.value)
-    versions.value = [version, ...versions.value.filter((item) => item.semver !== version.semver)]
+    await afterDefinitionMutation(definitionId)
+    await props.catalog.ensureVersions(definitionId)
     actionMessage.value = `已保存 ${version.semver} 草稿版本。`
   } catch (cause) {
     validationError.value = displayError(cause)
@@ -184,7 +188,8 @@ async function publish() {
   loading.value = true
   try {
     const version = await publishDefinitionVersion(selectedId.value, draftState.draft.value.semver)
-    versions.value = versions.value.map((item) => item.semver === version.semver ? version : item)
+    await afterDefinitionMutation(selectedId.value)
+    await props.catalog.ensureVersions(selectedId.value)
     actionMessage.value = `已发布不可变版本 ${version.semver}。`
   } catch (cause) {
     validationError.value = displayError(cause)
@@ -196,7 +201,7 @@ async function clone() {
   loading.value = true
   try {
     const created = await cloneDefinition(selectedId.value, `${name.value} 副本`)
-    definitions.value = [created, ...definitions.value]
+    await afterDefinitionMutation(created.definition_id)
     await selectDefinition(created.definition_id)
     actionMessage.value = '已创建独立副本，原定义保持不变。'
   } catch (cause) {
@@ -213,10 +218,9 @@ async function deleteSavedDefinition(item: AlgorithmDefinition) {
   actionMessage.value = ''
   try {
     await deleteDefinitionApi(item.definition_id)
-    definitions.value = definitions.value.filter((entry) => entry.definition_id !== item.definition_id)
+    await afterDefinitionMutation(item.definition_id)
     if (selectedId.value === item.definition_id) {
       selectedId.value = null
-      versions.value = []
       draftState.replace(DEFAULT_DRAFT)
       const next = definitions.value[0]
       if (next) await selectDefinition(next.definition_id)
