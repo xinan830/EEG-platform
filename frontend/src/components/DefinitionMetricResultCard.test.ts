@@ -19,7 +19,7 @@ describe('DefinitionMetricResultCard', () => {
 
     expect(wrapper.text()).toContain('Theta/Beta 比值')
     expect(wrapper.text()).toContain('1.8')
-    expect(wrapper.text()).toContain('dimensionless')
+    expect(wrapper.text()).toContain('无量纲')
     expect(wrapper.text()).toContain('F3')
     expect(wrapper.text()).toContain('10.000–40.000 s')
     expect(wrapper.get('[data-testid="metric-input-chart"]').text()).toContain('uV^2')
