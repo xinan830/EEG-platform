@@ -2,7 +2,10 @@
 
 ## 关键代码
 
-- 文件读取与窗口编排：`backend/app/services/recordings.py`
+- Recording 导入、身份与阅图窗口：`backend/app/services/recordings.py`
+- 离线 PSD、时频图与配置分析编排：`backend/app/services/spectral_analysis.py`
+- AnalysisRun、Artifact 与持久队列：`backend/app/services/runs.py`、`backend/app/services/run_queue.py`
+- SQLite 连接与迁移：`backend/app/persistence/database.py`、`backend/app/persistence/migrations.py`
 - 回放会话：`backend/app/services/waveform_playback.py`
 - 显示滤波：`backend/app/services/waveform_filter.py`
 - Montage：`backend/app/services/montage.py`

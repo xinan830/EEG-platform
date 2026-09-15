@@ -4,10 +4,9 @@
   "critical_lines": 1000,
   "reviews": {
     "backend/app/services/recordings.py": {
-      "decision": "split",
-      "max_lines": 600,
-      "reason": "Recording service currently owns legacy waveform loading plus the stable configurable spectrum/spectrogram orchestration; split is planned after the contract migration settles.",
-      "follow_up": "Extract spectrum and spectrogram orchestration into a dedicated analysis service after the current API contract is released."
+      "decision": "keep",
+      "max_lines": 420,
+      "reason": "频谱和时频编排已迁至 spectral_analysis.py；剩余代码仅保留 Recording 导入、身份、文件读取、预览和兼容阅图窗口，略高于 400 行但仍是单一文件访问边界。"
     },
     "frontend/src/App.vue": {
       "decision": "split",

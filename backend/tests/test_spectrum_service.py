@@ -46,14 +46,14 @@ def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch
     monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz", "Pz"], []))
     calls = {"count": 0}
 
-    from app.eeg_core import spectral
-    original = spectral.preprocess_offline
+    from app.services import spectral_analysis
+    original = spectral_analysis.preprocess_offline
 
     def counted(values, rate):
         calls["count"] += 1
         return original(values, rate)
 
-    monkeypatch.setattr(spectral, "preprocess_offline", counted)
+    monkeypatch.setattr(spectral_analysis, "preprocess_offline", counted)
     service.load_spectrum(recording, channels=["Fz"], window_s=10)
     service.load_spectrum(recording, channels=["Pz"], window_s=10)
 
