@@ -19,7 +19,8 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
         algorithm_id="theta_beta", definition_name="Official THETA_BETA", display_name_zh="Theta/Beta 比值", abbreviation="Theta/Beta",
         purpose_zh="基于个体 Alpha 峰频的 Theta 与 Beta 频段比值；需要明确的 Fz、Pz、Oz 逻辑通道映射。",
         scientific_version=ANALYSIS_ALGORITHM_VERSION, implementation_identity=ANALYSIS_ALGORITHM_VERSION,
-        execution_kind="official_composite_shadow_only", required_channel_roles=["Fz", "Pz", "Oz"],
+        execution_kind="official_composite_run_adapter", availability="available", is_runnable=True,
+        required_channel_roles=["Fz", "Pz", "Oz"], supported_modes=["static", "dynamic"],
     ),
     OfficialAlgorithmManifest(
         algorithm_id="faa", definition_name="Official FAA", display_name_zh="额叶 Alpha 不对称性", abbreviation="FAA",
@@ -37,7 +38,8 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
         algorithm_id="iapf", definition_name="Official IAPF", display_name_zh="个体 Alpha 峰频", abbreviation="IAPF",
         purpose_zh="使用 1/f 拟合后的 Alpha 残差 Peak/COG 估计个体 Alpha 峰频。",
         scientific_version=ANALYSIS_ALGORITHM_VERSION, implementation_identity=ANALYSIS_ALGORITHM_VERSION,
-        execution_kind="official_composite_shadow_only",
+        execution_kind="official_composite_run_adapter", availability="available", is_runnable=True,
+        supported_modes=["static", "dynamic"],
     ),
 )
 

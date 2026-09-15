@@ -20,6 +20,7 @@ from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.quality import SpectralQualityGateError
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.definition_metric_run import DefinitionMetricConfig
+from app.models.official_algorithm_run import OfficialAlgorithmRunConfig, OfficialChannelMappingRequired
 from app.models.definition_preview import DefinitionPreviewRunRequest
 from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredRunError
 from app.services.artifacts import ArtifactStore
@@ -309,6 +310,39 @@ class RunService:
                 "refresh_step_s": metric_config.refresh_step_s if metric_config.mode == "dynamic" else None,
                 "alignment": "window_end" if metric_config.mode == "dynamic" else "range",
             }
+        elif request.analysis_type == "official_algorithm":
+            official_config = OfficialAlgorithmRunConfig.model_validate(request.config)
+            from app.eeg_core.official_algorithms.registry import official_algorithm_catalog
+
+            catalog = {item.algorithm_id: item for item in official_algorithm_catalog(self.definition_service)}
+            manifest = catalog.get(official_config.algorithm_id)
+            if manifest is None or not manifest.is_runnable:
+                raise ValueError("official algorithm is not available for execution")
+            duration = float(recording.duration_s or 0.0)
+            if official_config.time.end_s > duration + 1.5 / float(recording.sfreq or 1.0):
+                raise ValueError(f"official analysis range exceeds recording duration of {duration:.3f} s")
+            if official_config.algorithm_id == "theta_beta":
+                if recording.mapping is None:
+                    raise OfficialChannelMappingRequired("Theta/Beta requires saved Fz/Pz/Oz mapping")
+                channels = [recording.mapping.fz, recording.mapping.pz, recording.mapping.oz]
+            else:
+                channels = [str(official_config.channel)]
+            config = official_config.model_dump(mode="json")
+            requested_range = official_config.time.model_dump(mode="json")
+            actual_range = dict(requested_range)
+            definition = {"kind": "official_algorithm", "algorithm_id": manifest.algorithm_id,
+                          "definition_id": manifest.definition_id, "definition_version": manifest.definition_version,
+                          "scientific_version": manifest.scientific_version, "implementation_identity": manifest.implementation_identity}
+            scientific_version = manifest.scientific_version
+            window = {
+                "mode": official_config.mode, "welch_segment_s": ANALYSIS_CONTRACT["welch_segment_s"],
+                "welch_overlap": ANALYSIS_CONTRACT["welch_segment_overlap"],
+                "dynamic_window_s": official_config.dynamic_window_s if official_config.mode == "dynamic" else None,
+                "refresh_step_s": official_config.refresh_step_s if official_config.mode == "dynamic" else None,
+                "alignment": "window_end" if official_config.mode == "dynamic" else "range",
+            }
+            request.definition_id = manifest.definition_id
+            request.definition_version = manifest.definition_version
         else:
             raw = dict(request.config)
             time = raw.get("time") or {}

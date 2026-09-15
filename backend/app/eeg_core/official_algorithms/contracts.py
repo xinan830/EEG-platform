@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 
 OfficialAvailability = Literal["shadow_validation", "available", "deprecated"]
-OfficialExecutionKind = Literal["generic_research_primitives", "official_composite_shadow_only"]
+OfficialExecutionKind = Literal["generic_research_primitives", "official_composite_shadow_only", "official_composite_run_adapter"]
 
 
 class OfficialAlgorithmManifest(BaseModel):

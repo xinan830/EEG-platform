@@ -14,6 +14,17 @@ export interface DefinitionMetricRunRequest {
   refreshStepS?: 1
 }
 
+export interface OfficialAlgorithmRunRequest {
+  recordingId: string
+  algorithmId: 'iapf' | 'theta_beta'
+  channel?: string
+  startS: number
+  endS: number
+  mode?: 'static' | 'dynamic'
+  dynamicWindowS?: DynamicWindowS
+  refreshStepS?: 1
+}
+
 export interface AnalysisRunResponse {
   run_id: string
   status: string
@@ -51,6 +62,23 @@ export function createDefinitionMetricRun(value: DefinitionMetricRunRequest): Pr
       definition_version: value.definitionVersion,
       config,
     }),
+  })
+}
+
+export function createOfficialAlgorithmRun(value: OfficialAlgorithmRunRequest): Promise<AnalysisRunResponse> {
+  const config: Record<string, unknown> = {
+    algorithm_id: value.algorithmId,
+    time: { start_s: value.startS, end_s: value.endS },
+    mode: value.mode ?? 'static',
+  }
+  if (value.algorithmId === 'iapf') config.channel = value.channel
+  if (value.mode === 'dynamic') {
+    config.dynamic_window_s = value.dynamicWindowS ?? 10
+    config.refresh_step_s = value.refreshStepS ?? 1
+  }
+  return request('/api/runs', {
+    method: 'POST',
+    body: JSON.stringify({ recording_id: value.recordingId, analysis_type: 'official_algorithm', config }),
   })
 }
 

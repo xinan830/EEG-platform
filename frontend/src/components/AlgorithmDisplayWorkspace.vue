@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { createDefinitionMetricRun, getRun, type AnalysisRunResponse } from '../api/runs'
+import { createDefinitionMetricRun, createOfficialAlgorithmRun, getRun, type AnalysisRunResponse } from '../api/runs'
 import type { OfficialAlgorithmCatalogItem } from '../api/officialAlgorithms'
 import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/algorithmDefinition'
 import type { AlgorithmCatalogContext } from '../composables/useAlgorithmCatalog'
@@ -24,6 +24,7 @@ const versions = computed<Record<string, AlgorithmDefinitionVersion>>(() => Obje
   Object.entries(props.catalog.versionsByDefinition.value).flatMap(([definitionId, items]) => items[0] ? [[definitionId, items[0]]] : []),
 ))
 const selectedIds = ref<string[]>([])
+const selectedOfficialIds = ref<string[]>([])
 const channel = ref(props.channels[0] ?? props.recording.channels[0] ?? '')
 const mode = ref<'static' | 'dynamic'>('static')
 const dynamicWindowS = ref<DynamicWindowS>(10)
@@ -38,7 +39,8 @@ const staticStartS = ref(props.rangeStart)
 const staticEndS = ref(props.rangeEnd)
 const range = computed(() => props.activeRange ?? { start: props.rangeStart, end: props.rangeEnd })
 const staticRangeDuration = computed(() => staticEndS.value - staticStartS.value)
-const canRun = computed(() => selectedIds.value.length > 0 && Boolean(channel.value) && !loading.value && !running.value && (mode.value === 'dynamic' || staticRangeDuration.value >= 4))
+const selectedKeys = computed(() => [...selectedIds.value, ...selectedOfficialIds.value.map((id) => `official:${id}`)])
+const canRun = computed(() => selectedKeys.value.length > 0 && Boolean(channel.value) && !loading.value && !running.value && (mode.value === 'dynamic' || staticRangeDuration.value >= 4))
 const userDefinitions = computed(() => definitions.value.filter((item) => item.owner !== 'platform-official'))
 function resultFrom(run: AnalysisRunResponse): DefinitionMetricResult | DynamicMetric | null {
   const metric = run.result_summary?.metric
@@ -55,19 +57,11 @@ async function load() {
 function isDynamic(result: DefinitionMetricResult | DynamicMetric | null): result is DynamicMetric {
   return Boolean(result && Array.isArray((result as DynamicMetric).series))
 }
-function outputUnit(id: string): string {
-  const version = versions.value[id]
-  const outputId = version?.graph?.outputs?.[0]
-  const metadata = outputId ? version?.outputs[outputId] : null
-  return metadata && typeof metadata === 'object' && !Array.isArray(metadata) && typeof (metadata as Record<string, unknown>).unit === 'string'
-    ? String((metadata as Record<string, unknown>).unit)
-    : '未知单位'
-}
 function dynamicSession(enabled: boolean): DynamicSession {
   return {
     enabled,
     channel: channel.value,
-    definitions: selectedIds.value.map((id) => ({ id, label: title(id), unit: outputUnit(id) })),
+    definitions: selectedKeys.value.map((id) => ({ id, label: title(id), unit: outputUnit(id) })),
     windowS: dynamicWindowS.value,
     displayRangeS: dynamicResultDisplayRangeS.value,
   }
@@ -95,7 +89,16 @@ async function runSelected(startS: number, endS: number, dynamic: boolean, appen
   running.value = true; message.value = ''
   if (!append) runs.value = {}
   try {
-    await Promise.all(selectedIds.value.map(async (definitionId) => {
+    await Promise.all(selectedKeys.value.map(async (definitionId) => {
+      const officialId = definitionId.startsWith('official:') ? definitionId.slice('official:'.length) : null
+      if (officialId) {
+        try {
+          const created = await createOfficialAlgorithmRun({ recordingId: props.recording.id, algorithmId: officialId as 'iapf' | 'theta_beta', channel: channel.value, startS, endS, mode: dynamic ? 'dynamic' : 'static', dynamicWindowS: dynamic ? dynamicWindowS.value : undefined })
+          runs.value[definitionId] = { status: created.status, result: append ? (runs.value[definitionId]?.result ?? null) : resultFrom(created), run: created, definitionName: title(definitionId) }
+          await poll(created.run_id, definitionId, append)
+        } catch (cause) { runs.value[definitionId] = { status: 'failed', result: null, error: cause instanceof Error ? cause.message : '提交失败', definitionName: title(definitionId) } }
+        return
+      }
       const version = versions.value[definitionId]
       if (!version) { runs.value[definitionId] = { status: 'failed', result: null, error: '没有可运行的算法版本', definitionName: title(definitionId) }; return }
       try {
@@ -145,7 +148,7 @@ async function refreshDynamic(position: number) {
   }
 }
 watch(() => [props.playing, props.playbackPositionS] as const, ([playing, position]) => {
-  if (!playing || !props.dynamicActive || position === undefined || selectedIds.value.length === 0) return
+  if (!playing || !props.dynamicActive || position === undefined || selectedKeys.value.length === 0) return
   const second = Math.floor(position)
   void refreshDynamic(second)
 })
@@ -176,9 +179,22 @@ watch(userDefinitions, (items) => {
   void Promise.all(items.map((item) => props.catalog.ensureVersions(item.definition_id)))
 }, { immediate: true })
 function useCurrentRange() { staticStartS.value = range.value.start; staticEndS.value = range.value.end }
-function title(id: string) { return definitions.value.find((item) => item.definition_id === id)?.name ?? id }
+function title(id: string) {
+  if (id.startsWith('official:')) return officialAlgorithms.value.find((item) => item.algorithm_id === id.slice('official:'.length))?.display_name_zh ?? id
+  return definitions.value.find((item) => item.definition_id === id)?.name ?? id
+}
+function outputUnit(id: string): string {
+  if (id === 'official:iapf') return 'Hz'
+  if (id === 'official:theta_beta') return 'dimensionless'
+  const version = versions.value[id]
+  const outputId = version?.graph?.outputs?.[0]
+  const metadata = outputId ? version?.outputs[outputId] : null
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata) && typeof (metadata as Record<string, unknown>).unit === 'string'
+    ? String((metadata as Record<string, unknown>).unit)
+    : '未知单位'
+}
 function officialAvailability(item: OfficialAlgorithmCatalogItem) {
-  return item.availability === 'shadow_validation' ? '工程验证中，暂不可运行' : '当前不可运行'
+  return item.is_runnable ? '可运行' : item.availability === 'shadow_validation' ? '工程验证中，暂不可运行' : '当前不可运行'
 }
 onMounted(load)
 </script>
@@ -195,11 +211,11 @@ onMounted(load)
       <div class="algorithm-display-layout">
         <aside class="algorithm-display-sidebar">
           <h3>选择算法</h3>
-          <p class="algorithm-display-help">可运行的我的算法可叠加到当前波形；官方算法会在完成执行器验证后开放运行。</p>
+          <p class="algorithm-display-help">可运行的算法可叠加到当前波形；IAPF 与官方 Theta/Beta 使用后端固定科学契约，其他官方算法仍等待独立验证后开放。</p>
           <section v-if="officialAlgorithms.length" class="algorithm-definition-group" aria-label="官方内置算法">
             <h4>官方内置算法</h4>
-            <label v-for="item in officialAlgorithms" :key="item.algorithm_id" :data-testid="`official-algorithm-${item.definition_id}`" class="algorithm-checkbox algorithm-checkbox-disabled">
-              <input type="checkbox" disabled />
+            <label v-for="item in officialAlgorithms" :key="item.algorithm_id" :data-testid="`official-algorithm-${item.definition_id}`" :class="['algorithm-checkbox', { 'algorithm-checkbox-disabled': !item.is_runnable }]">
+              <input v-model="selectedOfficialIds" type="checkbox" :value="item.algorithm_id" :disabled="!item.is_runnable" />
               <span>{{ item.display_name_zh }}（{{ item.abbreviation }}）</span><small>{{ item.purpose_zh }} · {{ officialAvailability(item) }}</small>
             </label>
           </section>

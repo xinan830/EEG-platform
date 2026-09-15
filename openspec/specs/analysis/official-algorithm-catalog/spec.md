@@ -11,7 +11,8 @@ The system SHALL expose a read-only official algorithm catalog from a single bac
 
 - **WHEN** a client requests `GET /api/official-algorithms` after platform initialization
 - **THEN** the response lists RBP, Theta/Beta, FAA, BrainBeat, and IAPF
-- **AND THEN** every item is `shadow_validation` and `is_runnable=false` during this change.
+- **AND THEN** IAPF and Theta/Beta report their registry-owned runnable state,
+  while shadow-only official algorithms remain non-runnable.
 
 #### Scenario: Installed evidence is unavailable
 
