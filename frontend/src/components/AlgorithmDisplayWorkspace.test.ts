@@ -99,4 +99,34 @@ describe('AlgorithmDisplayWorkspace', () => {
     expect(wrapper.text()).toContain('新 Theta/Beta')
     expect(wrapper.text()).not.toContain('旧 Theta/Beta')
   })
+
+  it('shows official definitions as read-only while their executor is still in shadow validation', async () => {
+    const list = vi.mocked(listDefinitions)
+    list.mockReset()
+    list.mockResolvedValueOnce([
+      {
+        definition_id: 'official-rbp', name: 'Official RBP', owner: 'platform-official', status: 'testing',
+        description: 'Frozen official RBP contract; shadow migration only.', created_at: '', updated_at: '',
+      },
+      {
+        definition_id: 'user-ratio', name: '我的 Theta/Beta', owner: 'local-user', status: 'testing',
+        description: '', created_at: '', updated_at: '',
+      },
+    ])
+    const wrapper = mount(AlgorithmDisplayWorkspace, {
+      props: {
+        recording: { id: 'recording-1', channels: ['F3'] }, rangeStart: 0, rangeEnd: 30,
+        channels: ['F3'],
+      } as never,
+    })
+    await Promise.resolve()
+    await nextTick()
+
+    expect(wrapper.text()).toContain('官方内置算法')
+    expect(wrapper.text()).toContain('相对频段功率（RBP）')
+    expect(wrapper.text()).toContain('工程验证中，暂不可运行')
+    expect(wrapper.text()).toContain('我的算法')
+    expect(wrapper.text()).toContain('我的 Theta/Beta')
+    expect((wrapper.get('[data-testid="official-algorithm-official-rbp"] input').element as HTMLInputElement).disabled).toBe(true)
+  })
 })

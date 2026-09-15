@@ -33,6 +33,15 @@ const range = computed(() => props.activeRange ?? { start: props.rangeStart, end
 const staticRangeDuration = computed(() => staticEndS.value - staticStartS.value)
 const canRun = computed(() => selectedIds.value.length > 0 && Boolean(channel.value) && !loading.value && !running.value && (mode.value === 'dynamic' || staticRangeDuration.value >= 4))
 const userDefinitions = computed(() => definitions.value.filter((item) => item.owner !== 'platform-official'))
+const officialDefinitions = computed(() => definitions.value.filter((item) => item.owner === 'platform-official'))
+const officialLabels: Record<string, string> = {
+  'official rbp': '相对频段功率（RBP）',
+  'official theta_beta': 'Theta/Beta 比值',
+  'official theta/beta': 'Theta/Beta 比值',
+  'official faa': '额叶 Alpha 不对称（FAA）',
+  'official brainbeat': '脑节律指标（BrainBeat）',
+  'official iapf': '个体 Alpha 峰频（IAPF）',
+}
 function resultFrom(run: AnalysisRunResponse): DefinitionMetricResult | DynamicMetric | null {
   const metric = run.result_summary?.metric
   return metric && typeof metric === 'object' ? metric as DefinitionMetricResult | DynamicMetric : null
@@ -42,7 +51,7 @@ async function load() {
   try {
     const catalog = await listDefinitions()
     definitions.value = catalog
-    const availableIds = new Set(catalog.filter((item) => item.owner !== 'platform-official').map((item) => item.definition_id))
+    const availableIds = new Set(catalog.map((item) => item.definition_id))
     const removedIds = selectedIds.value.filter((id) => !availableIds.has(id))
     if (removedIds.length) {
       selectedIds.value = selectedIds.value.filter((id) => availableIds.has(id))
@@ -171,6 +180,7 @@ watch(() => props.definitionsEpoch, (next, previous) => {
 })
 function useCurrentRange() { staticStartS.value = range.value.start; staticEndS.value = range.value.end }
 function title(id: string) { return definitions.value.find((item) => item.definition_id === id)?.name ?? id }
+function officialTitle(item: AlgorithmDefinition) { return officialLabels[item.name.trim().toLowerCase()] ?? item.name.replace(/^official\s+/i, '') }
 onMounted(load)
 </script>
 <template>
@@ -184,7 +194,23 @@ onMounted(load)
         <template v-else><label>动态窗口<select v-model.number="dynamicWindowS"><option v-for="windowS in DYNAMIC_WINDOW_OPTIONS" :key="windowS" :value="windowS">最近 {{ windowS }} s</option></select></label><span class="algorithm-display-range">每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ props.dynamicActive ? '同步已启用' : '启用播放同步' }}</button></template>
       </div>
       <div class="algorithm-display-layout">
-        <aside class="algorithm-display-sidebar"><h3>选择算法</h3><p class="algorithm-display-help">勾选要叠加到当前波形的用户算法。</p><label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label><p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无用户算法</p><p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析区间至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">动态模式启动时补算所选窗口的真实历史；之后每秒追加一个真实结果点。5 s 响应更快，但稳定性低于默认的 10 s。</p></aside>
+        <aside class="algorithm-display-sidebar">
+          <h3>选择算法</h3>
+          <p class="algorithm-display-help">可运行的我的算法可叠加到当前波形；官方算法会在完成执行器验证后开放运行。</p>
+          <section v-if="officialDefinitions.length" class="algorithm-definition-group" aria-label="官方内置算法">
+            <h4>官方内置算法</h4>
+            <label v-for="item in officialDefinitions" :key="item.definition_id" :data-testid="`official-algorithm-${item.definition_id}`" class="algorithm-checkbox algorithm-checkbox-disabled">
+              <input type="checkbox" disabled />
+              <span>{{ officialTitle(item) }}</span><small>工程验证中，暂不可运行</small>
+            </label>
+          </section>
+          <section class="algorithm-definition-group" aria-label="我的算法">
+            <h4>我的算法</h4>
+            <label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label>
+            <p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无我的算法</p>
+          </section>
+          <p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析区间至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">动态模式启动时补算所选窗口的真实历史；之后每秒追加一个真实结果点。5 s 响应更快，但稳定性低于默认的 10 s。</p>
+        </aside>
         <main class="algorithm-display-main"><p class="algorithm-display-empty">勾选算法并运行后，结果会显示在主页面波形下方。</p></main>
       </div>
       <p v-if="message" class="definition-error">{{ message }}</p>
