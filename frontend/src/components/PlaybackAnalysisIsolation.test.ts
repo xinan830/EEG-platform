@@ -21,7 +21,7 @@ describe('playback analysis isolation', () => {
     getConfiguredSpectrogram.mockImplementation(() => new Promise(() => {}))
   })
 
-  it('静态 PSD 同页不更新，翻页时只提交一次新区间', async () => {
+  it('静态 PSD 在波形显示范围翻页时不改变已提交的分析范围', async () => {
     const wrapper = mount(SpectrumPanel, {
       props: {
         recordingId: 'recording-1', startS: 0, channels: ['F3'], positionS: 5,
@@ -37,7 +37,7 @@ describe('playback analysis isolation', () => {
 
     await wrapper.setProps({ startS: 10, positionS: 10.05 })
 
-    expect(wrapper.emitted('activeRangeChange')?.length ?? 0).toBe(before + 1)
+    expect(wrapper.emitted('activeRangeChange')?.length ?? 0).toBe(before)
   })
 
   it('静态时频图不跟随每个播放数据包重新请求', async () => {

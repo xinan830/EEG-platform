@@ -78,11 +78,6 @@ async function reload() {
 }
 
 watch(() => [props.recordingId, props.durationS, props.channels.join('|'), props.activeRange?.start, props.activeRange?.end, mode.value, dynamicWindow.value], reload, { immediate: true })
-watch(() => props.startS, () => {
-  // Static spectrogram follows an explicitly committed analysis range. During
-  // playback, startS is a 20 Hz display coordinate and is not an analysis event.
-  if (mode.value === 'static' && !props.activeRange) void reload()
-})
 watch(() => [props.playing, mode.value, dynamicWindow.value, refreshStep.value], updateTimer)
 watch(selectedBand, (band) => { if (band === 'custom') void reload() })
 watch(() => [customMinHz.value, customMaxHz.value], () => { if (selectedBand.value === 'custom' && frequencyRange.value.max > frequencyRange.value.min) void reload() })

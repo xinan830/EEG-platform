@@ -5,7 +5,6 @@ import type { SpectrumBand } from '../types/spectrum'
 import SpectrumAlgorithmDialog from './SpectrumAlgorithmDialog.vue'
 import BandPowerChart from './BandPowerChart.vue'
 import SpectrumPsdChart from './SpectrumPsdChart.vue'
-import { playbackPageStart } from '../utils/waveformViewport'
 
 const props = defineProps<{ recordingId?: string; startS: number; channels: string[]; positionS?: number; playing?: boolean; totalDurationS?: number; screenDurationS?: number; selectedRange?: { start: number; end: number } | null }>()
 const emit = defineEmits<{ activeRangeChange: [start: number, end: number, source: string] }>()
@@ -20,7 +19,6 @@ const staticRange = ref({ ...staticInputs.value })
 const rangeError = ref('')
 const customStaticRange = ref(false)
 const pendingRangeSource = ref<'custom' | 'selection'>('custom')
-const syncedDisplayPageStart = ref(playbackPageStart(props.startS, props.screenDurationS ?? 10, props.totalDurationS))
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 function syncDynamicWindow() {
   const end = Math.max(0, Math.floor(props.positionS ?? 0))
@@ -41,16 +39,6 @@ const algorithmOpen = ref(false)
 watch(() => [props.playing, mode.value, refreshStep.value, dynamicWindow.value], updateTimer)
 watch(() => props.recordingId, () => useCurrentThirtySeconds())
 watch(() => props.totalDurationS, () => { if (mode.value === 'static' && !customStaticRange.value) useCurrentThirtySeconds() })
-watch(() => props.startS, () => {
-  // Continuous playback updates the visible viewport every packet. Static PSD
-  // must not turn those display updates into a spectral request storm.
-  // windowStartS is a fixed page start during playback, so this watcher fires
-  // only when that page changes, not once per 0.05 s packet.
-  const pageStart = playbackPageStart(props.startS, props.screenDurationS ?? 10, props.totalDurationS)
-  if (Math.abs(pageStart - syncedDisplayPageStart.value) < 1e-9) return
-  syncedDisplayPageStart.value = pageStart
-  if (mode.value === 'static' && !customStaticRange.value) useCurrentThirtySeconds()
-})
 watch(() => props.selectedRange, (range) => {
   if (!range || range.end - range.start < 4) return
   const start = rounded(Math.max(0, range.start)); const end = rounded(Math.min(props.totalDurationS ?? range.end, range.end))
