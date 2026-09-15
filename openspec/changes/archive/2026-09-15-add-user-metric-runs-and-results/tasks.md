@@ -15,10 +15,10 @@
 - [x] Render a truthful empty dynamic chart before its first complete trailing window.
 - [x] Persist per-window spectral evidence and render it in a read-only algorithm debug workbench.
 - [x] Allow deletion of private definitions after use while retaining completed Run evidence and cancelling unfinished work.
-- [ ] Extend Results Workbench rendering for definition-metric results.
+- [x] Extend Results Workbench rendering for definition-metric results.
 
 ## 3. Verification
 
 - [x] Add backend unit/API coverage for static/dynamic feature resolution, output units, missing channels, quality gates, and cache identity.
 - [x] Add frontend API/component coverage for workspace selection, terminal states, and chart semantics.
-- [ ] Run full backend/frontend checks, build, strict OpenSpec validation, archive, and post-archive validation.
+- [x] Run full backend/frontend checks, build, strict OpenSpec validation, archive, and post-archive validation.
