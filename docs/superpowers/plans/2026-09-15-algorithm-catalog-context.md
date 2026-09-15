@@ -32,7 +32,7 @@
 - Consumes: `listDefinitions(): Promise<AlgorithmDefinition[]>`, `listDefinitionVersions(definitionId): Promise<AlgorithmDefinitionVersion[]>`, `listOfficialAlgorithms(): Promise<OfficialAlgorithmCatalogItem[]>`.
 - Produces: `useAlgorithmCatalog(): AlgorithmCatalogContext` with `definitions`, `officialAlgorithms`, `versionsByDefinition`, `userError`, `officialError`, `loading`, `refresh()`, `ensureVersions(definitionId)`, and `removeDefinitionVersionCache(definitionId)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 it('refreshes user and official catalogs independently', async () => {
@@ -66,13 +66,13 @@ it('caches versions by definition id and refreshes an explicit version request',
 })
 ```
 
-- [ ] **Step 2: Run the context tests to verify they fail**
+- [x] **Step 2: Run the context tests to verify they fail**
 
 Run: `npm.cmd test -- src/composables/useAlgorithmCatalog.test.ts`
 
 Expected: FAIL because `useAlgorithmCatalog` does not exist.
 
-- [ ] **Step 3: Implement the minimal catalog context**
+- [x] **Step 3: Implement the minimal catalog context**
 
 ```ts
 export function useAlgorithmCatalog() {
@@ -113,13 +113,13 @@ export function useAlgorithmCatalog() {
 
 Do not use a shared singleton. `App.vue` must own the one context instance for a browser workspace.
 
-- [ ] **Step 4: Run the context tests to verify they pass**
+- [x] **Step 4: Run the context tests to verify they pass**
 
 Run: `npm.cmd test -- src/composables/useAlgorithmCatalog.test.ts`
 
 Expected: PASS with all three catalog behaviors green.
 
-- [ ] **Step 5: Commit the isolated context**
+- [x] **Step 5: Commit the isolated context**
 
 ```powershell
 git add frontend/src/composables/useAlgorithmCatalog.ts frontend/src/composables/useAlgorithmCatalog.test.ts
@@ -137,7 +137,7 @@ git commit -m "Add shared algorithm catalog context"
 - Consumes: `catalog: AlgorithmCatalogContext` prop and `catalog.versionsByDefinition.value[definitionId]`.
 - Produces: the existing algorithm checkbox and run flow, now based only on catalog state; removes `definitionsEpoch` and component-local definition/version loading.
 
-- [ ] **Step 1: Write the failing component tests**
+- [x] **Step 1: Write the failing component tests**
 
 ```ts
 function createCatalogFixture() {
@@ -171,13 +171,13 @@ it('uses the shared latest published version when it creates a Run', async () =>
 })
 ```
 
-- [ ] **Step 2: Run the workspace tests to verify they fail**
+- [x] **Step 2: Run the workspace tests to verify they fail**
 
 Run: `npm.cmd test -- src/components/AlgorithmDisplayWorkspace.test.ts`
 
 Expected: FAIL because the component does not accept a `catalog` prop and still calls its own list APIs.
 
-- [ ] **Step 3: Replace local catalog fetches with catalog consumption**
+- [x] **Step 3: Replace local catalog fetches with catalog consumption**
 
 ```ts
 const props = defineProps<{
@@ -197,7 +197,7 @@ onMounted(async () => {
 
 Keep `selectedIds`, dynamic-mode controls, calculation polling, request errors and chart display local to the workspace. Do not modify `createDefinitionMetricRun` payload semantics.
 
-- [ ] **Step 4: Create the context in App and remove the manual epoch signal**
+- [x] **Step 4: Create the context in App and remove the manual epoch signal**
 
 ```ts
 const algorithmCatalog = useAlgorithmCatalog()
@@ -207,13 +207,13 @@ void algorithmCatalog.refresh()
 // Remove the definitionsEpoch prop from that component.
 ```
 
-- [ ] **Step 5: Run the workspace tests to verify they pass**
+- [x] **Step 5: Run the workspace tests to verify they pass**
 
 Run: `npm.cmd test -- src/components/AlgorithmDisplayWorkspace.test.ts src/App.channelDialog.test.ts`
 
 Expected: PASS; user algorithms remain selectable and official algorithms remain disabled.
 
-- [ ] **Step 6: Commit the workspace migration**
+- [x] **Step 6: Commit the workspace migration**
 
 ```powershell
 git add frontend/src/App.vue frontend/src/components/AlgorithmDisplayWorkspace.vue frontend/src/components/AlgorithmDisplayWorkspace.test.ts
@@ -231,7 +231,7 @@ git commit -m "Use shared algorithm catalog in workspace"
 - Consumes: `catalog: AlgorithmCatalogContext` prop.
 - Produces: definition create/save/publish/clone/delete call `catalog.refresh()` after their successful backend mutation; cached versions are updated or invalidated before the next selection.
 
-- [ ] **Step 1: Write failing mutation-refresh tests**
+- [x] **Step 1: Write failing mutation-refresh tests**
 
 ```ts
 it('refreshes the shared catalog after deleting a user algorithm', async () => {
@@ -255,13 +255,13 @@ it('refreshes the shared catalog after creating a definition version', async () 
 
 Use the existing backend API mocks. The first test must exercise the delete handler after `window.confirm` returns true; it must not merely assert a mocked emit.
 
-- [ ] **Step 2: Run the library tests to verify they fail**
+- [x] **Step 2: Run the library tests to verify they fail**
 
 Run: `npm.cmd test -- src/components/AlgorithmDefinitionWorkbench.test.ts`
 
 Expected: FAIL because the workbench holds a separate `definitions` list and does not receive a catalog prop.
 
-- [ ] **Step 3: Refactor workbench reads and successful mutations**
+- [x] **Step 3: Refactor workbench reads and successful mutations**
 
 ```ts
 const props = defineProps<{ recording: Recording; startS: number; endS: number; catalog: AlgorithmCatalogContext }>()
@@ -275,7 +275,7 @@ async function afterDefinitionMutation(definitionId?: string) {
 
 After `createDefinition`, `createDefinitionVersion`, `publishDefinitionVersion`, `cloneDefinition`, and `deleteDefinition`, call `afterDefinitionMutation`. Preserve the current selection when its id remains in the refreshed list; if deleted, select the first available definition or create a local new draft. Keep capabilities, draft JSON, developer mode and preview state component-local.
 
-- [ ] **Step 4: Wire the shared catalog into App**
+- [x] **Step 4: Wire the shared catalog into App**
 
 ```ts
 <AlgorithmDefinitionWorkbench
@@ -290,13 +290,13 @@ After `createDefinition`, `createDefinitionVersion`, `publishDefinitionVersion`,
 
 Remove `algorithmDefinitionsEpoch`; do not force-close the algorithm workspace after a catalog refresh.
 
-- [ ] **Step 5: Run the library tests to verify they pass**
+- [x] **Step 5: Run the library tests to verify they pass**
 
 Run: `npm.cmd test -- src/components/AlgorithmDefinitionWorkbench.test.ts src/components/AlgorithmDisplayWorkspace.test.ts src/App.channelDialog.test.ts`
 
 Expected: PASS; create/delete mutations refresh both catalog consumers without a page reload.
 
-- [ ] **Step 6: Commit the library migration**
+- [x] **Step 6: Commit the library migration**
 
 ```powershell
 git add frontend/src/App.vue frontend/src/components/AlgorithmDefinitionWorkbench.vue frontend/src/components/AlgorithmDefinitionWorkbench.test.ts
@@ -312,31 +312,31 @@ git commit -m "Refresh shared catalog after definition mutations"
 - Consumes: completed catalog context and both catalog consumers.
 - Produces: a clean catalog behavior with no `algorithmDefinitionsEpoch` symbol or component-local definition-list request in the two migrated components.
 
-- [ ] **Step 1: Verify obsolete coordination is gone**
+- [x] **Step 1: Verify obsolete coordination is gone**
 
 Run: `rg -n "algorithmDefinitionsEpoch|listDefinitions|listDefinitionVersions" frontend/src/App.vue frontend/src/components/AlgorithmDisplayWorkspace.vue frontend/src/components/AlgorithmDefinitionWorkbench.vue`
 
 Expected: no `algorithmDefinitionsEpoch`; `listDefinitions` and `listDefinitionVersions` appear only in `useAlgorithmCatalog.ts` among the migrated catalog readers.
 
-- [ ] **Step 2: Run the complete frontend test suite**
+- [x] **Step 2: Run the complete frontend test suite**
 
 Run: `npm.cmd test`
 
 Expected: every Vitest file passes with zero failing tests.
 
-- [ ] **Step 3: Run the production type check and build**
+- [x] **Step 3: Run the production type check and build**
 
 Run: `npm.cmd run build`
 
 Expected: `vue-tsc --noEmit` and Vite production build exit with code 0.
 
-- [ ] **Step 4: Check the final diff**
+- [x] **Step 4: Check the final diff**
 
 Run: `git diff --check && git status --short`
 
 Expected: no whitespace errors; only intended source, test and optional design-document changes remain.
 
-- [ ] **Step 5: Commit verification-aligned documentation changes if needed**
+- [x] **Step 5: Commit verification-aligned documentation changes if needed** — no specification change was needed.
 
 ```powershell
 git add docs/superpowers/specs/2026-09-15-shared-workspace-state-design.md
