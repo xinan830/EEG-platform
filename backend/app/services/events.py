@@ -8,28 +8,16 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.core.config import DATABASE_PATH
+from app.persistence import connect_database, migrate_database
 
 
 class EventMarkerService:
     def __init__(self, database_path: Path = DATABASE_PATH):
         self.database_path = Path(database_path)
-        self.database_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as connection:
-            connection.execute(
-                """CREATE TABLE IF NOT EXISTS event_markers (
-                    id TEXT PRIMARY KEY,
-                    recording_id TEXT NOT NULL,
-                    time_s REAL NOT NULL,
-                    label TEXT NOT NULL,
-                    duration_s REAL,
-                    created_at TEXT NOT NULL
-                )"""
-            )
+        migrate_database(self.database_path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path)
-        connection.row_factory = sqlite3.Row
-        return connection
+        return connect_database(self.database_path)
 
     def create(self, recording_id: str, time_s: float, label: str, duration_s: float | None = None) -> dict[str, object]:
         marker_id = uuid4().hex

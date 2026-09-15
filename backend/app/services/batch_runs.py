@@ -11,7 +11,7 @@ from app.core.config import DATABASE_PATH
 from app.core.provenance import sha256_json
 from app.models.batch_run import BatchRun, BatchRunCreateRequest, BatchRunItem
 from app.models.run import RunCreateRequest, RunStatus
-from app.persistence import migrate_database
+from app.persistence import connect_database, migrate_database
 from app.services.projects import ProjectService
 from app.services.run_queue import PersistentRunQueue
 from app.services.run_repository import utc_now
@@ -27,10 +27,7 @@ class BatchRunService:
         migrate_database(self.database_path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path, timeout=5.0)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_database(self.database_path, foreign_keys=True)
 
     def create(self, request: BatchRunCreateRequest) -> BatchRun:
         allowed = self.projects.project_recording_ids(request.project_id)

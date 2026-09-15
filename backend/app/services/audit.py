@@ -9,31 +9,16 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.core.config import DATABASE_PATH
+from app.persistence import connect_database, migrate_database
 
 
 class AuditService:
     def __init__(self, database_path: Path = DATABASE_PATH):
         self.database_path = Path(database_path)
-        self.database_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as connection:
-            connection.execute(
-                """CREATE TABLE IF NOT EXISTS audit_events (
-                    id TEXT PRIMARY KEY,
-                    occurred_at TEXT NOT NULL,
-                    action TEXT NOT NULL,
-                    outcome TEXT NOT NULL,
-                    recording_id TEXT,
-                    session_id TEXT,
-                    request_id TEXT NOT NULL,
-                    actor_id TEXT,
-                    parameters_json TEXT NOT NULL
-                )"""
-            )
+        migrate_database(self.database_path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path)
-        connection.row_factory = sqlite3.Row
-        return connection
+        return connect_database(self.database_path)
 
     def record(self, action: str, request_id: str, *, outcome: str = "success", recording_id: str | None = None,
                session_id: str | None = None, actor_id: str | None = None, parameters: dict[str, object] | None = None) -> str:

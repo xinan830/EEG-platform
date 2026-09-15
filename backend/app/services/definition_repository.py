@@ -10,7 +10,7 @@ from uuid import uuid4
 from app.core.config import DATABASE_PATH
 from app.core.provenance import sha256_json
 from app.models.algorithm_definition import AlgorithmDefinition, AlgorithmDefinitionVersion, DefinitionCreateRequest, DefinitionVersionDraft
-from app.persistence import migrate_database
+from app.persistence import connect_database, migrate_database
 from app.services.run_repository import utc_now
 
 
@@ -24,10 +24,7 @@ class DefinitionRepository:
         migrate_database(self.database_path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path, timeout=5.0)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_database(self.database_path, foreign_keys=True)
 
     def create(self, request: DefinitionCreateRequest) -> AlgorithmDefinition:
         now = utc_now()

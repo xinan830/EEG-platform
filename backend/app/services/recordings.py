@@ -10,7 +10,7 @@ from app.models.recording import ChannelMapping, RecordingSummary
 from app.models.analysis_config import AnalysisConfigRequest
 from app.services.filter_checkpoint_cache import FilterCheckpointCache
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
-from app.persistence import migrate_database
+from app.persistence import connect_database, migrate_database
 from app.services.recording_identity import (
     RECORDING_IMPORT_VERSION,
     backfill_recording_identity,
@@ -31,9 +31,7 @@ class RecordingService:
         self._initialize_database()
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path)
-        connection.row_factory = sqlite3.Row
-        return connection
+        return connect_database(self.database_path)
 
     def _initialize_database(self) -> None:
         migrate_database(self.database_path)

@@ -1,6 +1,6 @@
 # 可追溯分析底座
 
-> 当前边界：本地单用户工作台，同步执行 Run。持久任务队列、后台取消和批处理属于后续 Change 06，不在本版本中。
+> 当前边界：本地单用户工作台。标准 `/api/runs` 使用 SQLite 持久队列和单 Worker；旧 `/api/recordings/{id}/analysis` 为兼容旧客户端而同步返回，但其新结果同样由标准 Run/Artifact 链保存。
 
 ## 追溯一个结果
 
@@ -17,17 +17,21 @@ Recording source SHA-256
   -> result summary or structured failure
 ```
 
-旧 `/api/recordings/{id}/analysis`、`/spectrum/configured` 和 `/spectrogram/configured` 继续可用。新功能不删除旧结果，也不把 Viewer 的 montage/filter 隐式带入 Analysis。
+旧 `/api/recordings/{id}/analysis`、`/spectrum/configured` 和 `/spectrogram/configured` 继续可用。旧 analysis 路由的新请求不再写入历史 `analyses` 表，而是同步执行并返回一个 `legacy_analysis` AnalysisRun；`GET /api/analyses/{id}` 仍可读取迁移前的历史 JSON 记录。新功能不删除旧结果，也不把 Viewer 的 montage/filter 隐式带入 Analysis。
 
 ## 数据库升级
 
-当前 schema version 为 `3`：
+当前 schema version 为 `7`：
 
 | Version | 内容 |
 | --- | --- |
 | 1 | 收拢现有 recordings、analyses、audit、events、reports 表 |
 | 2 | Recording source 和通道导入身份 |
 | 3 | AnalysisRun、artifact、ValidationRun |
+| 4 | 不可变算法定义和版本 |
+| 5 | Project、Subject、Session、Condition |
+| 6 | 持久 Run 队列和 BatchRun |
+| 7 | Validation evidence |
 
 迁移按版本逐个执行，每个版本使用独立 `BEGIN IMMEDIATE` 事务。版本号只在同一事务末尾推进；失败会回滚该版本。重复启动不会重复新增表、列或记录。
 

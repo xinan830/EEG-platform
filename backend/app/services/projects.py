@@ -11,7 +11,7 @@ from app.models.research_project import (
     Condition, ConditionCreateRequest, Project, ProjectCreateRequest, Session,
     SessionCreateRequest, Subject, SubjectCreateRequest,
 )
-from app.persistence import migrate_database
+from app.persistence import connect_database, migrate_database
 from app.services.run_repository import utc_now
 
 
@@ -25,10 +25,7 @@ class ProjectService:
         migrate_database(self.database_path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path, timeout=5.0)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_database(self.database_path, foreign_keys=True)
 
     def create(self, request: ProjectCreateRequest) -> Project:
         now = utc_now()

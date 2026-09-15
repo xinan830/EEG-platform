@@ -10,7 +10,7 @@ from typing import Any
 
 from app.core.config import DATABASE_PATH
 from app.models.run import AnalysisRun, RunArtifact, RunStatus, StructuredRunError, ValidationRun
-from app.persistence import migrate_database
+from app.persistence import connect_database, migrate_database
 
 
 def utc_now() -> str:
@@ -31,10 +31,7 @@ class RunRepository:
         migrate_database(self.database_path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path, timeout=5.0)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+        return connect_database(self.database_path, foreign_keys=True)
 
     def create(self, run: AnalysisRun) -> None:
         values = run.model_dump(mode="json")
@@ -231,9 +228,7 @@ class ValidationRepository:
         migrate_database(self.database_path)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path, timeout=5.0)
-        connection.row_factory = sqlite3.Row
-        return connection
+        return connect_database(self.database_path)
 
     def create(self, validation: ValidationRun) -> None:
         values = validation.model_dump(mode="json")

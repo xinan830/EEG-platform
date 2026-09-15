@@ -7,6 +7,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+from app.persistence import connect_database
+
 
 RECORDING_IMPORT_VERSION = "recording-import-v1"
 
@@ -17,8 +19,7 @@ def canonical_channel_label(value: str) -> str:
 
 def backfill_recording_identity(database_path: Path, storage_dir: Path) -> None:
     """Fill additive provenance for legacy rows without requiring source recovery."""
-    connection = sqlite3.connect(database_path)
-    connection.row_factory = sqlite3.Row
+    connection = connect_database(database_path)
     try:
         rows = connection.execute(
             """SELECT id, stored_name, channels_json, source_sha256,

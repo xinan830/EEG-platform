@@ -9,6 +9,7 @@ from app.persistence.migrations import (
     get_schema_version,
     migrate_database,
 )
+from app.persistence import connect_database
 
 
 def test_migration_upgrades_legacy_database_without_losing_rows(tmp_path: Path):
@@ -56,3 +57,14 @@ def test_failed_migration_rolls_back_schema_and_version(tmp_path: Path):
         ).fetchone()
     assert table is None
     assert get_schema_version(database) == CURRENT_SCHEMA_VERSION
+
+
+def test_shared_connection_policy_preserves_row_access_and_opt_in_foreign_keys(tmp_path: Path):
+    database = tmp_path / "connections.sqlite3"
+    with connect_database(database, foreign_keys=True) as connection:
+        assert connection.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        assert connection.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+        connection.execute("CREATE TABLE values_table (id INTEGER PRIMARY KEY, value TEXT)")
+        connection.execute("INSERT INTO values_table (value) VALUES ('ok')")
+        row = connection.execute("SELECT value FROM values_table").fetchone()
+    assert row["value"] == "ok"

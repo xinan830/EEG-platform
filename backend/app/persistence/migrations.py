@@ -7,6 +7,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from .database import connect_database
+
 
 MigrationAction = Callable[[sqlite3.Connection], None]
 
@@ -269,10 +271,7 @@ CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 
 
 def _connect(database_path: Path) -> sqlite3.Connection:
-    connection = sqlite3.connect(database_path, timeout=5.0, isolation_level=None)
-    connection.execute("PRAGMA busy_timeout = 5000")
-    connection.execute("PRAGMA foreign_keys = ON")
-    return connection
+    return connect_database(database_path, foreign_keys=True, autocommit=True)
 
 
 def _ensure_metadata(connection: sqlite3.Connection) -> None:
