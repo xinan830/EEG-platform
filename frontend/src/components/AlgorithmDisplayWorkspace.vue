@@ -10,11 +10,12 @@ import { DYNAMIC_WINDOW_OPTIONS, appendOrRetainDynamicMetric, dynamicMetricBoots
 import '../styles/algorithmDisplayWorkspace.css'
 
 type Range = { start: number; end: number }
-export type WorkspaceMetricRun = { status: string; result: DefinitionMetricResult | DynamicMetric | null; error?: string }
+export type WorkspaceMetricRun = { status: string; result: DefinitionMetricResult | DynamicMetric | null; error?: string; run?: AnalysisRunResponse; definitionName?: string }
+type DynamicSession = { enabled: boolean; channel: string; definitions: Array<{ id: string; label: string; unit: string }>; windowS: DynamicWindowS }
 const props = defineProps<{
-  recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean; dynamicActive?: boolean
+  recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean; dynamicActive?: boolean; playbackEpoch?: number
 }>()
-const emit = defineEmits<{ close: []; results: [runs: Record<string, WorkspaceMetricRun>]; dynamicSession: [session: { enabled: boolean; channel: string; definitionCount: number }] }>()
+const emit = defineEmits<{ close: []; results: [runs: Record<string, WorkspaceMetricRun>]; dynamicSession: [session: DynamicSession] }>()
 const definitions = ref<AlgorithmDefinition[]>([])
 const versions = ref<Record<string, AlgorithmDefinitionVersion>>({})
 const selectedIds = ref<string[]>([])
@@ -50,6 +51,22 @@ async function load() {
 function isDynamic(result: DefinitionMetricResult | DynamicMetric | null): result is DynamicMetric {
   return Boolean(result && Array.isArray((result as DynamicMetric).series))
 }
+function outputUnit(id: string): string {
+  const version = versions.value[id]
+  const outputId = version?.graph?.outputs?.[0]
+  const metadata = outputId ? version?.outputs[outputId] : null
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata) && typeof (metadata as Record<string, unknown>).unit === 'string'
+    ? String((metadata as Record<string, unknown>).unit)
+    : '未知单位'
+}
+function dynamicSession(enabled: boolean): DynamicSession {
+  return {
+    enabled,
+    channel: channel.value,
+    definitions: selectedIds.value.map((id) => ({ id, label: title(id), unit: outputUnit(id) })),
+    windowS: dynamicWindowS.value,
+  }
+}
 async function poll(runId: string, definitionId: string, append = false) {
   for (let attempt = 0; attempt < 120; attempt += 1) {
     const next = await getRun(runId)
@@ -61,6 +78,8 @@ async function poll(runId: string, definitionId: string, append = false) {
         ? appendOrRetainDynamicMetric(previous, isDynamic(result) ? result : null)
         : result,
       error: next.error?.message,
+      run: next,
+      definitionName: runs.value[definitionId]?.definitionName ?? title(definitionId),
     }
     if (['completed', 'gate_failed', 'failed', 'cancelled'].includes(next.status)) return
     await new Promise<void>((resolve) => window.setTimeout(resolve, 250))
@@ -73,17 +92,17 @@ async function runSelected(startS: number, endS: number, dynamic: boolean, appen
   try {
     await Promise.all(selectedIds.value.map(async (definitionId) => {
       const version = versions.value[definitionId]
-      if (!version) { runs.value[definitionId] = { status: 'failed', result: null, error: '没有可运行的算法版本' }; return }
+      if (!version) { runs.value[definitionId] = { status: 'failed', result: null, error: '没有可运行的算法版本', definitionName: title(definitionId) }; return }
       try {
         const created = await createDefinitionMetricRun({ recordingId: props.recording.id, definitionId, definitionVersion: version.semver, channel: channel.value, startS, endS, mode: dynamic ? 'dynamic' : 'static', dynamicWindowS: dynamic ? dynamicWindowS.value : undefined })
-        runs.value[definitionId] = { status: created.status, result: append ? (runs.value[definitionId]?.result ?? null) : resultFrom(created) }
+        runs.value[definitionId] = { status: created.status, result: append ? (runs.value[definitionId]?.result ?? null) : resultFrom(created), run: created, definitionName: title(definitionId) }
         await poll(created.run_id, definitionId, append)
-      } catch (cause) { runs.value[definitionId] = { status: 'failed', result: null, error: cause instanceof Error ? cause.message : '提交失败' } }
+      } catch (cause) { runs.value[definitionId] = { status: 'failed', result: null, error: cause instanceof Error ? cause.message : '提交失败', definitionName: title(definitionId) } }
     }))
   } finally { running.value = false; emit('results', { ...runs.value }) }
 }
 async function runStatic() {
-  emit('dynamicSession', { enabled: false, channel: channel.value, definitionCount: 0 })
+  emit('dynamicSession', dynamicSession(false))
   if (staticRangeDuration.value < 4) { message.value = '静态分析区间至少需要 4 秒。'; return }
   await runSelected(staticStartS.value, staticEndS.value, false)
 }
@@ -93,7 +112,7 @@ async function startDynamic(closeAfterStart: boolean) {
   const second = position === undefined ? null : Math.floor(position)
   lastDynamicRefreshS.value = second !== null && second >= dynamicWindowS.value ? second : null
   message.value = `已启用播放同步分析：播放到 ${dynamicWindowS.value} 秒后，每整秒计算最近 ${dynamicWindowS.value} 秒。`
-  emit('dynamicSession', { enabled: true, channel: channel.value, definitionCount: selectedIds.value.length })
+  emit('dynamicSession', dynamicSession(true))
   const bootstrap = position === undefined ? null : dynamicMetricBootstrapRange(second ?? position, dynamicWindowS.value)
   if (bootstrap) {
     await runSelected(bootstrap.startS, bootstrap.endS, true)
@@ -125,11 +144,16 @@ watch(() => [props.playing, props.playbackPositionS] as const, ([playing, positi
   const second = Math.floor(position)
   void refreshDynamic(second)
 })
-watch(mode, (nextMode) => { if (nextMode !== 'dynamic') emit('dynamicSession', { enabled: false, channel: channel.value, definitionCount: 0 }) })
+watch(mode, (nextMode) => { if (nextMode !== 'dynamic') emit('dynamicSession', dynamicSession(false)) })
 watch(dynamicWindowS, (nextWindowS, previousWindowS) => {
   if (nextWindowS !== previousWindowS && mode.value === 'dynamic' && props.dynamicActive) void startDynamic(false)
 })
 watch(() => props.dynamicActive, (active) => { if (!active) lastDynamicRefreshS.value = null })
+watch(() => props.playbackEpoch, () => {
+  runs.value = {}
+  lastDynamicRefreshS.value = null
+  emit('results', {})
+})
 function useCurrentRange() { staticStartS.value = range.value.start; staticEndS.value = range.value.end }
 function title(id: string) { return definitions.value.find((item) => item.definition_id === id)?.name ?? id }
 onMounted(load)

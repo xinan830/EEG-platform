@@ -12,18 +12,24 @@ calculation, never Viewer settings.
 
 Static mode executes once over an explicitly selected start/end range. Dynamic
 mode is a persistent playback-synchronised session: at each whole playback
-second `t >= 10`, the browser requests the real trailing `t-10 → t` EEG window.
-For example, at `46.x s` it requests `36–46 s`, then at `47.x s` requests
-`37–47 s`. The browser appends backend-returned points but performs no EEG or
-metric calculation. A quality failure retains a point with `value: null`; it
-is never removed or converted to zero.
+second `t >= selected_window_s`, the browser requests the real trailing
+`t-selected_window_s → t` EEG window. For the default `10 s` selection, at
+`46.x s` it requests `36–46 s`, then at `47.x s` requests `37–47 s`. The
+browser appends backend-returned points but performs no EEG or metric
+calculation. A quality failure retains a point with `value: null`; it is never
+removed or converted to zero.
 
 If a researcher enables dynamic mode in the middle of playback, the browser
-first requests a bounded real-history range: `max(0, t-30) → t`. The backend
+first requests a bounded real-history range:
+`max(0, t-(selected_window_s+20)) → t`. The backend
 therefore returns the corresponding one-second dynamic points immediately
 (for example, enabling at `25 s` returns `10…25 s` endpoints), rather than a
 misleading one-point chart. This is a display bootstrap, not interpolation;
-every point remains a backend-computed trailing 10-second window. If playback
+advances while a Run is pending, the next request covers every missed
+one-second endpoint before ordinary one-second appends resume.
+every point remains a backend-computed selected-duration trailing window. If
+playback advances while a Run is pending, the next request covers every missed
+one-second endpoint before ordinary one-second appends resume.
 advances while a Run is pending, the next request covers every missed
 one-second endpoint before ordinary one-second appends resume.
 While an appended Run is queued or running and therefore has no metric payload,
@@ -55,7 +61,7 @@ is never changed to zero.
 `RunCreateRequest.analysis_type` gains `definition_metric`. Its config has
 `channel` and absolute `time.start_s/end_s`. A run must identify both a saved
 definition and an existing immutable version. Static requests use user-entered
-times; dynamic playback requests have an exact 10-second range. The resolved definition version,
+times; dynamic playback requests have an exact selected-duration range. The resolved definition version,
 feature snapshot, analysis contract, range, channel, quality data, output and
 NPZ scalar artifact belong to the normal AnalysisRun provenance and cache key.
 
@@ -79,3 +85,31 @@ comparison whose X labels are the saved input names and whose Y label is that
 persisted unit. Incompatible input units get no comparison chart. Trend axes
 are fixed: window-end time in seconds on X and the persisted metric unit on Y.
 Algorithms with different output units render in separate charts.
+
+## Replay reset, pending view and algorithm evidence
+
+Replay is a new playback epoch, not a continuation of an existing dynamic
+analysis session. On replay, the browser clears rendered dynamic result points
+and resets the last requested dynamic endpoint to `null`, while retaining the
+user's selected definitions, channel and selected dynamic duration. The panel
+is immediately visible at `0 s`; it does not submit a Run until a complete
+selected-duration trailing EEG window exists. Consequently, a `10 s` session
+shows a truthful pending state for `0–10 s`, produces its first real point at
+`10 s`, and never carries a `22 s` point into the new playback epoch.
+
+The pending chart has an empty data series and labels its future first window;
+it MUST NOT create a zero, interpolated value, or a fake line. Its axis is a
+display guide only and its text distinguishes “waiting for a complete EEG
+window” from a rejected quality-gated window.
+
+Every static result card and dynamic trend exposes an **algorithm debug
+workbench** button. It is read-only. A static view shows the completed Run's
+identity/version/configuration, requested and actual range, channel, analysis
+reference, sampling rate, filtering and Welch contract, spectral quality,
+resolved input features, algorithm output and trace identity. A dynamic view
+selects one persisted endpoint (latest by default) and shows the corresponding
+real trailing window and evidence. The server persists the relevant raw
+spectral evidence for each metric computation: frequency axis, selected-channel
+linear PSD, absolute/relative band power, contracts, quality and resolved
+inputs. The client renders these values and may expand the 117 PSD points; it
+does not recompute PSD, band integration, RBP or the user formula.

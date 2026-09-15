@@ -11,6 +11,9 @@
 - [x] Add dynamic 10 s / 1 s backend series semantics and NPZ persistence.
 - [x] Remove execution from the definition library and add the waveform-and-algorithms workspace.
 - [x] Add static result cards and dynamic unit-safe trend charts to that workspace.
+- [x] Reset a dynamic session on replay while retaining its user selections.
+- [x] Render a truthful empty dynamic chart before its first complete trailing window.
+- [x] Persist per-window spectral evidence and render it in a read-only algorithm debug workbench.
 - [ ] Extend Results Workbench rendering for definition-metric results.
 
 ## 3. Verification

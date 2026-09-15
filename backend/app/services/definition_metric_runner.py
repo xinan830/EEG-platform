@@ -31,6 +31,7 @@ class MetricInputResolution:
     snapshot: dict[str, dict[str, object]]
     quality: dict[str, object]
     actual_range: dict[str, float]
+    spectral_evidence: dict[str, object]
 
 
 class DefinitionMetricRunner:
@@ -100,9 +101,23 @@ class DefinitionMetricRunner:
 
         start = float(payload.get("window_start_s", start_s))
         duration = float(payload.get("window_duration_s", end_s - start_s))
+        spectral_evidence = {
+            "sfreq_hz": float(payload["sfreq_hz"]),
+            "analysis_reference": payload["analysis_reference"],
+            "algorithm_version": payload["algorithm_version"],
+            "filter_contract": payload["filter_contract"],
+            "welch_contract": payload["welch_contract"],
+            "units": payload["units"],
+            "frequencies_hz": list(payload["frequencies_hz"]),
+            "psd_uV2_per_hz": list(payload["psd"][channel]),
+            "band_power": dict(payload["band_power"][channel]),
+            "relative_band_power": dict(payload["relative_band_power"][channel]),
+            "quality": dict(payload["quality"]),
+        }
         return MetricInputResolution(
             inputs=inputs,
             snapshot=snapshot,
             quality=dict(payload.get("quality", {})),
             actual_range={"start_s": start, "end_s": start + duration},
+            spectral_evidence=spectral_evidence,
         )

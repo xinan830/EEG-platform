@@ -16,6 +16,19 @@ export interface DefinitionMetricRunRequest {
 export interface AnalysisRunResponse {
   run_id: string
   status: string
+  definition_id?: string | null
+  definition_version?: string | null
+  scientific_version?: string
+  implementation_version?: string
+  config_sha256?: string
+  requested_range?: { start_s: number; end_s: number }
+  actual_range?: { start_s: number; end_s: number } | null
+  channel_mapping?: Record<string, unknown>
+  reference?: Record<string, unknown>
+  filters?: Record<string, unknown>
+  window?: Record<string, unknown>
+  quality_rules?: Record<string, unknown>
+  environment?: Record<string, string>
   result_summary?: Record<string, unknown> | null
   error?: { code: string; message: string } | null
 }

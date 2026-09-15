@@ -363,7 +363,13 @@ class RunService:
                 "artifact_peak_uv": ANALYSIS_CONTRACT["artifact_peak_uv"],
                 "reasons": ["non_finite", "amplitude_threshold", "flatline", "clipping", "missing_samples"],
             },
-            "definition_sha256": definition["digest_sha256"] if request.analysis_type == "definition_metric" else sha256_json(definition),
+            # The metric's numerical definition is immutable, while its persisted
+            # evidence contract is independently versioned so legacy summaries
+            # without debug evidence cannot be reused as current Run results.
+            "definition_sha256": sha256_json({
+                "definition_digest": definition["digest_sha256"],
+                "result_contract_version": "definition-metric-evidence-v1",
+            }) if request.analysis_type == "definition_metric" else sha256_json(definition),
             "scientific_version": scientific_version,
         }
 
@@ -448,6 +454,7 @@ class RunService:
                 "channel": config.channel,
                 "actual_range": resolution.actual_range,
                 "source_quality": resolution.quality,
+                "spectral_evidence": resolution.spectral_evidence,
                 "chart": chart,
             }
             arrays = {"metric_value": np.asarray([output.value], dtype=float)}
@@ -490,7 +497,9 @@ class RunService:
                 if value is None:
                     quality = {**quality, "status": "bad"}
                 points.append({"time_s": round(point_end, 9), "window_start_s": round(point_start, 9),
-                               "window_end_s": round(point_end, 9), "value": value, "quality": quality})
+                               "window_end_s": round(point_end, 9), "value": value, "quality": quality,
+                               "inputs": resolution.snapshot, "source_quality": resolution.quality,
+                               "spectral_evidence": resolution.spectral_evidence})
                 values.append(np.nan if value is None else value)
             except SpectralQualityGateError as exc:
                 points.append({"time_s": round(point_end, 9), "window_start_s": round(point_start, 9),

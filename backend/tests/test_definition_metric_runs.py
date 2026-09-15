@@ -1,8 +1,12 @@
 from pathlib import Path
+import sqlite3
 
 import numpy as np
+import pytest
 
+from app.core.provenance import build_cache_key, implementation_version, sha256_json
 from app.models.algorithm_definition import DefinitionCreateRequest, DefinitionVersionDraft
+from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
 from app.services.run_queue import PersistentRunQueue
@@ -56,6 +60,11 @@ def test_definition_metric_run_persists_ratio_and_provenance(tmp_path: Path):
     assert metric["channel"] == "F3"
     assert metric["actual_range"] == {"start_s": 0.0, "end_s": 30.0}
     assert metric["inputs"]["input_left"]["feature"] == "theta_power"
+    evidence = metric["spectral_evidence"]
+    assert evidence["sfreq_hz"] == 100.0
+    assert len(evidence["frequencies_hz"]) == 117
+    assert len(evidence["psd_uV2_per_hz"]) == 117
+    assert evidence["band_power"]["theta"] > 0
     assert queue.list_artifacts(queued.run_id)
 
 
@@ -103,6 +112,11 @@ def test_dynamic_definition_metric_persists_real_trailing_windows(tmp_path: Path
     assert metric["series"][-1]["time_s"] == 30.0
     assert metric["series"][-1]["window_start_s"] == 20.0
     assert metric["series"][0]["value"] is not None
+    point_evidence = metric["series"][0]["spectral_evidence"]
+    assert point_evidence["sfreq_hz"] == 100.0
+    assert len(point_evidence["frequencies_hz"]) == 117
+    assert len(point_evidence["psd_uV2_per_hz"]) == 117
+    assert metric["series"][0]["inputs"]["input_left"]["feature"] == "theta_power"
     artifact = queue.list_artifacts(queued.run_id)[0]
     with np.load((tmp_path / "artifacts" / artifact.relative_path)) as arrays:
         assert arrays["metric_time_s"].shape == (21,)
@@ -136,3 +150,43 @@ def test_dynamic_definition_metric_supports_selected_twenty_second_window(tmp_pa
     assert metric["series"][-1]["time_s"] == 30.0
     assert metric["series"][-1]["window_start_s"] == 10.0
     assert queue.list_artifacts(queued.run_id)
+
+
+def test_dynamic_metric_requires_the_selected_window_duration():
+    with pytest.raises(ValueError, match="至少需要 20 秒"):
+        DefinitionMetricConfig.model_validate({
+            "channel": "F3",
+            "time": {"start_s": 0, "end_s": 10},
+            "mode": "dynamic",
+            "dynamic_window_s": 20,
+            "refresh_step_s": 1,
+        })
+
+
+def test_definition_metric_evidence_contract_does_not_reuse_legacy_cache(tmp_path: Path):
+    queue, recording_id, definition_id = _queue_with_metric_definition(tmp_path)
+    request = RunCreateRequest.model_validate({
+        "recording_id": recording_id, "analysis_type": "definition_metric", "definition_id": definition_id,
+        "definition_version": "1.0.0", "config": {"channel": "F3", "time": {"start_s": 0, "end_s": 30}},
+    })
+    first = queue.enqueue(request)
+    completed_first = queue.process_next()
+    assert completed_first is not None and completed_first.status is RunStatus.COMPLETED
+    recording = queue.recordings.require_recording(recording_id)
+    version = queue.base.definition_service.repository.get_version(definition_id, "1.0.0")
+    assert version is not None
+    legacy_cache_key = build_cache_key(
+        source_sha256=recording.source_sha256,
+        definition_sha256=version.digest_sha256,
+        config_sha256=sha256_json(first.config),
+        implementation_build=implementation_version(),
+        actual_range={"start_s": 0.0, "end_s": 30.0},
+    )
+    with sqlite3.connect(queue.recordings.database_path) as connection:
+        connection.execute("UPDATE analysis_runs SET cache_key = ? WHERE run_id = ?", (legacy_cache_key, first.run_id))
+
+    second = queue.enqueue(request)
+    completed_second = queue.process_next()
+
+    assert second.cache_key != legacy_cache_key
+    assert completed_second is not None and completed_second.reused_from_run_id is None

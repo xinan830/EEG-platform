@@ -111,6 +111,40 @@ SHALL be persisted in the Run configuration and returned dynamic contract.
   newest returned endpoint, rather than a range derived from the count of
   available points.
 
+#### Scenario: Replay a dynamic metric session
+
+- **WHEN** the user replays a recording after a dynamic metric produced a point
+  at `22 s`
+- **THEN** the client clears those prior-epoch metric points immediately
+- **AND THEN** it retains the selected definitions, channel and dynamic-window
+  setting
+- **AND THEN** at `0 s` it displays an empty pending chart for the first real
+  `0–window_s` interval
+- **AND WHEN** playback reaches `window_s`
+- **THEN** it requests and displays the first real dynamic point.
+
+### Requirement: Present read-only algorithm computation evidence
+
+The system SHALL provide a read-only algorithm debug workbench from each
+displayed static metric card and dynamic metric trend. It SHALL render only
+persisted backend Run data: algorithm/run identity, versions, configuration
+fingerprint, requested and actual ranges, selected channel, reference,
+sampling rate, filter and Welch contract, quality evidence, resolved inputs,
+and computed output. It SHALL make the selected channel's frequency axis,
+linear PSD, absolute band power and relative band power available for
+inspection without browser-side scientific recalculation.
+
+#### Scenario: Inspect a dynamic Theta/Beta point
+
+- **WHEN** a researcher opens the workbench from a Theta/Beta trend and chooses
+  endpoint `22 s`
+- **THEN** it shows the persisted real trailing window, such as `12–22 s` for
+  a `10 s` contract
+- **AND THEN** it shows the persisted Theta and Beta inputs, ratio output,
+  quality and spectral evidence for that exact window
+- **AND THEN** it never substitutes values from another endpoint or calculates
+  a new value in the browser.
+
 ### Requirement: Keep algorithm execution outside the definition library
 
 The ordinary definition library SHALL provide explanation, version information
