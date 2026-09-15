@@ -1,19 +1,11 @@
 // @vitest-environment jsdom
 import { flushPromises, mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { listDefinitions } from '../api/algorithmDefinitions'
-import { listOfficialAlgorithms } from '../api/officialAlgorithms'
+import type { AlgorithmCatalogContext } from '../composables/useAlgorithmCatalog'
 import AlgorithmDisplayWorkspace from './AlgorithmDisplayWorkspace.vue'
 
 const createDefinitionMetricRun = vi.fn()
-
-vi.mock('../api/algorithmDefinitions', () => ({
-  listDefinitions: vi.fn(async () => [{
-    definition_id: 'theta-beta', name: 'Theta/Beta 比值', owner: 'local-user', status: 'testing',
-  }]),
-  listDefinitionVersions: vi.fn(async () => [{ semver: '1.0.0' }]),
-}))
 
 vi.mock('../api/runs', () => ({
   createDefinitionMetricRun: (...args: unknown[]) => createDefinitionMetricRun(...args),
@@ -23,17 +15,33 @@ vi.mock('../api/runs', () => ({
   })),
 }))
 
-vi.mock('../api/officialAlgorithms', () => ({
-  listOfficialAlgorithms: vi.fn(async () => []),
-}))
+const userRatio = { definition_id: 'theta-beta', name: 'Theta/Beta 比值', owner: 'local-user', status: 'testing' as const, description: '', created_at: '', updated_at: '' }
+const ratioVersion = { semver: '1.0.0', graph: { outputs: [] }, outputs: {} }
+const officialRbp = {
+  algorithm_id: 'rbp', display_name_zh: '相对频段功率', abbreviation: 'RBP', purpose_zh: '展示四个基础频段在总功率中的占比',
+  scientific_version: 'offline-spectral-v3', implementation_identity: 'offline-spectral-v3', execution_kind: 'generic_research_primitives',
+  availability: 'shadow_validation' as const, is_runnable: false, required_channel_roles: [], supported_modes: [], definition_id: 'official-rbp', definition_version: '1.0.0',
+}
+
+function createCatalog(overrides: Partial<{ definitions: typeof userRatio[]; officialAlgorithms: typeof officialRbp[]; versions: Record<string, unknown[]> }> = {}) {
+  const versions = overrides.versions ?? { 'theta-beta': [ratioVersion] }
+  return {
+    definitions: ref(overrides.definitions ?? [userRatio]), officialAlgorithms: ref(overrides.officialAlgorithms ?? []),
+    versionsByDefinition: ref(versions), userError: ref(''), officialError: ref(''), loading: ref(false),
+    refresh: vi.fn(async () => undefined),
+    ensureVersions: vi.fn(async (id: string) => versions[id] ?? []),
+    removeDefinitionVersionCache: vi.fn(),
+  } as unknown as AlgorithmCatalogContext
+}
 
 describe('AlgorithmDisplayWorkspace', () => {
   it('restarts an active dynamic session when the selected window changes', async () => {
     createDefinitionMetricRun.mockResolvedValue({ run_id: 'run-1', status: 'queued' })
+    const catalog = createCatalog()
     const wrapper = mount(AlgorithmDisplayWorkspace, {
       props: {
         recording: { id: 'recording-1', channels: ['F3'] }, rangeStart: 0, rangeEnd: 30,
-        channels: ['F3'], playbackPositionS: 32, playing: false, dynamicActive: true,
+        channels: ['F3'], playbackPositionS: 32, playing: false, dynamicActive: true, catalog,
       } as never,
     })
     await flushPromises()
@@ -55,10 +63,11 @@ describe('AlgorithmDisplayWorkspace', () => {
 
   it('clears prior dynamic results but retains selected settings for a new playback epoch', async () => {
     createDefinitionMetricRun.mockResolvedValue({ run_id: 'run-replay', status: 'queued' })
+    const catalog = createCatalog()
     const wrapper = mount(AlgorithmDisplayWorkspace, {
       props: {
         recording: { id: 'recording-1', channels: ['F3'] }, rangeStart: 0, rangeEnd: 30,
-        channels: ['F3'], playbackPositionS: 22, playing: false, dynamicActive: true, playbackEpoch: 0,
+        channels: ['F3'], playbackPositionS: 22, playing: false, dynamicActive: true, playbackEpoch: 0, catalog,
       } as never,
     })
     await Promise.resolve()
@@ -76,57 +85,36 @@ describe('AlgorithmDisplayWorkspace', () => {
     expect((wrapper.findAll('select')[1].element as HTMLSelectElement).value).toBe('10')
   })
 
-  it('refreshes the catalog after an algorithm is deleted and recreated', async () => {
-    const list = vi.mocked(listDefinitions)
-    list.mockReset()
-    list.mockResolvedValueOnce([{
-      definition_id: 'old-ratio', name: '旧 Theta/Beta', owner: 'local-user', status: 'testing',
-      description: '', created_at: '', updated_at: '',
-    }])
-    list.mockResolvedValueOnce([{
-      definition_id: 'new-ratio', name: '新 Theta/Beta', owner: 'local-user', status: 'testing',
-      description: '', created_at: '', updated_at: '',
-    }])
+  it('renders a changed shared catalog without requesting a second local definition list', async () => {
+    const catalog = createCatalog({ definitions: [{ ...userRatio, definition_id: 'old-ratio', name: '旧 Theta/Beta' }] })
     const wrapper = mount(AlgorithmDisplayWorkspace, {
       props: {
         recording: { id: 'recording-1', channels: ['F3'] }, rangeStart: 0, rangeEnd: 30,
-        channels: ['F3'], definitionsEpoch: 0,
+        channels: ['F3'], catalog,
       } as never,
     })
-    await Promise.resolve()
+    await flushPromises()
     await nextTick()
     expect(wrapper.text()).toContain('旧 Theta/Beta')
 
-    await wrapper.setProps({ definitionsEpoch: 1 })
-    await Promise.resolve()
+    catalog.definitions.value = [{ ...userRatio, definition_id: 'new-ratio', name: '新 Theta/Beta' }]
     await nextTick()
 
     expect(wrapper.text()).toContain('新 Theta/Beta')
     expect(wrapper.text()).not.toContain('旧 Theta/Beta')
+    expect(catalog.refresh).toHaveBeenCalledTimes(1)
   })
 
   it('shows official definitions as read-only while their executor is still in shadow validation', async () => {
-    const list = vi.mocked(listDefinitions)
-    list.mockReset()
-    list.mockResolvedValueOnce([
-      {
-        definition_id: 'official-rbp', name: 'Official RBP', owner: 'platform-official', status: 'testing',
-        description: 'Frozen official RBP contract; shadow migration only.', created_at: '', updated_at: '',
-      },
-      {
-        definition_id: 'user-ratio', name: '我的 Theta/Beta', owner: 'local-user', status: 'testing',
-        description: '', created_at: '', updated_at: '',
-      },
-    ])
-    vi.mocked(listOfficialAlgorithms).mockResolvedValueOnce([{
-      algorithm_id: 'rbp', display_name_zh: '相对频段功率', abbreviation: 'RBP', purpose_zh: '展示四个基础频段在总功率中的占比',
-      scientific_version: 'offline-spectral-v3', implementation_identity: 'offline-spectral-v3', execution_kind: 'generic_research_primitives',
-      availability: 'shadow_validation', is_runnable: false, required_channel_roles: [], supported_modes: [], definition_id: 'official-rbp', definition_version: '1.0.0',
-    }])
+    const catalog = createCatalog({
+      definitions: [{ ...userRatio, definition_id: 'user-ratio', name: '我的 Theta/Beta' }],
+      officialAlgorithms: [officialRbp],
+      versions: { 'user-ratio': [ratioVersion] },
+    })
     const wrapper = mount(AlgorithmDisplayWorkspace, {
       props: {
         recording: { id: 'recording-1', channels: ['F3'] }, rangeStart: 0, rangeEnd: 30,
-        channels: ['F3'],
+        channels: ['F3'], catalog,
       } as never,
     })
     await flushPromises()

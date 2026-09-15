@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { listDefinitions, listDefinitionVersions } from '../api/algorithmDefinitions'
-import { listOfficialAlgorithms, type OfficialAlgorithmCatalogItem } from '../api/officialAlgorithms'
 import { createDefinitionMetricRun, getRun, type AnalysisRunResponse } from '../api/runs'
+import type { OfficialAlgorithmCatalogItem } from '../api/officialAlgorithms'
 import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/algorithmDefinition'
+import type { AlgorithmCatalogContext } from '../composables/useAlgorithmCatalog'
 import type { Recording } from '../types/recording'
 import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
 import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
@@ -14,13 +14,15 @@ type Range = { start: number; end: number }
 export type WorkspaceMetricRun = { status: string; result: DefinitionMetricResult | DynamicMetric | null; error?: string; run?: AnalysisRunResponse; definitionName?: string }
 type DynamicSession = { enabled: boolean; channel: string; definitions: Array<{ id: string; label: string; unit: string }>; windowS: DynamicWindowS; displayRangeS: number }
 const props = defineProps<{
-  recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean; dynamicActive?: boolean; playbackEpoch?: number; definitionsEpoch?: number
+  recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean; dynamicActive?: boolean; playbackEpoch?: number; catalog: AlgorithmCatalogContext
 }>()
 const emit = defineEmits<{ close: []; results: [runs: Record<string, WorkspaceMetricRun>]; dynamicSession: [session: DynamicSession] }>()
-const definitions = ref<AlgorithmDefinition[]>([])
-const officialAlgorithms = ref<OfficialAlgorithmCatalogItem[]>([])
-const officialCatalogError = ref('')
-const versions = ref<Record<string, AlgorithmDefinitionVersion>>({})
+const definitions = computed<AlgorithmDefinition[]>(() => props.catalog.definitions.value)
+const officialAlgorithms = computed(() => props.catalog.officialAlgorithms.value)
+const officialCatalogError = computed(() => props.catalog.officialError.value)
+const versions = computed<Record<string, AlgorithmDefinitionVersion>>(() => Object.fromEntries(
+  Object.entries(props.catalog.versionsByDefinition.value).flatMap(([definitionId, items]) => items[0] ? [[definitionId, items[0]]] : []),
+))
 const selectedIds = ref<string[]>([])
 const channel = ref(props.channels[0] ?? props.recording.channels[0] ?? '')
 const mode = ref<'static' | 'dynamic'>('static')
@@ -45,31 +47,10 @@ function resultFrom(run: AnalysisRunResponse): DefinitionMetricResult | DynamicM
 async function load() {
   loading.value = true
   try {
-    const catalog = await listDefinitions()
-    definitions.value = catalog
-    const availableIds = new Set(catalog.filter((item) => item.owner !== 'platform-official').map((item) => item.definition_id))
-    const removedIds = selectedIds.value.filter((id) => !availableIds.has(id))
-    if (removedIds.length) {
-      selectedIds.value = selectedIds.value.filter((id) => availableIds.has(id))
-      const nextRuns = { ...runs.value }
-      removedIds.forEach((id) => { delete nextRuns[id] })
-      runs.value = nextRuns
-      if (props.dynamicActive) emit('dynamicSession', dynamicSession(false))
-      emit('results', { ...runs.value })
-    }
-    versions.value = {}
-    await Promise.all(userDefinitions.value.map(async (item) => {
-      const items = await listDefinitionVersions(item.definition_id)
-      if (items[0]) versions.value[item.definition_id] = items[0]
-    }))
+    await props.catalog.refresh()
+    await Promise.all(userDefinitions.value.map((item) => props.catalog.ensureVersions(item.definition_id)))
   } catch (cause) { message.value = cause instanceof Error ? cause.message : '无法读取我的算法库' }
   finally { loading.value = false }
-  await loadOfficialCatalog()
-}
-async function loadOfficialCatalog() {
-  officialCatalogError.value = ''
-  try { officialAlgorithms.value = await listOfficialAlgorithms() }
-  catch { officialAlgorithms.value = []; officialCatalogError.value = '官方算法目录暂不可读取；我的算法不受影响。' }
 }
 function isDynamic(result: DefinitionMetricResult | DynamicMetric | null): result is DynamicMetric {
   return Boolean(result && Array.isArray((result as DynamicMetric).series))
@@ -181,9 +162,19 @@ watch(() => props.playbackEpoch, () => {
   lastDynamicRefreshS.value = null
   emit('results', {})
 })
-watch(() => props.definitionsEpoch, (next, previous) => {
-  if (next !== previous) void load()
-})
+watch(userDefinitions, (items) => {
+  const availableIds = new Set(items.map((item) => item.definition_id))
+  const removedIds = selectedIds.value.filter((id) => !availableIds.has(id))
+  if (removedIds.length) {
+    selectedIds.value = selectedIds.value.filter((id) => availableIds.has(id))
+    const nextRuns = { ...runs.value }
+    removedIds.forEach((id) => { delete nextRuns[id] })
+    runs.value = nextRuns
+    if (props.dynamicActive) emit('dynamicSession', dynamicSession(false))
+    emit('results', { ...runs.value })
+  }
+  void Promise.all(items.map((item) => props.catalog.ensureVersions(item.definition_id)))
+}, { immediate: true })
 function useCurrentRange() { staticStartS.value = range.value.start; staticEndS.value = range.value.end }
 function title(id: string) { return definitions.value.find((item) => item.definition_id === id)?.name ?? id }
 function officialAvailability(item: OfficialAlgorithmCatalogItem) {
