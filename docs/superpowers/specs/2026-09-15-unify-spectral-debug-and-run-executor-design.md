@@ -50,3 +50,19 @@ cache keys, artifact contents, and error status semantics remain unchanged.
 - Run tests assert summaries, artifacts, cache reuse, gate failures, and
   dynamic metric series remain unchanged after executor extraction.
 - Full backend pytest, frontend Vitest, production build, and diff checks pass.
+
+## Implementation Record
+
+Implemented on `spectral-debug-executor`:
+
+- Configured PSD and spectrogram responses now return additive provenance;
+  their spectral contract and time semantics are unchanged.
+- Both debug dialogs use the common provenance panel and retain their
+  specialized backend evidence.
+- `RunAnalysisExecutor` now executes every production Run path. `RunService`
+  and the persistent queue delegate to it for numerical work while retaining
+  lifecycle and persistence ownership. The old private facade delegates too,
+  so no active path can use its historical inline implementation.
+
+Verification: backend `197 passed`; frontend `99 passed`; production build
+passed. The Vite chunk-size warning is pre-existing and non-blocking.

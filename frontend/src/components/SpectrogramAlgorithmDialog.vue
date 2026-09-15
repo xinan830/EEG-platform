@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { getConfiguredSpectrum } from '../api/spectrum'
 import type { SpectrogramResponse } from '../types/spectrogram'
+import AnalysisProvenancePanel from './AnalysisProvenancePanel.vue'
 
 const props = defineProps<{ result: SpectrogramResponse; channel: string; recordingId?: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -53,13 +54,9 @@ watch(() => [props.channel, selectedCenter.value, props.result.recording_id], lo
       <header class="dialog-titlebar"><strong id="spectrogram-check-title">时频图算法校验</strong><button type="button" class="dialog-close" aria-label="关闭时频图算法校验" @click="emit('close')">×</button></header>
       <div class="algorithm-body">
         <p class="algorithm-meta">只读展示后端返回的时频结果，前端不执行 FFT、PSD 或 dB 换算。当前通道：{{ channel }}</p>
+        <AnalysisProvenancePanel :provenance="result.analysis_provenance" />
         <div class="spectrum-check-grid">
-          <span>请求区间</span><strong>{{ result.requested_start_s?.toFixed(3) ?? '—' }}–{{ result.requested_end_s?.toFixed(3) ?? '—' }} s</strong>
-          <span>实际区间</span><strong>{{ (result.actual_start_s ?? result.window_start_s).toFixed(3) }}–{{ (result.actual_end_s ?? result.window_start_s + result.window_duration_s).toFixed(3) }} s</strong>
-          <span>接口版本</span><strong>{{ result.algorithm_version }}</strong>
-          <span>分析算法版本</span><strong>{{ result.analysis_algorithm_version ?? result.baseline_algorithm_version ?? '—' }}</strong>
           <span>时频契约版本</span><strong>{{ result.spectrogram_contract_version ?? '—' }}</strong>
-          <span>配置指纹</span><strong>{{ result.analysis_config_hash ?? '—' }}</strong>
           <span>时频窗</span><strong>{{ result.segment_s }} s Hann</strong>
           <span>时间步长</span><strong>{{ result.step_s }} s</strong>
           <span>时间轴语义</span><strong>窗口中心</strong>

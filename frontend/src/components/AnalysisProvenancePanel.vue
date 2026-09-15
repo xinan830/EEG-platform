@@ -24,7 +24,8 @@ function welchText(): string {
   const welch = props.provenance?.welch
   if (!welch) return '—'
   const window = welch.window.toLowerCase() === 'hann' ? 'Hann' : welch.window
-  return `${number(welch.segment_s, 0)} s ${window}，${number(welch.overlap_fraction * 100, 0)}% overlap（${number(welch.step_s, 0)} s 步进）`
+  const overlap = typeof welch.overlap_fraction === 'number' ? `，${number(welch.overlap_fraction * 100, 0)}% overlap` : ''
+  return `${number(welch.segment_s, 0)} s ${window}${overlap}（${number(welch.step_s, 0)} s 步进）`
 }
 
 function frequencyText(): string {
@@ -35,16 +36,17 @@ function frequencyText(): string {
 function qualityText(): string {
   const quality = props.provenance?.quality
   if (!quality) return '—'
-  const clean = quality.clean_segments
-  const total = quality.total_segments
-  return typeof clean === 'number' && typeof total === 'number' ? `${clean}/${total} clean` : String(quality.status ?? '—')
+  const clean = quality.clean_segments ?? quality.clean_windows
+  const total = quality.total_segments ?? quality.total_windows
+  const noun = typeof quality.clean_windows === 'number' ? ' clean windows' : ' clean'
+  return typeof clean === 'number' && typeof total === 'number' ? `${clean}/${total}${noun}` : String(quality.status ?? '—')
 }
 </script>
 
 <template>
   <section class="analysis-provenance-panel algorithm-debug-section">
     <h3>分析追溯信息</h3>
-    <p>只读展示后端 Run 已保存的证据；前端不重新计算 EEG、PSD、频段功率或算法公式。</p>
+    <p>只读展示后端已返回的分析证据；前端不重新计算 EEG、PSD、频段功率或算法公式。</p>
     <dl>
       <dt>模式</dt><dd>{{ provenance?.mode === 'dynamic' ? '动态算法' : provenance?.mode === 'static' ? '静态算法' : provenance?.mode ?? '—' }}</dd>
       <dt>请求分析区间</dt><dd>{{ range(provenance?.requested_range) }}</dd>
