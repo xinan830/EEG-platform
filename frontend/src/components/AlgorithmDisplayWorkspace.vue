@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { createDefinitionMetricRun, createOfficialAlgorithmRun, getRun, type AnalysisRunResponse } from '../api/runs'
+import { createAlgorithmRun, getRun, type AnalysisRunResponse } from '../api/runs'
 import type { OfficialAlgorithmCatalogItem } from '../api/officialAlgorithms'
 import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/algorithmDefinition'
 import type { AlgorithmCatalogContext } from '../composables/useAlgorithmCatalog'
@@ -93,7 +93,7 @@ async function runSelected(startS: number, endS: number, dynamic: boolean, appen
       const officialId = definitionId.startsWith('official:') ? definitionId.slice('official:'.length) : null
       if (officialId) {
         try {
-          const created = await createOfficialAlgorithmRun({ recordingId: props.recording.id, algorithmId: officialId as 'iapf' | 'theta_beta', channel: channel.value, startS, endS, mode: dynamic ? 'dynamic' : 'static', dynamicWindowS: dynamic ? dynamicWindowS.value : undefined })
+          const created = await createAlgorithmRun({ source: 'official', recordingId: props.recording.id, algorithmId: officialId, channel: channel.value, startS, endS, mode: dynamic ? 'dynamic' : 'static', dynamicWindowS: dynamic ? dynamicWindowS.value : undefined })
           runs.value[definitionId] = { status: created.status, result: append ? (runs.value[definitionId]?.result ?? null) : resultFrom(created), run: created, definitionName: title(definitionId) }
           await poll(created.run_id, definitionId, append)
         } catch (cause) { runs.value[definitionId] = { status: 'failed', result: null, error: cause instanceof Error ? cause.message : '提交失败', definitionName: title(definitionId) } }
@@ -102,7 +102,7 @@ async function runSelected(startS: number, endS: number, dynamic: boolean, appen
       const version = versions.value[definitionId]
       if (!version) { runs.value[definitionId] = { status: 'failed', result: null, error: '没有可运行的算法版本', definitionName: title(definitionId) }; return }
       try {
-        const created = await createDefinitionMetricRun({ recordingId: props.recording.id, definitionId, definitionVersion: version.semver, channel: channel.value, startS, endS, mode: dynamic ? 'dynamic' : 'static', dynamicWindowS: dynamic ? dynamicWindowS.value : undefined })
+        const created = await createAlgorithmRun({ source: 'user', recordingId: props.recording.id, definitionId, definitionVersion: version.semver, channel: channel.value, startS, endS, mode: dynamic ? 'dynamic' : 'static', dynamicWindowS: dynamic ? dynamicWindowS.value : undefined })
         runs.value[definitionId] = { status: created.status, result: append ? (runs.value[definitionId]?.result ?? null) : resultFrom(created), run: created, definitionName: title(definitionId) }
         await poll(created.run_id, definitionId, append)
       } catch (cause) { runs.value[definitionId] = { status: 'failed', result: null, error: cause instanceof Error ? cause.message : '提交失败', definitionName: title(definitionId) } }
@@ -184,8 +184,9 @@ function title(id: string) {
   return definitions.value.find((item) => item.definition_id === id)?.name ?? id
 }
 function outputUnit(id: string): string {
-  if (id === 'official:iapf') return 'Hz'
-  if (id === 'official:theta_beta') return 'dimensionless'
+  if (id.startsWith('official:')) {
+    return officialAlgorithms.value.find((item) => item.algorithm_id === id.slice('official:'.length))?.output_unit ?? '未知单位'
+  }
   const version = versions.value[id]
   const outputId = version?.graph?.outputs?.[0]
   const metadata = outputId ? version?.outputs[outputId] : null

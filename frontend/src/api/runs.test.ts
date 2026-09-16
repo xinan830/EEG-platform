@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { createDefinitionMetricRun, createOfficialAlgorithmRun } from './runs'
+import { createAlgorithmRun } from './runs'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -7,7 +7,7 @@ it('creates a normal definition metric run with the selected channel and range',
   const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ run_id: 'run-1', status: 'queued' }), { status: 202 }))
   vi.stubGlobal('fetch', fetchMock)
 
-  await createDefinitionMetricRun({ recordingId: 'recording-1', definitionId: 'definition-1', definitionVersion: '1.0.0', channel: 'F3', startS: 10, endS: 40 })
+  await createAlgorithmRun({ source: 'user', recordingId: 'recording-1', definitionId: 'definition-1', definitionVersion: '1.0.0', channel: 'F3', startS: 10, endS: 40 })
 
   expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/api/runs')
   expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
@@ -20,7 +20,7 @@ it('sends the locked dynamic window contract only for dynamic runs', async () =>
   const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ run_id: 'run-2', status: 'queued' }), { status: 202 }))
   vi.stubGlobal('fetch', fetchMock)
 
-  await createDefinitionMetricRun({ recordingId: 'recording-1', definitionId: 'definition-1', definitionVersion: '1.0.0', channel: 'F3', startS: 10, endS: 40, mode: 'dynamic' })
+  await createAlgorithmRun({ source: 'user', recordingId: 'recording-1', definitionId: 'definition-1', definitionVersion: '1.0.0', channel: 'F3', startS: 10, endS: 40, mode: 'dynamic' })
 
   expect(JSON.parse(fetchMock.mock.calls[0][1].body).config).toEqual({
     channel: 'F3', time: { start_s: 10, end_s: 40 }, mode: 'dynamic', dynamic_window_s: 10, refresh_step_s: 1,
@@ -31,7 +31,7 @@ it('creates an official IAPF run without a user definition identity', async () =
   const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ run_id: 'run-3', status: 'queued' }), { status: 202 }))
   vi.stubGlobal('fetch', fetchMock)
 
-  await createOfficialAlgorithmRun({ recordingId: 'recording-1', algorithmId: 'iapf', channel: 'Fz', startS: 0, endS: 30 })
+  await createAlgorithmRun({ source: 'official', recordingId: 'recording-1', algorithmId: 'iapf', channel: 'Fz', startS: 0, endS: 30 })
 
   expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
     recording_id: 'recording-1', analysis_type: 'official_algorithm',
@@ -43,7 +43,7 @@ it('creates official Theta/Beta without inventing a semantic channel mapping in 
   const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ run_id: 'run-4', status: 'queued' }), { status: 202 }))
   vi.stubGlobal('fetch', fetchMock)
 
-  await createOfficialAlgorithmRun({ recordingId: 'recording-1', algorithmId: 'theta_beta', channel: 'F3', startS: 0, endS: 30 })
+  await createAlgorithmRun({ source: 'official', recordingId: 'recording-1', algorithmId: 'theta_beta', channel: 'F3', startS: 0, endS: 30 })
 
   expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
     recording_id: 'recording-1', analysis_type: 'official_algorithm',

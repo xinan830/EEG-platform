@@ -2,10 +2,8 @@ import { request } from './client'
 import type { DynamicWindowS } from '../utils/dynamicMetricPlayback'
 import type { AnalysisProvenance } from '../types/analysisProvenance'
 
-export interface DefinitionMetricRunRequest {
+type SharedAlgorithmRunFields = {
   recordingId: string
-  definitionId: string
-  definitionVersion: string
   channel: string
   startS: number
   endS: number
@@ -14,16 +12,9 @@ export interface DefinitionMetricRunRequest {
   refreshStepS?: 1
 }
 
-export interface OfficialAlgorithmRunRequest {
-  recordingId: string
-  algorithmId: 'iapf' | 'theta_beta'
-  channel: string
-  startS: number
-  endS: number
-  mode?: 'static' | 'dynamic'
-  dynamicWindowS?: DynamicWindowS
-  refreshStepS?: 1
-}
+export type AlgorithmRunRequest =
+  | (SharedAlgorithmRunFields & { source: 'user'; definitionId: string; definitionVersion: string })
+  | (SharedAlgorithmRunFields & { source: 'official'; algorithmId: string })
 
 export interface AnalysisRunResponse {
   run_id: string
@@ -46,7 +37,11 @@ export interface AnalysisRunResponse {
   analysis_provenance?: AnalysisProvenance
 }
 
-export function createDefinitionMetricRun(value: DefinitionMetricRunRequest): Promise<AnalysisRunResponse> {
+export function createAlgorithmRun(value: AlgorithmRunRequest): Promise<AnalysisRunResponse> {
+  return value.source === 'official' ? createOfficialRun(value) : createDefinitionRun(value)
+}
+
+function createDefinitionRun(value: Extract<AlgorithmRunRequest, { source: 'user' }>): Promise<AnalysisRunResponse> {
   const config: Record<string, unknown> = { channel: value.channel, time: { start_s: value.startS, end_s: value.endS } }
   if (value.mode === 'dynamic') {
     config.mode = 'dynamic'
@@ -65,7 +60,7 @@ export function createDefinitionMetricRun(value: DefinitionMetricRunRequest): Pr
   })
 }
 
-export function createOfficialAlgorithmRun(value: OfficialAlgorithmRunRequest): Promise<AnalysisRunResponse> {
+function createOfficialRun(value: Extract<AlgorithmRunRequest, { source: 'official' }>): Promise<AnalysisRunResponse> {
   const config: Record<string, unknown> = {
     algorithm_id: value.algorithmId,
     time: { start_s: value.startS, end_s: value.endS },

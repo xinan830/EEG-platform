@@ -12,6 +12,7 @@ export type OfficialAlgorithmCatalogItem = {
   is_runnable: boolean
   required_channel_roles: string[]
   supported_modes: string[]
+  output_unit: string
   definition_id: string
   definition_version: string
 }
@@ -29,6 +30,7 @@ export function listOfficialAlgorithms(): Promise<OfficialAlgorithmCatalogItem[]
     is_runnable: item.is_runnable,
     required_channel_roles: [],
     supported_modes: item.modes,
+    output_unit: typeof item.output.unit === 'string' ? item.output.unit : '未知单位',
     definition_id: item.id,
     definition_version: item.version,
   })))

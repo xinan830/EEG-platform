@@ -5,12 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AlgorithmCatalogContext } from '../composables/useAlgorithmCatalog'
 import AlgorithmDisplayWorkspace from './AlgorithmDisplayWorkspace.vue'
 
-const createDefinitionMetricRun = vi.fn()
-const createOfficialAlgorithmRun = vi.fn()
+const createAlgorithmRun = vi.fn()
 
 vi.mock('../api/runs', () => ({
-  createDefinitionMetricRun: (...args: unknown[]) => createDefinitionMetricRun(...args),
-  createOfficialAlgorithmRun: (...args: unknown[]) => createOfficialAlgorithmRun(...args),
+  createAlgorithmRun: (...args: unknown[]) => createAlgorithmRun(...args),
   getRun: vi.fn(async () => ({
     status: 'completed',
     result_summary: { metric: { mode: 'dynamic', output: { label: 'Theta/Beta 比值', unit: 'dimensionless' }, channel: 'F3', series: [{ time_s: 22, window_start_s: 12, window_end_s: 22, value: 1.5 }] } },
@@ -42,7 +40,7 @@ function createCatalog(overrides: Partial<{ definitions: typeof userRatio[]; off
 
 describe('AlgorithmDisplayWorkspace', () => {
   it('restarts an active dynamic session when the selected window changes', async () => {
-    createDefinitionMetricRun.mockResolvedValue({ run_id: 'run-1', status: 'queued' })
+    createAlgorithmRun.mockResolvedValue({ run_id: 'run-1', status: 'queued' })
     const catalog = createCatalog()
     const wrapper = mount(AlgorithmDisplayWorkspace, {
       props: {
@@ -59,7 +57,8 @@ describe('AlgorithmDisplayWorkspace', () => {
     await Promise.resolve()
     await nextTick()
 
-    expect(createDefinitionMetricRun).toHaveBeenCalledWith(expect.objectContaining({
+    expect(createAlgorithmRun).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'user',
       startS: 0,
       endS: 32,
       mode: 'dynamic',
@@ -68,7 +67,7 @@ describe('AlgorithmDisplayWorkspace', () => {
   })
 
   it('clears prior dynamic results but retains selected settings for a new playback epoch', async () => {
-    createDefinitionMetricRun.mockResolvedValue({ run_id: 'run-replay', status: 'queued' })
+    createAlgorithmRun.mockResolvedValue({ run_id: 'run-replay', status: 'queued' })
     const catalog = createCatalog()
     const wrapper = mount(AlgorithmDisplayWorkspace, {
       props: {
@@ -135,12 +134,12 @@ describe('AlgorithmDisplayWorkspace', () => {
   })
 
   it('submits a runnable official IAPF run without treating it as a user definition', async () => {
-    createOfficialAlgorithmRun.mockResolvedValue({ run_id: 'official-run', status: 'completed', result_summary: { metric: { output: { label: '个体 Alpha 峰频率', value: 10, unit: 'Hz', quality: { status: 'clean', reasons: [] } }, channel: 'F3', actual_range: { start_s: 0, end_s: 30 }, source_quality: {}, chart: { kind: 'none' } } } })
+    createAlgorithmRun.mockResolvedValue({ run_id: 'official-run', status: 'completed', result_summary: { metric: { output: { label: '个体 Alpha 峰频率', value: 10, unit: 'Hz', quality: { status: 'clean', reasons: [] } }, channel: 'F3', actual_range: { start_s: 0, end_s: 30 }, source_quality: {}, chart: { kind: 'none' } } } })
     const catalog = createCatalog({ officialAlgorithms: [officialIapf] as never })
     const wrapper = mount(AlgorithmDisplayWorkspace, { props: { recording: { id: 'recording-1', channels: ['F3'] }, rangeStart: 0, rangeEnd: 30, channels: ['F3'], catalog } as never })
     await flushPromises()
     await wrapper.get('[data-testid="official-algorithm-official-iapf"] input').setValue(true)
     await wrapper.findAll('button').find((button) => button.text() === '计算此区间')!.trigger('click')
-    expect(createOfficialAlgorithmRun).toHaveBeenCalledWith(expect.objectContaining({ algorithmId: 'iapf', channel: 'F3', mode: 'static' }))
+    expect(createAlgorithmRun).toHaveBeenCalledWith(expect.objectContaining({ source: 'official', algorithmId: 'iapf', channel: 'F3', mode: 'static' }))
   })
 })
