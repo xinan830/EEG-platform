@@ -27,7 +27,7 @@ export function listOfficialAlgorithms(): Promise<OfficialAlgorithmCatalogItem[]
     scientific_version: item.version,
     implementation_identity: item.version,
     execution_kind: 'algorithm_runtime',
-    availability: (item.availability === 'available' ? 'available' : 'deprecated') as OfficialAlgorithmCatalogItem['availability'],
+    availability: item.availability as OfficialAlgorithmCatalogItem['availability'],
     is_runnable: item.is_runnable,
     required_channel_roles: [],
     supported_modes: item.modes,

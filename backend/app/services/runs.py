@@ -305,21 +305,19 @@ class RunService:
             duration = float(recording.duration_s or 0.0)
             if official_config.time.end_s > duration + 1.5 / float(recording.sfreq or 1.0):
                 raise ValueError(f"official analysis range exceeds recording duration of {duration:.3f} s")
-            if official_config.channel.casefold() not in {str(item).casefold() for item in recording.channels}:
-                raise ValueError(f"official analysis channel does not exist: {official_config.channel}")
+            available_channels = {str(item).casefold() for item in recording.channels}
+            requested_channels = [str(official_config.channel)]
+            if official_config.algorithm_id == "faa":
+                requested_channels.append(str(official_config.f4_channel))
+            unknown = [item for item in requested_channels if item.casefold() not in available_channels]
+            if unknown:
+                raise ValueError(f"official analysis channel does not exist: {unknown[0]}")
             assert self.executor.algorithm_runtime is not None
             self.executor.algorithm_runtime.validate_config(
                 module=module,
-                config={
-                    "channel": official_config.channel,
-                    "mode": official_config.mode,
-                    "start_s": float(official_config.time.start_s),
-                    "end_s": float(official_config.time.end_s),
-                    "window_s": float(official_config.dynamic_window_s),
-                    "step_s": float(official_config.refresh_step_s),
-                },
+                config=official_config.runtime_config(),
             )
-            channels = [str(official_config.channel)]
+            channels = requested_channels
             config = official_config.model_dump(mode="json")
             requested_range = official_config.time.model_dump(mode="json")
             actual_range = dict(requested_range)

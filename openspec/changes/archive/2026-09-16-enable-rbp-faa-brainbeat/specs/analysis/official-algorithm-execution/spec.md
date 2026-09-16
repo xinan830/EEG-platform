@@ -1,9 +1,5 @@
-# analysis/official-algorithm-execution Specification
+## MODIFIED Requirements
 
-## Purpose
-在可追溯 Run 管线中执行已验证的官方 IAPF 与个体化 Theta/Beta，
-同时保留明确逻辑通道映射、质量门和既有离线频谱数学契约。
-## Requirements
 ### Requirement: Run official IAPF and individualized Theta/Beta
 
 The system SHALL execute official IAPF, Theta/Beta, RBP and FAA through their
@@ -88,35 +84,3 @@ semantics and quality behavior.
   invalid Beta denominator
 - **THEN** that point's value is `null` with a stable backend reason and is
   never represented as zero
-
-### Requirement: Catalog state matches executable scope
-
-The official catalog SHALL mark only IAPF and Theta/Beta as available and
-runnable in this change. Other official algorithms SHALL retain their current
-availability and runnable state.
-
-#### Scenario: Read catalog after the cutover
-
-- **WHEN** a client requests the official catalog
-- **THEN** `iapf` and `theta_beta` are `available` and runnable
-- **AND THEN** FAA and BrainBeat remain `shadow_validation` and non-runnable
-
-### Requirement: Preserve scientific contracts
-
-Official IAPF and Theta/Beta v2 SHALL reuse frozen offline spectral
-preprocessing, quality gates, IAPF calculation, units, and time-window
-semantics.  Theta/Beta v2 SHALL calculate Theta over `[max(4, IAPF-6),
-IAPF-2]` Hz and Beta over `[IAPF+2,30]` Hz from the same selected channel.
-
-#### Scenario: Match static and dynamic windows
-
-- **WHEN** static Theta/Beta and a dynamic Theta/Beta point use the same
-  selected channel and identical actual range
-- **THEN** their IAPF, band powers, quality, and ratio match within the
-  algorithm validation tolerance
-
-#### Scenario: Reject an unavailable IAPF
-
-- **WHEN** the IAPF fit produces no Peak or COG after the shared PSD quality
-  gate passes
-- **THEN** the output is `null` with its backend reason and is never zero

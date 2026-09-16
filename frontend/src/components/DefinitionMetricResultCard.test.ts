@@ -53,4 +53,13 @@ describe('DefinitionMetricResultCard', () => {
     expect(wrapper.text()).toContain('Theta/Beta 比值')
     expect(wrapper.text()).not.toContain('PSD 质量：')
   })
+
+  it('renders all four RBP values supplied by the backend', () => {
+    const wrapper = mount(DefinitionMetricResultCard, {
+      props: { result: { ...result, output: { ...result.output, label: '相对频段功率', value: null, unit: 'ratio' }, band_values: { delta: 0.1, theta: 0.2, alpha: 0.3, beta: 0.4 }, chart: { kind: 'band_share' } } as never },
+    })
+
+    expect(wrapper.get('[data-testid="official-rbp-values"]').text()).toContain('40.00%')
+    expect(wrapper.text()).toContain('四频段占比')
+  })
 })

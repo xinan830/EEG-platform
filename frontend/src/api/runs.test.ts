@@ -50,3 +50,12 @@ it('creates official Theta/Beta without inventing a semantic channel mapping in 
     config: { algorithm_id: 'theta_beta', channel: 'F3', time: { start_s: 0, end_s: 30 }, mode: 'static' },
   })
 })
+
+it('sends both explicit FAA source channels without inferring a mapping', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ run_id: 'run-5', status: 'queued' }), { status: 202 }))
+  vi.stubGlobal('fetch', fetchMock)
+
+  await createAlgorithmRun({ source: 'official', recordingId: 'recording-1', algorithmId: 'faa', channel: 'F3', f4Channel: 'F4', startS: 0, endS: 30 })
+
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body).config).toEqual({ algorithm_id: 'faa', channel: 'F3', f4_channel: 'F4', time: { start_s: 0, end_s: 30 }, mode: 'static' })
+})

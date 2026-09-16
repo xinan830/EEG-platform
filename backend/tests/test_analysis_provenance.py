@@ -86,3 +86,22 @@ def test_failed_run_provenance_keeps_missing_evidence_null():
     assert provenance["quality"] is None
     assert provenance["welch"] is None
     assert provenance["extensions"] == []
+
+
+def test_faa_provenance_keeps_paired_quality_evidence():
+    run = _run()
+    run.result_summary = {
+        "metric": {
+            "channel": "F3/F4",
+            "actual_range": {"start_s": 0.0, "end_s": 30.0},
+            "output": {"id": "faa", "label": "额叶 Alpha 不对称性", "value": 0.2, "unit": "dimensionless"},
+            "source_quality": {"clean_segments": 12, "total_segments": 14, "clean_ratio": 12 / 14},
+            "official": {"faa_evidence": {"channels": ["F3", "F4"], "clean_epochs": 12, "total_epochs": 14, "clean_ratio": 12 / 14, "band": [8.0, 13.0], "reason": "", "sfreq_hz": 500.0}},
+        },
+    }
+
+    provenance = build_analysis_provenance(run)
+
+    assert provenance["channel"] == "F3/F4"
+    assert provenance["sfreq_hz"] == 500.0
+    assert provenance["extensions"][-1]["kind"] == "faa_paired_quality"

@@ -90,6 +90,7 @@ class AlgorithmResult(BaseModel):
     actual_range: dict[str, float] | None = None
     quality: str
     failure: AlgorithmFailure | None = None
+    output_values: dict[str, float | None] | None = None
     evidence: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -65,10 +65,31 @@ class _RecordingAlgorithmContext:
             evidence,
         )
 
+    def load_faa_signals(self, *, start_s: float, end_s: float, f3_channel: str, f4_channel: str) -> tuple[np.ndarray, np.ndarray, float, dict[str, Any]]:
+        """Load the exact raw pair consumed by the frozen FAA implementation."""
+        data, sfreq, names, _events = self._recordings.load_data(self._recording)
+        lookup = {str(name).casefold(): (index, str(name)) for index, name in enumerate(names)}
+        try:
+            f3_index, f3_name = lookup[f3_channel.casefold()]
+            f4_index, f4_name = lookup[f4_channel.casefold()]
+        except KeyError as exc:
+            raise ValueError(f"FAA source channel does not exist: {exc.args[0]}") from exc
+        values = np.asarray(data, dtype=float)
+        start_index = max(0, int(np.floor(start_s * sfreq)))
+        end_index = min(len(values), int(round(end_s * sfreq)))
+        if end_index <= start_index:
+            raise ValueError("FAA analysis range is outside recording duration")
+        evidence = {
+            "sfreq_hz": float(sfreq), "channels": [f3_name, f4_name],
+            "analysis_reference": "original_recording_no_software_rereference",
+            "faa_contract": {"epoch_s": 2.0, "overlap_fraction": 0.5, "minimum_clean_epochs": 10, "alpha_band_hz": [8.0, 13.0]},
+        }
+        return values[start_index:end_index, f3_index], values[start_index:end_index, f4_index], float(sfreq), evidence
+
 
 def _serialize_algorithm_result(result: AlgorithmResult, algorithm_id: str, label: str) -> dict[str, object]:
     quality = {"status": result.quality, "reasons": [result.failure.code] if result.failure else []}
-    return {
+    payload: dict[str, object] = {
         "output": {"id": algorithm_id, "label": label, "value": result.value, "unit": result.unit, "quality": quality},
         "channel": result.channel,
         "actual_range": result.actual_range,
@@ -82,6 +103,10 @@ def _serialize_algorithm_result(result: AlgorithmResult, algorithm_id: str, labe
         "quality": quality,
         "failure": result.failure.model_dump(mode="json") if result.failure else None,
     }
+    if result.output_values is not None:
+        payload["band_values"] = result.output_values
+        payload["chart"] = {"kind": "band_share", "values": result.output_values, "unit": result.unit}
+    return payload
 
 
 class RunAnalysisExecutor:
@@ -127,11 +152,7 @@ class RunAnalysisExecutor:
         if self.algorithm_runtime is None:
             raise ValueError("algorithm runtime is not configured")
         context = _RecordingAlgorithmContext(self.recordings, recording)
-        runtime_config = {
-            "channel": config.channel, "mode": config.mode,
-            "start_s": float(config.time.start_s), "end_s": float(config.time.end_s),
-            "window_s": float(config.dynamic_window_s), "step_s": float(config.refresh_step_s),
-        }
+        runtime_config = config.runtime_config()
         result = self.algorithm_runtime.execute(
             algorithm_id=config.algorithm_id, recording=context, config=runtime_config,
         )
@@ -139,7 +160,10 @@ class RunAnalysisExecutor:
         label = module.manifest.display_name_zh
         if isinstance(result, AlgorithmResult):
             point = _serialize_algorithm_result(result, config.algorithm_id, label)
-            return {"metric": point}, {"metric_value": np.asarray([np.nan if result.value is None else result.value], dtype=float)}, result.unit
+            arrays = {"metric_value": np.asarray([np.nan if result.value is None else result.value], dtype=float)}
+            if result.output_values is not None:
+                arrays["band_share_values"] = np.asarray(list(result.output_values.values()), dtype=float)
+            return {"metric": point}, arrays, result.unit
         points = []
         values = []
         for index, (value, time_s, window, quality, failure) in enumerate(zip(result.values, result.time_s, result.windows, result.quality, result.failures)):

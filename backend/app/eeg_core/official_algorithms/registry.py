@@ -12,8 +12,9 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
     OfficialAlgorithmManifest(
         algorithm_id="rbp", definition_name="Official RBP", display_name_zh="相对频段功率", abbreviation="RBP",
         purpose_zh="展示 Delta、Theta、Alpha、Beta 在 1–30 Hz 总功率中的相对占比。",
-        scientific_version=ANALYSIS_ALGORITHM_VERSION, implementation_identity=ANALYSIS_ALGORITHM_VERSION,
-        execution_kind="generic_research_primitives",
+        scientific_version=ANALYSIS_ALGORITHM_VERSION, implementation_identity="rbp-runtime-v1",
+        execution_kind="generic_research_primitives", availability="available", is_runnable=True,
+        supported_modes=["static"],
     ),
     OfficialAlgorithmManifest(
         algorithm_id="theta_beta", definition_name="Official THETA_BETA", display_name_zh="Theta/Beta 比值", abbreviation="Theta/Beta",
@@ -25,8 +26,9 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
     OfficialAlgorithmManifest(
         algorithm_id="faa", definition_name="Official FAA", display_name_zh="额叶 Alpha 不对称性", abbreviation="FAA",
         purpose_zh="比较 F3 与 F4 的 Alpha 功率对数差；使用成对质量门。",
-        scientific_version=ANALYSIS_ALGORITHM_VERSION, implementation_identity="faa-legacy-v1",
-        execution_kind="official_composite_shadow_only", required_channel_roles=["F3", "F4"],
+        scientific_version="official-faa-v1", implementation_identity="faa-runtime-v1",
+        execution_kind="official_composite_run_adapter", availability="available", is_runnable=True,
+        supported_modes=["static"],
     ),
     OfficialAlgorithmManifest(
         algorithm_id="brainbeat", definition_name="Official BRAINBEAT", display_name_zh="脑节律指标", abbreviation="BrainBeat",

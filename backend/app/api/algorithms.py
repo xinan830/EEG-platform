@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from app.algorithm_runtime.builtins import build_builtin_registry
 from app.algorithm_runtime.errors import AlgorithmRuntimeError
 from app.algorithms.user_definition import UserDefinitionAlgorithm
+from app.eeg_core.official_algorithms.registry import OFFICIAL_ALGORITHM_MANIFESTS
 
 
 router = APIRouter(prefix="/api/algorithms", tags=["algorithms"])
@@ -16,8 +17,24 @@ def _official_items(request: Request) -> list[dict[str, object]]:
     registry = getattr(request.app.state, "algorithm_runtime_registry", None)
     if registry is None:
         registry = build_builtin_registry()
+    runtime_modules = {module.manifest.algorithm_id: module for module in registry.list()}
+    output_units = {"rbp": "ratio", "faa": "dimensionless", "brainbeat": "dimensionless"}
     items: list[dict[str, object]] = []
-    for module in registry.list():
+    for official in OFFICIAL_ALGORITHM_MANIFESTS:
+        module = runtime_modules.get(official.algorithm_id)
+        if module is None:
+            items.append({
+                "source": "official", "id": official.algorithm_id,
+                "version": official.scientific_version,
+                "display_name_zh": official.display_name_zh,
+                "abbreviation": official.abbreviation,
+                "description": official.purpose_zh,
+                "parameters": [], "modes": list(official.supported_modes),
+                "output": {"unit": output_units.get(official.algorithm_id, "dimensionless")},
+                "dynamic_policy": {"minimum_window_s": 4.0, "window_options_s": [5.0, 10.0, 20.0, 30.0], "default_window_s": 10.0, "refresh_step_s": 1.0, "allow_warmup": True},
+                "availability": official.availability, "is_runnable": False,
+            })
+            continue
         manifest = module.manifest
         items.append({
             "source": "official",
@@ -30,8 +47,8 @@ def _official_items(request: Request) -> list[dict[str, object]]:
             "modes": list(manifest.supported_modes),
             "output": {"unit": manifest.output_unit},
             "dynamic_policy": manifest.dynamic_policy.model_dump(mode="json"),
-            "availability": "available",
-            "is_runnable": True,
+            "availability": official.availability,
+            "is_runnable": official.is_runnable,
         })
     return items
 

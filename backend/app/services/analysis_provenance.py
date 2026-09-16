@@ -77,6 +77,10 @@ def _extensions(metric: dict[str, Any], point: dict[str, Any], evidence: dict[st
     trace = point.get("calculation_trace", metric.get("calculation_trace"))
     if isinstance(trace, dict) and isinstance(trace.get("inputs"), list):
         extensions.append({"kind": "algorithm_calculation", "data": trace})
+    official = _as_dict(point.get("official") or metric.get("official"))
+    faa = _as_dict(official.get("faa_evidence"))
+    if faa:
+        extensions.append({"kind": "faa_paired_quality", "data": faa})
     return extensions
 
 
@@ -85,6 +89,10 @@ def build_analysis_provenance(run: AnalysisRun) -> dict[str, object]:
     summary = _as_dict(run.result_summary)
     metric, point = _metric_context(run)
     evidence = _as_dict(point.get("spectral_evidence") or metric.get("spectral_evidence") or summary)
+    official = _as_dict(point.get("official") or metric.get("official"))
+    faa_evidence = _as_dict(official.get("faa_evidence"))
+    if faa_evidence:
+        evidence = {**evidence, **faa_evidence}
     mode = str(metric.get("mode") or run.config.get("mode") or "static")
     actual_range = _range({"start_s": point.get("window_start_s"), "end_s": point.get("window_end_s")})
     actual_range = actual_range or _range(metric.get("actual_range")) or _range(run.actual_range)

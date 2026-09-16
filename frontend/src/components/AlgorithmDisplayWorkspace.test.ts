@@ -26,6 +26,10 @@ const officialIapf = {
   ...officialRbp, algorithm_id: 'iapf', display_name_zh: '个体 Alpha 峰频', abbreviation: 'IAPF',
   availability: 'available' as const, is_runnable: true, definition_id: 'official-iapf', supported_modes: ['static', 'dynamic'],
 }
+const officialFaa = {
+  ...officialRbp, algorithm_id: 'faa', display_name_zh: '额叶 Alpha 不对称性', abbreviation: 'FAA',
+  availability: 'available' as const, is_runnable: true, definition_id: 'official-faa', supported_modes: ['static'],
+}
 
 function createCatalog(overrides: Partial<{ definitions: typeof userRatio[]; officialAlgorithms: typeof officialRbp[]; versions: Record<string, unknown[]>; algorithms: Array<Record<string, unknown>> }> = {}) {
   const versions = overrides.versions ?? { 'theta-beta': [ratioVersion] }
@@ -143,6 +147,20 @@ describe('AlgorithmDisplayWorkspace', () => {
     await wrapper.get('[data-testid="official-algorithm-official-iapf"] input').setValue(true)
     await wrapper.findAll('button').find((button) => button.text() === '计算此区间')!.trigger('click')
     expect(createAlgorithmRun).toHaveBeenCalledWith(expect.objectContaining({ source: 'official', algorithmId: 'iapf', channel: 'F3', mode: 'static' }))
+  })
+
+  it('shows FAA as static-only and sends its explicit second source channel', async () => {
+    createAlgorithmRun.mockResolvedValue({ run_id: 'faa-run', status: 'completed', result_summary: { metric: { output: { label: '额叶 Alpha 不对称性', value: 0.2, unit: 'dimensionless', quality: { status: 'clean', reasons: [] } }, channel: 'F3/F4', actual_range: { start_s: 0, end_s: 30 }, chart: { kind: 'none' } } } })
+    const catalog = createCatalog({ officialAlgorithms: [officialFaa] as never, algorithms: [{ source: 'official', id: 'faa', dynamic_policy: { minimum_window_s: 4, window_options_s: [5, 10, 20, 30], default_window_s: 10, refresh_step_s: 1, allow_warmup: true }, parameters: [{ key: 'channel', label_zh: 'F3 来源通道' }, { key: 'f4_channel', label_zh: 'F4 来源通道' }] }] })
+    const wrapper = mount(AlgorithmDisplayWorkspace, { props: { recording: { id: 'recording-1', channels: ['F3', 'F4'] }, rangeStart: 0, rangeEnd: 30, channels: ['F3', 'F4'], catalog } as never })
+    await flushPromises()
+    await wrapper.get('[data-testid="official-algorithm-official-faa"] input').setValue(true)
+    const card = wrapper.get('[data-testid="algorithm-config-official:faa"]')
+    expect(card.text()).toContain('F4 来源通道')
+    expect(card.text()).not.toContain('动态')
+    await card.findAll('select')[1].setValue('F4')
+    await card.findAll('button').find((button) => button.text() === '计算此区间')!.trigger('click')
+    expect(createAlgorithmRun).toHaveBeenCalledWith(expect.objectContaining({ source: 'official', algorithmId: 'faa', channel: 'F3', f4Channel: 'F4' }))
   })
 
   it('uses the shared dynamic policy returned by the backend for IAPF', async () => {

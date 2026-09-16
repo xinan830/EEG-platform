@@ -18,14 +18,17 @@ class OfficialSyntheticRecordingService(RecordingService):
         sfreq = 100.0
         time_s = np.arange(3000) / sfreq
         alpha = 12e-6 * np.sin(2 * np.pi * 10 * time_s)
-        return np.column_stack((8e-6 * np.sin(2 * np.pi * 6 * time_s) + alpha, alpha * 1.1, alpha * 1.2)), sfreq, ["Fz", "Pz", "O2"], []
+        return np.column_stack((
+            8e-6 * np.sin(2 * np.pi * 6 * time_s) + alpha, alpha * 1.1, alpha * 1.2,
+            alpha * 0.8, alpha * 1.6,
+        )), sfreq, ["Fz", "Pz", "O2", "F3", "F4"], []
 
 
 def _service(tmp_path: Path) -> tuple[RunService, str]:
     recordings = OfficialSyntheticRecordingService(tmp_path / "recordings", tmp_path / "official.sqlite3")
     recording = recordings.create_recording("official.edf", ".edf", b"official-source")
     with recordings._connect() as connection:
-        connection.execute("UPDATE recordings SET sfreq = 100, duration_s = 30, channels_json = '[\"Fz\", \"Pz\", \"O2\"]' WHERE id = ?", (recording.id,))
+        connection.execute("UPDATE recordings SET sfreq = 100, duration_s = 30, channels_json = '[\"Fz\", \"Pz\", \"O2\", \"F3\", \"F4\"]' WHERE id = ?", (recording.id,))
     service = RunService(recordings, recordings.database_path, tmp_path / "artifacts")
     ensure_official_definitions(service.definition_service)
     return service, recording.id
@@ -33,7 +36,9 @@ def _service(tmp_path: Path) -> tuple[RunService, str]:
 
 def _request(recording_id: str, algorithm_id: str, *, dynamic: bool = False) -> RunCreateRequest:
     config = {"algorithm_id": algorithm_id, "time": {"start_s": 0, "end_s": 30}, "mode": "dynamic" if dynamic else "static"}
-    config["channel"] = "O2" if algorithm_id == "theta_beta" else "Fz"
+    config["channel"] = "O2" if algorithm_id == "theta_beta" else "F3" if algorithm_id == "faa" else "Fz"
+    if algorithm_id == "faa":
+        config["f4_channel"] = "F4"
     if dynamic:
         config.update({"dynamic_window_s": 10, "refresh_step_s": 1})
     return RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=config)
@@ -116,10 +121,45 @@ def test_official_runs_do_not_reuse_results_from_the_pre_evidence_contract(tmp_p
     assert resolved["definition_sha256"] != sha256_json(legacy_definition)
 
 
-def test_catalog_marks_only_iapf_and_theta_beta_runnable_after_cutover(tmp_path: Path):
+def test_catalog_marks_rbp_and_faa_runnable_but_keeps_brainbeat_shadow_only(tmp_path: Path):
     service, _recording_id = _service(tmp_path)
     catalog = {item.algorithm_id: item for item in official_algorithm_catalog(service.definition_service)}
 
     assert catalog["iapf"].availability == "available" and catalog["iapf"].is_runnable is True
     assert catalog["theta_beta"].availability == "available" and catalog["theta_beta"].is_runnable is True
-    assert catalog["faa"].availability == "shadow_validation" and catalog["faa"].is_runnable is False
+    assert catalog["rbp"].availability == "available" and catalog["rbp"].is_runnable is True
+    assert catalog["faa"].availability == "available" and catalog["faa"].is_runnable is True
+    assert catalog["brainbeat"].availability == "shadow_validation" and catalog["brainbeat"].is_runnable is False
+
+
+def test_official_rbp_run_returns_all_four_backend_band_shares(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    completed = service.create(_request(recording_id, "rbp"))
+
+    metric = completed.result_summary["metric"]
+    assert completed.status is RunStatus.COMPLETED
+    assert metric["output"]["value"] is None
+    assert set(metric["band_values"]) == {"delta", "theta", "alpha", "beta"}
+    assert sum(metric["band_values"].values()) == pytest.approx(1.0)
+    assert metric["chart"]["kind"] == "band_share"
+
+
+def test_official_faa_run_records_explicit_pair_and_paired_quality(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    completed = service.create(_request(recording_id, "faa"))
+
+    metric = completed.result_summary["metric"]
+    assert completed.status is RunStatus.COMPLETED
+    assert metric["channel"] == "F3/F4"
+    assert metric["output"]["value"] == pytest.approx(np.log(4.0), abs=0.15)
+    assert metric["official"]["faa_evidence"]["channels"] == ["F3", "F4"]
+    assert metric["source_quality"]["clean_segments"] >= 10
+
+
+def test_official_faa_rejects_missing_or_duplicate_pair_sources(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    duplicate = _request(recording_id, "faa")
+    duplicate.config["f4_channel"] = "F3"
+
+    with pytest.raises(ValueError, match="must be different"):
+        service.create(duplicate)

@@ -21,10 +21,10 @@ simplified generic graph.
 
 | Metric | Current contract | Migration boundary |
 | --- | --- | --- |
-| RBP | `offline-spectral-v3` PSD, interpolated bands, 1-30 Hz denominator | primitive graph |
+| RBP | `offline-spectral-v3` PSD, interpolated bands, 1-30 Hz denominator | executable static runtime; four returned band shares |
 | Theta/Beta | IAPF-relative bands for logical Fz/Pz/Oz roles | executable composite adapter, explicit channel mapping |
-| FAA | filtered F3/F4, 2 s paired epochs, 50% overlap, min 10 clean epochs | composite, paired quality |
-| BrainBeat | legacy realtime 2 s Welch plus three-frame log-domain EMA warmup | formula and EMA shadow separately |
+| FAA | explicit raw F3/F4 sources, 2 s paired epochs, 50% overlap, min 10 clean epochs | executable static runtime; paired quality |
+| BrainBeat | legacy realtime 2 s Welch plus three-frame log-domain EMA warmup | formula and EMA shadow separately; not an offline Run |
 | IAPF | 3-30 Hz log10 1/f OLS excluding 7-13 Hz; residual Peak then COG | executable composite adapter |
 
 No definition graph is allowed to silently change a composite metric into a

@@ -10,6 +10,7 @@ type SharedAlgorithmRunFields = {
   mode?: 'static' | 'dynamic'
   dynamicWindowS?: DynamicWindowS
   refreshStepS?: 1 | 5
+  f4Channel?: string
 }
 
 export type AlgorithmRunRequest =
@@ -67,6 +68,7 @@ function createOfficialRun(value: Extract<AlgorithmRunRequest, { source: 'offici
     mode: value.mode ?? 'static',
   }
   config.channel = value.channel
+  if (value.algorithmId === 'faa' && value.f4Channel) config.f4_channel = value.f4Channel
   if (value.mode === 'dynamic') {
     config.dynamic_window_s = value.dynamicWindowS ?? 10
     config.refresh_step_s = value.refreshStepS ?? 1
