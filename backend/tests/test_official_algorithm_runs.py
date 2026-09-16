@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from app.eeg_core.official_algorithms.registry import ensure_official_definitions, official_algorithm_catalog
+from app.core.provenance import sha256_json
 from app.models.recording import ChannelMapping
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
@@ -101,6 +102,21 @@ def test_official_dynamic_iapf_uses_existing_trailing_window_contract(tmp_path: 
     assert provenance["welch"] == {"segment_s": 4.0, "window": "hann", "overlap_fraction": 0.5, "step_s": 2.0}
     assert provenance["frequency"] == {"low_hz": 1.0, "high_hz": 30.0, "point_count": 117}
     assert provenance["quality"] == {"clean_segments": 4, "total_segments": 4, "clean_ratio": 1.0, "gate_failed": None, "rejected_reasons": []}
+
+
+def test_official_runs_do_not_reuse_results_from_the_pre_evidence_contract(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    recording = service.recordings.require_recording(recording_id)
+    resolved = service._resolve_request(_request(recording_id, "iapf", dynamic=True), recording)
+    manifest = service.algorithm_runtime_registry.get("iapf").manifest
+    legacy_definition = {
+        "kind": "official_algorithm",
+        "algorithm_id": manifest.algorithm_id,
+        "scientific_version": manifest.scientific_version,
+        "implementation_identity": manifest.implementation_identity,
+    }
+
+    assert resolved["definition_sha256"] != sha256_json(legacy_definition)
 
 
 def test_catalog_marks_only_iapf_and_theta_beta_runnable_after_cutover(tmp_path: Path):

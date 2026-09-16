@@ -400,7 +400,10 @@ class RunService:
             "definition_sha256": sha256_json({
                 "definition_digest": definition["digest_sha256"],
                 "result_contract_version": "definition-metric-evidence-v1",
-            }) if request.analysis_type == "definition_metric" else sha256_json(definition),
+            }) if request.analysis_type == "definition_metric" else sha256_json({
+                **definition,
+                "result_contract_version": "official-algorithm-result-evidence-v2",
+            }) if request.analysis_type == "official_algorithm" else sha256_json(definition),
             "scientific_version": scientific_version,
         }
 

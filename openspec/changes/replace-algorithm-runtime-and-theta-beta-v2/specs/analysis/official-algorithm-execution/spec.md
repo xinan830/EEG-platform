@@ -39,6 +39,13 @@ recording channel.
 - **THEN** its latest point includes backend-returned sampling rate, filter,
   Welch, frequency-axis, PSD, and quality evidence for that exact window
 
+#### Scenario: Upgrade the persisted dynamic-result contract
+
+- **WHEN** the official dynamic-result evidence or time-anchor contract changes
+- **THEN** the Run cache identity changes with it
+- **AND THEN** a result persisted under the prior contract is retained only as
+  historical evidence and is never reused as the upgraded result
+
 #### Scenario: Missing logical mapping
 
 - **WHEN** Theta/Beta is requested without a global semantic mapping
