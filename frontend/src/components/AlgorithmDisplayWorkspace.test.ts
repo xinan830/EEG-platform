@@ -39,7 +39,7 @@ function createCatalog(overrides: Partial<{ definitions: typeof userRatio[]; off
 }
 
 describe('AlgorithmDisplayWorkspace', () => {
-  it('restarts an active dynamic session when the selected window changes', async () => {
+  it('submits the independently selected dynamic window only after the user enables playback sync', async () => {
     createAlgorithmRun.mockResolvedValue({ run_id: 'run-1', status: 'queued' })
     const catalog = createCatalog()
     const wrapper = mount(AlgorithmDisplayWorkspace, {
@@ -51,9 +51,10 @@ describe('AlgorithmDisplayWorkspace', () => {
     await flushPromises()
     await nextTick()
     await wrapper.find('input[type="checkbox"]').setValue(true)
-    await wrapper.findAll('button').find((button) => button.text() === '动态分析')!.trigger('click')
+    await wrapper.find('[data-testid="algorithm-config-theta-beta"]').findAll('button').find((button) => button.text() === '动态')!.trigger('click')
 
-    await wrapper.findAll('select')[1].setValue('20')
+    await wrapper.find('[data-testid="algorithm-config-theta-beta"]').findAll('select')[1].setValue('20')
+    await wrapper.findAll('button').find((button) => button.text() === '更新播放同步')!.trigger('click')
     await Promise.resolve()
     await nextTick()
 
@@ -66,7 +67,7 @@ describe('AlgorithmDisplayWorkspace', () => {
     }))
   })
 
-  it('clears prior dynamic results but retains selected settings for a new playback epoch', async () => {
+  it('clears prior dynamic results but retains the selected algorithm configuration for a new playback epoch', async () => {
     createAlgorithmRun.mockResolvedValue({ run_id: 'run-replay', status: 'queued' })
     const catalog = createCatalog()
     const wrapper = mount(AlgorithmDisplayWorkspace, {
@@ -78,8 +79,8 @@ describe('AlgorithmDisplayWorkspace', () => {
     await Promise.resolve()
     await nextTick()
     await wrapper.find('input[type="checkbox"]').setValue(true)
-    await wrapper.findAll('button').find((button) => button.text() === '动态分析')!.trigger('click')
-    await wrapper.findAll('button').find((button) => button.text() === '同步已启用')!.trigger('click')
+    await wrapper.find('[data-testid="algorithm-config-theta-beta"]').findAll('button').find((button) => button.text() === '动态')!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '更新播放同步')!.trigger('click')
     await Promise.resolve()
     await nextTick()
 
@@ -87,7 +88,7 @@ describe('AlgorithmDisplayWorkspace', () => {
 
     expect(wrapper.emitted('results')?.at(-1)?.[0]).toEqual({})
     expect((wrapper.find('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
-    expect((wrapper.findAll('select')[1].element as HTMLSelectElement).value).toBe('10')
+    expect((wrapper.find('[data-testid="algorithm-config-theta-beta"]').findAll('select')[1].element as HTMLSelectElement).value).toBe('10')
   })
 
   it('renders a changed shared catalog without requesting a second local definition list', async () => {

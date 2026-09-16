@@ -1,0 +1,18 @@
+{
+  "fixture_kind": "deterministic_synthetic_signal_only",
+  "source_data": "none",
+  "offline_spectral": {
+    "algorithm_version": "offline-spectral-v3",
+    "frequency_range_hz": [1.0, 30.0],
+    "frequency_point_count": 117,
+    "welch": {"segment_s": 4.0, "window": "hann", "overlap": 0.5, "step_s": 2.0},
+    "bands_hz": {"delta": [1.0, 4.0], "theta": [4.0, 8.0], "alpha": [8.0, 13.0], "beta": [13.0, 30.0]},
+    "synthetic_10hz_6hz_goldens": {
+      "F3_alpha_power_uV2": 49.99998294,
+      "Fz_theta_power_uV2": 32.00000006,
+      "F3_alpha_relative_power": 0.9999992453
+    }
+  },
+  "iapf": {"scientific_version": "official-iapf-v2", "unit": "Hz", "dynamic_warmup_minimum_s": 4.0},
+  "theta_beta_v2": {"scientific_version": "official-theta-beta-v2", "unit": "dimensionless", "requires_one_explicit_raw_channel": true}
+}

@@ -15,6 +15,7 @@ def _service(request: Request) -> AnalysisService:
     # or local dependency overrides invisible to the compatibility endpoint.
     return AnalysisService(
         request.app.state.recording_service,
+        database_path=request.app.state.recording_service.database_path,
         run_service=request.app.state.run_service,
     )
 

@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 
-export type DynamicAlgorithmDefinition = { id: string; label: string; unit: string }
-export type DynamicAlgorithmSession = { channel: string; definitions: DynamicAlgorithmDefinition[]; windowS: number; displayRangeS: number }
+export type DynamicAlgorithmDefinition = { id: string; label: string; unit: string; channel: string; windowS: number; displayRangeS: number }
+export type DynamicAlgorithmSession = { definitions: DynamicAlgorithmDefinition[] }
 export type DynamicSessionUpdate = DynamicAlgorithmSession & { enabled: boolean }
 
 /** Run-result index and dynamic session state. Numeric results remain backend-owned. */
@@ -14,11 +14,10 @@ export function useAlgorithmWorkspaceState<T extends { result: unknown }>() {
   function updateDynamicSession(value: DynamicSessionUpdate) {
     const previous = dynamicSession.value
     const changedCalculation = !previous
-      || previous.channel !== value.channel
-      || previous.windowS !== value.windowS
-      || previous.definitions.map((item) => item.id).join('|') !== value.definitions.map((item) => item.id).join('|')
+      || JSON.stringify(previous.definitions.map(({ id, channel, windowS }) => ({ id, channel, windowS })))
+        !== JSON.stringify(value.definitions.map(({ id, channel, windowS }) => ({ id, channel, windowS })))
     dynamicSession.value = value.enabled
-      ? { channel: value.channel, definitions: value.definitions, windowS: value.windowS, displayRangeS: value.displayRangeS }
+      ? { definitions: value.definitions }
       : null
     if (value.enabled && changedCalculation) results.value = {}
   }

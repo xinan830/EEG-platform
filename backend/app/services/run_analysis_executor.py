@@ -121,29 +121,6 @@ class RunAnalysisExecutor:
         payload["artifact_channel_order"] = list(payload["channels"])
         return payload, arrays, "uV^2/Hz and dB re 1 uV^2/Hz"
 
-    def _official_spectrum(self, recording: Any, channels: list[str], start_s: float, end_s: float) -> tuple[SpectralEstimate, dict[str, object]]:
-        payload = self.recordings.load_spectrum(recording, start_s, end_s - start_s, channels)
-        ordered = list(payload["channels"])
-        psd_uv = np.asarray([payload["psd"][name] for name in ordered], dtype=float)
-        estimate = SpectralEstimate(
-            np.asarray(payload["frequencies_hz"], dtype=float), psd_uv * 1e-12,
-            float(payload["quality"]["clean_ratio"]), int(payload["quality"]["clean_segments"]),
-            int(payload["quality"]["total_segments"]), payload["quality"]["gate_failed"],
-            tuple(payload["quality"].get("rejected_reasons", [])),
-        )
-        evidence = {
-            "sfreq_hz": float(payload["sfreq_hz"]), "analysis_reference": payload["analysis_reference"],
-            "algorithm_version": payload["algorithm_version"], "filter_contract": payload["filter_contract"],
-            "welch_contract": payload["welch_contract"], "units": payload["units"],
-            "frequencies_hz": list(payload["frequencies_hz"]), "channels": ordered,
-            "psd_uV2_per_hz": list(payload["psd"][ordered[0]]),
-            "psd_uV2_per_hz_by_channel": {name: list(payload["psd"][name]) for name in ordered},
-            "band_power": {name: dict(payload["band_power"][name]) for name in ordered},
-            "relative_band_power": {name: dict(payload["relative_band_power"][name]) for name in ordered},
-            "quality": dict(payload["quality"]),
-        }
-        return estimate, evidence
-
     def _execute_official_algorithm(self, recording: Any, resolved: dict[str, Any]):
         config = OfficialAlgorithmRunConfig.model_validate(resolved["config"])
         if self.algorithm_runtime is None:

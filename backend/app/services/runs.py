@@ -273,7 +273,6 @@ class RunService:
                 for item in value.provenance
             ],
         }
-
     def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
         if request.analysis_type == "definition_metric":
             if not request.definition_id or not request.definition_version:
@@ -389,8 +388,3 @@ class RunService:
             }) if request.analysis_type == "official_algorithm" else sha256_json(definition),
             "scientific_version": scientific_version,
         }
-
-
-    def _execute(self, analysis_type: str, recording: Any, resolved: dict[str, Any]):
-        """Deprecated compatibility facade; numerical execution lives in ``executor``."""
-        return self.executor.execute(analysis_type, recording, resolved)

@@ -6,23 +6,23 @@ type TestRun = { status: string; result: null }
 it('preserves result history when only the dynamic result display range changes', () => {
   const state = useAlgorithmWorkspaceState<TestRun>()
   state.updateDynamicSession({
-    enabled: true, channel: 'Fz', windowS: 10, displayRangeS: 30,
-    definitions: [{ id: 'ratio', label: 'Theta/Beta 比值', unit: 'dimensionless' }],
+    enabled: true,
+    definitions: [{ id: 'ratio', label: 'Theta/Beta 比值', unit: 'dimensionless', channel: 'Fz', windowS: 10, displayRangeS: 30 }],
   })
   state.results.value = { ratio: { status: 'completed', result: null } }
   state.updateDynamicSession({
-    enabled: true, channel: 'Fz', windowS: 10, displayRangeS: 60,
-    definitions: [{ id: 'ratio', label: 'Theta/Beta 比值', unit: 'dimensionless' }],
+    enabled: true,
+    definitions: [{ id: 'ratio', label: 'Theta/Beta 比值', unit: 'dimensionless', channel: 'Fz', windowS: 10, displayRangeS: 60 }],
   })
 
   expect(state.results.value).toHaveProperty('ratio')
-  expect(state.dynamicSession.value?.displayRangeS).toBe(60)
+  expect(state.dynamicSession.value?.definitions[0].displayRangeS).toBe(60)
 })
 
 it('clears dynamic results and advances playback epoch on replay', () => {
   const state = useAlgorithmWorkspaceState<TestRun>()
   state.results.value = { ratio: { status: 'completed', result: null } }
-  state.updateDynamicSession({ enabled: true, channel: 'Fz', windowS: 10, displayRangeS: 30, definitions: [] })
+  state.updateDynamicSession({ enabled: true, definitions: [] })
 
   state.resetForReplay()
 

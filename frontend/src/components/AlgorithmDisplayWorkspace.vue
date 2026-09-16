@@ -7,230 +7,64 @@ import type { AlgorithmCatalogContext } from '../composables/useAlgorithmCatalog
 import type { Recording } from '../types/recording'
 import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
 import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
+import AlgorithmConfigCard from './AlgorithmConfigCard.vue'
 import { DYNAMIC_WINDOW_OPTIONS, MIN_DYNAMIC_METRIC_WINDOW_S, appendOrRetainDynamicMetric, dynamicMetricBootstrapRange, dynamicMetricCatchupRange, playbackMetricWindow, type DynamicWindowS } from '../utils/dynamicMetricPlayback'
 import '../styles/algorithmDisplayWorkspace.css'
 
 type Range = { start: number; end: number }
+type Settings = { channel: string; mode: 'static' | 'dynamic'; startS: number; endS: number; windowS: DynamicWindowS; displayRangeS: number }
+type DynamicDefinition = { id: string; label: string; unit: string; channel: string; windowS: DynamicWindowS; displayRangeS: number }
 export type WorkspaceMetricRun = { status: string; result: DefinitionMetricResult | DynamicMetric | null; error?: string; run?: AnalysisRunResponse; definitionName?: string }
-type DynamicSession = { enabled: boolean; channel: string; definitions: Array<{ id: string; label: string; unit: string }>; windowS: DynamicWindowS; displayRangeS: number }
-const props = defineProps<{
-  recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean; dynamicActive?: boolean; playbackEpoch?: number; catalog: AlgorithmCatalogContext
-}>()
+type DynamicSession = { enabled: boolean; definitions: DynamicDefinition[] }
+const props = defineProps<{ recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean; dynamicActive?: boolean; playbackEpoch?: number; catalog: AlgorithmCatalogContext }>()
 const emit = defineEmits<{ close: []; results: [runs: Record<string, WorkspaceMetricRun>]; dynamicSession: [session: DynamicSession] }>()
 const definitions = computed<AlgorithmDefinition[]>(() => props.catalog.definitions.value)
-const officialAlgorithms = computed(() => props.catalog.officialAlgorithms.value)
-const officialCatalogError = computed(() => props.catalog.officialError.value)
-const versions = computed<Record<string, AlgorithmDefinitionVersion>>(() => Object.fromEntries(
-  Object.entries(props.catalog.versionsByDefinition.value).flatMap(([definitionId, items]) => items[0] ? [[definitionId, items[0]]] : []),
-))
-const selectedIds = ref<string[]>([])
-const selectedOfficialIds = ref<string[]>([])
-const channel = ref(props.channels[0] ?? props.recording.channels[0] ?? '')
-const mode = ref<'static' | 'dynamic'>('static')
-const dynamicWindowS = ref<DynamicWindowS>(10)
-const dynamicResultDisplayRangeS = ref(30)
-const DYNAMIC_RESULT_DISPLAY_RANGE_OPTIONS = [10, 20, 30, 60] as const
-const running = ref(false)
-const loading = ref(false)
-const message = ref('')
-const runs = ref<Record<string, WorkspaceMetricRun>>({})
-const lastDynamicRefreshS = ref<number | null>(null)
-const staticStartS = ref(props.rangeStart)
-const staticEndS = ref(props.rangeEnd)
+const official = computed(() => props.catalog.officialAlgorithms.value)
+const versions = computed<Record<string, AlgorithmDefinitionVersion>>(() => Object.fromEntries(Object.entries(props.catalog.versionsByDefinition.value).flatMap(([id, list]) => list[0] ? [[id, list[0]]] : [])))
+const selectedUsers = ref<string[]>([]); const selectedOfficial = ref<string[]>([])
+const settings = ref<Record<string, Settings>>({}); const refreshSeconds = ref<Record<string, number | null>>({}); const running = ref<string[]>([])
+const loading = ref(false); const message = ref(''); const runs = ref<Record<string, WorkspaceMetricRun>>({})
+const DISPLAY_WINDOWS = [10, 20, 30, 60] as const
 const range = computed(() => props.activeRange ?? { start: props.rangeStart, end: props.rangeEnd })
-const staticRangeDuration = computed(() => staticEndS.value - staticStartS.value)
-const selectedKeys = computed(() => [...selectedIds.value, ...selectedOfficialIds.value.map((id) => `official:${id}`)])
-const canRun = computed(() => selectedKeys.value.length > 0 && Boolean(channel.value) && !loading.value && !running.value && (mode.value === 'dynamic' || staticRangeDuration.value >= 4))
-const userDefinitions = computed(() => definitions.value.filter((item) => item.owner !== 'platform-official'))
-function resultFrom(run: AnalysisRunResponse): DefinitionMetricResult | DynamicMetric | null {
-  const metric = run.result_summary?.metric
-  return metric && typeof metric === 'object' ? metric as DefinitionMetricResult | DynamicMetric : null
-}
-async function load() {
-  loading.value = true
+const channels = computed(() => props.channels.length ? props.channels : props.recording.channels)
+const keys = computed(() => [...selectedUsers.value, ...selectedOfficial.value.map((id) => `official:${id}`)])
+const users = computed(() => definitions.value.filter((item) => item.owner === 'local-user'))
+function defaults(): Settings { return { channel: channels.value[0] ?? '', mode: 'static', startS: range.value.start, endS: range.value.end, windowS: 10, displayRangeS: 30 } }
+function config(key: string): Settings { if (!settings.value[key]) settings.value = { ...settings.value, [key]: defaults() }; return settings.value[key] }
+function setConfig(key: string, patch: Partial<Settings>) { settings.value = { ...settings.value, [key]: { ...config(key), ...patch } } }
+function isRunning(key: string) { return running.value.includes(key) }
+function setRunning(key: string, value: boolean) { running.value = value ? [...new Set([...running.value, key])] : running.value.filter((item) => item !== key) }
+function isDynamic(value: DefinitionMetricResult | DynamicMetric | null): value is DynamicMetric { return Boolean(value && Array.isArray((value as DynamicMetric).series)) }
+function title(key: string) { return key.startsWith('official:') ? official.value.find((item) => item.algorithm_id === key.slice(9))?.display_name_zh ?? key : users.value.find((item) => item.definition_id === key)?.name ?? key }
+function unit(key: string): string { if (key.startsWith('official:')) return official.value.find((item) => item.algorithm_id === key.slice(9))?.output_unit ?? '未知单位'; const version = versions.value[key]; const outputId = version?.graph?.outputs?.[0]; const value = outputId ? version?.outputs[outputId] : null; return value && typeof value === 'object' && !Array.isArray(value) && typeof (value as Record<string, unknown>).unit === 'string' ? String((value as Record<string, unknown>).unit) : '未知单位' }
+function availability(item: OfficialAlgorithmCatalogItem) { return item.is_runnable ? '可运行' : item.availability === 'shadow_validation' ? '工程验证中，暂不可运行' : '当前不可运行' }
+function session(enabled: boolean): DynamicSession { return { enabled, definitions: keys.value.filter((key) => config(key).mode === 'dynamic').map((id) => ({ id, label: title(id), unit: unit(id), channel: config(id).channel, windowS: config(id).windowS, displayRangeS: config(id).displayRangeS })) } }
+function resultOf(run: AnalysisRunResponse): DefinitionMetricResult | DynamicMetric | null { const metric = run.result_summary?.metric; return metric && typeof metric === 'object' ? metric as DefinitionMetricResult | DynamicMetric : null }
+async function load() { loading.value = true; try { await props.catalog.refresh(); await Promise.all(users.value.map((item) => props.catalog.ensureVersions(item.definition_id))) } catch (error) { message.value = error instanceof Error ? error.message : '无法读取算法目录' } finally { loading.value = false } }
+async function poll(runId: string, key: string, append: boolean) { for (let attempt = 0; attempt < 120; attempt += 1) { const next = await getRun(runId); const result = resultOf(next); const previous = runs.value[key]?.result ?? null; runs.value[key] = { status: next.status, result: append && isDynamic(previous) ? appendOrRetainDynamicMetric(previous, isDynamic(result) ? result : null) : result, error: next.error?.message, run: next, definitionName: title(key) }; if (['completed', 'gate_failed', 'failed', 'cancelled'].includes(next.status)) return; await new Promise<void>((resolve) => window.setTimeout(resolve, 250)) } }
+async function submit(key: string, startS: number, endS: number, dynamic: boolean, append = false) {
+  const value = config(key); if (!value.channel || isRunning(key)) return
+  if (!dynamic && endS - startS < 4) { message.value = `${title(key)} 的静态分析区间至少需要 4 秒。`; return }
+  setRunning(key, true); message.value = ''
   try {
-    await props.catalog.refresh()
-    await Promise.all(userDefinitions.value.map((item) => props.catalog.ensureVersions(item.definition_id)))
-  } catch (cause) { message.value = cause instanceof Error ? cause.message : '无法读取我的算法库' }
-  finally { loading.value = false }
+    const officialId = key.startsWith('official:') ? key.slice(9) : null
+    const request = officialId ? { source: 'official' as const, recordingId: props.recording.id, algorithmId: officialId, channel: value.channel, startS, endS, mode: dynamic ? 'dynamic' as const : 'static' as const, dynamicWindowS: dynamic ? value.windowS : undefined } : userRequest(key, value, startS, endS, dynamic)
+    const created = await createAlgorithmRun(request)
+    runs.value[key] = { status: created.status, result: append ? (runs.value[key]?.result ?? null) : resultOf(created), run: created, definitionName: title(key) }; await poll(created.run_id, key, append)
+  } catch (error) { runs.value[key] = { status: 'failed', result: null, error: error instanceof Error ? error.message : '提交失败', definitionName: title(key) } }
+  finally { setRunning(key, false); emit('results', { ...runs.value }) }
 }
-function isDynamic(result: DefinitionMetricResult | DynamicMetric | null): result is DynamicMetric {
-  return Boolean(result && Array.isArray((result as DynamicMetric).series))
-}
-function dynamicSession(enabled: boolean): DynamicSession {
-  return {
-    enabled,
-    channel: channel.value,
-    definitions: selectedKeys.value.map((id) => ({ id, label: title(id), unit: outputUnit(id) })),
-    windowS: dynamicWindowS.value,
-    displayRangeS: dynamicResultDisplayRangeS.value,
-  }
-}
-async function poll(runId: string, definitionId: string, append = false) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    const next = await getRun(runId)
-    const result = resultFrom(next)
-    const previous = runs.value[definitionId]?.result ?? null
-    runs.value[definitionId] = {
-      status: next.status,
-      result: append && isDynamic(previous)
-        ? appendOrRetainDynamicMetric(previous, isDynamic(result) ? result : null)
-        : result,
-      error: next.error?.message,
-      run: next,
-      definitionName: runs.value[definitionId]?.definitionName ?? title(definitionId),
-    }
-    if (['completed', 'gate_failed', 'failed', 'cancelled'].includes(next.status)) return
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 250))
-  }
-}
-async function runSelected(startS: number, endS: number, dynamic: boolean, append = false) {
-  if (!canRun.value) return
-  running.value = true; message.value = ''
-  if (!append) runs.value = {}
-  try {
-    await Promise.all(selectedKeys.value.map(async (definitionId) => {
-      const officialId = definitionId.startsWith('official:') ? definitionId.slice('official:'.length) : null
-      if (officialId) {
-        try {
-          const created = await createAlgorithmRun({ source: 'official', recordingId: props.recording.id, algorithmId: officialId, channel: channel.value, startS, endS, mode: dynamic ? 'dynamic' : 'static', dynamicWindowS: dynamic ? dynamicWindowS.value : undefined })
-          runs.value[definitionId] = { status: created.status, result: append ? (runs.value[definitionId]?.result ?? null) : resultFrom(created), run: created, definitionName: title(definitionId) }
-          await poll(created.run_id, definitionId, append)
-        } catch (cause) { runs.value[definitionId] = { status: 'failed', result: null, error: cause instanceof Error ? cause.message : '提交失败', definitionName: title(definitionId) } }
-        return
-      }
-      const version = versions.value[definitionId]
-      if (!version) { runs.value[definitionId] = { status: 'failed', result: null, error: '没有可运行的算法版本', definitionName: title(definitionId) }; return }
-      try {
-        const created = await createAlgorithmRun({ source: 'user', recordingId: props.recording.id, definitionId, definitionVersion: version.semver, channel: channel.value, startS, endS, mode: dynamic ? 'dynamic' : 'static', dynamicWindowS: dynamic ? dynamicWindowS.value : undefined })
-        runs.value[definitionId] = { status: created.status, result: append ? (runs.value[definitionId]?.result ?? null) : resultFrom(created), run: created, definitionName: title(definitionId) }
-        await poll(created.run_id, definitionId, append)
-      } catch (cause) { runs.value[definitionId] = { status: 'failed', result: null, error: cause instanceof Error ? cause.message : '提交失败', definitionName: title(definitionId) } }
-    }))
-  } finally { running.value = false; emit('results', { ...runs.value }) }
-}
-async function runStatic() {
-  emit('dynamicSession', dynamicSession(false))
-  if (staticRangeDuration.value < 4) { message.value = '静态分析区间至少需要 4 秒。'; return }
-  await runSelected(staticStartS.value, staticEndS.value, false)
-}
-async function startDynamic(closeAfterStart: boolean) {
-  if (running.value) return
-  const position = props.playbackPositionS
-  const second = position === undefined ? null : Math.floor(position)
-  lastDynamicRefreshS.value = second !== null && second >= MIN_DYNAMIC_METRIC_WINDOW_S ? second : null
-  message.value = `已启用播放同步分析：${MIN_DYNAMIC_METRIC_WINDOW_S}–${dynamicWindowS.value - 1} 秒显示预热值；从 ${dynamicWindowS.value} 秒起，每整秒计算最近 ${dynamicWindowS.value} 秒的正式分析范围。`
-  emit('dynamicSession', dynamicSession(true))
-  const bootstrap = position === undefined ? null : dynamicMetricBootstrapRange(second ?? position, dynamicWindowS.value)
-  if (bootstrap) {
-    await runSelected(bootstrap.startS, bootstrap.endS, true)
-    const latestPosition = props.playbackPositionS
-    if (latestPosition !== undefined && Math.floor(latestPosition) > (second ?? -1)) await refreshDynamic(latestPosition)
-  }
-  if (closeAfterStart) emit('close')
-}
-async function enableDynamic() {
-  await startDynamic(true)
-}
-async function refreshDynamic(position: number) {
-  const second = Math.floor(position)
-  const previousSecond = lastDynamicRefreshS.value
-  if (previousSecond === second || running.value) return
-  const window = previousSecond === null
-    ? playbackMetricWindow(second, dynamicWindowS.value)
-    : dynamicMetricCatchupRange(previousSecond, second, dynamicWindowS.value)
-  if (!window) return
-  lastDynamicRefreshS.value = second
-  await runSelected(window.startS, window.endS, true, true)
-  const latestPosition = props.playbackPositionS
-  if (props.playing && props.dynamicActive && latestPosition !== undefined && Math.floor(latestPosition) > second) {
-    await refreshDynamic(latestPosition)
-  }
-}
-watch(() => [props.playing, props.playbackPositionS] as const, ([playing, position]) => {
-  if (!playing || !props.dynamicActive || position === undefined || selectedKeys.value.length === 0) return
-  const second = Math.floor(position)
-  void refreshDynamic(second)
-})
-watch(mode, (nextMode) => { if (nextMode !== 'dynamic') emit('dynamicSession', dynamicSession(false)) })
-watch(dynamicWindowS, (nextWindowS, previousWindowS) => {
-  if (nextWindowS !== previousWindowS && mode.value === 'dynamic' && props.dynamicActive) void startDynamic(false)
-})
-watch(dynamicResultDisplayRangeS, () => {
-  if (mode.value === 'dynamic' && props.dynamicActive) emit('dynamicSession', dynamicSession(true))
-})
-watch(() => props.dynamicActive, (active) => { if (!active) lastDynamicRefreshS.value = null })
-watch(() => props.playbackEpoch, () => {
-  runs.value = {}
-  lastDynamicRefreshS.value = null
-  emit('results', {})
-})
-watch(userDefinitions, (items) => {
-  const availableIds = new Set(items.map((item) => item.definition_id))
-  const removedIds = selectedIds.value.filter((id) => !availableIds.has(id))
-  if (removedIds.length) {
-    selectedIds.value = selectedIds.value.filter((id) => availableIds.has(id))
-    const nextRuns = { ...runs.value }
-    removedIds.forEach((id) => { delete nextRuns[id] })
-    runs.value = nextRuns
-    if (props.dynamicActive) emit('dynamicSession', dynamicSession(false))
-    emit('results', { ...runs.value })
-  }
-  void Promise.all(items.map((item) => props.catalog.ensureVersions(item.definition_id)))
-}, { immediate: true })
-function useCurrentRange() { staticStartS.value = range.value.start; staticEndS.value = range.value.end }
-function title(id: string) {
-  if (id.startsWith('official:')) return officialAlgorithms.value.find((item) => item.algorithm_id === id.slice('official:'.length))?.display_name_zh ?? id
-  return definitions.value.find((item) => item.definition_id === id)?.name ?? id
-}
-function outputUnit(id: string): string {
-  if (id.startsWith('official:')) {
-    return officialAlgorithms.value.find((item) => item.algorithm_id === id.slice('official:'.length))?.output_unit ?? '未知单位'
-  }
-  const version = versions.value[id]
-  const outputId = version?.graph?.outputs?.[0]
-  const metadata = outputId ? version?.outputs[outputId] : null
-  return metadata && typeof metadata === 'object' && !Array.isArray(metadata) && typeof (metadata as Record<string, unknown>).unit === 'string'
-    ? String((metadata as Record<string, unknown>).unit)
-    : '未知单位'
-}
-function officialAvailability(item: OfficialAlgorithmCatalogItem) {
-  return item.is_runnable ? '可运行' : item.availability === 'shadow_validation' ? '工程验证中，暂不可运行' : '当前不可运行'
-}
+function userRequest(key: string, value: Settings, startS: number, endS: number, dynamic: boolean) { const version = versions.value[key]; if (!version) throw new Error('没有可运行的算法版本'); return { source: 'user' as const, recordingId: props.recording.id, definitionId: key, definitionVersion: version.semver, channel: value.channel, startS, endS, mode: dynamic ? 'dynamic' as const : 'static' as const, dynamicWindowS: dynamic ? value.windowS : undefined } }
+async function runStatic(key: string) { const value = config(key); await submit(key, value.startS, value.endS, false) }
+async function startDynamic() { const dynamicKeys = keys.value.filter((key) => config(key).mode === 'dynamic'); if (!dynamicKeys.length) { message.value = '请先将至少一个已勾选算法设为动态分析。'; return } if (props.playbackPositionS === undefined) { message.value = '等待波形播放位置后再启用动态分析。'; return }; const second = Math.floor(props.playbackPositionS); dynamicKeys.forEach((key) => { refreshSeconds.value = { ...refreshSeconds.value, [key]: second >= MIN_DYNAMIC_METRIC_WINDOW_S ? second : null } }); emit('dynamicSession', session(true)); await Promise.all(dynamicKeys.map(async (key) => { const window = dynamicMetricBootstrapRange(second, config(key).windowS); if (window) await submit(key, window.startS, window.endS, true) })) }
+async function refreshDynamic(position: number) { const second = Math.floor(position); await Promise.all(keys.value.filter((key) => config(key).mode === 'dynamic').map(async (key) => { if (isRunning(key) || refreshSeconds.value[key] === second) return; const previous = refreshSeconds.value[key] ?? null; const window = previous === null ? playbackMetricWindow(second, config(key).windowS) : dynamicMetricCatchupRange(previous, second, config(key).windowS); if (!window) return; refreshSeconds.value = { ...refreshSeconds.value, [key]: second }; await submit(key, window.startS, window.endS, true, true) })) }
+function currentRange(key: string) { setConfig(key, { startS: range.value.start, endS: range.value.end }) }
+watch(() => [props.playing, props.playbackPositionS] as const, ([playing, position]) => { if (playing && props.dynamicActive && position !== undefined) void refreshDynamic(position) })
+watch(() => props.playbackEpoch, () => { runs.value = {}; refreshSeconds.value = {}; emit('results', {}) })
+watch(keys, (next) => { const allowed = new Set(next); const cleaned = Object.fromEntries(Object.entries(settings.value).filter(([key]) => allowed.has(key))); next.forEach((key) => { if (!cleaned[key]) cleaned[key] = defaults() }); settings.value = cleaned; if (props.dynamicActive && !next.some((key) => cleaned[key].mode === 'dynamic')) emit('dynamicSession', session(false)) })
+watch(users, (next) => { const allowed = new Set(next.map((item) => item.definition_id)); selectedUsers.value = selectedUsers.value.filter((id) => allowed.has(id)); void Promise.all(next.map((item) => props.catalog.ensureVersions(item.definition_id))) }, { immediate: true })
 onMounted(load)
 </script>
 <template>
-  <div class="algorithm-display-layer" @click.self="emit('close')">
-    <section class="algorithm-display-workspace" aria-label="波形与算法">
-      <header class="dialog-titlebar"><span class="app-glyph">◈</span><strong>波形与算法</strong><span class="definition-range">分析范围：{{ range.start.toFixed(3) }}–{{ range.end.toFixed(3) }} s</span><button class="dialog-close" title="关闭" aria-label="关闭" @click="emit('close')">×</button></header>
-      <div class="algorithm-display-controls">
-        <label>通道<select v-model="channel"><option v-for="item in props.channels.length ? props.channels : props.recording.channels" :key="item" :value="item">{{ item }}</option></select></label>
-        <span class="algorithm-display-label">分析模式</span><div class="algorithm-display-segment"><button :class="{ active: mode === 'static' }" @click="mode = 'static'">静态分析</button><button :class="{ active: mode === 'dynamic' }" @click="mode = 'dynamic'">动态分析</button></div>
-        <template v-if="mode === 'static'"><label>开始 <input v-model.number="staticStartS" type="number" min="0" step="0.001" /> s</label><label>结束 <input v-model.number="staticEndS" type="number" min="0" step="0.001" /> s</label><button type="button" @click="useCurrentRange">使用当前分析区间</button><button class="primary-action" :disabled="!canRun" @click="runStatic">{{ running ? '计算中…' : '计算此区间' }}</button></template>
-        <template v-else><label>分析范围<select v-model.number="dynamicWindowS"><option v-for="windowS in DYNAMIC_WINDOW_OPTIONS" :key="windowS" :value="windowS">最近 {{ windowS }} s</option></select></label><label>结果展示范围<select v-model.number="dynamicResultDisplayRangeS"><option v-for="seconds in DYNAMIC_RESULT_DISPLAY_RANGE_OPTIONS" :key="seconds" :value="seconds">最近 {{ seconds }} s</option></select></label><span class="algorithm-display-range">每 1 s 更新</span><button class="primary-action" :disabled="!canRun" @click="enableDynamic">{{ props.dynamicActive ? '同步已启用' : '启用播放同步' }}</button></template>
-      </div>
-      <div class="algorithm-display-layout">
-        <aside class="algorithm-display-sidebar">
-          <h3>选择算法</h3>
-          <p class="algorithm-display-help">可运行的算法可叠加到当前波形；IAPF 与官方 Theta/Beta 使用后端固定科学契约，其他官方算法仍等待独立验证后开放。</p>
-          <section v-if="officialAlgorithms.length" class="algorithm-definition-group" aria-label="官方内置算法">
-            <h4>官方内置算法</h4>
-            <label v-for="item in officialAlgorithms" :key="item.algorithm_id" :data-testid="`official-algorithm-${item.definition_id}`" :class="['algorithm-checkbox', { 'algorithm-checkbox-disabled': !item.is_runnable }]">
-              <input v-model="selectedOfficialIds" type="checkbox" :value="item.algorithm_id" :disabled="!item.is_runnable" />
-              <span>{{ item.display_name_zh }}（{{ item.abbreviation }}）</span><small>{{ item.purpose_zh }} · {{ officialAvailability(item) }}</small>
-            </label>
-          </section>
-          <p v-else-if="officialCatalogError" class="definition-muted">{{ officialCatalogError }}</p>
-          <section class="algorithm-definition-group" aria-label="我的算法">
-            <h4>我的算法</h4>
-            <label v-for="item in userDefinitions" :key="item.definition_id" class="algorithm-checkbox"><input v-model="selectedIds" type="checkbox" :value="item.definition_id" /> <span>{{ item.name }}</span></label>
-            <p v-if="!loading && !userDefinitions.length" class="definition-muted">尚无我的算法</p>
-          </section>
-          <p v-if="mode === 'static' && staticRangeDuration < 4" class="algorithm-display-warning">静态分析范围至少需要 4 秒。</p><p v-else-if="mode === 'dynamic'" class="algorithm-display-warning">分析范围决定后端每次使用的 EEG：先在 {{ MIN_DYNAMIC_METRIC_WINDOW_S }} s 起显示预热值，达到 {{ dynamicWindowS }} s 后使用固定最近 {{ dynamicWindowS }} s。结果展示范围只改变趋势图横轴，不改变计算。</p>
-        </aside>
-        <main class="algorithm-display-main"><p class="algorithm-display-empty">勾选算法并运行后，结果会显示在主页面波形下方。</p></main>
-      </div>
-      <p v-if="message" class="definition-error">{{ message }}</p>
-    </section>
-  </div>
+  <div class="algorithm-display-layer" @click.self="emit('close')"><section class="algorithm-display-workspace" aria-label="波形与算法"><header class="dialog-titlebar"><span class="app-glyph">◈</span><strong>波形与算法</strong><span class="definition-range">默认范围：{{ range.start.toFixed(3) }}–{{ range.end.toFixed(3) }} s</span><button class="dialog-close" title="关闭" aria-label="关闭" @click="emit('close')">×</button></header><div class="algorithm-display-controls"><span>每个算法独立设置通道、分析模式与时间参数。</span><button class="primary-action" :disabled="!keys.some((key) => config(key).mode === 'dynamic') || running.length > 0" @click="startDynamic">{{ props.dynamicActive ? '更新播放同步' : '启用播放同步' }}</button></div><div class="algorithm-display-layout"><aside class="algorithm-display-sidebar"><h3>选择算法</h3><p class="algorithm-display-help">分析范围决定后端读取的真实 EEG；结果展示范围只影响趋势图横轴。</p><section v-if="official.length" class="algorithm-definition-group" aria-label="官方内置算法"><h4>官方内置算法</h4><template v-for="item in official" :key="item.algorithm_id"><label :data-testid="`official-algorithm-${item.definition_id}`" :class="['algorithm-checkbox', { 'algorithm-checkbox-disabled': !item.is_runnable }]"><input v-model="selectedOfficial" type="checkbox" :value="item.algorithm_id" :disabled="!item.is_runnable" /><span>{{ item.display_name_zh }}（{{ item.abbreviation }}）</span><small>{{ item.purpose_zh }} · {{ availability(item) }}</small></label><AlgorithmConfigCard v-if="selectedOfficial.includes(item.algorithm_id)" :id="`official:${item.algorithm_id}`" :settings="config(`official:${item.algorithm_id}`)" :channels="channels" :running="isRunning(`official:${item.algorithm_id}`)" @update="setConfig(`official:${item.algorithm_id}`, $event)" @current-range="currentRange(`official:${item.algorithm_id}`)" @run-static="runStatic(`official:${item.algorithm_id}`)" /></template></section><p v-else-if="props.catalog.officialError.value" class="definition-muted">{{ props.catalog.officialError.value }}</p><section class="algorithm-definition-group" aria-label="我的算法"><h4>我的算法</h4><template v-for="item in users" :key="item.definition_id"><label class="algorithm-checkbox"><input v-model="selectedUsers" type="checkbox" :value="item.definition_id" /><span>{{ item.name }}</span></label><AlgorithmConfigCard v-if="selectedUsers.includes(item.definition_id)" :id="item.definition_id" :settings="config(item.definition_id)" :channels="channels" :running="isRunning(item.definition_id)" @update="setConfig(item.definition_id, $event)" @current-range="currentRange(item.definition_id)" @run-static="runStatic(item.definition_id)" /></template><p v-if="!loading && !users.length" class="definition-muted">尚无我的算法</p></section></aside></div><p v-if="message" class="definition-error">{{ message }}</p></section></div>
 </template>
