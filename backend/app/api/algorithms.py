@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 
 from app.algorithm_runtime.builtins import build_builtin_registry
 from app.algorithm_runtime.errors import AlgorithmRuntimeError
+from app.algorithms.user_definition import UserDefinitionAlgorithm
 
 
 router = APIRouter(prefix="/api/algorithms", tags=["algorithms"])
@@ -44,6 +45,10 @@ def _user_items(request: Request) -> list[dict[str, object]]:
         if not versions:
             continue
         version = sorted(versions, key=lambda item: item.semver)[-1]
+        # The persisted JSON graph schema is for graph validation.  The
+        # runtime-facing input card must use the same typed contract as an
+        # official module, so the browser never has to infer EEG parameters.
+        runtime_module = UserDefinitionAlgorithm(definition.definition_id, version, metric_runner=None)
         items.append({
             "source": "user",
             "id": definition.definition_id,
@@ -51,9 +56,9 @@ def _user_items(request: Request) -> list[dict[str, object]]:
             "display_name_zh": definition.name,
             "abbreviation": definition.name,
             "description": definition.description,
-            "parameters": version.parameter_schema,
-            "modes": ["static", "dynamic"],
-            "output": version.outputs,
+            "parameters": [item.model_dump(mode="json") for item in runtime_module.parameter_schema().parameters],
+            "modes": list(runtime_module.manifest.supported_modes),
+            "output": {"unit": runtime_module.manifest.output_unit},
             "availability": "available",
             "is_runnable": True,
         })

@@ -1,12 +1,14 @@
 import { ref } from 'vue'
 import { listDefinitions, listDefinitionVersions } from '../api/algorithmDefinitions'
 import { listOfficialAlgorithms, type OfficialAlgorithmCatalogItem } from '../api/officialAlgorithms'
+import { listAlgorithms, type AlgorithmCatalogItem } from '../api/algorithms'
 import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/algorithmDefinition'
 
 /** Shared directory state only; scientific result arrays remain backend-owned. */
 export function useAlgorithmCatalog() {
   const definitions = ref<AlgorithmDefinition[]>([])
   const officialAlgorithms = ref<OfficialAlgorithmCatalogItem[]>([])
+  const algorithms = ref<AlgorithmCatalogItem[]>([])
   const versionsByDefinition = ref<Record<string, AlgorithmDefinitionVersion[]>>({})
   const userError = ref('')
   const officialError = ref('')
@@ -17,11 +19,12 @@ export function useAlgorithmCatalog() {
     userError.value = ''
     officialError.value = ''
     try {
-      const [userResult, officialResult] = await Promise.allSettled([listDefinitions(), listOfficialAlgorithms()])
+      const [userResult, officialResult, catalogResult] = await Promise.allSettled([listDefinitions(), listOfficialAlgorithms(), listAlgorithms()])
       if (userResult.status === 'fulfilled') definitions.value = userResult.value
       else userError.value = '我的算法目录暂不可读取。'
       if (officialResult.status === 'fulfilled') officialAlgorithms.value = officialResult.value
       else officialError.value = '官方算法目录暂不可读取；我的算法不受影响。'
+      if (catalogResult.status === 'fulfilled') algorithms.value = catalogResult.value
     } finally {
       loading.value = false
     }
@@ -40,7 +43,7 @@ export function useAlgorithmCatalog() {
     versionsByDefinition.value = next
   }
 
-  return { definitions, officialAlgorithms, versionsByDefinition, userError, officialError, loading, refresh, ensureVersions, removeDefinitionVersionCache }
+  return { definitions, officialAlgorithms, algorithms, versionsByDefinition, userError, officialError, loading, refresh, ensureVersions, removeDefinitionVersionCache }
 }
 
 export type AlgorithmCatalogContext = ReturnType<typeof useAlgorithmCatalog>

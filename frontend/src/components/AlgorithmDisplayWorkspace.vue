@@ -4,6 +4,7 @@ import { createAlgorithmRun, getRun, type AnalysisRunResponse } from '../api/run
 import type { OfficialAlgorithmCatalogItem } from '../api/officialAlgorithms'
 import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/algorithmDefinition'
 import type { AlgorithmCatalogContext } from '../composables/useAlgorithmCatalog'
+import type { AlgorithmParameter } from '../api/algorithms'
 import type { Recording } from '../types/recording'
 import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
 import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
@@ -38,6 +39,13 @@ function isDynamic(value: DefinitionMetricResult | DynamicMetric | null): value 
 function title(key: string) { return key.startsWith('official:') ? official.value.find((item) => item.algorithm_id === key.slice(9))?.display_name_zh ?? key : users.value.find((item) => item.definition_id === key)?.name ?? key }
 function unit(key: string): string { if (key.startsWith('official:')) return official.value.find((item) => item.algorithm_id === key.slice(9))?.output_unit ?? '未知单位'; const version = versions.value[key]; const outputId = version?.graph?.outputs?.[0]; const value = outputId ? version?.outputs[outputId] : null; return value && typeof value === 'object' && !Array.isArray(value) && typeof (value as Record<string, unknown>).unit === 'string' ? String((value as Record<string, unknown>).unit) : '未知单位' }
 function availability(item: OfficialAlgorithmCatalogItem) { return item.is_runnable ? '可运行' : item.availability === 'shadow_validation' ? '工程验证中，暂不可运行' : '当前不可运行' }
+function labelsFor(key: string) {
+  const source = key.startsWith('official:') ? 'official' : 'user'; const id = key.startsWith('official:') ? key.slice(9) : key
+  const catalog = props.catalog as AlgorithmCatalogContext & { algorithms?: { value: Array<{ source: string; id: string; parameters: AlgorithmParameter[] | Record<string, unknown> }> } }
+  const fields = catalog.algorithms?.value.find((item) => item.source === source && item.id === id)?.parameters
+  const labels: Record<string, string> = Array.isArray(fields) ? Object.fromEntries(fields.map((item) => [item.key, item.label_zh])) : {}
+  return { channel: labels.channel, startS: labels.start_s, endS: labels.end_s, windowS: labels.window_s }
+}
 function session(enabled: boolean): DynamicSession { return { enabled, definitions: keys.value.filter((key) => config(key).mode === 'dynamic').map((id) => ({ id, label: title(id), unit: unit(id), channel: config(id).channel, windowS: config(id).windowS, displayRangeS: config(id).displayRangeS })) } }
 function resultOf(run: AnalysisRunResponse): DefinitionMetricResult | DynamicMetric | null { const metric = run.result_summary?.metric; return metric && typeof metric === 'object' ? metric as DefinitionMetricResult | DynamicMetric : null }
 async function load() { loading.value = true; try { await props.catalog.refresh(); await Promise.all(users.value.map((item) => props.catalog.ensureVersions(item.definition_id))) } catch (error) { message.value = error instanceof Error ? error.message : '无法读取算法目录' } finally { loading.value = false } }
