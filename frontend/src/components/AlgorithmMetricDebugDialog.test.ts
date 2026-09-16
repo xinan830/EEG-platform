@@ -24,6 +24,7 @@ const dynamicRun = {
     extensions: [
       { kind: 'spectral_band_power', data: { band_power: { delta: 2, theta: 9, alpha: 3, beta: 5 }, relative_band_power: { delta: 0.1, theta: 0.45, alpha: 0.15, beta: 0.25 }, unit: 'uV^2' } },
       { kind: 'metric_inputs_output', data: { inputs: { input_left: { feature: 'theta_power', value: 9, unit: 'uV^2', channel: 'F3' }, input_right: { feature: 'beta_power', value: 5, unit: 'uV^2', channel: 'F3' } }, output: { label: 'Theta/Beta 比值', value: 1.8, unit: 'dimensionless' } } },
+      { kind: 'algorithm_calculation', data: { formula: '个体化 Theta 功率 ÷ 个体化 Beta 功率', inputs: [{ label: 'IAPF', value: 10, unit: 'Hz' }, { label: '实际 Theta 频段', range_hz: [4, 8] }] } },
     ],
   },
   result_summary: { metric: {
@@ -59,6 +60,9 @@ it('shows the unified playback context while rendering dynamic evidence without 
   expect(wrapper.text()).toContain('Welch4 s Hann，50% overlap（2 s 步进）')
   expect(wrapper.text()).toContain('12.000–22.000 s')
   expect(wrapper.text()).toContain('Theta 功率')
+  expect(wrapper.text()).toContain('实际计算明细')
+  expect(wrapper.text()).toContain('个体化 Theta 功率 ÷ 个体化 Beta 功率')
+  expect(wrapper.text()).toContain('[4.00, 8.00] Hz')
   expect(wrapper.text()).toContain('4 s Hann')
   expect(wrapper.text()).toContain('117 个频率点')
   expect(wrapper.text()).toContain('1.8')

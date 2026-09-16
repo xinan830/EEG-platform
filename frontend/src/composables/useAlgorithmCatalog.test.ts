@@ -5,10 +5,12 @@ const api = vi.hoisted(() => ({
   listDefinitions: vi.fn(),
   listDefinitionVersions: vi.fn(),
   listOfficialAlgorithms: vi.fn(),
+  listAlgorithms: vi.fn(),
 }))
 
 vi.mock('../api/algorithmDefinitions', () => ({ listDefinitions: api.listDefinitions, listDefinitionVersions: api.listDefinitionVersions }))
 vi.mock('../api/officialAlgorithms', () => ({ listOfficialAlgorithms: api.listOfficialAlgorithms }))
+vi.mock('../api/algorithms', () => ({ listAlgorithms: api.listAlgorithms }))
 
 const ratioDefinition = {
   definition_id: 'ratio', name: 'Theta/Beta 比值', owner: 'user-private', status: 'testing' as const,
@@ -30,6 +32,7 @@ beforeEach(() => {
   api.listDefinitions.mockReset().mockResolvedValue([ratioDefinition])
   api.listDefinitionVersions.mockReset().mockResolvedValue([publishedRatioV1])
   api.listOfficialAlgorithms.mockReset().mockResolvedValue([officialRbp])
+  api.listAlgorithms.mockReset().mockResolvedValue([])
 })
 
 it('refreshes user and official catalogs independently', async () => {
@@ -41,6 +44,7 @@ it('refreshes user and official catalogs independently', async () => {
   expect(catalog.officialAlgorithms.value.map((item) => item.algorithm_id)).toEqual(['official-rbp'])
   expect(catalog.userError.value).toBe('')
   expect(catalog.officialError.value).toBe('')
+  expect(catalog.algorithms.value).toEqual([])
 })
 
 it('preserves user definitions when the official catalog refresh fails', async () => {

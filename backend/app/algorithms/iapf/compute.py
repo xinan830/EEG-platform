@@ -56,6 +56,11 @@ def compute_iapf(
             "cog_hz": estimate.cog,
             "model_r2": estimate.model_r2,
             "model_error": estimate.model_error,
+            "calculation_trace": {"formula": "在 1/f 校正后的 Alpha 范围内选择 Peak 或 COG", "inputs": [
+                {"label": "峰值频率", "value": estimate.peak_hz, "unit": "Hz"},
+                {"label": "重心频率", "value": estimate.cog, "unit": "Hz"},
+                {"label": "选峰方式", "text": estimate.source},
+            ]},
             "source_quality": source_quality,
             "spectral_evidence": dict(getattr(spectrum, "evidence", {})),
         },

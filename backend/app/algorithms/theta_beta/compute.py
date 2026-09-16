@@ -48,5 +48,12 @@ def compute_theta_beta(
         requested_range=requested_range,
         actual_range=actual_range,
         quality="clean",
-        evidence={"iapf_hz": float(iapf.value), "theta_range_hz": [theta_low, theta_high], "beta_range_hz": [beta_low, beta_high], "theta_power_uv2": theta * 1e12, "beta_power_uv2": beta * 1e12, "source_quality": source_quality, "spectral_evidence": dict(getattr(spectrum, "evidence", {}))},
+        evidence={"iapf_hz": float(iapf.value), "theta_range_hz": [theta_low, theta_high], "beta_range_hz": [beta_low, beta_high], "theta_power_uv2": theta * 1e12, "beta_power_uv2": beta * 1e12,
+                  "calculation_trace": {"formula": "个体化 Theta 功率 ÷ 个体化 Beta 功率", "inputs": [
+                      {"label": "IAPF", "value": float(iapf.value), "unit": "Hz"},
+                      {"label": "实际 Theta 频段", "range_hz": [theta_low, theta_high]},
+                      {"label": "实际 Theta 功率", "value": theta * 1e12, "unit": "uV^2"},
+                      {"label": "实际 Beta 频段", "range_hz": [beta_low, beta_high]},
+                      {"label": "实际 Beta 功率", "value": beta * 1e12, "unit": "uV^2"},
+                  ]}, "source_quality": source_quality, "spectral_evidence": dict(getattr(spectrum, "evidence", {}))},
     )

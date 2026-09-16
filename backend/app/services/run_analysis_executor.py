@@ -75,6 +75,7 @@ def _serialize_algorithm_result(result: AlgorithmResult, algorithm_id: str, labe
         "requested_range": result.requested_range,
         "source_quality": result.evidence.get("source_quality", {}),
         "spectral_evidence": result.evidence.get("spectral_evidence", {}),
+        "calculation_trace": result.evidence.get("calculation_trace", {}),
         "official": {"algorithm_id": algorithm_id, **result.evidence},
         "chart": {"kind": "none"},
         "value": result.value,
@@ -150,6 +151,7 @@ class RunAnalysisExecutor:
                      "output": {"id": config.algorithm_id, "label": label, "value": value, "unit": result.unit, "quality": {"status": quality, "reasons": [failure.code] if failure else []}},
                      "channel": result.channel, "source_quality": evidence.get("source_quality", {}),
                      "spectral_evidence": evidence.get("spectral_evidence", {}), "warmup": warmup,
+                     "calculation_trace": evidence.get("calculation_trace", {}),
                      "official": {"algorithm_id": config.algorithm_id, **evidence}, "chart": {"kind": "none"}}
             points.append(point)
             values.append(np.nan if value is None else float(value))
@@ -195,6 +197,7 @@ class RunAnalysisExecutor:
             "output": {"id": output_id, "label": output_label, "value": result.value, "unit": result.unit, "quality": {"status": result.quality, "reasons": []}, "provenance": result.evidence.get("provenance", [])},
             "inputs": result.evidence.get("inputs", {}), "channel": config.channel, "actual_range": result.actual_range,
             "source_quality": result.evidence.get("source_quality", {}), "spectral_evidence": result.evidence.get("spectral_evidence", {}), "chart": chart,
+            "calculation_trace": result.evidence.get("calculation_trace", {}),
         }
         arrays = {"metric_value": np.asarray([result.value], dtype=float)}
         arrays.update({f"input_{index}_value": np.asarray([value["value"]], dtype=float) for index, value in enumerate(result.evidence.get("inputs", {}).values())})
@@ -219,6 +222,7 @@ class RunAnalysisExecutor:
                 "inputs": evidence.get("inputs", {}),
                 "source_quality": evidence.get("source_quality", {}),
                 "spectral_evidence": evidence.get("spectral_evidence", {}),
+                "calculation_trace": evidence.get("calculation_trace", {}),
                 "warmup": result.warmups[index] if index < len(result.warmups) else False,
             }
             points.append(point)

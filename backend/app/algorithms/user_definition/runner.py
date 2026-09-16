@@ -107,6 +107,10 @@ class UserDefinitionAlgorithm:
                 "source_quality": resolution.quality,
                 "spectral_evidence": resolution.spectral_evidence,
                 "provenance": [{"node": item.node, "parameters": dict(item.parameters)} for item in output.provenance],
+                "calculation_trace": {
+                    "formula": "用户定义的受控算法图",
+                    "inputs": [{"label": str(key), **value} for key, value in resolution.snapshot.items()],
+                },
             },
         )
 

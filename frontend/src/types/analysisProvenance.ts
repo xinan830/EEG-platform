@@ -17,7 +17,7 @@ export interface AnalysisProvenanceFrequency {
 }
 
 export interface AnalysisProvenanceExtension {
-  kind: 'spectral_band_power' | 'metric_inputs_output'
+  kind: 'spectral_band_power' | 'metric_inputs_output' | 'algorithm_calculation'
   data: Record<string, unknown>
 }
 

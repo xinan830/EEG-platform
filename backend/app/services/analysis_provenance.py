@@ -74,6 +74,9 @@ def _extensions(metric: dict[str, Any], point: dict[str, Any], evidence: dict[st
         if "value" in point:
             output = {**output, "value": point.get("value"), "quality": point.get("quality")}
         extensions.append({"kind": "metric_inputs_output", "data": {"inputs": inputs, "output": output}})
+    trace = point.get("calculation_trace", metric.get("calculation_trace"))
+    if isinstance(trace, dict) and isinstance(trace.get("inputs"), list):
+        extensions.append({"kind": "algorithm_calculation", "data": trace})
     return extensions
 
 
