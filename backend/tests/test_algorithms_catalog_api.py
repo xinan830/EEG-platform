@@ -14,6 +14,13 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
     assert by_id["theta_beta"]["display_name_zh"] == "Theta/Beta 比值"
     assert by_id["theta_beta"]["parameters"][0]["key"] == "channel"
     assert by_id["theta_beta"]["is_runnable"] is True
+    assert by_id["iapf"]["dynamic_policy"] == {
+        "minimum_window_s": 30.0,
+        "window_options_s": [30.0],
+        "default_window_s": 30.0,
+        "refresh_step_s": 5.0,
+        "allow_warmup": False,
+    }
 
 
 def test_unified_catalog_gives_user_algorithms_the_same_runtime_parameter_contract(tmp_path, monkeypatch) -> None:

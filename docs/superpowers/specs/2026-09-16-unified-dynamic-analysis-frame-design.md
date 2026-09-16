@@ -29,8 +29,9 @@ It does not change any EEG mathematics.
 - A dynamic point is anchored at the **end** of its analysis range.  Its
   `time_s` is always the actual `window_end_s`.
 - A partial warm-up point is permitted once four seconds of clean source data
-  are available.  A configured trailing window is used once enough data exist.
-  This is scheduling semantics, not a different PSD algorithm.
+  are available only when the selected algorithm's dynamic policy permits it.
+  A configured trailing window is used once enough data exist. This is
+  scheduling semantics, not a different PSD algorithm.
 - Every returned point has a stable result-contract version.  Cache identity
   must include that version whenever the point shape or evidence meaning changes.
 
@@ -63,6 +64,12 @@ Only `DynamicFramePlanner` may choose a dynamic window.  Only the frame builder
 may load or attach PSD/quality evidence.  Algorithm adapters receive a complete
 frame and may compute their own metric only; they may not construct a second
 window, independently reload a spectrum, or invent a separate warm-up rule.
+
+Each module declares one `DynamicAnalysisPolicy`: minimum window, permitted
+window sizes, refresh step, and whether short warm-up output is scientifically
+reportable. Run validation, the planner, catalog API, and frontend consume this
+single policy. A generic 4 s Welch minimum does not make every algorithm's
+output reportable after four seconds.
 
 ## 4. Core contracts
 
@@ -137,6 +144,15 @@ warm-up origin.
 The configured duration is never silently displayed as the actual duration.
 Both are retained in the frame and debug panel.  Static analysis remains a
 single explicitly requested range and does not use playback scheduling.
+
+### IAPF policy
+
+Official IAPF does not expose a dynamic warm-up candidate as a current IAPF.
+Its dynamic policy is a fixed 30 s trailing window with a 5 s refresh step.
+Before 30 s it returns no Hz point; at 30 s it produces `0–30 s`, then
+`5–35 s`, `10–40 s`, and so on. This does not change PSD mathematics; it
+prevents short-window peak bins from being presented as a stable individual
+alpha peak frequency.
 
 ## 6. Migration sequence
 

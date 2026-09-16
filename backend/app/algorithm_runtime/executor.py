@@ -31,13 +31,31 @@ class AlgorithmRuntime:
         config: dict[str, Any],
     ) -> AlgorithmResult | AlgorithmSeriesResult:
         """Execute a concrete module selected by a trusted catalog boundary."""
-        typed_config = module.config_model.model_validate(config)
-        if typed_config.mode not in module.manifest.supported_modes:
-            raise UnsupportedAlgorithmModeError(
-                f"algorithm {algorithm_id!r} does not support mode {typed_config.mode!r}",
-                detail={"algorithm_id": algorithm_id, "mode": typed_config.mode},
-            )
+        typed_config = self.validate_config(module=module, config=config)
         inputs = module.resolve_inputs(recording, typed_config)
         if typed_config.mode == "static":
             return module.execute_static(inputs, typed_config)
         return module.execute_dynamic(inputs, typed_config)
+
+    @staticmethod
+    def validate_config(*, module: AlgorithmModule, config: dict[str, Any]):
+        """Validate module-owned duration policy before work is queued or run."""
+        typed_config = module.config_model.model_validate(config)
+        if typed_config.mode not in module.manifest.supported_modes:
+            raise UnsupportedAlgorithmModeError(
+                f"algorithm {module.manifest.algorithm_id!r} does not support mode {typed_config.mode!r}",
+                detail={"algorithm_id": module.manifest.algorithm_id, "mode": typed_config.mode},
+            )
+        if typed_config.mode == "static":
+            return typed_config
+        policy = module.manifest.dynamic_policy
+        if typed_config.window_s not in policy.window_options_s:
+            raise ValueError(
+                f"{module.manifest.display_name_zh}动态分析窗口仅支持 "
+                f"{', '.join(f'{value:g}' for value in policy.window_options_s)} 秒"
+            )
+        if typed_config.step_s != policy.refresh_step_s:
+            raise ValueError(
+                f"{module.manifest.display_name_zh}动态分析每 {policy.refresh_step_s:g} 秒更新"
+            )
+        return typed_config

@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 
-export type DynamicAlgorithmDefinition = { id: string; label: string; unit: string; channel: string; windowS: number; displayRangeS: number }
+export type DynamicAlgorithmDefinition = { id: string; label: string; unit: string; channel: string; windowS: number; stepS: number; minimumWindowS: number; allowWarmup: boolean; displayRangeS: number }
 export type DynamicAlgorithmSession = { definitions: DynamicAlgorithmDefinition[] }
 export type DynamicSessionUpdate = DynamicAlgorithmSession & { enabled: boolean }
 
@@ -14,8 +14,8 @@ export function useAlgorithmWorkspaceState<T extends { result: unknown }>() {
   function updateDynamicSession(value: DynamicSessionUpdate) {
     const previous = dynamicSession.value
     const changedCalculation = !previous
-      || JSON.stringify(previous.definitions.map(({ id, channel, windowS }) => ({ id, channel, windowS })))
-        !== JSON.stringify(value.definitions.map(({ id, channel, windowS }) => ({ id, channel, windowS })))
+      || JSON.stringify(previous.definitions.map(({ id, channel, windowS, stepS, minimumWindowS, allowWarmup }) => ({ id, channel, windowS, stepS, minimumWindowS, allowWarmup })))
+        !== JSON.stringify(value.definitions.map(({ id, channel, windowS, stepS, minimumWindowS, allowWarmup }) => ({ id, channel, windowS, stepS, minimumWindowS, allowWarmup })))
     dynamicSession.value = value.enabled
       ? { definitions: value.definitions }
       : null

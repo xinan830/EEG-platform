@@ -35,7 +35,7 @@ def _request(recording_id: str, algorithm_id: str, *, dynamic: bool = False) -> 
     config = {"algorithm_id": algorithm_id, "time": {"start_s": 0, "end_s": 30}, "mode": "dynamic" if dynamic else "static"}
     config["channel"] = "O2" if algorithm_id == "theta_beta" else "Fz"
     if dynamic:
-        config.update({"dynamic_window_s": 10, "refresh_step_s": 1})
+        config.update({"dynamic_window_s": 30 if algorithm_id == "iapf" else 10, "refresh_step_s": 5 if algorithm_id == "iapf" else 1})
     return RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=config)
 
 
@@ -79,29 +79,24 @@ def test_official_theta_beta_rejects_unknown_raw_channel(tmp_path: Path):
         service.create(request)
 
 
-def test_official_dynamic_iapf_uses_existing_trailing_window_contract(tmp_path: Path):
+def test_official_dynamic_iapf_uses_its_own_full_window_contract(tmp_path: Path):
     service, recording_id = _service(tmp_path)
     completed = service.create(_request(recording_id, "iapf", dynamic=True))
 
     assert completed.status is RunStatus.COMPLETED
     series = completed.result_summary["metric"]["series"]
-    assert len(series) == 27
+    assert len(series) == 1
     assert series[0]["window_start_s"] == 0.0
-    assert series[0]["window_end_s"] == 4.0
-    assert series[0]["time_s"] == 4.0
-    assert series[0]["warmup"] is True
-    assert series[6]["time_s"] == 10.0
-    assert series[6]["warmup"] is False
-    assert series[-1]["window_start_s"] == 20.0
-    assert series[-1]["window_end_s"] == 30.0
-    assert series[-1]["time_s"] == 30.0
+    assert series[0]["window_end_s"] == 30.0
+    assert series[0]["time_s"] == 30.0
+    assert series[0]["warmup"] is False
     assert all("value" in point and "quality" in point for point in series)
     assert all(point["value"] == point["output"]["value"] for point in series)
     provenance = serialize_analysis_run(completed)["analysis_provenance"]
     assert provenance["sfreq_hz"] == 100.0
     assert provenance["welch"] == {"segment_s": 4.0, "window": "hann", "overlap_fraction": 0.5, "step_s": 2.0}
     assert provenance["frequency"] == {"low_hz": 1.0, "high_hz": 30.0, "point_count": 117}
-    assert provenance["quality"] == {"clean_segments": 4, "total_segments": 4, "clean_ratio": 1.0, "gate_failed": None, "rejected_reasons": []}
+    assert provenance["quality"] == {"clean_segments": 14, "total_segments": 14, "clean_ratio": 1.0, "gate_failed": None, "rejected_reasons": []}
 
 
 def test_official_runs_do_not_reuse_results_from_the_pre_evidence_contract(tmp_path: Path):

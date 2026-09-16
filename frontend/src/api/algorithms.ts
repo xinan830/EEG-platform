@@ -13,6 +13,14 @@ export type AlgorithmParameter = {
   description_zh?: string
 }
 
+export type DynamicAnalysisPolicy = {
+  minimum_window_s: number
+  window_options_s: number[]
+  default_window_s: number
+  refresh_step_s: number
+  allow_warmup: boolean
+}
+
 export type AlgorithmCatalogItem = {
   source: 'official' | 'user'
   id: string
@@ -23,6 +31,7 @@ export type AlgorithmCatalogItem = {
   parameters: AlgorithmParameter[] | Record<string, unknown>
   modes: string[]
   output: Record<string, unknown>
+  dynamic_policy: DynamicAnalysisPolicy
   availability: string
   is_runnable: boolean
 }

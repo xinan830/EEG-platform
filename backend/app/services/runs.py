@@ -307,6 +307,18 @@ class RunService:
                 raise ValueError(f"official analysis range exceeds recording duration of {duration:.3f} s")
             if official_config.channel.casefold() not in {str(item).casefold() for item in recording.channels}:
                 raise ValueError(f"official analysis channel does not exist: {official_config.channel}")
+            assert self.executor.algorithm_runtime is not None
+            self.executor.algorithm_runtime.validate_config(
+                module=module,
+                config={
+                    "channel": official_config.channel,
+                    "mode": official_config.mode,
+                    "start_s": float(official_config.time.start_s),
+                    "end_s": float(official_config.time.end_s),
+                    "window_s": float(official_config.dynamic_window_s),
+                    "step_s": float(official_config.refresh_step_s),
+                },
+            )
             channels = [str(official_config.channel)]
             config = official_config.model_dump(mode="json")
             requested_range = official_config.time.model_dump(mode="json")

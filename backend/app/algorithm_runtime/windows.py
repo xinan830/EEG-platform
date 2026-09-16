@@ -76,6 +76,7 @@ def build_playback_windows(
     window_s: float,
     step_s: float,
     minimum_window_s: float = 4.0,
+    allow_warmup: bool = True,
 ) -> list[AnalysisWindow]:
     """Build endpoint-aligned windows for playback-synchronised analysis.
 
@@ -105,7 +106,7 @@ def build_playback_windows(
     # catch-up request deliberately starts at a prior trailing-window boundary
     # (for example 2 s when resuming endpoints 12–16 s).  Treating that
     # boundary as a new warm-up origin would plan an invalid 2–4 s window.
-    if bounded_start <= epsilon:
+    if bounded_start <= epsilon and allow_warmup:
         cursor = minimum_window_s
         warmup_end = min(window_s, bounded_end)
         while cursor < warmup_end - epsilon:
@@ -133,6 +134,7 @@ def build_dynamic_analysis_frames(
     window_s: float,
     step_s: float,
     minimum_window_s: float = 4.0,
+    allow_warmup: bool = True,
 ) -> list[DynamicAnalysisFrame]:
     """Plan the sole time contract used by dynamic algorithm adapters."""
     return [
@@ -150,5 +152,6 @@ def build_dynamic_analysis_frames(
             window_s=window_s,
             step_s=step_s,
             minimum_window_s=minimum_window_s,
+            allow_warmup=allow_warmup,
         )
     ]

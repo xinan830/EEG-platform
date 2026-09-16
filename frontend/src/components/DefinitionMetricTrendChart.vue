@@ -16,7 +16,7 @@ export type DynamicMetric = {
   chart?: { y_axis?: { label?: string; unit?: string } }
 }
 
-export type DynamicMetricPending = { label: string; unit: string; channel: string; windowS: number }
+export type DynamicMetricPending = { label: string; unit: string; channel: string; windowS: number; minimumWindowS?: number; allowWarmup?: boolean }
 
 echarts.use([LineChart, GridComponent, TooltipComponent, MarkAreaComponent, CanvasRenderer])
 const props = defineProps<{ result: DynamicMetric | null; pending?: DynamicMetricPending; displayRangeS?: number }>()
@@ -31,7 +31,12 @@ const displayed = computed<DynamicMetric>(() => props.result ?? {
 })
 const latestPoint = computed(() => [...(displayed.value.series ?? [])].reverse().find((point) => point.value !== null) ?? null)
 const resultDisplayRangeS = computed(() => props.displayRangeS ?? 30)
-const firstWindowText = computed(() => '等待第一个可计算分析范围：0.000–4.000 s')
+const firstWindowText = computed(() => {
+  const minimum = props.pending?.minimumWindowS ?? 4
+  return props.pending?.allowWarmup === false
+    ? `等待首个正式分析范围：0.000–${minimum.toFixed(3)} s`
+    : `等待第一个可计算分析范围：0.000–${minimum.toFixed(3)} s`
+})
 
 function render() {
   if (!chart) return

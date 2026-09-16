@@ -29,6 +29,7 @@ def _official_items(request: Request) -> list[dict[str, object]]:
             "parameters": [item.model_dump(mode="json") for item in module.parameter_schema().parameters],
             "modes": list(manifest.supported_modes),
             "output": {"unit": manifest.output_unit},
+            "dynamic_policy": manifest.dynamic_policy.model_dump(mode="json"),
             "availability": "available",
             "is_runnable": True,
         })
@@ -59,6 +60,7 @@ def _user_items(request: Request) -> list[dict[str, object]]:
             "parameters": [item.model_dump(mode="json") for item in runtime_module.parameter_schema().parameters],
             "modes": list(runtime_module.manifest.supported_modes),
             "output": {"unit": runtime_module.manifest.output_unit},
+            "dynamic_policy": runtime_module.manifest.dynamic_policy.model_dump(mode="json"),
             "availability": "available",
             "is_runnable": True,
         })

@@ -13,11 +13,22 @@ export type DynamicMetricPayload = {
   chart?: { y_axis?: { label?: string; unit?: string } }
 }
 
+export type DynamicMetricPolicy = {
+  minimumWindowS: number
+  refreshStepS: number
+  allowWarmup: boolean
+}
+
 export const DYNAMIC_WINDOW_OPTIONS = [5, 10, 20, 30] as const
 export type DynamicWindowS = typeof DYNAMIC_WINDOW_OPTIONS[number]
 const DEFAULT_DYNAMIC_METRIC_WINDOW_S: DynamicWindowS = 10
 const DYNAMIC_METRIC_BOOTSTRAP_POINT_COUNT = 21
 export const MIN_DYNAMIC_METRIC_WINDOW_S = 4
+export const DEFAULT_DYNAMIC_METRIC_POLICY: DynamicMetricPolicy = {
+  minimumWindowS: MIN_DYNAMIC_METRIC_WINDOW_S,
+  refreshStepS: 1,
+  allowWarmup: true,
+}
 export type DynamicMetricWindow = { startS: number; endS: number; warmup: boolean }
 
 /**
@@ -25,9 +36,9 @@ export type DynamicMetricWindow = { startS: number; endS: number; warmup: boolea
  * dynamic duration fills, the returned input is an explicitly marked warmup;
  * afterwards it is the fixed trailing analysis window.
  */
-export function playbackMetricWindow(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): DynamicMetricWindow | null {
-  if (!Number.isFinite(positionS) || positionS < MIN_DYNAMIC_METRIC_WINDOW_S) return null
-  if (positionS < windowS) return { startS: 0, endS: positionS, warmup: true }
+export function playbackMetricWindow(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S, policy: DynamicMetricPolicy = DEFAULT_DYNAMIC_METRIC_POLICY): DynamicMetricWindow | null {
+  if (!Number.isFinite(positionS) || positionS < policy.minimumWindowS) return null
+  if (positionS < windowS) return policy.allowWarmup ? { startS: 0, endS: positionS, warmup: true } : null
   return { startS: Math.max(0, positionS - windowS), endS: positionS, warmup: false }
 }
 
@@ -37,11 +48,11 @@ export function playbackMetricWindow(positionS: number, windowS: DynamicWindowS 
  * window fills it returns one marked warmup range; otherwise the backend
  * expands the bounded range into fixed trailing windows.
  */
-export function dynamicMetricBootstrapRange(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): DynamicMetricWindow | null {
-  const warmup = playbackMetricWindow(positionS, windowS)
+export function dynamicMetricBootstrapRange(positionS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S, policy: DynamicMetricPolicy = DEFAULT_DYNAMIC_METRIC_POLICY): DynamicMetricWindow | null {
+  const warmup = playbackMetricWindow(positionS, windowS, policy)
   if (!warmup) return null
   if (warmup.warmup) return warmup
-  const historyS = windowS + DYNAMIC_METRIC_BOOTSTRAP_POINT_COUNT - 1
+  const historyS = windowS + (DYNAMIC_METRIC_BOOTSTRAP_POINT_COUNT - 1) * policy.refreshStepS
   return { startS: Math.max(0, positionS - historyS), endS: positionS, warmup: false }
 }
 
@@ -50,10 +61,10 @@ export function dynamicMetricBootstrapRange(positionS: number, windowS: DynamicW
  * first output is the second immediately after `previousEndS`, so no metric
  * time point is invented or silently skipped while a prior request runs.
  */
-export function dynamicMetricCatchupRange(previousEndS: number, currentEndS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S): { startS: number; endS: number } | null {
+export function dynamicMetricCatchupRange(previousEndS: number, currentEndS: number, windowS: DynamicWindowS = DEFAULT_DYNAMIC_METRIC_WINDOW_S, refreshStepS = 1): { startS: number; endS: number } | null {
   if (!Number.isFinite(previousEndS) || !Number.isFinite(currentEndS) || currentEndS <= previousEndS) return null
   return {
-    startS: Math.max(0, previousEndS + 1 - windowS),
+    startS: Math.max(0, previousEndS + refreshStepS - windowS),
     endS: currentEndS,
   }
 }

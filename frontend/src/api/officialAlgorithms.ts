@@ -1,4 +1,4 @@
-import { listAlgorithms } from './algorithms'
+import { listAlgorithms, type DynamicAnalysisPolicy } from './algorithms'
 
 export type OfficialAlgorithmCatalogItem = {
   algorithm_id: string
@@ -13,6 +13,7 @@ export type OfficialAlgorithmCatalogItem = {
   required_channel_roles: string[]
   supported_modes: string[]
   output_unit: string
+  dynamic_policy: DynamicAnalysisPolicy
   definition_id: string
   definition_version: string
 }
@@ -31,6 +32,7 @@ export function listOfficialAlgorithms(): Promise<OfficialAlgorithmCatalogItem[]
     required_channel_roles: [],
     supported_modes: item.modes,
     output_unit: typeof item.output.unit === 'string' ? item.output.unit : '未知单位',
+    dynamic_policy: item.dynamic_policy,
     definition_id: item.id,
     definition_version: item.version,
   })))

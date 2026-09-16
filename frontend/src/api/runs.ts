@@ -9,7 +9,7 @@ type SharedAlgorithmRunFields = {
   endS: number
   mode?: 'static' | 'dynamic'
   dynamicWindowS?: DynamicWindowS
-  refreshStepS?: 1
+  refreshStepS?: 1 | 5
 }
 
 export type AlgorithmRunRequest =

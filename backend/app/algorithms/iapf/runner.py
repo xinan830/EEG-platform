@@ -57,7 +57,16 @@ class IapfAlgorithm:
     def execute_dynamic(self, inputs: AlgorithmInputs, config: IapfConfig) -> AlgorithmSeriesResult:
         window_s = config.window_s or 10.0
         step_s = config.step_s or 1.0
-        frames = build_dynamic_analysis_frames(config.start_s, config.end_s, duration_s=inputs.duration_s, window_s=window_s, step_s=step_s)
+        policy = self.manifest.dynamic_policy
+        frames = build_dynamic_analysis_frames(
+            config.start_s,
+            config.end_s,
+            duration_s=inputs.duration_s,
+            window_s=window_s,
+            step_s=step_s,
+            minimum_window_s=policy.minimum_window_s,
+            allow_warmup=policy.allow_warmup,
+        )
         results = [
             compute_iapf(
                 self._load(inputs.payload, channel=inputs.channel, start_s=frame.window_start_s, window_s=frame.actual_window_s),

@@ -14,7 +14,7 @@ AlgorithmMode = Literal["static", "dynamic"]
 # Persisted dynamic points carry this independently from an algorithm's
 # scientific version.  Altering point timing or evidence requires a new value
 # so older cached summaries cannot be rendered as the current contract.
-DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION = "dynamic-analysis-frame-v3"
+DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION = "dynamic-analysis-frame-v4"
 
 
 class AlgorithmFailure(BaseModel):
@@ -42,6 +42,26 @@ class AlgorithmConfigBase(BaseModel):
         return self
 
 
+class DynamicAnalysisPolicy(BaseModel):
+    """Algorithm-owned scheduling rules, separate from EEG mathematics."""
+
+    minimum_window_s: float = Field(default=4.0, gt=0)
+    window_options_s: list[float] = Field(default_factory=lambda: [5.0, 10.0, 20.0, 30.0])
+    default_window_s: float = Field(default=10.0, gt=0)
+    refresh_step_s: float = Field(default=1.0, gt=0)
+    allow_warmup: bool = True
+
+    @model_validator(mode="after")
+    def validate_options(self) -> "DynamicAnalysisPolicy":
+        if not self.window_options_s or any(value <= 0 for value in self.window_options_s):
+            raise ValueError("dynamic window options must contain positive values")
+        if self.default_window_s not in self.window_options_s:
+            raise ValueError("dynamic default window must be one of the supported options")
+        if self.default_window_s < self.minimum_window_s:
+            raise ValueError("dynamic default window cannot be shorter than its minimum")
+        return self
+
+
 class AlgorithmManifest(BaseModel):
     algorithm_id: str = Field(min_length=1)
     display_name_zh: str = Field(min_length=1)
@@ -51,6 +71,7 @@ class AlgorithmManifest(BaseModel):
     implementation_identity: str = Field(min_length=1)
     supported_modes: list[AlgorithmMode] = Field(default_factory=lambda: ["static"])
     output_unit: str = Field(min_length=1)
+    dynamic_policy: DynamicAnalysisPolicy = Field(default_factory=DynamicAnalysisPolicy)
 
 
 class AlgorithmInputs(BaseModel):
