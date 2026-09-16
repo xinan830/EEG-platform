@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .parameter_schema import AlgorithmParameter, ParameterSchema
 
@@ -27,6 +27,14 @@ class AlgorithmConfigBase(BaseModel):
     end_s: float = Field(gt=0)
     window_s: float | None = Field(default=None, gt=0)
     step_s: float | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "AlgorithmConfigBase":
+        if self.end_s <= self.start_s:
+            raise ValueError("analysis range must satisfy end_s > start_s")
+        if self.mode == "dynamic" and (self.window_s is None or self.step_s is None):
+            raise ValueError("dynamic analysis requires window_s and step_s")
+        return self
 
 
 class AlgorithmManifest(BaseModel):
