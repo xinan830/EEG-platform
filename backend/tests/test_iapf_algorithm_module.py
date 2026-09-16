@@ -46,18 +46,18 @@ def test_iapf_module_preserves_selected_raw_channel(monkeypatch) -> None:
     assert result.unit == "Hz"
 
 
-def test_iapf_dynamic_emits_no_candidate_before_the_algorithm_window_is_full(monkeypatch) -> None:
+def test_iapf_dynamic_emits_warmup_candidates_after_one_clean_welch_segment(monkeypatch) -> None:
     result = _runtime(monkeypatch).execute(
         algorithm_id="iapf",
         recording=_fake_recording(),
-        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 29, "window_s": 30, "step_s": 5},
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 9, "window_s": 10, "step_s": 1},
     )
-    assert result.time_s == []
-    assert result.values == []
-    assert result.warmups == []
+    assert result.time_s == [4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+    assert result.warmups == [True, True, True, True, True, True]
+    assert result.values == [10.0] * 6
 
 
-def test_iapf_dynamic_uses_only_full_thirty_second_windows_at_five_second_steps(monkeypatch) -> None:
+def test_iapf_dynamic_uses_the_shared_ten_second_sliding_window_after_warmup(monkeypatch) -> None:
     runtime = _runtime(monkeypatch)
     calls: list[tuple[float, float]] = []
     spectrum = SimpleNamespace(gate_failed=None, freqs=np.linspace(1.0, 30.0, 117), psd=np.ones((1, 117), dtype=float))
@@ -70,25 +70,25 @@ def test_iapf_dynamic_uses_only_full_thirty_second_windows_at_five_second_steps(
     result = runtime.execute(
         algorithm_id="iapf",
         recording=recording,
-        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 40, "window_s": 30, "step_s": 5},
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 12, "window_s": 10, "step_s": 1},
     )
-    assert result.time_s == [30.0, 35.0, 40.0]
-    assert result.windows == [
-        {"start_s": 0.0, "end_s": 30.0},
-        {"start_s": 5.0, "end_s": 35.0},
-        {"start_s": 10.0, "end_s": 40.0},
+    assert result.time_s == [4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]
+    assert result.windows[-3:] == [
+        {"start_s": 0.0, "end_s": 10.0},
+        {"start_s": 1.0, "end_s": 11.0},
+        {"start_s": 2.0, "end_s": 12.0},
     ]
-    assert result.warmups == [False, False, False]
-    assert calls == [(0.0, 30.0), (5.0, 30.0), (10.0, 30.0)]
+    assert result.warmups == [True] * 6 + [False, False, False]
+    assert calls[-3:] == [(0.0, 10.0), (1.0, 10.0), (2.0, 10.0)]
 
 
-def test_iapf_dynamic_rejects_the_generic_ten_second_one_second_policy(monkeypatch) -> None:
-    with pytest.raises(ValueError, match="30"):
-        _runtime(monkeypatch).execute(
-            algorithm_id="iapf",
-            recording=_fake_recording(),
-            config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 30, "window_s": 10, "step_s": 1},
-        )
+def test_iapf_dynamic_accepts_the_shared_ten_second_one_second_policy(monkeypatch) -> None:
+    result = _runtime(monkeypatch).execute(
+        algorithm_id="iapf",
+        recording=_fake_recording(),
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 10, "window_s": 10, "step_s": 1},
+    )
+    assert result.time_s[-1] == 10.0
 
 
 def test_later_generic_catchup_never_restarts_warmup_from_a_trailing_boundary() -> None:

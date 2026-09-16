@@ -37,7 +37,7 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
     OfficialAlgorithmManifest(
         algorithm_id="iapf", definition_name="Official IAPF", display_name_zh="个体 Alpha 峰频", abbreviation="IAPF",
         purpose_zh="使用 1/f 拟合后的 Alpha 残差 Peak/COG 估计个体 Alpha 峰频。",
-        scientific_version="official-iapf-v2", implementation_identity="iapf-runtime-v2",
+        scientific_version="official-iapf-v2", implementation_identity="iapf-runtime-v3",
         execution_kind="official_composite_run_adapter", availability="available", is_runnable=True,
         supported_modes=["static", "dynamic"],
     ),

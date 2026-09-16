@@ -145,19 +145,19 @@ describe('AlgorithmDisplayWorkspace', () => {
     expect(createAlgorithmRun).toHaveBeenCalledWith(expect.objectContaining({ source: 'official', algorithmId: 'iapf', channel: 'F3', mode: 'static' }))
   })
 
-  it('uses the IAPF policy returned by the backend instead of the generic warmup policy', async () => {
+  it('uses the shared dynamic policy returned by the backend for IAPF', async () => {
     createAlgorithmRun.mockResolvedValue({ run_id: 'iapf-dynamic', status: 'completed', result_summary: { metric: { mode: 'dynamic', output: { label: '个体 Alpha 峰频率', unit: 'Hz' }, channel: 'F3', series: [] } } })
     const catalog = createCatalog({
       officialAlgorithms: [officialIapf] as never,
-      algorithms: [{ source: 'official', id: 'iapf', dynamic_policy: { minimum_window_s: 30, window_options_s: [30], default_window_s: 30, refresh_step_s: 5, allow_warmup: false } }],
+      algorithms: [{ source: 'official', id: 'iapf', dynamic_policy: { minimum_window_s: 4, window_options_s: [5, 10, 20, 30], default_window_s: 10, refresh_step_s: 1, allow_warmup: true } }],
     })
-    const wrapper = mount(AlgorithmDisplayWorkspace, { props: { recording: { id: 'recording-1', channels: ['F3'] }, rangeStart: 0, rangeEnd: 30, channels: ['F3'], playbackPositionS: 30, playing: false, catalog } as never })
+    const wrapper = mount(AlgorithmDisplayWorkspace, { props: { recording: { id: 'recording-1', channels: ['F3'] }, rangeStart: 0, rangeEnd: 30, channels: ['F3'], playbackPositionS: 10, playing: false, catalog } as never })
     await flushPromises()
     await wrapper.get('[data-testid="official-algorithm-official-iapf"] input').setValue(true)
     const card = wrapper.get('[data-testid="algorithm-config-official:iapf"]')
     await card.findAll('button').find((button) => button.text() === '动态')!.trigger('click')
-    expect((card.findAll('select')[1].element as HTMLSelectElement).value).toBe('30')
+    expect((card.findAll('select')[1].element as HTMLSelectElement).value).toBe('10')
     await wrapper.findAll('button').find((button) => button.text() === '启用播放同步')!.trigger('click')
-    expect(createAlgorithmRun).toHaveBeenCalledWith(expect.objectContaining({ source: 'official', algorithmId: 'iapf', dynamicWindowS: 30, refreshStepS: 5 }))
+    expect(createAlgorithmRun).toHaveBeenCalledWith(expect.objectContaining({ source: 'official', algorithmId: 'iapf', dynamicWindowS: 10, refreshStepS: 1 }))
   })
 })

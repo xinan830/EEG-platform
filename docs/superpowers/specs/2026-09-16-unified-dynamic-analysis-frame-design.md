@@ -147,12 +147,12 @@ single explicitly requested range and does not use playback scheduling.
 
 ### IAPF policy
 
-Official IAPF does not expose a dynamic warm-up candidate as a current IAPF.
-Its dynamic policy is a fixed 30 s trailing window with a 5 s refresh step.
-Before 30 s it returns no Hz point; at 30 s it produces `0–30 s`, then
-`5–35 s`, `10–40 s`, and so on. This does not change PSD mathematics; it
-prevents short-window peak bins from being presented as a stable individual
-alpha peak frequency.
+Official IAPF shares the platform dynamic-frame policy. It emits a marked
+warm-up candidate after the first clean 4 s PSD window, then uses the selected
+fixed trailing duration once that duration is full. This does not change PSD
+mathematics or the IAPF 1/f Peak/COG calculation. A short-window result may
+vary more than a long-window result, but that uncertainty is expressed by the
+warm-up state rather than by suppressing a real computed value.
 
 ## 6. Migration sequence
 

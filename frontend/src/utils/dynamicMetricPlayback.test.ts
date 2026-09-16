@@ -17,10 +17,10 @@ it('derives trailing windows from the selected dynamic duration', () => {
 })
 
 it('does not manufacture a warmup point for an algorithm that forbids warmup', () => {
-  const iapf = { minimumWindowS: 30, refreshStepS: 5, allowWarmup: false }
-  expect(playbackMetricWindow(29, 30, iapf)).toBeNull()
-  expect(playbackMetricWindow(30, 30, iapf)).toEqual({ startS: 0, endS: 30, warmup: false })
-  expect(dynamicMetricBootstrapRange(34, 30, iapf)).toEqual({ startS: 0, endS: 34, warmup: false })
+  const iapf = { minimumWindowS: 4, refreshStepS: 1, allowWarmup: true }
+  expect(playbackMetricWindow(4, 10, iapf)).toEqual({ startS: 0, endS: 4, warmup: true })
+  expect(playbackMetricWindow(10, 10, iapf)).toEqual({ startS: 0, endS: 10, warmup: false })
+  expect(dynamicMetricBootstrapRange(34, 10, iapf)).toEqual({ startS: 4, endS: 34, warmup: false })
 })
 
 it('backfills a bounded real history when dynamic analysis starts mid-recording', () => {

@@ -15,11 +15,11 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
     assert by_id["theta_beta"]["parameters"][0]["key"] == "channel"
     assert by_id["theta_beta"]["is_runnable"] is True
     assert by_id["iapf"]["dynamic_policy"] == {
-        "minimum_window_s": 30.0,
-        "window_options_s": [30.0],
-        "default_window_s": 30.0,
-        "refresh_step_s": 5.0,
-        "allow_warmup": False,
+        "minimum_window_s": 4.0,
+        "window_options_s": [5.0, 10.0, 20.0, 30.0],
+        "default_window_s": 10.0,
+        "refresh_step_s": 1.0,
+        "allow_warmup": True,
     }
 
 
