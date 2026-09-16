@@ -10,8 +10,6 @@ from typing import Any
 
 import numpy as np
 
-from app.eeg_core.definition_engine import execute_graph
-from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.quality import SpectralQualityGateError
 from app.eeg_core.spectral import SpectralEstimate
 from app.algorithm_runtime.contracts import (
@@ -21,7 +19,7 @@ from app.algorithm_runtime.contracts import (
 )
 from app.algorithm_runtime.executor import AlgorithmRuntime
 from app.algorithm_runtime.registry import AlgorithmRegistry
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithms.user_definition import UserDefinitionAlgorithm
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
@@ -210,16 +208,26 @@ class RunAnalysisExecutor:
         version = self.definition_service.repository.get_version(definition_id, definition_version)
         if version is None:
             raise ValueError("definition metric version does not exist")
-        if config.mode == "dynamic":
-            return self._execute_dynamic_definition_metric(recording, version, config)
-        resolution = self.metric_runner.resolve_inputs(recording, version, config)
-        output_id, output = self._execute_metric_graph(version, resolution.inputs)
-        if output.value is None:
-            raise SpectralQualityGateError({**resolution.quality, "metric_output": None,
-                                            "metric_rejected_reasons": list(output.quality.reasons)})
-        output_metadata = version.outputs.get(output_id, {})
-        output_label = output_metadata.get("label", output_id) if isinstance(output_metadata, dict) else output_id
-        input_items = [{"key": key, "label": key, **value} for key, value in resolution.snapshot.items()]
+        if self.algorithm_runtime is None:
+            raise ValueError("algorithm runtime is not configured")
+        module = UserDefinitionAlgorithm(definition_id, version, self.metric_runner)
+        runtime_config = {
+            "channel": config.channel,
+            "mode": config.mode,
+            "start_s": float(config.time.start_s),
+            "end_s": float(config.time.end_s),
+            "window_s": float(config.dynamic_window_s),
+            "step_s": float(config.refresh_step_s),
+        }
+        result = self.algorithm_runtime.execute_module(module=module, recording=recording, config=runtime_config)
+        if isinstance(result, AlgorithmSeriesResult):
+            return self._serialize_dynamic_definition_result(result, config)
+        if result.value is None:
+            raise SpectralQualityGateError({**result.evidence.get("source_quality", {}), "metric_output": None,
+                                            "metric_rejected_reasons": result.failure.detail.get("reasons", []) if result.failure else []})
+        output_id = str(result.evidence["output_id"])
+        output_label = str(result.evidence["output_label"])
+        input_items = [{"key": key, "label": key, **value} for key, value in result.evidence.get("inputs", {}).items()]
         input_units = {str(item["unit"]) for item in input_items if item.get("value") is not None}
         chart = {
             "kind": "input_comparison" if len(input_items) >= 2 and len(input_units) == 1 else "none",
@@ -228,78 +236,48 @@ class RunAnalysisExecutor:
             "values": input_items if len(input_units) == 1 else [],
         }
         metric = {
-            "output": {"id": output_id, "label": output_label, **self._scalar_output(output)},
-            "inputs": resolution.snapshot, "channel": config.channel, "actual_range": resolution.actual_range,
-            "source_quality": resolution.quality, "spectral_evidence": resolution.spectral_evidence, "chart": chart,
+            "output": {"id": output_id, "label": output_label, "value": result.value, "unit": result.unit, "quality": {"status": result.quality, "reasons": []}, "provenance": result.evidence.get("provenance", [])},
+            "inputs": result.evidence.get("inputs", {}), "channel": config.channel, "actual_range": result.actual_range,
+            "source_quality": result.evidence.get("source_quality", {}), "spectral_evidence": result.evidence.get("spectral_evidence", {}), "chart": chart,
         }
-        arrays = {"metric_value": np.asarray([output.value], dtype=float)}
-        arrays.update({f"input_{index}_value": np.asarray([value["value"]], dtype=float) for index, value in enumerate(resolution.snapshot.values())})
-        return {"metric": metric}, arrays, output.unit.value
+        arrays = {"metric_value": np.asarray([result.value], dtype=float)}
+        arrays.update({f"input_{index}_value": np.asarray([value["value"]], dtype=float) for index, value in enumerate(result.evidence.get("inputs", {}).values())})
+        return {"metric": metric}, arrays, result.unit
 
-    @staticmethod
-    def _execute_metric_graph(version: Any, inputs: dict[str, Scalar]) -> tuple[str, Scalar]:
-        outputs = execute_graph(version.graph, inputs)
-        if len(outputs) != 1:
-            raise ValueError("definition metric requires exactly one scalar output")
-        output_id, output = next(iter(outputs.items()))
-        if not isinstance(output, Scalar):
-            raise ValueError("definition metric output must be a scalar")
-        return output_id, output
-
-    @staticmethod
-    def _scalar_output(value: Any) -> dict[str, object]:
-        return {
-            "value": value.value, "unit": value.unit.value,
-            "quality": {"status": value.quality.status, "reasons": list(value.quality.reasons), "rejected_reasons": list(value.quality.rejected_reasons)},
-            "provenance": [{"node": item.node, "parameters": dict(item.parameters)} for item in value.provenance],
-        }
-
-    def _execute_dynamic_definition_metric(self, recording: Any, version: Any, config: DefinitionMetricConfig):
-        output_id: str | None = None
-        output_label: str | None = None
-        output_unit: str | None = None
+    def _serialize_dynamic_definition_result(self, result: AlgorithmSeriesResult, config: DefinitionMetricConfig):
         points: list[dict[str, object]] = []
         values: list[float] = []
-        start, end = float(config.time.start_s), float(config.time.end_s)
-        window, step = float(config.dynamic_window_s), float(config.refresh_step_s)
-        frames = build_dynamic_analysis_frames(
-            start,
-            end,
-            duration_s=float(recording.duration_s),
-            window_s=window,
-            step_s=step,
-        )
-        for frame in frames:
-            point_start = frame.window_start_s
-            point_end = frame.window_end_s
-            try:
-                resolution = self.metric_runner.resolve_window(recording, version, config.channel, point_start, point_end)
-                current_output_id, output = self._execute_metric_graph(version, resolution.inputs)
-                output_id = output_id or current_output_id
-                metadata = version.outputs.get(current_output_id, {})
-                output_label = output_label or (metadata.get("label", current_output_id) if isinstance(metadata, dict) else current_output_id)
-                output_unit = output_unit or output.unit.value
-                value = float(output.value) if output.value is not None else None
-                quality = self._scalar_output(output)["quality"]
-                if value is None:
-                    quality = {**quality, "status": "bad"}
-                point = {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
-                         "time_s": round(point_end, 9), "window_start_s": round(point_start, 9), "window_end_s": round(point_end, 9), "value": value, "quality": quality, "inputs": resolution.snapshot, "source_quality": resolution.quality, "spectral_evidence": resolution.spectral_evidence}
-                if frame.warmup:
-                    point["warmup"] = True
-                points.append(point)
-                values.append(np.nan if value is None else value)
-            except SpectralQualityGateError as exc:
-                point = {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
-                         "time_s": round(point_end, 9), "window_start_s": round(point_start, 9), "window_end_s": round(point_end, 9), "value": None, "quality": {"status": "bad", "reasons": list(exc.quality.get("reasons", [])), "source_quality": exc.quality}}
-                if frame.warmup:
-                    point["warmup"] = True
-                points.append(point)
-                values.append(np.nan)
+        output_id = "output"
+        output_label = "输出"
+        for index, (value, time_s, window, quality, failure) in enumerate(zip(result.values, result.time_s, result.windows, result.quality, result.failures)):
+            evidence = result.point_evidence[index] if index < len(result.point_evidence) else {}
+            output_id = str(evidence.get("output_id", output_id))
+            output_label = str(evidence.get("output_label", output_label))
+            point = {
+                "result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
+                "time_s": time_s,
+                "window_start_s": window["start_s"],
+                "window_end_s": window["end_s"],
+                "value": value,
+                "quality": {"status": quality, "reasons": [failure.code] if failure else []},
+                "inputs": evidence.get("inputs", {}),
+                "source_quality": evidence.get("source_quality", {}),
+                "spectral_evidence": evidence.get("spectral_evidence", {}),
+                "warmup": result.warmups[index] if index < len(result.warmups) else False,
+            }
+            points.append(point)
+            values.append(np.nan if value is None else float(value))
         if not points:
             raise ValueError("dynamic metric analysis produced no windows")
-        if output_id is None or output_unit is None:
-            raise SpectralQualityGateError({"dynamic_metric": "no_clean_windows"})
         return {
-            "metric": {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION, "mode": "dynamic", "output": {"id": output_id, "label": output_label or output_id, "unit": output_unit}, "channel": config.channel, "actual_range": {"start_s": start, "end_s": end}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"}, "series": points, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": output_label or output_id, "unit": output_unit}}}
-        }, {"metric_time_s": np.asarray([point["time_s"] for point in points], dtype=float), "metric_values": np.asarray(values, dtype=float)}, output_unit
+            "metric": {
+                "result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
+                "mode": "dynamic",
+                "output": {"id": output_id, "label": output_label, "unit": result.unit},
+                "channel": result.channel,
+                "actual_range": {"start_s": config.time.start_s, "end_s": config.time.end_s},
+                "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"},
+                "series": points,
+                "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": output_label, "unit": result.unit}},
+            }
+        }, {"metric_time_s": np.asarray(result.time_s, dtype=float), "metric_values": np.asarray(values, dtype=float)}, result.unit

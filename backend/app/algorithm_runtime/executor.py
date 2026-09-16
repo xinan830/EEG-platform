@@ -21,6 +21,16 @@ class AlgorithmRuntime:
         scientific_version: str | None = None,
     ) -> AlgorithmResult | AlgorithmSeriesResult:
         module: AlgorithmModule = self.registry.get(algorithm_id, scientific_version)
+        return self.execute_module(module=module, recording=recording, config=config)
+
+    def execute_module(
+        self,
+        *,
+        module: AlgorithmModule,
+        recording: Any,
+        config: dict[str, Any],
+    ) -> AlgorithmResult | AlgorithmSeriesResult:
+        """Execute a concrete module selected by a trusted catalog boundary."""
         typed_config = module.config_model.model_validate(config)
         if typed_config.mode not in module.manifest.supported_modes:
             raise UnsupportedAlgorithmModeError(
