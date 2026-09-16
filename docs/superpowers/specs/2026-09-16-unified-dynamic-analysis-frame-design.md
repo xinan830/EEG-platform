@@ -118,6 +118,10 @@ For a requested analysis duration of 10 s and a 1 s refresh step, a catch-up
 request must preserve every valid refresh endpoint.  It must not collapse
 multiple warm-up frames into one final short-range frame: doing so makes a
 chart connect distant points and falsely suggest a constant value.
+Partial warm-up windows are valid only at the beginning of a recording.  A
+later catch-up request begins at a trailing-window boundary and must plan only
+complete trailing windows; it must never reinterpret that boundary as a new
+warm-up origin.
 
 | Playback endpoint | Actual range | Warm-up | Point time |
 | --- | --- | --- | --- |

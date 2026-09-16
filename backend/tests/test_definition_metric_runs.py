@@ -232,12 +232,12 @@ def test_dynamic_definition_metric_emits_every_available_eight_second_warmup_fra
 
     assert completed is not None and completed.status is RunStatus.COMPLETED
     metric = completed.result_summary["metric"]
-    assert metric["result_contract_version"] == "dynamic-analysis-frame-v2"
+    assert metric["result_contract_version"] == "dynamic-analysis-frame-v3"
     assert [point["time_s"] for point in metric["series"]] == [4.0, 5.0, 6.0, 7.0, 8.0]
     assert all(point["window_start_s"] == 0.0 for point in metric["series"])
     assert [point["window_end_s"] for point in metric["series"]] == [4.0, 5.0, 6.0, 7.0, 8.0]
     assert all(point["warmup"] is True for point in metric["series"])
-    assert all(point["result_contract_version"] == "dynamic-analysis-frame-v2" for point in metric["series"])
+    assert all(point["result_contract_version"] == "dynamic-analysis-frame-v3" for point in metric["series"])
 
 
 def test_definition_metric_evidence_contract_does_not_reuse_legacy_cache(tmp_path: Path):

@@ -101,7 +101,11 @@ def build_playback_windows(
     # available warm-up endpoint.  Returning only the final short range would
     # make a renderer join (for example) 4 s directly to 10 s and falsely
     # suggest that intermediate algorithm values were identical or absent.
-    if bounded_start < minimum_window_s:
+    # Only recording-time zero can produce partial warm-up windows.  A later
+    # catch-up request deliberately starts at a prior trailing-window boundary
+    # (for example 2 s when resuming endpoints 12–16 s).  Treating that
+    # boundary as a new warm-up origin would plan an invalid 2–4 s window.
+    if bounded_start <= epsilon:
         cursor = minimum_window_s
         warmup_end = min(window_s, bounded_end)
         while cursor < warmup_end - epsilon:
@@ -112,7 +116,7 @@ def build_playback_windows(
                 windows.append(AnalysisWindow(bounded_start, bounded_end, bounded_end, True))
             return windows
 
-    first_end = window_s if bounded_start < window_s else bounded_start + window_s
+    first_end = window_s if bounded_start <= epsilon else bounded_start + window_s
     cursor = first_end
     while cursor <= bounded_end + epsilon:
         actual_end = min(cursor, bounded_end)

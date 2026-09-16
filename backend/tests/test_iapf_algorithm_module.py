@@ -127,3 +127,35 @@ def test_iapf_catchup_keeps_each_warmup_endpoint_before_the_full_window(monkeypa
         {"start_s": 0.0, "end_s": 10.0}, {"start_s": 1.0, "end_s": 11.0},
     ]
     assert result.warmups == [True, True, True, True, True, True, False, False]
+
+
+def test_iapf_later_catchup_never_restarts_warmup_from_a_trailing_window_boundary(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.algorithms.iapf.compute.estimate_iapf",
+        lambda spectrum: IAPFEstimate(10.0, "peak", None, 0.9, 0.1, 10.0, 10.0),
+    )
+    calls: list[tuple[float, float]] = []
+    spectrum = SimpleNamespace(gate_failed=None, freqs=np.linspace(1.0, 30.0, 117), psd=np.ones((1, 117), dtype=float))
+
+    def load_spectrum(*, start_s, window_s, channels):
+        calls.append((start_s, window_s))
+        assert window_s >= 4.0
+        return spectrum
+
+    recording = SimpleNamespace(id="r1", channel_names=["Fz"], sfreq_hz=500.0, duration_s=30.0, load_spectrum=load_spectrum)
+    registry = AlgorithmRegistry()
+    registry.register(IapfAlgorithm())
+    result = AlgorithmRuntime(registry).execute(
+        algorithm_id="iapf",
+        recording=recording,
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 2, "end_s": 16, "window_s": 10, "step_s": 1},
+    )
+
+    assert result.time_s == [12.0, 13.0, 14.0, 15.0, 16.0]
+    assert result.windows == [
+        {"start_s": 2.0, "end_s": 12.0}, {"start_s": 3.0, "end_s": 13.0},
+        {"start_s": 4.0, "end_s": 14.0}, {"start_s": 5.0, "end_s": 15.0},
+        {"start_s": 6.0, "end_s": 16.0},
+    ]
+    assert result.warmups == [False, False, False, False, False]
+    assert calls == [(2.0, 10.0), (3.0, 10.0), (4.0, 10.0), (5.0, 10.0), (6.0, 10.0)]
