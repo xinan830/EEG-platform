@@ -17,8 +17,8 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
     ),
     OfficialAlgorithmManifest(
         algorithm_id="theta_beta", definition_name="Official THETA_BETA", display_name_zh="Theta/Beta 比值", abbreviation="Theta/Beta",
-        purpose_zh="基于个体 Alpha 峰频的 Theta 与 Beta 频段比值；需要明确的 Fz、Pz、Oz 逻辑通道映射。",
-        scientific_version=ANALYSIS_ALGORITHM_VERSION, implementation_identity=ANALYSIS_ALGORITHM_VERSION,
+        purpose_zh="根据同一选定原始通道的个体 Alpha 峰，计算 Theta 与 Beta 频段比值。",
+        scientific_version="official-theta-beta-v2", implementation_identity="theta-beta-runtime-v1",
         execution_kind="official_composite_run_adapter", availability="available", is_runnable=True,
         required_channel_roles=["Fz", "Pz", "Oz"], supported_modes=["static", "dynamic"],
     ),
@@ -37,7 +37,7 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
     OfficialAlgorithmManifest(
         algorithm_id="iapf", definition_name="Official IAPF", display_name_zh="个体 Alpha 峰频", abbreviation="IAPF",
         purpose_zh="使用 1/f 拟合后的 Alpha 残差 Peak/COG 估计个体 Alpha 峰频。",
-        scientific_version=ANALYSIS_ALGORITHM_VERSION, implementation_identity=ANALYSIS_ALGORITHM_VERSION,
+        scientific_version="official-iapf-v2", implementation_identity="iapf-runtime-v1",
         execution_kind="official_composite_run_adapter", availability="available", is_runnable=True,
         supported_modes=["static", "dynamic"],
     ),
@@ -65,7 +65,7 @@ def official_definition(algorithm_id: str) -> dict[str, object]:
     elif algorithm_id == "brainbeat":
         values.update({"inputs": ["Fz", "Pz", "IAPF"], "formula": "relative_theta_Fz / relative_alpha_Pz", "welch_segment_s": 2.0, "overlap": 0.5, "stateful_ema": True})
     elif algorithm_id == "theta_beta":
-        values.update({"inputs": ["Fz", "Pz", "Oz", "IAPF"], "formula": "theta(iapf-6..iapf-2) / beta(iapf+2..30)", "channels": ["Fz", "Pz", "Oz"], "quality": ANALYSIS_CONTRACT["quality_gate_policy"]})
+        values.update({"inputs": ["selected_raw_channel", "IAPF"], "formula": "theta(iapf-6..iapf-2) / beta(iapf+2..30)", "channels": ["selected_raw_channel"], "quality": ANALYSIS_CONTRACT["quality_gate_policy"]})
     elif algorithm_id == "iapf":
         values.update({"inputs": ["PSD"], "fit": ANALYSIS_CONTRACT["aperiodic_model"], "search_hz": ANALYSIS_CONTRACT["iapf_search_hz"], "sources": ["peak", "cog"], "lock_candidates": ANALYSIS_CONTRACT["iapf_lock_candidates"]})
     return values

@@ -17,7 +17,7 @@ export interface DefinitionMetricRunRequest {
 export interface OfficialAlgorithmRunRequest {
   recordingId: string
   algorithmId: 'iapf' | 'theta_beta'
-  channel?: string
+  channel: string
   startS: number
   endS: number
   mode?: 'static' | 'dynamic'
@@ -71,7 +71,7 @@ export function createOfficialAlgorithmRun(value: OfficialAlgorithmRunRequest): 
     time: { start_s: value.startS, end_s: value.endS },
     mode: value.mode ?? 'static',
   }
-  if (value.algorithmId === 'iapf') config.channel = value.channel
+  config.channel = value.channel
   if (value.mode === 'dynamic') {
     config.dynamic_window_s = value.dynamicWindowS ?? 10
     config.refresh_step_s = value.refreshStepS ?? 1

@@ -1,4 +1,4 @@
-import { request } from './client'
+import { listAlgorithms } from './algorithms'
 
 export type OfficialAlgorithmCatalogItem = {
   algorithm_id: string
@@ -17,6 +17,19 @@ export type OfficialAlgorithmCatalogItem = {
 }
 
 export function listOfficialAlgorithms(): Promise<OfficialAlgorithmCatalogItem[]> {
-  return request<{ algorithms: OfficialAlgorithmCatalogItem[] }>('/api/official-algorithms')
-    .then((response) => response.algorithms)
+  return listAlgorithms().then((items) => items.filter((item) => item.source === 'official').map((item) => ({
+    algorithm_id: item.id,
+    display_name_zh: item.display_name_zh,
+    abbreviation: item.abbreviation,
+    purpose_zh: item.description,
+    scientific_version: item.version,
+    implementation_identity: item.version,
+    execution_kind: 'algorithm_runtime',
+    availability: (item.availability === 'available' ? 'available' : 'deprecated') as OfficialAlgorithmCatalogItem['availability'],
+    is_runnable: item.is_runnable,
+    required_channel_roles: [],
+    supported_modes: item.modes,
+    definition_id: item.id,
+    definition_version: item.version,
+  })))
 }
