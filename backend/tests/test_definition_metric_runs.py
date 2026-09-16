@@ -206,6 +206,36 @@ def test_dynamic_definition_metric_marks_a_short_initial_range_as_warmup(tmp_pat
     assert queue.list_artifacts(queued.run_id)
 
 
+def test_dynamic_definition_metric_uses_the_same_eight_second_warmup_frame(tmp_path: Path):
+    queue, recording_id, definition_id = _queue_with_metric_definition(tmp_path)
+    queued = queue.enqueue(RunCreateRequest.model_validate({
+        "recording_id": recording_id,
+        "analysis_type": "definition_metric",
+        "definition_id": definition_id,
+        "definition_version": "1.0.0",
+        "config": {
+            "channel": "F3",
+            "time": {"start_s": 0, "end_s": 8},
+            "mode": "dynamic",
+            "dynamic_window_s": 10,
+            "refresh_step_s": 1,
+        },
+    }))
+
+    completed = queue.process_next()
+
+    assert completed is not None and completed.status is RunStatus.COMPLETED
+    metric = completed.result_summary["metric"]
+    assert metric["result_contract_version"] == "dynamic-analysis-frame-v1"
+    assert len(metric["series"]) == 1
+    point = metric["series"][0]
+    assert point["time_s"] == 8.0
+    assert point["window_start_s"] == 0.0
+    assert point["window_end_s"] == 8.0
+    assert point["warmup"] is True
+    assert point["result_contract_version"] == "dynamic-analysis-frame-v1"
+
+
 def test_definition_metric_evidence_contract_does_not_reuse_legacy_cache(tmp_path: Path):
     queue, recording_id, definition_id = _queue_with_metric_definition(tmp_path)
     request = RunCreateRequest.model_validate({

@@ -10,6 +10,7 @@
 - [x] 2.2 Move IAPF into a canonical runtime algorithm module and prove frozen output equivalence.
 - [x] 2.3 Implement canonical single-channel `official-theta-beta-v2` static and dynamic execution with null failure semantics.
 - [ ] 2.4 Wrap user Definition graph execution in the same runtime result and catalog contracts.
+- [ ] 2.5 Route every dynamic algorithm through one endpoint-aligned DynamicAnalysisFrame planner, result-evidence contract, and cache-contract version.
 
 ## 3. Run and catalog cutover
 

@@ -16,6 +16,26 @@ class AnalysisWindow:
     warmup: bool = False
 
 
+@dataclass(frozen=True)
+class DynamicAnalysisFrame:
+    """One endpoint-aligned unit of dynamic EEG analysis.
+
+    This is deliberately limited to time planning.  Signal quality and spectral
+    evidence are attached by the backend signal-access boundary after the
+    corresponding *actual* window has been loaded.
+    """
+
+    time_s: float
+    window_start_s: float
+    window_end_s: float
+    requested_window_s: float
+    warmup: bool
+
+    @property
+    def actual_window_s(self) -> float:
+        return self.window_end_s - self.window_start_s
+
+
 def build_windows(
     start_s: float,
     end_s: float,
@@ -89,3 +109,32 @@ def build_playback_windows(
         windows.append(AnalysisWindow(max(bounded_start, actual_end - window_s), actual_end, actual_end))
         cursor += step_s
     return windows
+
+
+def build_dynamic_analysis_frames(
+    start_s: float,
+    end_s: float,
+    *,
+    duration_s: float,
+    window_s: float,
+    step_s: float,
+    minimum_window_s: float = 4.0,
+) -> list[DynamicAnalysisFrame]:
+    """Plan the sole time contract used by dynamic algorithm adapters."""
+    return [
+        DynamicAnalysisFrame(
+            time_s=window.end_s,
+            window_start_s=window.start_s,
+            window_end_s=window.end_s,
+            requested_window_s=window_s,
+            warmup=window.warmup,
+        )
+        for window in build_playback_windows(
+            start_s,
+            end_s,
+            duration_s=duration_s,
+            window_s=window_s,
+            step_s=step_s,
+            minimum_window_s=minimum_window_s,
+        )
+    ]

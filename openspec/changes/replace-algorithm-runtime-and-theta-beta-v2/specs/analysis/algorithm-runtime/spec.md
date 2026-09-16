@@ -45,6 +45,28 @@ or cache identity.
 - **THEN** no new scientific Run is submitted and the prior numerical output
   remains unchanged
 
+### Requirement: Produce dynamic results from one frame contract
+
+The system SHALL plan every dynamic algorithm point through one backend-owned,
+endpoint-aligned `DynamicAnalysisFrame` contract. Each returned point SHALL
+state its actual range, warm-up state, result-contract version, quality, and
+available spectral provenance. Algorithm modules SHALL NOT independently
+invent time-window scheduling or load a configured duration that differs from
+the point's actual duration.
+
+#### Scenario: Return an early warm-up point
+
+- **WHEN** playback reaches 8 s with a configured 10 s dynamic analysis
+  window
+- **THEN** the system returns one warm-up point for exactly `0–8 s`, anchors it
+  at `8 s`, and loads only that real EEG range
+
+#### Scenario: Reuse a dynamic result cache
+
+- **WHEN** a persisted dynamic-result evidence contract has changed
+- **THEN** the system does not reuse a cached result produced under the old
+  contract version
+
 ### Requirement: Preserve historical result evidence without legacy execution
 
 The system SHALL keep existing persisted Run summaries, provenance, and

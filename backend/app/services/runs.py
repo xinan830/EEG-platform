@@ -22,6 +22,7 @@ from app.models.analysis_config import AnalysisConfigRequest
 from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.algorithm_runtime.builtins import build_builtin_registry
+from app.algorithm_runtime.contracts import DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
 from app.models.definition_preview import DefinitionPreviewRunRequest
 from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredRunError
 from app.services.artifacts import ArtifactStore
@@ -399,10 +400,10 @@ class RunService:
             # without debug evidence cannot be reused as current Run results.
             "definition_sha256": sha256_json({
                 "definition_digest": definition["digest_sha256"],
-                "result_contract_version": "definition-metric-evidence-v1",
+                "result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION if request.analysis_type == "definition_metric" and config.get("mode") == "dynamic" else "definition-metric-evidence-v1",
             }) if request.analysis_type == "definition_metric" else sha256_json({
                 **definition,
-                "result_contract_version": "official-algorithm-result-evidence-v2",
+                "result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION if config.get("mode") == "dynamic" else "official-algorithm-result-evidence-v2",
             }) if request.analysis_type == "official_algorithm" else sha256_json(definition),
             "scientific_version": scientific_version,
         }

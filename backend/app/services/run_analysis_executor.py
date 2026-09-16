@@ -14,9 +14,14 @@ from app.eeg_core.definition_engine import execute_graph
 from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.quality import SpectralQualityGateError
 from app.eeg_core.spectral import SpectralEstimate
-from app.algorithm_runtime.contracts import AlgorithmResult, AlgorithmSeriesResult
+from app.algorithm_runtime.contracts import (
+    DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
+    AlgorithmResult,
+    AlgorithmSeriesResult,
+)
 from app.algorithm_runtime.executor import AlgorithmRuntime
 from app.algorithm_runtime.registry import AlgorithmRegistry
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
@@ -185,7 +190,8 @@ class RunAnalysisExecutor:
         for index, (value, time_s, window, quality, failure) in enumerate(zip(result.values, result.time_s, result.windows, result.quality, result.failures)):
             evidence = result.point_evidence[index] if index < len(result.point_evidence) else {}
             warmup = result.warmups[index] if index < len(result.warmups) else False
-            point = {"time_s": time_s, "window_start_s": window["start_s"], "window_end_s": window["end_s"], "value": value,
+            point = {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
+                     "time_s": time_s, "window_start_s": window["start_s"], "window_end_s": window["end_s"], "value": value,
                      "quality": {"status": quality, "reasons": [failure.code] if failure else []},
                      "output": {"id": config.algorithm_id, "label": label, "value": value, "unit": result.unit, "quality": {"status": quality, "reasons": [failure.code] if failure else []}},
                      "channel": result.channel, "source_quality": evidence.get("source_quality", {}),
@@ -195,7 +201,7 @@ class RunAnalysisExecutor:
             values.append(np.nan if value is None else float(value))
         first = points[0] if points else {"output": {"id": config.algorithm_id, "label": label, "unit": result.unit}, "channel": result.channel}
         latest_evidence = result.point_evidence[-1] if result.point_evidence else {}
-        return {"metric": {"mode": "dynamic", "output": first["output"], "channel": result.channel, "actual_range": {"start_s": config.time.start_s, "end_s": config.time.end_s}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"}, "series": points, "source_quality": latest_evidence.get("source_quality", {}), "spectral_evidence": latest_evidence.get("spectral_evidence", {}), "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": label, "unit": result.unit}}}}, {"metric_time_s": np.asarray(result.time_s, dtype=float), "metric_values": np.asarray(values, dtype=float)}, result.unit
+        return {"metric": {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION, "mode": "dynamic", "output": first["output"], "channel": result.channel, "actual_range": {"start_s": config.time.start_s, "end_s": config.time.end_s}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"}, "series": points, "source_quality": latest_evidence.get("source_quality", {}), "spectral_evidence": latest_evidence.get("spectral_evidence", {}), "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": label, "unit": result.unit}}}}, {"metric_time_s": np.asarray(result.time_s, dtype=float), "metric_values": np.asarray(values, dtype=float)}, result.unit
 
     def _execute_definition_metric(self, recording: Any, resolved: dict[str, Any]):
         config = DefinitionMetricConfig.model_validate(resolved["config"])
@@ -256,10 +262,16 @@ class RunAnalysisExecutor:
         values: list[float] = []
         start, end = float(config.time.start_s), float(config.time.end_s)
         window, step = float(config.dynamic_window_s), float(config.refresh_step_s)
-        warmup = end - start < window
-        point_end = end if warmup else start + window
-        while point_end <= end + 1e-9:
-            point_start = start if warmup else point_end - window
+        frames = build_dynamic_analysis_frames(
+            start,
+            end,
+            duration_s=float(recording.duration_s),
+            window_s=window,
+            step_s=step,
+        )
+        for frame in frames:
+            point_start = frame.window_start_s
+            point_end = frame.window_end_s
             try:
                 resolution = self.metric_runner.resolve_window(recording, version, config.channel, point_start, point_end)
                 current_output_id, output = self._execute_metric_graph(version, resolution.inputs)
@@ -271,22 +283,23 @@ class RunAnalysisExecutor:
                 quality = self._scalar_output(output)["quality"]
                 if value is None:
                     quality = {**quality, "status": "bad"}
-                point = {"time_s": round(point_end, 9), "window_start_s": round(point_start, 9), "window_end_s": round(point_end, 9), "value": value, "quality": quality, "inputs": resolution.snapshot, "source_quality": resolution.quality, "spectral_evidence": resolution.spectral_evidence}
-                if warmup:
+                point = {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
+                         "time_s": round(point_end, 9), "window_start_s": round(point_start, 9), "window_end_s": round(point_end, 9), "value": value, "quality": quality, "inputs": resolution.snapshot, "source_quality": resolution.quality, "spectral_evidence": resolution.spectral_evidence}
+                if frame.warmup:
                     point["warmup"] = True
                 points.append(point)
                 values.append(np.nan if value is None else value)
             except SpectralQualityGateError as exc:
-                point = {"time_s": round(point_end, 9), "window_start_s": round(point_start, 9), "window_end_s": round(point_end, 9), "value": None, "quality": {"status": "bad", "reasons": list(exc.quality.get("reasons", [])), "source_quality": exc.quality}}
-                if warmup:
+                point = {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
+                         "time_s": round(point_end, 9), "window_start_s": round(point_start, 9), "window_end_s": round(point_end, 9), "value": None, "quality": {"status": "bad", "reasons": list(exc.quality.get("reasons", [])), "source_quality": exc.quality}}
+                if frame.warmup:
                     point["warmup"] = True
                 points.append(point)
                 values.append(np.nan)
-            point_end += step
         if not points:
             raise ValueError("dynamic metric analysis produced no windows")
         if output_id is None or output_unit is None:
             raise SpectralQualityGateError({"dynamic_metric": "no_clean_windows"})
         return {
-            "metric": {"mode": "dynamic", "output": {"id": output_id, "label": output_label or output_id, "unit": output_unit}, "channel": config.channel, "actual_range": {"start_s": start, "end_s": end}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"}, "series": points, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "window_end_s"}, "y_axis": {"label": output_label or output_id, "unit": output_unit}}}
+            "metric": {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION, "mode": "dynamic", "output": {"id": output_id, "label": output_label or output_id, "unit": output_unit}, "channel": config.channel, "actual_range": {"start_s": start, "end_s": end}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"}, "series": points, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": output_label or output_id, "unit": output_unit}}}
         }, {"metric_time_s": np.asarray([point["time_s"] for point in points], dtype=float), "metric_values": np.asarray(values, dtype=float)}, output_unit

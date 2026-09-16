@@ -5,7 +5,7 @@ from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
-from app.algorithm_runtime.windows import build_playback_windows
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames
 
 from .compute import compute_iapf
 from .config import IapfConfig
@@ -57,25 +57,25 @@ class IapfAlgorithm:
     def execute_dynamic(self, inputs: AlgorithmInputs, config: IapfConfig) -> AlgorithmSeriesResult:
         window_s = config.window_s or 10.0
         step_s = config.step_s or 1.0
-        windows = build_playback_windows(config.start_s, config.end_s, duration_s=inputs.duration_s, window_s=window_s, step_s=step_s)
+        frames = build_dynamic_analysis_frames(config.start_s, config.end_s, duration_s=inputs.duration_s, window_s=window_s, step_s=step_s)
         results = [
             compute_iapf(
-                self._load(inputs.payload, channel=inputs.channel, start_s=window.start_s, window_s=window_s),
+                self._load(inputs.payload, channel=inputs.channel, start_s=frame.window_start_s, window_s=frame.actual_window_s),
                 channel=inputs.channel,
-                requested_range={"start_s": window.start_s, "end_s": window.end_s},
-                actual_range={"start_s": window.start_s, "end_s": window.end_s},
+                requested_range={"start_s": frame.window_start_s, "end_s": frame.window_end_s},
+                actual_range={"start_s": frame.window_start_s, "end_s": frame.window_end_s},
             )
-            for window in windows
+            for frame in frames
         ]
         return AlgorithmSeriesResult(
             values=[result.value for result in results],
-            time_s=[window.end_s for window in windows],
+            time_s=[frame.time_s for frame in frames],
             unit="Hz",
             channel=inputs.channel,
-            windows=[{"start_s": window.start_s, "end_s": window.end_s} for window in windows],
+            windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames],
             quality=[result.quality for result in results],
             failures=[result.failure for result in results],
-            warmups=[window.warmup for window in windows],
+            warmups=[frame.warmup for frame in frames],
             point_evidence=[result.evidence for result in results],
             evidence={"points": len(results)},
         )
