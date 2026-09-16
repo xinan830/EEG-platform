@@ -52,5 +52,25 @@ def test_iapf_dynamic_returns_one_point_per_window(monkeypatch) -> None:
         recording=_fake_recording(),
         config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 10, "window_s": 4, "step_s": 2},
     )
-    assert result.time_centers_s == [2.0, 4.0, 6.0, 8.0]
+    assert result.time_s == [4.0, 6.0, 8.0, 10.0]
     assert result.values == [10.0, 10.0, 10.0, 10.0]
+
+
+def test_iapf_dynamic_emits_a_warmup_result_after_one_welch_segment(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.algorithms.iapf.compute.estimate_iapf",
+        lambda spectrum: IAPFEstimate(10.0, "peak", None, 0.9, 0.1, 10.0, 10.0),
+    )
+    registry = AlgorithmRegistry()
+    registry.register(IapfAlgorithm())
+
+    result = AlgorithmRuntime(registry).execute(
+        algorithm_id="iapf",
+        recording=_fake_recording(),
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 4, "window_s": 10, "step_s": 1},
+    )
+
+    assert result.time_s == [4.0]
+    assert result.windows == [{"start_s": 0.0, "end_s": 4.0}]
+    assert result.warmups == [True]
+    assert result.values == [10.0]

@@ -20,6 +20,24 @@ recording channel.
   `theta_beta` configuration are submitted
 - **THEN** the Run returns real window bounds and one individualized ratio per
   refresh point without fabricating values for rejected windows
+- **AND THEN** every point's trend time is the end of its actual analysis
+  window, not the window centre
+
+#### Scenario: Dynamic warm-up before the selected analysis window fills
+
+- **WHEN** playback has reached at least one complete 4 s Welch segment but
+  less than the selected dynamic analysis-window duration
+- **THEN** the Run evaluates the available real EEG range and returns the
+  result as an explicitly marked warm-up point
+- **AND THEN** once the configured analysis window is available, subsequent
+  points use the fixed trailing window ending at the playback time
+
+#### Scenario: Inspect a dynamic point
+
+- **WHEN** a completed dynamic official Run is opened in the read-only debug
+  workbench
+- **THEN** its latest point includes backend-returned sampling rate, filter,
+  Welch, frequency-axis, PSD, and quality evidence for that exact window
 
 #### Scenario: Missing logical mapping
 

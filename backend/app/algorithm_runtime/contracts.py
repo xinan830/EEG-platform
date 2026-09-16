@@ -69,12 +69,14 @@ class AlgorithmResult(BaseModel):
 
 class AlgorithmSeriesResult(BaseModel):
     values: list[float | None]
-    time_centers_s: list[float]
+    time_s: list[float]
     unit: str
     channel: str
     windows: list[dict[str, float]]
     quality: list[str]
     failures: list[AlgorithmFailure | None]
+    warmups: list[bool] = Field(default_factory=list)
+    point_evidence: list[dict[str, Any]] = Field(default_factory=list)
     evidence: dict[str, Any] = Field(default_factory=dict)
 
 

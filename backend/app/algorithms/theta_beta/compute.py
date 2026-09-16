@@ -25,11 +25,11 @@ def compute_theta_beta(
     source_quality["rejected_reasons"] = list(getattr(spectrum, "rejected_reasons", []))
     if spectrum.gate_failed:
         failure = AlgorithmFailure(code="PSD_QUALITY_GATE_FAILED", message="当前窗口未通过 PSD 质量门", detail={"reason": spectrum.gate_failed})
-        return AlgorithmResult(value=None, unit="dimensionless", channel=channel, requested_range=requested_range, actual_range=actual_range, quality="gate_failed", failure=failure, evidence={"source_quality": source_quality})
+        return AlgorithmResult(value=None, unit="dimensionless", channel=channel, requested_range=requested_range, actual_range=actual_range, quality="gate_failed", failure=failure, evidence={"source_quality": source_quality, "spectral_evidence": dict(getattr(spectrum, "evidence", {}))})
     iapf = estimate_iapf(spectrum)
     if iapf.value is None:
         failure = AlgorithmFailure(code="IAPF_UNAVAILABLE", message="当前窗口无法得到 IAPF，不能计算 Theta/Beta", detail={"reason": iapf.gate_failed})
-        return AlgorithmResult(value=None, unit="dimensionless", channel=channel, requested_range=requested_range, actual_range=actual_range, quality="gate_failed", failure=failure, evidence={"source_quality": source_quality})
+        return AlgorithmResult(value=None, unit="dimensionless", channel=channel, requested_range=requested_range, actual_range=actual_range, quality="gate_failed", failure=failure, evidence={"source_quality": source_quality, "spectral_evidence": dict(getattr(spectrum, "evidence", {}))})
     theta_low, theta_high = max(4.0, float(iapf.value) - 6.0), float(iapf.value) - 2.0
     beta_low, beta_high = float(iapf.value) + 2.0, 30.0
     try:
@@ -37,10 +37,10 @@ def compute_theta_beta(
         beta = float(band_power(spectrum.freqs, spectrum.psd[0], beta_low, beta_high))
     except ValueError as exc:
         failure = AlgorithmFailure(code="BAND_RANGE_INVALID", message="IAPF 相对频段超出频率轴", detail={"error": str(exc), "iapf_hz": float(iapf.value)})
-        return AlgorithmResult(value=None, unit="dimensionless", channel=channel, requested_range=requested_range, actual_range=actual_range, quality="gate_failed", failure=failure, evidence={"source_quality": source_quality})
+        return AlgorithmResult(value=None, unit="dimensionless", channel=channel, requested_range=requested_range, actual_range=actual_range, quality="gate_failed", failure=failure, evidence={"source_quality": source_quality, "spectral_evidence": dict(getattr(spectrum, "evidence", {}))})
     if beta <= 0:
         failure = AlgorithmFailure(code="BETA_DENOMINATOR_INVALID", message="Beta 功率不是正数，无法计算比值", detail={"beta_power": beta})
-        return AlgorithmResult(value=None, unit="dimensionless", channel=channel, requested_range=requested_range, actual_range=actual_range, quality="gate_failed", failure=failure, evidence={"source_quality": source_quality})
+        return AlgorithmResult(value=None, unit="dimensionless", channel=channel, requested_range=requested_range, actual_range=actual_range, quality="gate_failed", failure=failure, evidence={"source_quality": source_quality, "spectral_evidence": dict(getattr(spectrum, "evidence", {}))})
     return AlgorithmResult(
         value=theta / beta,
         unit="dimensionless",
@@ -48,5 +48,5 @@ def compute_theta_beta(
         requested_range=requested_range,
         actual_range=actual_range,
         quality="clean",
-        evidence={"iapf_hz": float(iapf.value), "theta_range_hz": [theta_low, theta_high], "beta_range_hz": [beta_low, beta_high], "theta_power_uv2": theta * 1e12, "beta_power_uv2": beta * 1e12, "source_quality": source_quality},
+        evidence={"iapf_hz": float(iapf.value), "theta_range_hz": [theta_low, theta_high], "beta_range_hz": [beta_low, beta_high], "theta_power_uv2": theta * 1e12, "beta_power_uv2": beta * 1e12, "source_quality": source_quality, "spectral_evidence": dict(getattr(spectrum, "evidence", {}))},
     )

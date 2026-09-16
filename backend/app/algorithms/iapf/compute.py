@@ -41,7 +41,7 @@ def compute_iapf(
             actual_range=actual_range,
             quality="gate_failed",
             failure=failure,
-            evidence={"source": estimate.source, "peak_hz": estimate.peak_hz, "cog_hz": estimate.cog, "source_quality": source_quality},
+            evidence={"source": estimate.source, "peak_hz": estimate.peak_hz, "cog_hz": estimate.cog, "source_quality": source_quality, "spectral_evidence": dict(getattr(spectrum, "evidence", {}))},
         )
     return AlgorithmResult(
         value=float(estimate.value),
@@ -57,5 +57,6 @@ def compute_iapf(
             "model_r2": estimate.model_r2,
             "model_error": estimate.model_error,
             "source_quality": source_quality,
+            "spectral_evidence": dict(getattr(spectrum, "evidence", {})),
         },
     )

@@ -8,6 +8,7 @@ from app.models.recording import ChannelMapping
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
 from app.services.runs import RunService
+from app.services.analysis_provenance import serialize_analysis_run
 from app.main import app
 from fastapi.testclient import TestClient
 
@@ -88,10 +89,18 @@ def test_official_dynamic_iapf_uses_existing_trailing_window_contract(tmp_path: 
     assert len(series) == 21
     assert series[0]["window_start_s"] == 0.0
     assert series[0]["window_end_s"] == 10.0
+    assert series[0]["time_s"] == 10.0
+    assert series[0]["warmup"] is False
     assert series[-1]["window_start_s"] == 20.0
     assert series[-1]["window_end_s"] == 30.0
+    assert series[-1]["time_s"] == 30.0
     assert all("value" in point and "quality" in point for point in series)
     assert all(point["value"] == point["output"]["value"] for point in series)
+    provenance = serialize_analysis_run(completed)["analysis_provenance"]
+    assert provenance["sfreq_hz"] == 100.0
+    assert provenance["welch"] == {"segment_s": 4.0, "window": "hann", "overlap_fraction": 0.5, "step_s": 2.0}
+    assert provenance["frequency"] == {"low_hz": 1.0, "high_hz": 30.0, "point_count": 117}
+    assert provenance["quality"] == {"clean_segments": 4, "total_segments": 4, "clean_ratio": 1.0, "gate_failed": None, "rejected_reasons": []}
 
 
 def test_catalog_marks_only_iapf_and_theta_beta_runnable_after_cutover(tmp_path: Path):

@@ -37,6 +37,21 @@ class _RecordingAlgorithmContext:
     def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str]) -> SpectralEstimate:
         payload = self._recordings.load_spectrum(self._recording, start_s, window_s, channels)
         ordered = list(payload["channels"])
+        selected = ordered[0]
+        evidence = {
+            "sfreq_hz": float(payload["sfreq_hz"]),
+            "analysis_reference": payload["analysis_reference"],
+            "algorithm_version": payload["algorithm_version"],
+            "filter_contract": payload["filter_contract"],
+            "welch_contract": payload["welch_contract"],
+            "units": payload["units"],
+            "frequencies_hz": list(payload["frequencies_hz"]),
+            "channels": ordered,
+            "psd_uV2_per_hz": list(payload["psd"][selected]),
+            "band_power": dict(payload["band_power"][selected]),
+            "relative_band_power": dict(payload["relative_band_power"][selected]),
+            "quality": dict(payload["quality"]),
+        }
         return SpectralEstimate(
             np.asarray(payload["frequencies_hz"], dtype=float),
             np.asarray([payload["psd"][name] for name in ordered], dtype=float) * 1e-12,
@@ -45,6 +60,7 @@ class _RecordingAlgorithmContext:
             int(payload["quality"]["total_segments"]),
             payload["quality"]["gate_failed"],
             tuple(payload["quality"].get("rejected_reasons", [])),
+            evidence,
         )
 
 
@@ -56,6 +72,7 @@ def _serialize_algorithm_result(result: AlgorithmResult, algorithm_id: str, labe
         "actual_range": result.actual_range,
         "requested_range": result.requested_range,
         "source_quality": result.evidence.get("source_quality", {}),
+        "spectral_evidence": result.evidence.get("spectral_evidence", {}),
         "official": {"algorithm_id": algorithm_id, **result.evidence},
         "chart": {"kind": "none"},
         "value": result.value,
@@ -165,15 +182,20 @@ class RunAnalysisExecutor:
             return {"metric": point}, {"metric_value": np.asarray([np.nan if result.value is None else result.value], dtype=float)}, result.unit
         points = []
         values = []
-        for index, (value, center, window, quality, failure) in enumerate(zip(result.values, result.time_centers_s, result.windows, result.quality, result.failures)):
-            point = {"time_s": center, "window_start_s": window["start_s"], "window_end_s": window["end_s"], "value": value,
+        for index, (value, time_s, window, quality, failure) in enumerate(zip(result.values, result.time_s, result.windows, result.quality, result.failures)):
+            evidence = result.point_evidence[index] if index < len(result.point_evidence) else {}
+            warmup = result.warmups[index] if index < len(result.warmups) else False
+            point = {"time_s": time_s, "window_start_s": window["start_s"], "window_end_s": window["end_s"], "value": value,
                      "quality": {"status": quality, "reasons": [failure.code] if failure else []},
                      "output": {"id": config.algorithm_id, "label": label, "value": value, "unit": result.unit, "quality": {"status": quality, "reasons": [failure.code] if failure else []}},
-                     "channel": result.channel, "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "none"}}
+                     "channel": result.channel, "source_quality": evidence.get("source_quality", {}),
+                     "spectral_evidence": evidence.get("spectral_evidence", {}), "warmup": warmup,
+                     "official": {"algorithm_id": config.algorithm_id, **evidence}, "chart": {"kind": "none"}}
             points.append(point)
             values.append(np.nan if value is None else float(value))
         first = points[0] if points else {"output": {"id": config.algorithm_id, "label": label, "unit": result.unit}, "channel": result.channel}
-        return {"metric": {"mode": "dynamic", "output": first["output"], "channel": result.channel, "actual_range": {"start_s": config.time.start_s, "end_s": config.time.end_s}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_center"}, "series": points, "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": label, "unit": result.unit}}}}, {"metric_time_s": np.asarray(result.time_centers_s, dtype=float), "metric_values": np.asarray(values, dtype=float)}, result.unit
+        latest_evidence = result.point_evidence[-1] if result.point_evidence else {}
+        return {"metric": {"mode": "dynamic", "output": first["output"], "channel": result.channel, "actual_range": {"start_s": config.time.start_s, "end_s": config.time.end_s}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"}, "series": points, "source_quality": latest_evidence.get("source_quality", {}), "spectral_evidence": latest_evidence.get("spectral_evidence", {}), "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": label, "unit": result.unit}}}}, {"metric_time_s": np.asarray(result.time_s, dtype=float), "metric_values": np.asarray(values, dtype=float)}, result.unit
 
     def _execute_definition_metric(self, recording: Any, resolved: dict[str, Any]):
         config = DefinitionMetricConfig.model_validate(resolved["config"])

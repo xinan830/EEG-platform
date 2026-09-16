@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 from scipy import signal
@@ -20,6 +21,7 @@ class SpectralEstimate:
     total_epochs: int
     gate_failed: str | None
     rejected_reasons: tuple[str, ...] = ()
+    evidence: dict[str, Any] = field(default_factory=dict)
 
 
 def preprocess_offline(data: np.ndarray, sfreq: float) -> np.ndarray:
