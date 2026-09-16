@@ -85,11 +85,13 @@ def test_official_dynamic_iapf_uses_existing_trailing_window_contract(tmp_path: 
 
     assert completed.status is RunStatus.COMPLETED
     series = completed.result_summary["metric"]["series"]
-    assert len(series) == 21
+    assert len(series) == 27
     assert series[0]["window_start_s"] == 0.0
-    assert series[0]["window_end_s"] == 10.0
-    assert series[0]["time_s"] == 10.0
-    assert series[0]["warmup"] is False
+    assert series[0]["window_end_s"] == 4.0
+    assert series[0]["time_s"] == 4.0
+    assert series[0]["warmup"] is True
+    assert series[6]["time_s"] == 10.0
+    assert series[6]["warmup"] is False
     assert series[-1]["window_start_s"] == 20.0
     assert series[-1]["window_end_s"] == 30.0
     assert series[-1]["time_s"] == 30.0

@@ -96,13 +96,23 @@ def build_playback_windows(
     if bounded_end <= bounded_start:
         return []
     epsilon = max(1e-9, step_s * 1e-9)
-    first_end = bounded_start + window_s
-    if first_end > bounded_end + epsilon:
-        if bounded_end - bounded_start < minimum_window_s - epsilon:
-            return []
-        return [AnalysisWindow(bounded_start, bounded_end, bounded_end, True)]
-
     windows: list[AnalysisWindow] = []
+    # A catch-up request beginning at recording time zero must preserve every
+    # available warm-up endpoint.  Returning only the final short range would
+    # make a renderer join (for example) 4 s directly to 10 s and falsely
+    # suggest that intermediate algorithm values were identical or absent.
+    if bounded_start < minimum_window_s:
+        cursor = minimum_window_s
+        warmup_end = min(window_s, bounded_end)
+        while cursor < warmup_end - epsilon:
+            windows.append(AnalysisWindow(bounded_start, cursor, cursor, True))
+            cursor += step_s
+        if bounded_end < window_s - epsilon:
+            if not windows or abs(windows[-1].end_s - bounded_end) > epsilon:
+                windows.append(AnalysisWindow(bounded_start, bounded_end, bounded_end, True))
+            return windows
+
+    first_end = window_s if bounded_start < window_s else bounded_start + window_s
     cursor = first_end
     while cursor <= bounded_end + epsilon:
         actual_end = min(cursor, bounded_end)

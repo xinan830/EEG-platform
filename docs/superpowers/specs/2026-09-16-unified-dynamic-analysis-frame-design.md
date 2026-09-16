@@ -114,13 +114,19 @@ presentation choice, not a second computation.
 
 ## 5. Dynamic scheduling semantics
 
-For a requested analysis duration of 10 s and a 1 s refresh step:
+For a requested analysis duration of 10 s and a 1 s refresh step, a catch-up
+request must preserve every valid refresh endpoint.  It must not collapse
+multiple warm-up frames into one final short-range frame: doing so makes a
+chart connect distant points and falsely suggest a constant value.
 
 | Playback endpoint | Actual range | Warm-up | Point time |
 | --- | --- | --- | --- |
 | `< 4 s` | no frame | n/a | no point |
 | `4 s` | `0–4 s` | yes | `4 s` |
+| `5 s` | `0–5 s` | yes | `5 s` |
+| `6 s` | `0–6 s` | yes | `6 s` |
 | `8 s` | `0–8 s` | yes | `8 s` |
+| `9 s` | `0–9 s` | yes | `9 s` |
 | `10 s` | `0–10 s` | no | `10 s` |
 | `26 s` | `16–26 s` | no | `26 s` |
 
@@ -150,7 +156,8 @@ dynamic windows, quality evidence, or result-point serialization.
   point after the first valid frame; allowable differences are only metadata
   additions and the explicitly corrected endpoint alignment.
 - Tests cover 0–4 s, 4–10 s warm-up, exact full-window boundary, long playback,
-  replay from zero, static requests, gates, missing channels, and cache reuse.
+  replay from zero, catch-up from zero through a full-window boundary, static
+  requests, gates, missing channels, and cache reuse.
 - IAPF and Theta/Beta retain their current role/mapping rules and return `null`
   with structured reasons when inputs are insufficient.
 - API/provenance tests require every dynamic point to expose sample rate,

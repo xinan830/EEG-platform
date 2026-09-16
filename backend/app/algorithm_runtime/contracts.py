@@ -14,7 +14,7 @@ AlgorithmMode = Literal["static", "dynamic"]
 # Persisted dynamic points carry this independently from an algorithm's
 # scientific version.  Altering point timing or evidence requires a new value
 # so older cached summaries cannot be rendered as the current contract.
-DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION = "dynamic-analysis-frame-v1"
+DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION = "dynamic-analysis-frame-v2"
 
 
 class AlgorithmFailure(BaseModel):
