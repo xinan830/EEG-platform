@@ -32,10 +32,8 @@ from app.services.results import ResultService
 from app.services.independent_spectral_reference import IndependentSpectralReferenceService
 from app.services.extension_governance import ExtensionGovernanceService
 from app.api.extensions import router as extensions_router
-from app.api.official_algorithms import router as official_algorithms_router
 from app.api.algorithms import router as algorithms_router
 from app.algorithm_runtime.builtins import build_builtin_registry
-from app.eeg_core.official_definitions import ensure_official_definitions
 from app.core.api_contract import (
     RequestContextMiddleware,
     http_exception_handler,
@@ -83,7 +81,6 @@ app.state.independent_spectral_reference_service = IndependentSpectralReferenceS
 )
 app.state.extension_governance_service = ExtensionGovernanceService()
 app.state.algorithm_runtime_registry = build_builtin_registry()
-ensure_official_definitions(app.state.definition_service)
 app.include_router(recordings_router)
 app.include_router(analyses_router)
 app.include_router(playback_router)
@@ -97,7 +94,6 @@ app.include_router(projects_router)
 app.include_router(batch_runs_router)
 app.include_router(results_router)
 app.include_router(extensions_router)
-app.include_router(official_algorithms_router)
 app.include_router(algorithms_router)
 
 

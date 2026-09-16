@@ -44,7 +44,8 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
     completed = service.create(_request(recording_id, "iapf"))
 
     assert completed.status is RunStatus.COMPLETED
-    assert completed.definition_id
+    assert completed.definition_id is None
+    assert completed.scientific_version == "official-iapf-v2"
     metric = completed.result_summary["metric"]
     assert metric["output"]["unit"] == "Hz"
     assert metric["output"]["value"] == pytest.approx(10.0, abs=0.5)

@@ -313,11 +313,6 @@ class RunService:
             requested_range = official_config.time.model_dump(mode="json")
             actual_range = dict(requested_range)
             manifest = module.manifest
-            installed = next((item for item in self.definition_service.list() if item.name == ("Official IAPF" if manifest.algorithm_id == "iapf" else "Official THETA_BETA") and item.owner == "platform-official"), None)
-            installed_version = self.definition_service.repository.get_version(installed.definition_id, "1.0.0") if installed is not None else None
-            if installed is not None and installed_version is not None:
-                request.definition_id = installed.definition_id
-                request.definition_version = installed_version.semver
             definition = {"kind": "official_algorithm", "algorithm_id": manifest.algorithm_id,
                           "scientific_version": manifest.scientific_version, "implementation_identity": manifest.implementation_identity}
             scientific_version = manifest.scientific_version
