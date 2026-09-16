@@ -1,11 +1,3 @@
-export interface ChannelMapping {
-  fz: string
-  pz: string
-  oz: string
-  f3: string | null
-  f4: string | null
-}
-
 export interface Recording {
   id: string
   original_name: string
@@ -15,5 +7,4 @@ export interface Recording {
   sfreq: number | null
   duration_s: number | null
   channels: string[]
-  mapping: ChannelMapping | null
 }

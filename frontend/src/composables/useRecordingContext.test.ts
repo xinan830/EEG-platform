@@ -3,7 +3,7 @@ import { useRecordingContext } from './useRecordingContext'
 
 const recording = {
   id: 'recording-1', original_name: 'sample.bdf', stored_name: 'sample.bdf', extension: '.bdf' as const,
-  created_at: '2026-09-15T00:00:00Z', sfreq: 500, duration_s: 120, channels: ['F3', 'Fz', 'Pz'], mapping: null,
+  created_at: '2026-09-15T00:00:00Z', sfreq: 500, duration_s: 120, channels: ['F3', 'Fz', 'Pz'],
 }
 
 it('owns imported recording metadata and resets it as one context', () => {

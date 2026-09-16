@@ -10,7 +10,6 @@ import type { Recording } from './types/recording'
 vi.mock('./api/recordings', () => ({
   importRecording: vi.fn(),
   listRecordings: vi.fn(),
-  saveMapping: vi.fn(),
   getWaveformWindow: vi.fn(),
   getMontages: vi.fn(),
   getPreview: vi.fn(),
@@ -35,7 +34,6 @@ const fakeRecording: Recording = {
   sfreq: 512,
   duration_s: 60,
   channels: ['Fp1', 'Fp2', 'F3', 'Fz', 'Pz', 'O1', 'O2'],
-  mapping: null,
 }
 
 const fakeWindow: WaveformPreview = {
@@ -79,15 +77,13 @@ describe('导入后的通道选择流程', () => {
     vi.clearAllMocks()
   })
 
-  it('always exposes the saved semantic channel mapping editor after import', async () => {
+  it('does not expose a global semantic channel mapping prerequisite after import', async () => {
     const wrapper = await mountImportedApp()
     await findFooterButton(wrapper, '应用并从头显示').trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('.workflow-nav button').find((button) => button.text() === '通道映射')!.trigger('click')
-
-    expect(wrapper.find('.channel-mapping-dialog').exists()).toBe(true)
-    expect(wrapper.text()).toContain('通道映射')
+    expect(wrapper.findAll('.workflow-nav button').some((button) => button.text() === '通道映射')).toBe(false)
+    expect(wrapper.find('.channel-mapping-dialog').exists()).toBe(false)
   })
 
   it('导入完成后自动弹出通道设置，确认前不读取波形', async () => {

@@ -1,4 +1,4 @@
-import type { ChannelMapping, Recording } from '../types/recording'
+import type { Recording } from '../types/recording'
 import { request } from './client'
 
 export interface CustomMontageTerm {
@@ -19,10 +19,6 @@ export function importRecording(file: File): Promise<Recording> {
   const body = new FormData()
   body.append('file', file)
   return request<Recording>('/api/recordings/import', { method: 'POST', body })
-}
-
-export function saveMapping(id: string, mapping: ChannelMapping): Promise<Recording> {
-  return request<Recording>(`/api/recordings/${id}/mapping`, { method: 'PUT', body: JSON.stringify(mapping) })
 }
 
 export interface WaveformPreview {
