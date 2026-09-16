@@ -8,7 +8,7 @@ export type DefinitionMetricResult = {
   inputs?: Record<string, Input>
   channel: string
   actual_range: { start_s: number; end_s: number }
-  source_quality: { clean_segments?: number; total_segments?: number }
+  source_quality?: { clean_segments?: number; total_segments?: number }
   chart: { kind: string; y_axis?: { unit?: string } }
 }
 
@@ -29,7 +29,7 @@ function label(input: Input) { return inputLabels[input.feature] ?? input.featur
     <p class="algorithm-explainer-kicker">本次算法结果</p>
     <div class="definition-metric-value"><span>{{ result.output.label }}</span><strong>{{ result.output.value ?? '不可用' }}</strong><em>{{ unitDisplay(result.output.unit) }}</em></div>
     <p>通道：{{ result.channel }} · 分析区间：{{ result.actual_range.start_s.toFixed(3) }}–{{ result.actual_range.end_s.toFixed(3) }} s · 输出质量：{{ result.output.quality.status }}</p>
-    <p v-if="result.source_quality.clean_segments !== undefined">PSD 质量：{{ result.source_quality.clean_segments }}/{{ result.source_quality.total_segments }} clean</p>
+    <p v-if="result.source_quality?.clean_segments !== undefined">PSD 质量：{{ result.source_quality.clean_segments }}/{{ result.source_quality.total_segments }} clean</p>
     <div v-if="result.chart.kind === 'input_comparison'" data-testid="metric-input-chart" class="metric-input-chart">
       <strong>输入功率对比</strong><small>横轴：输入指标 · 纵轴：{{ unitDisplay(result.chart.y_axis?.unit) }}</small>
       <div v-for="input in inputs" :key="input.feature" class="metric-input-bar-row"><span>{{ label(input) }}</span><i><b :style="{ width: `${((input.value ?? 0) / largestInput) * 100}%` }" /></i><em>{{ input.value ?? '不可用' }} {{ unitDisplay(input.unit) }}</em></div>

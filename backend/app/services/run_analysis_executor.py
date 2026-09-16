@@ -55,6 +55,7 @@ def _serialize_algorithm_result(result: AlgorithmResult, algorithm_id: str, labe
         "channel": result.channel,
         "actual_range": result.actual_range,
         "requested_range": result.requested_range,
+        "source_quality": result.evidence.get("source_quality", {}),
         "official": {"algorithm_id": algorithm_id, **result.evidence},
         "chart": {"kind": "none"},
         "value": result.value,

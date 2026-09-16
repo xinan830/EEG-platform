@@ -44,4 +44,13 @@ describe('DefinitionMetricResultCard', () => {
 
     expect(wrapper.text()).toContain('Theta/Beta 比值')
   })
+
+  it('does not crash when an older or incomplete result omits source quality', () => {
+    const wrapper = mount(DefinitionMetricResultCard, {
+      props: { result: { ...result, source_quality: undefined } },
+    })
+
+    expect(wrapper.text()).toContain('Theta/Beta 比值')
+    expect(wrapper.text()).not.toContain('PSD 质量：')
+  })
 })

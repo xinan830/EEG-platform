@@ -50,6 +50,13 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
     assert metric["output"]["unit"] == "Hz"
     assert metric["output"]["value"] == pytest.approx(10.0, abs=0.5)
     assert metric["official"]["source"] in {"peak", "cog"}
+    assert metric["source_quality"] == {
+        "clean_segments": 14,
+        "total_segments": 14,
+        "clean_ratio": pytest.approx(1.0),
+        "gate_failed": None,
+        "rejected_reasons": [],
+    }
     assert service.list_artifacts(completed.run_id)
 
 
