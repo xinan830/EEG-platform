@@ -73,15 +73,9 @@ class PlaybackSession:
 
     def _canonical_data(self) -> tuple[np.ndarray, float, list[str], list[dict[str, Any]]]:
         data, sfreq, names, events = self._recordings.load_data(self._recording)
-        mapping = self._recording.mapping
-        if mapping is None:
-            raise RuntimeError("回放前必须保存 Fz、Pz、Oz 通道映射")
-        aliases = {mapping.fz.upper(): "Fz", mapping.pz.upper(): "Pz", mapping.oz.upper(): "Oz"}
-        if mapping.f3:
-            aliases[mapping.f3.upper()] = "F3"
-        if mapping.f4:
-            aliases[mapping.f4.upper()] = "F4"
-        return np.asarray(data, dtype=float), sfreq, [aliases.get(name.upper(), name) for name in names], events
+        # Raw recording labels are the only labels valid for playback. Spatial
+        # roles are selected by an algorithm per Run, not aliased globally.
+        return np.asarray(data, dtype=float), sfreq, list(names), events
 
     def _drain_controls(self, processor: EEGProcessor) -> bool:
         restart = False
@@ -174,8 +168,6 @@ class PlaybackService:
 
     def create(self, recording_id: str) -> PlaybackSession:
         recording = self.recordings.require_recording(recording_id)
-        if recording.mapping is None:
-            raise RuntimeError("请先保存 Fz、Pz、Oz 通道映射")
         session = PlaybackSession(recording, self.recordings)
         self.sessions[session.id] = session
         session.start()
