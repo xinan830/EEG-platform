@@ -6,7 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app.core.config import ALLOWED_EXTENSIONS, DATABASE_PATH, RECORDINGS_DIR, ensure_storage_directories
-from app.models.recording import ChannelMapping, RecordingSummary
+from app.models.recording import RecordingSummary
 from app.models.analysis_config import AnalysisConfigRequest
 from app.services.filter_checkpoint_cache import FilterCheckpointCache
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache
@@ -90,30 +90,7 @@ class RecordingService:
         self._set_metadata(
             recording.id, sfreq, duration_s, channels, channel_types, channel_units
         )
-        # Exact labels are already an explicit semantic declaration in the
-        # source file.  Only persist a complete mapping in that narrow case;
-        # never turn O1/O2 or a positional channel into Oz automatically.
-        automatic_mapping = self._exact_label_mapping(channels)
-        if automatic_mapping is not None:
-            self.update_mapping(recording.id, automatic_mapping)
         return self.require_recording(recording.id)
-
-    @staticmethod
-    def _exact_label_mapping(channels: list[str]) -> ChannelMapping | None:
-        def one_exact(label: str) -> str | None:
-            matches = [name for name in channels if name.strip().upper() == label]
-            return matches[0] if len(matches) == 1 else None
-
-        fz, pz, oz = (one_exact(label) for label in ("FZ", "PZ", "OZ"))
-        if not all((fz, pz, oz)):
-            return None
-        return ChannelMapping(
-            fz=fz,
-            pz=pz,
-            oz=oz,
-            f3=one_exact("F3"),
-            f4=one_exact("F4"),
-        )
 
     def list_recordings(self) -> list[RecordingSummary]:
         with self._connect() as connection:
@@ -127,13 +104,6 @@ class RecordingService:
             raise KeyError("录制文件不存在")
         return self._row_to_summary(row)
 
-    def update_mapping(self, recording_id: str, mapping: ChannelMapping) -> RecordingSummary:
-        recording = self.require_recording(recording_id)
-        self.validate_mapping(mapping, list(recording.channels))
-        mapping_json = json.dumps(mapping.__dict__, ensure_ascii=False)
-        with self._connect() as connection:
-            connection.execute("UPDATE recordings SET mapping_json = ? WHERE id = ?", (mapping_json, recording_id))
-        return self.require_recording(recording_id)
 
     def load_data(self, recording: RecordingSummary) -> tuple[object, float, list[str], list[dict[str, object]]]:
         import mne
@@ -365,24 +335,6 @@ class RecordingService:
         finally:
             raw.close()
 
-    @staticmethod
-    def validate_mapping(mapping: ChannelMapping, available: list[str]) -> ChannelMapping:
-        required = [mapping.fz, mapping.pz, mapping.oz]
-        if len({name.upper() for name in required}) != 3:
-            raise ValueError("Fz、Pz、Oz 映射不能重复")
-        optional = [name for name in (mapping.f3, mapping.f4) if name]
-        all_names = required + optional
-        if len({name.upper() for name in all_names}) != len(all_names):
-            raise ValueError("映射通道不能重复")
-        available_upper = {name.upper() for name in available}
-        if any(name.upper() not in available_upper for name in required):
-            raise ValueError("映射通道不存在于录制文件")
-        if (mapping.f3 is None) != (mapping.f4 is None):
-            raise ValueError("F3 与 F4 必须同时映射或同时留空")
-        if any(name.upper() not in available_upper for name in optional):
-            raise ValueError("映射通道不存在于录制文件")
-        return mapping
-
     def _set_metadata(
         self,
         recording_id: str,
@@ -441,8 +393,6 @@ class RecordingService:
 
     @staticmethod
     def _row_to_summary(row: sqlite3.Row) -> RecordingSummary:
-        raw_mapping = json.loads(row["mapping_json"]) if row["mapping_json"] else None
-        mapping = ChannelMapping(**raw_mapping) if raw_mapping else None
         return RecordingSummary(
             id=row["id"],
             original_name=row["original_name"],
@@ -452,7 +402,6 @@ class RecordingService:
             sfreq=row["sfreq"],
             duration_s=row["duration_s"],
             channels=tuple(json.loads(row["channels_json"])),
-            mapping=mapping,
             source_sha256=row["source_sha256"],
             file_size_bytes=row["file_size_bytes"],
             raw_channel_labels=tuple(json.loads(row["raw_channel_labels_json"] or "[]")),

@@ -34,24 +34,8 @@ class AnalysisService:
         return connect_database(self.database_path)
 
     def create_analysis(self, recording_id: str) -> AnalysisSummary:
-        recording = self.recordings.require_recording(recording_id)
-        if recording.mapping is None:
-            raise RuntimeError("请先保存 Fz、Pz、Oz 通道映射")
-        # The compatibility endpoint remains synchronous, while using the
-        # exact same executor and persistence path as the traceable Run API.
-        executor = getattr(self.run_service, "base", self.run_service)
-        run = executor.create(RunCreateRequest(recording_id=recording_id, analysis_type="legacy_analysis"))
-        if run.status is not RunStatus.COMPLETED:
-            raise ValueError(run.error.message if run.error else "分析未完成")
-        result = run.result_summary or {}
-        return AnalysisSummary(
-            analysis_id=run.run_id,
-            recording_id=recording_id,
-            status=run.status.value,
-            result_url=f"/api/analyses/{run.run_id}",
-            locked_iapf=result.get("locked_iapf"),
-            algorithm_version=ANALYSIS_ALGORITHM_VERSION,
-        )
+        self.recordings.require_recording(recording_id)
+        raise RuntimeError("LEGACY_ANALYSIS_RETIRED")
 
     def get_result(self, analysis_id: str) -> dict:
         # New legacy-compatible analyses are AnalysisRuns.  Keep the old table

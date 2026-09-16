@@ -3,9 +3,9 @@ import json
 from typing import Optional
 
 from fastapi import APIRouter, File, Query, Request, UploadFile, status
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import TypeAdapter, ValidationError
 
-from app.models.recording import ChannelMapping, RecordingSummary
+from app.models.recording import RecordingSummary
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.montage import CustomMontageChannelPayload
 from app.models.spectral_validation import SpectralReferenceValidationRequest
@@ -16,14 +16,6 @@ from app.services.montage import build_montage, describe_montages, montage_formu
 
 
 router = APIRouter(prefix="/api/recordings", tags=["recordings"])
-
-
-class ChannelMappingPayload(BaseModel):
-    fz: str
-    pz: str
-    oz: str
-    f3: Optional[str] = None
-    f4: Optional[str] = None
 
 
 def _custom_montage(value: str | None) -> list[dict[str, object]] | None:
@@ -303,13 +295,3 @@ def algorithm_check(
         return error_response(request, 422, "ALGORITHM_CHECK_INVALID", str(exc))
 
 
-@router.put("/{recording_id}/mapping")
-def save_mapping(recording_id: str, payload: ChannelMappingPayload, request: Request) -> dict:
-    mapping = ChannelMapping(**payload.model_dump())
-    try:
-        recording = _service(request).update_mapping(recording_id, mapping)
-    except KeyError:
-        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
-    except ValueError as exc:
-        return error_response(request, 422, "MAPPING_INVALID", str(exc))
-    return _serialize(recording)

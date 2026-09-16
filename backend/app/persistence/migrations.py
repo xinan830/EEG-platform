@@ -258,6 +258,12 @@ def _migration_007_validation_evidence(connection: sqlite3.Connection) -> None:
     _add_column(connection, "validation_runs", "evidence_json TEXT")
 
 
+def _migration_008_retire_active_recording_mapping(connection: sqlite3.Connection) -> None:
+    """Clear obsolete recording-wide role mappings after Run snapshots exist."""
+    if "mapping_json" in _column_names(connection, "recordings"):
+        connection.execute("UPDATE recordings SET mapping_json = NULL")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "legacy-tables", _migration_001_legacy_tables),
     Migration(2, "recording-identity", _migration_002_recording_identity),
@@ -266,6 +272,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(5, "research-projects", _migration_005_research_projects),
     Migration(6, "persistent-run-queue", _migration_006_persistent_run_queue),
     Migration(7, "validation-evidence", _migration_007_validation_evidence),
+    Migration(8, "retire-active-recording-mapping", _migration_008_retire_active_recording_mapping),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

@@ -5,7 +5,6 @@ import pytest
 
 from app.eeg_core.official_algorithms.registry import ensure_official_definitions, official_algorithm_catalog
 from app.core.provenance import sha256_json
-from app.models.recording import ChannelMapping
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
 from app.services.runs import RunService
@@ -22,13 +21,11 @@ class OfficialSyntheticRecordingService(RecordingService):
         return np.column_stack((8e-6 * np.sin(2 * np.pi * 6 * time_s) + alpha, alpha * 1.1, alpha * 1.2)), sfreq, ["Fz", "Pz", "O2"], []
 
 
-def _service(tmp_path: Path, *, mapped: bool = True) -> tuple[RunService, str]:
+def _service(tmp_path: Path) -> tuple[RunService, str]:
     recordings = OfficialSyntheticRecordingService(tmp_path / "recordings", tmp_path / "official.sqlite3")
     recording = recordings.create_recording("official.edf", ".edf", b"official-source")
     with recordings._connect() as connection:
         connection.execute("UPDATE recordings SET sfreq = 100, duration_s = 30, channels_json = '[\"Fz\", \"Pz\", \"O2\"]' WHERE id = ?", (recording.id,))
-    if mapped:
-        recordings.update_mapping(recording.id, ChannelMapping(fz="Fz", pz="Pz", oz="O2"))
     service = RunService(recordings, recordings.database_path, tmp_path / "artifacts")
     ensure_official_definitions(service.definition_service)
     return service, recording.id
@@ -63,7 +60,7 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
 
 
 def test_official_theta_beta_uses_one_selected_raw_channel(tmp_path: Path):
-    service, recording_id = _service(tmp_path, mapped=False)
+    service, recording_id = _service(tmp_path)
     completed = service.create(_request(recording_id, "theta_beta"))
 
     assert completed.status is RunStatus.COMPLETED
@@ -74,7 +71,7 @@ def test_official_theta_beta_uses_one_selected_raw_channel(tmp_path: Path):
 
 
 def test_official_theta_beta_rejects_unknown_raw_channel(tmp_path: Path):
-    service, recording_id = _service(tmp_path, mapped=False)
+    service, recording_id = _service(tmp_path)
     request = _request(recording_id, "theta_beta")
     request.config["channel"] = "Oz"
     with pytest.raises(ValueError, match="channel does not exist"):

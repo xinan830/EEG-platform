@@ -31,7 +31,9 @@ def create_analysis(recording_id: str, request: Request) -> dict:
     except KeyError:
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except RuntimeError as exc:
-        return error_response(request, 409, "ANALYSIS_MAPPING_REQUIRED", str(exc))
+        if str(exc) == "LEGACY_ANALYSIS_RETIRED":
+            return error_response(request, 410, "LEGACY_ANALYSIS_RETIRED", "旧分析创建接口已退役，请使用算法运行接口")
+        return error_response(request, 409, "ANALYSIS_UNAVAILABLE", str(exc))
     except ValueError as exc:
         return error_response(request, 422, "ANALYSIS_REQUEST_INVALID", str(exc))
 

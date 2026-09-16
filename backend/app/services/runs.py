@@ -278,16 +278,7 @@ class RunService:
     def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
         mapping = recording.mapping.__dict__ if recording.mapping else {}
         if request.analysis_type == "legacy_analysis":
-            config = {"analysis_type": "legacy_analysis", **request.config}
-            requested_range = {"start_s": 0.0, "end_s": float(recording.duration_s or 0.0)}
-            actual_range = dict(requested_range)
-            channels = [value for value in mapping.values() if value]
-            definition = {"kind": "legacy_analysis", "contract": dict(ANALYSIS_CONTRACT)}
-            scientific_version = ANALYSIS_ALGORITHM_VERSION
-            window = {
-                "welch_segment_s": ANALYSIS_CONTRACT["welch_segment_s"],
-                "welch_overlap": ANALYSIS_CONTRACT["welch_segment_overlap"],
-            }
+            raise ValueError("legacy analysis creation is retired")
         elif request.analysis_type == "definition_metric":
             if not request.definition_id or not request.definition_version:
                 raise ValueError("definition metric requires a definition ID and version")
