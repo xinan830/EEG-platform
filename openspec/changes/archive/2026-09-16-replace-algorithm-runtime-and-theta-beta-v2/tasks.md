@@ -26,12 +26,12 @@
 
 ## 5. Schema-driven frontend
 
-- [ ] 5.1 Replace fixed official-ID request and unit logic with unified catalog and schema-driven parameter cards.
+- [x] 5.1 Replace fixed official-ID request and unit logic with unified catalog and schema-driven parameter cards.
 - [x] 5.2 Render independent static/dynamic configuration per selected algorithm and keep display-only settings local.
 - [x] 5.3 Show raw selected channels and backend-returned values/reasons without frontend scientific calculation.
 
 ## 6. Verification and archive
 
-- [ ] 6.1 Run targeted migration, runtime, IAPF, Theta/Beta v2, user-definition, catalog, and frontend interaction tests.
-- [ ] 6.2 Run full backend pytest, frontend Vitest, type check, production build, OpenSpec strict validation, and diff checks.
-- [ ] 6.3 Generate a validation report, update architecture documentation, archive the OpenSpec change, and validate all specs.
+- [x] 6.1 Run targeted migration, runtime, IAPF, Theta/Beta v2, user-definition, catalog, and frontend interaction tests.
+- [x] 6.2 Run full backend pytest, frontend Vitest, type check, production build, OpenSpec strict validation, and diff checks.
+- [x] 6.3 Generate a validation report, update architecture documentation, archive the OpenSpec change, and validate all specs.

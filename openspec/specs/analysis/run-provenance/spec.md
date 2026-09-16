@@ -29,12 +29,23 @@ timestamps. A preview run SHALL use the same lifecycle and set
 
 ### Requirement: Capture reproducibility provenance
 
-Each run SHALL persist the recording identifier and source SHA-256, definition identifier/version where applicable, scientific definition version, implementation build version, normalized configuration and digest, requested and actual absolute time ranges, ordered channel mapping, reference, filter chain, window settings, quality rules, execution environment, and structured error when present.
+Each runtime algorithm Run SHALL persist the selected algorithm ID, source,
+scientific version, implementation identity, configuration digest, explicit raw
+input channels, requested range, actual range, window semantics, units, and
+quality result.
 
 #### Scenario: Inspect a completed result
 
-- **WHEN** a client retrieves a run
-- **THEN** the response contains sufficient provenance to identify the source bytes, executed configuration, scientific contract, implementation, units, quality state, and actual time range
+- **WHEN** a client retrieves a completed runtime Run
+- **THEN** the response contains the source identity, executed configuration,
+  scientific contract, implementation, units, quality state, and actual range
+
+#### Scenario: Read a completed Theta/Beta v2 Run
+
+- **WHEN** a completed Theta/Beta v2 Run is retrieved
+- **THEN** provenance identifies `official-theta-beta-v2`, the selected raw
+  channel, one actual analysis range per output point, and the frozen spectral
+  contract used to obtain its PSD
 
 ### Requirement: Generate deterministic cache identity
 
@@ -86,3 +97,14 @@ Run APIs SHALL use stable machine-readable error codes with a request identifier
 
 - **WHEN** a run identifier does not exist
 - **THEN** the API returns HTTP 404 with a stable `RUN_NOT_FOUND` code and request identifier
+
+### Requirement: Preserve unavailable value provenance
+
+The provenance of a runtime output with no scientific value SHALL retain its
+structured quality or calculation reason while its numerical field is `null`.
+
+#### Scenario: Read a rejected output
+
+- **WHEN** a result has no valid Theta/Beta value
+- **THEN** its persisted value is `null` and its reason is distinguishable from
+  measured zero

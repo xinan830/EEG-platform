@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: Publish a unified client-safe catalog
+### Requirement: Backend exposes an authoritative official-algorithm catalog
 
 The system SHALL expose official and user algorithms through `GET
 /api/algorithms`.  Each entry SHALL identify its source, version, availability,
@@ -11,7 +11,23 @@ parameter schema.
 
 - **WHEN** a client requests `/api/algorithms`
 - **THEN** it can distinguish official from user algorithms and render each
-  selected algorithm's inputs without inspecting internal DAG or adapter data
+selected algorithm's inputs without inspecting internal DAG or adapter data
+
+#### Scenario: All installed official algorithms are listed
+
+- **WHEN** a client requests `GET /api/algorithms`
+- **THEN** the response lists every runtime-registered official algorithm
+- **AND THEN** IAPF and Theta/Beta v2 report their runtime-owned runnable
+  state without an installed Definition prerequisite.
+
+#### Scenario: Installed evidence is unavailable
+
+- **WHEN** the runtime registry cannot be resolved
+- **THEN** the response returns user algorithms plus
+  `OFFICIAL_ALGORITHM_CATALOG_UNAVAILABLE`
+- **AND THEN** no incomplete official item is represented as runnable.
+
+## ADDED Requirements
 
 ### Requirement: Keep non-runnable official algorithms unavailable
 

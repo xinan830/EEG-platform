@@ -5,20 +5,30 @@ TBD - created by archiving change modularize-official-algorithm-boundaries. Upda
 ## Requirements
 ### Requirement: Backend exposes an authoritative official-algorithm catalog
 
-The system SHALL expose a read-only official algorithm catalog from a single backend registry. Every entry SHALL include a stable algorithm id, Chinese display name, abbreviation, purpose, Definition id, published version, execution kind, scientific version, implementation identity, availability, runnable state, required logical channel roles, and supported modes.
+The system SHALL expose official and user algorithms through `GET
+/api/algorithms`.  Each entry SHALL identify its source, version, availability,
+plain-language label/purpose, supported modes, output schema, and client-safe
+parameter schema.
+
+#### Scenario: Read the catalog
+
+- **WHEN** a client requests `/api/algorithms`
+- **THEN** it can distinguish official from user algorithms and render each
+selected algorithm's inputs without inspecting internal DAG or adapter data
 
 #### Scenario: All installed official algorithms are listed
 
-- **WHEN** a client requests `GET /api/official-algorithms` after platform initialization
-- **THEN** the response lists RBP, Theta/Beta, FAA, BrainBeat, and IAPF
-- **AND THEN** IAPF and Theta/Beta report their registry-owned runnable state,
-  while shadow-only official algorithms remain non-runnable.
+- **WHEN** a client requests `GET /api/algorithms`
+- **THEN** the response lists every runtime-registered official algorithm
+- **AND THEN** IAPF and Theta/Beta v2 report their runtime-owned runnable
+  state without an installed Definition prerequisite.
 
 #### Scenario: Installed evidence is unavailable
 
-- **WHEN** an official Definition or its published version cannot be resolved
-- **THEN** the catalog returns the structured error code `OFFICIAL_ALGORITHM_CATALOG_UNAVAILABLE`
-- **AND THEN** no incomplete item is represented as runnable.
+- **WHEN** the runtime registry cannot be resolved
+- **THEN** the response returns user algorithms plus
+  `OFFICIAL_ALGORITHM_CATALOG_UNAVAILABLE`
+- **AND THEN** no incomplete official item is represented as runnable.
 
 ### Requirement: Official algorithm availability is not inferred by clients
 
@@ -39,4 +49,16 @@ The system SHALL retain compatibility imports for existing official calculation 
 - **WHEN** an official algorithm requires Fz/Pz/Oz or F3/F4 roles and the caller does not provide an explicit mapping
 - **THEN** it is unavailable with a structured reason
 - **AND THEN** the system does not infer Oz from O2 or from channel order.
+
+### Requirement: Keep non-runnable official algorithms unavailable
+
+The catalog SHALL expose FAA and BrainBeat as non-runnable until separately
+validated and enabled.  IAPF and Theta/Beta v2 SHALL expose their own raw
+channel parameter schemas and SHALL NOT declare required global roles.
+
+#### Scenario: Read Theta/Beta catalog metadata
+
+- **WHEN** a client reads the Theta/Beta catalog entry
+- **THEN** it describes one selected raw channel and contains no Fz/Pz/Oz
+  mapping prerequisite
 
