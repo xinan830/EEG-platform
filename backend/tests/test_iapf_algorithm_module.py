@@ -33,7 +33,7 @@ def test_iapf_module_preserves_selected_raw_channel(monkeypatch) -> None:
     result = AlgorithmRuntime(registry).execute(
         algorithm_id="iapf",
         recording=_fake_recording(),
-        config={"channel": "O2", "mode": "static", "start_s": 0, "end_s": 10},
+        config={"channel": "o2", "mode": "static", "start_s": 0, "end_s": 10},
     )
     assert result.value == 10.25
     assert result.channel == "O2"

@@ -28,11 +28,12 @@ class ThetaBetaAlgorithm:
 
     def resolve_inputs(self, recording: Any, config: ThetaBetaConfig) -> AlgorithmInputs:
         labels = list(getattr(recording, "channel_names", getattr(recording, "channels", [])))
-        if config.channel not in labels:
+        selected = next((label for label in labels if str(label).casefold() == config.channel.casefold()), None)
+        if selected is None:
             raise ValueError(f"未知原始通道: {config.channel}")
         return AlgorithmInputs(
             recording_id=str(getattr(recording, "id", getattr(recording, "recording_id", "unknown"))),
-            channel=config.channel,
+            channel=str(selected),
             sfreq_hz=float(getattr(recording, "sfreq_hz", 1.0)),
             duration_s=float(getattr(recording, "duration_s", config.end_s)),
             payload=recording,
