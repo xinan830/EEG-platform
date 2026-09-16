@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -86,3 +86,19 @@ class AlgorithmModuleContract(BaseModel):
     @property
     def parameter_schema(self) -> ParameterSchema:
         return ParameterSchema(parameters=self.parameters)
+
+
+@runtime_checkable
+class AlgorithmModule(Protocol):
+    """Runtime-facing behavior implemented by each algorithm package."""
+
+    manifest: AlgorithmManifest
+    config_model: type[AlgorithmConfigBase]
+
+    def parameter_schema(self) -> ParameterSchema: ...
+
+    def resolve_inputs(self, recording: Any, config: AlgorithmConfigBase) -> AlgorithmInputs: ...
+
+    def execute_static(self, inputs: AlgorithmInputs, config: AlgorithmConfigBase) -> AlgorithmResult: ...
+
+    def execute_dynamic(self, inputs: AlgorithmInputs, config: AlgorithmConfigBase) -> AlgorithmSeriesResult: ...
