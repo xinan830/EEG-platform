@@ -35,7 +35,7 @@ class StructuredRunError(BaseModel):
 
 class RunCreateRequest(BaseModel):
     recording_id: str = Field(min_length=1)
-    analysis_type: Literal["legacy_analysis", "spectrum", "spectrogram", "definition_metric", "official_algorithm"] = "legacy_analysis"
+    analysis_type: Literal["spectrum", "spectrogram", "definition_metric", "official_algorithm"] = "spectrum"
     config: dict[str, Any] = Field(default_factory=dict)
     definition_id: str | None = None
     definition_version: str | None = None

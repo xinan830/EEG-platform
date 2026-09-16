@@ -11,7 +11,7 @@ class BatchRunCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     project_id: str = Field(min_length=1)
     recording_ids: list[str] = Field(min_length=1, max_length=100)
-    analysis_type: Literal["legacy_analysis", "spectrum", "spectrogram"] = "spectrum"
+    analysis_type: Literal["spectrum", "spectrogram"] = "spectrum"
     config: dict[str, Any] = Field(default_factory=dict)
     definition_id: str | None = None
     definition_version: str | None = None

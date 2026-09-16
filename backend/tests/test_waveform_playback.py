@@ -90,7 +90,7 @@ def test_display_filter_rejects_an_invalid_cutoff_range():
 def test_waveform_session_accepts_direct_import_without_analysis_mapping():
     recording = RecordingSummary(
         id="recording-1", original_name="sample.bdf", stored_name="sample.bdf",
-        extension=".bdf", created_at="2026-09-09T00:00:00Z", mapping=None,
+        extension=".bdf", created_at="2026-09-09T00:00:00Z",
     )
 
     session = WaveformPlaybackSession(recording, recordings=object())
@@ -103,7 +103,7 @@ def test_waveform_session_accepts_direct_import_without_analysis_mapping():
 def test_waveform_session_rejects_invalid_display_filter_settings():
     recording = RecordingSummary(
         id="recording-1", original_name="sample.bdf", stored_name="sample.bdf",
-        extension=".bdf", created_at="2026-09-09T00:00:00Z", mapping=None,
+        extension=".bdf", created_at="2026-09-09T00:00:00Z",
     )
     session = WaveformPlaybackSession(recording, recordings=object())
 
@@ -114,7 +114,7 @@ def test_waveform_session_rejects_invalid_display_filter_settings():
 def test_waveform_session_rejects_empty_channel_selection():
     recording = RecordingSummary(
         id="recording-1", original_name="sample.bdf", stored_name="sample.bdf",
-        extension=".bdf", created_at="2026-09-09T00:00:00Z", mapping=None,
+        extension=".bdf", created_at="2026-09-09T00:00:00Z",
     )
     session = WaveformPlaybackSession(recording, recordings=object())
 
@@ -125,7 +125,7 @@ def test_waveform_session_rejects_empty_channel_selection():
 def test_filter_change_resets_the_sweep_from_file_start():
     recording = RecordingSummary(
         id="recording-1", original_name="sample.bdf", stored_name="sample.bdf",
-        extension=".bdf", created_at="2026-09-09T00:00:00Z", mapping=None,
+        extension=".bdf", created_at="2026-09-09T00:00:00Z",
     )
     session = WaveformPlaybackSession(recording, recordings=object())
 
@@ -153,7 +153,7 @@ def test_baseline_stabilization_is_explicit_and_defaults_off():
 def test_filter_change_resumes_a_paused_session_from_file_start():
     recording = RecordingSummary(
         id="recording-1", original_name="sample.bdf", stored_name="sample.bdf",
-        extension=".bdf", created_at="2026-09-09T00:00:00Z", mapping=None,
+        extension=".bdf", created_at="2026-09-09T00:00:00Z",
     )
     session = WaveformPlaybackSession(recording, recordings=object())
     session.control("pause")
@@ -177,7 +177,7 @@ def test_filter_change_defaults_to_file_start_but_seek_can_still_target_a_positi
 def test_filter_control_ignores_previous_position_and_restarts_from_file_start():
     recording = RecordingSummary(
         id="recording-1", original_name="sample.bdf", stored_name="sample.bdf",
-        extension=".bdf", created_at="2026-09-09T00:00:00Z", mapping=None,
+        extension=".bdf", created_at="2026-09-09T00:00:00Z",
     )
     session = WaveformPlaybackSession(recording, recordings=object())
     session.control("set_filters", low_cut_hz=1.0, high_cut_hz=35.0, notch_hz=None, position_s=12.5)
@@ -406,7 +406,7 @@ def test_waveform_session_reads_raw_data_in_display_chunks():
     raw = Raw()
     recording = RecordingSummary(
         id="recording-1", original_name="sample.bdf", stored_name="sample.bdf",
-        extension=".bdf", created_at="2026-09-09T00:00:00Z", mapping=None,
+        extension=".bdf", created_at="2026-09-09T00:00:00Z",
     )
     session = WaveformPlaybackSession(recording, Readers(raw), requested_channels=["Fz"])
     session.start()

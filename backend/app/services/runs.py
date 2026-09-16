@@ -210,7 +210,6 @@ class RunService:
             actual_range=actual_range,
         )
         now = utc_now()
-        mapping = recording.mapping.__dict__ if recording.mapping else {}
         run = AnalysisRun(
             run_id=uuid4().hex,
             recording_id=recording.id,
@@ -225,7 +224,7 @@ class RunService:
             cache_key=cache_key,
             requested_range=requested_range,
             actual_range=None,
-            channel_mapping={"channels": [], "semantic_mapping": mapping},
+            channel_mapping={"channels": []},
             reference={"mode": "not_applicable_scalar_simulation"},
             filters={"mode": "not_applicable_scalar_simulation"},
             window={"mode": "absolute_provenance_range_only"},
@@ -276,10 +275,7 @@ class RunService:
         }
 
     def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
-        mapping = recording.mapping.__dict__ if recording.mapping else {}
-        if request.analysis_type == "legacy_analysis":
-            raise ValueError("legacy analysis creation is retired")
-        elif request.analysis_type == "definition_metric":
+        if request.analysis_type == "definition_metric":
             if not request.definition_id or not request.definition_version:
                 raise ValueError("definition metric requires a definition ID and version")
             version = self.definition_service.repository.get_version(request.definition_id, request.definition_version)
@@ -374,7 +370,7 @@ class RunService:
             "definition_version": request.definition_version,
             "requested_range": requested_range,
             "actual_range": actual_range,
-            "channel_mapping": {"channels": channels, "semantic_mapping": mapping},
+            "channel_mapping": {"channels": channels},
             "reference": {"mode": ANALYSIS_CONTRACT["reference"]},
             "filters": {key: ANALYSIS_CONTRACT[key] for key in (
                 "bandpass_type", "bandpass_prototype_order", "bandpass_hz",

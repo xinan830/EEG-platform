@@ -23,7 +23,6 @@ from app.algorithms.user_definition import UserDefinitionAlgorithm
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
-from app.processing.offline_analysis import analyze_recording
 
 
 class _RecordingAlgorithmContext:
@@ -92,26 +91,6 @@ class RunAnalysisExecutor:
         self.algorithm_runtime = AlgorithmRuntime(algorithm_registry) if algorithm_registry is not None else None
 
     def execute(self, analysis_type: str, recording: Any, resolved: dict[str, Any]):
-        if analysis_type == "legacy_analysis":
-            if recording.mapping is None:
-                raise ValueError("saved semantic channel mapping is required")
-            data, sfreq, channel_names, events = self.recordings.load_data(recording)
-            result = analyze_recording(data, sfreq, recording.mapping, channel_names, events).to_dict()
-            waveform = result.pop("waveform")
-            metrics = result.pop("metrics")
-            arrays: dict[str, np.ndarray] = {
-                "waveform_elapsed_s": np.asarray(waveform["elapsed_s"], dtype=float),
-            }
-            for index, name in enumerate(waveform["channels"]):
-                arrays[f"waveform_channel_{index}"] = np.asarray(waveform["channels"][name], dtype=float)
-            arrays["metric_elapsed_s"] = np.asarray([item["elapsed_s"] for item in metrics], dtype=float)
-            result.update({
-                "metric_count": len(metrics),
-                "waveform_channels": list(waveform["channels"]),
-                "waveform_unit": waveform["unit"],
-            })
-            return result, arrays, "mixed; see result_summary"
-
         if analysis_type == "definition_metric":
             return self._execute_definition_metric(recording, resolved)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from app.models.recording import ChannelMapping, RecordingSummary
+from app.models.recording import RecordingSummary
 from app.services.playback import PlaybackSession
 
 
@@ -10,7 +10,6 @@ def test_legacy_playback_keeps_raw_labels_instead_of_global_role_aliases() -> No
     recording = RecordingSummary(
         id="r1", original_name="sample.edf", stored_name="sample.edf", extension=".edf",
         created_at="2026-09-16T00:00:00Z",
-        mapping=ChannelMapping(fz="Fz", pz="Pz", oz="O2"),
     )
 
     class Recordings:

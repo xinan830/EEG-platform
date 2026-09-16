@@ -20,8 +20,8 @@
 
 ## 4. Remove mapping and legacy execution paths
 
-- [ ] 4.1 Remove active ChannelMapping model, import auto-mapping, recording mapping API/UI, and global role requirement.
-- [ ] 4.2 Apply and verify idempotent SQLite migration that removes active mapping storage while retaining historical Run snapshots.
+- [x] 4.1 Remove active ChannelMapping model, import auto-mapping, recording mapping API/UI, and global role requirement.
+- [x] 4.2 Apply and verify idempotent SQLite migration that removes active mapping storage while retaining historical Run snapshots.
 - [ ] 4.3 Delete audited compatibility facades, legacy executable algorithm paths, and generic algorithm-ID branches; add architecture regression tests.
 
 ## 5. Schema-driven frontend
