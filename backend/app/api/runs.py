@@ -5,7 +5,6 @@ from fastapi.responses import JSONResponse
 
 from app.core.api_contract import error_response
 from app.models.run import RunCreateRequest
-from app.models.official_algorithm_run import OfficialChannelMappingRequired
 from app.services.analysis_provenance import serialize_analysis_run
 from app.services.runs import RunConflictError, RunService
 
@@ -27,8 +26,6 @@ def create_run(payload: RunCreateRequest, request: Request):
             worker.wake()
     except KeyError:
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
-    except OfficialChannelMappingRequired as exc:
-        return error_response(request, 422, "OFFICIAL_CHANNEL_MAPPING_REQUIRED", str(exc))
     except ValueError as exc:
         return error_response(request, 422, "RUN_REQUEST_INVALID", str(exc))
     request.app.state.audit_service.record(

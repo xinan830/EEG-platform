@@ -14,19 +14,61 @@ from app.eeg_core.definition_engine import execute_graph
 from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.quality import SpectralQualityGateError
 from app.eeg_core.spectral import SpectralEstimate
-from app.eeg_core.official_algorithms.iapf import estimate_iapf
-from app.eeg_core.official_algorithms.theta_beta import metric_values
+from app.algorithm_runtime.contracts import AlgorithmResult, AlgorithmSeriesResult
+from app.algorithm_runtime.executor import AlgorithmRuntime
+from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.processing.offline_analysis import analyze_recording
 
 
+class _RecordingAlgorithmContext:
+    """Bounded signal access passed to a canonical algorithm module."""
+
+    def __init__(self, recordings: Any, recording: Any) -> None:
+        self._recordings = recordings
+        self._recording = recording
+        self.id = recording.id
+        self.channel_names = list(recording.channels)
+        self.sfreq_hz = float(recording.sfreq or 0.0)
+        self.duration_s = float(recording.duration_s or 0.0)
+
+    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str]) -> SpectralEstimate:
+        payload = self._recordings.load_spectrum(self._recording, start_s, window_s, channels)
+        ordered = list(payload["channels"])
+        return SpectralEstimate(
+            np.asarray(payload["frequencies_hz"], dtype=float),
+            np.asarray([payload["psd"][name] for name in ordered], dtype=float) * 1e-12,
+            float(payload["quality"]["clean_ratio"]),
+            int(payload["quality"]["clean_segments"]),
+            int(payload["quality"]["total_segments"]),
+            payload["quality"]["gate_failed"],
+            tuple(payload["quality"].get("rejected_reasons", [])),
+        )
+
+
+def _serialize_algorithm_result(result: AlgorithmResult, algorithm_id: str, label: str) -> dict[str, object]:
+    quality = {"status": result.quality, "reasons": [result.failure.code] if result.failure else []}
+    return {
+        "output": {"id": algorithm_id, "label": label, "value": result.value, "unit": result.unit, "quality": quality},
+        "channel": result.channel,
+        "actual_range": result.actual_range,
+        "requested_range": result.requested_range,
+        "official": {"algorithm_id": algorithm_id, **result.evidence},
+        "chart": {"kind": "none"},
+        "value": result.value,
+        "quality": quality,
+        "failure": result.failure.model_dump(mode="json") if result.failure else None,
+    }
+
+
 class RunAnalysisExecutor:
-    def __init__(self, recordings: Any, definition_service: Any, metric_runner: Any):
+    def __init__(self, recordings: Any, definition_service: Any, metric_runner: Any, algorithm_registry: AlgorithmRegistry | None = None):
         self.recordings = recordings
         self.definition_service = definition_service
         self.metric_runner = metric_runner
+        self.algorithm_runtime = AlgorithmRuntime(algorithm_registry) if algorithm_registry is not None else None
 
     def execute(self, analysis_type: str, recording: Any, resolved: dict[str, Any]):
         if analysis_type == "legacy_analysis":
@@ -102,78 +144,35 @@ class RunAnalysisExecutor:
         }
         return estimate, evidence
 
-    @staticmethod
-    def _official_point(algorithm_id: str, spectrum: SpectralEstimate, evidence: dict[str, object], channels: list[str], start_s: float, end_s: float) -> dict[str, object]:
-        iapf = estimate_iapf(spectrum)
-        if algorithm_id == "iapf":
-            return {
-                "output": {"id": "iapf", "label": "个体 Alpha 峰频率", "value": iapf.value, "unit": "Hz",
-                           "quality": {"status": "clean" if iapf.value is not None else "bad", "reasons": [] if iapf.value is not None else [iapf.gate_failed or "unavailable"]}},
-                "inputs": {},
-                "channel": channels[0], "actual_range": {"start_s": start_s, "end_s": end_s},
-                "source_quality": evidence["quality"], "spectral_evidence": evidence,
-                "official": {"algorithm_id": "iapf", "source": iapf.source, "gate_failed": iapf.gate_failed,
-                             "model_r2": iapf.model_r2, "model_error": iapf.model_error, "peak_hz": iapf.peak_hz, "cog_hz": iapf.cog},
-                "chart": {"kind": "none"},
-            }
-        if iapf.value is None:
-            ratios: dict[str, float] = {}
-            reasons = [iapf.gate_failed or "iapf_unavailable"]
-        else:
-            ratios = dict(metric_values(spectrum, float(iapf.value))["fatigue"])
-            reasons = [] if ratios else ["theta_beta_unavailable"]
-        return {
-            "output": {"id": "theta_beta", "label": "Theta/Beta 比值（Fz）", "value": ratios.get("Fz"), "unit": "dimensionless",
-                       "quality": {"status": "clean" if ratios else "bad", "reasons": reasons}},
-            "inputs": {},
-            "channel": "Fz/Pz/Oz", "actual_range": {"start_s": start_s, "end_s": end_s},
-            "source_quality": evidence["quality"], "spectral_evidence": evidence,
-            "official": {"algorithm_id": "theta_beta", "iapf_hz": iapf.value, "iapf_source": iapf.source,
-                         "iapf_gate_failed": iapf.gate_failed, "ratios": ratios,
-                         "ratio_roles": ["Fz", "Pz", "Oz"],
-                         "source_channels": {"Fz": channels[0], "Pz": channels[1], "Oz": channels[2]}},
-            "chart": {"kind": "official_role_values", "x_axis": {"field": "role"}, "y_axis": {"unit": "dimensionless"},
-                      "values": [{"role": role, "value": ratios.get(role)} for role in ("Fz", "Pz", "Oz")]},
-        }
-
     def _execute_official_algorithm(self, recording: Any, resolved: dict[str, Any]):
         config = OfficialAlgorithmRunConfig.model_validate(resolved["config"])
-        channels = list(resolved["channel_mapping"]["channels"])
-        start, end = float(config.time.start_s), float(config.time.end_s)
-        window, step = float(config.dynamic_window_s), float(config.refresh_step_s)
-        warmup = config.mode == "dynamic" and end - start < window
-        first_end = end if warmup else start + window
-        points: list[dict[str, object]] = []
-        values: list[float] = []
-        current_end = first_end
-        while current_end <= end + 1e-9:
-            current_start = start if warmup else current_end - window
-            try:
-                spectrum, evidence = self._official_spectrum(recording, channels, current_start, current_end)
-                point = self._official_point(config.algorithm_id, spectrum, evidence, channels, current_start, current_end)
-            except SpectralQualityGateError as exc:
-                point = {"output": {"id": config.algorithm_id, "label": "个体 Alpha 峰频率" if config.algorithm_id == "iapf" else "Theta/Beta 比值（Fz）", "value": None, "unit": "Hz" if config.algorithm_id == "iapf" else "dimensionless", "quality": {"status": "bad", "reasons": list(exc.quality.get("rejected_reasons", []))}}, "channel": "/".join(channels), "actual_range": {"start_s": current_start, "end_s": current_end}, "source_quality": exc.quality, "spectral_evidence": {"quality": exc.quality}, "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "none"}}
-            point["time_s"] = round(current_end, 9)
-            point["window_start_s"] = round(current_start, 9)
-            point["window_end_s"] = round(current_end, 9)
-            if warmup:
-                point["warmup"] = True
-            output = point["output"]
-            # DynamicMetricTrendChart consumes the normalized point contract.
-            # Preserve the full official output alongside it for provenance/debug.
-            point["value"] = output["value"]
-            point["quality"] = output["quality"]
-            values.append(np.nan if output["value"] is None else float(output["value"]))
+        if self.algorithm_runtime is None:
+            raise ValueError("algorithm runtime is not configured")
+        context = _RecordingAlgorithmContext(self.recordings, recording)
+        runtime_config = {
+            "channel": config.channel, "mode": config.mode,
+            "start_s": float(config.time.start_s), "end_s": float(config.time.end_s),
+            "window_s": float(config.dynamic_window_s), "step_s": float(config.refresh_step_s),
+        }
+        result = self.algorithm_runtime.execute(
+            algorithm_id=config.algorithm_id, recording=context, config=runtime_config,
+        )
+        module = self.algorithm_runtime.registry.get(config.algorithm_id)
+        label = module.manifest.display_name_zh
+        if isinstance(result, AlgorithmResult):
+            point = _serialize_algorithm_result(result, config.algorithm_id, label)
+            return {"metric": point}, {"metric_value": np.asarray([np.nan if result.value is None else result.value], dtype=float)}, result.unit
+        points = []
+        values = []
+        for index, (value, center, window, quality, failure) in enumerate(zip(result.values, result.time_centers_s, result.windows, result.quality, result.failures)):
+            point = {"time_s": center, "window_start_s": window["start_s"], "window_end_s": window["end_s"], "value": value,
+                     "quality": {"status": quality, "reasons": [failure.code] if failure else []},
+                     "output": {"id": config.algorithm_id, "label": label, "value": value, "unit": result.unit, "quality": {"status": quality, "reasons": [failure.code] if failure else []}},
+                     "channel": result.channel, "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "none"}}
             points.append(point)
-            if config.mode == "static" or warmup:
-                break
-            current_end += step
-        if not points:
-            raise ValueError("official algorithm analysis produced no windows")
-        first = points[0]
-        if config.mode == "static":
-            return {"metric": first}, {"metric_value": np.asarray(values, dtype=float)}, str(first["output"]["unit"])
-        return {"metric": {"mode": "dynamic", "output": first["output"], "channel": first["channel"], "actual_range": {"start_s": start, "end_s": end}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"}, "series": points, "official": first["official"], "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "window_end_s"}, "y_axis": {"label": first["output"]["label"], "unit": first["output"]["unit"]}}}}, {"metric_time_s": np.asarray([point["time_s"] for point in points], dtype=float), "metric_values": np.asarray(values, dtype=float)}, str(first["output"]["unit"])
+            values.append(np.nan if value is None else float(value))
+        first = points[0] if points else {"output": {"id": config.algorithm_id, "label": label, "unit": result.unit}, "channel": result.channel}
+        return {"metric": {"mode": "dynamic", "output": first["output"], "channel": result.channel, "actual_range": {"start_s": config.time.start_s, "end_s": config.time.end_s}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_center"}, "series": points, "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": label, "unit": result.unit}}}}, {"metric_time_s": np.asarray(result.time_centers_s, dtype=float), "metric_values": np.asarray(values, dtype=float)}, result.unit
 
     def _execute_definition_metric(self, recording: Any, resolved: dict[str, Any]):
         config = DefinitionMetricConfig.model_validate(resolved["config"])

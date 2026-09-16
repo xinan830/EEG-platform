@@ -34,8 +34,7 @@ def _service(tmp_path: Path, *, mapped: bool = True) -> tuple[RunService, str]:
 
 def _request(recording_id: str, algorithm_id: str, *, dynamic: bool = False) -> RunCreateRequest:
     config = {"algorithm_id": algorithm_id, "time": {"start_s": 0, "end_s": 30}, "mode": "dynamic" if dynamic else "static"}
-    if algorithm_id == "iapf":
-        config["channel"] = "Fz"
+    config["channel"] = "O2" if algorithm_id == "theta_beta" else "Fz"
     if dynamic:
         config.update({"dynamic_window_s": 10, "refresh_step_s": 1})
     return RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=config)
@@ -54,32 +53,23 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
     assert service.list_artifacts(completed.run_id)
 
 
-def test_official_theta_beta_uses_saved_role_mapping_and_preserves_three_outputs(tmp_path: Path):
-    service, recording_id = _service(tmp_path)
+def test_official_theta_beta_uses_one_selected_raw_channel(tmp_path: Path):
+    service, recording_id = _service(tmp_path, mapped=False)
     completed = service.create(_request(recording_id, "theta_beta"))
 
     assert completed.status is RunStatus.COMPLETED
     metric = completed.result_summary["metric"]
-    assert metric["official"]["source_channels"] == {"Fz": "Fz", "Pz": "Pz", "Oz": "O2"}
-    assert metric["official"]["ratio_roles"] == ["Fz", "Pz", "Oz"]
-    assert set(metric["official"]["ratios"]) == {"Fz", "Pz", "Oz"}
-    assert all(value > 0 for value in metric["official"]["ratios"].values())
+    assert metric["channel"] == "O2"
+    assert metric["output"]["unit"] == "dimensionless"
+    assert metric["output"]["value"] is not None
 
 
-def test_official_theta_beta_rejects_missing_saved_mapping(tmp_path: Path):
+def test_official_theta_beta_rejects_unknown_raw_channel(tmp_path: Path):
     service, recording_id = _service(tmp_path, mapped=False)
-
-    with pytest.raises(ValueError, match="saved Fz/Pz/Oz mapping"):
-        service.create(_request(recording_id, "theta_beta"))
-
-
-def test_official_theta_beta_mapping_error_has_a_stable_api_code(tmp_path: Path):
-    service, recording_id = _service(tmp_path, mapped=False)
-    app.state.run_service = service
-    response = TestClient(app).post("/api/runs", json=_request(recording_id, "theta_beta").model_dump(mode="json"))
-
-    assert response.status_code == 422
-    assert response.json()["code"] == "OFFICIAL_CHANNEL_MAPPING_REQUIRED"
+    request = _request(recording_id, "theta_beta")
+    request.config["channel"] = "Oz"
+    with pytest.raises(ValueError, match="channel does not exist"):
+        service.create(request)
 
 
 def test_official_dynamic_iapf_uses_existing_trailing_window_contract(tmp_path: Path):
