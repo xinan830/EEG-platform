@@ -47,6 +47,6 @@ it('creates official Theta/Beta without inventing a semantic channel mapping in 
 
   expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
     recording_id: 'recording-1', analysis_type: 'official_algorithm',
-    config: { algorithm_id: 'theta_beta', time: { start_s: 0, end_s: 30 }, mode: 'static' },
+    config: { algorithm_id: 'theta_beta', channel: 'F3', time: { start_s: 0, end_s: 30 }, mode: 'static' },
   })
 })
