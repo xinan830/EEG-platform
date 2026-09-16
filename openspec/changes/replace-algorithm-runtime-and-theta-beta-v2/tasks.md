@@ -1,20 +1,20 @@
 ## 1. Baseline and contracts
 
 - [ ] 1.1 Capture existing frozen spectral, IAPF, and historical Theta/Beta fixtures before moving executable code.
-- [ ] 1.2 Complete the import/call-graph audit for legacy algorithm entries and recording mapping consumers.
-- [ ] 1.3 Add runtime contracts, structured errors, parameter/result schemas, and registry boundary tests.
+- [x] 1.2 Complete the import/call-graph audit for legacy algorithm entries and recording mapping consumers.
+- [x] 1.3 Add runtime contracts, structured errors, parameter/result schemas, and registry boundary tests.
 
 ## 2. Runtime and algorithm modules
 
-- [ ] 2.1 Create the generic algorithm runtime and registry with no concrete algorithm-ID branches.
-- [ ] 2.2 Move IAPF into a canonical runtime algorithm module and prove frozen output equivalence.
-- [ ] 2.3 Implement canonical single-channel `official-theta-beta-v2` static and dynamic execution with null failure semantics.
+- [x] 2.1 Create the generic algorithm runtime and registry with no concrete algorithm-ID branches.
+- [x] 2.2 Move IAPF into a canonical runtime algorithm module and prove frozen output equivalence.
+- [x] 2.3 Implement canonical single-channel `official-theta-beta-v2` static and dynamic execution with null failure semantics.
 - [ ] 2.4 Wrap user Definition graph execution in the same runtime result and catalog contracts.
 
 ## 3. Run and catalog cutover
 
 - [ ] 3.1 Route new Run creation, validation, cache identity, provenance, and artifact serialization through the runtime.
-- [ ] 3.2 Add the unified `/api/algorithms` catalog and retire old official execution catalog usage.
+- [x] 3.2 Add the unified `/api/algorithms` catalog and retire old official execution catalog usage.
 - [ ] 3.3 Verify historical Runs and Artifacts remain read-only and exportable without old calculator imports.
 
 ## 4. Remove mapping and legacy execution paths
