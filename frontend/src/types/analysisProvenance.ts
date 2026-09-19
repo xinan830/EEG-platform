@@ -11,13 +11,21 @@ export interface AnalysisProvenanceWelch {
 }
 
 export interface AnalysisProvenanceFrequency {
+  label_zh?: string
   low_hz: number | null
   high_hz: number | null
   point_count: number
+  resolution_hz?: number | null
+}
+
+export interface AnalysisProvenanceMethod {
+  kind: string
+  label_zh: string
+  detail_zh: string
 }
 
 export interface AnalysisProvenanceExtension {
-  kind: 'spectral_band_power' | 'metric_inputs_output' | 'algorithm_calculation'
+  kind: 'spectral_band_power' | 'metric_inputs_output' | 'algorithm_calculation' | 'faa_paired_quality'
   data: Record<string, unknown>
 }
 
@@ -37,8 +45,11 @@ export interface AnalysisProvenance {
   analysis_reference: unknown
   sfreq_hz: number | null
   filter: Record<string, unknown> | null
+  preprocessing?: { kind: string; label_zh: string } | null
+  method?: AnalysisProvenanceMethod | null
   welch: AnalysisProvenanceWelch | null
   frequency: AnalysisProvenanceFrequency | null
+  quality_label_zh?: string | null
   quality: Record<string, unknown> | null
   extensions: AnalysisProvenanceExtension[]
 }

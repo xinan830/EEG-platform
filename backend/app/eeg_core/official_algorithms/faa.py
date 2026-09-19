@@ -14,7 +14,12 @@ from app.eeg_core.spectral import band_power
 ARTIFACT_THRESHOLD_UV = 150.0
 FAA_CHANNELS = ("F3", "F4")
 FAA_BAND = (8.0, 13.0)
-FAA_DISCARD_S = 12.0
+# This is deliberately not part of the executable static FAA Run. It is the
+# initial-recording discard used by the historical realtime/report pipeline.
+LEGACY_FAA_INITIAL_DISCARD_S = 12.0
+# Kept as a compatibility import for legacy callers. New code must use the
+# explicit name above so a static requested range is never silently cropped.
+FAA_DISCARD_S = LEGACY_FAA_INITIAL_DISCARD_S
 FAA_EPOCH_S = 2.0
 FAA_EPOCH_OVERLAP = 0.5
 FAA_MIN_CLEAN_EPOCHS = 10

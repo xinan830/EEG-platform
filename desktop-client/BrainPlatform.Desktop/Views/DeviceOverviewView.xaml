@@ -1,0 +1,134 @@
+<UserControl x:Class="BrainPlatform.Desktop.Views.DeviceOverviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#F3F5F8">
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="20" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="20" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="总览" FontSize="26" FontWeight="Bold" Foreground="#0F172A" />
+                <TextBlock Text="当前桌面客户端、后端与采集设备的只读状态。设备事实均来自全局设备会话。"
+                           Margin="0,8,0,0" FontSize="13.5" Foreground="#64748B" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="重新检测设备" Command="{Binding Overview.RefreshDeviceCommand}"
+                    Height="36" Padding="18,0" Margin="20,0,0,0" VerticalAlignment="Center"
+                    Background="#2563EB" Foreground="White" BorderThickness="0" Cursor="Hand" />
+        </Grid>
+
+        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Border Width="48" Height="48" Background="{Binding Overview.StateBackgroundBrush}" CornerRadius="24" VerticalAlignment="Center">
+                    <Ellipse Width="14" Height="14" Fill="{Binding Overview.StateBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Overview.StateText}" FontSize="18" FontWeight="SemiBold" Foreground="#0F172A" />
+                    <TextBlock Text="{Binding Overview.DeviceDetail}" Margin="0,5,0,0" FontSize="13" Foreground="#64748B" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <TextBlock Text="最近状态更新" FontSize="12" Foreground="#94A3B8" HorizontalAlignment="Right" />
+                    <TextBlock Text="{Binding Overview.CheckedAtText}" Margin="0,4,0,0" FontSize="13" Foreground="#334155" HorizontalAlignment="Right" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.15*" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="18" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="当前设备" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="设备驱动" FontSize="13" Foreground="#64748B" />
+                        <TextBlock Grid.Column="1" Text="{Binding Overview.DriverId}" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
+                    </Grid>
+                    <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="设备型号" FontSize="13" Foreground="#64748B" />
+                        <TextBlock Grid.Column="1" Text="{Binding Overview.DeviceModel}" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
+                    </Grid>
+                    <Grid Grid.Row="6">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="设备实例" FontSize="13" Foreground="#64748B" />
+                        <TextBlock Grid.Column="1" Text="{Binding Overview.DeviceInstance}" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
+                    </Grid>
+                    <Grid Grid.Row="8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <TextBlock Text="平台设备标识" FontSize="13" Foreground="#64748B" />
+                        <TextBlock Grid.Column="1" Text="{Binding Overview.DeviceId}" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="18" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="设备能力与诊断" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
+                    <StackPanel Grid.Row="2">
+                        <TextBlock Text="支持采样率" FontSize="12" Foreground="#64748B" />
+                        <TextBlock Text="{Binding Overview.SupportedSamplingRates}" Margin="0,4,0,0" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="4">
+                        <TextBlock Text="物理输入" FontSize="12" Foreground="#64748B" />
+                        <TextBlock Text="{Binding Overview.PhysicalInputSummary}" Margin="0,4,0,0" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="6">
+                        <TextBlock Text="能力指纹" FontSize="12" Foreground="#64748B" />
+                        <TextBlock Text="{Binding Overview.CapabilityFingerprint}" Margin="0,4,0,0" FontSize="12" Foreground="#334155" TextWrapping="Wrap" FontFamily="Consolas" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="8">
+                        <TextBlock Text="驱动配置" FontSize="12" Foreground="#64748B" />
+                        <TextBlock Text="{Binding Overview.DriverConfigurationText}" Margin="0,4,0,0" FontSize="12" Foreground="#334155" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Row="10">
+                        <TextBlock Text="最近操作" FontSize="12" Foreground="#64748B" />
+                        <TextBlock Text="{Binding Overview.OperationMessage}" Margin="0,4,0,0" FontSize="13" Foreground="#334155" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

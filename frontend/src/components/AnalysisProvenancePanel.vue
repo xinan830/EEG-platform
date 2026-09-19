@@ -30,7 +30,9 @@ function welchText(): string {
 
 function frequencyText(): string {
   const frequency = props.provenance?.frequency
-  return frequency ? `${number(frequency.low_hz, 0)}–${number(frequency.high_hz, 0)} Hz（${frequency.point_count} 个频率点）` : '—'
+  if (!frequency) return '—'
+  const resolution = typeof frequency.resolution_hz === 'number' ? `，${number(frequency.resolution_hz, 2)} Hz 分辨率` : ''
+  return `${number(frequency.low_hz, 0)}–${number(frequency.high_hz, 0)} Hz（${frequency.point_count} 个频率点${resolution}）`
 }
 
 function qualityText(): string {
@@ -52,16 +54,16 @@ function qualityText(): string {
       <dt>请求分析区间</dt><dd>{{ range(provenance?.requested_range) }}</dd>
       <dt>实际分析区间</dt><dd>{{ range(provenance?.actual_range) }}</dd>
       <dt>通道</dt><dd>{{ provenance?.channel ?? '—' }}</dd>
-      <dt>算法版本</dt><dd>{{ provenance?.definition_version ?? '—' }}</dd>
-      <dt>频谱算法</dt><dd>{{ provenance?.scientific_algorithm_version ?? '—' }}</dd>
+      <dt>定义版本</dt><dd>{{ provenance?.definition_version ?? '—' }}</dd>
+      <dt>科学算法版本</dt><dd>{{ provenance?.scientific_algorithm_version ?? '—' }}</dd>
       <dt>实现版本</dt><dd>{{ provenance?.implementation_version ?? '—' }}</dd>
       <dt>配置指纹</dt><dd><code>{{ provenance?.config_sha256 ?? '—' }}</code></dd>
       <dt>参考方式</dt><dd>{{ recordText(provenance?.analysis_reference) }}</dd>
       <dt>采样率</dt><dd>{{ provenance?.sfreq_hz == null ? '—' : `${provenance.sfreq_hz} Hz` }}</dd>
-      <dt>预处理</dt><dd>{{ recordText(provenance?.filter) }}</dd>
-      <dt>Welch</dt><dd>{{ welchText() }}</dd>
-      <dt>频率范围</dt><dd>{{ frequencyText() }}</dd>
-      <dt>质量门</dt><dd>{{ qualityText() }}</dd>
+      <dt>预处理</dt><dd>{{ provenance?.preprocessing?.label_zh ?? recordText(provenance?.filter) }}</dd>
+      <dt>{{ provenance?.method?.label_zh ?? 'Welch' }}</dt><dd>{{ provenance?.method?.detail_zh ?? welchText() }}</dd>
+      <dt>{{ provenance?.frequency?.label_zh ?? '频率范围' }}</dt><dd>{{ frequencyText() }}</dd>
+      <dt>{{ provenance?.quality_label_zh ?? '质量门' }}</dt><dd>{{ qualityText() }}</dd>
     </dl>
   </section>
 </template>

@@ -6,12 +6,14 @@ from typing import Any
 
 from app.algorithm_runtime.contracts import (
     AlgorithmConfigBase,
+    AlgorithmExecutionSnapshot,
     AlgorithmFailure,
     AlgorithmInputs,
     AlgorithmManifest,
     AlgorithmResult,
     AlgorithmSeriesResult,
 )
+from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
 from app.eeg_core.definition_engine import execute_graph
@@ -54,6 +56,12 @@ class UserDefinitionAlgorithm:
             AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", required=False),
             AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", required=False),
         ])
+
+    def requested_channels(self, config: AlgorithmConfigBase) -> list[str]:
+        return [config.channel]
+
+    def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
+        return spectral_execution_snapshot(config)
 
     def resolve_inputs(self, recording: Any, config: AlgorithmConfigBase) -> AlgorithmInputs:
         labels = list(getattr(recording, "channels", []))
@@ -101,12 +109,14 @@ class UserDefinitionAlgorithm:
             quality="clean" if failure is None else "gate_failed",
             failure=failure,
             evidence={
-                "output_id": output_id,
-                "output_label": label,
-                "inputs": resolution.snapshot,
+                "extensions": {"user_definition_evidence": {
+                    "output_id": output_id,
+                    "output_label": label,
+                    "inputs": resolution.snapshot,
+                    "provenance": [{"node": item.node, "parameters": dict(item.parameters)} for item in output.provenance],
+                }},
                 "source_quality": resolution.quality,
                 "spectral_evidence": resolution.spectral_evidence,
-                "provenance": [{"node": item.node, "parameters": dict(item.parameters)} for item in output.provenance],
                 "calculation_trace": {
                     "formula": "用户定义的受控算法图",
                     "inputs": [{"label": str(key), **value} for key, value in resolution.snapshot.items()],

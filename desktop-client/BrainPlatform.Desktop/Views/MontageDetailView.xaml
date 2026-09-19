@@ -1,0 +1,79 @@
+<UserControl x:Class="BrainPlatform.Desktop.Views.MontageDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#F3F5F8">
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <DockPanel>
+            <Button Width="36" Height="36" Margin="0,0,12,0" DockPanel.Dock="Left" Click="OnBackToMontageListClick" ToolTip="返回导联配置">&#x2190;</Button>
+            <StackPanel>
+                <TextBlock Text="{Binding MontageConfigurations.DraftTitle}" FontSize="24" FontWeight="SemiBold" Foreground="#0F172A" />
+                <TextBlock Text="固定源通道来自通道配置。本页仅定义显示重参考，不修改原始 EEG 或分析参考。" Margin="0,5,0,0" Foreground="#64748B" />
+            </StackPanel>
+        </DockPanel>
+        <Border Grid.Row="1" Margin="0,22,0,16" Padding="16" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.7*" /><ColumnDefinition Width="1.5*" /></Grid.ColumnDefinitions>
+                <StackPanel Margin="0,0,12,0"><TextBlock Text="配置名称" Foreground="#64748B" FontSize="12" /><TextBox Text="{Binding MontageConfigurations.DraftName, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding MontageConfigurations.CanEditDraft}" Margin="0,5,0,0" Padding="7,5" /></StackPanel>
+                <StackPanel Grid.Column="1" Margin="0,0,12,0"><TextBlock Text="说明" Foreground="#64748B" FontSize="12" /><TextBox Text="{Binding MontageConfigurations.DraftDescription, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding MontageConfigurations.CanEditDraft}" Margin="0,5,0,0" Padding="7,5" /></StackPanel>
+                <StackPanel Grid.Column="2"><TextBlock Text="适用通道配置" Foreground="#64748B" FontSize="12" /><ComboBox ItemsSource="{Binding MontageConfigurations.AvailableChannelConfigurations}" SelectedItem="{Binding MontageConfigurations.DraftChannelConfiguration}" IsEnabled="{Binding MontageConfigurations.CanSelectDraftChannelConfiguration}" DisplayMemberPath="Name" Margin="0,5,0,0" Padding="5" /><TextBlock Text="{Binding MontageConfigurations.DraftChannelSummary}" Margin="0,5,0,0" FontSize="11" Foreground="#64748B" /></StackPanel>
+            </Grid>
+        </Border>
+        <Border Grid.Row="2" Margin="0,0,0,16" Padding="14" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers><DataTrigger Binding="{Binding MontageConfigurations.ShowReferenceGroup}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid IsEnabled="{Binding MontageConfigurations.CanEditDraft}"><Grid.ColumnDefinitions><ColumnDefinition Width="160" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center"><TextBlock Text="参考通道组" FontWeight="SemiBold" Foreground="#0F172A" /><TextBlock Text="平均参考可选两个或更多；指定双参考必须恰好两个。" Margin="0,3,0,0" FontSize="12" Foreground="#64748B" /><TextBlock Text="{Binding MontageConfigurations.AverageReferenceSummary}" Margin="0,2,0,0" FontSize="12" Foreground="#64748B" /></StackPanel>
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding MontageConfigurations.AverageReferenceChannels}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding Label}" IsChecked="{Binding IsIncluded}" Margin="0,4,16,4" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"><Button Padding="10,5" Margin="12,0,8,0" Command="{Binding MontageConfigurations.ApplyOriginalReferenceToAllCommand}">全部原始参考</Button><Button Padding="10,5" Margin="0,0,8,0" IsEnabled="{Binding MontageConfigurations.CanApplyAverageReference}" Command="{Binding MontageConfigurations.ApplyAverageReferenceToAllCommand}">平均参考</Button><Button Padding="10,5" Background="#0066FF" Foreground="White" BorderThickness="0" IsEnabled="{Binding MontageConfigurations.CanApplySpecifiedPair}" Command="{Binding MontageConfigurations.ApplySpecifiedPairToAllCommand}">指定双参考</Button></StackPanel>
+            </Grid>
+        </Border>
+        <Border Grid.Row="3" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="16">
+            <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="36" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <TextBlock Text="导联列表" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A" />
+                <Grid Grid.Row="1" Margin="0,12,0,0" Background="#F8FAFC"><Grid.ColumnDefinitions><ColumnDefinition Width="1.4*" /><ColumnDefinition Width="1*" /><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.8*" /><ColumnDefinition Width="0.6*" /></Grid.ColumnDefinitions><TextBlock Margin="8,0" VerticalAlignment="Center" Text="导联名称" Foreground="#475569" /><TextBlock Grid.Column="1" Margin="8,0" VerticalAlignment="Center" Text="正极" Foreground="#475569" /><TextBlock Grid.Column="2" Margin="8,0" VerticalAlignment="Center" Text="重参考方式" Foreground="#475569" /><TextBlock Grid.Column="3" Margin="8,0" VerticalAlignment="Center" Text="负极 / 参考组" Foreground="#475569" /><TextBlock Grid.Column="4" Margin="8,0" VerticalAlignment="Center" Text="顺序" Foreground="#475569" /></Grid>
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding MontageConfigurations.DraftRows}" IsEnabled="{Binding MontageConfigurations.CanEditDraft}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="1.4*" /><ColumnDefinition Width="1*" /><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1.8*" /><ColumnDefinition Width="0.6*" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Name}" Margin="8,0" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#0F172A" />
+                                    <TextBlock Grid.Column="1" Text="{Binding PositiveLabel}" Margin="8,0" VerticalAlignment="Center" Foreground="#334155" />
+                                    <ComboBox Grid.Column="2" ItemsSource="{Binding DataContext.MontageConfigurations.NegativeKinds, RelativeSource={RelativeSource AncestorType=UserControl}}" DisplayMemberPath="Label" SelectedValuePath="Kind" SelectedValue="{Binding NegativeKind}" Padding="4" Margin="4,0" />
+                                    <ComboBox Grid.Column="3" ItemsSource="{Binding ReferenceOptions}" SelectedItem="{Binding ReferenceSelection, Mode=TwoWay}" IsEnabled="{Binding IsChannelReference}" Padding="4" Margin="4,0">
+                                        <ComboBox.Style>
+                                            <Style TargetType="ComboBox">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers><DataTrigger Binding="{Binding IsSpecifiedPairReference}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                                            </Style>
+                                        </ComboBox.Style>
+                                    </ComboBox>
+                                    <Grid Grid.Column="3" Margin="4,0">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers><DataTrigger Binding="{Binding IsSpecifiedPairReference}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <ComboBox ItemsSource="{Binding PairFirstOptions}" SelectedItem="{Binding SelectedPairFirstLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="4" ToolTip="第一参考通道" />
+                                        <TextBlock Grid.Column="1" Text="+" Margin="7,0" VerticalAlignment="Center" Foreground="#64748B" />
+                                        <ComboBox Grid.Column="2" ItemsSource="{Binding PairSecondOptions}" SelectedItem="{Binding SelectedPairSecondLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Padding="4" ToolTip="第二参考通道" />
+                                    </Grid>
+                                    <TextBlock Grid.Column="4" Text="{Binding DisplayOrder}" Margin="8,0" VerticalAlignment="Center" Foreground="#334155" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+        <DockPanel Grid.Row="4" Margin="0,16,0,0"><TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Text="{Binding MontageConfigurations.StatusText}" Foreground="#64748B" /><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Padding="18,8" Margin="0,0,10,0" Click="OnCancelMontageDraftClick">返回</Button><Button Padding="18,8" Background="#0066FF" Foreground="White" BorderThickness="0" Command="{Binding MontageConfigurations.SaveDraftCommand}"><Button.Style><Style TargetType="Button"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding MontageConfigurations.CanEditDraft}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style><TextBlock Text="保存导联配置" /></Button></StackPanel></DockPanel>
+    </Grid>
+</UserControl>

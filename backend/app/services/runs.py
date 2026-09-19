@@ -18,6 +18,7 @@ from app.core.provenance import (
 from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
 from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.quality import SpectralQualityGateError
+from app.eeg_core.official_algorithms.registry import ensure_official_definitions, official_definition_identity
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
@@ -48,6 +49,7 @@ class RunService:
         self.repository = RunRepository(database_path)
         self.artifacts = ArtifactStore(self.repository, artifacts_dir)
         self.definition_service = DefinitionService(database_path)
+        ensure_official_definitions(self.definition_service)
         self.metric_runner = DefinitionMetricRunner(recordings)
         self.algorithm_runtime_registry = build_builtin_registry()
         self.executor = RunAnalysisExecutor(recordings, self.definition_service, self.metric_runner, self.algorithm_runtime_registry)
@@ -72,8 +74,8 @@ class RunService:
             recording_id=recording.id,
             analysis_type=request.analysis_type,
             status=RunStatus.QUEUED,
-            definition_id=request.definition_id,
-            definition_version=request.definition_version,
+            definition_id=resolved["definition_id"],
+            definition_version=resolved["definition_version"],
             scientific_version=resolved["scientific_version"],
             implementation_version=build,
             config=resolved["config"],
@@ -274,6 +276,8 @@ class RunService:
             ],
         }
     def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
+        run_definition_id = request.definition_id
+        run_definition_version = request.definition_version
         if request.analysis_type == "definition_metric":
             if not request.definition_id or not request.definition_version:
                 raise ValueError("definition metric requires a definition ID and version")
@@ -301,37 +305,46 @@ class RunService:
             }
         elif request.analysis_type == "official_algorithm":
             official_config = OfficialAlgorithmRunConfig.model_validate(request.config)
-            module = self.algorithm_runtime_registry.get(official_config.algorithm_id)
+            module = self.algorithm_runtime_registry.get(
+                official_config.algorithm_id,
+                official_config.scientific_version,
+            )
             duration = float(recording.duration_s or 0.0)
             if official_config.time.end_s > duration + 1.5 / float(recording.sfreq or 1.0):
                 raise ValueError(f"official analysis range exceeds recording duration of {duration:.3f} s")
             available_channels = {str(item).casefold() for item in recording.channels}
-            requested_channels = [str(official_config.channel)]
-            if official_config.algorithm_id == "faa":
-                requested_channels.append(str(official_config.f4_channel))
-            unknown = [item for item in requested_channels if item.casefold() not in available_channels]
-            if unknown:
-                raise ValueError(f"official analysis channel does not exist: {unknown[0]}")
             assert self.executor.algorithm_runtime is not None
-            self.executor.algorithm_runtime.validate_config(
+            typed_runtime_config = self.executor.algorithm_runtime.validate_config(
                 module=module,
                 config=official_config.runtime_config(),
             )
+            requested_channels = module.requested_channels(typed_runtime_config)
+            unknown = [item for item in requested_channels if item.casefold() not in available_channels]
+            if unknown:
+                raise ValueError(f"official analysis channel does not exist: {unknown[0]}")
             channels = requested_channels
-            config = official_config.model_dump(mode="json")
+            manifest = module.manifest
+            config = official_config.model_copy(
+                update={"scientific_version": manifest.scientific_version}
+            ).model_dump(mode="json")
             requested_range = official_config.time.model_dump(mode="json")
             actual_range = dict(requested_range)
-            manifest = module.manifest
-            definition = {"kind": "official_algorithm", "algorithm_id": manifest.algorithm_id,
-                          "scientific_version": manifest.scientific_version, "implementation_identity": manifest.implementation_identity}
-            scientific_version = manifest.scientific_version
-            window = {
-                "mode": official_config.mode, "welch_segment_s": ANALYSIS_CONTRACT["welch_segment_s"],
-                "welch_overlap": ANALYSIS_CONTRACT["welch_segment_overlap"],
-                "dynamic_window_s": official_config.dynamic_window_s if official_config.mode == "dynamic" else None,
-                "refresh_step_s": official_config.refresh_step_s if official_config.mode == "dynamic" else None,
-                "alignment": "window_end" if official_config.mode == "dynamic" else "range",
+            run_definition_id, run_definition_version, definition_digest = official_definition_identity(
+                self.definition_service,
+                manifest.algorithm_id,
+            )
+            definition = {
+                "kind": "official_algorithm",
+                "definition_id": run_definition_id,
+                "definition_version": run_definition_version,
+                "definition_digest": definition_digest,
+                "algorithm_id": manifest.algorithm_id,
+                "scientific_version": manifest.scientific_version,
+                "implementation_identity": manifest.implementation_identity,
             }
+            scientific_version = manifest.scientific_version
+            execution_snapshot = module.execution_snapshot(typed_runtime_config)
+            window = execution_snapshot.window
         else:
             raw = dict(request.config)
             time = raw.get("time") or {}
@@ -368,24 +381,29 @@ class RunService:
                 "overlap": 0.0 if request.analysis_type == "spectrogram" else 0.5,
                 "alignment": "window_center" if request.analysis_type == "spectrogram" else "range",
             }
+        filters = {key: ANALYSIS_CONTRACT[key] for key in (
+            "bandpass_type", "bandpass_prototype_order", "bandpass_hz",
+            "preprocessing_phase", "filter_form",
+        )}
+        quality_rules = {
+            "minimum_clean_ratio": ANALYSIS_CONTRACT["minimum_clean_epoch_ratio"],
+            "artifact_peak_uv": ANALYSIS_CONTRACT["artifact_peak_uv"],
+            "reasons": ["non_finite", "amplitude_threshold", "flatline", "clipping", "missing_samples"],
+        }
+        if request.analysis_type == "official_algorithm":
+            filters = execution_snapshot.filters
+            quality_rules = execution_snapshot.quality_rules
         return {
             "config": config,
-            "definition_id": request.definition_id,
-            "definition_version": request.definition_version,
+            "definition_id": run_definition_id,
+            "definition_version": run_definition_version,
             "requested_range": requested_range,
             "actual_range": actual_range,
             "channel_mapping": {"channels": channels},
             "reference": {"mode": ANALYSIS_CONTRACT["reference"]},
-            "filters": {key: ANALYSIS_CONTRACT[key] for key in (
-                "bandpass_type", "bandpass_prototype_order", "bandpass_hz",
-                "preprocessing_phase", "filter_form",
-            )},
+            "filters": filters,
             "window": window,
-            "quality_rules": {
-                "minimum_clean_ratio": ANALYSIS_CONTRACT["minimum_clean_epoch_ratio"],
-                "artifact_peak_uv": ANALYSIS_CONTRACT["artifact_peak_uv"],
-                "reasons": ["non_finite", "amplitude_threshold", "flatline", "clipping", "missing_samples"],
-            },
+            "quality_rules": quality_rules,
             # The metric's numerical definition is immutable, while its persisted
             # evidence contract is independently versioned so legacy summaries
             # without debug evidence cannot be reused as current Run results.

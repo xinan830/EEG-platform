@@ -12,4 +12,6 @@ MANIFEST = AlgorithmManifest(
     implementation_identity="iapf-runtime-v3",
     supported_modes=["static", "dynamic"],
     output_unit="Hz",
+    definition_name="Official IAPF",
+    execution_kind="official_composite_run_adapter",
 )

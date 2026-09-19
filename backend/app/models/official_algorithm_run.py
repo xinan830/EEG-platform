@@ -9,6 +9,7 @@ from app.models.analysis_config import AnalysisTimeRange
 
 class OfficialAlgorithmRunConfig(BaseModel):
     algorithm_id: Literal["iapf", "theta_beta", "rbp", "faa"]
+    scientific_version: str | None = Field(default=None, min_length=1, max_length=160)
     time: AnalysisTimeRange
     channel: str | None = Field(default=None, min_length=1, max_length=160)
     f4_channel: str | None = Field(default=None, min_length=1, max_length=160)

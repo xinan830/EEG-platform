@@ -25,17 +25,17 @@ class ProcessorIAPFMixin:
           返回 None（不再产生锁定事件）。
         """
         if not force:
-            if self.total_samples_seen - self._last_lock_attempt_sample < self.lock_attempt_interval_samples:
+            if self.total_samples_seen - self._last_lock_attempt_sample < self.iapf_lock_attempt_interval_samples:
                 return None
         self._last_lock_attempt_sample = self.total_samples_seen
-        if self.segment_samples < self.iapf_window_samples:
+        if self.segment_samples < self.iapf_lock_window_samples:
             print(
-                iapf_waiting_log_line(self.segment_samples, self.iapf_window_samples, self.sfreq),
+                iapf_waiting_log_line(self.segment_samples, self.iapf_lock_window_samples, self.sfreq),
                 flush=True,
             )
             return None  # 30s 窗未攒满
-        buf = self.segment_buffer_view()[-self.iapf_window_samples:]
-        result = self.summary_estimator.compute(buf, 'lock', duration_s=self.iapf_window_s)
+        buf = self.segment_buffer_view()[-self.iapf_lock_window_samples:]
+        result = self.summary_estimator.compute(buf, 'lock', duration_s=self.iapf_lock_window_s)
         self.last_iapf_result = result  # 每窗最新结果 → 供 UI「实时分析」动态重绘
         # 1/f 斜率与残差 RBP 同源派生：复用本窗的谱，不再单独滤波/算 PSD。
         # 放在所有分支返回之前——它们与 IAPF 是否锁定、是否过选值门都无关。

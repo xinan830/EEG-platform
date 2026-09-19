@@ -33,7 +33,14 @@ const users = computed(() => definitions.value.filter((item) => item.owner === '
 function catalogItem(key: string) { const source = key.startsWith('official:') ? 'official' : 'user'; const id = key.startsWith('official:') ? key.slice(9) : key; return (props.catalog.algorithms?.value ?? []).find((item) => item.source === source && item.id === id) }
 function dynamicPolicy(key: string): DynamicAnalysisPolicy { return catalogItem(key)?.dynamic_policy ?? { minimum_window_s: DEFAULT_DYNAMIC_METRIC_POLICY.minimumWindowS, window_options_s: [5, 10, 20, 30], default_window_s: 10, refresh_step_s: 1, allow_warmup: true } }
 function metricPolicy(key: string): DynamicMetricPolicy { const value = dynamicPolicy(key); return { minimumWindowS: value.minimum_window_s, refreshStepS: value.refresh_step_s, allowWarmup: value.allow_warmup } }
-function defaults(key: string): Settings { const policy = dynamicPolicy(key); return { channel: channels.value[0] ?? '', f4Channel: channels.value[1] ?? channels.value[0] ?? '', mode: 'static', startS: range.value.start, endS: range.value.end, windowS: policy.default_window_s as DynamicWindowS, stepS: policy.refresh_step_s as 1 | 5, displayRangeS: 30 } }
+function channelNamed(name: string, fallback: string) { return channels.value.find((item) => item.toLowerCase() === name.toLowerCase()) ?? fallback }
+function defaults(key: string): Settings {
+  const policy = dynamicPolicy(key)
+  const first = channels.value[0] ?? ''
+  const second = channels.value[1] ?? first
+  const faa = key === 'official:faa'
+  return { channel: faa ? channelNamed('F3', first) : first, f4Channel: faa ? channelNamed('F4', second) : second, mode: 'static', startS: range.value.start, endS: range.value.end, windowS: policy.default_window_s as DynamicWindowS, stepS: policy.refresh_step_s as 1 | 5, displayRangeS: 30 }
+}
 function config(key: string): Settings { if (!settings.value[key]) settings.value = { ...settings.value, [key]: defaults(key) }; return settings.value[key] }
 function setConfig(key: string, patch: Partial<Settings>) { settings.value = { ...settings.value, [key]: { ...config(key), ...patch } } }
 function isRunning(key: string) { return running.value.includes(key) }
@@ -59,7 +66,9 @@ async function submit(key: string, startS: number, endS: number, dynamic: boolea
   setRunning(key, true); message.value = ''
   try {
     const officialId = key.startsWith('official:') ? key.slice(9) : null
-    const request = officialId ? { source: 'official' as const, recordingId: props.recording.id, algorithmId: officialId, channel: value.channel, f4Channel: officialId === 'faa' ? value.f4Channel : undefined, startS, endS, mode: dynamic ? 'dynamic' as const : 'static' as const, dynamicWindowS: dynamic ? value.windowS : undefined, refreshStepS: dynamic ? value.stepS : undefined } : userRequest(key, value, startS, endS, dynamic)
+    const scientificVersion = catalogItem(key)?.version ?? (officialId ? official.value.find((item) => item.algorithm_id === officialId)?.scientific_version : undefined)
+    if (officialId && !scientificVersion) throw new Error('官方算法目录缺少科学版本')
+    const request = officialId ? { source: 'official' as const, recordingId: props.recording.id, algorithmId: officialId, scientificVersion: scientificVersion!, channel: value.channel, f4Channel: officialId === 'faa' ? value.f4Channel : undefined, startS, endS, mode: dynamic ? 'dynamic' as const : 'static' as const, dynamicWindowS: dynamic ? value.windowS : undefined, refreshStepS: dynamic ? value.stepS : undefined } : userRequest(key, value, startS, endS, dynamic)
     const created = await createAlgorithmRun(request)
     runs.value[key] = { status: created.status, result: append ? (runs.value[key]?.result ?? null) : resultOf(created), run: created, definitionName: title(key) }; await poll(created.run_id, key, append)
   } catch (error) { runs.value[key] = { status: 'failed', result: null, error: error instanceof Error ? error.message : '提交失败', definitionName: title(key) } }

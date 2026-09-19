@@ -37,6 +37,8 @@ paired two-second epoch quality gate and return `ln(P_F4) - ln(P_F3)`.
   contract
 - **THEN** the Run returns FAA, F3/F4 alpha powers, epoch counts, clean ratio,
   actual range and source-channel identities
+- **AND THEN** it analyses exactly the requested absolute range without
+  applying the legacy realtime pipeline's initial-recording discard
 
 #### Scenario: Missing or unsuitable FAA source channels
 
@@ -58,4 +60,3 @@ EMA persistence contract.
 - **THEN** BrainBeat explains that it is under engineering validation and is
   disabled
 - **AND THEN** it cannot submit an offline Run using a stateless substitute
-

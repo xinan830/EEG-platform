@@ -4,6 +4,28 @@ from __future__ import annotations
 
 import numpy as np
 
+from app.algorithm_runtime.contracts import AlgorithmManifest
+from app.eeg_core.analysis_contract import LIVE_ANALYSIS_CONTRACT
+
+
+# BrainBeat remains an official, non-runnable descriptor until its stateful
+# realtime lifecycle can be represented by a traceable AnalysisRun.
+BRAINBEAT_MANIFEST = AlgorithmManifest(
+    algorithm_id="brainbeat",
+    display_name_zh="脑节律指标",
+    abbreviation="BrainBeat",
+    purpose_zh="实时链路中的前额 Theta 与顶区 Alpha 相对功率关系；含状态性 EMA warm-up。",
+    scientific_version=LIVE_ANALYSIS_CONTRACT["algorithm_version"],
+    implementation_identity="realtime-eegprocessor-v1",
+    supported_modes=[],
+    output_unit="dimensionless",
+    definition_name="Official BRAINBEAT",
+    execution_kind="official_composite_shadow_only",
+    availability="shadow_validation",
+    is_runnable=False,
+    required_channel_roles=["Fz", "Pz", "IAPF"],
+)
+
 
 def _band_power(freqs, pxx, f_low, f_high) -> float:
     frequencies = np.asarray(freqs, dtype=float)

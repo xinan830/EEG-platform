@@ -96,7 +96,7 @@ def test_faa_provenance_keeps_paired_quality_evidence():
             "actual_range": {"start_s": 0.0, "end_s": 30.0},
             "output": {"id": "faa", "label": "额叶 Alpha 不对称性", "value": 0.2, "unit": "dimensionless"},
             "source_quality": {"clean_segments": 12, "total_segments": 14, "clean_ratio": 12 / 14},
-            "official": {"faa_evidence": {"channels": ["F3", "F4"], "clean_epochs": 12, "total_epochs": 14, "clean_ratio": 12 / 14, "band": [8.0, 13.0], "reason": "", "sfreq_hz": 500.0}},
+            "official": {"faa_evidence": {"channels": ["F3", "F4"], "source_channels": {"left": "F3", "right": "F4"}, "clean_epochs": 12, "total_epochs": 14, "clean_ratio": 12 / 14, "band": [8.0, 13.0], "reason": "", "sfreq_hz": 500.0, "faa_contract": {"epoch_s": 2.0, "overlap_fraction": 0.5, "step_s": 1.0, "frequency_resolution_hz": 0.5, "alpha_band_hz": [8.0, 13.0]}}},
         },
     }
 
@@ -104,4 +104,35 @@ def test_faa_provenance_keeps_paired_quality_evidence():
 
     assert provenance["channel"] == "F3/F4"
     assert provenance["sfreq_hz"] == 500.0
+    assert provenance["method"] == {"kind": "faa_paired_epoch_fft", "label_zh": "成对 Epoch FFT 密度谱", "detail_zh": "2 s Hann，50% Epoch overlap（1 s 步进）"}
+    assert provenance["preprocessing"] == {"kind": "per_epoch_demean", "label_zh": "每个成对 Epoch 独立去均值；未做软件带通"}
+    assert provenance["frequency"] == {"label_zh": "Alpha 积分频段", "low_hz": 8.0, "high_hz": 13.0, "point_count": 11, "resolution_hz": 0.5}
+    assert provenance["quality_label_zh"] == "成对 Epoch 质量门"
+    assert provenance["definition_version"] == "1.0.0"
     assert provenance["extensions"][-1]["kind"] == "faa_paired_quality"
+
+
+def test_legacy_faa_evidence_is_rendered_with_its_saved_epoch_contract():
+    run = _run()
+    run.result_summary = {
+        "metric": {
+            "channel": "F3/Fz",
+            "actual_range": {"start_s": 0.0, "end_s": 30.0},
+            "output": {"id": "faa", "label": "额叶 Alpha 不对称性", "value": 0.2, "unit": "dimensionless"},
+            "source_quality": {"clean_segments": 29, "total_segments": 29, "clean_ratio": 1.0},
+            "official": {"faa_evidence": {
+                "channels": ["F3", "Fz"], "clean_epochs": 29, "total_epochs": 29,
+                "clean_ratio": 1.0, "epoch_s": 2.0, "artifact_uv": 150.0,
+                "band": [8.0, 13.0], "reason": "", "sfreq_hz": 500.0,
+                "faa_contract": {"epoch_s": 2.0, "overlap_fraction": 0.5, "minimum_clean_epochs": 10, "alpha_band_hz": [8.0, 13.0]},
+            }},
+        },
+    }
+
+    provenance = build_analysis_provenance(run)
+
+    assert provenance["method"]["detail_zh"] == "2 s Hann，50% Epoch overlap（1 s 步进）"
+    assert provenance["frequency"]["resolution_hz"] == 0.5
+    extension = provenance["extensions"][-1]["data"]
+    assert extension["source_channels"] == {"left": "F3", "right": "Fz"}
+    assert extension["faa_contract"]["artifact_peak_uv"] == 150.0

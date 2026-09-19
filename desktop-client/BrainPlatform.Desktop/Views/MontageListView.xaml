@@ -1,0 +1,52 @@
+<UserControl x:Class="BrainPlatform.Desktop.Views.MontageListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#F3F5F8">
+    <Grid Margin="32">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <DockPanel>
+            <Button Width="36" Height="36" Margin="0,0,12,0" DockPanel.Dock="Left" Click="OnBackToSettingsClick" ToolTip="返回设置">&#x2190;</Button>
+            <Button DockPanel.Dock="Right" Padding="18,8" Background="#0066FF" Foreground="White" BorderThickness="0" Click="OnNewMontageProfileClick">+ 新建导联配置</Button>
+            <StackPanel>
+                <TextBlock Text="导联配置" FontSize="24" FontWeight="SemiBold" Foreground="#0F172A" />
+                <TextBlock Text="通道配置决定信号来源；导联配置只定义显示波形的组合方式。" Margin="0,5,0,0" Foreground="#64748B" />
+            </StackPanel>
+        </DockPanel>
+        <Border Grid.Row="1" Margin="0,22,0,16" Padding="14" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6">
+            <TextBlock Text="{Binding MontageConfigurations.StatusText}" Foreground="#1D4ED8" />
+        </Border>
+        <Border Grid.Row="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="44" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                <Grid Background="#F8FAFC">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="1.5*" /><ColumnDefinition Width="1.3*" /><ColumnDefinition Width="1*" /><ColumnDefinition Width="1.1*" /><ColumnDefinition Width="1.1*" /></Grid.ColumnDefinitions>
+                    <TextBlock Margin="16,0" VerticalAlignment="Center" Text="配置名称" FontWeight="SemiBold" Foreground="#475569" />
+                    <TextBlock Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Text="适用通道配置" FontWeight="SemiBold" Foreground="#475569" />
+                    <TextBlock Grid.Column="2" Margin="12,0" VerticalAlignment="Center" Text="导联类型" FontWeight="SemiBold" Foreground="#475569" />
+                    <TextBlock Grid.Column="3" Margin="12,0" VerticalAlignment="Center" Text="导联数" FontWeight="SemiBold" Foreground="#475569" />
+                    <TextBlock Grid.Column="4" Margin="12,0" VerticalAlignment="Center" Text="通道快照" FontWeight="SemiBold" Foreground="#475569" />
+                    <TextBlock Grid.Column="5" Margin="12,0" VerticalAlignment="Center" Text="操作" FontWeight="SemiBold" Foreground="#475569" />
+                </Grid>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding MontageConfigurations.Profiles}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="1.5*" /><ColumnDefinition Width="1.3*" /><ColumnDefinition Width="1*" /><ColumnDefinition Width="1.1*" /><ColumnDefinition Width="1.1*" /></Grid.ColumnDefinitions>
+                                        <StackPanel Margin="16,0"><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#0F172A" /><Border Margin="8,0,0,0" Padding="6,2" Background="#ECFDF5" CornerRadius="4"><TextBlock Text="{Binding SourceLabel}" FontSize="11" Foreground="#047857" /></Border></StackPanel><TextBlock Text="{Binding Description}" Margin="0,3,0,0" FontSize="12" Foreground="#64748B" TextTrimming="CharacterEllipsis" /></StackPanel>
+                                        <TextBlock Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Text="{Binding ChannelConfigurationName}" Foreground="#334155" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="2" Margin="12,0" VerticalAlignment="Center" Text="{Binding ReferenceSummary}" Foreground="#334155" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="3" Margin="12,0" VerticalAlignment="Center" Text="{Binding ChannelCount}" Foreground="#334155" />
+                                        <TextBlock Grid.Column="4" Margin="12,0" VerticalAlignment="Center" Text="{Binding ChannelSnapshotStatusLabel}" ToolTip="{Binding ChannelSnapshotStatusDetail}" Foreground="#2563EB" />
+                                        <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="12,0"><Button Padding="8,4" Margin="0,0,8,0" Click="OnOpenMontageDetailClick" Content="{Binding OpenActionLabel}" /><Button Padding="8,4" Margin="0,0,8,0" Click="OnCopyMontageProfileClick"><Button.Style><Style TargetType="Button"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding CanCopy}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style>复制</Button><Button Padding="8,4" Foreground="#DC2626" Click="OnDeleteMontageProfileClick"><Button.Style><Style TargetType="Button"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding CanDelete}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Button.Style>删除</Button></StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

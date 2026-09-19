@@ -34,6 +34,9 @@ export type AlgorithmCatalogItem = {
   dynamic_policy: DynamicAnalysisPolicy
   availability: string
   is_runnable: boolean
+  definition_id?: string
+  definition_version?: string
+  implementation_identity?: string
 }
 
 export function listAlgorithms(): Promise<AlgorithmCatalogItem[]> {

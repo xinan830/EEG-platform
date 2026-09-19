@@ -1,0 +1,20 @@
+﻿<Application x:Class="BrainPlatform.Desktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BrainPlatform.Desktop">
+    <Application.Resources>
+        <SolidColorBrush x:Key="CanvasBrush" Color="#F4F7F8" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="InkBrush" Color="#17242A" />
+        <SolidColorBrush x:Key="MutedInkBrush" Color="#617178" />
+        <SolidColorBrush x:Key="SidebarBrush" Color="#17313A" />
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#B8C7CC" />
+            <Setter Property="Background" Value="White" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </Application.Resources>
+</Application>

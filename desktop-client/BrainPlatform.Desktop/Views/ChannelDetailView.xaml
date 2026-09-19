@@ -1,0 +1,284 @@
+<UserControl x:Class="BrainPlatform.Desktop.Views.ChannelDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#F3F5F8">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="WorkspaceStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="ActionButton" TargetType="Button">
+                <Setter Property="Height" Value="34" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#CBD5E1" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="#1E293B" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Root" Property="Background" Value="#F8FAFC" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+                <Setter Property="Background" Value="#2563EB" />
+                <Setter Property="BorderBrush" Value="#2563EB" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
+            </Style>
+            <Style x:Key="ToggleStyle" TargetType="CheckBox">
+                <Setter Property="Width" Value="36" />
+                <Setter Property="Height" Value="20" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CheckBox">
+                            <Grid>
+                                <Border x:Name="Track" Width="36" Height="20" Background="#CBD5E1" CornerRadius="10" />
+                                <Ellipse x:Name="Thumb" Width="16" Height="16" Fill="White" HorizontalAlignment="Left" Margin="2,0,0,0" />
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Track" Property="Background" Value="#2563EB" />
+                                    <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                                    <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+            <Style x:Key="RowBorder" TargetType="Border">
+                <Setter Property="Height" Value="50" />
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#E2E8F0" />
+                <Setter Property="BorderThickness" Value="0,0,0,1" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#F8FAFC" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="24,20">
+        <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="28">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                        <Button Style="{StaticResource ActionButton}" Width="36" Padding="0" Click="OnBackToChannelListClick" ToolTip="返回列表">
+                            <TextBlock Text="←" FontSize="18" Foreground="#334155" />
+                        </Button>
+                        <StackPanel Margin="10,0,0,0">
+                            <TextBlock Text="{Binding ChannelConfigurations.DraftTitle}" FontSize="22" FontWeight="Bold" Foreground="#0F172A" />
+                            <TextBlock Text="选择设备，确认设备输入与电极标签的映射。" FontSize="13" Foreground="#64748B" />
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Click="OnCreateEditableCopyClick"
+                                ToolTip="保留当前配置及其导联引用，创建一份可独立修改的新配置">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource ActionButton}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding ChannelConfigurations.CanCreateVersionSelected}" Value="True" />
+                                                <Condition Binding="{Binding ChannelConfigurations.IsSignalLockedDraft}" Value="True" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <TextBlock Text="创建可编辑副本" Foreground="#7C3AED" />
+                        </Button>
+                        <Button Style="{StaticResource ActionButton}" Command="{Binding ChannelConfigurations.CloseDraftCommand}" Click="OnBackToChannelListClick">
+                            <TextBlock Text="取消" />
+                        </Button>
+                        <Button Command="{Binding ChannelConfigurations.SaveDraftCommand}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers><DataTrigger Binding="{Binding ChannelConfigurations.CanEditDraft}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <TextBlock Text="保存配置" FontWeight="SemiBold" />
+                        </Button>
+                    </StackPanel>
+                </DockPanel>
+
+                <Border Grid.Row="1" Margin="0,20,0,16" Padding="16" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.15*" />
+                            <ColumnDefinition Width="2.1*" />
+                            <ColumnDefinition Width="1.35*" />
+                            <ColumnDefinition Width="1*" />
+                            <ColumnDefinition Width="1*" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="配置名称" Foreground="#64748B" FontSize="12" />
+                            <TextBox Text="{Binding ChannelConfigurations.DraftName, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ChannelConfigurations.CanEditDraft}" Margin="0,5,12,0" Padding="6,4" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="14,0">
+                            <TextBlock Text="说明" Foreground="#64748B" FontSize="12" />
+                            <TextBox Text="{Binding ChannelConfigurations.DraftDescription, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ChannelConfigurations.CanEditDraft}" Margin="0,5,12,0" Padding="6,4" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="14,0">
+                            <TextBlock Text="已选设备" Foreground="#64748B" FontSize="12" />
+                            <TextBlock Text="{Binding ChannelConfigurations.DraftDevice.DisplayName, TargetNullValue=未选择}" Margin="0,8,12,0" FontWeight="SemiBold" Foreground="#0F172A" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="3" Margin="14,0">
+                            <TextBlock Text="实际 EEG 输入" Foreground="#64748B" FontSize="12" />
+                            <TextBlock Text="{Binding ChannelConfigurations.DraftEegInputCount}" Margin="0,5,0,0" FontSize="18" FontWeight="SemiBold" Foreground="#0F172A" />
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="当前显示 " FontSize="12" Foreground="#64748B" />
+                                <TextBlock Text="{Binding ChannelConfigurations.DraftEnabledCount}" FontSize="12" Foreground="#64748B" />
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="4" Margin="14,0">
+                            <TextBlock Text="REF 实际连接位置" Foreground="#64748B" FontSize="12" />
+                            <TextBox Text="{Binding ChannelConfigurations.DraftReferenceElectrodeLocation, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ChannelConfigurations.CanEditSignalDraft}" Margin="0,5,0,0" Padding="6,4" ToolTip="固定硬件 REF 线实际贴附的电极位置；设备不会自动报告。" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="5" Margin="14,0">
+                            <TextBlock Text="GND 实际连接位置" Foreground="#64748B" FontSize="12" />
+                            <TextBox Text="{Binding ChannelConfigurations.DraftGroundElectrodeLocation, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding ChannelConfigurations.CanEditSignalDraft}" Margin="0,5,0,0" Padding="6,4" ToolTip="固定硬件 GND 线实际贴附的电极位置；设备不会自动报告。" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                        <TextBlock DockPanel.Dock="Left" Text="设备通道映射" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A" />
+                        <TextBlock DockPanel.Dock="Right" Text="单位由设备读取；显示单位由软件显示契约确定。" Foreground="#64748B" FontSize="12" />
+                        <TextBlock Text="{Binding ChannelConfigurations.DraftLockMessage}" Margin="18,0" Foreground="#B45309" FontSize="12" TextTrimming="CharacterEllipsis">
+                            <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding ChannelConfigurations.IsSignalLockedDraft}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                        </TextBlock>
+                    </DockPanel>
+                    <Border Grid.Row="1" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="42" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid Grid.Row="0" Background="#F8FAFC">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="1.2*" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="100" />
+                                    <ColumnDefinition Width="1.2*" />
+                                    <ColumnDefinition Width="1.2*" />
+                                    <ColumnDefinition Width="80" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="设备输入编号" Margin="10,0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B" />
+                                <TextBlock Grid.Column="1" Text="电极名称" Margin="10,0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B" />
+                                <TextBlock Grid.Column="2" Text="通道类型" Margin="10,0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B" />
+                                <TextBlock Grid.Column="3" Text="是否显示" Margin="10,0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B" />
+                                <TextBlock Grid.Column="4" Text="显示顺序" Margin="10,0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B" />
+                                <TextBlock Grid.Column="5" Text="设备单位" Margin="10,0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B" />
+                                <TextBlock Grid.Column="6" Text="显示单位" Margin="10,0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B" />
+                                <TextBlock Grid.Column="7" Text="操作" Margin="10,0" VerticalAlignment="Center" FontSize="12" Foreground="#64748B" />
+                            </Grid>
+                            <ListBox Grid.Row="1" BorderThickness="0" Background="White"
+                                     ItemsSource="{Binding ChannelConfigurations.DraftRows}"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource RowBorder}">
+                                            <Grid IsEnabled="{Binding DataContext.ChannelConfigurations.CanEditSignalDraft, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="90" />
+                                                    <ColumnDefinition Width="2*" />
+                                                    <ColumnDefinition Width="1.2*" />
+                                                    <ColumnDefinition Width="110" />
+                                                    <ColumnDefinition Width="100" />
+                                                    <ColumnDefinition Width="1.2*" />
+                                                    <ColumnDefinition Width="1.2*" />
+                                                    <ColumnDefinition Width="80" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding NativeChannelIndex}" Margin="10,0" VerticalAlignment="Center" Foreground="#334155" />
+                                                <TextBox Grid.Column="1" Text="{Binding ElectrodeLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEdit}" Margin="6" Padding="6,3" VerticalContentAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Role}" Margin="10,0" VerticalAlignment="Center" Foreground="#475569" />
+                                                <CheckBox Grid.Column="3" IsChecked="{Binding IsEnabled, Mode=TwoWay}" IsEnabled="{Binding IsEegInput}" Style="{StaticResource ToggleStyle}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                <TextBox Grid.Column="4" Text="{Binding DisplayOrder, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsEegInput}" Margin="8,7" Padding="5,2" VerticalContentAlignment="Center" />
+                                                <TextBlock Grid.Column="5" Text="{Binding DeviceUnit}" Margin="10,0" VerticalAlignment="Center" Foreground="#475569" />
+                                                <TextBlock Grid.Column="6" Text="{Binding DisplayUnit}" Margin="10,0" VerticalAlignment="Center" Foreground="#475569" />
+                                                <Button Grid.Column="7" Content="编辑" Style="{StaticResource ActionButton}" Height="28" Padding="8,0" IsEnabled="{Binding CanEdit}" Click="OnEditDraftRowClick" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock Grid.Row="1" Text="请选择设备以读取通道。" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B" FontSize="13">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ChannelConfigurations.DraftRows.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <DockPanel Grid.Row="3" Margin="0,14,0,0">
+                    <TextBlock DockPanel.Dock="Left" Text="{Binding ChannelConfigurations.StatusText}" FontSize="12.5" Foreground="#64748B" />
+                    <TextBlock DockPanel.Dock="Right" Text="设备单位是硬件事实；显示单位不修改原始数据。" FontSize="12.5" Foreground="#64748B" />
+                </DockPanel>
+            </Grid>
+        </Border>
+        <Border Panel.ZIndex="10" Background="#990F172A">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ChannelConfigurations.IsDevicePickerVisible}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Border Width="440" Padding="24" Background="White" CornerRadius="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="选择设备" FontSize="19" FontWeight="SemiBold" Foreground="#0F172A" />
+                    <TextBlock Text="选择后自动读取该设备的物理输入和默认电极模板。" Margin="0,8,0,16" Foreground="#64748B" TextWrapping="Wrap" />
+                    <ComboBox ItemsSource="{Binding Acquisition.Devices}" SelectedItem="{Binding ChannelConfigurations.DraftDevice, Mode=TwoWay}" DisplayMemberPath="DisplayName" Padding="6,4" />
+                    <TextBlock Text="未检测到设备时，请先到采集页测试放大器连接。" Margin="0,12,0,0" FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

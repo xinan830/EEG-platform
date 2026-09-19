@@ -1,0 +1,347 @@
+<UserControl x:Class="BrainPlatform.Desktop.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#F3F5F8">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="WorkspaceStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- 圆形箭头按钮样式 -->
+            <Style x:Key="CircleArrowButtonStyle" TargetType="Button">
+                <Setter Property="Width" Value="38" />
+                <Setter Property="Height" Value="38" />
+                <Setter Property="Background" Value="#EFF6FF" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Name="Border" Background="{TemplateBinding Background}" CornerRadius="19">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="#DBEAFE" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="#BFDBFE" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- 流程步骤胶囊样式 -->
+            <Style x:Key="StepCapsuleBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="#EFF6FF" />
+                <Setter Property="CornerRadius" Value="18" />
+                <Setter Property="Height" Value="36" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="Cursor" Value="Hand" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24,28,24">
+        <Grid.RowDefinitions>
+            <!-- 1. 页面标题栏 -->
+            <RowDefinition Height="Auto" />
+            <!-- 2. 两张主设置卡片 -->
+            <RowDefinition Height="Auto" />
+            <!-- 间距 -->
+            <RowDefinition Height="20" />
+            <!-- 3. 底部配置流程建议 -->
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ==================== 1. 标题区 ==================== -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,24">
+            <TextBlock Text="设置" FontSize="26" FontWeight="Bold" Foreground="#0F172A" />
+            <TextBlock Text="管理通道配置与导联配置，用于采集、显示和分析的基础设置"
+                       FontSize="13.5" Foreground="#64748B" Margin="0,8,0,0" />
+        </StackPanel>
+
+        <!-- ==================== 2. 两张主卡片 ==================== -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <!-- 通道配置卡片 -->
+                <ColumnDefinition Width="*" />
+                <!-- 间距 -->
+                <ColumnDefinition Width="20" />
+                <!-- 导联配置卡片 -->
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ========== 卡片 1: 通道配置 ========== -->
+            <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="28,24,28,20"
+                    Cursor="Hand" MouseLeftButtonUp="OnOpenChannelListClick">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <!-- 头部图标、标题与进入按钮 -->
+                        <RowDefinition Height="Auto" />
+                        <!-- 主要功能列表区 -->
+                        <RowDefinition Height="Auto" />
+                        <!-- 底部当前配置与修改时间 -->
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 头部 -->
+                    <Grid Grid.Row="0" Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 左侧图标容器 -->
+                        <Border Grid.Column="0" Width="52" Height="52" Background="#EFF6FF" CornerRadius="12" Margin="0,0,16,0">
+                            <!-- 脉冲波形图标 -->
+                            <Path Data="M 2,13 H 5 L 8,5 L 12,21 L 16,9 L 19,16 L 21,13 H 24"
+                                  Width="24" Height="24" Stretch="Uniform"
+                                  Stroke="#2563EB" StrokeThickness="2.2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+
+                        <!-- 标题与简介 -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="通道配置" FontSize="18" FontWeight="Bold" Foreground="#0F172A" />
+                            <TextBlock Text="配置设备的物理输入通道、设置电极名称、通道类型、采集与显示策略等。"
+                                       FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" Margin="0,6,0,0" LineHeight="18" />
+                        </StackPanel>
+
+                        <!-- 右侧圆形进入按钮 -->
+                        <Button Grid.Column="2" Style="{StaticResource CircleArrowButtonStyle}" VerticalAlignment="Center" Margin="12,0,0,0" Click="OnOpenChannelListClick">
+                            <!-- 蓝色向右箭头 -->
+                            <Path Data="M 3,8 H 13 M 9,4 L 13,8 L 9,12"
+                                  Width="14" Height="14" Stretch="Uniform"
+                                  Stroke="#2563EB" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                    </Grid>
+
+                    <!-- 主要功能列表容器 -->
+                    <Border Grid.Row="1" Background="#F8FAFC" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="主要功能" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,0,0,12" />
+
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="设备物理通道映射" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="电极名称与通道类型设置" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="采集通道启用 / 禁用" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="波形显示开关与单位设置" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="通道配置预设的创建与管理" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 底部当前配置与修改时间 -->
+                    <DockPanel Grid.Row="2" LastChildFill="False">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- 数据库/配置预设图标 -->
+                            <Path Data="M 3,4 C 3,2.5 13,2.5 13,4 C 13,5.5 3,5.5 3,4 M 3,4 V 12 C 3,13.5 13,13.5 13,12 V 4 M 3,8 C 3,9.5 13,9.5 13,8"
+                                  Width="14" Height="14" Stretch="Uniform"
+                                  Stroke="#64748B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="当前配置" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding Acquisition.ChannelMapping.StatusText}" FontSize="12.5" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="最后修改" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="连接设备后可查看并保存当前设备的通道标注" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DockPanel>
+                </Grid>
+            </Border>
+
+            <!-- ========== 卡片 2: 导联配置 ========== -->
+            <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="28,24,28,20"
+                    Cursor="Hand" MouseLeftButtonUp="OnOpenMontageListClick">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <!-- 头部图标、标题与进入按钮 -->
+                        <RowDefinition Height="Auto" />
+                        <!-- 主要功能列表区 -->
+                        <RowDefinition Height="Auto" />
+                        <!-- 底部当前配置与修改时间 -->
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 头部 -->
+                    <Grid Grid.Row="0" Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 左侧图标容器 -->
+                        <Border Grid.Column="0" Width="52" Height="52" Background="#EFF6FF" CornerRadius="12" Margin="0,0,16,0">
+                            <!-- 导联/网络拓扑图标 -->
+                            <Path Data="M 6,6 A 2.5,2.5 0 1 1 6,11 A 2.5,2.5 0 0 1 6,6 M 18,3 A 2.5,2.5 0 1 1 18,8 A 2.5,2.5 0 0 1 18,3 M 18,15 A 2.5,2.5 0 1 1 18,20 A 2.5,2.5 0 0 1 18,15 M 8.2,9.2 L 15.8,6.2 M 8.2,10.2 L 15.8,16.5"
+                                  Width="22" Height="22" Stretch="Uniform"
+                                  Stroke="#2563EB" StrokeThickness="2.2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+
+                        <!-- 标题与简介 -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="导联配置" FontSize="18" FontWeight="Bold" Foreground="#0F172A" />
+                            <TextBlock Text="基于已采集通道，配置显示导联或分析导联（参考方式、通道组合等）。"
+                                       FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" Margin="0,6,0,0" LineHeight="18" />
+                        </StackPanel>
+
+                        <!-- 右侧圆形进入按钮 -->
+                        <Button Grid.Column="2" Style="{StaticResource CircleArrowButtonStyle}" VerticalAlignment="Center" Margin="12,0,0,0" Click="OnOpenMontageListClick">
+                            <Path Data="M 3,8 H 13 M 9,4 L 13,8 L 9,12"
+                                  Width="14" Height="14" Stretch="Uniform"
+                                  Stroke="#2563EB" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                    </Grid>
+
+                    <!-- 主要功能列表容器 -->
+                    <Border Grid.Row="1" Background="#F8FAFC" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="主要功能" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,0,0,12" />
+
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="参考方式设置（原始参考 / 平均参考 / 双耳平均等）" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="导联列表管理（如 F3-REF、F3-F4 等）" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="正 / 负通道关系配置" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="显示顺序与分组设置" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="4.5" Height="4.5" Fill="#64748B" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <TextBlock Text="导联配置预设的创建与管理" FontSize="12.5" Foreground="#475569" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 底部当前配置与修改时间 -->
+                    <DockPanel Grid.Row="2" LastChildFill="False">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="M 3,4 C 3,2.5 13,2.5 13,4 C 13,5.5 3,5.5 3,4 M 3,4 V 12 C 3,13.5 13,13.5 13,12 V 4 M 3,8 C 3,9.5 13,9.5 13,8"
+                                  Width="14" Height="14" Stretch="Uniform"
+                                  Stroke="#64748B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="当前配置" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="标准10-20 导联" FontSize="12.5" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
+                        </StackPanel>
+
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="最后修改" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="2024-10-20 11:32" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </DockPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ==================== 3. 底部配置流程建议 ==================== -->
+        <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="24,18,28,18">
+            <DockPanel LastChildFill="False">
+                <!-- 左侧提示与文案 -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 圆形灯泡图标容器 -->
+                    <Border Width="40" Height="40" Background="#EFF6FF" CornerRadius="20" Margin="0,0,16,0">
+                        <Path Data="M 9,2 A 5,5 0 0 1 14,7 C 14,9 12.5,10.5 12,12 H 7 C 6.5,10.5 5,9 5,7 A 5,5 0 0 1 9,2 M 7,14 H 12 M 8,16 H 11"
+                              Width="18" Height="18" Stretch="Uniform"
+                              Stroke="#2563EB" StrokeThickness="1.8"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="配置流程建议" FontSize="14.5" FontWeight="Bold" Foreground="#0F172A" />
+                        <TextBlock Text="请先完成通道配置，再进行导联配置，最后开始数据采集。"
+                                   FontSize="12" Foreground="#64748B" Margin="0,4,0,0" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 右侧步骤引导胶囊与箭头 -->
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- 步骤 1: 通道配置 -->
+                    <Border Style="{StaticResource StepCapsuleBorderStyle}" MouseLeftButtonUp="OnOpenChannelListClick">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="M 1,7 H 3 L 5,2 L 8,13 L 10,5 L 12,9 L 13,7 H 15"
+                                  Width="14" Height="14" Stretch="Uniform"
+                                  Stroke="#2563EB" StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="通道配置" FontSize="12.5" FontWeight="Medium" Foreground="#1E3A8A" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 箭头 -->
+                    <Path Data="M 1,5 L 7,5 M 4,2 L 7,5 L 4,8"
+                          Width="8" Height="8" Stretch="Uniform"
+                          Stroke="#94A3B8" StrokeThickness="1.6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Margin="12,0" VerticalAlignment="Center" />
+
+                    <!-- 步骤 2: 导联配置 -->
+                    <Border Style="{StaticResource StepCapsuleBorderStyle}" MouseLeftButtonUp="OnOpenMontageListClick">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Path Data="M 4,4 A 1.8,1.8 0 1 1 4,7.6 A 1.8,1.8 0 0 1 4,4 M 12,2 A 1.8,1.8 0 1 1 12,5.6 A 1.8,1.8 0 0 1 12,2 M 12,9.4 A 1.8,1.8 0 1 1 12,13 A 1.8,1.8 0 0 1 12,9.4 M 5.5,6.2 L 10.5,4 M 5.5,7 L 10.5,10.5"
+                                  Width="14" Height="14" Stretch="Uniform"
+                                  Stroke="#2563EB" StrokeThickness="1.6"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="导联配置" FontSize="12.5" FontWeight="Medium" Foreground="#1E3A8A" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 箭头 -->
+                    <Path Data="M 1,5 L 7,5 M 4,2 L 7,5 L 4,8"
+                          Width="8" Height="8" Stretch="Uniform"
+                          Stroke="#94A3B8" StrokeThickness="1.6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Margin="12,0" VerticalAlignment="Center" />
+
+                    <!-- 步骤 3: 开始采集 (蓝色带实心播放图标) -->
+                    <Border Style="{StaticResource StepCapsuleBorderStyle}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="16" Height="16" Margin="0,0,8,0" VerticalAlignment="Center">
+                                <Ellipse Fill="#2563EB" />
+                                <Path Data="M 6,4 L 11,8 L 6,12 Z" Fill="#FFFFFF" Stretch="Uniform" Width="6" Height="6"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" Margin="1,0,0,0" />
+                            </Grid>
+                            <TextBlock Text="开始采集" FontSize="12.5" FontWeight="Medium" Foreground="#1E3A8A" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

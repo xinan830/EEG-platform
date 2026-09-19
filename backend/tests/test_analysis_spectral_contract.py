@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import signal
 
-from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT, LIVE_ANALYSIS_CONTRACT
 from app.eeg_core.faa import compute_faa
 from app.eeg_core.offline_metrics import metric_values
 from app.eeg_core.spectral import (
@@ -25,6 +25,12 @@ def test_offline_preprocessing_matches_independent_scipy_reference():
 
     np.testing.assert_allclose(preprocess_offline(source, sfreq), expected, rtol=1e-12, atol=1e-15)
     assert ANALYSIS_CONTRACT["algorithm_version"] == "offline-spectral-v3"
+    assert "iapf_window_s" not in ANALYSIS_CONTRACT
+    assert "iapf_step_s" not in ANALYSIS_CONTRACT
+    assert ANALYSIS_CONTRACT["faa_static_scope"] == "exact_requested_absolute_range"
+    assert LIVE_ANALYSIS_CONTRACT["iapf_lock_window_s"] == 30.0
+    assert LIVE_ANALYSIS_CONTRACT["iapf_lock_attempt_step_s"] == 5.0
+    assert LIVE_ANALYSIS_CONTRACT["faa_initial_discard_s"] == 12.0
 
 
 def test_welch_rejects_paired_artifact_epochs_without_joining_samples():

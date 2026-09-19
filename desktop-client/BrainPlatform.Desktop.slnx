@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="BrainPlatform.Desktop/BrainPlatform.Desktop.csproj" />
+  <Project Path="BrainPlatform.Desktop.Tests/BrainPlatform.Desktop.Tests.csproj" />
+</Solution>

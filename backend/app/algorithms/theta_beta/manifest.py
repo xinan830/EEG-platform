@@ -10,4 +10,6 @@ MANIFEST = AlgorithmManifest(
     implementation_identity="theta-beta-runtime-v1",
     supported_modes=["static", "dynamic"],
     output_unit="dimensionless",
+    definition_name="Official THETA_BETA",
+    execution_kind="official_composite_run_adapter",
 )

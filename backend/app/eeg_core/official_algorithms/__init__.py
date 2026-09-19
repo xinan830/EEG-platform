@@ -3,6 +3,7 @@
 from .registry import (
     OFFICIAL_ALGORITHM_MANIFESTS,
     ensure_official_definitions,
+    official_definition_identity,
     official_algorithm_catalog,
     official_definition,
     official_definition_draft,
@@ -11,6 +12,7 @@ from .registry import (
 __all__ = [
     "OFFICIAL_ALGORITHM_MANIFESTS",
     "ensure_official_definitions",
+    "official_definition_identity",
     "official_algorithm_catalog",
     "official_definition",
     "official_definition_draft",

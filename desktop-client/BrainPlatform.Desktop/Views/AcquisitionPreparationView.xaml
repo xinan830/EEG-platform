@@ -1,0 +1,106 @@
+<UserControl x:Class="BrainPlatform.Desktop.Views.AcquisitionPreparationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#F3F5F8">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="WorkspaceStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="22" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="20" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="采集准备" FontSize="26" FontWeight="Bold" Foreground="#0F172A" />
+            <TextBlock Text="确认项目、设备、导联与采样率。进入后设备开始实时预览，只有点击“开始记录”才会写入原始记录。"
+                       Margin="0,8,0,0" FontSize="13.5" Foreground="#64748B" />
+        </StackPanel>
+
+        <Grid Grid.Row="2" MaxWidth="900" HorizontalAlignment="Center" VerticalAlignment="Top">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="16" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="22">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="1*" /><ColumnDefinition Width="1*" /></Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,20,0">
+                        <TextBlock Text="研究项目" FontSize="12" Foreground="#64748B" />
+                        <TextBlock Text="{Binding Acquisition.SelectedProject.Name, TargetNullValue=未选择项目}"
+                                   Margin="0,6,0,0" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
+                        <TextBlock Text="{Binding Acquisition.SelectedProject.Number}" Margin="0,4,0,0" FontSize="12" Foreground="#64748B" />
+                        <TextBlock Text="{Binding Acquisition.SelectedProject.DirectoryPath}" Margin="0,8,0,0"
+                                   FontSize="11.5" Foreground="#64748B" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="20,0,0,0">
+                        <TextBlock Text="采集设备" FontSize="12" Foreground="#64748B" />
+                        <TextBlock Text="{Binding Overview.StateText}" Margin="0,6,0,0" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
+                        <TextBlock Text="{Binding Overview.DeviceDetail}" Margin="0,4,0,0" FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Acquisition.AcquisitionStatusText}" Margin="0,8,0,0" FontSize="11.5" Foreground="#64748B" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="22">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="18" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="20" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="采集参数" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
+                        <TextBlock Text="只显示当前设备和已保存配置提供的有效选项。" Margin="0,5,0,0" FontSize="12" Foreground="#64748B" />
+                    </StackPanel>
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="1*" /><ColumnDefinition Width="28" /><ColumnDefinition Width="1*" /></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="导联配置 *" FontSize="12.5" Foreground="#334155" />
+                            <ComboBox ItemsSource="{Binding MontageConfigurations.AvailableForAcquisition}"
+                                      SelectedItem="{Binding Acquisition.SelectedMontageProfile, Mode=TwoWay}"
+                                      DisplayMemberPath="Name" Margin="0,7,0,0" Height="38" Padding="8,5"
+                                      ToolTip="导联配置携带其来源通道配置快照。" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="采样率 *" FontSize="12.5" Foreground="#334155" />
+                            <ComboBox ItemsSource="{Binding Acquisition.SamplingRatesHz}"
+                                      SelectedItem="{Binding Acquisition.SelectedSamplingRateHz, Mode=TwoWay}"
+                                      Margin="0,7,0,0" Height="38" Padding="8,5">
+                                <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding StringFormat={}{0} Hz}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+                    <Border Grid.Row="4" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="14,11">
+                        <TextBlock Text="原始 EEG 将保持设备原始通道与数值不变；导联只用于实时显示，并随项目、通道配置一起写入本次记录快照。"
+                                   FontSize="12" Foreground="#475569" TextWrapping="Wrap" />
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Grid Grid.Row="4" MaxWidth="900" HorizontalAlignment="Center">
+            <TextBlock Text="{Binding Acquisition.OperationMessage}" MaxWidth="560" Foreground="#64748B"
+                       TextWrapping="Wrap" VerticalAlignment="Center" HorizontalAlignment="Left" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="返回项目" Width="110" Height="38" Click="OnBackClick"
+                        Style="{StaticResource ModernDialogSecondaryButtonStyle}" />
+                <Button Content="进入实时预览" Width="130" Height="38" Margin="12,0,0,0" Click="OnStartClick"
+                        IsEnabled="{Binding Acquisition.CanStart}"
+                        Style="{StaticResource ModernDialogPrimaryButtonStyle}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

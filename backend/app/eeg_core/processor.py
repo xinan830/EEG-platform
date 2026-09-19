@@ -4,7 +4,7 @@ from collections import deque
 
 from app.eeg_core.iapf_estimator import IAPFEstimator
 from app.eeg_core.faa import (
-    ARTIFACT_THRESHOLD_UV, FAA_CHANNELS, FAA_DISCARD_S, FAA_PERIOD_CAP_S,
+    ARTIFACT_THRESHOLD_UV, FAA_CHANNELS, LEGACY_FAA_INITIAL_DISCARD_S, FAA_PERIOD_CAP_S,
 )
 from app.eeg_core.processor_iapf import ProcessorIAPFMixin
 from app.eeg_core.processor_brainbeat import ProcessorBrainbeatMixin
@@ -107,9 +107,9 @@ class EEGProcessor(
         self.iapf_lock_candidates = []
         self.iapf_lock_candidate_results = []  # 与 candidates 并行的完整结果，锁定时取中位数窗做定格快照
         self.iapf_lock_target_count = 3        # K：连续 K 次过门禁才锁定第一个 IAPF
-        self.iapf_window_s = 30.0              # IAPF 估计滑动窗（近 30 秒），与锁定/实时共用
-        self.iapf_window_samples = int(sfreq * self.iapf_window_s)
-        self.lock_attempt_interval_samples = int(sfreq * 5.0)  # 每 5 秒试行一次
+        self.iapf_lock_window_s = 30.0         # 旧实时链的 IAPF 锁定滑动窗
+        self.iapf_lock_window_samples = int(sfreq * self.iapf_lock_window_s)
+        self.iapf_lock_attempt_interval_samples = int(sfreq * 5.0)  # 每 5 秒试行一次
         # 与试行间隔一致：每次试行都够格成为锁定候选
         self.iapf_lock_candidate_interval_samples = int(sfreq * 5.0)
         self._last_lock_attempt_sample = -10**12
@@ -137,7 +137,7 @@ class EEGProcessor(
         self.faa_channels = [c for c in FAA_CHANNELS if c.upper() in all_upper]
         self.faa_col_idx = [all_upper.index(c.upper()) for c in self.faa_channels]
         self.faa_available = len(self.faa_channels) == len(FAA_CHANNELS)
-        self.faa_discard_s = FAA_DISCARD_S
+        self.faa_discard_s = LEGACY_FAA_INITIAL_DISCARD_S
         self.faa_period_cap_samples = int(sfreq * FAA_PERIOD_CAP_S)
         self._faa_chunks = []
         self._faa_samples = 0

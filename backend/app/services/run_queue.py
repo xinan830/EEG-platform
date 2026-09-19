@@ -45,7 +45,9 @@ class PersistentRunQueue:
         now = utc_now()
         run = AnalysisRun(
             run_id=uuid4().hex, recording_id=recording.id, analysis_type=request.analysis_type,
-            status=RunStatus.QUEUED, definition_id=request.definition_id, definition_version=request.definition_version,
+            status=RunStatus.QUEUED,
+            definition_id=resolved["definition_id"],
+            definition_version=resolved["definition_version"],
             scientific_version=resolved["scientific_version"], implementation_version=build, config=resolved["config"],
             config_sha256=config_sha256, cache_key=cache_key, requested_range=resolved["requested_range"],
             channel_mapping=resolved["channel_mapping"], reference=resolved["reference"], filters=resolved["filters"],

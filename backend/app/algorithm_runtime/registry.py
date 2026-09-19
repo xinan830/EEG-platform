@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .contracts import AlgorithmModule
-from .errors import DuplicateAlgorithmError, UnknownAlgorithmError
+from .errors import AmbiguousAlgorithmVersionError, DuplicateAlgorithmError, UnknownAlgorithmError
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,12 @@ class AlgorithmRegistry:
                 detail={"algorithm_id": algorithm_id, "scientific_version": scientific_version},
             )
         if scientific_version is None:
-            return sorted(matches, key=lambda item: item.manifest.scientific_version)[-1]
+            if len(matches) != 1:
+                raise AmbiguousAlgorithmVersionError(
+                    f"algorithm {algorithm_id!r} has multiple registered scientific versions",
+                    detail={"algorithm_id": algorithm_id, "available_versions": sorted(item.manifest.scientific_version for item in matches)},
+                )
+            return matches[0]
         return matches[0]
 
     def list(self) -> list[AlgorithmModule]:

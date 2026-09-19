@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .contracts import AlgorithmModule, AlgorithmResult, AlgorithmSeriesResult
+from .contracts import AlgorithmEvidence, AlgorithmModule, AlgorithmResult, AlgorithmSeriesResult
 from .errors import UnsupportedAlgorithmModeError
 
 
@@ -34,8 +34,15 @@ class AlgorithmRuntime:
         typed_config = self.validate_config(module=module, config=config)
         inputs = module.resolve_inputs(recording, typed_config)
         if typed_config.mode == "static":
-            return module.execute_static(inputs, typed_config)
-        return module.execute_dynamic(inputs, typed_config)
+            result = module.execute_static(inputs, typed_config)
+            result.evidence = AlgorithmEvidence.model_validate(result.evidence).model_dump(mode="json")
+            return result
+        result = module.execute_dynamic(inputs, typed_config)
+        result.point_evidence = [
+            AlgorithmEvidence.model_validate(item).model_dump(mode="json")
+            for item in result.point_evidence
+        ]
+        return result
 
     @staticmethod
     def validate_config(*, module: AlgorithmModule, config: dict[str, Any]):

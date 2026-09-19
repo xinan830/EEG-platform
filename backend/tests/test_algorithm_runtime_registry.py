@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel
 
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmInputs, AlgorithmManifest, AlgorithmResult
-from app.algorithm_runtime.errors import DuplicateAlgorithmError, UnknownAlgorithmError
+from app.algorithm_runtime.errors import AmbiguousAlgorithmVersionError, DuplicateAlgorithmError, UnknownAlgorithmError
 from app.algorithm_runtime.executor import AlgorithmRuntime
 from app.algorithm_runtime.parameter_schema import ParameterSchema
 from app.algorithm_runtime.registry import AlgorithmRegistry
@@ -30,6 +30,13 @@ class DemoAlgorithm:
 
     def parameter_schema(self) -> ParameterSchema:
         return ParameterSchema()
+
+    def requested_channels(self, config):
+        return [config.channel]
+
+    def execution_snapshot(self, config):
+        from app.algorithm_runtime.contracts import AlgorithmExecutionSnapshot
+        return AlgorithmExecutionSnapshot()
 
     def resolve_inputs(self, recording, config):
         return AlgorithmInputs(recording_id="r1", channel=config.channel, sfreq_hz=500, duration_s=20, payload=recording)
@@ -67,6 +74,18 @@ def test_runtime_validates_config_and_dispatches_without_algorithm_branch() -> N
     )
     assert result.value == 1.0
     assert result.channel == "O2"
+
+
+def test_registry_requires_an_explicit_version_when_multiple_versions_exist() -> None:
+    registry = AlgorithmRegistry()
+    registry.register(DemoAlgorithm())
+    newer = DemoAlgorithm()
+    newer.manifest = newer.manifest.model_copy(update={"scientific_version": "2.0.0"})
+    registry.register(newer)
+
+    with pytest.raises(AmbiguousAlgorithmVersionError):
+        registry.get("demo")
+    assert registry.get("demo", "2.0.0").manifest.scientific_version == "2.0.0"
 
 
 def test_build_windows_is_deterministic_and_bounded() -> None:

@@ -22,3 +22,9 @@ storage/*.sqlite3
 
 # Codex isolated worktrees
 .worktrees/
+
+# Desktop client build output and external vendor material
+desktop-client/**/bin/
+desktop-client/**/obj/
+desktop-client/.vs/
+ANT-Amplify/

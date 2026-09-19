@@ -13,6 +13,22 @@
       "max_lines": 500,
       "reason": "Application shell still coordinates playback, import, montage and analysis range state; splitting before the range contract stabilized would duplicate state ownership.",
       "follow_up": "Extract shared analysis context and playback session orchestration into composables in the next UI maintenance pass."
+    },
+    "desktop-client/BrainPlatform.Desktop/ViewModels/AcquisitionWorkspaceViewModel.cs": {
+      "decision": "split",
+      "max_lines": 590,
+      "reason": "The existing device lifecycle and channel mapping state now also own pre-start display-filter selection. Splitting this change would risk duplicating acquisition state during active hardware integration.",
+      "follow_up": "Extract amplifier connection state and live display filter settings into dedicated view models before adding further acquisition controls."
+    },
+    "desktop-client/BrainPlatform.Desktop/ViewModels/ChannelConfigurationWorkspaceViewModel.cs": {
+      "decision": "keep",
+      "max_lines": 540,
+      "reason": "The file coordinates one channel-profile catalogue and draft lifecycle. Reusable semantic validation, montage-reference policy, and draft-row state are extracted; further splitting now would divide one UI state owner."
+    },
+    "desktop-client/BrainPlatform.Desktop/ViewModels/MontageConfigurationWorkspaceViewModel.cs": {
+      "decision": "keep",
+      "max_lines": 540,
+      "reason": "The file coordinates one montage catalogue and editor lifecycle. Signal formulas, fingerprints, validation, and row state remain in focused domain/view-model files."
     }
   }
 }

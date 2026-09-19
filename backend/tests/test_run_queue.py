@@ -41,6 +41,30 @@ def test_queue_idempotency_claim_and_completion(tmp_path: Path):
     assert queue.list_artifacts(first.run_id)
 
 
+def test_queue_persists_resolved_official_definition_identity(tmp_path: Path):
+    queue, recording_id = _queue(tmp_path)
+    request = RunCreateRequest(
+        recording_id=recording_id,
+        analysis_type="official_algorithm",
+        config={
+            "algorithm_id": "iapf",
+            "scientific_version": "official-iapf-v2",
+            "channel": "F3",
+            "time": {"start_s": 0, "end_s": 10},
+            "mode": "static",
+        },
+    )
+
+    queued = queue.enqueue(request)
+
+    assert queued.definition_id is not None
+    assert queued.definition_version == "1.0.0"
+    assert queued.scientific_version == "official-iapf-v2"
+    completed = queue.process_next()
+    assert completed is not None and completed.status is RunStatus.COMPLETED
+    assert completed.definition_id == queued.definition_id
+
+
 def test_queue_cancel_recovery_and_retry_keep_provenance(tmp_path: Path):
     queue, recording_id = _queue(tmp_path)
     cancelled = queue.enqueue(_request(recording_id))

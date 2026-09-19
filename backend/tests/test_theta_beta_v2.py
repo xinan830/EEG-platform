@@ -35,11 +35,11 @@ def test_theta_beta_uses_one_selected_raw_channel(monkeypatch) -> None:
     assert result.channel == "O2"
     assert result.value is not None
     assert result.unit == "dimensionless"
-    assert "theta_range_hz" in result.evidence
+    assert "theta_range_hz" in result.evidence["extensions"]["theta_beta_evidence"]
     trace = result.evidence["calculation_trace"]
     assert trace["formula"] == "个体化 Theta 功率 ÷ 个体化 Beta 功率"
-    assert trace["inputs"][1]["range_hz"] == result.evidence["theta_range_hz"]
-    assert trace["inputs"][3]["range_hz"] == result.evidence["beta_range_hz"]
+    assert trace["inputs"][1]["range_hz"] == result.evidence["extensions"]["theta_beta_evidence"]["theta_range_hz"]
+    assert trace["inputs"][3]["range_hz"] == result.evidence["extensions"]["theta_beta_evidence"]["beta_range_hz"]
 
 
 def test_theta_beta_returns_null_for_failed_psd_gate(monkeypatch) -> None:

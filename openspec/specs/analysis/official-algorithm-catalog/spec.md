@@ -5,10 +5,11 @@ TBD - created by archiving change modularize-official-algorithm-boundaries. Upda
 ## Requirements
 ### Requirement: Backend exposes an authoritative official-algorithm catalog
 
-The official catalog SHALL mark RBP and FAA runnable only after their backend
-modules, client-safe parameter schemas, Run serialization and regression tests
-are installed. BrainBeat SHALL remain non-runnable while its stateful realtime
-contract is not represented by a traceable Run.
+The official catalog SHALL derive runnable official metadata from the installed
+runtime module manifest, including Definition identity, scientific version,
+implementation identity, output unit, modes and availability. A non-runnable
+official capability without a runtime module MAY use one explicit static
+descriptor.
 
 #### Scenario: Read the catalog
 
@@ -37,6 +38,14 @@ contract is not represented by a traceable Run.
 - **THEN** RBP and FAA are available and runnable with readable Chinese labels
   and declared input fields
 - **AND THEN** BrainBeat remains `shadow_validation` and disabled
+
+#### Scenario: Read a runnable official catalog item
+
+- **WHEN** a client reads `/api/algorithms`
+- **THEN** each runnable official item exposes the same identity and version
+  that will be persisted and executed for a Run
+- **AND THEN** the client does not need to infer an identity from the algorithm
+  name or a duplicated catalog mapping
 
 ### Requirement: Official algorithm availability is not inferred by clients
 

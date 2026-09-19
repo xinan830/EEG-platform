@@ -29,7 +29,7 @@ function number(value: unknown, digits = 4): string { return typeof value === 'n
         <AnalysisProvenancePanel :provenance="run.analysis_provenance" />
         <section v-if="isDynamic" class="algorithm-debug-section"><h3>播放上下文</h3><dl><dt>波形播放位置</dt><dd>{{ props.playbackPositionS === undefined ? '—' : `${props.playbackPositionS.toFixed(3)} s` }}</dd></dl></section>
         <AnalysisProvenanceExtensions :extensions="run.analysis_provenance?.extensions ?? []" :definition-name="definitionName" />
-        <section class="algorithm-debug-section"><button type="button" @click="showRawPsd = !showRawPsd">{{ showRawPsd ? '收起' : '展开' }}原始 PSD 点（{{ rawRows.length }} 个频率点）</button><div v-if="showRawPsd" class="algorithm-debug-psd"><div v-for="row in rawRows" :key="row.frequency"><span>{{ row.frequency.toFixed(2) }} Hz</span><span>{{ number(row.psd, 8) }} µV²/Hz</span></div></div></section>
+        <section v-if="rawRows.length" class="algorithm-debug-section"><button type="button" @click="showRawPsd = !showRawPsd">{{ showRawPsd ? '收起' : '展开' }}原始 PSD 点（{{ rawRows.length }} 个频率点）</button><div v-if="showRawPsd" class="algorithm-debug-psd"><div v-for="row in rawRows" :key="row.frequency"><span>{{ row.frequency.toFixed(2) }} Hz</span><span>{{ number(row.psd, 8) }} µV²/Hz</span></div></div></section>
       </main>
       <footer class="channel-dialog-footer"><button type="button" @click="emit('close')">关闭</button></footer>
     </section>

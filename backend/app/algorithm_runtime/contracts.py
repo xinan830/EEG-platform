@@ -62,6 +62,25 @@ class DynamicAnalysisPolicy(BaseModel):
         return self
 
 
+class AlgorithmExecutionSnapshot(BaseModel):
+    """Immutable execution semantics supplied by the selected module."""
+
+    window: dict[str, Any] = Field(default_factory=dict)
+    filters: dict[str, Any] = Field(default_factory=dict)
+    quality_rules: dict[str, Any] = Field(default_factory=dict)
+
+
+class AlgorithmEvidence(BaseModel):
+    """Validated common evidence plus named algorithm-owned extensions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_quality: dict[str, Any] = Field(default_factory=dict)
+    spectral_evidence: dict[str, Any] = Field(default_factory=dict)
+    calculation_trace: dict[str, Any] = Field(default_factory=dict)
+    extensions: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
 class AlgorithmManifest(BaseModel):
     algorithm_id: str = Field(min_length=1)
     display_name_zh: str = Field(min_length=1)
@@ -72,6 +91,13 @@ class AlgorithmManifest(BaseModel):
     supported_modes: list[AlgorithmMode] = Field(default_factory=lambda: ["static"])
     output_unit: str = Field(min_length=1)
     dynamic_policy: DynamicAnalysisPolicy = Field(default_factory=DynamicAnalysisPolicy)
+    # Official lifecycle data belongs to the executable module manifest.  User
+    # definition modules leave these fields at their generic defaults.
+    definition_name: str | None = None
+    execution_kind: str = "runtime_algorithm"
+    availability: Literal["shadow_validation", "available", "deprecated"] = "available"
+    is_runnable: bool = True
+    required_channel_roles: list[str] = Field(default_factory=list)
 
 
 class AlgorithmInputs(BaseModel):
@@ -133,6 +159,10 @@ class AlgorithmModule(Protocol):
     config_model: type[AlgorithmConfigBase]
 
     def parameter_schema(self) -> ParameterSchema: ...
+
+    def requested_channels(self, config: AlgorithmConfigBase) -> list[str]: ...
+
+    def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot: ...
 
     def resolve_inputs(self, recording: Any, config: AlgorithmConfigBase) -> AlgorithmInputs: ...
 

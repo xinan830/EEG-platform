@@ -68,3 +68,33 @@ it('shows the unified playback context while rendering dynamic evidence without 
   expect(wrapper.text()).toContain('1.8')
   expect(wrapper.find('.algorithm-debug-window select').exists()).toBe(false)
 })
+
+it('renders FAA as its actual paired-epoch FFT contract, not an empty Welch/PSD panel', () => {
+  const faaRun = {
+    ...dynamicRun,
+    definition_version: null,
+    scientific_version: 'official-faa-v1',
+    analysis_provenance: {
+      ...dynamicRun.analysis_provenance,
+      mode: 'static', definition_version: null, scientific_algorithm_version: 'official-faa-v1',
+      channel: 'F3/F4', filter: { operation: 'per_epoch_mean_removal', software_bandpass: 'not_applied' },
+      preprocessing: { kind: 'per_epoch_demean', label_zh: '每个成对 Epoch 独立去均值；未做软件带通' },
+      method: { kind: 'faa_paired_epoch_fft', label_zh: '成对 Epoch FFT 密度谱', detail_zh: '2 s Hann，50% Epoch overlap（1 s 步进）' },
+      welch: null,
+      frequency: { label_zh: 'Alpha 积分频段', low_hz: 8, high_hz: 13, point_count: 11, resolution_hz: 0.5 },
+      quality_label_zh: '成对 Epoch 质量门',
+      extensions: [{ kind: 'faa_paired_quality', data: { channels: ['F3', 'F4'], source_channels: { left: 'F3', right: 'F4' }, band: [8, 13], clean_epochs: 29, total_epochs: 29, clean_ratio: 1, reason: '', faa_contract: { minimum_clean_epochs: 10, artifact_peak_uv: 150 } } }],
+    },
+    result_summary: { metric: { channel: 'F3/F4', actual_range: { start_s: 0, end_s: 30 }, output: { label: '额叶 Alpha 不对称性', value: 0.2, unit: 'dimensionless' }, official: { faa_evidence: {} } } },
+  }
+
+  const wrapper = mount(AlgorithmMetricDebugDialog, { props: { run: faaRun, definitionName: '额叶 Alpha 不对称性' } as never })
+
+  expect(wrapper.text()).toContain('成对 Epoch FFT 密度谱')
+  expect(wrapper.text()).toContain('每个成对 Epoch 独立去均值；未做软件带通')
+  expect(wrapper.text()).toContain('Alpha 积分频段')
+  expect(wrapper.text()).toContain('8–13 Hz（11 个频率点，0.50 Hz 分辨率）')
+  expect(wrapper.text()).toContain('左来源：F3 · 右来源：F4')
+  expect(wrapper.text()).toContain('最少有效 Epoch')
+  expect(wrapper.text()).not.toContain('原始 PSD 点（0 个频率点）')
+})

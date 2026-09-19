@@ -25,7 +25,7 @@ export function listOfficialAlgorithms(): Promise<OfficialAlgorithmCatalogItem[]
     abbreviation: item.abbreviation,
     purpose_zh: item.description,
     scientific_version: item.version,
-    implementation_identity: item.version,
+    implementation_identity: item.implementation_identity ?? '未知实现身份',
     execution_kind: 'algorithm_runtime',
     availability: item.availability as OfficialAlgorithmCatalogItem['availability'],
     is_runnable: item.is_runnable,
@@ -33,7 +33,7 @@ export function listOfficialAlgorithms(): Promise<OfficialAlgorithmCatalogItem[]
     supported_modes: item.modes,
     output_unit: typeof item.output.unit === 'string' ? item.output.unit : '未知单位',
     dynamic_policy: item.dynamic_policy,
-    definition_id: item.id,
-    definition_version: item.version,
+    definition_id: item.definition_id ?? item.id,
+    definition_version: item.definition_version ?? item.version,
   })))
 }

@@ -21,7 +21,7 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.core.provenance import sha256_json
-from app.eeg_core.faa import FAA_DISCARD_S
+from app.eeg_core.faa import LEGACY_FAA_INITIAL_DISCARD_S
 from app.eeg_core.official_algorithm_shadows import shadow_brainbeat, shadow_brainbeat_ema, shadow_faa, shadow_iapf, shadow_rbp, shadow_theta_beta
 from app.eeg_core.official_definitions import ensure_official_definitions
 from app.eeg_core.spectral import estimate_welch_psd, preprocess_offline
@@ -100,7 +100,7 @@ def run(recording_id: str, *, start_s: float = 0.0, window_s: float = 30.0, post
         else:
             reports["theta_beta"] = {"available": False, "reason": "low_quality_or_zero_beta", "shadow_passed": theta_beta["passed"]}
 
-    frontal = filtered[int(round(FAA_DISCARD_S * sfreq)):, [_index(names, "F3"), _index(names, "F4")]]
+    frontal = filtered[int(round(LEGACY_FAA_INITIAL_DISCARD_S * sfreq)):, [_index(names, "F3"), _index(names, "F4")]]
     faa = shadow_faa(frontal[:, 0], frontal[:, 1], sfreq)
     if faa["legacy"]["faa"] is None or faa["candidate"]["faa"] is None:
         reports["faa"] = {"available": False, "reason": faa["legacy"]["reason"], "shadow_passed": faa["passed"]}

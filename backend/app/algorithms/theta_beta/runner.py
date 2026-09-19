@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app.algorithm_runtime.contracts import AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
+from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
 from .compute import compute_theta_beta
 from .config import ThetaBetaConfig
@@ -25,6 +26,12 @@ class ThetaBetaAlgorithm:
             AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", required=False),
             AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", required=False),
         ])
+
+    def requested_channels(self, config: AlgorithmConfigBase) -> list[str]:
+        return [config.channel]
+
+    def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
+        return spectral_execution_snapshot(config)
 
     def resolve_inputs(self, recording: Any, config: ThetaBetaConfig) -> AlgorithmInputs:
         labels = list(getattr(recording, "channel_names", getattr(recording, "channels", [])))

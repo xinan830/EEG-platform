@@ -15,7 +15,7 @@ type SharedAlgorithmRunFields = {
 
 export type AlgorithmRunRequest =
   | (SharedAlgorithmRunFields & { source: 'user'; definitionId: string; definitionVersion: string })
-  | (SharedAlgorithmRunFields & { source: 'official'; algorithmId: string })
+  | (SharedAlgorithmRunFields & { source: 'official'; algorithmId: string; scientificVersion: string })
 
 export interface AnalysisRunResponse {
   run_id: string
@@ -64,6 +64,7 @@ function createDefinitionRun(value: Extract<AlgorithmRunRequest, { source: 'user
 function createOfficialRun(value: Extract<AlgorithmRunRequest, { source: 'official' }>): Promise<AnalysisRunResponse> {
   const config: Record<string, unknown> = {
     algorithm_id: value.algorithmId,
+    scientific_version: value.scientificVersion,
     time: { start_s: value.startS, end_s: value.endS },
     mode: value.mode ?? 'static',
   }

@@ -4,45 +4,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.eeg_core.analysis_contract import ANALYSIS_ALGORITHM_VERSION, ANALYSIS_CONTRACT, LIVE_ANALYSIS_CONTRACT
+from app.algorithms.faa.manifest import MANIFEST as FAA_MANIFEST
+from app.algorithms.iapf.manifest import MANIFEST as IAPF_MANIFEST
+from app.algorithms.rbp.manifest import MANIFEST as RBP_MANIFEST
+from app.algorithms.theta_beta.manifest import MANIFEST as THETA_BETA_MANIFEST
+from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+from app.eeg_core.official_algorithms.brainbeat import BRAINBEAT_MANIFEST
 from app.eeg_core.official_algorithms.contracts import OfficialAlgorithmCatalogItem, OfficialAlgorithmManifest
 
 
+# Runnable entries are imported from the exact manifests registered by the
+# runtime. BrainBeat is the sole deliberate non-runnable descriptor.
 OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
-    OfficialAlgorithmManifest(
-        algorithm_id="rbp", definition_name="Official RBP", display_name_zh="相对频段功率", abbreviation="RBP",
-        purpose_zh="展示 Delta、Theta、Alpha、Beta 在 1–30 Hz 总功率中的相对占比。",
-        scientific_version=ANALYSIS_ALGORITHM_VERSION, implementation_identity="rbp-runtime-v1",
-        execution_kind="generic_research_primitives", availability="available", is_runnable=True,
-        supported_modes=["static"],
-    ),
-    OfficialAlgorithmManifest(
-        algorithm_id="theta_beta", definition_name="Official THETA_BETA", display_name_zh="Theta/Beta 比值", abbreviation="Theta/Beta",
-        purpose_zh="根据同一选定原始通道的个体 Alpha 峰，计算 Theta 与 Beta 频段比值。",
-        scientific_version="official-theta-beta-v2", implementation_identity="theta-beta-runtime-v1",
-        execution_kind="official_composite_run_adapter", availability="available", is_runnable=True,
-        required_channel_roles=["Fz", "Pz", "Oz"], supported_modes=["static", "dynamic"],
-    ),
-    OfficialAlgorithmManifest(
-        algorithm_id="faa", definition_name="Official FAA", display_name_zh="额叶 Alpha 不对称性", abbreviation="FAA",
-        purpose_zh="比较 F3 与 F4 的 Alpha 功率对数差；使用成对质量门。",
-        scientific_version="official-faa-v1", implementation_identity="faa-runtime-v1",
-        execution_kind="official_composite_run_adapter", availability="available", is_runnable=True,
-        supported_modes=["static"],
-    ),
-    OfficialAlgorithmManifest(
-        algorithm_id="brainbeat", definition_name="Official BRAINBEAT", display_name_zh="脑节律指标", abbreviation="BrainBeat",
-        purpose_zh="实时链路中的前额 Theta 与顶区 Alpha 相对功率关系；含状态性 EMA warm-up。",
-        scientific_version=LIVE_ANALYSIS_CONTRACT["algorithm_version"], implementation_identity="realtime-eegprocessor-v1",
-        execution_kind="official_composite_shadow_only", required_channel_roles=["Fz", "Pz", "IAPF"],
-    ),
-    OfficialAlgorithmManifest(
-        algorithm_id="iapf", definition_name="Official IAPF", display_name_zh="个体 Alpha 峰频", abbreviation="IAPF",
-        purpose_zh="使用 1/f 拟合后的 Alpha 残差 Peak/COG 估计个体 Alpha 峰频。",
-        scientific_version="official-iapf-v2", implementation_identity="iapf-runtime-v3",
-        execution_kind="official_composite_run_adapter", availability="available", is_runnable=True,
-        supported_modes=["static", "dynamic"],
-    ),
+    RBP_MANIFEST,
+    THETA_BETA_MANIFEST,
+    FAA_MANIFEST,
+    BRAINBEAT_MANIFEST,
+    IAPF_MANIFEST,
 )
 
 
@@ -111,6 +89,8 @@ def ensure_official_definitions(service) -> dict[str, str]:
     existing = {(item.name, item.owner): item for item in service.list()}
     persisted: dict[str, str] = {}
     for manifest in OFFICIAL_ALGORITHM_MANIFESTS:
+        if not manifest.definition_name:
+            raise RuntimeError(f"official manifest is missing definition name: {manifest.algorithm_id}")
         definition = existing.get((manifest.definition_name, "platform-official"))
         if definition is None:
             definition = service.create(DefinitionCreateRequest(name=manifest.definition_name, owner="platform-official", description=f"Frozen official {manifest.algorithm_id} contract; shadow migration only."))
@@ -124,11 +104,30 @@ def ensure_official_definitions(service) -> dict[str, str]:
     return persisted
 
 
+def official_definition_identity(service, algorithm_id: str) -> tuple[str, str, str]:
+    """Return the exact immutable Definition relation for an official module."""
+    manifest = _manifest(algorithm_id)
+    if not manifest.definition_name:
+        raise RuntimeError(f"official manifest is missing definition name: {algorithm_id}")
+    definition = next(
+        (item for item in service.list() if item.name == manifest.definition_name and item.owner == "platform-official"),
+        None,
+    )
+    if definition is None:
+        raise RuntimeError(f"official definition missing: {algorithm_id}")
+    version = service.repository.get_version(definition.definition_id, "1.0.0")
+    if version is None or version.state != "published":
+        raise RuntimeError(f"official definition version unavailable: {algorithm_id}")
+    return definition.definition_id, version.semver, version.digest_sha256
+
+
 def official_algorithm_catalog(service) -> list[OfficialAlgorithmCatalogItem]:
     """Resolve code manifests to installed immutable definition identities."""
     definitions = {(item.name, item.owner): item for item in service.list()}
     catalog: list[OfficialAlgorithmCatalogItem] = []
     for manifest in OFFICIAL_ALGORITHM_MANIFESTS:
+        if not manifest.definition_name:
+            raise RuntimeError(f"official manifest is missing definition name: {manifest.algorithm_id}")
         definition = definitions.get((manifest.definition_name, "platform-official"))
         if definition is None:
             raise RuntimeError(f"official definition missing: {manifest.algorithm_id}")
@@ -141,7 +140,7 @@ def official_algorithm_catalog(service) -> list[OfficialAlgorithmCatalogItem]:
             scientific_version=manifest.scientific_version, implementation_identity=manifest.implementation_identity,
             execution_kind=manifest.execution_kind, availability=manifest.availability,
             is_runnable=manifest.is_runnable, required_channel_roles=manifest.required_channel_roles,
-            supported_modes=manifest.supported_modes, definition_id=definition.definition_id,
+            supported_modes=manifest.supported_modes, output_unit=manifest.output_unit, definition_id=definition.definition_id,
             definition_version=version.semver,
         ))
     return catalog

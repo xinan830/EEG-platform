@@ -41,7 +41,11 @@ def compute_iapf(
             actual_range=actual_range,
             quality="gate_failed",
             failure=failure,
-            evidence={"source": estimate.source, "peak_hz": estimate.peak_hz, "cog_hz": estimate.cog, "source_quality": source_quality, "spectral_evidence": dict(getattr(spectrum, "evidence", {}))},
+            evidence={
+                "source_quality": source_quality,
+                "spectral_evidence": dict(getattr(spectrum, "evidence", {})),
+                "extensions": {"iapf_evidence": {"source": estimate.source, "peak_hz": estimate.peak_hz, "cog_hz": estimate.cog}},
+            },
         )
     return AlgorithmResult(
         value=float(estimate.value),
@@ -51,11 +55,13 @@ def compute_iapf(
         actual_range=actual_range,
         quality="clean",
         evidence={
-            "source": estimate.source,
-            "peak_hz": estimate.peak_hz,
-            "cog_hz": estimate.cog,
-            "model_r2": estimate.model_r2,
-            "model_error": estimate.model_error,
+            "extensions": {"iapf_evidence": {
+                "source": estimate.source,
+                "peak_hz": estimate.peak_hz,
+                "cog_hz": estimate.cog,
+                "model_r2": estimate.model_r2,
+                "model_error": estimate.model_error,
+            }},
             "calculation_trace": {"formula": "在 1/f 校正后的 Alpha 范围内选择 Peak 或 COG", "inputs": [
                 {"label": "峰值频率", "value": estimate.peak_hz, "unit": "Hz"},
                 {"label": "重心频率", "value": estimate.cog, "unit": "Hz"},

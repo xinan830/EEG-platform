@@ -14,6 +14,7 @@ from app.eeg_core.quality import SpectralQualityGateError
 from app.eeg_core.spectral import SpectralEstimate
 from app.algorithm_runtime.contracts import (
     DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
+    AlgorithmEvidence,
     AlgorithmResult,
     AlgorithmSeriesResult,
 )
@@ -82,22 +83,49 @@ class _RecordingAlgorithmContext:
         evidence = {
             "sfreq_hz": float(sfreq), "channels": [f3_name, f4_name],
             "analysis_reference": "original_recording_no_software_rereference",
-            "faa_contract": {"epoch_s": 2.0, "overlap_fraction": 0.5, "minimum_clean_epochs": 10, "alpha_band_hz": [8.0, 13.0]},
+            "time_scope": "exact_requested_absolute_range",
+            "requested_range_s": {"start_s": float(start_s), "end_s": float(end_s)},
+            "actual_range_s": {"start_s": float(start_index / sfreq), "end_s": float(end_index / sfreq)},
+            "faa_contract": {
+                "method": "paired_epoch_rfft_density",
+                "epoch_s": 2.0,
+                "overlap_fraction": 0.5,
+                "step_s": 1.0,
+                "window": "hann",
+                "detrend": "per_epoch_mean_removal",
+                "software_bandpass": "not_applied",
+                "minimum_clean_epochs": 10,
+                "artifact_peak_uv": 150.0,
+                "alpha_band_hz": [8.0, 13.0],
+                "frequency_resolution_hz": 1.0 / 2.0,
+            },
         }
         return values[start_index:end_index, f3_index], values[start_index:end_index, f4_index], float(sfreq), evidence
 
 
+def _public_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    """Expose common evidence plus named extensions without leaking a generic bag."""
+    parsed = AlgorithmEvidence.model_validate(evidence)
+    return {
+        "source_quality": parsed.source_quality,
+        "spectral_evidence": parsed.spectral_evidence,
+        "calculation_trace": parsed.calculation_trace,
+        **parsed.extensions,
+    }
+
+
 def _serialize_algorithm_result(result: AlgorithmResult, algorithm_id: str, label: str) -> dict[str, object]:
+    evidence = _public_evidence(result.evidence)
     quality = {"status": result.quality, "reasons": [result.failure.code] if result.failure else []}
     payload: dict[str, object] = {
         "output": {"id": algorithm_id, "label": label, "value": result.value, "unit": result.unit, "quality": quality},
         "channel": result.channel,
         "actual_range": result.actual_range,
         "requested_range": result.requested_range,
-        "source_quality": result.evidence.get("source_quality", {}),
-        "spectral_evidence": result.evidence.get("spectral_evidence", {}),
-        "calculation_trace": result.evidence.get("calculation_trace", {}),
-        "official": {"algorithm_id": algorithm_id, **result.evidence},
+        "source_quality": evidence["source_quality"],
+        "spectral_evidence": evidence["spectral_evidence"],
+        "calculation_trace": evidence["calculation_trace"],
+        "official": {"algorithm_id": algorithm_id, **evidence},
         "chart": {"kind": "none"},
         "value": result.value,
         "quality": quality,
@@ -154,9 +182,12 @@ class RunAnalysisExecutor:
         context = _RecordingAlgorithmContext(self.recordings, recording)
         runtime_config = config.runtime_config()
         result = self.algorithm_runtime.execute(
-            algorithm_id=config.algorithm_id, recording=context, config=runtime_config,
+            algorithm_id=config.algorithm_id,
+            scientific_version=resolved["scientific_version"],
+            recording=context,
+            config=runtime_config,
         )
-        module = self.algorithm_runtime.registry.get(config.algorithm_id)
+        module = self.algorithm_runtime.registry.get(config.algorithm_id, resolved["scientific_version"])
         label = module.manifest.display_name_zh
         if isinstance(result, AlgorithmResult):
             point = _serialize_algorithm_result(result, config.algorithm_id, label)
@@ -167,7 +198,7 @@ class RunAnalysisExecutor:
         points = []
         values = []
         for index, (value, time_s, window, quality, failure) in enumerate(zip(result.values, result.time_s, result.windows, result.quality, result.failures)):
-            evidence = result.point_evidence[index] if index < len(result.point_evidence) else {}
+            evidence = _public_evidence(result.point_evidence[index]) if index < len(result.point_evidence) else _public_evidence({})
             warmup = result.warmups[index] if index < len(result.warmups) else False
             point = {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
                      "time_s": time_s, "window_start_s": window["start_s"], "window_end_s": window["end_s"], "value": value,
@@ -180,7 +211,7 @@ class RunAnalysisExecutor:
             points.append(point)
             values.append(np.nan if value is None else float(value))
         first = points[0] if points else {"output": {"id": config.algorithm_id, "label": label, "unit": result.unit}, "channel": result.channel}
-        latest_evidence = result.point_evidence[-1] if result.point_evidence else {}
+        latest_evidence = _public_evidence(result.point_evidence[-1]) if result.point_evidence else _public_evidence({})
         return {"metric": {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION, "mode": "dynamic", "output": first["output"], "channel": result.channel, "actual_range": {"start_s": config.time.start_s, "end_s": config.time.end_s}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"}, "series": points, "source_quality": latest_evidence.get("source_quality", {}), "spectral_evidence": latest_evidence.get("spectral_evidence", {}), "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": label, "unit": result.unit}}}}, {"metric_time_s": np.asarray(result.time_s, dtype=float), "metric_values": np.asarray(values, dtype=float)}, result.unit
 
     def _execute_definition_metric(self, recording: Any, resolved: dict[str, Any]):
@@ -207,9 +238,11 @@ class RunAnalysisExecutor:
         if result.value is None:
             raise SpectralQualityGateError({**result.evidence.get("source_quality", {}), "metric_output": None,
                                             "metric_rejected_reasons": result.failure.detail.get("reasons", []) if result.failure else []})
-        output_id = str(result.evidence["output_id"])
-        output_label = str(result.evidence["output_label"])
-        input_items = [{"key": key, "label": key, **value} for key, value in result.evidence.get("inputs", {}).items()]
+        evidence = _public_evidence(result.evidence)
+        definition_evidence = evidence.get("user_definition_evidence", {})
+        output_id = str(definition_evidence["output_id"])
+        output_label = str(definition_evidence["output_label"])
+        input_items = [{"key": key, "label": key, **value} for key, value in definition_evidence.get("inputs", {}).items()]
         input_units = {str(item["unit"]) for item in input_items if item.get("value") is not None}
         chart = {
             "kind": "input_comparison" if len(input_items) >= 2 and len(input_units) == 1 else "none",
@@ -218,13 +251,13 @@ class RunAnalysisExecutor:
             "values": input_items if len(input_units) == 1 else [],
         }
         metric = {
-            "output": {"id": output_id, "label": output_label, "value": result.value, "unit": result.unit, "quality": {"status": result.quality, "reasons": []}, "provenance": result.evidence.get("provenance", [])},
-            "inputs": result.evidence.get("inputs", {}), "channel": config.channel, "actual_range": result.actual_range,
-            "source_quality": result.evidence.get("source_quality", {}), "spectral_evidence": result.evidence.get("spectral_evidence", {}), "chart": chart,
-            "calculation_trace": result.evidence.get("calculation_trace", {}),
+            "output": {"id": output_id, "label": output_label, "value": result.value, "unit": result.unit, "quality": {"status": result.quality, "reasons": []}, "provenance": definition_evidence.get("provenance", [])},
+            "inputs": definition_evidence.get("inputs", {}), "channel": config.channel, "actual_range": result.actual_range,
+            "source_quality": evidence["source_quality"], "spectral_evidence": evidence["spectral_evidence"], "chart": chart,
+            "calculation_trace": evidence["calculation_trace"],
         }
         arrays = {"metric_value": np.asarray([result.value], dtype=float)}
-        arrays.update({f"input_{index}_value": np.asarray([value["value"]], dtype=float) for index, value in enumerate(result.evidence.get("inputs", {}).values())})
+        arrays.update({f"input_{index}_value": np.asarray([value["value"]], dtype=float) for index, value in enumerate(definition_evidence.get("inputs", {}).values())})
         return {"metric": metric}, arrays, result.unit
 
     def _serialize_dynamic_definition_result(self, result: AlgorithmSeriesResult, config: DefinitionMetricConfig):
@@ -233,9 +266,10 @@ class RunAnalysisExecutor:
         output_id = "output"
         output_label = "输出"
         for index, (value, time_s, window, quality, failure) in enumerate(zip(result.values, result.time_s, result.windows, result.quality, result.failures)):
-            evidence = result.point_evidence[index] if index < len(result.point_evidence) else {}
-            output_id = str(evidence.get("output_id", output_id))
-            output_label = str(evidence.get("output_label", output_label))
+            evidence = _public_evidence(result.point_evidence[index]) if index < len(result.point_evidence) else _public_evidence({})
+            definition_evidence = evidence.get("user_definition_evidence", {})
+            output_id = str(definition_evidence.get("output_id", output_id))
+            output_label = str(definition_evidence.get("output_label", output_label))
             point = {
                 "result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
                 "time_s": time_s,
@@ -243,7 +277,7 @@ class RunAnalysisExecutor:
                 "window_end_s": window["end_s"],
                 "value": value,
                 "quality": {"status": quality, "reasons": [failure.code] if failure else []},
-                "inputs": evidence.get("inputs", {}),
+                "inputs": definition_evidence.get("inputs", {}),
                 "source_quality": evidence.get("source_quality", {}),
                 "spectral_evidence": evidence.get("spectral_evidence", {}),
                 "calculation_trace": evidence.get("calculation_trace", {}),

@@ -22,6 +22,10 @@ class DuplicateAlgorithmError(AlgorithmRuntimeError):
     code = "ALGORITHM_DUPLICATE"
 
 
+class AmbiguousAlgorithmVersionError(AlgorithmRuntimeError):
+    code = "ALGORITHM_VERSION_REQUIRED"
+
+
 class UnsupportedAlgorithmModeError(AlgorithmRuntimeError):
     code = "ALGORITHM_MODE_UNSUPPORTED"
 

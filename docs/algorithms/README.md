@@ -15,7 +15,7 @@
 9. [静态、动态与时间刷新语义](09-analysis-modes-and-time.md)
 10. [波形播放与覆盖式扫屏](10-playback-rendering.md)
 11. [API、版本与单位契约](11-api-contracts-and-units.md)
-12. [旧实时处理器指标](12-legacy-realtime-metrics.md)
+12. [旧实时处理器指标（历史背景，非当前运行契约）](12-legacy-realtime-metrics.md)
 
 ## 版本原则
 

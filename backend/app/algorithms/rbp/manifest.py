@@ -10,4 +10,6 @@ MANIFEST = AlgorithmManifest(
     implementation_identity="rbp-runtime-v1",
     supported_modes=["static"],
     output_unit="ratio",
+    definition_name="Official RBP",
+    execution_kind="generic_research_primitives",
 )

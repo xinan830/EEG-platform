@@ -1,0 +1,216 @@
+using System.Windows.Threading;
+using BrainPlatform.Desktop.Acquisition.Contracts;
+using BrainPlatform.Desktop.ViewModels;
+using BrainPlatform.Desktop.Views;
+
+namespace BrainPlatform.Desktop.Tests.Acquisition;
+
+public sealed class LiveMonitoringViewModelTests
+{
+    [Fact]
+    public void Refresh_UsesOnlyActualEegChannelsAndShowsTheFirstEightByDefault()
+    {
+        var state = Snapshot(AcquisitionState.Recording);
+        var metadata = Metadata();
+        using var monitor = CreateMonitor(() => state, () => metadata);
+
+        monitor.Refresh();
+
+        Assert.Equal(10, monitor.Channels.Count);
+        Assert.Equal(8, monitor.Channels.Count(channel => channel.IsVisible));
+        Assert.Equal("Fp1", monitor.Channels[0].Label);
+        Assert.Equal("Bipolar", monitor.Channels[^1].Kind);
+        Assert.Equal("正在记录真实 EEG", monitor.CaptureStatusText);
+        Assert.True(monitor.IsRecording);
+    }
+
+    [Fact]
+    public void DisplayOptions_UsePhysicalPaperSpeedAndRejectUnsupportedValues()
+    {
+        using var monitor = CreateMonitor(
+            () => Snapshot(AcquisitionState.Ready),
+            () => Metadata());
+
+        monitor.PaperSpeedMillimetersPerSecond = 30;
+        monitor.SensitivityMicrovoltsPerMillimeter = 20;
+
+        Assert.Equal(30, monitor.PaperSpeedMillimetersPerSecond);
+        Assert.Equal(20, monitor.SensitivityMicrovoltsPerMillimeter);
+        var widthDipsForThirtyMillimeters = 30d * 96d / 25.4d;
+        Assert.Equal(1, monitor.GetDisplayWindowSeconds(widthDipsForThirtyMillimeters), precision: 12);
+        monitor.PaperSpeedMillimetersPerSecond = 15;
+        Assert.Equal(2, monitor.GetDisplayWindowSeconds(widthDipsForThirtyMillimeters), precision: 12);
+        Assert.Throws<ArgumentOutOfRangeException>(() => monitor.PaperSpeedMillimetersPerSecond = 20);
+        Assert.Throws<ArgumentOutOfRangeException>(() => monitor.SensitivityMicrovoltsPerMillimeter = 0);
+    }
+
+    [Fact]
+    public void Refresh_ShowsPausedStateAndKeepsElapsedRecordingTime()
+    {
+        var state = new AcquisitionStateSnapshot(
+            AcquisitionState.Paused,
+            "paused",
+            Guid.NewGuid(),
+            DateTimeOffset.UtcNow);
+        var metadata = Metadata() with { RecordingStartUtc = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(5) };
+        using var monitor = CreateMonitor(() => state, () => metadata);
+
+        monitor.Refresh();
+
+        Assert.True(monitor.IsPaused);
+        Assert.True(monitor.HasOpenRecording);
+        Assert.False(monitor.IsRecording);
+        Assert.Equal("记录已暂停，实时预览继续", monitor.CaptureStatusText);
+        Assert.NotEqual("--:--:--", monitor.RecordingElapsedText);
+    }
+
+    [Fact]
+    public void Refresh_ShowsPreviewWithoutPretendingRecordingHasStarted()
+    {
+        using var monitor = CreateMonitor(
+            () => Snapshot(AcquisitionState.Previewing),
+            () => Metadata(),
+            () => [new AcquisitionBatch(0, 1_000, 12, new double[12_000], DateTimeOffset.UtcNow)]);
+
+        monitor.Refresh();
+
+        Assert.True(monitor.IsPreviewing);
+        Assert.True(monitor.HasOpenStream);
+        Assert.False(monitor.HasOpenRecording);
+        Assert.False(monitor.IsRecording);
+        Assert.Equal("实时预览中，尚未记录", monitor.CaptureStatusText);
+        Assert.Equal("--:--:--", monitor.RecordingElapsedText);
+    }
+
+    [Fact]
+    public void GetWaveformSource_ReturnsTheRetainedBatchesAndOnlyVisibleChannels()
+    {
+        var batches = new[]
+        {
+            new AcquisitionBatch(42, 2, 12, new double[24], DateTimeOffset.UtcNow),
+        };
+        using var monitor = CreateMonitor(
+            () => Snapshot(AcquisitionState.Recording),
+            () => Metadata(),
+            () => batches);
+        monitor.Refresh();
+        monitor.Channels[0].IsVisible = false;
+
+        var source = Assert.IsType<LiveWaveformSource>(monitor.GetWaveformSource());
+
+        Assert.Same(batches, source.Batches);
+        Assert.Equal(7, source.Channels.Count);
+        Assert.DoesNotContain(source.Channels, channel => channel.Label == "Fp1");
+    }
+
+    [Fact]
+    public void RecordingPause_DoesNotRewriteTheLiveDisplayTimeline()
+    {
+        var state = Snapshot(AcquisitionState.Recording);
+        var metadata = Metadata();
+        IReadOnlyList<AcquisitionBatch> batches =
+        [
+            new AcquisitionBatch(0, 1_000, 12, new double[12_000], DateTimeOffset.UtcNow),
+        ];
+        using var monitor = CreateMonitor(() => state, () => metadata, () => batches);
+        monitor.Refresh();
+        _ = monitor.GetWaveformSource();
+
+        state = Snapshot(AcquisitionState.Paused);
+        monitor.Refresh();
+        Assert.Equal("00:00:01", monitor.RecordingElapsedText);
+
+        state = Snapshot(AcquisitionState.Recording);
+        batches =
+        [
+            batches[0],
+            new AcquisitionBatch(6_000, 1_000, 12, new double[12_000], DateTimeOffset.UtcNow),
+        ];
+        monitor.Refresh();
+        var source = Assert.IsType<LiveWaveformSource>(monitor.GetWaveformSource());
+        var frame = Assert.IsType<WaveformDisplayFrame>(WaveformDisplayFrameBuilder.Build(
+            source,
+            displayWindowSeconds: 10,
+            horizontalPixels: 500));
+
+        Assert.Empty(source.DisplayCounterAdjustments!);
+        Assert.Equal(7, frame.CursorSeconds, precision: 10);
+        Assert.Equal("00:00:02", monitor.RecordingElapsedText);
+        var firstResumedPoint = frame.Traces[0].Points.First(point => point.SampleCounter >= 6_000);
+        Assert.True(firstResumedPoint.StartsSegment);
+    }
+
+    [Fact]
+    public void ConfigureChannels_ShowsSelectedConfiguredElectrodesBeforeAStreamStarts()
+    {
+        using var monitor = CreateMonitor(
+            () => Snapshot(AcquisitionState.Ready),
+            () => null);
+        var rows = new[]
+        {
+            new ChannelLabelMappingRow(0, "Reference", "V", "Fp1", true),
+            new ChannelLabelMappingRow(1, "Reference", "V", "Fp2", false),
+            new ChannelLabelMappingRow(2, "Reference", "V", "Fz", true),
+        };
+
+        monitor.ConfigureChannels(rows);
+
+        Assert.Equal(["Fp1", "Fz"], monitor.VisibleChannelLabels);
+        Assert.Null(monitor.GetWaveformSource());
+    }
+
+    [Fact]
+    public void ConfigureChannels_DoesNotAutoDisplayUnnamedPhysicalInputs()
+    {
+        var metadata = new AcquisitionStreamMetadata(
+            "test-device",
+            "test device",
+            500,
+            [
+                new AcquisitionChannel(0, 0, "Fp1", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(1, 20, null, AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(2, 31, "Counter", AcquisitionChannelKind.SampleCounter, "count"),
+            ],
+            2,
+            DateTimeOffset.UtcNow);
+        using var monitor = CreateMonitor(() => Snapshot(AcquisitionState.Ready), () => metadata);
+
+        monitor.ConfigureChannels([new ChannelLabelMappingRow(0, "Reference", "V", "Fp1", true)]);
+        monitor.Refresh();
+
+        Assert.Equal(["Fp1"], monitor.VisibleChannelLabels);
+        Assert.DoesNotContain(monitor.Channels, channel =>
+            channel.IsVisible && channel.Label.StartsWith("CH ", StringComparison.Ordinal));
+    }
+
+    private static LiveMonitoringViewModel CreateMonitor(
+        Func<AcquisitionStateSnapshot> stateProvider,
+        Func<AcquisitionStreamMetadata?> metadataProvider,
+        Func<IReadOnlyList<AcquisitionBatch>>? batchesProvider = null) =>
+        new(stateProvider, metadataProvider, batchesProvider ?? (() => []), Dispatcher.CurrentDispatcher);
+
+    private static AcquisitionStateSnapshot Snapshot(AcquisitionState state) =>
+        new(state, "test", Guid.NewGuid(), DateTimeOffset.UtcNow);
+
+    private static AcquisitionStreamMetadata Metadata() =>
+        new(
+            "test-device",
+            "test device",
+            1_000,
+            [
+                new AcquisitionChannel(0, 0, "Fp1", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(1, 1, "Fp2", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(2, 2, "F3", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(3, 3, "F4", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(4, 4, "C3", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(5, 5, "C4", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(6, 6, "P3", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(7, 7, "P4", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(8, 24, "BIP 1", AcquisitionChannelKind.Bipolar, "V"),
+                new AcquisitionChannel(9, 25, "BIP 2", AcquisitionChannelKind.Bipolar, "V"),
+                new AcquisitionChannel(10, 28, "Trigger", AcquisitionChannelKind.Trigger, "code"),
+                new AcquisitionChannel(11, 29, "Counter", AcquisitionChannelKind.SampleCounter, "count"),
+            ],
+            11,
+            DateTimeOffset.UtcNow);
+}

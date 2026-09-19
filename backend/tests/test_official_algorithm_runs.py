@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -9,6 +10,7 @@ from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
 from app.services.runs import RunService
 from app.services.analysis_provenance import serialize_analysis_run
+from app.services.run_analysis_executor import _RecordingAlgorithmContext
 from app.main import app
 from fastapi.testclient import TestClient
 
@@ -49,12 +51,13 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
     completed = service.create(_request(recording_id, "iapf"))
 
     assert completed.status is RunStatus.COMPLETED
-    assert completed.definition_id is None
+    assert completed.definition_id is not None
+    assert completed.definition_version == "1.0.0"
     assert completed.scientific_version == "official-iapf-v2"
     metric = completed.result_summary["metric"]
     assert metric["output"]["unit"] == "Hz"
     assert metric["output"]["value"] == pytest.approx(10.0, abs=0.5)
-    assert metric["official"]["source"] in {"peak", "cog"}
+    assert metric["official"]["iapf_evidence"]["source"] in {"peak", "cog"}
     assert metric["source_quality"] == {
         "clean_segments": 14,
         "total_segments": 14,
@@ -127,9 +130,13 @@ def test_catalog_marks_rbp_and_faa_runnable_but_keeps_brainbeat_shadow_only(tmp_
 
     assert catalog["iapf"].availability == "available" and catalog["iapf"].is_runnable is True
     assert catalog["theta_beta"].availability == "available" and catalog["theta_beta"].is_runnable is True
+    assert catalog["theta_beta"].required_channel_roles == []
     assert catalog["rbp"].availability == "available" and catalog["rbp"].is_runnable is True
     assert catalog["faa"].availability == "available" and catalog["faa"].is_runnable is True
     assert catalog["brainbeat"].availability == "shadow_validation" and catalog["brainbeat"].is_runnable is False
+    assert catalog["iapf"].definition_id
+    assert catalog["iapf"].definition_version == "1.0.0"
+    assert catalog["iapf"].output_unit == "Hz"
 
 
 def test_official_rbp_run_returns_all_four_backend_band_shares(tmp_path: Path):
@@ -154,6 +161,35 @@ def test_official_faa_run_records_explicit_pair_and_paired_quality(tmp_path: Pat
     assert metric["output"]["value"] == pytest.approx(np.log(4.0), abs=0.15)
     assert metric["official"]["faa_evidence"]["channels"] == ["F3", "F4"]
     assert metric["source_quality"]["clean_segments"] >= 10
+    assert metric["official"]["faa_evidence"]["time_scope"] == "exact_requested_absolute_range"
+    assert metric["official"]["faa_evidence"]["requested_range_s"] == {"start_s": 0.0, "end_s": 30.0}
+    assert metric["official"]["faa_evidence"]["faa_contract"]["method"] == "paired_epoch_rfft_density"
+    assert completed.filters == {"operation": "per_epoch_mean_removal", "software_bandpass": "not_applied"}
+    assert completed.window["method"] == "paired_epoch_rfft_density"
+
+
+def test_static_faa_loader_uses_the_exact_requested_absolute_range(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    recording = service.recordings.require_recording(recording_id)
+    context = _RecordingAlgorithmContext(
+        service.recordings,
+        SimpleNamespace(
+            id=recording.id,
+            channels=recording.channels,
+            sfreq=recording.sfreq,
+            duration_s=recording.duration_s,
+        ),
+    )
+
+    f3, f4, sfreq, evidence = context.load_faa_signals(
+        start_s=2.0, end_s=5.0, f3_channel="F3", f4_channel="F4",
+    )
+
+    assert sfreq == 100.0
+    assert len(f3) == len(f4) == 300
+    assert evidence["time_scope"] == "exact_requested_absolute_range"
+    assert evidence["requested_range_s"] == {"start_s": 2.0, "end_s": 5.0}
+    assert evidence["actual_range_s"] == {"start_s": 2.0, "end_s": 5.0}
 
 
 def test_official_faa_rejects_missing_or_duplicate_pair_sources(tmp_path: Path):

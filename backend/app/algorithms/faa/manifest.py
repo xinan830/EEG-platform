@@ -10,4 +10,6 @@ MANIFEST = AlgorithmManifest(
     implementation_identity="faa-runtime-v1",
     supported_modes=["static"],
     output_unit="dimensionless",
+    definition_name="Official FAA",
+    execution_kind="official_composite_run_adapter",
 )
