@@ -1,0 +1,58 @@
+using System.Windows;
+using System.Windows.Controls;
+
+namespace BrainPlatform.Desktop.Views;
+
+public sealed class EegWorkspaceShell : Control
+{
+    public static readonly DependencyProperty TopBarProperty = DependencyProperty.Register(
+        nameof(TopBar),
+        typeof(object),
+        typeof(EegWorkspaceShell));
+
+    public static readonly DependencyProperty WaveformProperty = DependencyProperty.Register(
+        nameof(Waveform),
+        typeof(object),
+        typeof(EegWorkspaceShell));
+
+    public static readonly DependencyProperty BottomBarProperty = DependencyProperty.Register(
+        nameof(BottomBar),
+        typeof(object),
+        typeof(EegWorkspaceShell));
+
+    public static readonly DependencyProperty OverlayProperty = DependencyProperty.Register(
+        nameof(Overlay),
+        typeof(object),
+        typeof(EegWorkspaceShell));
+
+    static EegWorkspaceShell()
+    {
+        DefaultStyleKeyProperty.OverrideMetadata(
+            typeof(EegWorkspaceShell),
+            new FrameworkPropertyMetadata(typeof(EegWorkspaceShell)));
+    }
+
+    public object? TopBar
+    {
+        get => GetValue(TopBarProperty);
+        set => SetValue(TopBarProperty, value);
+    }
+
+    public object? Waveform
+    {
+        get => GetValue(WaveformProperty);
+        set => SetValue(WaveformProperty, value);
+    }
+
+    public object? BottomBar
+    {
+        get => GetValue(BottomBarProperty);
+        set => SetValue(BottomBarProperty, value);
+    }
+
+    public object? Overlay
+    {
+        get => GetValue(OverlayProperty);
+        set => SetValue(OverlayProperty, value);
+    }
+}

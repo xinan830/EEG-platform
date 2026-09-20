@@ -11,17 +11,8 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Margin="16,12,16,14">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="12" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="12" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-
-        <Border Grid.Row="0" Background="White" BorderBrush="#E5E9F0" BorderThickness="1" CornerRadius="8" Padding="16,10"
-                ToolTip="高通、低通和陷波只处理实时显示波形；原始采集记录始终保持未滤波。">
+    <views:EegWorkspaceShell>
+        <views:EegWorkspaceShell.TopBar>
             <DockPanel LastChildFill="False">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="高通 (Hz)" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -119,14 +110,13 @@
                     </StackPanel>
                 </Border>
             </DockPanel>
-        </Border>
+        </views:EegWorkspaceShell.TopBar>
 
-        <Border Grid.Row="2" Background="White" BorderBrush="#E5E9F0" BorderThickness="1" CornerRadius="8" Padding="16,14,14,10">
+        <views:EegWorkspaceShell.Waveform>
             <views:LiveSciChartCanvas DataContext="{Binding Acquisition.LiveMonitor}" />
-        </Border>
+        </views:EegWorkspaceShell.Waveform>
 
-        <Border Grid.Row="4" Margin="-16,0,-16,-14" Padding="22,6,22,8"
-                MinHeight="60" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+        <views:EegWorkspaceShell.BottomBar>
         <Grid>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                 <Grid Width="28" Height="28">
@@ -244,8 +234,9 @@
                 </Button>
             </StackPanel>
         </Grid>
-        </Border>
+        </views:EegWorkspaceShell.BottomBar>
 
+        <views:EegWorkspaceShell.Overlay>
         <Popup IsOpen="{Binding Acquisition.LiveMonitor.IsSettingsOpen, Mode=TwoWay}" Placement="Center" StaysOpen="True" AllowsTransparency="True">
             <Border Width="500" MaxHeight="640" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="26,20,26,22">
                 <Border.Effect>
@@ -398,5 +389,6 @@
                 </Grid>
             </Border>
         </Popup>
-    </Grid>
+        </views:EegWorkspaceShell.Overlay>
+    </views:EegWorkspaceShell>
 </UserControl>

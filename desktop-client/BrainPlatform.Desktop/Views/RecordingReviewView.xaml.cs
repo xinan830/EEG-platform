@@ -103,17 +103,18 @@ public partial class RecordingReviewView : UserControl
 
     private async void OnPositionReleased(object sender, MouseButtonEventArgs e)
     {
-        if (ViewModel is null || updatingControls)
+        if (ViewModel is null || updatingControls || sender is not Slider slider)
         {
             return;
         }
 
-        await ViewModel.SeekAsync(PositionSlider.Value);
+        await ViewModel.SeekAsync(slider.Value);
     }
 
     private async void OnDurationSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (updatingControls || ViewModel is null || DurationSelector.SelectedItem is not ComboBoxItem item ||
+        if (updatingControls || ViewModel is null || sender is not ComboBox selector ||
+            selector.SelectedItem is not ComboBoxItem item ||
             !double.TryParse(item.Tag?.ToString(), out var duration))
         {
             return;
@@ -124,7 +125,8 @@ public partial class RecordingReviewView : UserControl
 
     private async void OnMontageSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (updatingControls || ViewModel is null || MontageSelector.SelectedItem is not MontageProfile profile)
+        if (updatingControls || ViewModel is null || sender is not ComboBox selector ||
+            selector.SelectedItem is not MontageProfile profile)
         {
             return;
         }
@@ -150,7 +152,6 @@ public partial class RecordingReviewView : UserControl
             PositionSlider.Maximum = Math.Max(0, ViewModel.DurationSeconds - ViewModel.VisibleDurationSeconds);
             PositionSlider.Value = Math.Clamp(ViewModel.PositionSeconds, 0, PositionSlider.Maximum);
             PositionText.Text = $"{ViewModel.PositionSeconds:0.0} / {ViewModel.DurationSeconds:0.0} s";
-            PlayButton.Content = ViewModel.IsPlaying ? "Ⅱ" : "▶";
             DurationSelector.SelectedItem = DurationSelector.Items
                 .OfType<ComboBoxItem>()
                 .FirstOrDefault(item => double.TryParse(item.Tag?.ToString(), out var duration)
@@ -162,4 +163,5 @@ public partial class RecordingReviewView : UserControl
             updatingControls = false;
         }
     }
+
 }
