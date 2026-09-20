@@ -113,25 +113,74 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
         var startCounter = Math.Clamp(requestedStartCounter, firstCounter, lastExclusive);
         var endCounter = Math.Clamp(requestedEndCounter, startCounter, lastExclusive);
         var segments = new List<RecordingReviewSegment>();
+        List<double>? contiguousValues = null;
+        long contiguousFirstCounter = 0;
+        int contiguousSampleCount = 0;
+        int contiguousChannelCount = 0;
+        string? openChunkPath = null;
+        FileStream? openChunk = null;
 
-        foreach (var batch in index.Batches)
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var overlapStart = Math.Max(startCounter, batch.FirstSampleCounter);
-            var overlapEnd = Math.Min(endCounter, checked(batch.LastSampleCounter + 1L));
-            if (overlapEnd <= overlapStart)
+            foreach (var batch in index.Batches)
             {
-                continue;
+                cancellationToken.ThrowIfCancellationRequested();
+                var overlapStart = Math.Max(startCounter, batch.FirstSampleCounter);
+                var overlapEnd = Math.Min(endCounter, checked(batch.LastSampleCounter + 1L));
+                if (overlapEnd <= overlapStart)
+                {
+                    continue;
+                }
+
+                if (!string.Equals(openChunkPath, batch.ChunkPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (openChunk is not null)
+                    {
+                        await openChunk.DisposeAsync();
+                    }
+
+                    openChunk = new FileStream(
+                        batch.ChunkPath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.ReadWrite,
+                        256 * 1024,
+                        FileOptions.RandomAccess | FileOptions.Asynchronous);
+                    openChunkPath = batch.ChunkPath;
+                }
+
+                var sampleOffset = checked((int)(overlapStart - batch.FirstSampleCounter));
+                var sampleCount = checked((int)(overlapEnd - overlapStart));
+                var values = await ReadPayloadSliceAsync(
+                    batch,
+                    sampleOffset,
+                    sampleCount,
+                    openChunk ?? throw new InvalidOperationException("回溯采样分块未打开。"),
+                    cancellationToken);
+                if (contiguousValues is null ||
+                    contiguousFirstCounter + contiguousSampleCount != overlapStart ||
+                    contiguousChannelCount != batch.ChannelCount)
+                {
+                    FlushContiguousSegment(segments, ref contiguousValues, ref contiguousFirstCounter,
+                        ref contiguousSampleCount, ref contiguousChannelCount);
+                    contiguousFirstCounter = overlapStart;
+                    contiguousChannelCount = batch.ChannelCount;
+                    contiguousValues = new List<double>(checked(sampleCount * batch.ChannelCount));
+                }
+
+                contiguousValues.AddRange(values);
+                contiguousSampleCount += sampleCount;
             }
 
-            var sampleOffset = checked((int)(overlapStart - batch.FirstSampleCounter));
-            var sampleCount = checked((int)(overlapEnd - overlapStart));
-            var values = await ReadPayloadSliceAsync(batch, sampleOffset, sampleCount, cancellationToken);
-            AppendSegment(segments, new RecordingReviewSegment(
-                overlapStart,
-                sampleCount,
-                batch.ChannelCount,
-                values));
+            FlushContiguousSegment(segments, ref contiguousValues, ref contiguousFirstCounter,
+                ref contiguousSampleCount, ref contiguousChannelCount);
+        }
+        finally
+        {
+            if (openChunk is not null)
+            {
+                await openChunk.DisposeAsync();
+            }
         }
 
         var actualStart = segments.Count == 0
@@ -158,19 +207,13 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
         RawBatchIndexEntry batch,
         int sampleOffset,
         int sampleCount,
+        FileStream stream,
         CancellationToken cancellationToken)
     {
         var valueCount = checked(sampleCount * batch.ChannelCount);
         var values = ArrayPool<double>.Shared.Rent(valueCount);
         try
         {
-            await using var stream = new FileStream(
-                batch.ChunkPath,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite,
-                64 * 1024,
-                FileOptions.RandomAccess | FileOptions.Asynchronous);
             stream.Position = checked(batch.PayloadOffset + (long)sampleOffset * batch.ChannelCount * sizeof(double));
             var bytes = new byte[checked(valueCount * sizeof(double))];
             await stream.ReadExactlyAsync(bytes, cancellationToken);
@@ -193,27 +236,23 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
     private double ToRelativeSeconds(long sampleCounter) =>
         (sampleCounter - index.FirstSampleCounter) / (double)manifest.SamplingRateHz;
 
-    private static void AppendSegment(
+    private static void FlushContiguousSegment(
         ICollection<RecordingReviewSegment> segments,
-        RecordingReviewSegment next)
+        ref List<double>? values,
+        ref long firstCounter,
+        ref int sampleCount,
+        ref int channelCount)
     {
-        if (segments.LastOrDefault() is not { } previous ||
-            previous.LastSampleCounter + 1L != next.FirstSampleCounter ||
-            previous.ChannelCount != next.ChannelCount)
+        if (values is null || sampleCount <= 0 || channelCount <= 0)
         {
-            segments.Add(next);
             return;
         }
 
-        var merged = new double[checked((previous.SampleCount + next.SampleCount) * previous.ChannelCount)];
-        Array.Copy(previous.SampleMajorValues, merged, previous.SampleMajorValues.Length);
-        Array.Copy(next.SampleMajorValues, 0, merged, previous.SampleMajorValues.Length, next.SampleMajorValues.Length);
-        segments.Remove(previous);
-        segments.Add(new RecordingReviewSegment(
-            previous.FirstSampleCounter,
-            previous.SampleCount + next.SampleCount,
-            previous.ChannelCount,
-            merged));
+        segments.Add(new RecordingReviewSegment(firstCounter, sampleCount, channelCount, values.ToArray()));
+        values = null;
+        firstCounter = 0;
+        sampleCount = 0;
+        channelCount = 0;
     }
 
     private static IReadOnlyList<RawBatchIndexEntry> BuildIndex(

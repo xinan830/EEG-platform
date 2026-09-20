@@ -39,4 +39,20 @@ public sealed class RecordingPlaybackControllerTests
         Assert.False(controller.IsPlaying);
         Assert.True(controller.IsCompleted);
     }
+
+    [Fact]
+    public void ChangingPlaybackRatePreservesCurrentPositionAndUsesTheNewRate()
+    {
+        var now = 0d;
+        var controller = new RecordingPlaybackController(20, () => now);
+        controller.Play();
+        now = 2;
+        controller.SetPlaybackRate(2);
+        Assert.Equal(2, controller.PositionSeconds, 6);
+
+        now = 3.5;
+        controller.Update();
+        Assert.Equal(5, controller.PositionSeconds, 6);
+        Assert.Equal(2, controller.PlaybackRate);
+    }
 }

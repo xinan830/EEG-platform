@@ -31,6 +31,16 @@ def _service(request: Request) -> LiveFilterService:
     return request.app.state.live_filter_service
 
 
+@router.get("/contract")
+def get_filter_contract(request: Request) -> dict:
+    """Expose the active display-filter contract for desktop cache identity.
+
+    The response is metadata only. It does not create a filtering session or
+    make any claim about a recording's scientific processing history.
+    """
+    return {"filter_contract": _service(request).contract, "unit": "V"}
+
+
 @router.post("/sessions", status_code=status.HTTP_201_CREATED)
 def create_session(payload: LiveFilterSessionCreate, request: Request) -> dict:
     try:

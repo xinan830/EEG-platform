@@ -51,9 +51,31 @@ a focused display-domain service shared by live and review frame builders. The
 service accepts V/float64 values and returns V/float64 derived display values.
 It never mutates its source arrays.
 
-Offline high-pass, low-pass, notch, algorithms, and reports remain Python-owned
-and are outside this first review slice. This avoids quietly adding a second C#
-scientific filter implementation.
+Review high-pass, low-pass, and notch remain Python-owned. Review uses a
+rebuildable fixed-size **filtered source chunk** cache: each completed chunk
+contains only Python-filtered V/float64 values in the recording's original
+device stream order. It deliberately does not contain a display montage, so a
+review-only montage switch can reuse the filtered source data. C# owns only
+immutable raw-window reads, cache persistence, playback orchestration,
+sensitivity, paper-speed geometry, and display montage projection.
+
+A chunk key includes the immutable recording session and raw-manifest
+fingerprint, sampling rate, recorded channel schema fingerprint, filter
+settings, Python-returned filter-contract fingerprint, filter warm-up/checkpoint
+contract, chunk sample range, and gap boundary context. It MUST NOT include a
+later-edited global channel configuration version. A random noninitial chunk is
+built with contiguous preceding raw samples sufficient to establish its causal
+filter state; recorded gaps break that state chain. A partially written cache
+file is never readable: write a complete temporary file and atomically rename
+it only after Python returns all target samples.
+
+The C# review path has a small montage/frame LRU above the filtered source
+cache. SciChart receives only a complete projected frame. On a cache miss the
+previous complete frame remains visible while a background chunk builds; no
+half-filled data series, empty target range, or partially filtered samples are
+bound to the chart. A filter failure retains raw display data with an explicit
+warning; it never fabricates filtered values or adds a second C# scientific
+filter implementation.
 
 ### Review is immersive but returns to project context
 
@@ -61,6 +83,24 @@ The project recording row owns the `回溯` entry action. `MainWindow` hides the
 global navigation while review is open, as it does for acquisition. The review
 back action disposes its session and returns to the same selected project and
 refreshed recording list.
+
+### Review navigation uses a full-recording time index
+
+The bottom navigator represents only the complete recorded time range and the
+current bounded display window. It does not plot or cache the full raw record.
+Seeking moves the chart's continuous absolute-time visible range immediately.
+Raw reads and Python filtering are debounced, latest-only background work; an
+in-memory cache retains only a few nearby raw and projected blocks for the
+active configuration. Playback pans through those blocks and prefetches the
+next one. The horizontal
+EEG grid and navigator labels are derived from `recording_start_utc` plus
+sample-counter time. They are historical acquisition times, never the current
+workstation clock.
+
+Paper speed is the only horizontal display control. The view calculates visible
+seconds from WPF's device-independent viewport width and the selected mm/s;
+clinical workstations that require physical-mm fidelity still need a monitor
+calibration step because a DIP is not a guaranteed physical millimeter.
 
 ## Failure Behavior
 
@@ -79,7 +119,10 @@ refreshed recording list.
 ## Performance Boundary
 
 Opening a recording scans only headers and seeks over payloads. Playback keeps
-at most the requested visible window plus a bounded read-ahead window. Rendering
-may perform extrema-preserving display decimation, but disk data and montage
-calculation preserve original sample order and values.
-
+only a bounded set of nearby raw, filtered-source, and projected display frames,
+never the complete recording. Dragging updates a preview target continuously;
+the committed waveform target changes only after a matching complete frame is
+available. Nearby fixed chunks are prefetched without cancelling a useful
+completed or adjacent build for every pointer movement. Rendering may perform
+extrema-preserving display decimation, but raw and filtered cache data preserve
+original sample order, V units, and float64 values.

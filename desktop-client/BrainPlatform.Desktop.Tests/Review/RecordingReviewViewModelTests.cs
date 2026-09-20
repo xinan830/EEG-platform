@@ -76,6 +76,116 @@ public sealed class RecordingReviewViewModelTests
         Assert.Contains("未记录", viewModel.AcquisitionMontageText);
     }
 
+    [Fact]
+    public async Task SmoothPlaybackClockDoesNotReloadTheVisibleWindowOnEveryTick()
+    {
+        var now = 0d;
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var reader = new FakeReader(Manifest(configuration));
+        await using var viewModel = new RecordingReviewViewModel(
+            reader,
+            catalog,
+            playbackClockSeconds: () => now);
+        await viewModel.InitializeAsync();
+
+        viewModel.TogglePlayback();
+        for (var index = 0; index < 100; index++)
+        {
+            now += 0.01;
+            viewModel.TickPlayback();
+        }
+
+        // A bounded next block may prefetch, but render-clock ticks must not
+        // issue one raw read per tick.
+        Assert.InRange(reader.ReadCount, 1, 2);
+        Assert.Equal(1, viewModel.PositionSeconds, precision: 6);
+    }
+
+    [Fact]
+    public async Task ContinuousNavigatorDragCoalescesToTheLatestBoundedRead()
+    {
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var reader = new FakeReader(Manifest(configuration), durationSeconds: 120);
+        await using var viewModel = new RecordingReviewViewModel(reader, catalog);
+        await viewModel.InitializeAsync();
+
+        for (var position = 40; position <= 55; position++)
+        {
+            viewModel.PreviewSeek(position);
+        }
+
+        await Task.Delay(180);
+        // Throttling begins useful work during the drag, then consumes the
+        // newest target at the next cadence; it must not wait for mouse-up.
+        Assert.InRange(reader.ReadCount, 2, 3);
+        Assert.Equal(55, viewModel.PositionSeconds);
+        Assert.True(viewModel.ViewportStartSeconds > 50);
+    }
+
+    [Fact]
+    public async Task PlaybackCrossingACacheBlockStartsOneForegroundLoadInsteadOfResettingDebounce()
+    {
+        var now = 0d;
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var reader = new FakeReader(Manifest(configuration), durationSeconds: 120);
+        await using var viewModel = new RecordingReviewViewModel(reader, catalog, playbackClockSeconds: () => now);
+        await viewModel.InitializeAsync();
+
+        viewModel.TogglePlayback();
+        now = 18;
+        viewModel.TickPlayback();
+        await WaitUntilAsync(() => reader.ReadCount >= 2);
+
+        Assert.InRange(reader.ReadCount, 2, 3);
+        Assert.True(viewModel.ViewportStartSeconds > 10);
+    }
+
+    [Fact]
+    public async Task PaperSpeedDerivesVisibleDurationFromTheViewportWidth()
+    {
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var reader = new FakeReader(Manifest(configuration));
+        await using var viewModel = new RecordingReviewViewModel(reader, catalog);
+        await viewModel.InitializeAsync();
+
+        // 960 DIP = 254 mm at WPF's 96 DPI reference. At 30 mm/s this is 8.466... seconds.
+        viewModel.UpdateViewportWidth(960);
+        await WaitUntilAsync(() => Math.Abs(viewModel.VisibleDurationSeconds - (254d / 30d)) < 0.01);
+        Assert.InRange(viewModel.VisibleDurationSeconds, 8.45, 8.48);
+
+        viewModel.PaperSpeedMillimetersPerSecond = 60;
+        await WaitUntilAsync(() => Math.Abs(viewModel.VisibleDurationSeconds - (254d / 60d)) < 0.01);
+        Assert.InRange(viewModel.VisibleDurationSeconds, 4.22, 4.25);
+    }
+
     private static LocalRawRecordingManifest Manifest(ChannelConfigurationProfile configuration) => new(
         Guid.NewGuid(),
         "sample_major_float64_v1_with_receive_utc_ticks_and_per_channel_units",
@@ -133,17 +243,39 @@ public sealed class RecordingReviewViewModelTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FakeReader(LocalRawRecordingManifest manifest) : IRecordingReviewReader
+    private sealed class FakeReader(LocalRawRecordingManifest manifest, double durationSeconds = 20) : IRecordingReviewReader
     {
+        private int readCount;
+
         public LocalRawRecordingManifest Manifest { get; } = manifest;
 
-        public double DurationSeconds => 20;
+        public double DurationSeconds => durationSeconds;
 
-        public Task<RecordingReviewWindow> ReadWindowAsync(double startSeconds, double durationSeconds, CancellationToken cancellationToken) =>
-            Task.FromResult(new RecordingReviewWindow(
+        public int ReadCount => Volatile.Read(ref readCount);
+
+        public Task<RecordingReviewWindow> ReadWindowAsync(double startSeconds, double durationSeconds, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref readCount);
+            return Task.FromResult(new RecordingReviewWindow(
                 startSeconds,
                 startSeconds,
                 startSeconds + durationSeconds,
                 [new RecordingReviewSegment(0, 1, 2, [1e-6, 0])]));
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await Task.Delay(10);
+        }
+
+        Assert.True(condition(), "Expected asynchronous display duration update was not completed.");
     }
 }

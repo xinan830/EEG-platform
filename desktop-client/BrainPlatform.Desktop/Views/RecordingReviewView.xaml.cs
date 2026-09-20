@@ -12,14 +12,13 @@ public partial class RecordingReviewView : UserControl
 {
     private readonly DispatcherTimer playbackTimer;
     private bool updatingControls;
-    private bool tickInProgress;
 
     public RecordingReviewView()
     {
         InitializeComponent();
         playbackTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
-            Interval = TimeSpan.FromMilliseconds(50),
+            Interval = TimeSpan.FromMilliseconds(16),
         };
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
@@ -70,6 +69,7 @@ public partial class RecordingReviewView : UserControl
         if (e.PropertyName is nameof(RecordingReviewViewModel.PositionSeconds)
             or nameof(RecordingReviewViewModel.DurationSeconds)
             or nameof(RecordingReviewViewModel.VisibleDurationSeconds)
+            or nameof(RecordingReviewViewModel.ViewportStartSeconds)
             or nameof(RecordingReviewViewModel.IsPlaying)
             or nameof(RecordingReviewViewModel.IsCompleted))
         {
@@ -77,22 +77,14 @@ public partial class RecordingReviewView : UserControl
         }
     }
 
-    private async void OnPlaybackTimerTick(object? sender, EventArgs e)
+    private void OnPlaybackTimerTick(object? sender, EventArgs e)
     {
-        if (tickInProgress || ViewModel is not { IsPlaying: true } viewModel)
+        if (ViewModel is not { IsPlaying: true } viewModel)
         {
             return;
         }
 
-        tickInProgress = true;
-        try
-        {
-            await viewModel.TickPlaybackAsync();
-        }
-        finally
-        {
-            tickInProgress = false;
-        }
+        viewModel.TickPlayback();
     }
 
     private void OnPlayClick(object sender, RoutedEventArgs e)
@@ -101,26 +93,47 @@ public partial class RecordingReviewView : UserControl
         UpdateControls();
     }
 
-    private async void OnPositionReleased(object sender, MouseButtonEventArgs e)
+    private void OnPlaybackSpeedClick(object sender, RoutedEventArgs e) => ViewModel?.CyclePlaybackSpeed();
+
+    private async void OnNavigateClick(object sender, RoutedEventArgs e)
     {
-        if (ViewModel is null || updatingControls || sender is not Slider slider)
+        if (ViewModel is null || sender is not Button { Tag: string tag })
         {
             return;
         }
 
-        await ViewModel.SeekAsync(slider.Value);
+        if (string.Equals(tag, "page-back", StringComparison.Ordinal))
+        {
+            await ViewModel.SeekPageAsync(-1);
+            return;
+        }
+
+        if (string.Equals(tag, "page-forward", StringComparison.Ordinal))
+        {
+            await ViewModel.SeekPageAsync(1);
+            return;
+        }
+
+        if (!double.TryParse(tag, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var seconds))
+        {
+            return;
+        }
+
+        await ViewModel.SeekRelativeAsync(seconds);
     }
 
-    private async void OnDurationSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnTimelinePreviewPositionChanged(object? sender, double positionSeconds)
     {
-        if (updatingControls || ViewModel is null || sender is not ComboBox selector ||
-            selector.SelectedItem is not ComboBoxItem item ||
-            !double.TryParse(item.Tag?.ToString(), out var duration))
-        {
-            return;
-        }
+        ViewModel?.PreviewSeek(positionSeconds);
+    }
 
-        await ViewModel.SetVisibleDurationAsync(duration);
+    private async void OnTimelinePositionCommitted(object? sender, double positionSeconds)
+    {
+        if (ViewModel is not null)
+        {
+            await ViewModel.NavigateFromTrackClickAsync(positionSeconds);
+        }
     }
 
     private async void OnMontageSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -149,13 +162,6 @@ public partial class RecordingReviewView : UserControl
         updatingControls = true;
         try
         {
-            PositionSlider.Maximum = Math.Max(0, ViewModel.DurationSeconds - ViewModel.VisibleDurationSeconds);
-            PositionSlider.Value = Math.Clamp(ViewModel.PositionSeconds, 0, PositionSlider.Maximum);
-            PositionText.Text = $"{ViewModel.PositionSeconds:0.0} / {ViewModel.DurationSeconds:0.0} s";
-            DurationSelector.SelectedItem = DurationSelector.Items
-                .OfType<ComboBoxItem>()
-                .FirstOrDefault(item => double.TryParse(item.Tag?.ToString(), out var duration)
-                    && Math.Abs(duration - ViewModel.VisibleDurationSeconds) < 0.001);
             MontageSelector.SelectedItem = ViewModel.CurrentViewingMontage;
         }
         finally

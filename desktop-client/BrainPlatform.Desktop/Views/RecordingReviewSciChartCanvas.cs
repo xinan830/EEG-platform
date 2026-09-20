@@ -23,8 +23,17 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     ];
     private readonly SciChartSurface surface = new();
     private readonly NumericAxis xAxis = new();
+    private readonly RecordingTimeLabelProvider recordingTimeLabels = new();
     private readonly NumericAxis yAxis = new();
     private readonly Grid labels = new();
+    private readonly Grid chartHost = new();
+    private readonly Border playbackCursor = new()
+    {
+        Width = 1,
+        Background = new SolidColorBrush(Color.FromRgb(220, 38, 38)),
+        HorizontalAlignment = HorizontalAlignment.Left,
+        IsHitTestVisible = false,
+    };
     private readonly TextBlock emptyMessage = new()
     {
         Text = "等待加载回溯数据",
@@ -43,11 +52,18 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(labels, 0);
-        Grid.SetColumn(surface, 1);
-        Grid.SetColumn(emptyMessage, 1);
+        chartHost.Children.Add(surface);
+        chartHost.Children.Add(emptyMessage);
+        chartHost.Children.Add(playbackCursor);
+        chartHost.SizeChanged += (_, _) =>
+        {
+            var viewModel = DataContext as RecordingReviewViewModel;
+            viewModel?.UpdateViewportWidth(surface.ActualWidth);
+            ApplyFrame(viewModel?.CurrentFrame, viewModel);
+        };
+        Grid.SetColumn(chartHost, 1);
         layout.Children.Add(labels);
-        layout.Children.Add(surface);
-        layout.Children.Add(emptyMessage);
+        layout.Children.Add(chartHost);
         Content = layout;
         DataContextChanged += OnDataContextChanged;
         Unloaded += (_, _) => Unsubscribe();
@@ -65,6 +81,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         xAxis.MajorDelta = 1;
         xAxis.MinorDelta = 0.5;
         xAxis.TextFormatting = "0";
+        xAxis.LabelProvider = recordingTimeLabels;
         yAxis.AutoRange = AutoRange.Never;
         yAxis.VisibleRange = new DoubleRange(0, 1);
         yAxis.DrawLabels = false;
@@ -79,6 +96,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     {
         Unsubscribe(e.OldValue as RecordingReviewViewModel);
         Subscribe(e.NewValue as RecordingReviewViewModel);
+        (e.NewValue as RecordingReviewViewModel)?.UpdateViewportWidth(surface.ActualWidth);
         ApplyFrame((e.NewValue as RecordingReviewViewModel)?.CurrentFrame, e.NewValue as RecordingReviewViewModel);
     }
 
@@ -97,9 +115,17 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(RecordingReviewViewModel.CurrentFrame) or nameof(RecordingReviewViewModel.StatusText) or nameof(RecordingReviewViewModel.VisibleDurationSeconds))
+        if (e.PropertyName is nameof(RecordingReviewViewModel.CurrentFrame)
+            or nameof(RecordingReviewViewModel.VisibleDurationSeconds)
+            or nameof(RecordingReviewViewModel.SensitivityMicrovoltsPerMillimeter))
         {
             ApplyFrame((sender as RecordingReviewViewModel)?.CurrentFrame, sender as RecordingReviewViewModel);
+        }
+        else if (e.PropertyName is nameof(RecordingReviewViewModel.PositionSeconds)
+                 or nameof(RecordingReviewViewModel.ViewportStartSeconds))
+        {
+            UpdateVisibleRange(sender as RecordingReviewViewModel);
+            UpdatePlaybackCursor(sender as RecordingReviewViewModel);
         }
     }
 
@@ -110,13 +136,15 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
             emptyMessage.Text = viewModel?.StatusText ?? "等待加载回溯数据";
             emptyMessage.Visibility = Visibility.Visible;
             ClearSeries();
+            playbackCursor.Visibility = Visibility.Collapsed;
             return;
         }
 
         var names = frame.OutputChannelNames.ToArray();
         EnsureTraceSeries(names);
-        var duration = Math.Max(0.1, viewModel?.VisibleDurationSeconds ?? 10);
-        xAxis.VisibleRange = new DoubleRange(0, duration);
+        recordingTimeLabels.Update(viewModel?.RecordingStartUtc ?? DateTimeOffset.UnixEpoch, 0);
+        UpdateVisibleRange(viewModel);
+        xAxis.InvalidateElement();
         yAxis.VisibleRange = new DoubleRange(0, Math.Max(1, names.Length));
         emptyMessage.Text = viewModel?.StatusText ?? "已加载";
         emptyMessage.Visibility = frame.Segments.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -128,6 +156,8 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
                 UpdateSeries(traceSeries[traceIndex], frame, traceIndex, names.Length);
             }
         }
+
+        UpdatePlaybackCursor(viewModel);
     }
 
     private void EnsureTraceSeries(IReadOnlyList<string> names)
@@ -172,6 +202,10 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         var yValues = new List<double>();
         var baseline = traceCount - traceIndex - 0.5;
         var hasSegment = false;
+        var pixelsPerMillimeter = VisualTreeHelper.GetDpi(surface).PixelsPerInchY / 25.4;
+        var plotHeight = Math.Max(1, surface.ActualHeight);
+        var sensitivity = (DataContext as RecordingReviewViewModel)?.SensitivityMicrovoltsPerMillimeter ?? 10;
+        var displayScale = traceCount * pixelsPerMillimeter / (plotHeight * sensitivity);
         foreach (var segment in frame.Segments)
         {
             if (traceIndex >= segment.Channels.Count)
@@ -191,7 +225,8 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
                 segment,
                 segment.Channels[traceIndex].Values,
                 frame,
-                baseline);
+                baseline,
+                displayScale);
             hasSegment = true;
         }
 
@@ -211,7 +246,8 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         ProjectedMontageSegment segment,
         IReadOnlyList<double> values,
         RecordingReviewFrame frame,
-        double baseline)
+        double baseline,
+        double displayScale)
     {
         var bucketSize = Math.Max(1, (int)Math.Ceiling(values.Count / (double)MaximumPointsPerTrace));
         for (var start = 0; start < values.Count; start += bucketSize)
@@ -236,11 +272,52 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
 
             foreach (var index in new[] { first, min, max, last }.Distinct().Where(index => index >= 0).OrderBy(index => index))
             {
-                var seconds = (segment.FirstSampleCounter + index - frame.WindowStartSampleCounter) / (double)frame.SamplingRateHz;
+                var seconds = frame.WindowStartSeconds +
+                    (segment.FirstSampleCounter + index - frame.WindowStartSampleCounter) / (double)frame.SamplingRateHz;
                 xValues.Add(seconds);
-                yValues.Add(baseline + values[index] * 1_000_000d / 100d);
+                yValues.Add(baseline + values[index] * 1_000_000d * displayScale);
             }
         }
+    }
+
+    private void UpdatePlaybackCursor(RecordingReviewViewModel? viewModel)
+    {
+        if (viewModel?.CurrentFrame is not { } frame || chartHost.ActualWidth <= 0)
+        {
+            playbackCursor.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var visibleStart = viewModel.ViewportStartSeconds;
+        var visibleEnd = Math.Min(viewModel.DurationSeconds, visibleStart + viewModel.VisibleDurationSeconds);
+        var duration = Math.Max(0.001, visibleEnd - visibleStart);
+        var fraction = Math.Clamp((viewModel.PositionSeconds - visibleStart) / duration, 0, 1);
+        playbackCursor.Margin = new Thickness(fraction * Math.Max(0, chartHost.ActualWidth - 1), 0, 0, 0);
+        playbackCursor.Visibility = viewModel.PositionSeconds >= visibleStart &&
+                                    viewModel.PositionSeconds <= visibleEnd
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void UpdateVisibleRange(RecordingReviewViewModel? viewModel)
+    {
+        if (viewModel is null)
+        {
+            return;
+        }
+
+        var start = viewModel.ViewportStartSeconds;
+        var end = Math.Max(start + 0.001, Math.Min(viewModel.DurationSeconds, start + viewModel.VisibleDurationSeconds));
+        // Keep the last complete frame on screen while a new window is being
+        // read. Moving the axis ahead of the frame creates a false white gap.
+        if (viewModel.CurrentFrame is not { } frame ||
+            frame.WindowStartSeconds > start + 0.000_001 ||
+            frame.WindowEndSeconds + 0.000_001 < end)
+        {
+            return;
+        }
+
+        xAxis.VisibleRange = new DoubleRange(start, end);
     }
 
     private void ClearSeries()

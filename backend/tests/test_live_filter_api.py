@@ -4,6 +4,15 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+def test_live_filter_contract_is_available_for_desktop_cache_identity() -> None:
+    response = TestClient(app).get("/api/live-filters/contract")
+
+    assert response.status_code == 200
+    assert response.json()["unit"] == "V"
+    assert response.json()["filter_contract"]["algorithm_version"] == "display-iir-sos-v2"
+    assert response.json()["filter_contract"]["phase"] == "causal"
+
+
 def test_binary_live_filter_batch_uses_float64_without_json_number_roundtrip() -> None:
     client = TestClient(app)
     session_id = "binary-live-filter-test"

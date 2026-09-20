@@ -38,7 +38,12 @@ public partial class App : Application
             healthClient,
             new AcquisitionWorkspaceViewModel(runtime: runtime, deviceSession: deviceSession, notifications: notifications),
             notifications);
-        var window = new MainWindow
+        var reviewFilterClient = new HttpClient
+        {
+            BaseAddress = backendEndpoint,
+            Timeout = TimeSpan.FromSeconds(15),
+        };
+        var window = new MainWindow(new Review.HttpRecordingReviewFilter(reviewFilterClient))
         {
             DataContext = workspace,
         };

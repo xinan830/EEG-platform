@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Net.Http;
 using BrainPlatform.Desktop.Acquisition.Storage;
 using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.Review;
@@ -22,9 +23,11 @@ public partial class MainWindow : Window
     private RecordingReviewView? recordingReviewView;
     private RecordingReviewViewModel? recordingReviewViewModel;
     private LocalRawRecording? recordingReviewRecording;
+    private readonly IRecordingReviewFilter? recordingReviewFilter;
 
-    public MainWindow()
+    public MainWindow(IRecordingReviewFilter? recordingReviewFilter = null)
     {
+        this.recordingReviewFilter = recordingReviewFilter;
         InitializeComponent();
 
         // Initialize view instances immediately for instant UI display
@@ -146,7 +149,8 @@ public partial class MainWindow : Window
             loadedRecording.Reader,
             catalog,
             recordingName: recording.Name,
-            projectName: loadedRecording.Manifest.Project.Name);
+            projectName: loadedRecording.Manifest.Project.Name,
+            filter: recordingReviewFilter);
         try
         {
             await viewModel.InitializeAsync();

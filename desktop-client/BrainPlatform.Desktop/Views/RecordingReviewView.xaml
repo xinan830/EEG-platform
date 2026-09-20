@@ -22,39 +22,61 @@
                             Style="{StaticResource ModernDialogSecondaryButtonStyle}"
                             ToolTip="返回项目列表" />
                     <Separator Width="1" Height="30" Background="#E2E8F0" Margin="18,0" />
+                    <TextBlock Text="高通" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <ComboBox Width="82" Style="{StaticResource ModernFilterComboBoxStyle}"
+                              SelectedValuePath="Tag" SelectedValue="{Binding HighPassHz, Mode=TwoWay}">
+                        <ComboBoxItem Content="0.01 Hz" Tag="0.01" /><ComboBoxItem Content="0.05 Hz" Tag="0.05" />
+                        <ComboBoxItem Content="0.1 Hz" Tag="0.1" /><ComboBoxItem Content="0.2 Hz" Tag="0.2" />
+                        <ComboBoxItem Content="0.3 Hz" Tag="0.3" /><ComboBoxItem Content="0.4 Hz" Tag="0.4" />
+                        <ComboBoxItem Content="0.5 Hz" Tag="0.5" /><ComboBoxItem Content="0.6 Hz" Tag="0.6" />
+                        <ComboBoxItem Content="0.7 Hz" Tag="0.7" /><ComboBoxItem Content="0.8 Hz" Tag="0.8" />
+                        <ComboBoxItem Content="0.9 Hz" Tag="0.9" />
+                        <ComboBoxItem Content="1 Hz" Tag="1" /><ComboBoxItem Content="1.5 Hz" Tag="1.5" />
+                        <ComboBoxItem Content="2 Hz" Tag="2" /><ComboBoxItem Content="3 Hz" Tag="3" />
+                        <ComboBoxItem Content="5 Hz" Tag="5" /><ComboBoxItem Content="10 Hz" Tag="10" />
+                    </ComboBox>
+                    <TextBlock Text="低通" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
+                    <ComboBox Width="82" Style="{StaticResource ModernFilterComboBoxStyle}"
+                              SelectedValuePath="Tag" SelectedValue="{Binding LowPassHz, Mode=TwoWay}">
+                        <ComboBoxItem Content="10 Hz" Tag="10" /><ComboBoxItem Content="20 Hz" Tag="20" />
+                        <ComboBoxItem Content="30 Hz" Tag="30" /><ComboBoxItem Content="40 Hz" Tag="40" />
+                        <ComboBoxItem Content="50 Hz" Tag="50" /><ComboBoxItem Content="60 Hz" Tag="60" />
+                        <ComboBoxItem Content="70 Hz" Tag="70" /><ComboBoxItem Content="80 Hz" Tag="80" />
+                        <ComboBoxItem Content="90 Hz" Tag="90" /><ComboBoxItem Content="100 Hz" Tag="100" />
+                    </ComboBox>
+                    <TextBlock Text="陷波" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
+                    <ComboBox Width="72" Style="{StaticResource ModernFilterComboBoxStyle}"
+                              SelectedValuePath="Tag" SelectedValue="{Binding NotchHz, Mode=TwoWay}">
+                        <ComboBoxItem Content="关闭" Tag="0" /><ComboBoxItem Content="50 Hz" Tag="50" /><ComboBoxItem Content="60 Hz" Tag="60" />
+                    </ComboBox>
+                    <TextBlock Text="灵敏度" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
+                    <ComboBox Width="88" Style="{StaticResource ModernFilterComboBoxStyle}"
+                              SelectedValuePath="Tag" SelectedValue="{Binding SensitivityMicrovoltsPerMillimeter, Mode=TwoWay}">
+                        <ComboBoxItem Content="5 µV/mm" Tag="5" /><ComboBoxItem Content="10 µV/mm" Tag="10" />
+                        <ComboBoxItem Content="20 µV/mm" Tag="20" /><ComboBoxItem Content="50 µV/mm" Tag="50" />
+                        <ComboBoxItem Content="100 µV/mm" Tag="100" />
+                    </ComboBox>
+                    <Separator Width="1" Height="30" Background="#E2E8F0" Margin="12,0" />
                     <TextBlock Text="当前查看导联" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <ComboBox x:Name="MontageSelector"
-                              Width="210"
+                              Width="170"
                               Style="{StaticResource ModernFilterComboBoxStyle}"
                               ItemsSource="{Binding CompatibleViewingMontages}"
                               DisplayMemberPath="Name"
                               SelectionChanged="OnMontageSelectionChanged"
                               ToolTip="只改变回溯显示方式，不修改原始记录" />
-                    <TextBlock Text="显示时长" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="20,0,8,0" />
-                    <ComboBox x:Name="DurationSelector"
-                              Width="92"
-                              Style="{StaticResource ModernFilterComboBoxStyle}"
-                              SelectionChanged="OnDurationSelectionChanged">
-                        <ComboBoxItem Content="5 秒" Tag="5" />
-                        <ComboBoxItem Content="10 秒" Tag="10" />
-                        <ComboBoxItem Content="20 秒" Tag="20" />
+                    <TextBlock Text="走纸速度" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
+                    <ComboBox Width="94" Style="{StaticResource ModernFilterComboBoxStyle}"
+                              SelectedValuePath="Tag" SelectedValue="{Binding PaperSpeedMillimetersPerSecond, Mode=TwoWay}"
+                              ToolTip="按窗口宽度换算显示时长；不同显示器的真实物理毫米需要工作站校准。">
+                        <ComboBoxItem Content="5 mm/s" Tag="5" />
+                        <ComboBoxItem Content="10 mm/s" Tag="10" />
+                        <ComboBoxItem Content="15 mm/s" Tag="15" />
+                        <ComboBoxItem Content="30 mm/s" Tag="30" />
+                        <ComboBoxItem Content="60 mm/s" Tag="60" />
                     </ComboBox>
-                    <Separator Width="1" Height="30" Background="#E2E8F0" Margin="20,0" />
-                    <TextBlock Text="采集导联" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <Border MinWidth="150" MaxWidth="220" Padding="10,6" Background="#F8FAFC"
-                            BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="5"
-                            ToolTip="记录创建时保存的导联快照">
-                        <TextBlock Text="{Binding AcquisitionMontageText, Mode=OneWay}"
-                                   FontSize="12" Foreground="#334155" TextTrimming="CharacterEllipsis" />
-                    </Border>
                     <TextBlock Text="采样率" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="14,0,8,0" />
                     <TextBlock Text="{Binding SamplingRateHz, Mode=OneWay, StringFormat={}{0} Hz}"
-                               FontSize="12" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" />
-                    <TextBlock Text="原始" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="14,0,8,0" />
-                    <TextBlock Text="{Binding SourceChannelCount, Mode=OneWay, StringFormat={}{0} 通道}"
-                               FontSize="12" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" />
-                    <TextBlock Text=" / 显示" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="8,0" />
-                    <TextBlock Text="{Binding OutputChannelCount, Mode=OneWay, StringFormat={}{0} 通道}"
                                FontSize="12" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" />
                 </StackPanel>
 
@@ -84,75 +106,51 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Grid Width="28" Height="28">
-                        <Ellipse Fill="#DBEAFE" />
-                        <Ellipse Width="12" Height="12" Fill="#2563EB" />
-                    </Grid>
-                    <TextBlock x:Name="PositionText"
-                               Width="145"
-                               Margin="10,0,0,0"
-                               FontFamily="Consolas"
-                               FontWeight="SemiBold"
-                               FontSize="16"
-                               Foreground="#0F2F68"
-                               VerticalAlignment="Center" />
-                </StackPanel>
-
-                <Grid Grid.Column="1" Margin="24,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Button Click="OnPlayClick"
-                            Style="{StaticResource BottomPrimaryCircleButtonStyle}"
-                            ToolTip="播放或暂停回溯">
-                        <Grid Width="18" Height="18">
-                            <Path Data="M 9,6 L 9,18 L 19,12 Z" Fill="White" Width="16" Height="16" Stretch="Uniform">
-                                <Path.Style>
-                                    <Style TargetType="Path">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsPlaying}" Value="True">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Path.Style>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Button Tag="-1000000" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="跳到记录开始">
+                        <Path Data="M 3,4 V 20 M 6,12 L 17,4 V 20 Z" Fill="#334155" Width="18" Height="18" Stretch="Uniform" />
+                    </Button>
+                    <Button Tag="page-back" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="后退一屏">
+                        <Path Data="M 4,12 L 14,4 V 20 Z M 15,4 V 20" Fill="#334155" Width="18" Height="18" Stretch="Uniform" />
+                    </Button>
+                    <Button Tag="-1" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="后退一秒">
+                        <Path Data="M 5,12 L 16,4 V 20 Z" Fill="#334155" Width="16" Height="16" Stretch="Uniform" />
+                    </Button>
+                    <Button Click="OnPlayClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="播放或暂停回溯">
+                        <Grid Width="20" Height="20">
+                            <Path Data="M 6,4 L 18,12 L 6,20 Z" Fill="#0F172A" Stretch="Uniform">
+                                <Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding IsPlaying}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Path.Style>
                             </Path>
-                            <Path Data="M 7,5 H 10 V 19 H 7 Z M 14,5 H 17 V 19 H 14 Z" Fill="White" Width="16" Height="16" Stretch="Uniform">
-                                <Path.Style>
-                                    <Style TargetType="Path">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsPlaying}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Path.Style>
+                            <Path Data="M 5,4 H 9 V 20 H 5 Z M 14,4 H 18 V 20 H 14 Z" Fill="#0F172A" Stretch="Uniform">
+                                <Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsPlaying}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Path.Style>
                             </Path>
                         </Grid>
                     </Button>
-                    <Slider x:Name="PositionSlider"
-                            Grid.Column="1"
-                            Margin="18,0,0,0"
-                            Minimum="0"
-                            Maximum="1"
-                            VerticalAlignment="Center"
-                            PreviewMouseLeftButtonUp="OnPositionReleased"
-                            ToolTip="拖动到记录中的指定时间" />
-                </Grid>
-
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="回溯" FontSize="12" FontWeight="SemiBold" Foreground="#0F3B78" VerticalAlignment="Center" />
-                    <Separator Width="1" Height="28" Background="#CBD5E1" Margin="18,0" />
-                    <TextBlock Text="{Binding StatusText, Mode=OneWay}"
-                               MaxWidth="180" FontSize="12" Foreground="#64748B"
-                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <Button Tag="1" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="前进一秒">
+                        <Path Data="M 15,12 L 4,4 V 20 Z" Fill="#334155" Width="16" Height="16" Stretch="Uniform" />
+                    </Button>
+                    <Button Tag="page-forward" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="前进一屏">
+                        <Path Data="M 14,12 L 4,4 V 20 Z M 3,4 V 20" Fill="#334155" Width="18" Height="18" Stretch="Uniform" />
+                    </Button>
+                    <Button Tag="1000000" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="跳到记录结束">
+                        <Path Data="M 17,4 V 20 M 14,12 L 3,4 V 20 Z" Fill="#334155" Width="18" Height="18" Stretch="Uniform" />
+                    </Button>
+                    <Button Click="OnPlaybackSpeedClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="切换回放速度">
+                        <TextBlock Text="{Binding PlaybackSpeedText, Mode=OneWay}" Margin="8,0" FontWeight="SemiBold" Foreground="#334155" />
+                    </Button>
+                    <Button Style="{StaticResource FlatIconButtonStyle}" ToolTip="更多回溯操作">
+                        <TextBlock Text="⋮" FontSize="20" FontWeight="SemiBold" Foreground="#334155" />
+                    </Button>
                 </StackPanel>
+
+                <views:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="1" Height="28"
+                    DurationSeconds="{Binding DurationSeconds, Mode=OneWay}"
+                    ViewportStartSeconds="{Binding ViewportStartSeconds, Mode=OneWay}"
+                    VisibleDurationSeconds="{Binding VisibleDurationSeconds, Mode=OneWay}"
+                    PreviewPositionChanged="OnTimelinePreviewPositionChanged"
+                    PositionCommitted="OnTimelinePositionCommitted"
+                    ToolTip="拖动灰色窗口浏览整段记录。事件标记将在记录支持事件后显示。" />
             </Grid>
         </views:EegWorkspaceShell.BottomBar>
     </views:EegWorkspaceShell>
