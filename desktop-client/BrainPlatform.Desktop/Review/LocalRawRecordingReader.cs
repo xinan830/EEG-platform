@@ -6,7 +6,7 @@ using BrainPlatform.Desktop.Acquisition.Contracts;
 
 namespace BrainPlatform.Desktop.Review;
 
-public sealed class LocalRawRecordingReader : IAsyncDisposable
+public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReviewReader
 {
     private const int BatchHeaderBytes = sizeof(long) + sizeof(int) + sizeof(int) + sizeof(long);
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -145,6 +145,8 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable
 
     public double DurationSeconds =>
         (index.LastSampleCounter - index.FirstSampleCounter + 1d) / manifest.SamplingRateHz;
+
+    public LocalRawRecordingManifest Manifest => manifest;
 
     public ValueTask DisposeAsync()
     {
