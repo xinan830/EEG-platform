@@ -4,6 +4,9 @@ The desktop client is an independent .NET 10 WPF shell for the local brain
 research workstation. It currently checks the existing Python backend at
 `http://127.0.0.1:8000/api/health` and shows explicit readiness states.
 
+The maintained acquisition/review architecture is documented in
+[`docs/architecture/desktop-acquisition-review.md`](../docs/architecture/desktop-acquisition-review.md).
+
 The acquisition workspace is waveform-first. `SciChart` renders only retained
 raw EEG display points; the C# acquisition runtime remains the owner of device
 I/O, raw persistence, counter-gap auditing, and the display ring buffer.
