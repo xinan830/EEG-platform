@@ -17,6 +17,8 @@ public interface IRecordingReviewReader
 public sealed record RecordingReviewFrame(
     Guid RecordingSessionId,
     long Revision,
+    int SamplingRateHz,
+    long WindowStartSampleCounter,
     double WindowStartSeconds,
     double WindowEndSeconds,
     string ViewingMontageName,
@@ -46,7 +48,10 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         this.catalog = catalog;
         VisibleDurationSeconds = Math.Min(visibleDurationSeconds, reader.DurationSeconds);
         AcquisitionMontage = catalog.AcquisitionMontage;
-        SelectedViewingMontage = catalog.AcquisitionMontage ?? catalog.CompatibleViewingMontages.FirstOrDefault()?.Profile;
+        // A legacy recording without an embedded acquisition snapshot must open
+        // on its explicit raw-signal view. A current profile may be selected
+        // deliberately, but must never be presented as the historical default.
+        SelectedViewingMontage = catalog.AcquisitionMontage;
     }
 
     public event EventHandler? Changed;
@@ -148,6 +153,8 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             CurrentFrame = new RecordingReviewFrame(
                 reader.Manifest.SessionId,
                 requestRevision,
+                reader.Manifest.SamplingRateHz,
+                projected.FirstOrDefault()?.FirstSampleCounter ?? 0,
                 window.ActualStartSeconds,
                 window.ActualEndSeconds,
                 SelectedViewingMontage?.Name ?? "原始设备通道",

@@ -1,0 +1,89 @@
+<UserControl x:Class="BrainPlatform.Desktop.Views.RecordingReviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:BrainPlatform.Desktop.Views"
+             Background="#F8FAFC">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="WorkspaceStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="18,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="10" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="10" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="9" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Content="← 返回项目" Click="OnBackClick" Padding="12,6" Margin="0,0,16,0" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="数据回溯" FontSize="18" FontWeight="SemiBold" Foreground="#0F172A" />
+                    <TextBlock FontSize="11.5" Foreground="#64748B" Margin="0,3,0,0">
+                        <Run Text="{Binding ProjectName}" />
+                        <Run Text=" / " />
+                        <Run Text="{Binding RecordingName}" />
+                    </TextBlock>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,20,0">
+                    <TextBlock Text="采集导联" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding AcquisitionMontageText}" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
+                    <TextBlock Text="  ·  " Foreground="#CBD5E1" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SamplingRateHz, StringFormat={}{0} Hz}" Foreground="#475569" VerticalAlignment="Center" />
+                    <TextBlock Text="  ·  原始 " Foreground="#CBD5E1" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SourceChannelCount}" Foreground="#475569" VerticalAlignment="Center" />
+                    <TextBlock Text=" 通道" Foreground="#475569" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="当前查看导联" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox x:Name="MontageSelector" Width="190" Height="32"
+                              ItemsSource="{Binding CompatibleViewingMontages}"
+                              DisplayMemberPath="Name"
+                              SelectionChanged="OnMontageSelectionChanged" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="9" Padding="10">
+            <Grid>
+                <views:RecordingReviewSciChartCanvas DataContext="{Binding}" />
+                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="5" Padding="9,5" Margin="0,8,8,0">
+                    <TextBlock Text="{Binding OutputChannelCount, StringFormat=当前显示 {0} 条派生波形}" Foreground="#475569" FontSize="11.5" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="4" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="9" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button x:Name="PlayButton" Click="OnPlayClick" Width="38" Height="32" Content="▶" FontSize="14" />
+                <Slider x:Name="PositionSlider" Grid.Column="1" Margin="14,0,14,0" Minimum="0" Maximum="1" VerticalAlignment="Center" PreviewMouseLeftButtonUp="OnPositionReleased" />
+                <TextBlock x:Name="PositionText" Grid.Column="2" Width="130" Foreground="#334155" FontFamily="Consolas" VerticalAlignment="Center" />
+                <TextBlock Text="显示时长" Grid.Column="3" Foreground="#64748B" VerticalAlignment="Center" Margin="14,0,7,0" />
+                <ComboBox x:Name="DurationSelector" Grid.Column="4" Width="92" Height="30" SelectionChanged="OnDurationSelectionChanged">
+                    <ComboBoxItem Content="5 秒" Tag="5" />
+                    <ComboBoxItem Content="10 秒" Tag="10" />
+                    <ComboBoxItem Content="20 秒" Tag="20" />
+                </ComboBox>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

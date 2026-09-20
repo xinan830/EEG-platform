@@ -160,7 +160,7 @@
                     </Grid>
 
                     <Grid Grid.Row="3">
-                        <DataGrid ItemsSource="{Binding Projects.Recordings}" AutoGenerateColumns="False" IsReadOnly="True"
+                        <DataGrid ItemsSource="{Binding Projects.Recordings}" SelectedItem="{Binding Projects.SelectedRecording, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True"
                                   CanUserAddRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                                   BorderBrush="#E2E8F0" BorderThickness="1" RowHeight="44" ColumnHeaderHeight="40">
                             <DataGrid.Columns>
@@ -169,6 +169,14 @@
                                 <DataGridTextColumn Header="采样率" Binding="{Binding SamplingRateText}" Width="*" />
                                 <DataGridTextColumn Header="通道" Binding="{Binding ChannelCountText}" Width="*" />
                                 <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="*" />
+                                <DataGridTemplateColumn Header="操作" Width="Auto">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="回溯" Padding="12,4" Margin="4,0" Click="OnOpenReviewClick"
+                                                    IsEnabled="{Binding CanReview}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                         <TextBlock Text="该项目暂无采集记录" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#94A3B8">

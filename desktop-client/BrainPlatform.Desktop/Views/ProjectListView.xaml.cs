@@ -106,6 +106,36 @@ public partial class ProjectListView : UserControl
 
     private void OnRefreshRecordingsClick(object sender, RoutedEventArgs e) => Workspace.Projects.RefreshRecordings();
 
+    private async void OnOpenReviewClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ProjectRecordingRow recording)
+        {
+            return;
+        }
+
+        var workspace = Workspace;
+        workspace.Projects.SelectedRecording = recording;
+        if (!recording.CanReview)
+        {
+            workspace.Notifications.PublishWarning("这条记录尚未完成，暂时不能回溯。");
+            return;
+        }
+
+        try
+        {
+            if (Window.GetWindow(this) is MainWindow mainWindow)
+            {
+                await mainWindow.ShowRecordingReviewViewAsync(
+                    recording,
+                    workspace.MontageConfigurations.Profiles);
+            }
+        }
+        catch (Exception exception)
+        {
+            workspace.Notifications.PublishError(exception.Message);
+        }
+    }
+
     private static async Task RunAsync(Func<Task> operation, OperationNotificationCenter notifications)
     {
         try

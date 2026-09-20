@@ -20,14 +20,60 @@ public sealed class RecordingReviewViewModelTests
             [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)],
             []);
         await using var recording = new LocalRawRecordingForTest(Manifest(configuration));
-        await using var viewModel = new RecordingReviewViewModel(recording.Reader, catalog);
+        await using var viewModel = new RecordingReviewViewModel(recording.Reader, catalog, recordingName: "测试记录", projectName: "测试项目");
 
         await viewModel.InitializeAsync();
 
         Assert.Equal("采集导联", viewModel.AcquisitionMontageText);
         Assert.Equal("采集导联", viewModel.CurrentViewingMontage?.Name);
         Assert.Equal(1, viewModel.OutputChannelCount);
+        Assert.Equal(500, viewModel.SamplingRateHz);
+        Assert.Equal(1, viewModel.SourceChannelCount);
+        Assert.Equal("测试项目", viewModel.ProjectName);
+        Assert.Equal("测试记录", viewModel.RecordingName);
         Assert.Contains(alternate, viewModel.CompatibleViewingMontages);
+    }
+
+    [Fact]
+    public async Task ViewModelSeekKeepsPlaybackStateSeparateFromMontageState()
+    {
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        await using var recording = new LocalRawRecordingForTest(Manifest(configuration));
+        await using var viewModel = new RecordingReviewViewModel(recording.Reader, catalog);
+        await viewModel.InitializeAsync();
+
+        await viewModel.SeekAsync(5);
+
+        Assert.Equal(5, viewModel.PositionSeconds);
+        Assert.False(viewModel.IsPlaying);
+    }
+
+    [Fact]
+    public async Task MissingAcquisitionSnapshotStartsOnExplicitRawSignalView()
+    {
+        var configuration = Configuration();
+        var currentProfile = Profile("当前导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(
+            null,
+            AcquisitionMontageStatus.MissingSnapshot,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(currentProfile)],
+            []);
+        await using var recording = new LocalRawRecordingForTest(Manifest(configuration));
+        await using var viewModel = new RecordingReviewViewModel(recording.Reader, catalog);
+
+        await viewModel.InitializeAsync();
+
+        Assert.Null(viewModel.CurrentViewingMontage);
+        Assert.Equal(1, viewModel.OutputChannelCount);
+        Assert.Contains("未记录", viewModel.AcquisitionMontageText);
     }
 
     private static LocalRawRecordingManifest Manifest(ChannelConfigurationProfile configuration) => new(

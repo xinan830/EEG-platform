@@ -1,5 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
+using BrainPlatform.Desktop.Acquisition.Storage;
+using BrainPlatform.Desktop.Configuration;
+using BrainPlatform.Desktop.Review;
 using BrainPlatform.Desktop.ViewModels;
 using BrainPlatform.Desktop.Views;
 
@@ -16,6 +19,9 @@ public partial class MainWindow : Window
     private ChannelDetailView? channelDetailView;
     private MontageListView? montageListView;
     private MontageDetailView? montageDetailView;
+    private RecordingReviewView? recordingReviewView;
+    private RecordingReviewViewModel? recordingReviewViewModel;
+    private LocalRawRecording? recordingReviewRecording;
 
     public MainWindow()
     {
@@ -29,6 +35,7 @@ public partial class MainWindow : Window
         channelDetailView = new ChannelDetailView();
         montageListView = new MontageListView();
         montageDetailView = new MontageDetailView();
+        recordingReviewView = new RecordingReviewView();
 
         overviewView = new DeviceOverviewView();
         MainContentHost.Content = overviewView;
@@ -36,7 +43,7 @@ public partial class MainWindow : Window
 
     public void ShowChannelListView()
     {
-        SetAcquisitionChrome(false);
+        SetImmersiveChrome(false);
         channelListView ??= new ChannelListView();
         MainContentHost.Content = channelListView;
         SelectNavigation(NavSettingsBtn);
@@ -44,7 +51,7 @@ public partial class MainWindow : Window
 
     public void ShowChannelDetailView(bool newProfile = false, bool preserveDraft = false)
     {
-        SetAcquisitionChrome(false);
+        SetImmersiveChrome(false);
         channelDetailView ??= new ChannelDetailView();
         if (DataContext is DesktopWorkspaceViewModel viewModel)
         {
@@ -63,7 +70,7 @@ public partial class MainWindow : Window
 
     public void ShowMontageListView()
     {
-        SetAcquisitionChrome(false);
+        SetImmersiveChrome(false);
         montageListView ??= new MontageListView();
         MainContentHost.Content = montageListView;
         SelectNavigation(NavSettingsBtn);
@@ -71,7 +78,7 @@ public partial class MainWindow : Window
 
     public void ShowMontageDetailView(bool newProfile = false, bool preserveDraft = false)
     {
-        SetAcquisitionChrome(false);
+        SetImmersiveChrome(false);
         montageDetailView ??= new MontageDetailView();
         if (DataContext is DesktopWorkspaceViewModel viewModel)
         {
@@ -90,7 +97,7 @@ public partial class MainWindow : Window
 
     public void ShowSettingsView()
     {
-        SetAcquisitionChrome(false);
+        SetImmersiveChrome(false);
         settingsView ??= new SettingsView();
         MainContentHost.Content = settingsView;
         SelectNavigation(NavSettingsBtn);
@@ -98,7 +105,7 @@ public partial class MainWindow : Window
 
     public void ShowAcquisitionView()
     {
-        SetAcquisitionChrome(true);
+        SetImmersiveChrome(true);
         acquisitionView ??= new AcquisitionWorkspaceView();
         MainContentHost.Content = acquisitionView;
         SelectNavigation(NavProjectsBtn);
@@ -106,7 +113,7 @@ public partial class MainWindow : Window
 
     public void ShowAcquisitionPreparationView()
     {
-        SetAcquisitionChrome(false);
+        SetImmersiveChrome(false);
         acquisitionPreparationView ??= new AcquisitionPreparationView();
         MainContentHost.Content = acquisitionPreparationView;
         SelectNavigation(NavProjectsBtn);
@@ -114,7 +121,8 @@ public partial class MainWindow : Window
 
     public void ShowProjectListView()
     {
-        SetAcquisitionChrome(false);
+        DisposeRecordingReview();
+        SetImmersiveChrome(false);
         projectListView ??= new ProjectListView();
         if (DataContext is DesktopWorkspaceViewModel viewModel)
         {
@@ -122,6 +130,40 @@ public partial class MainWindow : Window
         }
         MainContentHost.Content = projectListView;
         SelectNavigation(NavProjectsBtn);
+    }
+
+    public async Task ShowRecordingReviewViewAsync(
+        ProjectRecordingRow recording,
+        IEnumerable<MontageProfile> profiles)
+    {
+        ArgumentNullException.ThrowIfNull(recording);
+        DisposeRecordingReview();
+        var loadedRecording = await LocalRawRecordingReader.OpenAsync(
+            recording.RecordingDirectory,
+            CancellationToken.None);
+        var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
+        var viewModel = new RecordingReviewViewModel(
+            loadedRecording.Reader,
+            catalog,
+            recordingName: recording.Name,
+            projectName: loadedRecording.Manifest.Project.Name);
+        try
+        {
+            await viewModel.InitializeAsync();
+        }
+        catch
+        {
+            await viewModel.DisposeAsync();
+            await loadedRecording.DisposeAsync();
+            throw;
+        }
+
+        recordingReviewRecording = loadedRecording;
+        recordingReviewViewModel = viewModel;
+        recordingReviewView ??= new RecordingReviewView();
+        recordingReviewView.DataContext = viewModel;
+        SetImmersiveChrome(true);
+        MainContentHost.Content = recordingReviewView;
     }
 
     private async void OnWindowLoaded(object sender, RoutedEventArgs e)
@@ -146,7 +188,7 @@ public partial class MainWindow : Window
 
         if (sender == NavOverviewBtn)
         {
-            SetAcquisitionChrome(false);
+            SetImmersiveChrome(false);
             overviewView ??= new DeviceOverviewView();
             MainContentHost.Content = overviewView;
         }
@@ -171,11 +213,11 @@ public partial class MainWindow : Window
 
     public void ShowUnavailableWorkspace(string title)
     {
-        SetAcquisitionChrome(false);
+        SetImmersiveChrome(false);
         MainContentHost.Content = new WorkspaceUnavailableView(title);
     }
 
-    private void SetAcquisitionChrome(bool immersive)
+    private void SetImmersiveChrome(bool immersive)
     {
         NavigationColumn.Width = immersive ? new GridLength(0) : new GridLength(72);
         GlobalNavigationHost.Visibility = immersive ? Visibility.Collapsed : Visibility.Visible;
@@ -183,5 +225,17 @@ public partial class MainWindow : Window
         Grid.SetColumnSpan(MainContentHost, immersive ? 2 : 1);
         Grid.SetColumn(NotificationHost, immersive ? 0 : 1);
         Grid.SetColumnSpan(NotificationHost, immersive ? 2 : 1);
+    }
+
+    private void DisposeRecordingReview()
+    {
+        recordingReviewViewModel?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        recordingReviewViewModel = null;
+        recordingReviewRecording?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        recordingReviewRecording = null;
+        if (recordingReviewView is not null)
+        {
+            recordingReviewView.DataContext = null;
+        }
     }
 }
