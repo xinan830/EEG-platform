@@ -22,6 +22,7 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
     private double lowPassHz;
     private double notchHz;
     private long revision;
+    private long filterApplyRevision;
     private bool disposed;
 
     public LiveDisplayPreferencesViewModel(
@@ -117,17 +118,36 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
         }
     }
 
-    private void ApplyFilter()
+    private void ApplyFilter() =>
+        _ = ApplyLatestFilterAsync(Interlocked.Increment(ref filterApplyRevision), FilterSettings);
+
+    private async Task ApplyLatestFilterAsync(
+        long expectedRevision,
+        LiveDisplayFilterSettings settings)
     {
         try
         {
-            var update = runtime.ConfigureDisplayFilter(FilterSettings);
+            // A selection can raise several property notifications in quick
+            // succession. Build the large raw warm-up snapshot away from the
+            // dispatcher and apply only the latest user choice.
+            await Task.Delay(150);
+            if (disposed || expectedRevision != Volatile.Read(ref filterApplyRevision))
+            {
+                return;
+            }
+
+            var update = await Task.Run(() => runtime.ConfigureDisplayFilter(settings));
+            if (disposed || expectedRevision != Volatile.Read(ref filterApplyRevision))
+            {
+                return;
+            }
+
             if (update.AppliedDuringRecording)
             {
                 MessageRaised?.Invoke(this,
-                    $"实时显示滤波将在样本 {update.EffectiveFromRawSampleCounter} 后生效；"
-                    + $"已用此前 {update.WarmupSampleCount} 个连续原始样本预热新配置。"
-                    + "A 点之前的显示波形不变，原始记录未改写。");
+                    "正在后台准备新的实时显示滤波；"
+                    + "准备期间旧滤波继续显示，追上实时流后无缝切换。"
+                    + "切换点之前的波形和原始记录均不改写。");
             }
         }
         catch (Exception exception)

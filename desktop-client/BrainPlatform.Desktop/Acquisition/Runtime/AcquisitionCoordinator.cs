@@ -73,6 +73,8 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
 
     public IReadOnlyList<AcquisitionBatch> GetDisplaySnapshot() => Volatile.Read(ref ringBuffer)?.Snapshot() ?? [];
 
+    public long? LatestDisplaySampleCounter => Volatile.Read(ref ringBuffer)?.LastSampleCounter;
+
     public async Task<IReadOnlyList<AcquisitionDeviceDescriptor>> DiscoverAsync(CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
@@ -431,7 +433,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
                 batch,
                 continuity.Gap,
                 activeWriter?.RecordingDirectory ?? string.Empty));
-            if (!dispatch.Accepted && activeWriter is not null)
+            if (!dispatch.Accepted && dispatch.IsNewFailure && activeWriter is not null)
             {
                 await activeWriter.AppendDiagnosticAsync(
                     "ANALYSIS_BATCH_DROPPED",

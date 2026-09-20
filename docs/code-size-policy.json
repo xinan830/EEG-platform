@@ -27,8 +27,18 @@
     },
     "desktop-client/BrainPlatform.Desktop/ViewModels/MontageConfigurationWorkspaceViewModel.cs": {
       "decision": "keep",
+      "max_lines": 590,
+      "reason": "The file coordinates one montage catalogue and editor lifecycle, including automatic catalogue synchronization when device-backed channel profiles arrive asynchronously. Signal formulas, fingerprints, validation, and row state remain in focused domain/view-model files."
+    },
+    "desktop-client/BrainPlatform.Desktop/Views/WaveformDisplayFrameBuilder.cs": {
+      "decision": "keep",
       "max_lines": 540,
-      "reason": "The file coordinates one montage catalogue and editor lifecycle. Signal formulas, fingerprints, validation, and row state remain in focused domain/view-model files."
+      "reason": "The file remains one pure visible-frame transformation: sweep paging, montage value selection, sample-counter gap handling, and temporal-extrema decimation share the same counter/span contract. Shared reference-signal computation is extracted to MontageReferenceSignalCache.cs."
+    },
+    "desktop-client/BrainPlatform.Desktop/Acquisition/Analysis/HttpLiveFilterBridge.cs": {
+      "decision": "keep",
+      "max_lines": 530,
+      "reason": "The file owns one serialized local HTTP live-filter session lifecycle: active output, background handoff, transport validation, activation, and cleanup. The transition queue and cancellation state are extracted to PendingLiveFilterTransition.cs; splitting the remaining state owner would introduce competing session locks."
     }
   }
 }

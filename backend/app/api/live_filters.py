@@ -101,6 +101,34 @@ async def filter_batch_binary(
         return error_response(request, 422, "LIVE_FILTER_BATCH_INVALID", str(exc))
 
 
+@router.post("/sessions/{session_id}/warmup/binary", status_code=status.HTTP_204_NO_CONTENT)
+async def warmup_filter_binary(
+    session_id: str,
+    request: Request,
+    sample_count: int = Query(gt=0),
+) -> Response:
+    """Advance a new display-filter session without returning warm-up samples.
+
+    Filter changes use this endpoint off the live display path. Keeping the
+    payload as float64 avoids a very large JSON allocation and the resulting
+    UI/display stall at high sampling rates.
+    """
+    try:
+        payload = await request.body()
+        if len(payload) % np.dtype("<f8").itemsize:
+            raise ValueError("binary warmup payload is not aligned to float64")
+        values = np.frombuffer(payload, dtype="<f8")
+        _service(request).process_array(session_id, values, sample_count)
+        return Response(
+            status_code=status.HTTP_204_NO_CONTENT,
+            headers={"X-Warmup-Sample-Count": str(sample_count), "X-Unit": "V"},
+        )
+    except KeyError:
+        return error_response(request, 404, "LIVE_FILTER_SESSION_NOT_FOUND", "实时滤波会话不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "LIVE_FILTER_BATCH_INVALID", str(exc))
+
+
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 def close_session(session_id: str, request: Request) -> None:
     _service(request).close(session_id)

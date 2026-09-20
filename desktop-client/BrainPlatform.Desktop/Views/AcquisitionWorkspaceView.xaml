@@ -276,33 +276,41 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <!-- Row 1: 通道数量 -->
+                                <!-- The selected montage owns output order and reference semantics. -->
                                 <Grid Grid.Row="0" Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="SettingLabelCol" />
                                         <ColumnDefinition Width="16" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="通道数量" VerticalAlignment="Center" Foreground="#334155" FontSize="13.5" TextWrapping="NoWrap" />
+                                    <TextBlock Text="当前导联" VerticalAlignment="Center" Foreground="#334155" FontSize="13.5" TextWrapping="NoWrap" />
                                     <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Height="36" Padding="12,0">
-                                        <Grid>
-                                            <TextBlock Text="{Binding Acquisition.ChannelMapping.ActualEegInputCount, StringFormat={}{0} 通道（标准10-20）, FallbackValue='32 通道（标准10-20）'}"
-                                                       VerticalAlignment="Center" Foreground="#1E293B" FontSize="13" />
-                                            <Path HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                  Data="M 1,1.5 L 5,5.5 L 9,1.5"
-                                                  Stroke="#94A3B8" StrokeThickness="1.5"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
-                                        </Grid>
+                                        <TextBlock Text="{Binding Acquisition.LiveMonitor.CurrentMontageName}"
+                                                   VerticalAlignment="Center" Foreground="#1E293B" FontSize="13" TextTrimming="CharacterEllipsis" />
                                     </Border>
                                 </Grid>
 
-                                <!-- Row 2: 选择通道 -->
                                 <Grid Grid.Row="1" Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="SettingLabelCol" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="导联通道数" VerticalAlignment="Center" Foreground="#334155" FontSize="13.5" TextWrapping="NoWrap" />
+                                    <Border Grid.Column="2" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Height="36" Padding="12,0">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Acquisition.LiveMonitor.MontageOutputChannelCount}" Foreground="#1E293B" FontSize="13" FontWeight="SemiBold" />
+                                            <TextBlock Text=" 个输出通道；当前显示 " Foreground="#64748B" FontSize="13" />
+                                            <TextBlock Text="{Binding Acquisition.LiveMonitor.SelectedMontageDisplayChannelCount}" Foreground="#1E293B" FontSize="13" FontWeight="SemiBold" />
+                                            <TextBlock Text=" 个" Foreground="#64748B" FontSize="13" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <!-- These checkboxes select visible montage outputs, not physical device inputs. -->
+                                <Grid Grid.Row="2" Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="SettingLabelCol" />
                                         <ColumnDefinition Width="16" />
@@ -310,7 +318,7 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="选择通道" VerticalAlignment="Top" Margin="0,6,0,0" Foreground="#334155" FontSize="13.5" TextWrapping="NoWrap" />
                                     <ScrollViewer Grid.Column="2" MaxHeight="220" VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl ItemsSource="{Binding Acquisition.ChannelMapping.DisplayRows}">
+                                        <ItemsControl ItemsSource="{Binding Acquisition.LiveMonitor.MontageChannels}">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
                                                     <UniformGrid Columns="3" />
@@ -319,8 +327,8 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <CheckBox Style="{StaticResource ModernCheckBoxStyle}"
-                                                              IsChecked="{Binding IsSelectedForDisplay, Mode=TwoWay}"
-                                                              Content="{Binding ElectrodeLabel}"
+                                                              IsChecked="{Binding IsVisible, Mode=TwoWay}"
+                                                              Content="{Binding Name}"
                                                               Margin="0,7,8,7" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
@@ -328,118 +336,9 @@
                                     </ScrollViewer>
                                 </Grid>
 
-                                <!-- Divider -->
-                                <Border Grid.Row="2" Height="1" Background="#F1F5F9" Margin="0,4,0,14" />
-
-                                <!-- Row 3: 参考方式 -->
-                                <Grid Grid.Row="3" Margin="0,0,0,14">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="SettingLabelCol" />
-                                        <ColumnDefinition Width="16" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="参考方式" VerticalAlignment="Center" Foreground="#334155" FontSize="13.5" TextWrapping="NoWrap" />
-                                    <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Height="36" Padding="12,0">
-                                        <Grid>
-                                            <TextBlock Text="双耳平均参考（A1+A2）" VerticalAlignment="Center" Foreground="#1E293B" FontSize="13" />
-                                            <Path HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                  Data="M 1,1.5 L 5,5.5 L 9,1.5"
-                                                  Stroke="#94A3B8" StrokeThickness="1.5"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
-                                        </Grid>
-                                    </Border>
-                                </Grid>
-
-                                <!-- Row 4: 通道显示顺序 -->
-                                <Grid Grid.Row="4" Margin="0,0,0,16">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="SettingLabelCol" />
-                                        <ColumnDefinition Width="16" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="通道显示顺序" VerticalAlignment="Center" Foreground="#334155" FontSize="13.5" TextWrapping="NoWrap" />
-                                    <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Height="36" Padding="12,0">
-                                        <Grid>
-                                            <TextBlock Text="按标准10-20顺序" VerticalAlignment="Center" Foreground="#1E293B" FontSize="13" />
-                                            <Path HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                  Data="M 1,1.5 L 5,5.5 L 9,1.5"
-                                                  Stroke="#94A3B8" StrokeThickness="1.5"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
-                                        </Grid>
-                                    </Border>
-                                </Grid>
-
-                                <!-- Row 5: 底部复选选项 -->
-                                <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,0,0,20">
-                                    <CheckBox Style="{StaticResource ModernCheckBoxStyle}" Content="显示通道标签" IsChecked="True" Margin="0,0,28,0" />
-                                    <CheckBox Style="{StaticResource ModernCheckBoxStyle}" Content="显示幅值标尺" IsChecked="False" />
-                                </StackPanel>
-
-                                <!-- Row 6: 状态提示 (左) + 取消 / 确认 按钮 (右) -->
-                                <Grid Grid.Row="6">
-                                    <TextBlock Text="{Binding Acquisition.ChannelMapping.StatusText}"
-                                               Foreground="#94A3B8" FontSize="12"
-                                               VerticalAlignment="Center"
-                                               HorizontalAlignment="Left"
-                                               TextTrimming="CharacterEllipsis"
-                                               MaxWidth="260" />
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                        <Button Style="{StaticResource ModernDialogSecondaryButtonStyle}"
-                                                Content="取消" Margin="0,0,12,0"
-                                                Command="{Binding Acquisition.LiveMonitor.ToggleSettingsCommand}" />
-                                        <Button Style="{StaticResource ModernDialogPrimaryButtonStyle}"
-                                                Content="确认"
-                                                ToolTip="保存显示设置"
-                                                Command="{Binding Acquisition.SaveChannelMappingCommand}" />
-                                    </StackPanel>
-                                </Grid>
-                            </Grid>
-                        </TabItem>
-
-                        <TabItem Header="预处理">
-                            <Grid Margin="0,16,0,0">
-                                <StackPanel>
-                                    <TextBlock Text="信号参考与滤波配置" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" />
-                                    <TextBlock Text="原始硬件参考（REF）已接通。实时界面呈现原始采集流，软件重参考（如双耳平均、REST、CAR）及数字滤波将在分析前或回放端配置生效。"
-                                               Foreground="#64748B" FontSize="13" Margin="0,8,0,16" TextWrapping="Wrap" LineHeight="20" />
-                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14">
-                                        <StackPanel>
-                                            <TextBlock Text="提示：REF 与 GND 为硬件参考/接地回路，不在脑电波形列表中作为独立分析导联展示。"
-                                                       Foreground="#475569" FontSize="13" TextWrapping="Wrap" />
-                                            <Button Content="导入 BDF 导联模板" Margin="0,12,0,0" HorizontalAlignment="Left"
-                                                    Style="{StaticResource ModernDialogSecondaryButtonStyle}"
-                                                    Command="{Binding Acquisition.ChannelMapping.ImportBdfTemplateCommand}" />
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </Grid>
-                        </TabItem>
-
-                        <TabItem Header="算法参数">
-                            <Grid Margin="0,16,0,0">
-                                <StackPanel>
-                                    <TextBlock Text="算法运行时配置" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" />
-                                    <TextBlock Text="支持官方 RBP（相对频段功率）、FAA（额叶不对称性）及 BrainBeat 在线指标流计算。"
-                                               Foreground="#64748B" FontSize="13" Margin="0,8,0,16" TextWrapping="Wrap" LineHeight="20" />
-                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14">
-                                        <TextBlock Text="当前算法运行调度器已就绪，保持低延迟有界分发机制（Bounded Dispatcher）。"
-                                                   Foreground="#475569" FontSize="13" TextWrapping="Wrap" />
-                                    </Border>
-                                </StackPanel>
-                            </Grid>
-                        </TabItem>
-
-                        <TabItem Header="验证配置">
-                            <Grid Margin="0,16,0,0">
-                                <StackPanel>
-                                    <TextBlock Text="硬件验收与连续性验证" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" />
-                                    <TextBlock Text="采集管道采用样本计数器审计追踪，实时记录丢包（Gap）与分发丢弃（Drop），确保科研级数据一致性。"
-                                               Foreground="#64748B" FontSize="13" Margin="0,8,0,16" TextWrapping="Wrap" LineHeight="20" />
-                                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14">
-                                        <TextBlock Text="实时审计记录输出至采集目录的 audit.jsonl 与 manifest.json。"
-                                                   Foreground="#475569" FontSize="13" TextWrapping="Wrap" />
-                                    </Border>
-                                </StackPanel>
+                                <TextBlock Grid.Row="3" Margin="0,8,0,0"
+                                           Text="通道顺序与重参考方式由所选导联配置决定；此处仅控制实时波形是否显示该导联。"
+                                           Foreground="#64748B" FontSize="12" TextWrapping="Wrap" />
                             </Grid>
                         </TabItem>
 

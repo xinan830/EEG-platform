@@ -53,6 +53,9 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<LiveDisplayChannel> Channels { get; } = [];
 
+    /// <summary>Display-only visibility choices for the selected montage outputs.</summary>
+    public ObservableCollection<LiveMontageDisplayChannel> MontageChannels { get; } = [];
+
     public ICommand ToggleSettingsCommand { get; }
 
     /// <summary>
@@ -119,6 +122,17 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         private set => SetProperty(ref captureStatusText, value);
     }
 
+    public string WaveformStatusText
+    {
+        get
+        {
+            var state = stateProvider();
+            return state.State == AcquisitionState.Faulted
+                ? $"采集已停止：{state.Detail}"
+                : "等待设备连接并开始采集";
+        }
+    }
+
     public bool IsRecording => stateProvider().State == AcquisitionState.Recording;
 
     public bool IsPreviewing => stateProvider().State == AcquisitionState.Previewing;
@@ -129,8 +143,9 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     public bool HasOpenStream => stateProvider().State is AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused or AcquisitionState.Stopping;
 
-    public IReadOnlyList<string> VisibleChannelLabels => montageProfile is { } montage
-        ? montage.DerivedChannels
+    public IReadOnlyList<string> VisibleChannelLabels => montageProfile is not null
+        ? MontageChannels
+            .Where(channel => channel.IsVisible)
             .OrderBy(channel => channel.DisplayOrder)
             .Select(channel => channel.Name)
             .ToArray()
@@ -138,6 +153,14 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
             .Where(channel => channel.IsVisible)
             .Select(channel => channel.Label)
             .ToArray();
+
+    public bool HasSelectedMontage => montageProfile is not null;
+
+    public string CurrentMontageName => montageProfile?.Name ?? "未选择导联配置";
+
+    public int MontageOutputChannelCount => MontageChannels.Count;
+
+    public int SelectedMontageDisplayChannelCount => MontageChannels.Count(channel => channel.IsVisible);
 
     public void ConfigureChannels(IEnumerable<ChannelLabelMappingRow> rows)
     {
@@ -152,7 +175,26 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     public void ConfigureMontage(MontageProfile? profile)
     {
+        var previousVisibility = MontageChannels.ToDictionary(channel => channel.Name, channel => channel.IsVisible, StringComparer.OrdinalIgnoreCase);
         montageProfile = profile;
+        MontageChannels.Clear();
+        if (profile is not null)
+        {
+            foreach (var channel in profile.DerivedChannels.OrderBy(channel => channel.DisplayOrder))
+            {
+                var output = new LiveMontageDisplayChannel(
+                    channel.Name,
+                    channel.DisplayOrder,
+                    previousVisibility.GetValueOrDefault(channel.Name, true));
+                output.PropertyChanged += OnMontageChannelPropertyChanged;
+                MontageChannels.Add(output);
+            }
+        }
+
+        RaisePropertyChanged(nameof(HasSelectedMontage));
+        RaisePropertyChanged(nameof(CurrentMontageName));
+        RaisePropertyChanged(nameof(MontageOutputChannelCount));
+        RaisePropertyChanged(nameof(SelectedMontageDisplayChannelCount));
         RaisePropertyChanged(nameof(VisibleChannelLabels));
     }
 
@@ -190,6 +232,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(HasOpenRecording));
         RaisePropertyChanged(nameof(HasOpenStream));
         RaisePropertyChanged(nameof(VisibleChannelLabels));
+        RaisePropertyChanged(nameof(WaveformStatusText));
     }
 
     public LiveWaveformSource? GetWaveformSource()
@@ -214,7 +257,13 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
             displayCounterAdjustments.ToArray(),
             displayFilterBoundaryProvider(),
             montageProfile,
-            Channels.ToArray());
+            Channels.ToArray(),
+            montageProfile is null
+                ? null
+                : MontageChannels
+                    .Where(channel => channel.IsVisible)
+                    .Select(channel => channel.Name)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase));
     }
 
     public void Dispose()
@@ -230,6 +279,15 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     private void ReportCommandError(Exception exception) =>
         CaptureStatusText = $"操作失败：{exception.Message}";
+
+    private void OnMontageChannelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName == nameof(LiveMontageDisplayChannel.IsVisible))
+        {
+            RaisePropertyChanged(nameof(SelectedMontageDisplayChannelCount));
+            RaisePropertyChanged(nameof(VisibleChannelLabels));
+        }
+    }
 
     private void UpdateDisplayTimeline(AcquisitionState state, IReadOnlyList<AcquisitionBatch> batches)
     {
@@ -369,7 +427,8 @@ public sealed record LiveWaveformSource(
     IReadOnlyList<LiveDisplayCounterAdjustment>? DisplayCounterAdjustments = null,
     IReadOnlyList<long>? DisplayFilterBoundaries = null,
     MontageProfile? MontageProfile = null,
-    IReadOnlyList<LiveDisplayChannel>? MontageSourceChannels = null);
+    IReadOnlyList<LiveDisplayChannel>? MontageSourceChannels = null,
+    IReadOnlySet<string>? VisibleMontageChannelNames = null);
 
 public sealed record LiveDisplayCounterAdjustment(
     long EffectiveFromRawSampleCounter,
@@ -395,6 +454,28 @@ public sealed class LiveDisplayChannel : ObservableObject
     public string Label { get; }
 
     public string Kind { get; }
+
+    public bool IsVisible
+    {
+        get => isVisible;
+        set => SetProperty(ref isVisible, value);
+    }
+}
+
+public sealed class LiveMontageDisplayChannel : ObservableObject
+{
+    private bool isVisible;
+
+    public LiveMontageDisplayChannel(string name, int displayOrder, bool isVisible)
+    {
+        Name = name;
+        DisplayOrder = displayOrder;
+        this.isVisible = isVisible;
+    }
+
+    public string Name { get; }
+
+    public int DisplayOrder { get; }
 
     public bool IsVisible
     {

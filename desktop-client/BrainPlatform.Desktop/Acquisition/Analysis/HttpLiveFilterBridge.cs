@@ -32,7 +32,7 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
     private string? activeFilterSessionId;
     private long activeConfigurationRevision;
     private long nextConfigurationRevision;
-    private ScheduledFilterChange? scheduledChange;
+    private PendingLiveFilterTransition? pendingTransition;
     private bool isUnavailable;
 
     public HttpLiveFilterBridge(HttpClient httpClient)
@@ -53,10 +53,28 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
 
     public event EventHandler<FilteredDisplayBatch>? FilteredBatchAvailable;
 
+    public event EventHandler<LiveDisplayFilterActivated>? FilterConfigurationActivated;
+
+    public event EventHandler<Exception>? FilterTransitionFailed;
+
+    public void MarkUnavailable()
+    {
+        PendingLiveFilterTransition? abandoned;
+        lock (gate)
+        {
+            isUnavailable = true;
+            abandoned = pendingTransition;
+            pendingTransition = null;
+        }
+        AbandonTransition(abandoned);
+    }
+
     /// <summary>Sets the configuration that the next recording session starts with.</summary>
     public long Configure(LiveDisplayFilterSettings value)
     {
         value.Validate();
+        PendingLiveFilterTransition? abandoned;
+        long revision;
         lock (gate)
         {
             if (activeFilterSessionId is not null)
@@ -65,11 +83,13 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
             }
 
             activeSettings = value;
-            activeConfigurationRevision = ++nextConfigurationRevision;
-            scheduledChange = null;
+            activeConfigurationRevision = revision = ++nextConfigurationRevision;
+            abandoned = pendingTransition;
+            pendingTransition = null;
             isUnavailable = false;
-            return activeConfigurationRevision;
         }
+        AbandonTransition(abandoned);
+        return revision;
     }
 
     /// <summary>
@@ -79,7 +99,8 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
     public LiveDisplayFilterSchedule ScheduleChange(
         LiveDisplayFilterSettings value,
         long effectiveFromRawSampleCounter,
-        LiveDisplayFilterWarmup? warmup)
+        IReadOnlyList<AcquisitionBatch> warmupBatches,
+        int maximumWarmupSamples)
     {
         value.Validate();
         if (effectiveFromRawSampleCounter < 0)
@@ -87,17 +108,27 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
             throw new ArgumentOutOfRangeException(nameof(effectiveFromRawSampleCounter));
         }
 
+        PendingLiveFilterTransition? superseded;
+        LiveDisplayFilterSchedule schedule;
         lock (gate)
         {
             var revision = ++nextConfigurationRevision;
-            var supersededPendingBoundary = scheduledChange?.EffectiveFromRawSampleCounter;
-            scheduledChange = new ScheduledFilterChange(value, revision, effectiveFromRawSampleCounter, warmup);
+            var supersededPendingBoundary = pendingTransition?.RequestedFromRawSampleCounter;
+            superseded = pendingTransition;
+            pendingTransition = new PendingLiveFilterTransition(
+                value,
+                revision,
+                effectiveFromRawSampleCounter,
+                warmupBatches,
+                maximumWarmupSamples);
             isUnavailable = false;
-            return new LiveDisplayFilterSchedule(
+            schedule = new LiveDisplayFilterSchedule(
                 revision,
                 effectiveFromRawSampleCounter,
                 supersededPendingBoundary);
         }
+        AbandonTransition(superseded);
+        return schedule;
     }
 
     public async Task PublishAsync(AcquisitionAnalysisBatch analysis, CancellationToken cancellationToken)
@@ -109,40 +140,29 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
 
         try
         {
-            var remaining = analysis.Batch;
-            while (true)
+            var transition = GetPendingTransition();
+            if (transition is not null && analysis.Batch.LastSampleCounter >= transition.RequestedFromRawSampleCounter)
             {
-                var change = GetScheduledChange();
-                if (change is null || remaining.LastSampleCounter < change.EffectiveFromRawSampleCounter)
+                var transitionBatch = analysis.Batch;
+                if (transitionBatch.FirstSampleCounter < transition.RequestedFromRawSampleCounter)
                 {
-                    await PublishActiveBatchAsync(analysis, remaining, cancellationToken);
-                    return;
+                    var startSample = checked((int)(transition.RequestedFromRawSampleCounter - transitionBatch.FirstSampleCounter));
+                    transitionBatch = LiveFilterBatchSlicer.Slice(
+                        transitionBatch,
+                        startSample,
+                        transitionBatch.SampleCount - startSample);
                 }
 
-                if (remaining.FirstSampleCounter < change.EffectiveFromRawSampleCounter)
-                {
-                    var oldSampleCount = checked((int)(change.EffectiveFromRawSampleCounter - remaining.FirstSampleCounter));
-                    await PublishActiveBatchAsync(
-                        analysis,
-                        LiveFilterBatchSlicer.Slice(remaining, 0, oldSampleCount),
-                        cancellationToken);
-                    remaining = LiveFilterBatchSlicer.Slice(
-                        remaining,
-                        oldSampleCount,
-                        remaining.SampleCount - oldSampleCount);
-                }
-
-                if (!await ActivateScheduledChangeAsync(
-                        analysis,
-                        change,
-                        remaining.FirstSampleCounter,
-                        cancellationToken))
-                {
-                    // A newer setting has a later effective counter. Re-evaluate
-                    // this same raw remainder against that newer boundary.
-                    continue;
-                }
+                transition.Enqueue(transitionBatch);
+                transition.StartIfRequired(
+                    () => RunTransitionAsync(analysis, transition),
+                    cancellationToken);
             }
+
+            // The active session remains the visible source while the new
+            // session is created, warmed, and catches up in the background.
+            await PublishActiveBatchAsync(analysis, analysis.Batch, cancellationToken);
+            await TryActivateCaughtUpTransitionAsync(transition, analysis.Batch.LastSampleCounter);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -150,11 +170,7 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
         }
         catch
         {
-            lock (gate)
-            {
-                isUnavailable = true;
-                activeFilterSessionId = null;
-            }
+            MarkUnavailable();
 
             throw;
         }
@@ -163,33 +179,37 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
     public async Task CloseAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         string? filterSessionId;
+        PendingLiveFilterTransition? transition;
         lock (gate)
         {
             filterSessionId = activeFilterSessionId;
             activeFilterSessionId = null;
-            scheduledChange = null;
+            transition = pendingTransition;
+            pendingTransition = null;
+            transition?.Cancel();
             isUnavailable = false;
+        }
+        if (transition is not null)
+        {
+            await transition.ObserveCompletionAsync();
+            if (transition.FilterSessionId is { } pendingSessionId)
+            {
+                await CloseSessionBestEffortAsync(pendingSessionId, cancellationToken);
+            }
         }
         if (filterSessionId is null)
         {
             return;
         }
 
-        try
-        {
-            using var _ = await httpClient.DeleteAsync($"api/live-filters/sessions/{filterSessionId}", cancellationToken);
-        }
-        catch (HttpRequestException)
-        {
-            // Live filtering is transient; stopping raw acquisition must still succeed.
-        }
+        await CloseSessionBestEffortAsync(filterSessionId, cancellationToken);
     }
 
-    private ScheduledFilterChange? GetScheduledChange()
+    private PendingLiveFilterTransition? GetPendingTransition()
     {
         lock (gate)
         {
-            return scheduledChange;
+            return pendingTransition;
         }
     }
 
@@ -199,11 +219,29 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
         CancellationToken cancellationToken)
     {
         var session = await EnsureActiveSessionAsync(analysis, cancellationToken);
+        var filteredValues = await FilterBatchAsync(session.FilterSessionId, batch, cancellationToken);
+
+        FilteredBatchAvailable?.Invoke(this, new FilteredDisplayBatch(
+            analysis.SessionId,
+            session.ConfigurationRevision,
+            new AcquisitionBatch(
+                batch.FirstSampleCounter,
+                batch.SampleCount,
+                batch.ChannelCount,
+                filteredValues,
+                batch.ReceivedAtUtc)));
+    }
+
+    private async Task<double[]> FilterBatchAsync(
+        string filterSessionId,
+        AcquisitionBatch batch,
+        CancellationToken cancellationToken)
+    {
         var requestPayload = MemoryMarshal.AsBytes(batch.SampleMajorValues.AsSpan()).ToArray();
         using var content = new ByteArrayContent(requestPayload);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/vnd.brain-platform.float64");
         using var response = await httpClient.PostAsync(
-            $"api/live-filters/sessions/{session.FilterSessionId}/batches/binary?sample_count={batch.SampleCount}",
+            $"api/live-filters/sessions/{filterSessionId}/batches/binary?sample_count={batch.SampleCount}",
             content,
             cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -220,60 +258,93 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
 
         var filteredValues = new double[batch.SampleMajorValues.Length];
         Buffer.BlockCopy(responsePayload, 0, filteredValues, 0, responsePayload.Length);
-
-        FilteredBatchAvailable?.Invoke(this, new FilteredDisplayBatch(
-            analysis.SessionId,
-            session.ConfigurationRevision,
-            new AcquisitionBatch(
-                batch.FirstSampleCounter,
-                batch.SampleCount,
-                batch.ChannelCount,
-                filteredValues,
-                batch.ReceivedAtUtc)));
+        return filteredValues;
     }
 
-    private async Task<bool> ActivateScheduledChangeAsync(
+    private async Task RunTransitionAsync(
         AcquisitionAnalysisBatch analysis,
-        ScheduledFilterChange change,
-        long firstNewRawSampleCounter,
-        CancellationToken cancellationToken)
+        PendingLiveFilterTransition transition)
     {
-        var warmup = change.Warmup;
-        if (warmup is not null &&
-            (warmup.LastSampleCounter + 1 != change.EffectiveFromRawSampleCounter ||
-             firstNewRawSampleCounter != change.EffectiveFromRawSampleCounter))
+        try
         {
-            // A raw gap occurred after the setting change; never carry IIR state across it.
-            warmup = null;
+            var warmup = transition.CreateWarmup();
+            var newSessionId = await CreateSessionAsync(
+                analysis,
+                transition.Settings,
+                transition.Revision,
+                warmup,
+                transition.CancellationToken);
+            transition.MarkSessionCreated(newSessionId);
+            await foreach (var batch in transition.ReadBatchesAsync())
+            {
+                _ = await FilterBatchAsync(newSessionId, batch, transition.CancellationToken);
+                transition.MarkProcessed(batch.LastSampleCounter);
+            }
+        }
+        catch (OperationCanceledException) when (transition.CancellationToken.IsCancellationRequested)
+        {
+            // A newer user choice or acquisition shutdown superseded this preparation.
+        }
+        catch (Exception exception)
+        {
+            transition.MarkFailed(exception);
+        }
+    }
+
+    private async Task TryActivateCaughtUpTransitionAsync(
+        PendingLiveFilterTransition? transition,
+        long activeProcessedThroughRawSampleCounter)
+    {
+        if (transition is null)
+        {
+            return;
         }
 
-        var newSessionId = await CreateSessionAsync(analysis, change.Settings, change.Revision, warmup, cancellationToken);
+        if (transition.Failure is { } failure)
+        {
+            lock (gate)
+            {
+                if (ReferenceEquals(pendingTransition, transition))
+                {
+                    pendingTransition = null;
+                }
+            }
+            AbandonTransition(transition);
+            FilterTransitionFailed?.Invoke(this, failure);
+            return;
+        }
+
+        if (transition.FilterSessionId is not { } newSessionId ||
+            transition.ProcessedThroughRawSampleCounter < activeProcessedThroughRawSampleCounter)
+        {
+            return;
+        }
+
         string? previousSessionId;
-        var activated = false;
+        var boundary = checked(activeProcessedThroughRawSampleCounter + 1L);
         lock (gate)
         {
-            if (scheduledChange?.Revision != change.Revision)
+            if (!ReferenceEquals(pendingTransition, transition))
             {
-                // A newer user action superseded this one while local HTTP was running.
-                previousSessionId = newSessionId;
+                return;
             }
-            else
-            {
-                previousSessionId = activeFilterSessionId;
-                activeSettings = change.Settings;
-                activeConfigurationRevision = change.Revision;
-                activeFilterSessionId = newSessionId;
-                scheduledChange = null;
-                activated = true;
-            }
+
+            previousSessionId = activeFilterSessionId;
+            activeSettings = transition.Settings;
+            activeConfigurationRevision = transition.Revision;
+            activeFilterSessionId = newSessionId;
+            pendingTransition = null;
+            transition.Complete();
         }
 
+        FilterConfigurationActivated?.Invoke(this, new LiveDisplayFilterActivated(
+            transition.Revision,
+            boundary,
+            transition.WarmupSampleCount));
         if (previousSessionId is not null)
         {
-            using var _ = await httpClient.DeleteAsync($"api/live-filters/sessions/{previousSessionId}", cancellationToken);
+            await CloseSessionBestEffortAsync(previousSessionId, CancellationToken.None);
         }
-
-        return activated;
     }
 
     private async Task<ActiveFilterSession> EnsureActiveSessionAsync(
@@ -314,33 +385,91 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
             .Select(channel => channel.StreamIndex)
             .ToArray();
         var sessionId = $"{analysis.SessionId:N}-{revision}";
-        using var response = await httpClient.PostAsJsonAsync("api/live-filters/sessions", new LiveFilterSessionRequest(
-            sessionId,
-            analysis.Stream.SamplingRateHz,
-            analysis.Batch.ChannelCount,
-            eegIndexes,
-            settings.LowCutHz,
-            settings.HighCutHz,
-            settings.NotchHz,
-            warmup?.SampleCount ?? 0,
-            warmup?.SampleMajorValues ?? [],
-            ReturnWarmupValues: false), cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var payload = await response.Content.ReadFromJsonAsync<LiveFilterSessionResponse>(cancellationToken)
-            ?? throw new InvalidOperationException("实时滤波后端没有返回会话信息。");
-        if (payload.WarmupSampleCount != (warmup?.SampleCount ?? 0) || payload.WarmupValuesV.Length != 0)
+        var sessionCreated = false;
+        try
         {
-            throw new InvalidOperationException("实时滤波预热数据契约无效。");
-        }
+            using var response = await httpClient.PostAsJsonAsync("api/live-filters/sessions", new LiveFilterSessionRequest(
+                sessionId,
+                analysis.Stream.SamplingRateHz,
+                analysis.Batch.ChannelCount,
+                eegIndexes,
+                settings.LowCutHz,
+                settings.HighCutHz,
+                settings.NotchHz), cancellationToken);
+            response.EnsureSuccessStatusCode();
+            sessionCreated = true;
+            var payload = await response.Content.ReadFromJsonAsync<LiveFilterSessionResponse>(cancellationToken)
+                ?? throw new InvalidOperationException("实时滤波后端没有返回会话信息。");
+            if (payload.WarmupSampleCount != 0 || payload.WarmupValuesV.Length != 0)
+            {
+                throw new InvalidOperationException("实时滤波预热数据契约无效。");
+            }
 
-        return sessionId;
+            if (warmup is not null)
+            {
+                var warmupPayload = MemoryMarshal.AsBytes(warmup.SampleMajorValues.AsSpan()).ToArray();
+                using var warmupContent = new ByteArrayContent(warmupPayload);
+                warmupContent.Headers.ContentType = new MediaTypeHeaderValue("application/vnd.brain-platform.float64");
+                using var warmupResponse = await httpClient.PostAsync(
+                    $"api/live-filters/sessions/{sessionId}/warmup/binary?sample_count={warmup.SampleCount}",
+                    warmupContent,
+                    cancellationToken);
+                warmupResponse.EnsureSuccessStatusCode();
+                if (!warmupResponse.Headers.TryGetValues("X-Warmup-Sample-Count", out var counts) ||
+                    !int.TryParse(counts.SingleOrDefault(), out var returnedCount) ||
+                    returnedCount != warmup.SampleCount)
+                {
+                    throw new InvalidOperationException("实时滤波二进制预热数据契约无效。");
+                }
+            }
+
+            return sessionId;
+        }
+        catch
+        {
+            if (sessionCreated)
+            {
+                await CloseSessionBestEffortAsync(sessionId, CancellationToken.None);
+            }
+            throw;
+        }
     }
 
-    private sealed record ScheduledFilterChange(
-        LiveDisplayFilterSettings Settings,
-        long Revision,
-        long EffectiveFromRawSampleCounter,
-        LiveDisplayFilterWarmup? Warmup);
+    private async Task CloseSessionBestEffortAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var _ = await httpClient.DeleteAsync($"api/live-filters/sessions/{sessionId}", cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            // Live filtering is transient; raw acquisition must never depend on cleanup.
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Shutdown cancellation must not hold the device lifecycle open.
+        }
+    }
+
+    private void AbandonTransition(PendingLiveFilterTransition? transition)
+    {
+        if (transition is null)
+        {
+            return;
+        }
+
+        transition.Cancel();
+        _ = DisposeTransitionAsync(transition);
+    }
+
+    private async Task DisposeTransitionAsync(PendingLiveFilterTransition transition)
+    {
+        await transition.ObserveCompletionAsync();
+        if (transition.FilterSessionId is { } sessionId)
+        {
+            await CloseSessionBestEffortAsync(sessionId, CancellationToken.None);
+        }
+    }
 
     private sealed record ActiveFilterSession(string FilterSessionId, long ConfigurationRevision);
 
@@ -351,10 +480,7 @@ public sealed class HttpLiveFilterBridge : IAcquisitionAnalysisBridge
         [property: JsonPropertyName("eeg_channel_indexes")] int[] EegChannelIndexes,
         [property: JsonPropertyName("low_cut_hz")] double LowCutHz,
         [property: JsonPropertyName("high_cut_hz")] double HighCutHz,
-        [property: JsonPropertyName("notch_hz")] double? NotchHz,
-        [property: JsonPropertyName("warmup_sample_count")] int WarmupSampleCount,
-        [property: JsonPropertyName("warmup_values_v")] double[] WarmupValuesV,
-        [property: JsonPropertyName("return_warmup_values")] bool ReturnWarmupValues);
+        [property: JsonPropertyName("notch_hz")] double? NotchHz);
 
     private sealed record LiveFilterSessionResponse(
         [property: JsonPropertyName("warmup_sample_count")] int WarmupSampleCount,
@@ -392,6 +518,11 @@ public sealed record LiveDisplayFilterSchedule(
     long ConfigurationRevision,
     long EffectiveFromRawSampleCounter,
     long? SupersededPendingBoundary);
+
+public sealed record LiveDisplayFilterActivated(
+    long ConfigurationRevision,
+    long EffectiveFromRawSampleCounter,
+    int WarmupSampleCount);
 
 public sealed record FilteredDisplayBatch(
     Guid AcquisitionSessionId,

@@ -90,8 +90,10 @@ public static class WaveformDisplayFrameBuilder
                 .ToArray();
         }
 
-        var traces = new List<WaveformDisplayTrace>();
-        foreach (var montageChannel in source.MontageProfile.DerivedChannels.OrderBy(channel => channel.DisplayOrder))
+        var resolvedChannels = new List<ResolvedMontageChannel>();
+        foreach (var montageChannel in source.MontageProfile.DerivedChannels
+                     .Where(channel => source.VisibleMontageChannelNames is null || source.VisibleMontageChannelNames.Contains(channel.Name))
+                     .OrderBy(channel => channel.DisplayOrder))
         {
             if (!channelsByLabel.TryGetValue(montageChannel.PositiveLabel, out var positiveIndex))
             {
@@ -107,54 +109,91 @@ public static class WaveformDisplayFrameBuilder
                 continue;
             }
 
-            traces.Add(new WaveformDisplayTrace(
-                montageChannel.Name,
+            var referenceKey = montageChannel.NegativeKind is MontageNegativeKind.Mean or MontageNegativeKind.SpecifiedPair
+                ? string.Join(',', negativeIndexes.OrderBy(index => index))
+                : null;
+            resolvedChannels.Add(new ResolvedMontageChannel(
+                montageChannel,
+                positiveIndex,
+                negativeIndexes,
+                referenceKey));
+        }
+
+        var referenceCache = ReferenceSignalCache.Create(
+            displayBatches.Select(displayBatch => displayBatch.Batch).ToArray(),
+            resolvedChannels);
+        return resolvedChannels.Select(channel => new WaveformDisplayTrace(
+                channel.Definition.Name,
                 BuildTrace(
                     displayBatches,
-                    positiveIndex,
+                    channel.PositiveIndex,
                     spans,
                     bucketSize,
                     filterBoundaries,
-                    (batch, sampleIndex) => CalculateMontageValue(batch, sampleIndex, positiveIndex, montageChannel.NegativeKind, negativeIndexes))));
-        }
-
-        return traces;
+                    CreateMontageValueSelector(channel, referenceCache))))
+            .ToArray();
     }
 
-    private static double CalculateMontageValue(
-        AcquisitionBatch batch,
-        int sampleIndex,
-        int positiveIndex,
-        MontageNegativeKind negativeKind,
-        IReadOnlyList<int> negativeIndexes)
+    private static Func<AcquisitionBatch, int, double> CreateMontageValueSelector(
+        ResolvedMontageChannel channel,
+        ReferenceSignalCache referenceCache)
     {
-        var positive = ReadValue(batch, sampleIndex, positiveIndex);
-        if (negativeKind == MontageNegativeKind.OriginalHardwareReference)
+        if (channel.Definition.NegativeKind == MontageNegativeKind.OriginalHardwareReference)
         {
-            return positive;
+            return (batch, sampleIndex) => ReadValue(batch, sampleIndex, channel.PositiveIndex);
         }
 
-        if (!double.IsFinite(positive) || negativeIndexes.Count == 0)
+        if (channel.NegativeIndexes.Length == 0)
         {
-            return double.NaN;
+            return (_, _) => double.NaN;
         }
 
-        // This method runs for every raw sample in every visible derived trace.
-        // Avoid LINQ and per-sample arrays here: at 4 kHz those allocations can
-        // otherwise dominate the UI process and starve WPF rendering.
-        var referenceSum = 0d;
-        for (var index = 0; index < negativeIndexes.Count; index++)
+        if (channel.ReferenceKey is not null)
         {
-            var referenceValue = ReadValue(batch, sampleIndex, negativeIndexes[index]);
-            if (!double.IsFinite(referenceValue))
+            AcquisitionBatch? cachedBatch = null;
+            double[]? cachedReferenceValues = null;
+            return (batch, sampleIndex) =>
+            {
+                if (!ReferenceEquals(cachedBatch, batch))
+                {
+                    cachedBatch = batch;
+                    cachedReferenceValues = referenceCache.GetValues(channel.ReferenceKey, batch);
+                }
+
+                var positive = ReadValue(batch, sampleIndex, channel.PositiveIndex);
+                if (!double.IsFinite(positive) || cachedReferenceValues is null)
+                {
+                    return double.NaN;
+                }
+
+                var reference = cachedReferenceValues[sampleIndex];
+                return double.IsFinite(reference) ? positive - reference : double.NaN;
+            };
+        }
+
+        return (batch, sampleIndex) =>
+        {
+            var positive = ReadValue(batch, sampleIndex, channel.PositiveIndex);
+            if (!double.IsFinite(positive))
             {
                 return double.NaN;
             }
 
-            referenceSum += referenceValue;
-        }
+            // A direct channel reference normally has one negative source.
+            var referenceSum = 0d;
+            for (var index = 0; index < channel.NegativeIndexes.Length; index++)
+            {
+                var referenceValue = ReadValue(batch, sampleIndex, channel.NegativeIndexes[index]);
+                if (!double.IsFinite(referenceValue))
+                {
+                    return double.NaN;
+                }
 
-        return positive - referenceSum / negativeIndexes.Count;
+                referenceSum += referenceValue;
+            }
+
+            return positive - referenceSum / channel.NegativeIndexes.Length;
+        };
     }
 
     private static double ReadValue(AcquisitionBatch batch, int sampleIndex, int streamIndex) =>
@@ -248,6 +287,7 @@ public static class WaveformDisplayFrameBuilder
         }
 
         var points = new List<WaveformDisplayPoint>();
+        var hasFilterBoundaries = filterBoundaries.Count > 0;
         foreach (var span in spans)
         {
             long? expectedCounter = null;
@@ -284,7 +324,7 @@ public static class WaveformDisplayFrameBuilder
                 for (var sampleIndex = firstIndex; sampleIndex <= lastIndex; sampleIndex++)
                 {
                     var sampleCounter = checked(batch.FirstSampleCounter + sampleIndex);
-                    if (filterBoundaries.Contains(sampleCounter))
+                    if (hasFilterBoundaries && filterBoundaries.Contains(sampleCounter))
                     {
                         FlushBucket(points, ref bucket, ref hasBucket);
                         startsSegment = true;
@@ -457,7 +497,6 @@ public static class WaveformDisplayFrameBuilder
         public double MaxVolts = maxVolts;
         public bool StartsSegment = startsSegment;
     }
-
 }
 
 public sealed record WaveformDisplayFrame(

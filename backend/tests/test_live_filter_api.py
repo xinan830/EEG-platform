@@ -45,3 +45,34 @@ def test_binary_live_filter_batch_uses_float64_without_json_number_roundtrip() -
 
     closed = client.delete(f"/api/live-filters/sessions/{session_id}")
     assert closed.status_code == 204
+
+
+def test_binary_warmup_advances_filter_state_without_returning_waveform() -> None:
+    client = TestClient(app)
+    session_id = "binary-live-filter-warmup-test"
+    created = client.post(
+        "/api/live-filters/sessions",
+        json={
+            "session_id": session_id,
+            "sampling_rate_hz": 1000,
+            "channel_count": 3,
+            "eeg_channel_indexes": [0, 1],
+            "low_cut_hz": 1.0,
+            "high_cut_hz": 100.0,
+            "notch_hz": None,
+        },
+    )
+    assert created.status_code == 201
+
+    source = np.zeros((100, 3), dtype="<f8")
+    response = client.post(
+        f"/api/live-filters/sessions/{session_id}/warmup/binary?sample_count=100",
+        content=source.tobytes(),
+        headers={"Content-Type": "application/vnd.brain-platform.float64"},
+    )
+
+    assert response.status_code == 204
+    assert response.content == b""
+    assert response.headers["x-warmup-sample-count"] == "100"
+    assert response.headers["x-unit"] == "V"
+    assert client.delete(f"/api/live-filters/sessions/{session_id}").status_code == 204

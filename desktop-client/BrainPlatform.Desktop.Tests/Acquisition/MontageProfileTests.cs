@@ -236,6 +236,45 @@ public sealed class MontageProfileTests
         Assert.False(workspace.ShowReferenceGroup);
     }
 
+    [Fact]
+    public async Task Workspace_ReloadsSystemMontagesWhenDeviceChannelsArriveAfterInitialRefresh()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "brain-platform-tests", Guid.NewGuid().ToString("N"));
+        var mapping = new ChannelMappingViewModel(
+            new ChannelLabelMappingStore(Path.Combine(root, "labels.json")),
+            displaySelectionStore: new ChannelDisplaySelectionStore(Path.Combine(root, "display.json")),
+            activeConfigurationStore: new ActiveChannelConfigurationStore(Path.Combine(root, "active.json")));
+        var montageStore = new MontageProfileStore(Path.Combine(root, "montages.json"));
+        var channelWorkspace = new ChannelConfigurationWorkspaceViewModel(
+            mapping,
+            new ChannelConfigurationProfileStore(Path.Combine(root, "channels.json")),
+            montageStore: montageStore);
+        var workspace = new MontageConfigurationWorkspaceViewModel(channelWorkspace, montageStore);
+        await workspace.RefreshAsync();
+        Assert.Empty(workspace.Profiles);
+
+        var capabilities = Enumerable.Range(0, 24)
+            .Select(index => new AcquisitionChannelCapability(index, AcquisitionChannelKind.Reference, "V"))
+            .Concat(Enumerable.Range(24, 4)
+                .Select(index => new AcquisitionChannelCapability(index, AcquisitionChannelKind.Bipolar, "V")))
+            .ToArray();
+        mapping.LoadDevice(new AcquisitionDeviceDescriptor(
+            "device", "ANT/eego EE-511", "serial", [500, 1_000, 4_000],
+            ChannelCapabilities: capabilities,
+            Model: "EE-511",
+            DriverId: "ant-eego"));
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (workspace.Profiles.Count == 0)
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+
+        Assert.Single(workspace.AvailableChannelConfigurations);
+        Assert.Equal(6, workspace.Profiles.Count);
+        Assert.Equal(6, workspace.AvailableForAcquisition.Count);
+    }
+
     private static MontageConfigurationWorkspaceViewModel CreateWorkspaceWithChannelConfiguration()
     {
         var channelWorkspace = new ChannelConfigurationWorkspaceViewModel(

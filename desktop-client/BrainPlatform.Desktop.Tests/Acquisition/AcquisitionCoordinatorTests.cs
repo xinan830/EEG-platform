@@ -93,7 +93,7 @@ public sealed class AcquisitionCoordinatorTests
 
             await stream.WriteAsync(Batch(0, 2));
             await stream.WaitForYieldCountAsync(1);
-            await WaitForDisplayBatchCountAsync(coordinator, 1);
+            await WaitForDisplayLastSampleCounterAsync(coordinator, 1);
 
             await coordinator.PauseAsync(CancellationToken.None);
             Assert.Equal(AcquisitionState.Paused, coordinator.State.State);
@@ -101,14 +101,18 @@ public sealed class AcquisitionCoordinatorTests
             await stream.WriteAsync(Batch(2, 2));
             await stream.WriteAsync(Batch(4, 2));
             await stream.WaitForYieldCountAsync(3);
-            await WaitForDisplayBatchCountAsync(coordinator, 3);
+            await WaitForDisplayLastSampleCounterAsync(coordinator, 5);
 
             await coordinator.ResumeAsync(CancellationToken.None);
             Assert.Equal(AcquisitionState.Recording, coordinator.State.State);
             await stream.WriteAsync(Batch(6, 2));
             await stream.WaitForYieldCountAsync(4);
-            await WaitForDisplayBatchCountAsync(coordinator, 4);
-            Assert.Equal([0L, 2L, 4L, 6L], coordinator.GetDisplaySnapshot().Select(batch => batch.FirstSampleCounter));
+            await WaitForDisplayLastSampleCounterAsync(coordinator, 7);
+            var displayed = coordinator.GetDisplaySnapshot();
+            Assert.Equal(8, displayed.Sum(batch => batch.SampleCount));
+            Assert.Equal(Enumerable.Range(0, 8).Select(value => (long)value), displayed
+                .SelectMany(batch => Enumerable.Range(0, batch.SampleCount)
+                    .Select(offset => batch.FirstSampleCounter + offset)));
             stream.Complete();
             await WaitForStateAsync(coordinator, AcquisitionState.Stopped);
 
@@ -147,7 +151,7 @@ public sealed class AcquisitionCoordinatorTests
             Assert.False(Directory.Exists(Path.Combine(directory, "recordings")));
             await stream.WriteAsync(Batch(0, 2));
             await stream.WaitForYieldCountAsync(1);
-            await WaitForDisplayBatchCountAsync(coordinator, 1);
+            await WaitForDisplayLastSampleCounterAsync(coordinator, 1);
 
             var recordingSessionId = await coordinator.StartRecordingAsync(CancellationToken.None);
             Assert.NotEqual(previewSessionId, recordingSessionId);
@@ -157,7 +161,7 @@ public sealed class AcquisitionCoordinatorTests
 
             await stream.WriteAsync(Batch(2, 2));
             await stream.WaitForYieldCountAsync(2);
-            await WaitForDisplayBatchCountAsync(coordinator, 2);
+            await WaitForDisplayLastSampleCounterAsync(coordinator, 3);
             Assert.Equal(2, coordinator.RecordingFirstSampleCounter);
             await coordinator.StopAsync(CancellationToken.None);
 
@@ -206,10 +210,12 @@ public sealed class AcquisitionCoordinatorTests
         }
     }
 
-    private static async Task WaitForDisplayBatchCountAsync(AcquisitionCoordinator coordinator, int expected)
+    private static async Task WaitForDisplayLastSampleCounterAsync(
+        AcquisitionCoordinator coordinator,
+        long expected)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (coordinator.GetDisplaySnapshot().Count != expected)
+        while (coordinator.LatestDisplaySampleCounter != expected)
         {
             await Task.Delay(10, timeout.Token);
         }

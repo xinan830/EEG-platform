@@ -15,6 +15,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 {
     private const int DisplayHistoryCapacitySamples = 250_000;
     private const int MaximumRetainedDisplayFilterBoundaries = 64;
+    private const long FilterProgressTimeoutMilliseconds = 1_000;
     private readonly SemaphoreSlim transition = new(1, 1);
     private readonly AcquisitionDriverRegistry driverRegistry;
     private IAcquisitionDeviceAdapter? adapter;
@@ -23,6 +24,8 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
     private volatile SampleBatchRingBuffer? filteredDisplayBuffer;
     private readonly object displayFilterBoundaryGate = new();
     private readonly List<long> displayFilterBoundaries = [];
+    private long lastFilteredProgressTick = -1;
+    private long lastFilteredSampleCounter = -1;
     private bool disposed;
 
     public event EventHandler<AcquisitionStateSnapshot>? StateChanged;
@@ -52,12 +55,43 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         {
             liveFilterBridge = new HttpLiveFilterBridge(backendHttpClient);
             liveFilterBridge.FilteredBatchAvailable += OnFilteredBatchAvailable;
+            liveFilterBridge.FilterConfigurationActivated += OnFilterConfigurationActivated;
+            liveFilterBridge.FilterTransitionFailed += OnFilterTransitionFailed;
         }
     }
 
-    public IReadOnlyList<AcquisitionBatch> GetDisplaySnapshot() => liveFilterBridge?.IsUnavailable == true
-        ? coordinator?.GetDisplaySnapshot() ?? []
-        : filteredDisplayBuffer?.Snapshot() ?? coordinator?.GetDisplaySnapshot() ?? [];
+    public IReadOnlyList<AcquisitionBatch> GetDisplaySnapshot()
+    {
+        if (liveFilterBridge is null || liveFilterBridge.IsUnavailable)
+        {
+            return coordinator?.GetDisplaySnapshot() ?? [];
+        }
+
+        var filtered = filteredDisplayBuffer?.Snapshot() ?? [];
+        if (filtered.Count == 0)
+        {
+            return coordinator?.GetDisplaySnapshot() ?? [];
+        }
+
+        if (coordinator?.LatestDisplaySampleCounter is { } rawLastCounter &&
+            StreamMetadata is { } metadata)
+        {
+            var filteredLastCounter = Volatile.Read(ref lastFilteredSampleCounter);
+            var progressTick = Volatile.Read(ref lastFilteredProgressTick);
+            var minimumMaterialLag = Math.Max(1, metadata.SamplingRateHz / 4);
+            if (filteredLastCounter >= 0 && rawLastCounter - filteredLastCounter >= minimumMaterialLag &&
+                progressTick >= 0 && Environment.TickCount64 - progressTick >= FilterProgressTimeoutMilliseconds)
+            {
+                DisableLiveFilter(new AcquisitionFault(
+                    "ANALYSIS_FILTER_STALLED",
+                    "实时滤波结果已停止推进，显示已自动切换为未滤波原始数据；设备采集仍继续。",
+                    DateTimeOffset.UtcNow));
+                return coordinator.GetDisplaySnapshot();
+            }
+        }
+
+        return filtered;
+    }
 
     public IReadOnlyList<long> GetDisplayFilterBoundaries()
     {
@@ -76,9 +110,6 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
             state is (AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused);
         var warmupSeconds = GetWarmupSeconds(settings.LowCutHz);
         var rawBatches = coordinator?.GetDisplaySnapshot() ?? [];
-        var warmup = isLive
-            ? LiveDisplayFilterWarmupFactory.Create(rawBatches, checked(metadata!.SamplingRateHz * warmupSeconds))
-            : null;
         var bridge = liveFilterBridge ?? throw new AcquisitionUnavailableException(
             "本地科学引擎未配置，不能启用实时滤波。");
         long? effectiveFromRawSampleCounter = null;
@@ -87,20 +118,11 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
             effectiveFromRawSampleCounter = rawBatches.Count == 0
                 ? 0
                 : checked(rawBatches[^1].LastSampleCounter + 1L);
-            var schedule = bridge.ScheduleChange(settings, effectiveFromRawSampleCounter.Value, warmup);
-            lock (displayFilterBoundaryGate)
-            {
-                if (schedule.SupersededPendingBoundary is { } superseded)
-                {
-                    displayFilterBoundaries.Remove(superseded);
-                }
-
-                displayFilterBoundaries.Add(schedule.EffectiveFromRawSampleCounter);
-                while (displayFilterBoundaries.Count > MaximumRetainedDisplayFilterBoundaries)
-                {
-                    displayFilterBoundaries.RemoveAt(0);
-                }
-            }
+            _ = bridge.ScheduleChange(
+                settings,
+                effectiveFromRawSampleCounter.Value,
+                rawBatches,
+                checked(metadata!.SamplingRateHz * warmupSeconds));
         }
         else
         {
@@ -109,8 +131,6 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
         return new LiveDisplayFilterUpdate(
             isLive,
-            warmup?.SampleCount ?? 0,
-            effectiveFromRawSampleCounter,
             warmupSeconds);
     }
 
@@ -129,6 +149,8 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
             await DisposeConfiguredRuntimeAsync();
             adapter = driverRegistry.CreateAdapter(configuration);
             filteredDisplayBuffer = liveFilterBridge is null ? null : new SampleBatchRingBuffer(DisplayHistoryCapacitySamples);
+            Volatile.Write(ref lastFilteredProgressTick, -1);
+            Volatile.Write(ref lastFilteredSampleCounter, -1);
             lock (displayFilterBoundaryGate)
             {
                 displayFilterBoundaries.Clear();
@@ -287,6 +309,8 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         }
         adapter = null;
         filteredDisplayBuffer = null;
+        Volatile.Write(ref lastFilteredProgressTick, -1);
+        Volatile.Write(ref lastFilteredSampleCounter, -1);
         lock (displayFilterBoundaryGate)
         {
             displayFilterBoundaries.Clear();
@@ -295,10 +319,32 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
     private void OnFilteredBatchAvailable(object? sender, FilteredDisplayBatch filtered)
     {
-        if (State.SessionId == filtered.AcquisitionSessionId)
+        if (liveFilterBridge?.IsUnavailable != true && State.SessionId == filtered.AcquisitionSessionId)
         {
             filteredDisplayBuffer?.Append(filtered.Batch);
+            Volatile.Write(ref lastFilteredSampleCounter, filtered.Batch.LastSampleCounter);
+            Volatile.Write(ref lastFilteredProgressTick, Environment.TickCount64);
         }
+    }
+
+    private void OnFilterConfigurationActivated(object? sender, LiveDisplayFilterActivated activated)
+    {
+        lock (displayFilterBoundaryGate)
+        {
+            displayFilterBoundaries.Add(activated.EffectiveFromRawSampleCounter);
+            while (displayFilterBoundaries.Count > MaximumRetainedDisplayFilterBoundaries)
+            {
+                displayFilterBoundaries.RemoveAt(0);
+            }
+        }
+    }
+
+    private void OnFilterTransitionFailed(object? sender, Exception exception)
+    {
+        AnalysisFaulted?.Invoke(this, new AcquisitionFault(
+            "ANALYSIS_FILTER_CHANGE_FAILED",
+            $"新的实时滤波配置准备失败，当前滤波仍继续使用：{exception.Message}",
+            DateTimeOffset.UtcNow));
     }
 
     private static int GetWarmupSeconds(double highPassHz)
@@ -307,9 +353,34 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         return Math.Clamp(requested, 5, 120);
     }
 
-    private void ForwardStateChanged(object? sender, AcquisitionStateSnapshot state) => StateChanged?.Invoke(this, state);
+    private void ForwardStateChanged(object? sender, AcquisitionStateSnapshot state)
+    {
+        if (state.State is AcquisitionState.Faulted or AcquisitionState.Stopped)
+        {
+            filteredDisplayBuffer?.Clear();
+            Volatile.Write(ref lastFilteredProgressTick, -1);
+            Volatile.Write(ref lastFilteredSampleCounter, -1);
+        }
 
-    private void ForwardAnalysisFault(object? sender, AcquisitionFault fault) => AnalysisFaulted?.Invoke(this, fault);
+        StateChanged?.Invoke(this, state);
+    }
+
+    private void ForwardAnalysisFault(object? sender, AcquisitionFault fault)
+    {
+        liveFilterBridge?.MarkUnavailable();
+        AnalysisFaulted?.Invoke(this, fault);
+    }
+
+    private void DisableLiveFilter(AcquisitionFault fault)
+    {
+        if (liveFilterBridge?.IsUnavailable == true)
+        {
+            return;
+        }
+
+        liveFilterBridge?.MarkUnavailable();
+        AnalysisFaulted?.Invoke(this, fault);
+    }
 
     private void ThrowIfDisposed()
     {
@@ -319,6 +390,4 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
 public sealed record LiveDisplayFilterUpdate(
     bool AppliedDuringRecording,
-    int WarmupSampleCount,
-    long? EffectiveFromRawSampleCounter,
     int RequestedWarmupSeconds);

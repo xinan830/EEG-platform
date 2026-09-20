@@ -22,6 +22,8 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     private string? draftProfileId;
     private DateTimeOffset? draftCreatedAtUtc;
     private bool isReadOnlyDraft;
+    private bool isRefreshingChannelConfigurations;
+    private readonly SemaphoreSlim refreshGate = new(1, 1);
 
     public MontageConfigurationWorkspaceViewModel(
         ChannelConfigurationWorkspaceViewModel channelConfigurations,
@@ -31,6 +33,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         this.channelConfigurations = channelConfigurations;
         this.store = store ?? new MontageProfileStore();
         this.notifications = notifications ?? new OperationNotificationCenter();
+        this.channelConfigurations.ProfilesChanged += OnChannelConfigurationProfilesChanged;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, ReportCommandError);
         SaveDraftCommand = new AsyncRelayCommand(SaveDraftAsync, ReportCommandError);
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, ReportCommandError);
@@ -222,28 +225,17 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
     public async Task RefreshAsync()
     {
-        var selectedId = SelectedProfile?.Id;
-        await channelConfigurations.RefreshAsync();
-        RefreshAvailableChannelConfigurations();
-        Profiles.Clear();
-        foreach (var profile in CreateSystemProfiles())
+        isRefreshingChannelConfigurations = true;
+        try
         {
-            Profiles.Add(PrepareSourceStatus(profile));
+            await channelConfigurations.RefreshAsync();
         }
-        foreach (var profile in await store.LoadAsync(CancellationToken.None))
+        finally
         {
-            Profiles.Add(PrepareSourceStatus(profile));
+            isRefreshingChannelConfigurations = false;
         }
-        AvailableForAcquisition.Clear();
-        foreach (var profile in Profiles.Where(profile => profile.ChannelSnapshotStatusLabel == "已同步"))
-        {
-            AvailableForAcquisition.Add(profile);
-        }
-        SelectedProfile = selectedId is null
-            ? Profiles.FirstOrDefault()
-            : Profiles.FirstOrDefault(profile => profile.Id == selectedId);
-        StatusText = $"已载入 {Profiles.Count} 份导联配置；可用通道配置 {AvailableChannelConfigurations.Count} 份。";
-        RaisePropertyChanged(nameof(AvailableForAcquisition));
+
+        await ReloadProfilesAsync();
     }
 
     public async Task SaveDraftAsync()
@@ -505,6 +497,56 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
     private ChannelConfigurationProfile? FindPreferredChannelConfiguration() =>
         AvailableChannelConfigurations.FirstOrDefault();
+
+    private async void OnChannelConfigurationProfilesChanged(object? sender, EventArgs eventArgs)
+    {
+        if (isRefreshingChannelConfigurations)
+        {
+            return;
+        }
+
+        try
+        {
+            await ReloadProfilesAsync();
+        }
+        catch (Exception exception)
+        {
+            ReportCommandError(exception);
+        }
+    }
+
+    private async Task ReloadProfilesAsync()
+    {
+        await refreshGate.WaitAsync();
+        try
+        {
+            var selectedId = SelectedProfile?.Id;
+            RefreshAvailableChannelConfigurations();
+            Profiles.Clear();
+            foreach (var profile in CreateSystemProfiles())
+            {
+                Profiles.Add(PrepareSourceStatus(profile));
+            }
+            foreach (var profile in await store.LoadAsync(CancellationToken.None))
+            {
+                Profiles.Add(PrepareSourceStatus(profile));
+            }
+            AvailableForAcquisition.Clear();
+            foreach (var profile in Profiles.Where(profile => profile.ChannelSnapshotStatusLabel == "已同步"))
+            {
+                AvailableForAcquisition.Add(profile);
+            }
+            SelectedProfile = selectedId is null
+                ? Profiles.FirstOrDefault()
+                : Profiles.FirstOrDefault(profile => profile.Id == selectedId);
+            StatusText = $"已载入 {Profiles.Count} 份导联配置；可用通道配置 {AvailableChannelConfigurations.Count} 份。";
+            RaisePropertyChanged(nameof(AvailableForAcquisition));
+        }
+        finally
+        {
+            refreshGate.Release();
+        }
+    }
 
     private async Task DeleteSelectedAsync()
     {

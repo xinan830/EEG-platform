@@ -3,7 +3,10 @@ using BrainPlatform.Desktop.Acquisition.Contracts;
 
 namespace BrainPlatform.Desktop.Acquisition.Analysis;
 
-public sealed record AnalysisDispatchResult(bool Accepted, string? RejectionReason);
+public sealed record AnalysisDispatchResult(
+    bool Accepted,
+    string? RejectionReason,
+    bool IsNewFailure = false);
 
 /// <summary>
 /// Separates capture from optional analysis transport. A slow or unavailable
@@ -14,8 +17,11 @@ public sealed class BoundedAnalysisDispatcher : IAsyncDisposable
 {
     private const int DisplayFilterBlockDurationMilliseconds = 50;
     private readonly Channel<AcquisitionAnalysisBatch> channel;
+    private readonly FixedDurationAnalysisBlockAggregator aggregator =
+        new(DisplayFilterBlockDurationMilliseconds);
     private readonly CancellationTokenSource cancellation = new();
     private readonly Task worker;
+    private int isFaulted;
 
     public BoundedAnalysisDispatcher(IAcquisitionAnalysisBridge bridge, int capacity = 8)
     {
@@ -38,16 +44,28 @@ public sealed class BoundedAnalysisDispatcher : IAsyncDisposable
 
     public AnalysisDispatchResult TryQueue(AcquisitionAnalysisBatch batch)
     {
-        if (channel.Writer.TryWrite(batch))
+        if (Volatile.Read(ref isFaulted) != 0)
         {
-            return new AnalysisDispatchResult(true, null);
+            return new AnalysisDispatchResult(false, "Analysis pipeline is unavailable.");
         }
 
-        return new AnalysisDispatchResult(false, "Analysis queue is full or closed.");
+        foreach (var block in aggregator.Append(batch))
+        {
+            if (!channel.Writer.TryWrite(block))
+            {
+                return FaultQueue("Analysis queue is full or closed; live filtering fell behind the device stream.");
+            }
+        }
+
+        return new AnalysisDispatchResult(true, null);
     }
 
     public async ValueTask DisposeAsync()
     {
+        if (Volatile.Read(ref isFaulted) == 0 && aggregator.Flush() is { } trailingBlock)
+        {
+            channel.Writer.TryWrite(trailingBlock);
+        }
         channel.Writer.TryComplete();
         cancellation.Cancel();
         try
@@ -66,18 +84,20 @@ public sealed class BoundedAnalysisDispatcher : IAsyncDisposable
 
     private async Task ConsumeAsync(IAcquisitionAnalysisBridge bridge, CancellationToken cancellationToken)
     {
-        var aggregator = new FixedDurationAnalysisBlockAggregator(DisplayFilterBlockDurationMilliseconds);
-        await foreach (var batch in channel.Reader.ReadAllAsync(cancellationToken))
+        try
         {
-            foreach (var block in aggregator.Append(batch))
+            await foreach (var block in channel.Reader.ReadAllAsync(cancellationToken))
             {
                 await PublishBlockAsync(bridge, block, cancellationToken);
             }
         }
-
-        if (aggregator.Flush() is { } trailingBlock)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await PublishBlockAsync(bridge, trailingBlock, cancellationToken);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            FaultQueue($"Analysis worker stopped unexpectedly: {exception.Message}");
         }
     }
 
@@ -96,12 +116,23 @@ public sealed class BoundedAnalysisDispatcher : IAsyncDisposable
         }
         catch (Exception exception)
         {
+            FaultQueue(exception.Message, "ANALYSIS_BRIDGE_FAILED");
+        }
+    }
+
+    private AnalysisDispatchResult FaultQueue(
+        string detail,
+        string code = "ANALYSIS_QUEUE_OVERFLOW")
+    {
+        var isNewFailure = Interlocked.Exchange(ref isFaulted, 1) == 0;
+        if (isNewFailure)
+        {
+            channel.Writer.TryComplete();
             AnalysisFaulted?.Invoke(
                 this,
-                new AcquisitionFault(
-                    "ANALYSIS_BRIDGE_FAILED",
-                    exception.Message,
-                    DateTimeOffset.UtcNow));
+                new AcquisitionFault(code, detail, DateTimeOffset.UtcNow));
         }
+
+        return new AnalysisDispatchResult(false, detail, isNewFailure);
     }
 }

@@ -1,5 +1,6 @@
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Acquisition.Contracts;
+using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.ViewModels;
 using BrainPlatform.Desktop.Views;
 
@@ -80,6 +81,21 @@ public sealed class LiveMonitoringViewModelTests
         Assert.False(monitor.IsRecording);
         Assert.Equal("实时预览中，尚未记录", monitor.CaptureStatusText);
         Assert.Equal("--:--:--", monitor.RecordingElapsedText);
+    }
+
+    [Fact]
+    public void FaultedStream_ExposesTheActualFailureOnTheWaveformSurface()
+    {
+        var state = new AcquisitionStateSnapshot(
+            AcquisitionState.Faulted,
+            "设备样本计数器停止推进。",
+            null,
+            DateTimeOffset.UtcNow);
+        using var monitor = CreateMonitor(() => state, () => null);
+
+        monitor.Refresh();
+
+        Assert.Equal("采集已停止：设备样本计数器停止推进。", monitor.WaveformStatusText);
     }
 
     [Fact]
@@ -181,6 +197,61 @@ public sealed class LiveMonitoringViewModelTests
         Assert.Equal(["Fp1"], monitor.VisibleChannelLabels);
         Assert.DoesNotContain(monitor.Channels, channel =>
             channel.IsVisible && channel.Label.StartsWith("CH ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ConfigureMontage_UsesDerivedOutputsForTheSettingsChannelListAndWaveform()
+    {
+        var batches = new[]
+        {
+            new AcquisitionBatch(0, 10, 12, new double[120], DateTimeOffset.UtcNow),
+        };
+        using var monitor = CreateMonitor(
+            () => Snapshot(AcquisitionState.Previewing),
+            () => Metadata(),
+            () => batches);
+        monitor.Refresh();
+        monitor.ConfigureMontage(CreateMontage());
+
+        Assert.Equal(2, monitor.MontageOutputChannelCount);
+        Assert.Equal(2, monitor.SelectedMontageDisplayChannelCount);
+        Assert.Equal(["Fp1-REF", "F3-Fp1"], monitor.VisibleChannelLabels);
+
+        monitor.MontageChannels.Single(channel => channel.Name == "F3-Fp1").IsVisible = false;
+        var source = Assert.IsType<LiveWaveformSource>(monitor.GetWaveformSource());
+        var frame = Assert.IsType<WaveformDisplayFrame>(WaveformDisplayFrameBuilder.Build(source, 1, 100));
+
+        Assert.Equal(1, monitor.SelectedMontageDisplayChannelCount);
+        Assert.Equal(["Fp1-REF"], monitor.VisibleChannelLabels);
+        Assert.Single(frame.Traces);
+        Assert.Equal("Fp1-REF", frame.Traces[0].Label);
+    }
+
+    [Fact]
+    public void WithoutMontage_SettingsDoesNotFabricateAMontageChannelCount()
+    {
+        using var monitor = CreateMonitor(() => Snapshot(AcquisitionState.Ready), () => Metadata());
+
+        Assert.False(monitor.HasSelectedMontage);
+        Assert.Equal("未选择导联配置", monitor.CurrentMontageName);
+        Assert.Equal(0, monitor.MontageOutputChannelCount);
+        Assert.Empty(monitor.MontageChannels);
+    }
+
+    private static MontageProfile CreateMontage()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var configuration = new ChannelConfigurationProfile(
+            "channels", "通道", string.Empty, ChannelConfigurationSource.User, "device",
+            [], now, now);
+        var derived = new[]
+        {
+            new DerivedMontageChannel("Fp1-REF", "Fp1", MontageNegativeKind.OriginalHardwareReference, [], 0),
+            new DerivedMontageChannel("F3-Fp1", "F3", MontageNegativeKind.Channel, ["Fp1"], 1),
+        };
+        return new MontageProfile(
+            "montage", "测试导联", string.Empty, MontageProfileSource.User, "device", "fingerprint",
+            configuration, derived, 1, now, now);
     }
 
     private static LiveMonitoringViewModel CreateMonitor(

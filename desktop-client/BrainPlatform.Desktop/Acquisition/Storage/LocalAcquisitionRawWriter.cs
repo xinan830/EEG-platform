@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.IO;
+using System.Runtime.InteropServices;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 
 namespace BrainPlatform.Desktop.Acquisition.Storage;
@@ -134,10 +135,13 @@ public sealed class LocalAcquisitionRawWriter : IAcquisitionRawWriter
         sampleWriter.Write(batch.SampleCount);
         sampleWriter.Write(batch.ChannelCount);
         sampleWriter.Write(batch.ReceivedAtUtc.UtcDateTime.Ticks);
-        foreach (var value in batch.SampleMajorValues)
-        {
-            sampleWriter.Write(value);
-        }
+
+        // BinaryWriter.Write(double) performs one managed call per sample
+        // value. At 4 kHz and 30 channels that is roughly 120,000 calls per
+        // second and can make the device SDK backlog faster than we drain it.
+        // Keep the sample-major float64 payload byte-identical, but write the
+        // whole contiguous array in one stream operation.
+        sampleStream.Write(MemoryMarshal.AsBytes(batch.SampleMajorValues.AsSpan()));
 
         unflushedBytes = checked(unflushedBytes + recordBytes);
         if (unflushedBytes >= FlushThresholdBytes || flushClock.Elapsed >= FlushInterval)

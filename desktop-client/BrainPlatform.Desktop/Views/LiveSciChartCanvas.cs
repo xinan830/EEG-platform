@@ -21,6 +21,7 @@ namespace BrainPlatform.Desktop.Views;
 public sealed class LiveSciChartCanvas : UserControl
 {
     private const int MaximumRenderBuckets = 1_000;
+    private const double EraseBandDurationSeconds = 0.3d;
     private static readonly Color[] TraceColors =
     [
         Color.FromRgb(37, 99, 235), Color.FromRgb(2, 132, 199), Color.FromRgb(22, 163, 74), Color.FromRgb(245, 158, 11),
@@ -31,21 +32,22 @@ public sealed class LiveSciChartCanvas : UserControl
     private readonly NumericAxis xAxis = new();
     private readonly NumericAxis yAxis = new();
     private readonly SweepTimeLabelProvider sweepTimeLabels = new();
-    private readonly VerticalLineAnnotation eraseBand = new()
+    private readonly SweepEraseBandAnimator eraseBandAnimator = new();
+    private readonly BoxAnnotation eraseBand = new()
     {
-        Stroke = Brushes.White,
-        StrokeThickness = 12,
+        Background = Brushes.White,
+        BorderBrush = Brushes.Transparent,
+        BorderThickness = new Thickness(0),
         IsEditable = false,
         IsHidden = true,
-        ShowLabel = false,
     };
-    private readonly VerticalLineAnnotation eraseCursor = new()
+    private readonly BoxAnnotation eraseWrapBand = new()
     {
-        Stroke = new SolidColorBrush(Color.FromRgb(37, 99, 235)),
-        StrokeThickness = 2,
+        Background = Brushes.White,
+        BorderBrush = Brushes.Transparent,
+        BorderThickness = new Thickness(0),
         IsEditable = false,
         IsHidden = true,
-        ShowLabel = false,
     };
     private readonly Grid channelLabels = new();
     private readonly TextBlock emptyMessage = new()
@@ -58,10 +60,13 @@ public sealed class LiveSciChartCanvas : UserControl
     };
     private readonly List<TraceSeries> traceSeries = [];
     private DispatcherTimer? refreshTimer;
+    private DispatcherTimer? eraseAnimationTimer;
     private LatestWaveformFrameWorker? frameWorker;
     private string[] activeLabels = [];
     private WaveformRenderRevision? lastRequestedRevision;
     private long renderSequence;
+    private double activeDisplayWindowSeconds;
+    private int activeTraceCount;
 
     public LiveSciChartCanvas()
     {
@@ -110,7 +115,7 @@ public sealed class LiveSciChartCanvas : UserControl
         surface.XAxes.Add(xAxis);
         surface.YAxes.Add(yAxis);
         surface.Annotations.Add(eraseBand);
-        surface.Annotations.Add(eraseCursor);
+        surface.Annotations.Add(eraseWrapBand);
     }
 
     private Grid CreateLayout()
@@ -137,6 +142,12 @@ public sealed class LiveSciChartCanvas : UserControl
         };
         refreshTimer.Tick += (_, _) => RequestRefresh();
         refreshTimer.Start();
+        eraseAnimationTimer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(16),
+        };
+        eraseAnimationTimer.Tick += (_, _) => AdvanceEraseBand();
+        eraseAnimationTimer.Start();
         RequestRefresh();
     }
 
@@ -144,6 +155,9 @@ public sealed class LiveSciChartCanvas : UserControl
     {
         refreshTimer?.Stop();
         refreshTimer = null;
+        eraseAnimationTimer?.Stop();
+        eraseAnimationTimer = null;
+        eraseBandAnimator.Reset();
         frameWorker?.Dispose();
         frameWorker = null;
         lastRequestedRevision = null;
@@ -206,7 +220,7 @@ public sealed class LiveSciChartCanvas : UserControl
             return;
         }
 
-        emptyMessage.Text = "等待设备连接并开始记录";
+        emptyMessage.Text = "等待设备连接并开始采集";
         emptyMessage.Visibility = frame.Traces.All(trace => trace.Points.Count == 0)
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -218,10 +232,14 @@ public sealed class LiveSciChartCanvas : UserControl
         var cursorPosition = Math.Min(frame.CursorSeconds, Math.Max(0, windowSeconds - 0.001d));
         sweepTimeLabels.Update(frame.PageStartElapsedSeconds, frame.CursorSeconds);
         xAxis.InvalidateElement();
-        eraseBand.X1 = cursorPosition;
-        eraseCursor.X1 = cursorPosition;
-        eraseBand.IsHidden = false;
-        eraseCursor.IsHidden = false;
+        activeDisplayWindowSeconds = windowSeconds;
+        activeTraceCount = frame.Traces.Count;
+        var displayedCursorPosition = eraseBandAnimator.SetTarget(
+            frame.PageStartElapsedSeconds,
+            cursorPosition,
+            windowSeconds,
+            Environment.TickCount64);
+        UpdateEraseBand(displayedCursorPosition, activeDisplayWindowSeconds, activeTraceCount);
         yAxis.VisibleRange = new DoubleRange(0, frame.Traces.Count);
         var pixelsPerMillimeter = VisualTreeHelper.GetDpi(surface).PixelsPerInchY / 25.4;
         var displayScale = frame.Traces.Count * pixelsPerMillimeter /
@@ -238,10 +256,13 @@ public sealed class LiveSciChartCanvas : UserControl
 
     private void ShowEmptyState(LiveMonitoringViewModel? monitor)
     {
-        emptyMessage.Text = "等待设备连接并开始记录";
+        emptyMessage.Text = monitor?.WaveformStatusText ?? "等待设备连接并开始采集";
         emptyMessage.Visibility = Visibility.Visible;
         eraseBand.IsHidden = true;
-        eraseCursor.IsHidden = true;
+        eraseWrapBand.IsHidden = true;
+        activeDisplayWindowSeconds = 0;
+        activeTraceCount = 0;
+        eraseBandAnimator.Reset();
         sweepTimeLabels.Update(0, 0);
         xAxis.InvalidateElement();
         var labels = monitor?.VisibleChannelLabels ?? [];
@@ -266,6 +287,54 @@ public sealed class LiveSciChartCanvas : UserControl
                 trace.Data.Clear();
             }
         }
+    }
+
+    private void UpdateEraseBand(
+        double cursorPosition,
+        double windowSeconds,
+        int traceCount)
+    {
+        if (windowSeconds <= 0 || traceCount <= 0)
+        {
+            eraseBand.IsHidden = true;
+            eraseWrapBand.IsHidden = true;
+            return;
+        }
+
+        // The eraser is a time range, not a fixed-pixel cursor. It covers the
+        // next 0.3 seconds of the cyclic page and wraps at the right edge.
+        var duration = Math.Min(EraseBandDurationSeconds, windowSeconds);
+        var firstDuration = Math.Min(duration, windowSeconds - cursorPosition);
+        SetEraseSegment(eraseBand, cursorPosition, firstDuration, traceCount);
+        var wrappedDuration = duration - firstDuration;
+        SetEraseSegment(eraseWrapBand, 0, wrappedDuration, traceCount);
+    }
+
+    private void AdvanceEraseBand()
+    {
+        if (eraseBandAnimator.TryAdvance(Environment.TickCount64, out var cursorPosition))
+        {
+            UpdateEraseBand(cursorPosition, activeDisplayWindowSeconds, activeTraceCount);
+        }
+    }
+
+    private void SetEraseSegment(
+        BoxAnnotation annotation,
+        double startSeconds,
+        double durationSeconds,
+        int traceCount)
+    {
+        if (durationSeconds <= 0)
+        {
+            annotation.IsHidden = true;
+            return;
+        }
+
+        annotation.X1 = startSeconds;
+        annotation.X2 = startSeconds + durationSeconds;
+        annotation.Y1 = 0d;
+        annotation.Y2 = (double)traceCount;
+        annotation.IsHidden = false;
     }
 
     private void EnsureTraceSeries(IReadOnlyList<WaveformDisplayTrace> traces)

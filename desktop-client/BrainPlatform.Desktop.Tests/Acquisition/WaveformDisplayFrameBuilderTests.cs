@@ -193,6 +193,148 @@ public sealed class WaveformDisplayFrameBuilderTests
         Assert.Equal([5e-6, 2e-6, 7e-6, 3e-6], batch.SampleMajorValues);
     }
 
+    [Fact]
+    public void Build_DerivesSharedAverageReferenceWithoutChangingTheRawBatch()
+    {
+        var channelSnapshot = new ChannelConfigurationProfile(
+            "channels", "通道", "", ChannelConfigurationSource.User, "test-signature",
+            [
+                new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "F3", true, 0),
+                new ChannelConfigurationEntry(1, AcquisitionChannelKind.Reference, "F4", true, 1),
+                new ChannelConfigurationEntry(2, AcquisitionChannelKind.Reference, "Cz", true, 2),
+            ], DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var derivedChannels = new DerivedMontageChannel[]
+        {
+            new("F3-AVG", "F3", MontageNegativeKind.Mean, ["F3", "F4", "Cz"], 0),
+            new("F4-AVG", "F4", MontageNegativeKind.Mean, ["F3", "F4", "Cz"], 1),
+        };
+        var channelFingerprint = ChannelConfigurationFingerprint.Create(channelSnapshot);
+        var montage = new MontageProfile(
+            "montage", "平均参考", "", MontageProfileSource.User, "test-signature",
+            channelFingerprint, channelSnapshot, derivedChannels,
+            1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
+            MontageProfileFingerprint.Create(channelFingerprint, derivedChannels));
+        var rawValues = new[] { 5d, 2d, 3d, 7d, 3d, 5d };
+        var batch = new AcquisitionBatch(0, 2, 3, rawValues.ToArray(), DateTimeOffset.UtcNow);
+        var sourceChannels = new LiveDisplayChannel[]
+        {
+            new(0, 0, "F3", "Reference", true),
+            new(1, 1, "F4", "Reference", true),
+            new(2, 2, "Cz", "Reference", true),
+        };
+        var source = new LiveWaveformSource(
+            new AcquisitionStreamMetadata(
+                "test-device", "test device", 1,
+                [
+                    new AcquisitionChannel(0, 0, "F3", AcquisitionChannelKind.Reference, "V"),
+                    new AcquisitionChannel(1, 1, "F4", AcquisitionChannelKind.Reference, "V"),
+                    new AcquisitionChannel(2, 2, "Cz", AcquisitionChannelKind.Reference, "V"),
+                ], 2, DateTimeOffset.UtcNow),
+            [batch], sourceChannels,
+            MontageProfile: montage,
+            MontageSourceChannels: sourceChannels);
+
+        var frame = Assert.IsType<WaveformDisplayFrame>(WaveformDisplayFrameBuilder.Build(source, 2, 500));
+
+        Assert.Equal(2, frame.Traces.Count);
+        Assert.Equal(5d / 3d, frame.Traces[0].Points[0].MinVolts, precision: 12);
+        Assert.Equal(2d, frame.Traces[0].Points[^1].MaxVolts, precision: 12);
+        Assert.Equal(-4d / 3d, frame.Traces[1].Points[0].MinVolts, precision: 12);
+        Assert.Equal(-2d, frame.Traces[1].Points[^1].MaxVolts, precision: 12);
+        Assert.Equal(rawValues, batch.SampleMajorValues);
+    }
+
+    [Fact]
+    public void ReferenceSignalCache_ComputesOneSharedReferencePerSample()
+    {
+        var batch = new AcquisitionBatch(0, 2, 3, [5d, 2d, 3d, 7d, 3d, 5d], DateTimeOffset.UtcNow);
+        var first = new DerivedMontageChannel(
+            "F3-AVG", "F3", MontageNegativeKind.Mean, ["F3", "F4", "Cz"], 0);
+        var second = new DerivedMontageChannel(
+            "F4-AVG", "F4", MontageNegativeKind.Mean, ["F3", "F4", "Cz"], 1);
+        var channels = new ResolvedMontageChannel[]
+        {
+            new(first, 0, [0, 1, 2], "0,1,2"),
+            new(second, 1, [0, 1, 2], "0,1,2"),
+        };
+
+        var cache = ReferenceSignalCache.Create([batch], channels);
+
+        Assert.Equal(batch.SampleCount, cache.ComputedReferenceSampleCount);
+        Assert.Equal(10d / 3d, cache.Read("0,1,2", batch, 0), precision: 12);
+        Assert.Equal(5d, cache.Read("0,1,2", batch, 1), precision: 12);
+    }
+
+    [Fact]
+    public void Build_DecimatesTenSecondsOfFourKilohertzAverageReferenceToScreenDensity()
+    {
+        const int samplingRateHz = 4_000;
+        const int eegChannelCount = 21;
+        const int samplesPerBatch = 200;
+        var labels = Enumerable.Range(1, eegChannelCount).Select(index => $"EEG{index:00}").ToArray();
+        var channelEntries = labels.Select((label, index) =>
+            new ChannelConfigurationEntry(index, AcquisitionChannelKind.Reference, label, true, index)).ToArray();
+        var channelSnapshot = new ChannelConfigurationProfile(
+            "channels", "通道", "", ChannelConfigurationSource.User, "test-signature",
+            channelEntries, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var derivedChannels = labels.Select((label, index) =>
+            new DerivedMontageChannel($"{label}-AVG", label, MontageNegativeKind.Mean, labels, index)).ToArray();
+        var channelFingerprint = ChannelConfigurationFingerprint.Create(channelSnapshot);
+        var montage = new MontageProfile(
+            "montage", "平均参考", "", MontageProfileSource.User, "test-signature",
+            channelFingerprint, channelSnapshot, derivedChannels,
+            1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
+            MontageProfileFingerprint.Create(channelFingerprint, derivedChannels));
+        var streamChannels = labels.Select((label, index) =>
+                new AcquisitionChannel(index, index, label, AcquisitionChannelKind.Reference, "V"))
+            .Append(new AcquisitionChannel(
+                eegChannelCount,
+                eegChannelCount,
+                "Counter",
+                AcquisitionChannelKind.SampleCounter,
+                "count"))
+            .ToArray();
+        var displayChannels = labels.Select((label, index) =>
+            new LiveDisplayChannel(index, index, label, "Reference", true)).ToArray();
+        var batches = Enumerable.Range(0, samplingRateHz * 10 / samplesPerBatch)
+            .Select(batchIndex =>
+            {
+                var firstCounter = (long)batchIndex * samplesPerBatch;
+                var values = new double[samplesPerBatch * streamChannels.Length];
+                for (var sample = 0; sample < samplesPerBatch; sample++)
+                {
+                    var offset = sample * streamChannels.Length;
+                    for (var channel = 0; channel < eegChannelCount; channel++)
+                    {
+                        values[offset + channel] = ((channel + 1) * 1e-6) + ((firstCounter + sample) % 31 * 1e-9);
+                    }
+                    values[offset + eegChannelCount] = firstCounter + sample;
+                }
+
+                return new AcquisitionBatch(
+                    firstCounter,
+                    samplesPerBatch,
+                    streamChannels.Length,
+                    values,
+                    DateTimeOffset.UtcNow);
+            })
+            .ToArray();
+        var source = new LiveWaveformSource(
+            new AcquisitionStreamMetadata(
+                "test-device", "test device", samplingRateHz,
+                streamChannels, eegChannelCount, DateTimeOffset.UtcNow),
+            batches,
+            displayChannels,
+            MontageProfile: montage,
+            MontageSourceChannels: displayChannels);
+
+        var frame = Assert.IsType<WaveformDisplayFrame>(WaveformDisplayFrameBuilder.Build(source, 10, 1_000));
+
+        Assert.Equal(eegChannelCount, frame.Traces.Count);
+        Assert.All(frame.Traces, trace => Assert.InRange(trace.Points.Count, 1, 4_000));
+        Assert.All(frame.Traces.SelectMany(trace => trace.Points), point => Assert.True(double.IsFinite(point.MinVolts)));
+    }
+
     private static LiveWaveformSource Source(params AcquisitionBatch[] batches) =>
         new(
             new AcquisitionStreamMetadata(

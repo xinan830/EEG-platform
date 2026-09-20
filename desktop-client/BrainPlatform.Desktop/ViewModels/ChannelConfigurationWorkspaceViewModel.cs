@@ -51,6 +51,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 
     public ObservableCollection<ChannelConfigurationProfile> Profiles { get; } = [];
 
+    public event EventHandler? ProfilesChanged;
+
     public ICommand RefreshCommand { get; }
 
     public ICommand SaveDraftCommand { get; }
@@ -292,6 +294,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             : "请先连接放大器；系统只会向导联配置提供与当前设备兼容的通道配置。";
         RaisePropertyChanged(nameof(CanCreateProfile));
         RaisePropertyChanged(nameof(CanCreateVersionSelected));
+        ProfilesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnMappingChanged(object? sender, EventArgs eventArgs)
