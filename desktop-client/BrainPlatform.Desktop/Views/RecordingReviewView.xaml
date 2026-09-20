@@ -32,9 +32,9 @@
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock Text="数据回溯" FontSize="18" FontWeight="SemiBold" Foreground="#0F172A" />
                     <TextBlock FontSize="11.5" Foreground="#64748B" Margin="0,3,0,0">
-                        <Run Text="{Binding ProjectName}" />
+                        <Run Text="{Binding ProjectName, Mode=OneWay}" />
                         <Run Text=" / " />
-                        <Run Text="{Binding RecordingName}" />
+                        <Run Text="{Binding RecordingName, Mode=OneWay}" />
                     </TextBlock>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,20,0">
