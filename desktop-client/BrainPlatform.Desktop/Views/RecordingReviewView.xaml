@@ -11,7 +11,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <views:EegWorkspaceShell>
+    <views:EegWorkspaceShell WaveformDataContext="{Binding}">
         <views:EegWorkspaceShell.TopBar>
             <DockPanel LastChildFill="False">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -76,7 +76,7 @@
         </views:EegWorkspaceShell.TopBar>
 
         <views:EegWorkspaceShell.Waveform>
-            <views:RecordingReviewSciChartCanvas DataContext="{Binding}" />
+            <views:RecordingReviewSciChartCanvas />
         </views:EegWorkspaceShell.Waveform>
 
         <views:EegWorkspaceShell.BottomBar>

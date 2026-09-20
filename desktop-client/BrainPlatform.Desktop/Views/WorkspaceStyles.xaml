@@ -21,7 +21,8 @@
                         </Border>
                         <Border Grid.Row="2" Background="White" BorderBrush="#E5E9F0"
                                 BorderThickness="1" CornerRadius="8" Padding="16,14,14,10">
-                            <ContentPresenter Content="{TemplateBinding Waveform}" />
+                            <ContentPresenter Content="{TemplateBinding Waveform}"
+                                              DataContext="{TemplateBinding WaveformDataContext}" />
                         </Border>
                         <Border Grid.Row="4" Margin="-16,0,-16,-14" Padding="22,6,22,8"
                                 MinHeight="60" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">

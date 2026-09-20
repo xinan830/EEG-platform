@@ -15,6 +15,11 @@ public sealed class EegWorkspaceShell : Control
         typeof(object),
         typeof(EegWorkspaceShell));
 
+    public static readonly DependencyProperty WaveformDataContextProperty = DependencyProperty.Register(
+        nameof(WaveformDataContext),
+        typeof(object),
+        typeof(EegWorkspaceShell));
+
     public static readonly DependencyProperty BottomBarProperty = DependencyProperty.Register(
         nameof(BottomBar),
         typeof(object),
@@ -42,6 +47,12 @@ public sealed class EegWorkspaceShell : Control
     {
         get => GetValue(WaveformProperty);
         set => SetValue(WaveformProperty, value);
+    }
+
+    public object? WaveformDataContext
+    {
+        get => GetValue(WaveformDataContextProperty);
+        set => SetValue(WaveformDataContextProperty, value);
     }
 
     public object? BottomBar
