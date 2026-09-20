@@ -12,7 +12,11 @@ public sealed record ProjectRecordingRow(
     string SamplingRateText,
     string ChannelCountText,
     string Status,
-    string RecordingDirectory);
+    string RecordingDirectory)
+{
+    public bool CanReview => Directory.Exists(RecordingDirectory) &&
+                             Status is "已完成" or "已中止";
+}
 
 public sealed class ProjectWorkspaceViewModel : ObservableObject
 {
@@ -20,6 +24,7 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
     private readonly LocalRecordingCatalog recordingCatalog;
     private readonly OperationNotificationCenter notifications;
     private ResearchProject? selectedProject;
+    private ProjectRecordingRow? selectedRecording;
     private string searchText = string.Empty;
 
     public ProjectWorkspaceViewModel(
@@ -37,6 +42,20 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
     public ObservableCollection<ResearchProject> FilteredProjects { get; } = [];
 
     public ObservableCollection<ProjectRecordingRow> Recordings { get; } = [];
+
+    public ProjectRecordingRow? SelectedRecording
+    {
+        get => selectedRecording;
+        set
+        {
+            if (SetProperty(ref selectedRecording, value))
+            {
+                RaisePropertyChanged(nameof(CanReviewSelectedRecording));
+            }
+        }
+    }
+
+    public bool CanReviewSelectedRecording => SelectedRecording?.CanReview == true;
 
     public ResearchProject? SelectedProject
     {
@@ -137,7 +156,9 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
 
     public void RefreshRecordings()
     {
+        var selectedSessionId = SelectedRecording?.SessionId;
         Recordings.Clear();
+        SelectedRecording = null;
         if (SelectedProject is null)
         {
             return;
@@ -154,6 +175,8 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
                 recording.Status,
                 recording.RecordingDirectory));
         }
+
+        SelectedRecording = Recordings.FirstOrDefault(recording => recording.SessionId == selectedSessionId);
     }
 
     private string CreateProjectNumber(DateTimeOffset now)
