@@ -186,6 +186,32 @@ public sealed class RecordingReviewViewModelTests
         Assert.InRange(viewModel.VisibleDurationSeconds, 4.22, 4.25);
     }
 
+    [Fact]
+    public async Task TimebaseMode_UsesSelectedScreenDurationIndependentlyOfViewportWidth()
+    {
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var reader = new FakeReader(Manifest(configuration), durationSeconds: 120);
+        await using var viewModel = new RecordingReviewViewModel(reader, catalog);
+        await viewModel.InitializeAsync();
+
+        viewModel.UpdateViewportWidth(960);
+        viewModel.TimebaseSecondsPerScreen = 15;
+        viewModel.HorizontalTimeScaleMode = HorizontalTimeScaleMode.Timebase;
+        await WaitUntilAsync(() => Math.Abs(viewModel.VisibleDurationSeconds - 15) < 0.01);
+
+        viewModel.UpdateViewportWidth(640);
+        await Task.Delay(50);
+        Assert.InRange(viewModel.VisibleDurationSeconds, 14.99, 15.01);
+        Assert.Equal(30, viewModel.PaperSpeedMillimetersPerSecond);
+    }
+
     private static LocalRawRecordingManifest Manifest(ChannelConfigurationProfile configuration) => new(
         Guid.NewGuid(),
         "sample_major_float64_v1_with_receive_utc_ticks_and_per_channel_units",

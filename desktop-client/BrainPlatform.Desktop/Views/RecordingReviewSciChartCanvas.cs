@@ -49,8 +49,13 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     {
         ConfigureSurface();
         var layout = new Grid();
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
+        // Match the live canvas: channel names occupy only the width they need,
+        // rather than leaving a wider review-only gutter before the waveform.
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        // Keep the final review montage label out of SciChart's dedicated
+        // bottom time-axis strip, matching the live display geometry.
+        labels.Margin = new Thickness(0, 0, 0, 34);
         Grid.SetColumn(labels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
@@ -192,7 +197,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42)),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(4, 0, 4, 0),
+                Margin = new Thickness(2, 0, 0, 0),
             };
             Grid.SetRow(label, index);
             labels.Children.Add(label);

@@ -24,6 +24,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     private double notchHz = 50;
     private double sensitivityMicrovoltsPerMillimeter = 10;
     private double paperSpeedMillimetersPerSecond = 30;
+    private HorizontalTimeScaleMode horizontalTimeScaleMode = HorizontalTimeScaleMode.PaperSpeed;
+    private double timebaseSecondsPerScreen = 10;
     private double viewportWidthDips;
     private Task? viewportDurationUpdateTask;
     private double viewportStartSeconds;
@@ -178,10 +180,77 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
             if (SetProperty(ref paperSpeedMillimetersPerSecond, value))
             {
+                RaiseHorizontalScalePropertiesChanged();
                 ScheduleViewportDurationUpdate();
             }
         }
     }
+
+    public HorizontalTimeScaleMode HorizontalTimeScaleMode
+    {
+        get => horizontalTimeScaleMode;
+        set
+        {
+            if (!Enum.IsDefined(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            if (SetProperty(ref horizontalTimeScaleMode, value))
+            {
+                RaiseHorizontalScalePropertiesChanged();
+                ScheduleViewportDurationUpdate();
+            }
+        }
+    }
+
+    public bool IsPaperSpeedMode
+    {
+        get => HorizontalTimeScaleMode == HorizontalTimeScaleMode.PaperSpeed;
+        set
+        {
+            if (value)
+            {
+                HorizontalTimeScaleMode = HorizontalTimeScaleMode.PaperSpeed;
+            }
+        }
+    }
+
+    public bool IsTimebaseMode
+    {
+        get => HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase;
+        set
+        {
+            if (value)
+            {
+                HorizontalTimeScaleMode = HorizontalTimeScaleMode.Timebase;
+            }
+        }
+    }
+
+    public double TimebaseSecondsPerScreen
+    {
+        get => timebaseSecondsPerScreen;
+        set
+        {
+            if (value is not (5d or 10d or 15d or 20d or 30d))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            if (SetProperty(ref timebaseSecondsPerScreen, value))
+            {
+                RaiseHorizontalScalePropertiesChanged();
+                ScheduleViewportDurationUpdate();
+            }
+        }
+    }
+
+    public double EffectiveTimebaseSeconds => VisibleDurationSeconds;
+
+    public double DerivedPaperSpeedMillimetersPerSecond => viewportWidthDips <= 0
+        ? 0
+        : GetViewportMillimeters(viewportWidthDips) / TimebaseSecondsPerScreen;
 
     public async Task InitializeAsync()
     {
@@ -239,6 +308,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         }
 
         viewportWidthDips = widthDips;
+        RaiseHorizontalScalePropertiesChanged();
         ScheduleViewportDurationUpdate();
     }
 
@@ -411,11 +481,10 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
             return;
         }
 
-        var viewportMillimeters = viewportWidthDips * 25.4d / 96d;
-        var visibleDuration = Math.Clamp(
-            viewportMillimeters / PaperSpeedMillimetersPerSecond,
-            1d,
-            DurationSeconds);
+        var requestedDuration = HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase
+            ? TimebaseSecondsPerScreen
+            : GetViewportMillimeters(viewportWidthDips) / PaperSpeedMillimetersPerSecond;
+        var visibleDuration = Math.Clamp(requestedDuration, 1d, DurationSeconds);
         if (Math.Abs(visibleDuration - VisibleDurationSeconds) < 0.02)
         {
             return;
@@ -447,4 +516,14 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     private static long ToTicks(double seconds) =>
         checked((long)Math.Round(seconds * TimeSpan.TicksPerSecond, MidpointRounding.AwayFromZero));
+
+    private static double GetViewportMillimeters(double widthDips) => widthDips * 25.4d / 96d;
+
+    private void RaiseHorizontalScalePropertiesChanged()
+    {
+        RaisePropertyChanged(nameof(IsPaperSpeedMode));
+        RaisePropertyChanged(nameof(IsTimebaseMode));
+        RaisePropertyChanged(nameof(EffectiveTimebaseSeconds));
+        RaisePropertyChanged(nameof(DerivedPaperSpeedMillimetersPerSecond));
+    }
 }

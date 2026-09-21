@@ -318,7 +318,12 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         set => SetProperty(ref draftGroundElectrodeLocation, value);
     }
 
-    public void BeginNewProfile()
+    /// <summary>
+    /// Starts an empty channel-configuration draft. The caller may host device
+    /// selection in a native dialog, in which case the legacy in-page picker is
+    /// deliberately not made visible.
+    /// </summary>
+    public void BeginNewProfile(bool showDevicePicker = true)
     {
         isReadOnlyDraft = false;
         isSignalLockedDraft = false;
@@ -335,7 +340,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         DraftRows.Clear();
         IsDraftOpen = true;
         PendingDeviceSelection = null;
-        SetDevicePickerVisible(true);
+        SetDevicePickerVisible(showDevicePicker);
         StatusText = "请选择设备；软件会读取实际物理输入并在设备布局匹配时套用默认电极模板。";
         RaiseDraftModePropertiesChanged();
     }

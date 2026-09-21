@@ -30,6 +30,18 @@ public sealed class EegWorkspaceShell : Control
         typeof(object),
         typeof(EegWorkspaceShell));
 
+    public static readonly DependencyProperty IsImmersiveWaveformProperty = DependencyProperty.Register(
+        nameof(IsImmersiveWaveform),
+        typeof(bool),
+        typeof(EegWorkspaceShell),
+        new PropertyMetadata(false));
+
+    public static readonly DependencyProperty ShowBottomBarProperty = DependencyProperty.Register(
+        nameof(ShowBottomBar),
+        typeof(bool),
+        typeof(EegWorkspaceShell),
+        new PropertyMetadata(true));
+
     static EegWorkspaceShell()
     {
         DefaultStyleKeyProperty.OverrideMetadata(
@@ -65,5 +77,21 @@ public sealed class EegWorkspaceShell : Control
     {
         get => GetValue(OverlayProperty);
         set => SetValue(OverlayProperty, value);
+    }
+
+    /// <summary>
+    /// Uses edge-to-edge waveform rendering for live acquisition without
+    /// changing the review workspace's navigation layout.
+    /// </summary>
+    public bool IsImmersiveWaveform
+    {
+        get => (bool)GetValue(IsImmersiveWaveformProperty);
+        set => SetValue(IsImmersiveWaveformProperty, value);
+    }
+
+    public bool ShowBottomBar
+    {
+        get => (bool)GetValue(ShowBottomBarProperty);
+        set => SetValue(ShowBottomBarProperty, value);
     }
 }

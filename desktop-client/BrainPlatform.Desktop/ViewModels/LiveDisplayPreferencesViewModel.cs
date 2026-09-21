@@ -9,7 +9,9 @@ public sealed record LiveDisplayPreferences(
     double HighPassHz,
     double LowPassHz,
     double NotchHz,
-    double PaperSpeedMillimetersPerSecond);
+    double PaperSpeedMillimetersPerSecond,
+    HorizontalTimeScaleMode HorizontalTimeScaleMode = HorizontalTimeScaleMode.PaperSpeed,
+    double TimebaseSecondsPerScreen = 10);
 
 /// <summary>Owns local waveform-display preferences; raw acquisition is never changed.</summary>
 public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposable
@@ -38,6 +40,8 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
         lowPassHz = initialPreferences.LowPassHz;
         notchHz = initialPreferences.NotchHz;
         monitor.PaperSpeedMillimetersPerSecond = initialPreferences.PaperSpeedMillimetersPerSecond;
+        monitor.HorizontalTimeScaleMode = initialPreferences.HorizontalTimeScaleMode;
+        monitor.TimebaseSecondsPerScreen = initialPreferences.TimebaseSecondsPerScreen;
         monitor.PropertyChanged += OnMonitorPropertyChanged;
     }
 
@@ -94,7 +98,9 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
         LiveHighPassHz,
         LiveLowPassHz,
         LiveNotchHz,
-        monitor.PaperSpeedMillimetersPerSecond);
+        monitor.PaperSpeedMillimetersPerSecond,
+        monitor.HorizontalTimeScaleMode,
+        monitor.TimebaseSecondsPerScreen);
 
     public void RefreshAvailability() => RaisePropertyChanged(nameof(CanConfigureFilters));
 
@@ -112,7 +118,9 @@ public sealed class LiveDisplayPreferencesViewModel : ObservableObject, IDisposa
 
     private void OnMonitorPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
-        if (eventArgs.PropertyName == nameof(LiveMonitoringViewModel.PaperSpeedMillimetersPerSecond))
+        if (eventArgs.PropertyName is nameof(LiveMonitoringViewModel.PaperSpeedMillimetersPerSecond)
+            or nameof(LiveMonitoringViewModel.HorizontalTimeScaleMode)
+            or nameof(LiveMonitoringViewModel.TimebaseSecondsPerScreen))
         {
             SavePreferences();
         }

@@ -65,15 +65,25 @@
                               DisplayMemberPath="Name"
                               SelectionChanged="OnMontageSelectionChanged"
                               ToolTip="只改变回溯显示方式，不修改原始记录" />
-                    <TextBlock Text="走纸速度" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
-                    <ComboBox Width="94" Style="{StaticResource ModernFilterComboBoxStyle}"
-                              SelectedValuePath="Tag" SelectedValue="{Binding PaperSpeedMillimetersPerSecond, Mode=TwoWay}"
-                              ToolTip="按窗口宽度换算显示时长；不同显示器的真实物理毫米需要工作站校准。">
-                        <ComboBoxItem Content="5 mm/s" Tag="5" />
-                        <ComboBoxItem Content="10 mm/s" Tag="10" />
-                        <ComboBoxItem Content="15 mm/s" Tag="15" />
-                        <ComboBoxItem Content="30 mm/s" Tag="30" />
+                    <RadioButton Content="走纸速度" GroupName="ReviewHorizontalScale" Foreground="#334155" FontSize="12"
+                                 VerticalAlignment="Center" Margin="10,0,5,0" IsChecked="{Binding IsPaperSpeedMode, Mode=TwoWay}"
+                                 ToolTip="名义纸速输入；真实物理毫米需要工作站校准。" />
+                    <ComboBox Width="82" Style="{StaticResource ModernFilterComboBoxStyle}"
+                              IsEnabled="{Binding IsPaperSpeedMode}" SelectedValuePath="Tag"
+                              SelectedValue="{Binding PaperSpeedMillimetersPerSecond, Mode=TwoWay}">
+                        <ComboBoxItem Content="5 mm/s" Tag="5" /><ComboBoxItem Content="10 mm/s" Tag="10" />
+                        <ComboBoxItem Content="15 mm/s" Tag="15" /><ComboBoxItem Content="30 mm/s" Tag="30" />
                         <ComboBoxItem Content="60 mm/s" Tag="60" />
+                    </ComboBox>
+                    <RadioButton Content="时间基" GroupName="ReviewHorizontalScale" Foreground="#334155" FontSize="12"
+                                 VerticalAlignment="Center" Margin="10,0,5,0" IsChecked="{Binding IsTimebaseMode, Mode=TwoWay}"
+                                 ToolTip="秒/屏输入，直接控制当前回溯窗口长度。" />
+                    <ComboBox Width="74" Style="{StaticResource ModernFilterComboBoxStyle}"
+                              IsEnabled="{Binding IsTimebaseMode}" SelectedValuePath="Tag"
+                              SelectedValue="{Binding TimebaseSecondsPerScreen, Mode=TwoWay}">
+                        <ComboBoxItem Content="5 s/屏" Tag="5" /><ComboBoxItem Content="10 s/屏" Tag="10" />
+                        <ComboBoxItem Content="15 s/屏" Tag="15" /><ComboBoxItem Content="20 s/屏" Tag="20" />
+                        <ComboBoxItem Content="30 s/屏" Tag="30" />
                     </ComboBox>
                     <TextBlock Text="采样率" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="14,0,8,0" />
                     <TextBlock Text="{Binding SamplingRateHz, Mode=OneWay, StringFormat={}{0} Hz}"
@@ -144,7 +154,7 @@
                     </Button>
                 </StackPanel>
 
-                <views:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="1" Height="28"
+                <views:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="1" Height="22"
                     DurationSeconds="{Binding DurationSeconds, Mode=OneWay}"
                     ViewportStartSeconds="{Binding ViewportStartSeconds, Mode=OneWay}"
                     VisibleDurationSeconds="{Binding VisibleDurationSeconds, Mode=OneWay}"

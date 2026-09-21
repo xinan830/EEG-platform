@@ -87,7 +87,9 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
                 settings.LiveHighPassHz,
                 settings.LiveLowPassHz,
                 settings.LiveNotchHz,
-                settings.PaperSpeedMillimetersPerSecond),
+                settings.PaperSpeedMillimetersPerSecond,
+                settings.HorizontalTimeScaleMode,
+                settings.TimebaseSecondsPerScreen),
             SaveDisplayPreferencesAsync);
         DisplayPreferences.MessageRaised += OnDisplayPreferenceMessage;
         channelMapping.DisplayChannelsChanged += OnDisplayChannelsChanged;
@@ -705,7 +707,9 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             preferences.HighPassHz,
             preferences.LowPassHz,
             preferences.NotchHz,
-            preferences.PaperSpeedMillimetersPerSecond), CancellationToken.None);
+            preferences.PaperSpeedMillimetersPerSecond,
+            preferences.HorizontalTimeScaleMode,
+            preferences.TimebaseSecondsPerScreen), CancellationToken.None);
 
     private void OnDisplayPreferenceMessage(object? sender, string message)
     {

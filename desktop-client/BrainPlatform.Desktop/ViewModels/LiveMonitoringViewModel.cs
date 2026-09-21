@@ -16,6 +16,9 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     private readonly DispatcherTimer clock;
     private AcquisitionStreamMetadata? streamMetadata;
     private double paperSpeedMillimetersPerSecond = 30;
+    private HorizontalTimeScaleMode horizontalTimeScaleMode = HorizontalTimeScaleMode.PaperSpeed;
+    private double timebaseSecondsPerScreen = 10;
+    private double viewportWidthDips;
     private double sensitivityMicrovoltsPerMillimeter = 10;
     private bool isSettingsOpen;
     private string recordingElapsedText = "--:--:--";
@@ -72,8 +75,96 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
                 throw new ArgumentOutOfRangeException(nameof(value));
             }
 
-            SetProperty(ref paperSpeedMillimetersPerSecond, value);
+            if (SetProperty(ref paperSpeedMillimetersPerSecond, value))
+            {
+                RaiseHorizontalScalePropertiesChanged();
+            }
         }
+    }
+
+    /// <summary>
+    /// The active user input for horizontal display scale. The scientific time
+    /// axis remains sample-counter based in both modes.
+    /// </summary>
+    public HorizontalTimeScaleMode HorizontalTimeScaleMode
+    {
+        get => horizontalTimeScaleMode;
+        set
+        {
+            if (!Enum.IsDefined(value))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            if (SetProperty(ref horizontalTimeScaleMode, value))
+            {
+                RaiseHorizontalScalePropertiesChanged();
+            }
+        }
+    }
+
+    public bool IsPaperSpeedMode
+    {
+        get => HorizontalTimeScaleMode == HorizontalTimeScaleMode.PaperSpeed;
+        set
+        {
+            if (value)
+            {
+                HorizontalTimeScaleMode = HorizontalTimeScaleMode.PaperSpeed;
+            }
+        }
+    }
+
+    public bool IsTimebaseMode
+    {
+        get => HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase;
+        set
+        {
+            if (value)
+            {
+                HorizontalTimeScaleMode = HorizontalTimeScaleMode.Timebase;
+            }
+        }
+    }
+
+    /// <summary>Displayed seconds per screen when timebase input is active.</summary>
+    public double TimebaseSecondsPerScreen
+    {
+        get => timebaseSecondsPerScreen;
+        set
+        {
+            if (value is not (5d or 10d or 15d or 20d or 30d))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            if (SetProperty(ref timebaseSecondsPerScreen, value))
+            {
+                RaiseHorizontalScalePropertiesChanged();
+            }
+        }
+    }
+
+    /// <summary>The effective screen duration, independent of the chosen input mode.</summary>
+    public double EffectiveTimebaseSeconds => GetDisplayWindowSeconds(Math.Max(1d, viewportWidthDips));
+
+    /// <summary>
+    /// The nominal paper speed corresponding to a timebase selection. It is
+    /// explicitly derived because Windows layout units are not a calibrated
+    /// physical ruler on arbitrary monitors.
+    /// </summary>
+    public double DerivedPaperSpeedMillimetersPerSecond =>
+        GetViewportMillimeters(Math.Max(1d, viewportWidthDips)) / TimebaseSecondsPerScreen;
+
+    public void UpdateViewportWidth(double widthDips)
+    {
+        if (!double.IsFinite(widthDips) || widthDips <= 0 || Math.Abs(widthDips - viewportWidthDips) < 0.5)
+        {
+            return;
+        }
+
+        viewportWidthDips = widthDips;
+        RaiseHorizontalScalePropertiesChanged();
     }
 
     public double GetDisplayWindowSeconds(double viewportWidthDips)
@@ -83,11 +174,9 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
             throw new ArgumentOutOfRangeException(nameof(viewportWidthDips));
         }
 
-        // A WPF DIP is 1/96 inch. This establishes paper-speed geometry in
-        // resolution-independent layout units; monitor ruler calibration is a
-        // separate workstation concern.
-        var viewportMillimeters = viewportWidthDips * 25.4d / 96d;
-        return viewportMillimeters / PaperSpeedMillimetersPerSecond;
+        return HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase
+            ? TimebaseSecondsPerScreen
+            : GetViewportMillimeters(viewportWidthDips) / PaperSpeedMillimetersPerSecond;
     }
 
     public double SensitivityMicrovoltsPerMillimeter
@@ -102,6 +191,19 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
             SetProperty(ref sensitivityMicrovoltsPerMillimeter, value);
         }
+    }
+
+    private static double GetViewportMillimeters(double widthDips) =>
+        // A WPF DIP is 1/96 inch. This is a nominal paper-speed conversion;
+        // physical ruler calibration belongs to the workstation, not EEG data.
+        widthDips * 25.4d / 96d;
+
+    private void RaiseHorizontalScalePropertiesChanged()
+    {
+        RaisePropertyChanged(nameof(IsPaperSpeedMode));
+        RaisePropertyChanged(nameof(IsTimebaseMode));
+        RaisePropertyChanged(nameof(EffectiveTimebaseSeconds));
+        RaisePropertyChanged(nameof(DerivedPaperSpeedMillimetersPerSecond));
     }
 
     public bool IsSettingsOpen

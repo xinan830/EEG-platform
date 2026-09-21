@@ -7,29 +7,43 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type views:EegWorkspaceShell}">
-                    <Grid Background="{TemplateBinding Background}" Margin="16,12,16,14">
+                    <Grid x:Name="WorkspaceRoot" Background="{TemplateBinding Background}" Margin="16,12,16,14">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="12" />
+                            <RowDefinition x:Name="TopWaveGap" Height="12" />
                             <RowDefinition Height="*" />
-                            <RowDefinition Height="12" />
-                            <RowDefinition Height="Auto" />
+                            <RowDefinition x:Name="WaveBottomGap" Height="12" />
+                            <RowDefinition x:Name="BottomBarRow" Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Border Grid.Row="0" Background="White" BorderBrush="#E5E9F0"
+                        <Border x:Name="TopBarBorder" Grid.Row="0" Background="White" BorderBrush="#E5E9F0"
                                 BorderThickness="1" CornerRadius="8" Padding="16,10">
                             <ContentPresenter Content="{TemplateBinding TopBar}" />
                         </Border>
-                        <Border Grid.Row="2" Background="White" BorderBrush="#E5E9F0"
+                        <Border x:Name="WaveformBorder" Grid.Row="2" Background="White" BorderBrush="#E5E9F0"
                                 BorderThickness="1" CornerRadius="8" Padding="16,14,14,10">
                             <ContentPresenter Content="{TemplateBinding Waveform}"
                                               DataContext="{TemplateBinding WaveformDataContext}" />
                         </Border>
-                        <Border Grid.Row="4" Margin="-16,0,-16,-14" Padding="22,6,22,8"
-                                MinHeight="60" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+                        <Border x:Name="BottomBarBorder" Grid.Row="4" Margin="-16,0,-16,-14" Padding="12,3,12,4"
+                                MinHeight="40" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
                             <ContentPresenter Content="{TemplateBinding BottomBar}" />
                         </Border>
                         <ContentPresenter Grid.RowSpan="5" Panel.ZIndex="10" Content="{TemplateBinding Overlay}" />
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsImmersiveWaveform" Value="True">
+                            <Setter TargetName="WorkspaceRoot" Property="Margin" Value="0,12,0,0" />
+                            <Setter TargetName="TopBarBorder" Property="Margin" Value="16,0,16,0" />
+                            <Setter TargetName="WaveformBorder" Property="BorderThickness" Value="0" />
+                            <Setter TargetName="WaveformBorder" Property="CornerRadius" Value="0" />
+                            <Setter TargetName="WaveformBorder" Property="Padding" Value="0" />
+                        </Trigger>
+                        <Trigger Property="ShowBottomBar" Value="False">
+                            <Setter TargetName="WaveBottomGap" Property="Height" Value="0" />
+                            <Setter TargetName="BottomBarRow" Property="Height" Value="0" />
+                            <Setter TargetName="BottomBarBorder" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -157,24 +171,26 @@
 
     <!-- Toolbar Gear / Action Icon Button -->
     <Style x:Key="ToolbarGearButtonStyle" TargetType="Button">
-        <Setter Property="Width" Value="32" />
-        <Setter Property="Height" Value="32" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Width" Value="34" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#E2E8F0" />
+        <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border Name="Border"
                             Background="{TemplateBinding Background}"
-                            BorderBrush="Transparent"
-                            BorderThickness="0"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="6">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="#F1F5F9" />
+                            <Setter TargetName="Border" Property="Background" Value="#F8FAFC" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="#CBD5E1" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

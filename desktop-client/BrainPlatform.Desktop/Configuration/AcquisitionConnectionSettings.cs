@@ -16,7 +16,9 @@ public sealed record AcquisitionConnectionSettings(
     double LiveHighPassHz = 1,
     double LiveLowPassHz = 30,
     double LiveNotchHz = 0,
-    double PaperSpeedMillimetersPerSecond = 30)
+    double PaperSpeedMillimetersPerSecond = 30,
+    ViewModels.HorizontalTimeScaleMode HorizontalTimeScaleMode = ViewModels.HorizontalTimeScaleMode.PaperSpeed,
+    double TimebaseSecondsPerScreen = 10)
 {
     public static AcquisitionConnectionSettings CreateDefault() => new(
         string.Empty,
@@ -30,7 +32,9 @@ public sealed record AcquisitionConnectionSettings(
         1,
         30,
         0,
-        30);
+        30,
+        ViewModels.HorizontalTimeScaleMode.PaperSpeed,
+        10);
 }
 
 public interface IAcquisitionSettingsStore

@@ -2,6 +2,7 @@ using BrainPlatform.Desktop.Acquisition.AntEego;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 using BrainPlatform.Desktop.Acquisition.Runtime;
 using BrainPlatform.Desktop.Configuration;
+using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 
@@ -84,6 +85,31 @@ public sealed class AcquisitionConnectionSettingsTests
             await store.SaveAsync(settings, CancellationToken.None);
 
             Assert.Equal(15, store.Load().PaperSpeedMillimetersPerSecond);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LocalSettingsStore_RoundTripsHorizontalTimeScalePreference()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var store = new LocalAcquisitionSettingsStore(Path.Combine(directory, "acquisition-settings.json"));
+            var settings = AcquisitionConnectionSettings.CreateDefault() with
+            {
+                HorizontalTimeScaleMode = HorizontalTimeScaleMode.Timebase,
+                TimebaseSecondsPerScreen = 15,
+            };
+
+            await store.SaveAsync(settings, CancellationToken.None);
+
+            var loaded = store.Load();
+            Assert.Equal(HorizontalTimeScaleMode.Timebase, loaded.HorizontalTimeScaleMode);
+            Assert.Equal(15, loaded.TimebaseSecondsPerScreen);
         }
         finally
         {

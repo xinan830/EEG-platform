@@ -46,6 +46,27 @@ public sealed class LiveMonitoringViewModelTests
     }
 
     [Fact]
+    public void TimebaseMode_UsesExactSecondsPerScreenWithoutChangingPaperSpeedPreference()
+    {
+        using var monitor = CreateMonitor(
+            () => Snapshot(AcquisitionState.Ready),
+            () => Metadata());
+
+        monitor.UpdateViewportWidth(960);
+        monitor.PaperSpeedMillimetersPerSecond = 30;
+        monitor.TimebaseSecondsPerScreen = 15;
+        monitor.HorizontalTimeScaleMode = HorizontalTimeScaleMode.Timebase;
+
+        Assert.False(monitor.IsPaperSpeedMode);
+        Assert.True(monitor.IsTimebaseMode);
+        Assert.Equal(15, monitor.GetDisplayWindowSeconds(320), precision: 12);
+        Assert.Equal(30, monitor.PaperSpeedMillimetersPerSecond);
+
+        monitor.HorizontalTimeScaleMode = HorizontalTimeScaleMode.PaperSpeed;
+        Assert.Equal(254d / 30d, monitor.GetDisplayWindowSeconds(960), precision: 12);
+    }
+
+    [Fact]
     public void Refresh_ShowsPausedStateAndKeepsElapsedRecordingTime()
     {
         var state = new AcquisitionStateSnapshot(

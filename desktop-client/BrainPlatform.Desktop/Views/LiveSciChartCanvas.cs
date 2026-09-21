@@ -129,6 +129,11 @@ public sealed class LiveSciChartCanvas : UserControl
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
+        // The SciChart surface reserves its lower strip for the one-second
+        // time axis. Labels must end above that strip, otherwise the final
+        // montage label shares a row with the time numbers.
+        channelLabels.Margin = new Thickness(0, 0, 0, 34);
+
         Grid.SetColumn(channelLabels, 0);
         Grid.SetColumn(surface, 1);
         Grid.SetColumn(emptyMessage, 1);
@@ -186,6 +191,7 @@ public sealed class LiveSciChartCanvas : UserControl
         }
 
         var viewportWidthDips = Math.Max(1d, surface.ActualWidth);
+        monitor.UpdateViewportWidth(viewportWidthDips);
         var horizontalPixels = Math.Clamp((int)Math.Round(viewportWidthDips), 1, MaximumRenderBuckets);
         var plotHeight = Math.Max(1, surface.ActualHeight);
         var displayWindowSeconds = monitor.GetDisplayWindowSeconds(viewportWidthDips);
@@ -280,7 +286,9 @@ public sealed class LiveSciChartCanvas : UserControl
         }
 
         EnsureTraceSeries(labels.Select(label => new WaveformDisplayTrace(label, [])).ToArray());
-        var windowSeconds = monitor!.GetDisplayWindowSeconds(Math.Max(1d, surface.ActualWidth));
+        var viewportWidthDips = Math.Max(1d, surface.ActualWidth);
+        monitor!.UpdateViewportWidth(viewportWidthDips);
+        var windowSeconds = monitor.GetDisplayWindowSeconds(viewportWidthDips);
         xAxis.VisibleRange = new DoubleRange(0, windowSeconds);
         xAxis.MajorDelta = 1d;
         xAxis.MinorDelta = 0.5d;

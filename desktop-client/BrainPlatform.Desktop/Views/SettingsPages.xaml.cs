@@ -56,11 +56,39 @@ public partial class ChannelListView : UserControl
 
     private void OnNewChannelConfigurationClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        if (DataContext is not DesktopWorkspaceViewModel viewModel)
         {
-            // Device selection belongs to the creation entry point. The editor
-            // is opened only after an actual device has been confirmed.
-            viewModel.ChannelConfigurations.BeginNewProfile();
+            return;
+        }
+
+        // A device is selected before opening the editor. This must be a native
+        // owner-centred window, rather than an overlay scoped to this list
+        // control: the list can be resized, scrolled, or hosted in another view.
+        viewModel.ChannelConfigurations.BeginNewProfile(showDevicePicker: false);
+        var picker = new DeviceSelectionDialog(viewModel.Acquisition.Devices)
+        {
+            Owner = Window.GetWindow(this),
+        };
+
+        if (picker.ShowDialog() != true || picker.SelectedDevice is null)
+        {
+            viewModel.ChannelConfigurations.CloseDraft();
+            return;
+        }
+
+        try
+        {
+            viewModel.ChannelConfigurations.PendingDeviceSelection = picker.SelectedDevice;
+            viewModel.ChannelConfigurations.ConfirmPendingDeviceSelection();
+            if (Window.GetWindow(this) is MainWindow mainWindow)
+            {
+                mainWindow.ShowChannelDetailView(preserveDraft: true);
+            }
+        }
+        catch (Exception exception)
+        {
+            viewModel.ChannelConfigurations.CloseDraft();
+            viewModel.Notifications.PublishError(exception.Message);
         }
     }
 
