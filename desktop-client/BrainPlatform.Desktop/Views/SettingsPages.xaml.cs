@@ -45,6 +45,14 @@ public partial class ChannelListView : UserControl
         }
     }
 
+    private void OnChannelPageRequested(object sender, PageRequestedEventArgs e)
+    {
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            viewModel.ChannelConfigurations.CurrentPage = e.Page;
+        }
+    }
+
     private void OnOpenChannelDetailClick(object sender, RoutedEventArgs e)
     {
         SelectProfile(sender);
@@ -121,12 +129,30 @@ public partial class ChannelListView : UserControl
         }
     }
 
-    private void OnDeleteProfileClick(object sender, RoutedEventArgs e)
+    private async void OnDeleteProfileClick(object sender, RoutedEventArgs e)
     {
         SelectProfile(sender);
-        if (DataContext is DesktopWorkspaceViewModel viewModel && viewModel.ChannelConfigurations.CanDeleteSelected)
+        if (DataContext is not DesktopWorkspaceViewModel viewModel ||
+            !viewModel.ChannelConfigurations.CanDeleteSelected ||
+            viewModel.ChannelConfigurations.SelectedProfile is not { } profile)
         {
-            viewModel.ChannelConfigurations.DeleteSelectedCommand.Execute(null);
+            return;
+        }
+
+        if (!OperationConfirmationDialog.Confirm(
+                Window.GetWindow(this),
+                OperationConfirmationRequest.DeleteChannelConfiguration(profile.Name)))
+        {
+            return;
+        }
+
+        try
+        {
+            await viewModel.ChannelConfigurations.DeleteSelectedAsync();
+        }
+        catch (Exception exception)
+        {
+            viewModel.Notifications.PublishError(exception.Message);
         }
     }
 
@@ -238,7 +264,15 @@ public partial class ChannelDetailView : UserControl
     private async void OnDeleteConfigurationClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not DesktopWorkspaceViewModel viewModel ||
-            !viewModel.ChannelConfigurations.CanDeleteSelected)
+            !viewModel.ChannelConfigurations.CanDeleteSelected ||
+            viewModel.ChannelConfigurations.SelectedProfile is not { } profile)
+        {
+            return;
+        }
+
+        if (!OperationConfirmationDialog.Confirm(
+                Window.GetWindow(this),
+                OperationConfirmationRequest.DeleteChannelConfiguration(profile.Name)))
         {
             return;
         }
@@ -300,6 +334,14 @@ public partial class MontageListView : UserControl
         }
     }
 
+    private void OnMontagePageRequested(object sender, PageRequestedEventArgs e)
+    {
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            viewModel.MontageConfigurations.CurrentPage = e.Page;
+        }
+    }
+
     private void OnOpenMontageDetailClick(object sender, RoutedEventArgs e)
     {
         SelectMontageProfile(sender);
@@ -317,12 +359,30 @@ public partial class MontageListView : UserControl
         }
     }
 
-    private void OnDeleteMontageProfileClick(object sender, RoutedEventArgs e)
+    private async void OnDeleteMontageProfileClick(object sender, RoutedEventArgs e)
     {
         SelectMontageProfile(sender);
-        if (DataContext is DesktopWorkspaceViewModel viewModel && viewModel.MontageConfigurations.CanDeleteSelected)
+        if (DataContext is not DesktopWorkspaceViewModel viewModel ||
+            !viewModel.MontageConfigurations.CanDeleteSelected ||
+            viewModel.MontageConfigurations.SelectedProfile is not { } profile)
         {
-            viewModel.MontageConfigurations.DeleteSelectedCommand.Execute(null);
+            return;
+        }
+
+        if (!OperationConfirmationDialog.Confirm(
+                Window.GetWindow(this),
+                OperationConfirmationRequest.DeleteMontageConfiguration(profile.Name)))
+        {
+            return;
+        }
+
+        try
+        {
+            await viewModel.MontageConfigurations.DeleteSelectedAsync();
+        }
+        catch (Exception exception)
+        {
+            viewModel.Notifications.PublishError(exception.Message);
         }
     }
 

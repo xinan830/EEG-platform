@@ -5,6 +5,7 @@ namespace BrainPlatform.Desktop.ViewModels;
 public enum OperationNotificationKind
 {
     Success,
+    Information,
     Warning,
     Error,
 }
@@ -15,7 +16,8 @@ public enum OperationNotificationKind
 /// </summary>
 public sealed class OperationNotificationCenter : ObservableObject
 {
-    private static readonly TimeSpan SuccessDisplayDuration = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan DisplayDuration = TimeSpan.FromSeconds(2);
+    private readonly Dispatcher dispatcher;
     private readonly DispatcherTimer autoDismissTimer;
     private string message = string.Empty;
     private OperationNotificationKind kind = OperationNotificationKind.Success;
@@ -25,7 +27,8 @@ public sealed class OperationNotificationCenter : ObservableObject
 
     public OperationNotificationCenter()
     {
-        autoDismissTimer = new DispatcherTimer { Interval = SuccessDisplayDuration };
+        dispatcher = Dispatcher.CurrentDispatcher;
+        autoDismissTimer = new DispatcherTimer { Interval = DisplayDuration };
         autoDismissTimer.Tick += OnAutoDismissTimerTick;
     }
 
@@ -56,6 +59,7 @@ public sealed class OperationNotificationCenter : ObservableObject
     public string KindLabel => Kind switch
     {
         OperationNotificationKind.Success => "已完成",
+        OperationNotificationKind.Information => "提示",
         OperationNotificationKind.Warning => "请注意",
         OperationNotificationKind.Error => "操作失败",
         _ => "提示",
@@ -63,26 +67,41 @@ public sealed class OperationNotificationCenter : ObservableObject
 
     public void PublishSuccess(string message) => Publish(OperationNotificationKind.Success, message);
 
+    public void PublishInformation(string message) => Publish(OperationNotificationKind.Information, message);
+
     public void PublishWarning(string message) => Publish(OperationNotificationKind.Warning, message);
 
     public void PublishError(string message) => Publish(OperationNotificationKind.Error, message);
 
     public void Dismiss()
     {
+        if (!dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(Dismiss);
+            return;
+        }
+
         autoDismissTimer.Stop();
         IsVisible = false;
     }
 
     private void Publish(OperationNotificationKind notificationKind, string value)
     {
+        if (!dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(() => Publish(notificationKind, value));
+            return;
+        }
+
         var nextRevision = Interlocked.Increment(ref revision);
         autoDismissTimer.Stop();
         Message = value.Trim();
         Kind = notificationKind;
         IsVisible = !string.IsNullOrWhiteSpace(Message);
-        if (IsVisible && notificationKind == OperationNotificationKind.Success)
+        if (IsVisible)
         {
             autoDismissRevision = nextRevision;
+            autoDismissTimer.Interval = DisplayDuration;
             autoDismissTimer.Start();
         }
     }
@@ -90,7 +109,7 @@ public sealed class OperationNotificationCenter : ObservableObject
     private void OnAutoDismissTimerTick(object? sender, EventArgs eventArgs)
     {
         autoDismissTimer.Stop();
-        if (autoDismissRevision == Volatile.Read(ref revision) && Kind == OperationNotificationKind.Success)
+        if (autoDismissRevision == Volatile.Read(ref revision))
         {
             IsVisible = false;
         }

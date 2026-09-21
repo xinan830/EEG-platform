@@ -30,6 +30,24 @@ public sealed class DeviceSessionManagerTests
     }
 
     [Fact]
+    public async Task PreparationStatus_UsesTheDiscoveredDeviceSessionInsteadOfAdapterReadiness()
+    {
+        var driver = new TestDriver([CreateDevice()], adapterIsAvailable: false);
+        await using var runtime = CreateRuntime(driver);
+        using var session = new DeviceSessionManager(runtime);
+        await session.DiscoverAsync(CreateConfiguration(), CancellationToken.None);
+        await using var workspace = new AcquisitionWorkspaceViewModel(
+            new InMemorySettingsStore(),
+            runtime,
+            session);
+
+        Assert.False(workspace.DeviceState.IsAvailable);
+        Assert.Equal(DeviceSessionState.Connected, session.Snapshot.State);
+        Assert.Equal("已连接", workspace.DeviceConnectionStatusText);
+        Assert.True(workspace.IsDeviceConnected);
+    }
+
+    [Fact]
     public async Task DiscoveryWithNoDeviceClearsThePriorSelection()
     {
         var driver = new TestDriver([CreateDevice()]);
@@ -286,7 +304,8 @@ public sealed class DeviceSessionManagerTests
 
     private sealed class TestDriver(
         IReadOnlyList<AcquisitionDeviceDescriptor> devices,
-        bool faultWhenStreaming = false) : IAcquisitionDeviceDriver
+        bool faultWhenStreaming = false,
+        bool adapterIsAvailable = true) : IAcquisitionDeviceDriver
     {
         public AcquisitionDriverDescriptor Descriptor { get; } = new(
             "test-device",
@@ -296,12 +315,15 @@ public sealed class DeviceSessionManagerTests
         public IReadOnlyList<AcquisitionDeviceDescriptor> Devices { get; set; } = devices;
 
         public IAcquisitionDeviceAdapter CreateAdapter(AcquisitionDriverConfiguration configuration) =>
-            new TestAdapter(this, faultWhenStreaming);
+            new TestAdapter(this, faultWhenStreaming, adapterIsAvailable);
     }
 
-    private sealed class TestAdapter(TestDriver driver, bool faultWhenStreaming) : IAcquisitionDeviceAdapter
+    private sealed class TestAdapter(TestDriver driver, bool faultWhenStreaming, bool adapterIsAvailable) : IAcquisitionDeviceAdapter
     {
-        public DeviceReadiness GetReadiness() => new(true, "Ready", "Test adapter is configured.");
+        public DeviceReadiness GetReadiness() => new(
+            adapterIsAvailable,
+            adapterIsAvailable ? "Ready" : "Pending",
+            "Test adapter is configured.");
 
         public Task<IReadOnlyList<AcquisitionDeviceDescriptor>> DiscoverAsync(CancellationToken cancellationToken) =>
             Task.FromResult(driver.Devices);
@@ -341,5 +363,18 @@ public sealed class DeviceSessionManagerTests
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class InMemorySettingsStore : IAcquisitionSettingsStore
+    {
+        private AcquisitionConnectionSettings settings = AcquisitionConnectionSettings.CreateDefault();
+
+        public AcquisitionConnectionSettings Load() => settings;
+
+        public Task SaveAsync(AcquisitionConnectionSettings value, CancellationToken cancellationToken)
+        {
+            settings = value;
+            return Task.CompletedTask;
+        }
     }
 }

@@ -85,7 +85,9 @@
                     <Setter.Value>
                         <ControlTemplate TargetType="TextBox">
                             <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
-                                <ScrollViewer x:Name="PART_ContentHost" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" Margin="{TemplateBinding Padding}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                                <ScrollViewer x:Name="PART_ContentHost" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"
+                                              Padding="{TemplateBinding Padding}"
+                                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsFocused" Value="True"><Setter TargetName="Bd" Property="BorderBrush" Value="#1677FF" /></Trigger>
@@ -514,6 +516,12 @@
                                 <TextBlock Text="{Binding ChannelConfigurations.DraftRows.Count, StringFormat=（共 {0} 个通道）}" FontSize="14" Foreground="#64748B" Margin="6,0,0,0" VerticalAlignment="Center" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="全部显示" Command="{Binding ChannelConfigurations.ShowAllDraftChannelsCommand}"
+                                        Style="{StaticResource OutlineBlueButton}" Height="32" Padding="12,0" Margin="0,0,8,0"
+                                        ToolTip="显示当前通道配置中的全部 EEG 通道" />
+                                <Button Content="全部关闭" Command="{Binding ChannelConfigurations.HideAllDraftChannelsCommand}"
+                                        Style="{StaticResource OutlineBlueButton}" Height="32" Padding="12,0" Margin="0,0,12,0"
+                                        ToolTip="关闭当前通道配置中的全部 EEG 通道显示" />
                                 <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Height="32" Width="220" Padding="8,0">
                                     <Grid VerticalAlignment="Center">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -594,8 +602,29 @@
                                                     </Grid>
                                                 </Border>
                                                 <CheckBox Grid.Column="5" IsChecked="{Binding IsEnabled, Mode=TwoWay}" IsEnabled="{Binding IsEegInput}" Style="{StaticResource ModernToggleSwitch}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                                <Border Grid.Column="6" Background="#DCFCE7" CornerRadius="10" Padding="10,2" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,0">
-                                                    <TextBlock Text="{Binding ConfigurationStatus}" FontSize="11.5" FontWeight="Medium" Foreground="#16A34A" />
+                                                <Border Grid.Column="6" CornerRadius="10" Padding="10,2" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,0">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="#DCFCE7" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                    <Setter Property="Background" Value="#F1F5F9" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="{Binding ConfigurationStatus}" FontSize="11.5" FontWeight="Medium">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#16A34A" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                        <Setter Property="Foreground" Value="#64748B" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                 </Border>
                                             </Grid>
                                         </DataTemplate>
@@ -609,7 +638,7 @@
                         </Border>
 
                         <!-- 底部统计 -->
-                        <TextBlock Grid.Row="2" Text="{Binding ChannelConfigurations.FilteredDraftRows.Count, StringFormat=当前显示 {0} 条通道}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A" Margin="20,14,0,16" />
+                        <TextBlock Grid.Row="2" Text="{Binding ChannelConfigurations.DraftEnabledCount, StringFormat=已显示 {0} 个 EEG 通道}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A" Margin="20,14,0,16" />
                     </Grid>
                 </Border>
             </Grid>

@@ -4,7 +4,9 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:cfg="clr-namespace:BrainPlatform.Desktop.Configuration"
+             xmlns:views="clr-namespace:BrainPlatform.Desktop.Views"
              mc:Ignorable="d"
+             views:SlimScrollBarBehavior.IsEnabled="True"
              Background="#F8FAFC">
 
     <UserControl.Resources>
@@ -175,7 +177,7 @@
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <!-- 返回设置主界面按钮 -->
-                <Button Style="{StaticResource OutlineIconButtonStyle}" Width="36" Height="36" Margin="0,0,14,0"
+                <Button Style="{StaticResource BackNavigationIconButtonStyle}" Margin="0,0,14,0"
                         Click="OnBackToSettingsClick" ToolTip="返回设置" VerticalAlignment="Center">
                     <Path Data="M 14,8 L 4,8 M 8,4 L 4,8 L 8,12" Stroke="#475569" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="14" Height="14" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Button>
@@ -244,7 +246,7 @@
 
         <!-- 3. 数据表格容器 (响应式全宽拉伸自适应，表头与每一行使用完全一致的自适应列定义) -->
         <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
-            <ScrollViewer x:Name="TableScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="TableScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Visible">
                 <Grid MinWidth="{Binding ViewportWidth, ElementName=TableScrollViewer}" HorizontalAlignment="Stretch" Grid.IsSharedSizeScope="True"
                       UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display">
                     <Grid.RowDefinitions>
@@ -443,12 +445,10 @@
 
             <!-- 右侧翻页器 -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <ComboBox Width="100" Height="32" Margin="0,0,12,0" ItemsSource="{Binding MontageConfigurations.PageSizeOptions}" ItemStringFormat="{}{0} 条/页" SelectedItem="{Binding MontageConfigurations.PageSize, Mode=TwoWay}" />
-                <Button Width="32" Height="32" Margin="0,0,6,0" Content="&lt;" Command="{Binding MontageConfigurations.PreviousPageCommand}" />
-                <Border Width="32" Height="32" Background="#1677FF" CornerRadius="6" Margin="0,0,6,0">
-                    <TextBlock Text="{Binding MontageConfigurations.CurrentPage}" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-                <Button Width="32" Height="32" Content="&gt;" Command="{Binding MontageConfigurations.NextPageCommand}" />
+                <ComboBox Margin="0,0,12,0" Style="{StaticResource PaginationPageSizeComboBoxStyle}" ItemsSource="{Binding MontageConfigurations.PageSizeOptions}" ItemStringFormat="{}{0} 条/页" SelectedItem="{Binding MontageConfigurations.PageSize, Mode=TwoWay}" />
+                <views:PaginationControl CurrentPage="{Binding MontageConfigurations.CurrentPage}"
+                                         TotalPages="{Binding MontageConfigurations.TotalPages}"
+                                         PageRequested="OnMontagePageRequested" />
             </StackPanel>
         </Grid>
     </Grid>

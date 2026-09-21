@@ -85,13 +85,9 @@ public partial class ProjectListView : UserControl
             return;
         }
 
-        var result = MessageBox.Show(
-            Window.GetWindow(this),
-            $"从平台项目列表移除“{project.Name}”？\n\n磁盘目录和已有原始数据不会删除。",
-            "移除项目",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        if (result == MessageBoxResult.Yes)
+        if (OperationConfirmationDialog.Confirm(
+                Window.GetWindow(this),
+                OperationConfirmationRequest.RemoveProject(project.Name)))
         {
             if (workspace.Acquisition.SelectedProject?.Id == project.Id)
             {
@@ -122,6 +118,9 @@ public partial class ProjectListView : UserControl
     }
 
     private void OnRefreshRecordingsClick(object sender, RoutedEventArgs e) => Workspace.Projects.RefreshRecordings();
+
+    private void OnProjectPageRequested(object sender, PageRequestedEventArgs e) =>
+        Workspace.Projects.GoToProjectPage(e.Page);
 
     private async void OnOpenReviewClick(object sender, RoutedEventArgs e)
     {

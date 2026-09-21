@@ -46,6 +46,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     private double? automaticBipolarRangeVolts;
     private bool isEditingInputRanges;
     private bool isManualInputRangeSelection;
+    private bool isPreparationStartInProgress;
     private bool disposed;
 
     public AcquisitionWorkspaceViewModel(
@@ -243,6 +244,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             if (SetProperty(ref selectedProject, value))
             {
                 recordingHistory.Refresh(value?.RecordingsDirectory ?? string.Empty);
+                RaiseProjectSummaryPropertiesChanged();
                 RaiseCommandAvailabilityChanged();
             }
         }
@@ -292,6 +294,45 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         get => deviceSession.Readiness;
     }
 
+    // Preparation-page summaries deliberately expose only facts reported by
+    // the device session and selected project. They do not infer capabilities
+    // from a montage or from fixed ANT assumptions.
+    public string ProjectNameText => SelectedProject?.Name ?? "未选择项目";
+
+    public string ProjectNumberText => SelectedProject?.Number ?? "未生成";
+
+    public string ProjectDirectoryText => SelectedProject?.DirectoryPath ?? "未配置目录";
+
+    public bool HasSelectedProject => SelectedProject is not null;
+
+    // Adapter readiness answers whether a driver implementation is available;
+    // it is not a physical connection fact. ANT reports "待测试" even after
+    // SDK discovery succeeds, so this UI must use the session's published
+    // discovery/stream state instead.
+    public string DeviceConnectionStatusText => deviceSession.Snapshot.State switch
+    {
+        DeviceSessionState.Connected => "已连接",
+        DeviceSessionState.Streaming => "数据流已打开",
+        DeviceSessionState.Discovering => "检测中",
+        DeviceSessionState.Faulted => "连接异常",
+        _ => "未连接",
+    };
+
+    public bool IsDeviceConnected => deviceSession.Snapshot.State is
+        DeviceSessionState.Connected or DeviceSessionState.Streaming;
+
+    public string DeviceVendorText => DescribeDeviceVendor(SelectedDevice?.DriverId ?? deviceSession.Snapshot.DriverId);
+
+    public string DeviceModelText => SelectedDevice?.Model ?? "SDK 未报告型号";
+
+    public string DeviceSerialNumberText => SelectedDevice?.SerialNumber
+        ?? SelectedDevice?.DeviceInstanceId
+        ?? "SDK 未报告序列号";
+
+    public string DeviceInputCapabilitySummary => SelectedDevice is null
+        ? "设备连接后读取"
+        : $"参考输入 {ReferenceInputCount} 路，双极输入 {BipolarInputCount} 路；{OtherInputCapabilitiesText}";
+
     public bool IsEditingInputRanges
     {
         get => isEditingInputRanges;
@@ -308,6 +349,12 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         deviceSession.IsReadyForSetup && runtime.State.State is not AcquisitionState.Starting and not AcquisitionState.Previewing and
         not AcquisitionState.Recording and not AcquisitionState.Paused and not AcquisitionState.Stopping &&
         ReferenceRangesVolts.Count > 0 && BipolarRangesVolts.Count > 0;
+
+    public bool CanConfirmInputRangeEdit =>
+        IsEditingInputRanges &&
+        SelectedReferenceRangeVolts is { } referenceRange &&
+        SelectedBipolarRangeVolts is { } bipolarRange &&
+        AntEegoRangePair.IsCompatible(referenceRange, bipolarRange);
 
     public string InputRangeSelectionModeText => isManualInputRangeSelection ? "手动设置" : "自动选择";
 
@@ -365,9 +412,22 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     public bool CanTestConnection => runtime.State.State is not AcquisitionState.Previewing and not AcquisitionState.Recording and not AcquisitionState.Paused and not AcquisitionState.Starting and not AcquisitionState.Stopping;
 
     public bool CanStart => deviceSession.IsReadyForSetup && SelectedSamplingRateHz is > 0 &&
+        SamplingRatesHz.Contains(SelectedSamplingRateHz.Value) &&
         SelectedReferenceRangeVolts is { } referenceRange && SelectedBipolarRangeVolts is { } bipolarRange &&
         AntEegoRangePair.IsCompatible(referenceRange, bipolarRange) &&
-        SelectedMontageProfile is not null && SelectedProject is not null;
+        SelectedMontageProfile is not null && SelectedProject is not null && !IsPreparationStartInProgress;
+
+    public bool IsPreparationStartInProgress
+    {
+        get => isPreparationStartInProgress;
+        private set
+        {
+            if (SetProperty(ref isPreparationStartInProgress, value))
+            {
+                RaiseCommandAvailabilityChanged();
+            }
+        }
+    }
 
     public bool CanStartRecording => runtime.State.State == AcquisitionState.Previewing;
 
@@ -377,7 +437,23 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
 
     public bool CanResume => runtime.State.State == AcquisitionState.Paused;
 
-    public Task StartPreparedPreviewAsync() => StartPreviewCoreAsync();
+    public async Task StartPreparedPreviewAsync()
+    {
+        if (IsPreparationStartInProgress)
+        {
+            return;
+        }
+
+        IsPreparationStartInProgress = true;
+        try
+        {
+            await StartPreviewCoreAsync();
+        }
+        finally
+        {
+            IsPreparationStartInProgress = false;
+        }
+    }
 
     public Task FinishAcquisitionAsync() => StopRecordingCoreAsync();
 
@@ -436,7 +512,9 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             DisplayPreferences.LiveHighPassHz,
             DisplayPreferences.LiveLowPassHz,
             DisplayPreferences.LiveNotchHz,
-            DisplayPreferences.Snapshot.PaperSpeedMillimetersPerSecond), CancellationToken.None);
+            DisplayPreferences.Snapshot.PaperSpeedMillimetersPerSecond,
+            DisplayPreferences.Snapshot.HorizontalTimeScaleMode,
+            DisplayPreferences.Snapshot.TimebaseSecondsPerScreen), CancellationToken.None);
 
         AcquisitionStatusText = deviceSession.Snapshot.Detail;
         OperationMessage = Devices.Count > 0
@@ -532,7 +610,9 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             DisplayPreferences.LiveHighPassHz,
             DisplayPreferences.LiveLowPassHz,
             DisplayPreferences.LiveNotchHz,
-            DisplayPreferences.Snapshot.PaperSpeedMillimetersPerSecond), CancellationToken.None);
+            DisplayPreferences.Snapshot.PaperSpeedMillimetersPerSecond,
+            DisplayPreferences.Snapshot.HorizontalTimeScaleMode,
+            DisplayPreferences.Snapshot.TimebaseSecondsPerScreen), CancellationToken.None);
         var projectContext = new AcquisitionProjectContext(
             project.Id,
             project.Number,
@@ -835,7 +915,16 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         RaisePropertyChanged(nameof(CanPause));
         RaisePropertyChanged(nameof(CanResume));
         RaisePropertyChanged(nameof(CanEditInputRanges));
+        RaisePropertyChanged(nameof(CanConfirmInputRangeEdit));
         DisplayPreferences.RefreshAvailability();
+    }
+
+    private void RaiseProjectSummaryPropertiesChanged()
+    {
+        RaisePropertyChanged(nameof(ProjectNameText));
+        RaisePropertyChanged(nameof(ProjectNumberText));
+        RaisePropertyChanged(nameof(ProjectDirectoryText));
+        RaisePropertyChanged(nameof(HasSelectedProject));
     }
 
     private int CountInputChannels(AcquisitionChannelKind kind) =>
@@ -869,14 +958,28 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         RaisePropertyChanged(nameof(ReferenceInputRangeText));
         RaisePropertyChanged(nameof(BipolarInputRangeText));
         RaisePropertyChanged(nameof(CanEditInputRanges));
+        RaisePropertyChanged(nameof(CanConfirmInputRangeEdit));
     }
 
     private void RaiseDeviceCapabilityPropertiesChanged()
     {
+        RaisePropertyChanged(nameof(DeviceConnectionStatusText));
+        RaisePropertyChanged(nameof(IsDeviceConnected));
+        RaisePropertyChanged(nameof(DeviceVendorText));
+        RaisePropertyChanged(nameof(DeviceModelText));
+        RaisePropertyChanged(nameof(DeviceSerialNumberText));
+        RaisePropertyChanged(nameof(DeviceInputCapabilitySummary));
         RaisePropertyChanged(nameof(SupportedSamplingRatesText));
         RaisePropertyChanged(nameof(ReferenceInputCount));
         RaisePropertyChanged(nameof(BipolarInputCount));
         RaisePropertyChanged(nameof(OtherInputCapabilitiesText));
         RaisePropertyChanged(nameof(CanEditInputRanges));
     }
+
+    private static string DescribeDeviceVendor(string? driverId) => driverId?.Trim().ToLowerInvariant() switch
+    {
+        "ant-eego" => "ANT",
+        null or "" => "SDK 未报告厂商",
+        _ => driverId.Trim(),
+    };
 }

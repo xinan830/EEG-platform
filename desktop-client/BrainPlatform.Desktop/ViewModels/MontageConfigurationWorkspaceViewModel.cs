@@ -700,7 +700,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         }
     }
 
-    private async Task DeleteSelectedAsync()
+    public async Task DeleteSelectedAsync()
     {
         if (SelectedProfile is not { CanDelete: true } profile)
         {

@@ -140,12 +140,42 @@ public partial class MainWindow : Window
         acquisitionSessionWindow.Show();
     }
 
-    public void ShowAcquisitionPreparationView()
+    public async void ShowAcquisitionPreparationView()
     {
         SetImmersiveChrome(false);
         acquisitionPreparationView ??= new AcquisitionPreparationView();
         MainContentHost.Content = acquisitionPreparationView;
         SelectNavigation(NavProjectsBtn);
+
+        if (DataContext is not DesktopWorkspaceViewModel workspace)
+        {
+            return;
+        }
+
+        try
+        {
+            // Re-evaluate the device-compatible montage list at the boundary
+            // where an operator is about to open a stream. No configuration is
+            // silently selected or mutated here.
+            await workspace.ChannelConfigurations.RefreshAsync();
+            await workspace.MontageConfigurations.RefreshAsync();
+
+            // A device change or a channel/montage edit can make the previous
+            // preparation selection unavailable. Never retain an invisible,
+            // stale montage as though it were still valid for this session.
+            if (workspace.Acquisition.SelectedMontageProfile is { } selectedMontage &&
+                !workspace.MontageConfigurations.AvailableForAcquisition.Any(profile =>
+                    string.Equals(profile.Id, selectedMontage.Id, StringComparison.Ordinal) &&
+                    string.Equals(profile.Fingerprint, selectedMontage.Fingerprint, StringComparison.Ordinal)))
+            {
+                workspace.Acquisition.SelectedMontageProfile = null;
+                workspace.Notifications.PublishWarning("先前选择的导联配置已不再兼容当前设备或通道配置，请重新选择。");
+            }
+        }
+        catch (Exception exception)
+        {
+            workspace.Notifications.PublishError($"无法刷新采集准备配置：{exception.Message}");
+        }
     }
 
     public void ShowProjectListView()

@@ -38,6 +38,9 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     private int pageSize = 10;
     private int currentPage = 1;
     private string channelSearchText = string.Empty;
+    private bool isBulkDisplayUpdate;
+    private readonly RelayCommand showAllDraftChannelsCommand;
+    private readonly RelayCommand hideAllDraftChannelsCommand;
 
     public ChannelConfigurationWorkspaceViewModel(
         ChannelMappingViewModel mapping,
@@ -60,6 +63,12 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, ReportCommandError);
         PreviousPageCommand = new RelayCommand(() => CurrentPage--, () => CanPreviousPage);
         NextPageCommand = new RelayCommand(() => CurrentPage++, () => CanNextPage);
+        showAllDraftChannelsCommand = new RelayCommand(
+            () => SetAllDraftEegChannelsDisplayed(true),
+            () => CanEditSignalDraft && DraftRows.Any(row => row.IsEegInput && !row.IsEnabled));
+        hideAllDraftChannelsCommand = new RelayCommand(
+            () => SetAllDraftEegChannelsDisplayed(false),
+            () => CanEditSignalDraft && DraftRows.Any(row => row.IsEegInput && row.IsEnabled));
         mapping.DisplayChannelsChanged += OnMappingChanged;
     }
 
@@ -152,6 +161,10 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     public ICommand PreviousPageCommand { get; }
 
     public ICommand NextPageCommand { get; }
+
+    public ICommand ShowAllDraftChannelsCommand => showAllDraftChannelsCommand;
+
+    public ICommand HideAllDraftChannelsCommand => hideAllDraftChannelsCommand;
 
     public ChannelConfigurationProfile? SelectedProfile
     {
@@ -644,11 +657,9 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 
     private void OnDraftRowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
-        if (eventArgs.PropertyName is nameof(ChannelConfigurationDraftRow.IsEnabled)
-            or nameof(ChannelConfigurationDraftRow.ElectrodeLabel))
+        if (eventArgs.PropertyName == nameof(ChannelConfigurationDraftRow.IsEnabled))
         {
-            if (eventArgs.PropertyName == nameof(ChannelConfigurationDraftRow.IsEnabled) &&
-                sender is ChannelConfigurationDraftRow row)
+            if (!isBulkDisplayUpdate && sender is ChannelConfigurationDraftRow row)
             {
                 var identity = string.IsNullOrWhiteSpace(row.ElectrodeLabel)
                     ? $"设备输入 {row.NativeChannelIndex}"
@@ -658,7 +669,21 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
                     : $"已关闭显示{identity}。");
             }
             RaiseDraftCounts();
-            ApplyDraftRowFilter();
+            return;
+        }
+
+        if (eventArgs.PropertyName == nameof(ChannelConfigurationDraftRow.ElectrodeLabel))
+        {
+            RaiseDraftCounts();
+
+            // Editing a label only changes the visible search result when the
+            // user has explicitly entered a search query. Do not reset the
+            // ListBox collection during ordinary edits, or its scroll position
+            // is lost.
+            if (!string.IsNullOrWhiteSpace(ChannelSearchText))
+            {
+                ApplyDraftRowFilter();
+            }
         }
     }
 
@@ -799,6 +824,42 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     {
         RaisePropertyChanged(nameof(DraftEegInputCount));
         RaisePropertyChanged(nameof(DraftEnabledCount));
+        showAllDraftChannelsCommand.RaiseCanExecuteChanged();
+        hideAllDraftChannelsCommand.RaiseCanExecuteChanged();
+    }
+
+    private void SetAllDraftEegChannelsDisplayed(bool isDisplayed)
+    {
+        if (!CanEditSignalDraft)
+        {
+            throw new InvalidOperationException("当前通道配置不允许修改显示通道。");
+        }
+
+        var rowsToChange = DraftRows
+            .Where(row => row.IsEegInput && row.IsEnabled != isDisplayed)
+            .ToArray();
+        if (rowsToChange.Length == 0)
+        {
+            return;
+        }
+
+        isBulkDisplayUpdate = true;
+        try
+        {
+            foreach (var row in rowsToChange)
+            {
+                row.IsEnabled = isDisplayed;
+            }
+        }
+        finally
+        {
+            isBulkDisplayUpdate = false;
+        }
+
+        RaiseDraftCounts();
+        notifications?.PublishSuccess(isDisplayed
+            ? $"已全部显示 {rowsToChange.Length} 个 EEG 通道。"
+            : $"已全部关闭显示 {rowsToChange.Length} 个 EEG 通道。");
     }
 
     private void ApplyDraftRowFilter()
@@ -849,5 +910,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         RaisePropertyChanged(nameof(DraftCreatedAtText));
         RaisePropertyChanged(nameof(DraftUpdatedAtText));
         RaisePropertyChanged(nameof(DraftStatusLabel));
+        showAllDraftChannelsCommand.RaiseCanExecuteChanged();
+        hideAllDraftChannelsCommand.RaiseCanExecuteChanged();
     }
 }

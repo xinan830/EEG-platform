@@ -46,8 +46,9 @@ public partial class ProjectDetailView : UserControl
             return;
         }
 
-        if (MessageBox.Show(Window.GetWindow(this), $"从平台项目列表移除“{project.Name}”？\n\n磁盘目录和已有原始数据不会删除。",
-            "移除项目", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        if (!OperationConfirmationDialog.Confirm(
+                Window.GetWindow(this),
+                OperationConfirmationRequest.RemoveProject(project.Name))) return;
         try
         {
             if (Workspace.Acquisition.SelectedProject?.Id == project.Id) Workspace.Acquisition.SelectedProject = null;
@@ -89,11 +90,8 @@ public partial class ProjectDetailView : UserControl
         }
     }
 
-    private void OnPreviousRecordingPageClick(object sender, RoutedEventArgs e) =>
-        Workspace.Projects.PreviousRecordingPage();
-
-    private void OnNextRecordingPageClick(object sender, RoutedEventArgs e) =>
-        Workspace.Projects.NextRecordingPage();
+    private void OnRecordingPageRequested(object sender, PageRequestedEventArgs e) =>
+        Workspace.Projects.GoToRecordingPage(e.Page);
 
     private async void OnOpenSelectedReviewClick(object sender, RoutedEventArgs e)
     {
@@ -166,10 +164,9 @@ public partial class ProjectDetailView : UserControl
     private async void OnDeleteRecordingClick(object sender, RoutedEventArgs e)
     {
         if (GetRecordingFromMenu(sender) is not { } recording) return;
-        var confirmation = MessageBox.Show(Window.GetWindow(this),
-            $"将“{recording.Name}”从项目数据记录中删除？\n\n数据会移到该项目的 .trash 回收目录，可手动恢复。",
-            "删除数据记录", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (confirmation != MessageBoxResult.Yes) return;
+        if (!OperationConfirmationDialog.Confirm(
+                Window.GetWindow(this),
+                OperationConfirmationRequest.DeleteRecording(recording.Name))) return;
         try { await Workspace.Projects.DeleteRecordingAsync(recording); }
         catch (Exception exception) { Workspace.Notifications.PublishError(exception.Message); }
     }

@@ -14,7 +14,9 @@ public partial class SessionCloseConfirmationDialog : Window
     }
 
     public static bool Confirm(Window owner, SessionCloseRequest request) =>
-        new SessionCloseConfirmationDialog(owner, request).ShowDialog() == true;
+        OperationConfirmationDialog.Confirm(
+            owner,
+            new OperationConfirmationRequest(request.TitleText, request.MessageText, request.ConfirmText));
 
     private void OnConfirmClick(object sender, RoutedEventArgs e) => DialogResult = true;
 }

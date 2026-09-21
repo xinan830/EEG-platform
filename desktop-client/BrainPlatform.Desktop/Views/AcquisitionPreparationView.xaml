@@ -14,374 +14,406 @@
             </ResourceDictionary.MergedDictionaries>
             <views:InputRangeVoltageConverter x:Key="InputRangeVoltageConverter" />
 
-            <!-- 返回项目轻量按钮样式 -->
-            <Style x:Key="OutlineNavBtn" TargetType="Button">
-                <Setter Property="Background" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#CBD5E1" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="#334155" />
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="Height" Value="32" />
-                <Setter Property="Padding" Value="12,0" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
-                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#94A3B8" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!-- 现代化筛选下拉框样式 -->
-            <Style x:Key="ModernFilterComboBox" TargetType="ComboBox">
-                <Setter Property="Height" Value="38" />
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="Foreground" Value="#334155" />
-                <Setter Property="Background" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#CBD5E1" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Padding" Value="12,0,28,0" />
-                <Setter Property="VerticalContentAlignment" Value="Center" />
-                <Setter Property="HorizontalContentAlignment" Value="Left" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="SnapsToDevicePixels" Value="True" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="ComboBox">
-                            <Grid x:Name="MainGrid" SnapsToDevicePixels="True">
-                                <Border x:Name="Border"
-                                        Background="{TemplateBinding Background}"
-                                        BorderBrush="{TemplateBinding BorderBrush}"
-                                        BorderThickness="{TemplateBinding BorderThickness}"
-                                        CornerRadius="6">
-                                    <Grid>
-                                        <ContentPresenter Content="{TemplateBinding SelectionBoxItem}"
-                                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
-                                                          Margin="{TemplateBinding Padding}"
-                                                          VerticalAlignment="Center"
-                                                          HorizontalAlignment="Left"
-                                                          IsHitTestVisible="False" />
-                                        <Path x:Name="Arrow"
-                                              Data="M 1,1.5 L 5,5.5 L 9,1.5"
-                                              Stroke="#64748B"
-                                              StrokeThickness="1.5"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"
-                                              HorizontalAlignment="Right"
-                                              VerticalAlignment="Center"
-                                              Margin="0,0,12,0"
-                                              IsHitTestVisible="False" />
-                                    </Grid>
-                                </Border>
-                                <ToggleButton x:Name="ToggleButton"
-                                              Background="Transparent"
-                                              BorderThickness="0"
-                                              Focusable="False"
-                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                              ClickMode="Press"
-                                              Cursor="Hand">
-                                    <ToggleButton.Template>
-                                        <ControlTemplate TargetType="ToggleButton">
-                                            <Border Background="Transparent" />
-                                        </ControlTemplate>
-                                    </ToggleButton.Template>
-                                </ToggleButton>
-                                <Popup x:Name="PART_Popup"
-                                       AllowsTransparency="True"
-                                       IsOpen="{TemplateBinding IsDropDownOpen}"
-                                       Placement="Bottom"
-                                       PopupAnimation="Fade"
-                                       VerticalOffset="4"
-                                       Focusable="False">
-                                    <Border x:Name="DropDownBorder"
-                                            Background="#FFFFFF"
-                                            BorderBrush="#E2E8F0"
-                                            BorderThickness="1"
-                                            CornerRadius="6"
-                                            MinWidth="{Binding ActualWidth, ElementName=MainGrid}"
-                                            MaxHeight="{TemplateBinding MaxDropDownHeight}"
-                                            Padding="4,4">
-                                        <Border.Effect>
-                                            <DropShadowEffect BlurRadius="8" ShadowDepth="2" Direction="270" Color="#000000" Opacity="0.08" />
-                                        </Border.Effect>
-                                        <ScrollViewer CanContentScroll="True" SnapsToDevicePixels="True">
-                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
-                                        </ScrollViewer>
-                                    </Border>
-                                </Popup>
-                            </Grid>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="#94A3B8" /></Trigger>
-                                <Trigger Property="IsDropDownOpen" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="#1677FF" /></Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-                <Setter Property="ItemContainerStyle">
-                    <Setter.Value>
-                        <Style TargetType="ComboBoxItem">
-                            <Setter Property="Height" Value="32" />
-                            <Setter Property="Padding" Value="10,0" />
-                            <Setter Property="FontSize" Value="12.5" />
-                            <Setter Property="Foreground" Value="#334155" />
-                            <Setter Property="Cursor" Value="Hand" />
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ComboBoxItem">
-                                        <Border x:Name="ItemBorder" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter VerticalAlignment="Center" />
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" />
-                                                <Setter Property="Foreground" Value="#0F172A" />
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" />
-                                                <Setter Property="Foreground" Value="#1677FF" />
-                                                <Setter Property="FontWeight" Value="SemiBold" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </Setter.Value>
-                </Setter>
+            <!-- 准备页下拉选择框统一高度 40px，兼顾单屏密度与点击面积。 -->
+            <Style x:Key="PreparationComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource ModernFilterComboBoxStyle}">
+                <Setter Property="Height" Value="40" />
             </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="36,28,36,28" MaxWidth="1200" HorizontalAlignment="Stretch">
+        <Grid Margin="36,24,36,28" MaxWidth="1480" HorizontalAlignment="Stretch">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" /> <!-- 1. 返回导航按钮 -->
-                <RowDefinition Height="Auto" /> <!-- 2. 页面主标题与说明 -->
-                <RowDefinition Height="Auto" /> <!-- 3. 当前项目卡片 -->
-                <RowDefinition Height="Auto" /> <!-- 4. 配置设置卡片 -->
-                <RowDefinition Height="Auto" /> <!-- 5. 底部操作栏 -->
+                <RowDefinition Height="Auto" /> <!-- 1. 页面标题、返回与说明 -->
+                <RowDefinition Height="Auto" /> <!-- 2. 双卡片区域（当前项目 + 设备状态） -->
+                <RowDefinition Height="Auto" /> <!-- 3. 配置设置卡片 -->
+                <RowDefinition Height="Auto" /> <!-- 4. 底部操作栏 -->
             </Grid.RowDefinitions>
 
-            <!-- 1. 返回导航按钮 -->
-            <Button Grid.Row="0" Style="{StaticResource OutlineNavBtn}" Click="OnBackClick" HorizontalAlignment="Left" Margin="0,0,0,16">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Path Data="M 12,4 L 4,12 L 12,20 M 4,12 L 20,12" Width="12" Height="12" Stretch="Uniform"
-                          Stroke="#334155" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,8,0" VerticalAlignment="Center" />
-                    <TextBlock Text="返回项目" FontSize="13" Foreground="#334155" FontWeight="Medium" VerticalAlignment="Center" />
+            <!-- 1. 返回操作与标题放在同一标题行 -->
+            <Grid Grid.Row="0" Margin="0,0,0,24">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource BackNavigationIconButtonStyle}" Click="OnBackClick"
+                            VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="返回项目">
+                        <Path Data="M 14,8 L 4,8 M 8,4 L 4,8 L 8,12"
+                              Stroke="#475569" StrokeThickness="1.8"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Width="14" Height="14" Stretch="Uniform"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
+                    <TextBlock Text="采集准备" FontSize="27" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
                 </StackPanel>
-            </Button>
+                <TextBlock Grid.Row="1" Text="请确认项目信息、设备状态及采集配置，完成后进入实时采集。"
+                           Margin="0,6,0,0" FontSize="14" Foreground="#64748B" LineHeight="21" />
+            </Grid>
 
-            <!-- 2. 页面主标题与说明 -->
-            <StackPanel Grid.Row="1" Margin="0,0,0,22">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- 脉冲波形图标 -->
-                    <Path Data="M 1,10 L 5,10 L 8,3 L 13,17 L 17,7 L 20,13 L 22,10 L 26,10"
-                          Width="22" Height="22" Stretch="Uniform" Stroke="#1677FF" StrokeThickness="2.4"
-                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <TextBlock Text="采集准备" FontSize="22" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
-                </StackPanel>
-                <TextBlock Text="确认本次项目、导联、采样率与输入量程；进入实时采集后仅启动预览，点击“开始记录”才会创建原始记录。" Margin="0,6,0,0" FontSize="13" Foreground="#64748B" />
-            </StackPanel>
+            <!-- 3. 双卡片区域（并排两列，间距 20px） -->
+            <Grid Grid.Row="1" Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1*" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
 
-            <!-- 3. 当前项目卡片 (严格复刻图片设计) -->
-            <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,20">
-                <StackPanel>
-                    <!-- 卡片标题 -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,16">
-                        <Path Data="M 2,4 C 2,2.9 2.9,2 4,2 H 8 L 10,4 H 16 C 17.1,4 18,4.9 18,6 V 14 C 18,15.1 17.1,16 16,16 H 4 C 2.9,16 2,15.1 2,14 Z"
-                              Width="18" Height="16" Stretch="Uniform" Stroke="#1677FF" Fill="Transparent" StrokeThickness="1.6"
-                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" VerticalAlignment="Center" Margin="0,0,10,0" />
-                        <TextBlock Text="当前项目" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <!-- 项目字段列表 -->
-                    <Grid Margin="2,0,0,0">
+                <!-- 左卡片：当前项目 -->
+                <Border Grid.Column="0" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24">
+                    <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
+
+                        <!-- 头部：图标 + 标题 + 查看项目按钮 -->
+                        <Grid Grid.Row="0" Margin="0,0,0,18">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                <Border Width="36" Height="36" Background="#EFF6FF" CornerRadius="8" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <Path Data="M 2,4 C 2,2.9 2.9,2 4,2 H 8 L 10,4 H 16 C 17.1,4 18,4.9 18,6 V 14 C 18,15.1 17.1,16 16,16 H 4 C 2.9,16 2,15.1 2,14 Z"
+                                          Width="18" Height="16" Stretch="Uniform" Stroke="#1677FF" Fill="Transparent" StrokeThickness="1.6"
+                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="当前项目" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- 查看项目 按钮 -->
+                            <Button HorizontalAlignment="Right" VerticalAlignment="Center" Click="OnViewProjectClick" Cursor="Hand" Height="28" Padding="10,0">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Bd" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
+                                                <Setter TargetName="Bd" Property="BorderBrush" Value="#CBD5E1" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path Data="M 1,9 C 1,9 4,3 10,3 C 16,3 19,9 19,9 C 19,9 16,15 10,15 C 4,15 1,9 1,9 Z M 10,12 C 11.66,12 13,10.66 13,9 C 13,7.34 11.66,6 10,6 C 8.34,6 7,7.34 7,9 C 7,10.66 8.34,12 10,12 Z"
+                                          Width="13" Height="13" Stretch="Uniform" Stroke="#64748B" StrokeThickness="1.3" Fill="Transparent"
+                                          VerticalAlignment="Center" Margin="0,0,5,0" />
+                                    <TextBlock Text="查看项目" FontSize="12" Foreground="#334155" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!-- 项目字段列表 -->
+                        <Grid Grid.Row="1" Margin="2,0,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="80" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="项目名称" FontSize="14" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,12" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Acquisition.ProjectNameText}"
+                                   FontSize="14.5" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" Margin="0,0,0,12" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="项目编号" FontSize="14" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,12" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Acquisition.ProjectNumberText}"
+                                   FontSize="14" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,0,12" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="项目目录" FontSize="14" Foreground="#64748B" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Acquisition.ProjectDirectoryText}"
+                                   FontSize="14" Foreground="#334155" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding Acquisition.ProjectDirectoryText}" />
+                        </Grid>
+
+                        <!-- 蓝色提示条 -->
+                        <Border Grid.Row="2" Background="#EFF6FF" CornerRadius="6" Padding="12,9" Margin="0,18,0,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="M 12,2 C 6.48,2 2,6.48 2,12 C 2,17.52 6.48,22 12,22 C 17.52,22 22,17.52 22,12 C 22,6.48 17.52,2 12,2 Z M 11,7 H 13 V 9 H 11 V 7 Z M 11,11 H 13 V 17 H 11 V 11 Z"
+                                      Width="14" Height="14" Stretch="Uniform" Fill="#2563EB" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock Text="本次原始 EEG 数据会保存到该项目下。" FontSize="13" Foreground="#2563EB" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- 右卡片：设备状态 -->
+                <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 头部：图标 + 标题 + 连接状态徽章 -->
+                        <Grid Grid.Row="0" Margin="0,0,0,18">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                <Border Width="36" Height="36" Background="#EFF6FF" CornerRadius="8" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <Path Data="M 2,4 C 2,2.9 2.9,2 4,2 H 16 C 17.1,2 18,2.9 18,4 V 13 C 18,14.1 17.1,15 16,15 H 2 C 0.9,15 0,14.1 0,13 V 4 Z M 6,18 H 12 M 9,15 V 18"
+                                          Width="18" Height="17" Stretch="Uniform" Stroke="#1677FF" Fill="Transparent" StrokeThickness="1.6"
+                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="设备状态" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                            </StackPanel>
+
+                            <!-- 连接状态徽章 -->
+                            <Border HorizontalAlignment="Right" VerticalAlignment="Center" CornerRadius="12" Padding="10,3">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#FEF2F2" />
+                                        <Setter Property="BorderBrush" Value="#FECACA" />
+                                        <Setter Property="BorderThickness" Value="1" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Acquisition.DeviceConnectionStatusText}" Value="已连接">
+                                                <Setter Property="Background" Value="#ECFDF5" />
+                                                <Setter Property="BorderBrush" Value="#A7F3D0" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Width="6" Height="6" Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="#EF4444" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Acquisition.DeviceConnectionStatusText}" Value="已连接">
+                                                        <Setter Property="Fill" Value="#10B981" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                <TextBlock Text="{Binding Acquisition.DeviceConnectionStatusText}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#DC2626" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Acquisition.DeviceConnectionStatusText}" Value="已连接">
+                                                        <Setter Property="Foreground" Value="#059669" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- 设备字段列表（5行数据，必须完整定义5个RowDefinition） -->
+                        <Grid Grid.Row="1" Margin="2,0,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="80" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="设备厂家" FontSize="13.5" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,10" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Acquisition.DeviceVendorText}" FontSize="13.5" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,0,10" />
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="设备型号" FontSize="13.5" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,10" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Acquisition.DeviceModelText}" FontSize="13.5" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,0,10" />
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="实例/序列号" FontSize="13.5" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,10" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Acquisition.DeviceSerialNumberText}" FontSize="13.5" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,0,10"
+                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding Acquisition.DeviceSerialNumberText}" />
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="可用采样率" FontSize="13.5" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,10" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Acquisition.SupportedSamplingRatesText}" FontSize="13.5" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,0,10"
+                                       TextWrapping="Wrap" LineHeight="20" />
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="输入能力" FontSize="13.5" Foreground="#64748B" VerticalAlignment="Top" Margin="0,2,0,0" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Acquisition.DeviceInputCapabilitySummary}" FontSize="13.5" Foreground="#334155" TextWrapping="Wrap" VerticalAlignment="Center" LineHeight="20" />
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- 4. 配置设置卡片 -->
+            <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,20">
+                <StackPanel>
+                    <!-- 卡片头部：图标 + 标题 -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,22">
+                        <Border Width="36" Height="36" Background="#EFF6FF" CornerRadius="8" Margin="0,0,12,0" VerticalAlignment="Center">
+                            <Path Data="M 19.4,13 C 19.4,12.7 19.5,12.3 19.5,12 C 19.5,11.7 19.4,11.3 19.4,11 L 21.5,9.3 C 21.7,9.1 21.8,8.8 21.6,8.6 L 19.6,5.1 C 19.5,4.9 19.2,4.8 19,4.9 L 16.5,5.9 C 16,5.5 15.4,5.2 14.8,5 L 14.4,2.3 C 14.4,2 14.2,1.8 13.9,1.8 H 9.9 C 9.6,1.8 9.4,2 9.4,2.3 L 9,5 C 8.4,5.2 7.8,5.5 7.3,5.9 L 4.8,4.9 C 4.6,4.8 4.3,4.9 4.2,5.1 L 2.2,8.6 C 2,8.8 2.1,9.1 2.3,9.3 L 4.4,11 C 4.4,11.3 4.3,11.7 4.3,12 C 4.3,12.3 4.4,12.7 4.4,13 L 2.3,14.7 C 2.1,14.9 2,15.2 2.2,15.4 L 4.2,18.9 C 4.3,19.1 4.6,19.2 4.8,19.1 L 7.3,18.1 C 7.8,18.5 8.4,18.8 9,19 L 9.4,21.7 C 9.4,22 9.6,22.2 9.9,22.2 H 13.9 C 14.2,22.2 14.4,22 14.4,21.7 L 14.8,19 C 15.4,18.8 16,18.5 16.5,18.1 L 19,19.1 C 19.2,19.2 19.5,19.1 19.6,18.9 L 21.6,15.4 C 21.8,15.2 21.7,14.9 21.5,14.7 L 19.4,13 Z M 12,15.5 C 10.1,15.5 8.5,13.9 8.5,12 C 8.5,10.1 10.1,8.5 12,8.5 C 13.9,8.5 15.5,10.1 15.5,12 C 15.5,13.9 13.9,15.5 12,15.5 Z"
+                                  Width="18" Height="18" Stretch="Uniform" Stroke="#1677FF" Fill="Transparent" StrokeThickness="1.5"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="配置设置" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- 第一行：导联配置 -->
+                    <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="80" />
+                            <ColumnDefinition Width="300" />
+                            <ColumnDefinition Width="420" />
+                            <ColumnDefinition Width="24" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- 项目名称 -->
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="项目名称：" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,10" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Acquisition.SelectedProject.Name, TargetNullValue=未选择项目, FallbackValue=未选择项目}"
-                                   FontSize="13.5" FontWeight="Medium" Foreground="#0F172A" VerticalAlignment="Center" Margin="0,0,0,10" />
+                        <!-- 左侧说明 -->
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="导联配置" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" />
+                            <TextBlock Text="仅显示与当前设备、通道配置兼容的导联配置。" FontSize="13" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" LineHeight="20" />
+                        </StackPanel>
 
-                        <!-- 项目编号 -->
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="项目编号：" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,0,10" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Acquisition.SelectedProject.Number, TargetNullValue=未生成, FallbackValue=未生成}"
-                                   FontSize="13" Foreground="#0F172A" VerticalAlignment="Center" Margin="0,0,0,10" />
+                        <!-- 中间下拉选择框 -->
+                        <ComboBox Grid.Column="1" VerticalAlignment="Center"
+                                  ItemsSource="{Binding MontageConfigurations.AvailableForAcquisition}"
+                                  SelectedItem="{Binding Acquisition.SelectedMontageProfile, Mode=TwoWay}"
+                                  DisplayMemberPath="Name"
+                                  Style="{StaticResource PreparationComboBoxStyle}" />
 
-                        <!-- 项目目录 -->
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="项目目录：" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Acquisition.SelectedProject.DirectoryPath, TargetNullValue=未配置目录, FallbackValue=未配置目录}"
-                                   FontSize="13" Foreground="#0F172A" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding Acquisition.SelectedProject.DirectoryPath}" />
+                        <!-- 右侧只读信息卡片 -->
+                        <Border Grid.Column="3" Background="#F8FAFC" BorderBrush="#F1F5F9" BorderThickness="1" CornerRadius="6" Padding="14,10" VerticalAlignment="Center">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                    <TextBlock Text="关联通道配置：" FontSize="13" Foreground="#64748B" />
+                                    <TextBlock Text="{Binding Acquisition.SelectedMontageChannelConfigurationName}" FontSize="13" Foreground="#0F172A" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="输出导联数：" FontSize="13" Foreground="#64748B" />
+                                    <TextBlock Text="{Binding Acquisition.SelectedMontageOutputChannelCount}" FontSize="13" Foreground="#0F172A" FontWeight="Medium" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </Grid>
 
-                    <!-- 蓝色数据归属提示条 -->
-                    <Border Background="#EFF6FF" CornerRadius="6" Padding="14,10" Margin="0,18,0,0">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Path Data="M 12,2 C 6.48,2 2,6.48 2,12 C 2,17.52 6.48,22 12,22 C 17.52,22 22,17.52 22,12 C 22,6.48 17.52,2 12,2 Z M 11,7 H 13 V 9 H 11 V 7 Z M 11,11 H 13 V 17 H 11 V 11 Z"
-                                  Width="15" Height="15" Stretch="Uniform" Fill="#2563EB" VerticalAlignment="Center" Margin="0,0,8,0" />
-                            <TextBlock Text="本次原始 EEG 数据会保存到该项目下。" FontSize="12.5" Foreground="#2563EB" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Border>
+                    <!-- 分割线 -->
+                    <Border Height="1" Background="#F1F5F9" Margin="0,20" />
 
-            <!-- 4. 采集配置卡片 -->
-            <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,24">
-                <StackPanel>
-                    <!-- 卡片标题 -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,20">
-                        <Path Data="M 19.4,13 C 19.4,12.7 19.5,12.3 19.5,12 C 19.5,11.7 19.4,11.3 19.4,11 L 21.5,9.3 C 21.7,9.1 21.8,8.8 21.6,8.6 L 19.6,5.1 C 19.5,4.9 19.2,4.8 19,4.9 L 16.5,5.9 C 16,5.5 15.4,5.2 14.8,5 L 14.4,2.3 C 14.4,2 14.2,1.8 13.9,1.8 H 9.9 C 9.6,1.8 9.4,2 9.4,2.3 L 9,5 C 8.4,5.2 7.8,5.5 7.3,5.9 L 4.8,4.9 C 4.6,4.8 4.3,4.9 4.2,5.1 L 2.2,8.6 C 2,8.8 2.1,9.1 2.3,9.3 L 4.4,11 C 4.4,11.3 4.3,11.7 4.3,12 C 4.3,12.3 4.4,12.7 4.4,13 L 2.3,14.7 C 2.1,14.9 2,15.2 2.2,15.4 L 4.2,18.9 C 4.3,19.1 4.6,19.2 4.8,19.1 L 7.3,18.1 C 7.8,18.5 8.4,18.8 9,19 L 9.4,21.7 C 9.4,22 9.6,22.2 9.9,22.2 H 13.9 C 14.2,22.2 14.4,22 14.4,21.7 L 14.8,19 C 15.4,18.8 16,18.5 16.5,18.1 L 19,19.1 C 19.2,19.2 19.5,19.1 19.6,18.9 L 21.6,15.4 C 21.8,15.2 21.7,14.9 21.5,14.7 L 19.4,13 Z M 12,15.5 C 10.1,15.5 8.5,13.9 8.5,12 C 8.5,10.1 10.1,8.5 12,8.5 C 13.9,8.5 15.5,10.1 15.5,12 C 15.5,13.9 13.9,15.5 12,15.5 Z"
-                              Width="18" Height="18" Stretch="Uniform" Stroke="#1677FF" Fill="Transparent" StrokeThickness="1.5"
-                              HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,10,0" />
-                        <TextBlock Text="采集配置" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <!-- 三列配置网格 -->
+                    <!-- 第二行：采样率 -->
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="1.1*" />
-                            <ColumnDefinition Width="32" />
-                            <ColumnDefinition Width="1*" />
-                            <ColumnDefinition Width="32" />
-                            <ColumnDefinition Width="1.3*" />
+                            <ColumnDefinition Width="300" />
+                            <ColumnDefinition Width="420" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <!-- 列 1: 导联配置选择 -->
-                        <StackPanel Grid.Column="0">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
-                                <Path Data="M 12,2 L 21,7 L 21,17 L 12,22 L 3,17 L 3,7 Z M 12,2 V 12 M 12,12 L 21,7 M 12,12 L 3,7"
-                                      Width="15" Height="15" Stretch="Uniform" Stroke="#1677FF" StrokeThickness="1.6"
-                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                <TextBlock Text="导联配置选择" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
-                            </StackPanel>
-
-                            <ComboBox ItemsSource="{Binding MontageConfigurations.AvailableForAcquisition}"
-                                      SelectedItem="{Binding Acquisition.SelectedMontageProfile, Mode=TwoWay}"
-                                      DisplayMemberPath="Name" Height="38" Style="{StaticResource ModernFilterComboBox}" />
-
-                            <TextBlock Text="仅显示与当前设备和通道配置兼容的导联配置。" Margin="0,8,0,12" FontSize="12" Foreground="#64748B" />
-
-                            <!-- 灰色只读通道与导联信息框 -->
-                            <Border Background="#F8FAFC" BorderBrush="#F1F5F9" BorderThickness="1" CornerRadius="6" Padding="14,10">
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                        <TextBlock Text="关联通道配置：" FontSize="12.5" Foreground="#64748B" />
-                                        <TextBlock Text="{Binding Acquisition.SelectedMontageChannelConfigurationName}" FontSize="12.5" Foreground="#0F172A" FontWeight="Medium" Margin="4,0,0,0" TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="输出导联数：" FontSize="12.5" Foreground="#64748B" />
-                                        <TextBlock Text="{Binding Acquisition.SelectedMontageOutputChannelCount}" FontSize="12.5" Foreground="#0F172A" FontWeight="Medium" Margin="4,0,0,0" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
+                        <!-- 左侧说明 -->
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="采样率" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" />
+                            <TextBlock Text="下拉选项来自当前连接设备支持的采样率。" FontSize="13" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" LineHeight="20" />
                         </StackPanel>
 
-                        <!-- 列 2: 采样率选择 -->
-                        <StackPanel Grid.Column="2">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
-                                <Path Data="M 1,8 L 4,8 L 6,3 L 9,13 L 12,6 L 14,10 L 16,8 L 19,8"
-                                      Width="15" Height="15" Stretch="Uniform" Stroke="#1677FF" StrokeThickness="1.8"
-                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                <TextBlock Text="采样率选择" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
-                            </StackPanel>
+                        <!-- 中间下拉选择框 -->
+                        <ComboBox Grid.Column="1" VerticalAlignment="Center"
+                                  ItemsSource="{Binding Acquisition.SamplingRatesHz}"
+                                  SelectedItem="{Binding Acquisition.SelectedSamplingRateHz, Mode=TwoWay}"
+                                  Style="{StaticResource PreparationComboBoxStyle}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding StringFormat={}{0} Hz}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
 
-                            <ComboBox ItemsSource="{Binding Acquisition.SamplingRatesHz}"
-                                      SelectedItem="{Binding Acquisition.SelectedSamplingRateHz, Mode=TwoWay}"
-                                      Height="38" Style="{StaticResource ModernFilterComboBox}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate><TextBlock Text="{Binding StringFormat={}{0} Hz}" /></DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
+                    <!-- 分割线 -->
+                    <Border Height="1" Background="#F1F5F9" Margin="0,20" />
 
-                            <TextBlock Text="下拉选项来自当前设备支持的采样率。" Margin="0,8,0,0" FontSize="12" Foreground="#64748B" />
+                    <!-- 第三行：量程设置 -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="300" />
+                            <ColumnDefinition Width="420" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- 左侧说明 -->
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="量程设置" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" />
+                            <TextBlock Text="根据当前设备真实能力提供可选量程，两者组合必须兼容。" FontSize="13" Foreground="#64748B" Margin="0,4,0,0" TextWrapping="Wrap" LineHeight="20" />
                         </StackPanel>
 
-                        <!-- 列 3: 设备输入量程。默认只读；用户点编辑后才显示可选量程。 -->
-                        <StackPanel Grid.Column="4">
-                            <!-- 标题行：图标 + 标题 + 模式状态徽标 + 右侧精致编辑按钮 -->
-                            <Grid Margin="0,0,0,10">
+                        <!-- 中间量程区：默认只读；只有进入编辑状态才能更改设备量程。 -->
+                        <Grid Grid.Column="1" VerticalAlignment="Center">
+                            <!-- 自动/已确认量程：不可直接编辑 -->
+                            <Grid>
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Acquisition.IsEditingInputRanges}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="1*" />
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="1*" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Path Data="M 2,14 V 18 M 6,9 V 18 M 10,4 V 18 M 14,11 V 18"
-                                          Width="15" Height="15" Stretch="Uniform" Stroke="#1677FF" StrokeThickness="1.8"
-                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,8,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="设备输入量程" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
-                                    <!-- 模式徽标 (自动选择 / 手动设置) -->
-                                    <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="10" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Acquisition.InputRangeSelectionModeText}" FontSize="11.5" FontWeight="Medium" Foreground="#1677FF" VerticalAlignment="Center" />
-                                    </Border>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="参考输入" FontSize="13" Foreground="#64748B" Margin="0,0,0,6" />
+                                    <TextBlock Text="{Binding Acquisition.ReferenceInputRangeText}" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" />
                                 </StackPanel>
-                                <Button Grid.Column="1" Command="{Binding Acquisition.BeginInputRangeEditCommand}"
-                                        IsEnabled="{Binding Acquisition.CanEditInputRanges}" Height="28" Padding="10,0" Cursor="Hand" ToolTip="修改设备量程">
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Setter Property="Background" Value="#F8FAFC" />
-                                            <Setter Property="BorderBrush" Value="#E2E8F0" />
-                                            <Setter Property="BorderThickness" Value="1" />
-                                            <Setter Property="Foreground" Value="#334155" />
-                                            <Setter Property="FontSize" Value="12.5" />
-                                            <Setter Property="FontWeight" Value="Medium" />
-                                            <Setter Property="Visibility" Value="Visible" />
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bd" Property="Background" Value="#EFF6FF" />
-                                                                <Setter TargetName="Bd" Property="BorderBrush" Value="#93C5FD" />
-                                                                <Setter Property="Foreground" Value="#1677FF" />
-                                                            </Trigger>
-                                                            <Trigger Property="IsEnabled" Value="False">
-                                                                <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Acquisition.IsEditingInputRanges}" Value="True">
-                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M 11,2 L 14,5 L 5,14 L 2,14 L 2,11 Z" Width="11" Height="11" Stretch="Uniform"
-                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4"
-                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,5,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="编辑" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="双极输入" FontSize="13" Foreground="#64748B" Margin="0,0,0,6" />
+                                    <TextBlock Text="{Binding Acquisition.BipolarInputRangeText}" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" />
+                                </StackPanel>
                             </Grid>
 
-                            <!-- 只读卡片容器：呈现双通道量程数据展示块 -->
+                            <!-- 手动编辑：可选项仍完全来自已连接设备。 -->
+                            <Grid>
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Acquisition.IsEditingInputRanges}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1*" />
+                                    <ColumnDefinition Width="14" />
+                                    <ColumnDefinition Width="1*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="参考输入量程" FontSize="13" Foreground="#64748B" Margin="0,0,0,6" />
+                                    <ComboBox ItemsSource="{Binding Acquisition.ReferenceRangesVolts}"
+                                              SelectedItem="{Binding Acquisition.SelectedReferenceRangeVolts, Mode=TwoWay}"
+                                              Style="{StaticResource PreparationComboBoxStyle}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Converter={StaticResource InputRangeVoltageConverter}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="双极输入量程" FontSize="13" Foreground="#64748B" Margin="0,0,0,6" />
+                                    <ComboBox ItemsSource="{Binding Acquisition.BipolarRangesVolts}"
+                                              SelectedItem="{Binding Acquisition.SelectedBipolarRangeVolts, Mode=TwoWay}"
+                                              Style="{StaticResource PreparationComboBoxStyle}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Converter={StaticResource InputRangeVoltageConverter}}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+
+                        <!-- 右侧操作：自动状态下只允许显式进入编辑；编辑时须确认或取消。 -->
+                        <Grid Grid.Column="3" VerticalAlignment="Center">
                             <StackPanel>
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
@@ -393,44 +425,13 @@
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>
-
-                                <!-- 双通道量程卡片 -->
-                                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16,12" Margin="0,0,0,8">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="1" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <!-- 参考输入 -->
-                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                            <TextBlock Text="参考输入" FontSize="12.5" Foreground="#64748B" />
-                                            <TextBlock Text="{Binding Acquisition.ReferenceInputRangeText}" FontSize="18" FontWeight="Bold" Foreground="#0F172A" Margin="0,4,0,0" />
-                                        </StackPanel>
-
-                                        <!-- 中间浅分割线 -->
-                                        <Border Grid.Column="1" Background="#E2E8F0" VerticalAlignment="Stretch" Margin="0,2" />
-
-                                        <!-- 双极输入 -->
-                                        <StackPanel Grid.Column="2" Margin="16,0,0,0">
-                                            <TextBlock Text="双极输入" FontSize="12.5" Foreground="#64748B" />
-                                            <TextBlock Text="{Binding Acquisition.BipolarInputRangeText}" FontSize="18" FontWeight="Bold" Foreground="#0F172A" Margin="0,4,0,0" />
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <!-- 底部锁定提示行 -->
-                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0" VerticalAlignment="Center">
-                                    <Path Data="M 3,6 V 4.5 A 3,3 0 0 1 9,4.5 V 6 M 1.5,6 H 10.5 V 11.5 H 1.5 Z"
-                                          Width="11" Height="12" Stretch="Uniform" Stroke="#94A3B8" StrokeThickness="1.4"
-                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="量程来自当前设备；进入实时采集后将锁定。" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding Acquisition.InputRangeSelectionModeText}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="默认采用设备支持的首组合法兼容量程。" FontSize="13" Foreground="#64748B" Margin="0,4,0,10" TextWrapping="Wrap" LineHeight="20" />
+                                <Button Content="编辑量程" Command="{Binding Acquisition.BeginInputRangeEditCommand}"
+                                        IsEnabled="{Binding Acquisition.CanEditInputRanges}"
+                                        Style="{StaticResource ModernDialogSecondaryButtonStyle}" HorizontalAlignment="Left" />
                             </StackPanel>
-
-                            <!-- 编辑状态：候选量程由设备 SDK 返回，双极量程会随参考量程自动过滤为兼容组合。 -->
-                            <StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -441,58 +442,110 @@
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>
-                                <Grid Margin="0,0,0,12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="1*" />
-                                        <ColumnDefinition Width="12" />
-                                        <ColumnDefinition Width="1*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="参考输入量程" FontSize="12.5" Foreground="#64748B" Margin="0,0,0,6" />
-                                        <ComboBox ItemsSource="{Binding Acquisition.ReferenceRangesVolts}"
-                                                  SelectedItem="{Binding Acquisition.SelectedReferenceRangeVolts, Mode=TwoWay}"
-                                                  Height="38" Style="{StaticResource ModernFilterComboBox}">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate><TextBlock Text="{Binding Converter={StaticResource InputRangeVoltageConverter}}" /></DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Text="双极输入量程" FontSize="12.5" Foreground="#64748B" Margin="0,0,0,6" />
-                                        <ComboBox ItemsSource="{Binding Acquisition.BipolarRangesVolts}"
-                                                  SelectedItem="{Binding Acquisition.SelectedBipolarRangeVolts, Mode=TwoWay}"
-                                                  Height="38" Style="{StaticResource ModernFilterComboBox}">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate><TextBlock Text="{Binding Converter={StaticResource InputRangeVoltageConverter}}" /></DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-                                    </StackPanel>
-                                </Grid>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
-                                    <Button Content="取消" Command="{Binding Acquisition.CancelInputRangeEditCommand}" Width="64" Height="30"
-                                            Style="{StaticResource ModernDialogSecondaryButtonStyle}" />
-                                    <Button Content="确认" Command="{Binding Acquisition.ConfirmInputRangeEditCommand}" Width="64" Height="30" Margin="8,0,0,0"
-                                            Style="{StaticResource ModernDialogPrimaryButtonStyle}" />
-                                </StackPanel>
+                                <Button Content="取消" Command="{Binding Acquisition.CancelInputRangeEditCommand}"
+                                        Style="{StaticResource ModernDialogSecondaryButtonStyle}" />
+                                <Button Content="确认" Command="{Binding Acquisition.ConfirmInputRangeEditCommand}"
+                                        IsEnabled="{Binding Acquisition.CanConfirmInputRangeEdit}"
+                                        Style="{StaticResource ModernDialogPrimaryButtonStyle}" Margin="8,0,0,0" />
                             </StackPanel>
-                        </StackPanel>
+                        </Grid>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <!-- 5. 底部操作栏 (左侧状态提示，右侧主要与次要操作按钮) -->
-            <Grid Grid.Row="4" Margin="0,0,0,16">
-                <!-- 业务状态诊断提示 -->
-                <TextBlock Text="{Binding Acquisition.OperationMessage}" MaxWidth="600" Foreground="#64748B"
-                           TextWrapping="Wrap" FontSize="12.5" VerticalAlignment="Center" HorizontalAlignment="Left" />
+            <!-- 5. 底部操作栏 -->
+            <Grid Grid.Row="3" Margin="0,4,0,16">
+                <!-- 左侧状态与提示信息 -->
+                <TextBlock Text="{Binding Acquisition.OperationMessage}" Foreground="#64748B"
+                           FontSize="13.5" VerticalAlignment="Center" HorizontalAlignment="Left"
+                           TextWrapping="Wrap" LineHeight="20" MaxWidth="680" />
 
-                <!-- 操作按钮组 -->
+                <!-- 右侧操作按钮组 -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Content="返回项目" Width="110" Height="40" Click="OnBackClick"
-                            Style="{StaticResource ModernDialogSecondaryButtonStyle}" />
-                    <Button Content="进入实时采集" Width="140" Height="40" Margin="16,0,0,0" Click="OnStartClick"
-                            IsEnabled="{Binding Acquisition.CanStart}"
-                            Style="{StaticResource ModernDialogPrimaryButtonStyle}" />
+                    <!-- 返回项目 按钮 -->
+                    <Button Click="OnBackClick" Height="40" Width="110" Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#FFFFFF" />
+                                <Setter Property="BorderBrush" Value="#CBD5E1" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Setter Property="Foreground" Value="#334155" />
+                                <Setter Property="FontSize" Value="14" />
+                                <Setter Property="FontWeight" Value="Medium" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="12,0">
+                                                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
+                                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#94A3B8" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="#F1F5F9" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                        <TextBlock Text="返回项目" VerticalAlignment="Center" />
+                    </Button>
+
+                    <!-- 进入实时采集 按钮 -->
+                    <Button Click="OnStartClick" IsEnabled="{Binding Acquisition.CanStart}" Height="40" Width="155" Margin="12,0,0,0" Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#1677FF" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                                <Setter Property="FontSize" Value="14.5" />
+                                <Setter Property="FontWeight" Value="Medium" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="16,0">
+                                                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="#4096FF" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="#0958D9" />
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter TargetName="Bd" Property="Background" Value="#BFDBFE" />
+                                                    <Setter Property="Foreground" Value="#EFF6FF" />
+                                                    <Setter Property="Cursor" Value="Arrow" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock VerticalAlignment="Center" Margin="0,0,8,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="进入实时采集" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Acquisition.IsPreparationStartInProgress}" Value="True">
+                                                <Setter Property="Text" Value="正在进入..." />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <Path Data="M 1,6 H 11 M 7,2 L 11,6 L 7,10" Width="10" Height="10" Stretch="Uniform"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Grid>
         </Grid>

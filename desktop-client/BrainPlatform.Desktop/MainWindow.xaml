@@ -142,66 +142,7 @@
         <!-- Main Content Host -->
         <ContentControl x:Name="MainContentHost" Grid.Column="1" />
 
-        <!-- Global operation feedback. Individual pages retain their own
-             contextual status text; this confirms the latest user action. -->
-        <Border x:Name="NotificationHost" Grid.Column="1"
-                Panel.ZIndex="20"
-                Width="420"
-                Margin="0,18,0,0"
-                Padding="14,11"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Top"
-                Background="#EFF6FF"
-                BorderBrush="#93C5FD"
-                BorderThickness="1"
-                CornerRadius="6">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding Notifications.IsVisible}" Value="True">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Notifications.Kind}" Value="Warning">
-                            <Setter Property="Background" Value="#FFFBEB" />
-                            <Setter Property="BorderBrush" Value="#FCD34D" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Notifications.Kind}" Value="Error">
-                            <Setter Property="Background" Value="#FEF2F2" />
-                            <Setter Property="BorderBrush" Value="#FCA5A5" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0"
-                           Text="{Binding Notifications.KindLabel}"
-                           Margin="0,0,10,0"
-                           FontSize="12"
-                           FontWeight="SemiBold"
-                           Foreground="#1D4ED8"
-                           VerticalAlignment="Top" />
-                <TextBlock Grid.Column="1"
-                           Text="{Binding Notifications.Message}"
-                           FontSize="12.5"
-                           Foreground="#1E3A5F"
-                           TextWrapping="Wrap" />
-                <Button Grid.Column="2"
-                        Command="{Binding DismissNotificationCommand}"
-                        Margin="10,-3,-4,-3"
-                        Width="28"
-                        Height="28"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        ToolTip="关闭提示">
-                    <TextBlock Text="×" FontSize="18" Foreground="#475569" />
-                </Button>
-            </Grid>
-        </Border>
+        <!-- 全局操作通知。页面内状态文本仍用于解释当前上下文。 -->
+        <views:OperationNotificationHost x:Name="NotificationHost" Grid.Column="1" Panel.ZIndex="20" />
     </Grid>
 </Window>

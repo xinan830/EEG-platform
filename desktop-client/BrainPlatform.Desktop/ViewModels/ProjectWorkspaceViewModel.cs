@@ -31,6 +31,8 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
     private string createdTimeFilter = "全部时间";
     private DateTime? createdFrom;
     private DateTime? createdTo;
+    private int projectPageSize = 10;
+    private int projectCurrentPage = 1;
     private int recordingPageSize = 10;
     private int recordingCurrentPage = 1;
 
@@ -48,11 +50,39 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
 
     public ObservableCollection<ResearchProject> FilteredProjects { get; } = [];
 
+    /// <summary>Projects visible on the current list page. FilteredProjects remains the complete filtered result.</summary>
+    public ObservableCollection<ResearchProject> PagedProjects { get; } = [];
+
     public ObservableCollection<ProjectRecordingRow> Recordings { get; } = [];
 
     public ObservableCollection<ProjectRecordingRow> PagedRecordings { get; } = [];
 
     public IReadOnlyList<int> RecordingPageSizeOptions { get; } = [10, 20, 50];
+
+    public IReadOnlyList<int> ProjectPageSizeOptions { get; } = [10, 20, 50];
+
+    public int ProjectPageSize
+    {
+        get => projectPageSize;
+        set
+        {
+            var normalized = ProjectPageSizeOptions.Contains(value) ? value : 10;
+            if (SetProperty(ref projectPageSize, normalized))
+            {
+                projectCurrentPage = 1;
+                RaisePropertyChanged(nameof(ProjectCurrentPage));
+                ApplyProjectPage();
+            }
+        }
+    }
+
+    public int ProjectCurrentPage => projectCurrentPage;
+
+    public int ProjectTotalPages => Math.Max(1, (int)Math.Ceiling(FilteredProjects.Count / (double)ProjectPageSize));
+
+    public bool CanGoToPreviousProjectPage => ProjectCurrentPage > 1;
+
+    public bool CanGoToNextProjectPage => ProjectCurrentPage < ProjectTotalPages;
 
     public int RecordingPageSize
     {
@@ -315,6 +345,31 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
         ApplyRecordingPage();
     }
 
+    public void PreviousProjectPage()
+    {
+        if (!CanGoToPreviousProjectPage) return;
+        projectCurrentPage--;
+        RaisePropertyChanged(nameof(ProjectCurrentPage));
+        ApplyProjectPage();
+    }
+
+    public void NextProjectPage()
+    {
+        if (!CanGoToNextProjectPage) return;
+        projectCurrentPage++;
+        RaisePropertyChanged(nameof(ProjectCurrentPage));
+        ApplyProjectPage();
+    }
+
+    public void GoToProjectPage(int page)
+    {
+        var normalized = Math.Clamp(page, 1, ProjectTotalPages);
+        if (projectCurrentPage == normalized) return;
+        projectCurrentPage = normalized;
+        RaisePropertyChanged(nameof(ProjectCurrentPage));
+        ApplyProjectPage();
+    }
+
     private string CreateProjectNumber(DateTimeOffset now)
     {
         var prefix = $"P{now.ToLocalTime():yyyyMMdd}";
@@ -343,6 +398,30 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
         {
             FilteredProjects.Add(project);
         }
+
+        projectCurrentPage = 1;
+        RaisePropertyChanged(nameof(ProjectCurrentPage));
+        ApplyProjectPage();
+    }
+
+    private void ApplyProjectPage()
+    {
+        var validPage = Math.Clamp(projectCurrentPage, 1, ProjectTotalPages);
+        if (validPage != projectCurrentPage)
+        {
+            projectCurrentPage = validPage;
+            RaisePropertyChanged(nameof(ProjectCurrentPage));
+        }
+
+        PagedProjects.Clear();
+        foreach (var project in FilteredProjects.Skip((ProjectCurrentPage - 1) * ProjectPageSize).Take(ProjectPageSize))
+        {
+            PagedProjects.Add(project);
+        }
+
+        RaisePropertyChanged(nameof(ProjectTotalPages));
+        RaisePropertyChanged(nameof(CanGoToPreviousProjectPage));
+        RaisePropertyChanged(nameof(CanGoToNextProjectPage));
     }
 
     private void ApplyRecordingPage()

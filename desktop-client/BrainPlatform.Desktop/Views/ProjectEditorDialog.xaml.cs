@@ -29,6 +29,14 @@ public partial class ProjectEditorDialog : Window
         viewModel.Status,
         viewModel.Notes);
 
+    private void OnTitleAreaMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            DragMove();
+        }
+    }
+
     private void OnBrowseDirectoryClick(object sender, RoutedEventArgs e)
     {
         var dialog = new OpenFolderDialog

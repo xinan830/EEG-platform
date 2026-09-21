@@ -16,6 +16,9 @@ public partial class AcquisitionPreparationView : UserControl
     private void OnBackClick(object sender, RoutedEventArgs e) =>
         (Window.GetWindow(this) as MainWindow)?.ShowProjectDetailView();
 
+    private void OnViewProjectClick(object sender, RoutedEventArgs e) =>
+        (Window.GetWindow(this) as MainWindow)?.ShowProjectDetailView();
+
     private async void OnStartClick(object sender, RoutedEventArgs e)
     {
         if (startInProgress || DataContext is not DesktopWorkspaceViewModel workspace)

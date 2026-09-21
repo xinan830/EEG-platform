@@ -3,7 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:views="clr-namespace:BrainPlatform.Desktop.Views"
              mc:Ignorable="d"
+             views:SlimScrollBarBehavior.IsEnabled="True"
              Background="#F8FAFC">
 
     <UserControl.Resources>
@@ -178,32 +180,6 @@
                 </Setter>
             </Style>
 
-            <!-- 翻页导航按钮样式 -->
-            <Style x:Key="PaginationNavBtn" TargetType="Button">
-                <Setter Property="Background" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#E2E8F0" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="#64748B" />
-                <Setter Property="FontSize" Value="12" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
-                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#CBD5E1" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
             <!-- 列表表头文字样式 -->
             <Style x:Key="TableHeaderText" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="12.5" />
@@ -327,7 +303,7 @@
 
         <!-- 3. 数据表格容器 (响应式全宽拉伸自适应，表头与每一行使用完全一致的自适应列定义) -->
         <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
-            <ScrollViewer x:Name="TableScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer x:Name="TableScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Visible">
                 <Grid MinWidth="{Binding ViewportWidth, ElementName=TableScrollViewer}" HorizontalAlignment="Stretch" Grid.IsSharedSizeScope="True"
                       UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display">
                     <Grid.RowDefinitions>
@@ -359,7 +335,7 @@
                     <!-- 表格内容 (与表头完全一致的自适应列定义) -->
                     <ListBox Grid.Row="1" BorderThickness="0" Background="#FFFFFF"
                              ItemContainerStyle="{StaticResource ProjectRowStyle}"
-                             ItemsSource="{Binding Projects.FilteredProjects}"
+                             ItemsSource="{Binding Projects.PagedProjects}"
                              SelectedItem="{Binding Projects.SelectedProject, Mode=TwoWay}"
                              MouseDoubleClick="OnOpenProjectDetailClick"
                              HorizontalContentAlignment="Stretch"
@@ -498,27 +474,13 @@
             <!-- 右侧翻页器 -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <!-- 条数选择框 -->
-                <ComboBox Width="96" Height="32" Margin="0,0,12,0" Style="{StaticResource ModernFilterComboBox}" SelectedIndex="0">
-                    <ComboBoxItem Content="10 条/页" />
-                    <ComboBoxItem Content="20 条/页" />
-                    <ComboBoxItem Content="50 条/页" />
-                </ComboBox>
-
-                <!-- 上一页按钮 -->
-                <Button Width="32" Height="32" Margin="0,0,6,0" Content="&lt;" Style="{StaticResource PaginationNavBtn}" />
-
-                <!-- 当前页码高亮按钮 -->
-                <Border Width="32" Height="32" Background="#1677FF" CornerRadius="6" Margin="0,0,6,0">
-                    <TextBlock Text="1" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-
-                <!-- 第2页按钮 -->
-                <Border Width="32" Height="32" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Margin="0,0,6,0">
-                    <TextBlock Text="2" FontSize="13" Foreground="#64748B" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-
-                <!-- 下一页按钮 -->
-                <Button Width="32" Height="32" Content="&gt;" Style="{StaticResource PaginationNavBtn}" />
+                <ComboBox Margin="0,0,12,0" Style="{StaticResource PaginationPageSizeComboBoxStyle}"
+                          ItemsSource="{Binding Projects.ProjectPageSizeOptions}"
+                          SelectedItem="{Binding Projects.ProjectPageSize, Mode=TwoWay}"
+                          ItemStringFormat="{}{0} 条/页" />
+                <views:PaginationControl CurrentPage="{Binding Projects.ProjectCurrentPage}"
+                                         TotalPages="{Binding Projects.ProjectTotalPages}"
+                                         PageRequested="OnProjectPageRequested" />
             </StackPanel>
         </Grid>
     </Grid>

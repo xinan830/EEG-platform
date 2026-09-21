@@ -1,0 +1,117 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Shared list pagination, matched to the product list-page reference. -->
+    <Style x:Key="PaginationNavigationButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="40" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#D6E4F7" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="#64748B" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="#F8FAFC" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="#91B9F2" />
+                            <Setter Property="Foreground" Value="#1E40AF" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Border" Property="Background" Value="#EFF6FF" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="#60A5FA" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Border" Property="Background" Value="#F8FAFC" />
+                            <Setter TargetName="Border" Property="BorderBrush" Value="#E2E8F0" />
+                            <Setter Property="Opacity" Value="0.42" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PaginationPageButtonStyle" TargetType="Button" BasedOn="{StaticResource PaginationNavigationButtonStyle}">
+        <Setter Property="Foreground" Value="#172554" />
+        <Setter Property="FontSize" Value="15" />
+    </Style>
+
+    <Style x:Key="PaginationCurrentPageStyle" TargetType="Border">
+        <Setter Property="Width" Value="40" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Background" Value="#1677FF" />
+        <Setter Property="BorderBrush" Value="#1677FF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <Style x:Key="PaginationPageSizeComboBoxStyle" TargetType="ComboBox">
+        <Setter Property="Width" Value="120" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="#172554" />
+        <Setter Property="Background" Value="#FFFFFF" />
+        <Setter Property="BorderBrush" Value="#D6E4F7" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="14,0,34,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <Grid>
+                                <ContentPresenter Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                                  Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                                <Path Data="M 1,2 L 6,7 L 11,2" Width="11" Height="7" Stretch="Fill"
+                                      Stroke="#1E40AF" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0" />
+                            </Grid>
+                        </Border>
+                        <ToggleButton Background="Transparent" BorderThickness="0" Focusable="False" ClickMode="Press"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="Transparent" /></ControlTemplate></ToggleButton.Template>
+                        </ToggleButton>
+                        <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" PopupAnimation="Fade">
+                            <Border Background="#FFFFFF" BorderBrush="#D6E4F7" BorderThickness="1" CornerRadius="6" Margin="0,4,0,0"
+                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" Padding="4">
+                                <ScrollViewer><StackPanel IsItemsHost="True" /></ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="#91B9F2" /></Trigger>
+                        <Trigger Property="IsDropDownOpen" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="#1677FF" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ComboBoxItem">
+                    <Setter Property="Height" Value="34" />
+                    <Setter Property="Padding" Value="10,0" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#EFF6FF" /></Trigger>
+                        <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="#1677FF" /><Setter Property="FontWeight" Value="SemiBold" /></Trigger>
+                    </Style.Triggers>
+                </Style>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

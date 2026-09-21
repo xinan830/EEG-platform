@@ -3,6 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:BrainPlatform.Desktop">
     <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Views/PaginationStyles.xaml" />
+                <ResourceDictionary Source="Views/ScrollBarStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
         <SolidColorBrush x:Key="CanvasBrush" Color="#F4F7F8" />
         <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="InkBrush" Color="#17242A" />
@@ -16,5 +21,41 @@
             <Setter Property="Background" Value="White" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
+        <!-- Shared back-navigation icon button used by workspace list/detail pages. -->
+        <Style x:Key="BackNavigationIconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#F8FAFC" />
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#CBD5E1" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#F1F5F9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Border" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

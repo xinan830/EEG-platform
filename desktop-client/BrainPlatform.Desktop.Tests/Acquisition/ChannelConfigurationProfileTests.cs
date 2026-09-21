@@ -237,6 +237,27 @@ public sealed class ChannelConfigurationProfileTests
     }
 
     [Fact]
+    public void Draft_BulkDisplayCommands_UpdateAllEegRows()
+    {
+        var workspace = CreateWorkspace();
+        workspace.BeginNewProfile();
+        workspace.DraftDevice = CreateDefaultDevice();
+
+        var showAll = Assert.IsAssignableFrom<System.Windows.Input.ICommand>(workspace.ShowAllDraftChannelsCommand);
+        var hideAll = Assert.IsAssignableFrom<System.Windows.Input.ICommand>(workspace.HideAllDraftChannelsCommand);
+
+        Assert.True(hideAll.CanExecute(null));
+        hideAll.Execute(null);
+        Assert.Equal(0, workspace.DraftEnabledCount);
+        Assert.All(workspace.DraftRows.Where(row => row.IsEegInput), row => Assert.False(row.IsEnabled));
+        Assert.True(showAll.CanExecute(null));
+
+        showAll.Execute(null);
+        Assert.Equal(workspace.DraftEegInputCount, workspace.DraftEnabledCount);
+        Assert.All(workspace.DraftRows.Where(row => row.IsEegInput), row => Assert.True(row.IsEnabled));
+    }
+
+    [Fact]
     public async Task Draft_SavesOperatorRecordedHardwareReferenceAndGroundLocations()
     {
         var store = new ChannelConfigurationProfileStore(

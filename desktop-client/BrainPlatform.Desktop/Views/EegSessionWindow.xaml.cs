@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Views;
 
@@ -34,6 +35,10 @@ public partial class EegSessionWindow : Window
         InitializeComponent();
         Owner = owner;
         Title = title;
+        if (content is FrameworkElement frameworkElement)
+        {
+            DataContext = frameworkElement.DataContext;
+        }
         SessionContentHost.Content = content;
         Closed += (_, _) => this.closed?.Invoke();
     }
@@ -81,7 +86,16 @@ public partial class EegSessionWindow : Window
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this, exception.Message, "无法关闭会话", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (DataContext is DesktopWorkspaceViewModel workspace)
+            {
+                workspace.Notifications.PublishError($"无法关闭会话：{exception.Message}");
+            }
+            else
+            {
+                // This path is only a construction-time fallback, when the shared
+                // notification state is unavailable.
+                MessageBox.Show(this, exception.Message, "无法关闭会话", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
             IsEnabled = true;
             closeInProgress = false;
         }
