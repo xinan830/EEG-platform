@@ -44,6 +44,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     };
     private readonly List<TraceSeries> traceSeries = [];
     private string[] activeLabels = [];
+    private Thickness? lastLabelPlotMargin;
 
     public RecordingReviewSciChartCanvas()
     {
@@ -53,9 +54,6 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         // rather than leaving a wider review-only gutter before the waveform.
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        // Keep the final review montage label out of SciChart's dedicated
-        // bottom time-axis strip, matching the live display geometry.
-        labels.Margin = new Thickness(0, 0, 0, 34);
         Grid.SetColumn(labels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
@@ -72,6 +70,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         Content = layout;
         DataContextChanged += OnDataContextChanged;
         Unloaded += (_, _) => Unsubscribe();
+        surface.LayoutUpdated += (_, _) => SyncLabelPlotArea();
     }
 
     private void ConfigureSurface()
@@ -154,6 +153,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         UpdateVisibleRange(viewModel);
         xAxis.InvalidateElement();
         yAxis.VisibleRange = new DoubleRange(0, Math.Max(1, names.Length));
+        SyncLabelPlotArea();
         emptyMessage.Text = viewModel?.StatusText ?? "已加载";
         emptyMessage.Visibility = frame.Segments.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -211,7 +211,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         var baseline = traceCount - traceIndex - 0.5;
         var hasSegment = false;
         var pixelsPerMillimeter = VisualTreeHelper.GetDpi(surface).PixelsPerInchY / 25.4;
-        var plotHeight = Math.Max(1, surface.ActualHeight);
+        var plotHeight = GetPlotArea().Height;
         var sensitivity = (DataContext as RecordingReviewViewModel)?.SensitivityMicrovoltsPerMillimeter ?? 10;
         var displayScale = traceCount * pixelsPerMillimeter / (plotHeight * sensitivity);
         foreach (var segment in frame.Segments)
@@ -334,6 +334,43 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         {
             series.Data.Clear();
         }
+    }
+
+    private Rect GetPlotArea()
+    {
+        if (surface.GridLinesPanel is not FrameworkElement gridLines ||
+            gridLines.ActualWidth <= 0 ||
+            gridLines.ActualHeight <= 0)
+        {
+            return new Rect(0, 0, Math.Max(1, surface.ActualWidth), Math.Max(1, surface.ActualHeight));
+        }
+
+        var origin = gridLines.TranslatePoint(new Point(), surface);
+        return new Rect(origin.X, origin.Y, gridLines.ActualWidth, gridLines.ActualHeight);
+    }
+
+    private void SyncLabelPlotArea()
+    {
+        var plotArea = GetPlotArea();
+        if (surface.ActualHeight <= 0 || plotArea.Height <= 0)
+        {
+            return;
+        }
+
+        var margin = new Thickness(
+            0,
+            Math.Max(0, plotArea.Top),
+            0,
+            Math.Max(0, surface.ActualHeight - plotArea.Bottom));
+        if (lastLabelPlotMargin is { } previous &&
+            Math.Abs(previous.Top - margin.Top) < 0.1 &&
+            Math.Abs(previous.Bottom - margin.Bottom) < 0.1)
+        {
+            return;
+        }
+
+        lastLabelPlotMargin = margin;
+        labels.Margin = margin;
     }
 
     private sealed record TraceSeries(XyDataSeries<double, double> Data);

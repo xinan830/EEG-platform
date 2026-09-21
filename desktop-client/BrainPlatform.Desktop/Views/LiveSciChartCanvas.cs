@@ -67,6 +67,7 @@ public sealed class LiveSciChartCanvas : UserControl
     private long renderSequence;
     private double activeDisplayWindowSeconds;
     private int activeTraceCount;
+    private Thickness? lastLabelPlotMargin;
 
     public LiveSciChartCanvas()
     {
@@ -76,6 +77,7 @@ public sealed class LiveSciChartCanvas : UserControl
         Unloaded += OnUnloaded;
         DataContextChanged += (_, _) => RequestRefresh();
         SizeChanged += (_, _) => RequestRefresh();
+        surface.LayoutUpdated += (_, _) => SyncLabelPlotArea();
     }
 
     private void ConfigureSurface()
@@ -128,11 +130,6 @@ public sealed class LiveSciChartCanvas : UserControl
         var layout = new Grid();
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        // The SciChart surface reserves its lower strip for the one-second
-        // time axis. Labels must end above that strip, otherwise the final
-        // montage label shares a row with the time numbers.
-        channelLabels.Margin = new Thickness(0, 0, 0, 34);
 
         Grid.SetColumn(channelLabels, 0);
         Grid.SetColumn(surface, 1);
@@ -193,7 +190,7 @@ public sealed class LiveSciChartCanvas : UserControl
         var viewportWidthDips = Math.Max(1d, surface.ActualWidth);
         monitor.UpdateViewportWidth(viewportWidthDips);
         var horizontalPixels = Math.Clamp((int)Math.Round(viewportWidthDips), 1, MaximumRenderBuckets);
-        var plotHeight = Math.Max(1, surface.ActualHeight);
+        var plotHeight = GetPlotArea().Height;
         var displayWindowSeconds = monitor.GetDisplayWindowSeconds(viewportWidthDips);
         var revision = WaveformRenderRevision.Create(
             source,
@@ -245,6 +242,7 @@ public sealed class LiveSciChartCanvas : UserControl
         xAxis.InvalidateElement();
         activeDisplayWindowSeconds = windowSeconds;
         activeTraceCount = frame.Traces.Count;
+        SyncLabelPlotArea();
         var displayedCursorPosition = eraseBandAnimator.SetTarget(
             frame.PageStartElapsedSeconds,
             cursorPosition,
@@ -434,6 +432,43 @@ public sealed class LiveSciChartCanvas : UserControl
             Grid.SetRow(channelLabel, index);
             channelLabels.Children.Add(channelLabel);
         }
+    }
+
+    private Rect GetPlotArea()
+    {
+        if (surface.GridLinesPanel is not FrameworkElement gridLines ||
+            gridLines.ActualWidth <= 0 ||
+            gridLines.ActualHeight <= 0)
+        {
+            return new Rect(0, 0, Math.Max(1, surface.ActualWidth), Math.Max(1, surface.ActualHeight));
+        }
+
+        var origin = gridLines.TranslatePoint(new Point(), surface);
+        return new Rect(origin.X, origin.Y, gridLines.ActualWidth, gridLines.ActualHeight);
+    }
+
+    private void SyncLabelPlotArea()
+    {
+        var plotArea = GetPlotArea();
+        if (surface.ActualHeight <= 0 || plotArea.Height <= 0)
+        {
+            return;
+        }
+
+        var margin = new Thickness(
+            0,
+            Math.Max(0, plotArea.Top),
+            0,
+            Math.Max(0, surface.ActualHeight - plotArea.Bottom));
+        if (lastLabelPlotMargin is { } previous &&
+            Math.Abs(previous.Top - margin.Top) < 0.1 &&
+            Math.Abs(previous.Bottom - margin.Bottom) < 0.1)
+        {
+            return;
+        }
+
+        lastLabelPlotMargin = margin;
+        channelLabels.Margin = margin;
     }
 
     private sealed class TraceSeries(XyDataSeries<double, double> data)

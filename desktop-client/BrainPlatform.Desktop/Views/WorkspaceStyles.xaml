@@ -24,8 +24,8 @@
                             <ContentPresenter Content="{TemplateBinding Waveform}"
                                               DataContext="{TemplateBinding WaveformDataContext}" />
                         </Border>
-                        <Border x:Name="BottomBarBorder" Grid.Row="4" Margin="-16,0,-16,-14" Padding="12,3,12,4"
-                                MinHeight="40" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
+                        <Border x:Name="BottomBarBorder" Grid.Row="4" Margin="-16,0,-16,-14" Padding="8,1,8,2"
+                                MinHeight="32" Background="White" BorderBrush="#E2E8F0" BorderThickness="0,1,0,0">
                             <ContentPresenter Content="{TemplateBinding BottomBar}" />
                         </Border>
                         <ContentPresenter Grid.RowSpan="5" Panel.ZIndex="10" Content="{TemplateBinding Overlay}" />
@@ -37,6 +37,8 @@
                             <Setter TargetName="WaveformBorder" Property="BorderThickness" Value="0" />
                             <Setter TargetName="WaveformBorder" Property="CornerRadius" Value="0" />
                             <Setter TargetName="WaveformBorder" Property="Padding" Value="0" />
+                            <Setter TargetName="WaveBottomGap" Property="Height" Value="0" />
+                            <Setter TargetName="BottomBarBorder" Property="Margin" Value="0" />
                         </Trigger>
                         <Trigger Property="ShowBottomBar" Value="False">
                             <Setter TargetName="WaveBottomGap" Property="Height" Value="0" />
@@ -290,7 +292,9 @@
                     <Border Name="Border"
                             Background="{TemplateBinding Background}"
                             CornerRadius="6">
-                        <Path Data="M 9,9 L 17,17 M 17,9 L 9,17"
+                        <Path Name="ClosePath"
+                              Data="M 0,0 L 10,10 M 10,0 L 0,10"
+                              Width="10" Height="10" Stretch="None"
                               Stroke="#64748B"
                               StrokeThickness="1.7"
                               StrokeStartLineCap="Round"
@@ -301,9 +305,11 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Border" Property="Background" Value="#F1F5F9" />
+                            <Setter TargetName="ClosePath" Property="Stroke" Value="#334155" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Border" Property="Background" Value="#E2E8F0" />
+                            <Setter TargetName="ClosePath" Property="Stroke" Value="#0F172A" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

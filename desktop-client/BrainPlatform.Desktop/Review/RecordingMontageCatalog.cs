@@ -66,6 +66,7 @@ public static class RecordingMontageCatalog
         var compatible = new List<CompatibleRecordingMontage>();
         var incompatible = new List<IncompatibleRecordingMontage>();
         var acquisitionMontage = ReadAcquisitionMontage(manifest, out var acquisitionStatus);
+        var acquisitionMontageAdded = false;
         if (acquisitionMontage is not null)
         {
             var acquisitionError = GetCompatibilityError(acquisitionMontage, labelMap);
@@ -81,6 +82,19 @@ public static class RecordingMontageCatalog
                      .GroupBy(profile => profile.Id, StringComparer.Ordinal)
                      .Select(group => group.First()))
         {
+            // The current configuration can have the same identity as the
+            // recorded montage while differing in UI-only fields. The review
+            // selector must contain the exact recorded snapshot instance,
+            // otherwise its default SelectedItem has no matching list item.
+            if (acquisitionMontage is not null &&
+                string.Equals(profile.Id, acquisitionMontage.Id, StringComparison.Ordinal) &&
+                string.Equals(profile.Fingerprint, acquisitionMontage.Fingerprint, StringComparison.Ordinal))
+            {
+                compatible.Add(new CompatibleRecordingMontage(acquisitionMontage));
+                acquisitionMontageAdded = true;
+                continue;
+            }
+
             var error = GetCompatibilityError(profile, labelMap);
             if (error is null)
             {
@@ -92,8 +106,7 @@ public static class RecordingMontageCatalog
             }
         }
 
-        if (acquisitionMontage is not null &&
-            compatible.All(item => !string.Equals(item.Profile.Id, acquisitionMontage.Id, StringComparison.Ordinal)))
+        if (acquisitionMontage is not null && !acquisitionMontageAdded)
         {
             compatible.Insert(0, new CompatibleRecordingMontage(acquisitionMontage));
         }

@@ -27,6 +27,19 @@ public sealed class RecordingMontageCatalogTests
     }
 
     [Fact]
+    public void BuildUsesTheRecordedSnapshotInstanceWhenCurrentProfileHasTheSameIdentity()
+    {
+        var channelConfiguration = ChannelConfiguration("F3", "F4");
+        var acquisition = Profile("acquisition", "采集导联", channelConfiguration, MontageNegativeKind.OriginalHardwareReference);
+        var currentProfile = acquisition with { ChannelSnapshotStatusLabel = "可用" };
+        var result = RecordingMontageCatalog.Build(
+            Manifest(channelConfiguration, JsonSerializer.Serialize(acquisition)),
+            [currentProfile]);
+
+        Assert.Same(result.AcquisitionMontage, result.CompatibleViewingMontages.Single().Profile);
+    }
+
+    [Fact]
     public void BuildRejectsDuplicateSignalLabelsForMontageSources()
     {
         var channelConfiguration = ChannelConfiguration("F3", "M1", "M1");

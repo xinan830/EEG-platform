@@ -8,10 +8,25 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="WorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="ReviewPaperSpeedValueStyle" TargetType="ComboBox" BasedOn="{StaticResource ModernFilterComboBoxStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsPaperSpeedMode}" Value="False">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="ReviewTimebaseValueStyle" TargetType="ComboBox" BasedOn="{StaticResource ModernFilterComboBoxStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsTimebaseMode}" Value="False">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <views:EegWorkspaceShell WaveformDataContext="{Binding}">
+    <views:EegWorkspaceShell WaveformDataContext="{Binding}"
+                             IsImmersiveWaveform="True">
         <views:EegWorkspaceShell.TopBar>
             <DockPanel LastChildFill="False">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -68,7 +83,7 @@
                     <RadioButton Content="走纸速度" GroupName="ReviewHorizontalScale" Foreground="#334155" FontSize="12"
                                  VerticalAlignment="Center" Margin="10,0,5,0" IsChecked="{Binding IsPaperSpeedMode, Mode=TwoWay}"
                                  ToolTip="名义纸速输入；真实物理毫米需要工作站校准。" />
-                    <ComboBox Width="82" Style="{StaticResource ModernFilterComboBoxStyle}"
+                    <ComboBox Width="82" Style="{StaticResource ReviewPaperSpeedValueStyle}"
                               IsEnabled="{Binding IsPaperSpeedMode}" SelectedValuePath="Tag"
                               SelectedValue="{Binding PaperSpeedMillimetersPerSecond, Mode=TwoWay}">
                         <ComboBoxItem Content="5 mm/s" Tag="5" /><ComboBoxItem Content="10 mm/s" Tag="10" />
@@ -78,7 +93,7 @@
                     <RadioButton Content="时间基" GroupName="ReviewHorizontalScale" Foreground="#334155" FontSize="12"
                                  VerticalAlignment="Center" Margin="10,0,5,0" IsChecked="{Binding IsTimebaseMode, Mode=TwoWay}"
                                  ToolTip="秒/屏输入，直接控制当前回溯窗口长度。" />
-                    <ComboBox Width="74" Style="{StaticResource ModernFilterComboBoxStyle}"
+                    <ComboBox Width="74" Style="{StaticResource ReviewTimebaseValueStyle}"
                               IsEnabled="{Binding IsTimebaseMode}" SelectedValuePath="Tag"
                               SelectedValue="{Binding TimebaseSecondsPerScreen, Mode=TwoWay}">
                         <ComboBoxItem Content="5 s/屏" Tag="5" /><ComboBoxItem Content="10 s/屏" Tag="10" />
@@ -160,7 +175,7 @@
                     VisibleDurationSeconds="{Binding VisibleDurationSeconds, Mode=OneWay}"
                     PreviewPositionChanged="OnTimelinePreviewPositionChanged"
                     PositionCommitted="OnTimelinePositionCommitted"
-                    ToolTip="拖动灰色窗口浏览整段记录。事件标记将在记录支持事件后显示。" />
+                    ToolTip="点击白色空白轨道跳转；拖动灰色窗口浏览整段记录。蓝线仅显示位置。" />
             </Grid>
         </views:EegWorkspaceShell.BottomBar>
     </views:EegWorkspaceShell>

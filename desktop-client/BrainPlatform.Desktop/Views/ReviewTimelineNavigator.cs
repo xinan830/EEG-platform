@@ -24,7 +24,11 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
             new FrameworkPropertyMetadata(1d, FrameworkPropertyMetadataOptions.AffectsRender));
 
     private const double DragPagesPerSecond = 2d;
+    private const double DragStartThresholdDips = 3d;
+    private const double ThumbHeight = 14d;
     private bool dragging;
+    private bool hasDragged;
+    private Point pointerDownPoint;
     private double dragOffset;
     private double thumbGrabRatio;
     private double lastAcceptedPosition;
@@ -61,6 +65,11 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
             return;
         }
 
+        // A transparent drawing makes the entire white track hit-testable.
+        // Without it, WPF only routes mouse events over the painted thumb and
+        // blue line, so clicks in the visible white space never reach us.
+        drawingContext.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, width, height));
+
         var trackY = Math.Max(1, height - 3);
         var linePen = new Pen(new SolidColorBrush(Color.FromRgb(37, 99, 235)), 2);
         drawingContext.DrawLine(linePen, new Point(0, trackY), new Point(width, trackY));
@@ -84,14 +93,21 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         var thumb = GetThumbRect();
         if (!thumb.Contains(point))
         {
-            // Do not move the visible thumb here. The receiver first prepares
-            // the target frame, then its binding commits the new viewport.
-            PositionCommitted?.Invoke(this, GetPositionForTrackX(point.X));
+            if (!IsBlueTrackHit(point))
+            {
+                // The unoccupied white track is the deliberate jump target.
+                // The receiver prepares the complete frame before it moves
+                // the visible viewport binding.
+                PositionCommitted?.Invoke(this, GetPositionForTrackX(point.X));
+            }
+
             e.Handled = true;
             return;
         }
 
         dragging = true;
+        hasDragged = false;
+        pointerDownPoint = point;
         dragOffset = point.X - thumb.X;
         thumbGrabRatio = thumb.Width <= 0 ? 0.5 : Math.Clamp(dragOffset / thumb.Width, 0, 1);
         lastAcceptedPosition = GetPlayheadPosition(ViewportStartSeconds);
@@ -108,7 +124,14 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
             return;
         }
 
-        var requestedPosition = GetPositionForThumbX(e.GetPosition(this).X - dragOffset);
+        var point = e.GetPosition(this);
+        if (!hasDragged && Math.Abs(point.X - pointerDownPoint.X) < DragStartThresholdDips)
+        {
+            return;
+        }
+
+        hasDragged = true;
+        var requestedPosition = GetPositionForThumbX(point.X - dragOffset);
         var now = DateTime.UtcNow;
         var elapsedSeconds = Math.Max(0, (now - lastDragTimeUtc).TotalSeconds);
         var visible = GetVisibleDuration();
@@ -143,8 +166,8 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
 
         dragging = false;
         ReleaseMouseCapture();
-        // The accepted drag updates have already started the newest loader;
-        // emitting an unbounded final jump would reintroduce stale waveforms.
+        // A real drag has already started the newest bounded loader. Clicking
+        // the thumb itself intentionally leaves the viewport in place.
         e.Handled = true;
     }
 
@@ -156,7 +179,8 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         var maxStart = Math.Max(0, duration - visible);
         var start = Math.Clamp(ViewportStartSeconds, 0, maxStart);
         var x = maxStart <= 0 ? 0 : (ActualWidth - width) * start / maxStart;
-        return new Rect(x, 0, width, Math.Max(20, ActualHeight - 5));
+        var y = Math.Max(0, (ActualHeight - ThumbHeight) / 2d);
+        return new Rect(x, y, width, Math.Min(ThumbHeight, ActualHeight));
     }
 
     private double GetPositionForThumbX(double thumbX)
@@ -178,6 +202,12 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         var fraction = ActualWidth <= 0 ? 0 : Math.Clamp(trackX / ActualWidth, 0, 1);
         return GetPlayheadPosition(fraction * maxStart);
     }
+
+    // The blue indicator is rendered at height - 3 with a 2px pen. Keep its
+    // hit area equally narrow so the surrounding white track remains a large,
+    // reliable jump target.
+    private bool IsBlueTrackHit(Point point) =>
+        Math.Abs(point.Y - Math.Max(1, ActualHeight - 3)) <= 1d;
 
     private double GetPlayheadPosition(double viewportStart) => Math.Min(
         Math.Max(0, DurationSeconds),
