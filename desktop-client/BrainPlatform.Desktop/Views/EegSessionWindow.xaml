@@ -1,0 +1,7 @@
+<Window x:Class="BrainPlatform.Desktop.Views.EegSessionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="EEG 会话" WindowStyle="SingleBorderWindow" ResizeMode="CanResize" WindowState="Maximized"
+        Background="#F3F5F8" Closing="OnClosing">
+    <ContentPresenter x:Name="SessionContentHost" />
+</Window>

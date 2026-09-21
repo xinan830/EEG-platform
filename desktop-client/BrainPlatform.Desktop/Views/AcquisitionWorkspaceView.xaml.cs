@@ -18,12 +18,12 @@ public partial class AcquisitionWorkspaceView : UserControl
             return;
         }
 
-        var window = Window.GetWindow(this) as MainWindow;
+        var sessionWindow = Window.GetWindow(this) as EegSessionWindow;
         try
         {
             await workspace.Acquisition.FinishAcquisitionAsync();
             workspace.Projects.RefreshRecordings();
-            window?.ShowProjectDetailView();
+            sessionWindow?.CloseCompletedSession();
         }
         catch (Exception exception)
         {

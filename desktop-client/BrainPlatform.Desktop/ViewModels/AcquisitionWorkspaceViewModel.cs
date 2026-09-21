@@ -42,6 +42,10 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     private ResearchProject? selectedProject;
     private string acquisitionStatusText = "尚未连接放大器。";
     private string operationMessage = "打开“放大器设置”，选择 SDK 文件后测试连接。";
+    private double? automaticReferenceRangeVolts;
+    private double? automaticBipolarRangeVolts;
+    private bool isEditingInputRanges;
+    private bool isManualInputRangeSelection;
     private bool disposed;
 
     public AcquisitionWorkspaceViewModel(
@@ -99,6 +103,37 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         ResumeRecordingCommand = new AsyncRelayCommand(ResumeRecordingCoreAsync, ReportCommandError);
         RefreshRecordingsCommand = new AsyncRelayCommand(RefreshRecordingsAsync, ReportCommandError);
         SaveChannelMappingCommand = new AsyncRelayCommand(SaveChannelMappingAsync, ReportCommandError);
+        BeginInputRangeEditCommand = new AsyncRelayCommand(() =>
+        {
+            if (CanEditInputRanges)
+            {
+                IsEditingInputRanges = true;
+            }
+            return Task.CompletedTask;
+        }, ReportCommandError);
+        CancelInputRangeEditCommand = new AsyncRelayCommand(() =>
+        {
+            SelectedReferenceRangeVolts = automaticReferenceRangeVolts;
+            SelectedBipolarRangeVolts = automaticBipolarRangeVolts;
+            IsEditingInputRanges = false;
+            isManualInputRangeSelection = false;
+            RaiseInputRangePropertiesChanged();
+            return Task.CompletedTask;
+        }, ReportCommandError);
+        ConfirmInputRangeEditCommand = new AsyncRelayCommand(() =>
+        {
+            if (SelectedReferenceRangeVolts is not { } referenceRange ||
+                SelectedBipolarRangeVolts is not { } bipolarRange ||
+                !AntEegoRangePair.IsCompatible(referenceRange, bipolarRange))
+            {
+                throw new InvalidOperationException("请选择一组设备支持且彼此兼容的输入量程。");
+            }
+
+            isManualInputRangeSelection = true;
+            IsEditingInputRanges = false;
+            RaiseInputRangePropertiesChanged();
+            return Task.CompletedTask;
+        }, ReportCommandError);
         if (!string.IsNullOrWhiteSpace(sdkLibraryPath))
         {
             _ = InitializeDeviceAsync();
@@ -141,6 +176,12 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
 
     public ICommand SaveChannelMappingCommand { get; }
 
+    public ICommand BeginInputRangeEditCommand { get; }
+
+    public ICommand CancelInputRangeEditCommand { get; }
+
+    public ICommand ConfirmInputRangeEditCommand { get; }
+
     public string SdkLibraryPath
     {
         get => sdkLibraryPath;
@@ -178,6 +219,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         {
             if (SetProperty(ref selectedMontageProfile, value))
             {
+                RaisePropertyChanged(nameof(SelectedMontageChannelConfigurationName));
+                RaisePropertyChanged(nameof(SelectedMontageOutputChannelCount));
                 RaiseCommandAvailabilityChanged();
             }
         }
@@ -223,6 +266,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             if (SetProperty(ref selectedReferenceRangeVolts, value))
             {
                 RefreshBipolarRangeChoices();
+                RaiseInputRangePropertiesChanged();
                 RaiseCommandAvailabilityChanged();
             }
         }
@@ -235,6 +279,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         {
             if (SetProperty(ref selectedBipolarRangeVolts, value))
             {
+                RaiseInputRangePropertiesChanged();
                 RaiseCommandAvailabilityChanged();
             }
         }
@@ -244,6 +289,58 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     {
         get => deviceSession.Readiness;
     }
+
+    public bool IsEditingInputRanges
+    {
+        get => isEditingInputRanges;
+        private set
+        {
+            if (SetProperty(ref isEditingInputRanges, value))
+            {
+                RaiseInputRangePropertiesChanged();
+            }
+        }
+    }
+
+    public bool CanEditInputRanges =>
+        deviceSession.IsReadyForSetup && runtime.State.State is not AcquisitionState.Starting and not AcquisitionState.Previewing and
+        not AcquisitionState.Recording and not AcquisitionState.Paused and not AcquisitionState.Stopping &&
+        ReferenceRangesVolts.Count > 0 && BipolarRangesVolts.Count > 0;
+
+    public string InputRangeSelectionModeText => isManualInputRangeSelection ? "手动设置" : "自动选择";
+
+    public string ReferenceInputRangeText => FormatInputRange(SelectedReferenceRangeVolts);
+
+    public string BipolarInputRangeText => FormatInputRange(SelectedBipolarRangeVolts);
+
+    public string SupportedSamplingRatesText => SamplingRatesHz.Count == 0
+        ? "设备连接后读取"
+        : string.Join("、", SamplingRatesHz) + " Hz";
+
+    public int ReferenceInputCount => CountInputChannels(AcquisitionChannelKind.Reference);
+
+    public int BipolarInputCount => CountInputChannels(AcquisitionChannelKind.Bipolar);
+
+    public string OtherInputCapabilitiesText
+    {
+        get
+        {
+            var capabilities = SelectedDevice?.ChannelCapabilities;
+            if (capabilities is not { Count: > 0 }) return "设备连接后读取";
+
+            var groups = capabilities
+                .Where(capability => capability.Kind is not AcquisitionChannelKind.Reference and not AcquisitionChannelKind.Bipolar and not AcquisitionChannelKind.Unknown)
+                .GroupBy(capability => capability.Kind)
+                .OrderBy(group => group.Key)
+                .Select(group => $"{DescribeInputKind(group.Key)} {group.Count()} 路")
+                .ToArray();
+            return groups.Length == 0 ? "无其他输入" : string.Join("、", groups);
+        }
+    }
+
+    public string SelectedMontageChannelConfigurationName => SelectedMontageProfile?.ChannelConfigurationName ?? "未选择";
+
+    public int SelectedMontageOutputChannelCount => SelectedMontageProfile?.ChannelCount ?? 0;
 
     public string AcquisitionStatusText
     {
@@ -551,6 +648,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
                 ApplySelectedDevice(deviceSession.SelectedDevice);
                 RaisePropertyChanged(nameof(SelectedDevice));
                 RaisePropertyChanged(nameof(DeviceState));
+                RaiseDeviceCapabilityPropertiesChanged();
                 AcquisitionStatusText = deviceSession.Snapshot.Detail;
             }
 
@@ -568,9 +666,15 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             ? savedSamplingRate
             : SamplingRatesHz.Count == 1 ? SamplingRatesHz[0] : null;
         RestoreOrChooseRangePair();
+        automaticReferenceRangeVolts = selectedReferenceRangeVolts;
+        automaticBipolarRangeVolts = selectedBipolarRangeVolts;
+        isManualInputRangeSelection = false;
+        isEditingInputRanges = false;
         RaisePropertyChanged(nameof(SelectedSamplingRateHz));
         RaisePropertyChanged(nameof(SelectedReferenceRangeVolts));
         RaisePropertyChanged(nameof(SelectedBipolarRangeVolts));
+        RaiseDeviceCapabilityPropertiesChanged();
+        RaiseInputRangePropertiesChanged();
         try
         {
             channelMapping.LoadDevice(device);
@@ -644,10 +748,16 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         ReferenceRangesVolts.Clear();
         BipolarRangesVolts.Clear();
         availableBipolarRanges = [];
+        automaticReferenceRangeVolts = null;
+        automaticBipolarRangeVolts = null;
+        isManualInputRangeSelection = false;
+        isEditingInputRanges = false;
         Channels.Clear();
         deviceSession.Invalidate("SDK 文件已修改，请重新测试放大器连接。");
         OperationMessage = "SDK 文件已修改，请重新测试放大器连接。";
         RaiseCommandAvailabilityChanged();
+        RaiseDeviceCapabilityPropertiesChanged();
+        RaiseInputRangePropertiesChanged();
     }
 
     private AcquisitionConnectionSettings LoadSettings()
@@ -720,6 +830,49 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         RaisePropertyChanged(nameof(CanStop));
         RaisePropertyChanged(nameof(CanPause));
         RaisePropertyChanged(nameof(CanResume));
+        RaisePropertyChanged(nameof(CanEditInputRanges));
         DisplayPreferences.RefreshAvailability();
+    }
+
+    private int CountInputChannels(AcquisitionChannelKind kind) =>
+        SelectedDevice?.ChannelCapabilities?.Count(capability => capability.Kind == kind) ?? 0;
+
+    private static string DescribeInputKind(AcquisitionChannelKind kind) => kind switch
+    {
+        AcquisitionChannelKind.Trigger => "Trigger",
+        AcquisitionChannelKind.ImpedanceReference => "阻抗参考",
+        AcquisitionChannelKind.ImpedanceGround => "阻抗接地",
+        AcquisitionChannelKind.SampleCounter => "采样计数",
+        AcquisitionChannelKind.Accelerometer => "加速度",
+        AcquisitionChannelKind.Gyroscope => "陀螺仪",
+        AcquisitionChannelKind.Magnetometer => "磁力计",
+        _ => kind.ToString(),
+    };
+
+    private static string FormatInputRange(double? volts)
+    {
+        if (volts is not { } value || value <= 0) return "未读取";
+        var microvolts = value * 1_000_000d;
+        return microvolts < 1_000_000d
+            ? $"±{microvolts:g} µV"
+            : $"±{value:g} V";
+    }
+
+    private void RaiseInputRangePropertiesChanged()
+    {
+        RaisePropertyChanged(nameof(IsEditingInputRanges));
+        RaisePropertyChanged(nameof(InputRangeSelectionModeText));
+        RaisePropertyChanged(nameof(ReferenceInputRangeText));
+        RaisePropertyChanged(nameof(BipolarInputRangeText));
+        RaisePropertyChanged(nameof(CanEditInputRanges));
+    }
+
+    private void RaiseDeviceCapabilityPropertiesChanged()
+    {
+        RaisePropertyChanged(nameof(SupportedSamplingRatesText));
+        RaisePropertyChanged(nameof(ReferenceInputCount));
+        RaisePropertyChanged(nameof(BipolarInputCount));
+        RaisePropertyChanged(nameof(OtherInputCapabilitiesText));
+        RaisePropertyChanged(nameof(CanEditInputRanges));
     }
 }

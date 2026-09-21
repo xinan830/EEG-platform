@@ -11,7 +11,6 @@ namespace BrainPlatform.Desktop;
 
 public partial class MainWindow : Window
 {
-    private AcquisitionWorkspaceView? acquisitionView;
     private AcquisitionPreparationView? acquisitionPreparationView;
     private DeviceOverviewView? overviewView;
     private ProjectListView? projectListView;
@@ -21,9 +20,10 @@ public partial class MainWindow : Window
     private ChannelDetailView? channelDetailView;
     private MontageListView? montageListView;
     private MontageDetailView? montageDetailView;
-    private RecordingReviewView? recordingReviewView;
     private RecordingReviewViewModel? recordingReviewViewModel;
     private LocalRawRecording? recordingReviewRecording;
+    private EegSessionWindow? acquisitionSessionWindow;
+    private EegSessionWindow? reviewSessionWindow;
     private readonly IRecordingReviewFilter? recordingReviewFilter;
 
     public MainWindow(IRecordingReviewFilter? recordingReviewFilter = null)
@@ -32,7 +32,6 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         // Initialize view instances immediately for instant UI display
-        acquisitionView = new AcquisitionWorkspaceView();
         projectListView = new ProjectListView();
         projectDetailView = new ProjectDetailView();
         settingsView = new SettingsView();
@@ -40,8 +39,6 @@ public partial class MainWindow : Window
         channelDetailView = new ChannelDetailView();
         montageListView = new MontageListView();
         montageDetailView = new MontageDetailView();
-        recordingReviewView = new RecordingReviewView();
-
         overviewView = new DeviceOverviewView();
         MainContentHost.Content = overviewView;
     }
@@ -110,10 +107,37 @@ public partial class MainWindow : Window
 
     public void ShowAcquisitionView()
     {
-        SetImmersiveChrome(true);
-        acquisitionView ??= new AcquisitionWorkspaceView();
-        MainContentHost.Content = acquisitionView;
-        SelectNavigation(NavProjectsBtn);
+        if (acquisitionSessionWindow is { IsLoaded: true })
+        {
+            acquisitionSessionWindow.Activate();
+            return;
+        }
+
+        if (DataContext is not DesktopWorkspaceViewModel workspace)
+        {
+            return;
+        }
+
+        var view = new AcquisitionWorkspaceView { DataContext = workspace };
+        acquisitionSessionWindow = new EegSessionWindow(
+            this,
+            "实时采集",
+            view,
+            SessionCloseRequest.Acquisition,
+            async () =>
+            {
+                if (workspace.Acquisition.CanStop)
+                {
+                    await workspace.Acquisition.FinishAcquisitionAsync();
+                }
+            },
+            () =>
+            {
+                acquisitionSessionWindow = null;
+                workspace.Projects.RefreshRecordings();
+                ShowProjectDetailView();
+            });
+        acquisitionSessionWindow.Show();
     }
 
     public void ShowAcquisitionPreparationView()
@@ -126,7 +150,6 @@ public partial class MainWindow : Window
 
     public void ShowProjectListView()
     {
-        DisposeRecordingReview();
         SetImmersiveChrome(false);
         projectListView ??= new ProjectListView();
         if (DataContext is DesktopWorkspaceViewModel viewModel)
@@ -139,7 +162,6 @@ public partial class MainWindow : Window
 
     public void ShowProjectDetailView()
     {
-        DisposeRecordingReview();
         SetImmersiveChrome(false);
         projectDetailView ??= new ProjectDetailView();
         if (DataContext is DesktopWorkspaceViewModel viewModel)
@@ -162,7 +184,16 @@ public partial class MainWindow : Window
         IEnumerable<MontageProfile> profiles)
     {
         ArgumentNullException.ThrowIfNull(recording);
-        DisposeRecordingReview();
+        if (reviewSessionWindow is { IsLoaded: true })
+        {
+            reviewSessionWindow.Activate();
+            if (DataContext is DesktopWorkspaceViewModel activeWorkspace)
+            {
+                activeWorkspace.Notifications.PublishWarning("已有一个数据回溯窗口，请先关闭后再打开另一条记录。");
+            }
+            return;
+        }
+
         var loadedRecording = await LocalRawRecordingReader.OpenAsync(
             recording.RecordingDirectory,
             CancellationToken.None);
@@ -186,10 +217,19 @@ public partial class MainWindow : Window
 
         recordingReviewRecording = loadedRecording;
         recordingReviewViewModel = viewModel;
-        recordingReviewView ??= new RecordingReviewView();
-        recordingReviewView.DataContext = viewModel;
-        SetImmersiveChrome(true);
-        MainContentHost.Content = recordingReviewView;
+        var view = new RecordingReviewView { DataContext = viewModel };
+        reviewSessionWindow = new EegSessionWindow(
+            this,
+            "数据回溯",
+            view,
+            SessionCloseRequest.Review,
+            DisposeRecordingReviewAsync,
+            () =>
+            {
+                reviewSessionWindow = null;
+                ShowProjectDetailView();
+            });
+        reviewSessionWindow.Show();
     }
 
     private async void OnWindowLoaded(object sender, RoutedEventArgs e)
@@ -253,15 +293,18 @@ public partial class MainWindow : Window
         Grid.SetColumnSpan(NotificationHost, immersive ? 2 : 1);
     }
 
-    private void DisposeRecordingReview()
+    private async Task DisposeRecordingReviewAsync()
     {
-        recordingReviewViewModel?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        recordingReviewViewModel = null;
-        recordingReviewRecording?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        recordingReviewRecording = null;
-        if (recordingReviewView is not null)
+        if (recordingReviewViewModel is { } viewModel)
         {
-            recordingReviewView.DataContext = null;
+            recordingReviewViewModel = null;
+            await viewModel.DisposeAsync();
+        }
+
+        if (recordingReviewRecording is { } loadedRecording)
+        {
+            recordingReviewRecording = null;
+            await loadedRecording.DisposeAsync();
         }
     }
 }
