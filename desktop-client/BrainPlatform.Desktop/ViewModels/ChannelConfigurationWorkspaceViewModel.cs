@@ -22,6 +22,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     private string draftReferenceElectrodeLocation = "REF";
     private string draftGroundElectrodeLocation = "GND";
     private AcquisitionDeviceDescriptor? draftDevice;
+    private AcquisitionDeviceDescriptor? pendingDeviceSelection;
     private ChannelConfigurationProfile? draftSourceProfile;
     private string? draftProfileId;
     private DateTimeOffset? draftCreatedAtUtc;
@@ -29,6 +30,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     private bool isReadOnlyDraft;
     private bool isSignalLockedDraft;
     private bool isCreatingVersion;
+    private bool isDevicePickerVisible;
     private string searchText = string.Empty;
     private string deviceModelFilter = "全部型号";
     private string sourceFilter = "全部来源";
@@ -52,6 +54,9 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, ReportCommandError);
         SaveDraftCommand = new AsyncRelayCommand(SaveDraftAsync, ReportCommandError);
         CloseDraftCommand = new AsyncRelayCommand(() => { CloseDraft(); return Task.CompletedTask; }, ReportCommandError);
+        ConfirmDeviceSelectionCommand = new AsyncRelayCommand(
+            () => { ConfirmPendingDeviceSelection(); return Task.CompletedTask; },
+            ReportCommandError);
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, ReportCommandError);
         PreviousPageCommand = new RelayCommand(() => CurrentPage--, () => CanPreviousPage);
         NextPageCommand = new RelayCommand(() => CurrentPage++, () => CanNextPage);
@@ -140,6 +145,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 
     public ICommand CloseDraftCommand { get; }
 
+    public ICommand ConfirmDeviceSelectionCommand { get; }
+
     public ICommand DeleteSelectedCommand { get; }
 
     public ICommand PreviousPageCommand { get; }
@@ -218,11 +225,11 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         {
             if (SetProperty(ref draftDevice, value))
             {
-                RaisePropertyChanged(nameof(IsDevicePickerVisible));
                 RaisePropertyChanged(nameof(DraftDeviceVendor));
                 RaisePropertyChanged(nameof(DraftDeviceModel));
                 if (value is not null)
                 {
+                    SetDevicePickerVisible(false);
                     if (deviceSession is not null &&
                         !string.Equals(deviceSession.SelectedDevice?.DeviceId, value.DeviceId, StringComparison.Ordinal))
                     {
@@ -234,6 +241,24 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// The device highlighted in the picker. It deliberately does not change
+    /// the configuration draft until the operator confirms the selection.
+    /// </summary>
+    public AcquisitionDeviceDescriptor? PendingDeviceSelection
+    {
+        get => pendingDeviceSelection;
+        set
+        {
+            if (SetProperty(ref pendingDeviceSelection, value))
+            {
+                RaisePropertyChanged(nameof(HasPendingDeviceSelection));
+            }
+        }
+    }
+
+    public bool HasPendingDeviceSelection => PendingDeviceSelection is not null;
+
     public bool IsDraftOpen
     {
         get => isDraftOpen;
@@ -241,14 +266,13 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         {
             if (SetProperty(ref isDraftOpen, value))
             {
-                RaisePropertyChanged(nameof(IsDevicePickerVisible));
                 RaisePropertyChanged(nameof(CanEditDraft));
                 RaisePropertyChanged(nameof(DraftTitle));
             }
         }
     }
 
-    public bool IsDevicePickerVisible => IsDraftOpen && CanEditSignalDraft && DraftDevice is null;
+    public bool IsDevicePickerVisible => isDevicePickerVisible;
 
     public bool CanEditDraft => IsDraftOpen && !isReadOnlyDraft;
 
@@ -310,6 +334,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         DraftDevice = null;
         DraftRows.Clear();
         IsDraftOpen = true;
+        PendingDeviceSelection = null;
+        SetDevicePickerVisible(true);
         StatusText = "请选择设备；软件会读取实际物理输入并在设备布局匹配时套用默认电极模板。";
         RaiseDraftModePropertiesChanged();
     }
@@ -408,6 +434,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 
     public void CloseDraft()
     {
+        SetDevicePickerVisible(false);
+        PendingDeviceSelection = null;
         IsDraftOpen = false;
         DraftDevice = null;
         DraftRows.Clear();
@@ -650,8 +678,49 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             Model: mapping.CurrentDeviceModel,
             DriverId: mapping.CurrentDeviceDriverId);
         SetProperty(ref draftDevice, snapshot);
-        RaisePropertyChanged(nameof(IsDevicePickerVisible));
         BuildDraftRows(snapshot, profile);
+    }
+
+    public void ConfirmPendingDeviceSelection()
+    {
+        if (!CanEditSignalDraft)
+        {
+            throw new InvalidOperationException("当前通道配置不允许修改设备输入。");
+        }
+
+        var selected = PendingDeviceSelection
+            ?? throw new InvalidOperationException("请选择一个已检测到的设备后再确认。");
+
+        // The published discovery list is the device-state source of truth.
+        // Do not build a configuration from a descriptor for hardware that has
+        // already disappeared since the dialog was opened.
+        if (deviceSession is not null &&
+            !deviceSession.Devices.Any(device => string.Equals(device.DeviceId, selected.DeviceId, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("所选设备已不在当前检测列表中，请重新检测后选择。");
+        }
+
+        DraftDevice = selected;
+        PendingDeviceSelection = null;
+        StatusText = $"已读取设备“{selected.DisplayName}”的物理输入，并生成通道映射草稿。";
+        notifications?.PublishSuccess(StatusText);
+    }
+
+    public void CancelDeviceSelection()
+    {
+        PendingDeviceSelection = null;
+        SetDevicePickerVisible(false);
+    }
+
+    private void SetDevicePickerVisible(bool value)
+    {
+        if (isDevicePickerVisible == value)
+        {
+            return;
+        }
+
+        isDevicePickerVisible = value;
+        RaisePropertyChanged(nameof(IsDevicePickerVisible));
     }
 
     public async Task SaveDraftAsync()
@@ -763,7 +832,6 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 
     private void RaiseDraftModePropertiesChanged()
     {
-        RaisePropertyChanged(nameof(IsDevicePickerVisible));
         RaisePropertyChanged(nameof(CanEditDraft));
         RaisePropertyChanged(nameof(CanEditSignalDraft));
         RaisePropertyChanged(nameof(IsSignalLockedDraft));

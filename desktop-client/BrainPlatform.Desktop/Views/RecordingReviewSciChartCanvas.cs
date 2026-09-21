@@ -84,6 +84,9 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         xAxis.LabelProvider = recordingTimeLabels;
         yAxis.AutoRange = AutoRange.Never;
         yAxis.VisibleRange = new DoubleRange(0, 1);
+        // Keep the invisible Y-axis layout area away from the channel-label
+        // column so review uses the same compact waveform start as live view.
+        yAxis.AxisAlignment = AxisAlignment.Right;
         yAxis.DrawLabels = false;
         yAxis.DrawMajorBands = false;
         yAxis.DrawMinorGridLines = false;

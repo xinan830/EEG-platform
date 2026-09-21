@@ -56,9 +56,40 @@ public partial class ChannelListView : UserControl
 
     private void OnNewChannelConfigurationClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
         {
-            mainWindow.ShowChannelDetailView(newProfile: true);
+            // Device selection belongs to the creation entry point. The editor
+            // is opened only after an actual device has been confirmed.
+            viewModel.ChannelConfigurations.BeginNewProfile();
+        }
+    }
+
+    private void OnConfirmNewChannelDeviceClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel viewModel)
+        {
+            return;
+        }
+
+        try
+        {
+            viewModel.ChannelConfigurations.ConfirmPendingDeviceSelection();
+            if (Window.GetWindow(this) is MainWindow mainWindow)
+            {
+                mainWindow.ShowChannelDetailView(preserveDraft: true);
+            }
+        }
+        catch (Exception exception)
+        {
+            viewModel.Notifications.PublishError(exception.Message);
+        }
+    }
+
+    private void OnCancelNewChannelDeviceClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            viewModel.ChannelConfigurations.CloseDraft();
         }
     }
 
@@ -111,6 +142,32 @@ public partial class ChannelDetailView : UserControl
         if (Window.GetWindow(this) is MainWindow mainWindow)
         {
             mainWindow.ShowChannelListView();
+        }
+    }
+
+    private void OnCancelDeviceSelectionClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            // Cancelling the picker must not discard the channel-configuration
+            // draft or navigate away from its editor.
+            viewModel.ChannelConfigurations.CancelDeviceSelection();
+        }
+    }
+
+    private void OnCancelDevicePickerClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            viewModel.ChannelConfigurations.CancelDeviceSelection();
+
+            // Device selection is the mandatory first step of a new mapping.
+            // Cancelling before a device is confirmed abandons that empty draft.
+            if (viewModel.ChannelConfigurations.DraftDevice is null &&
+                Window.GetWindow(this) is MainWindow mainWindow)
+            {
+                mainWindow.ShowChannelListView();
+            }
         }
     }
 

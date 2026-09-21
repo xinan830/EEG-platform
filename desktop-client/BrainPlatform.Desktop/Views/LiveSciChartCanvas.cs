@@ -105,6 +105,11 @@ public sealed class LiveSciChartCanvas : UserControl
 
         yAxis.AutoRange = AutoRange.Never;
         yAxis.VisibleRange = new DoubleRange(0, 1);
+        // The Y axis has no labels or ticks in the EEG stacked-trace view.
+        // Keeping its layout slot at the left creates a visible blank gutter
+        // between montage labels and the first waveform sample. Put that
+        // invisible slot at the far edge instead.
+        yAxis.AxisAlignment = AxisAlignment.Right;
         yAxis.DrawLabels = false;
         yAxis.DrawMajorBands = false;
         yAxis.DrawMinorGridLines = false;

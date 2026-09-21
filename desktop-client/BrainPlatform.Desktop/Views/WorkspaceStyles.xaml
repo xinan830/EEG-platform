@@ -157,26 +157,24 @@
 
     <!-- Toolbar Gear / Action Icon Button -->
     <Style x:Key="ToolbarGearButtonStyle" TargetType="Button">
-        <Setter Property="Width" Value="36" />
-        <Setter Property="Height" Value="36" />
-        <Setter Property="Background" Value="#FFFFFF" />
-        <Setter Property="BorderBrush" Value="#CBD5E1" />
-        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border Name="Border"
                             Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
                             CornerRadius="6">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="#F8FAFC" />
-                            <Setter TargetName="Border" Property="BorderBrush" Value="#94A3B8" />
+                            <Setter TargetName="Border" Property="Background" Value="#F1F5F9" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

@@ -388,9 +388,9 @@
                     <Border Grid.Row="0" Background="#F8FAFC" BorderThickness="0,0,0,1" BorderBrush="#E2E8F0">
                         <Grid Margin="16,0" UseLayoutRounding="True" SnapsToDevicePixels="True">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.3*" MinWidth="140" />
-                                <ColumnDefinition Width="2.4*" MinWidth="160" />
-                                <ColumnDefinition Width="1*" MinWidth="95" />
+                                <ColumnDefinition Width="1.25*" MinWidth="150" />
+                                <ColumnDefinition Width="1.10*" MinWidth="220" />
+                                <ColumnDefinition Width="1.05*" MinWidth="150" />
                                 <ColumnDefinition Width="85" SharedSizeGroup="Col3" />
                                 <ColumnDefinition Width="85" SharedSizeGroup="Col4" />
                                 <ColumnDefinition Width="85" SharedSizeGroup="Col5" />
@@ -402,8 +402,8 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0" Text="配置名称" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="10,0,6,0" />
-                            <TextBlock Grid.Column="1" Text="配置说明" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0" />
-                            <TextBlock Grid.Column="2" Text="设备型号" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0" />
+                            <TextBlock Grid.Column="1" Text="配置说明" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0,16,0" />
+                            <TextBlock Grid.Column="2" Text="设备型号" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="16,0,8,0" />
                             <TextBlock Grid.Column="3" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" LineHeight="14">
                                 EEG<LineBreak/>输入数
                             </TextBlock>
@@ -433,9 +433,9 @@
                             <DataTemplate>
                                 <Grid Height="56" Margin="16,0" UseLayoutRounding="True" SnapsToDevicePixels="True">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="1.3*" MinWidth="140" />
-                                        <ColumnDefinition Width="2.4*" MinWidth="160" />
-                                        <ColumnDefinition Width="1*" MinWidth="95" />
+                                        <ColumnDefinition Width="1.25*" MinWidth="150" />
+                                        <ColumnDefinition Width="1.10*" MinWidth="220" />
+                                        <ColumnDefinition Width="1.05*" MinWidth="150" />
                                         <ColumnDefinition Width="85" SharedSizeGroup="Col3" />
                                         <ColumnDefinition Width="85" SharedSizeGroup="Col4" />
                                         <ColumnDefinition Width="85" SharedSizeGroup="Col5" />
@@ -451,7 +451,7 @@
                                                VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="10,0,6,0" />
 
                                     <!-- 1. 配置说明 (靠左，自适应宽度+全格灵敏悬浮详细提示) -->
-                                    <Grid Grid.Column="1" Margin="8,0" Background="Transparent"
+                                    <Grid Grid.Column="1" Margin="8,0,16,0" Background="Transparent"
                                           ToolTipService.InitialShowDelay="100"
                                           ToolTipService.ShowDuration="20000"
                                           ToolTipService.BetweenShowDelay="0">
@@ -481,7 +481,7 @@
                                     </Grid>
 
                                     <!-- 2. 设备型号 (靠左) -->
-                                    <Grid Grid.Column="2" Margin="8,0" Background="Transparent"
+                                    <Grid Grid.Column="2" Margin="16,0,8,0" Background="Transparent"
                                           ToolTipService.InitialShowDelay="100"
                                           ToolTipService.ShowDuration="20000"
                                           ToolTipService.BetweenShowDelay="0">
@@ -692,6 +692,78 @@
                 <Button Width="32" Height="32" Content="&gt;"
                         Command="{Binding ChannelConfigurations.NextPageCommand}" />
             </StackPanel>
+        </Grid>
+
+        <!-- 新建通道配置的前置步骤：先在列表页确认设备，随后才进入编辑页。 -->
+        <Grid Panel.ZIndex="100">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ChannelConfigurations.IsDevicePickerVisible}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <!-- 透明遮罩仍会拦截列表操作，但不把页面压暗。 -->
+            <Border Background="Transparent" />
+
+            <Border Width="520" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Color="#0F172A" Opacity="0.16" />
+                </Border.Effect>
+                <Grid Margin="24,22,24,20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <TextBlock Text="选择设备" FontSize="18" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                        <Button Width="30" Height="30" Padding="0" Background="Transparent" BorderThickness="0"
+                                HorizontalAlignment="Right" VerticalAlignment="Center" Cursor="Hand"
+                                Click="OnCancelNewChannelDeviceClick" ToolTip="取消">
+                            <Path Data="M 1,1 L 11,11 M 11,1 L 1,11" Width="11" Height="11" Stretch="Uniform"
+                                  Stroke="#94A3B8" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Button>
+                    </Grid>
+
+                    <StackPanel Grid.Row="1" Margin="0,12,0,24">
+                        <TextBlock Text="选择后自动读取该设备的物理输入和默认电极模板。" FontSize="13" Foreground="#475569" LineHeight="20" />
+                        <TextBlock Text="未检测到设备时，请先到采集页测试放大器连接。" FontSize="13" Foreground="#475569" Margin="0,3,0,0" LineHeight="20" />
+                    </StackPanel>
+
+                    <Grid Grid.Row="2" Margin="0,0,0,28">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="56" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="设备" FontSize="13.5" Foreground="#334155" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" Height="38"
+                                  ItemsSource="{Binding Acquisition.Devices}"
+                                  SelectedItem="{Binding ChannelConfigurations.PendingDeviceSelection, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  Style="{StaticResource ModernFilterComboBox}" />
+                    </Grid>
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,0">
+                        <Button Height="34" Padding="18,0" Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1"
+                                Foreground="#1677FF" Click="OnCancelNewChannelDeviceClick" Margin="0,0,12,0" Cursor="Hand">
+                            <TextBlock Text="取消" FontSize="13" FontWeight="Medium" />
+                        </Button>
+                        <Button Height="34" Padding="20,0" Background="#1677FF" BorderBrush="#1677FF" BorderThickness="1"
+                                Foreground="#FFFFFF" Click="OnConfirmNewChannelDeviceClick"
+                                IsEnabled="{Binding ChannelConfigurations.HasPendingDeviceSelection}" Cursor="Hand">
+                            <TextBlock Text="确定" FontSize="13" FontWeight="Medium" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

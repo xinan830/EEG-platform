@@ -256,10 +256,10 @@
                     <Border Grid.Row="0" Background="#F4F8FD" BorderThickness="0,0,0,1" BorderBrush="#E2E8F0" CornerRadius="8,8,0,0">
                         <Grid Margin="16,0" UseLayoutRounding="True" SnapsToDevicePixels="True">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.4*" MinWidth="130" />
-                                <ColumnDefinition Width="2.2*" MinWidth="150" />
-                                <ColumnDefinition Width="1.3*" MinWidth="120" />
-                                <ColumnDefinition Width="1.2*" MinWidth="110" />
+                                <ColumnDefinition Width="1.25*" MinWidth="150" />
+                                <ColumnDefinition Width="1.10*" MinWidth="220" />
+                                <ColumnDefinition Width="1.25*" MinWidth="210" />
+                                <ColumnDefinition Width="1.00*" MinWidth="120" />
                                 <ColumnDefinition Width="80" />
                                 <ColumnDefinition Width="85" />
                                 <ColumnDefinition Width="125" />
@@ -269,8 +269,8 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0" Text="配置名称" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="10,0,6,0" />
-                            <TextBlock Grid.Column="1" Text="配置说明" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0" />
-                            <TextBlock Grid.Column="2" Text="关联通道配置" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0" />
+                            <TextBlock Grid.Column="1" Text="配置说明" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0,16,0" />
+                            <TextBlock Grid.Column="2" Text="关联通道配置" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="16,0,8,0" />
                             <TextBlock Grid.Column="3" Text="导联方式" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0" />
                             <TextBlock Grid.Column="4" Text="输出导联数" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
                             <TextBlock Grid.Column="5" Text="来源" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
@@ -293,10 +293,10 @@
                             <DataTemplate>
                                 <Grid Height="52" Margin="16,0" UseLayoutRounding="True" SnapsToDevicePixels="True">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="1.4*" MinWidth="130" />
-                                        <ColumnDefinition Width="2.2*" MinWidth="150" />
-                                        <ColumnDefinition Width="1.3*" MinWidth="120" />
-                                        <ColumnDefinition Width="1.2*" MinWidth="110" />
+                                        <ColumnDefinition Width="1.25*" MinWidth="150" />
+                                        <ColumnDefinition Width="1.10*" MinWidth="220" />
+                                        <ColumnDefinition Width="1.25*" MinWidth="210" />
+                                        <ColumnDefinition Width="1.00*" MinWidth="120" />
                                         <ColumnDefinition Width="80" />
                                         <ColumnDefinition Width="85" />
                                         <ColumnDefinition Width="125" />
@@ -309,10 +309,10 @@
                                     <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="10,0,6,0" />
 
                                     <!-- 1. 配置说明 (文本省略 + 气泡) -->
-                                    <TextBlock Grid.Column="1" Text="{Binding DescriptionPreview}" FontSize="12.5" Foreground="#64748B" ToolTip="{Binding Description}" VerticalAlignment="Center" HorizontalAlignment="Left" TextAlignment="Left" Margin="8,0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding DescriptionPreview}" FontSize="12.5" Foreground="#64748B" ToolTip="{Binding Description}" VerticalAlignment="Center" HorizontalAlignment="Left" TextAlignment="Left" TextTrimming="CharacterEllipsis" Margin="8,0,16,0" />
 
                                     <!-- 2. 关联通道配置 (文本省略 + 气泡) -->
-                                    <TextBlock Grid.Column="2" Text="{Binding ChannelConfigurationName}" FontSize="12.5" Foreground="#334155" ToolTip="{Binding ChannelConfigurationName}" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="8,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding ChannelConfigurationName}" FontSize="12.5" Foreground="#334155" ToolTip="{Binding ChannelConfigurationName}" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="16,0,8,0" />
 
                                     <!-- 3. 导联方式 (文本省略 + 气泡) -->
                                     <TextBlock Grid.Column="3" Text="{Binding ReferenceSummary}" FontSize="12.5" Foreground="#334155" ToolTip="{Binding ReferenceSummary}" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="8,0" />

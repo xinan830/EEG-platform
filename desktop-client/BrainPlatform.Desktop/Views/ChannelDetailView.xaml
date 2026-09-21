@@ -95,6 +95,200 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+
+            <!-- 选择设备弹窗专用的现代 ComboBox 样式 -->
+            <Style x:Key="DevicePickerComboBoxStyle" TargetType="ComboBox">
+                <Setter Property="Height" Value="38" />
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="Foreground" Value="#0F172A" />
+                <Setter Property="BorderBrush" Value="#CBD5E1" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="ItemContainerStyle" Value="{StaticResource ModernFilterComboBoxItemStyle}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ComboBox">
+                            <Grid>
+                                <ToggleButton x:Name="DropDownToggle"
+                                              Background="{TemplateBinding Background}"
+                                              BorderBrush="{TemplateBinding BorderBrush}"
+                                              BorderThickness="{TemplateBinding BorderThickness}"
+                                              Focusable="False"
+                                              IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                              ClickMode="Press">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border x:Name="ToggleBorder"
+                                                    Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    CornerRadius="6">
+                                                <Grid Margin="12,0">
+                                                    <!-- 下拉小箭头 -->
+                                                    <Path x:Name="Arrow"
+                                                          HorizontalAlignment="Right"
+                                                          VerticalAlignment="Center"
+                                                          Data="M 0,0 L 4.5,4.5 L 9,0"
+                                                          Stroke="#1E293B"
+                                                          StrokeThickness="1.6"
+                                                          StrokeStartLineCap="Round"
+                                                          StrokeEndLineCap="Round"
+                                                          StrokeLineJoin="Round" />
+                                                </Grid>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="#1677FF" />
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="#1677FF" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+
+                                <!-- 占位文字：当未选择设备时显示 -->
+                                <TextBlock x:Name="PlaceholderText"
+                                           Text="请选择设备"
+                                           FontSize="13"
+                                           Foreground="#94A3B8"
+                                           VerticalAlignment="Center"
+                                           Margin="12,0,32,0"
+                                           IsHitTestVisible="False"
+                                           Visibility="Collapsed" />
+
+                                <!-- 选中的设备文本显示 -->
+                                <ContentPresenter x:Name="ContentSite"
+                                                  IsHitTestVisible="False"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                  Margin="12,0,32,0"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left" />
+
+                                <!-- 下拉浮层 -->
+                                <Popup x:Name="Popup"
+                                       Placement="Bottom"
+                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       AllowsTransparency="True"
+                                       Focusable="False"
+                                       PopupAnimation="Slide">
+                                    <Grid x:Name="DropDown"
+                                          SnapsToDevicePixels="True"
+                                          MinWidth="{TemplateBinding ActualWidth}"
+                                          MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                        <Border x:Name="DropDownBorder"
+                                                Background="#FFFFFF"
+                                                BorderBrush="#CBD5E1"
+                                                BorderThickness="1"
+                                                CornerRadius="6"
+                                                Margin="0,4,0,0">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="12" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.12" />
+                                            </Border.Effect>
+                                            <ScrollViewer Margin="4,4" SnapsToDevicePixels="True">
+                                                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Grid>
+                                </Popup>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="SelectedItem" Value="{x:Null}">
+                                    <Setter TargetName="PlaceholderText" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- 弹窗右上角关闭按钮样式 -->
+            <Style x:Key="DialogCloseIconButton" TargetType="Button">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#F1F5F9" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- 弹窗底部取消按钮样式 -->
+            <Style x:Key="DialogCancelButton" TargetType="Button">
+                <Setter Property="Height" Value="34" />
+                <Setter Property="Padding" Value="18,0" />
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#D0D7DE" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="#1677FF" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="Medium" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#1677FF" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- 弹窗底部确定按钮样式 -->
+            <Style x:Key="DialogConfirmButton" TargetType="Button">
+                <Setter Property="Height" Value="34" />
+                <Setter Property="Padding" Value="20,0" />
+                <Setter Property="Background" Value="#1677FF" />
+                <Setter Property="BorderBrush" Value="#1677FF" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="Medium" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#4096FF" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#4096FF" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="Bd" Property="Opacity" Value="0.5" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -342,7 +536,13 @@
                                 <Border Grid.Row="0" Background="#F4F8FD" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
                                     <Grid Margin="16,0">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="1.1*" />
+                                            <ColumnDefinition Width="1.2*" />
+                                            <ColumnDefinition Width="1.0*" />
+                                            <ColumnDefinition Width="1.4*" />
+                                            <ColumnDefinition Width="1.0*" />
+                                            <ColumnDefinition Width="1.0*" />
+                                            <ColumnDefinition Width="1.0*" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="设备输入编号" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="1" Text="设备通道类型" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
@@ -377,7 +577,13 @@
                                         <DataTemplate>
                                             <Grid Height="48" Margin="16,0" IsEnabled="{Binding DataContext.ChannelConfigurations.CanEditSignalDraft, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="1.1*" />
+                                                    <ColumnDefinition Width="1.2*" />
+                                                    <ColumnDefinition Width="1.0*" />
+                                                    <ColumnDefinition Width="1.4*" />
+                                                    <ColumnDefinition Width="1.0*" />
+                                                    <ColumnDefinition Width="1.0*" />
+                                                    <ColumnDefinition Width="1.0*" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="{Binding NativeChannelIndex}" FontSize="13" Foreground="#334155" VerticalAlignment="Center" />
                                                 <TextBlock Grid.Column="1" Text="{Binding Role}" FontSize="13" Foreground="#334155" VerticalAlignment="Center" />
@@ -410,17 +616,86 @@
             </Grid>
         </ScrollViewer>
 
-        <!-- 选择设备弹窗 (保留原有业务弹窗能力) -->
-        <Border Panel.ZIndex="10" Background="#990F172A">
-            <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding ChannelConfigurations.IsDevicePickerVisible}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
-            <Border Width="440" Padding="24" Background="White" CornerRadius="10" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock Text="选择设备" FontSize="19" FontWeight="SemiBold" Foreground="#0F172A" />
-                    <TextBlock Text="选择后自动读取该设备的物理输入和默认电极模板。" Margin="0,8,0,16" Foreground="#64748B" TextWrapping="Wrap" />
-                    <ComboBox ItemsSource="{Binding Acquisition.Devices}" SelectedItem="{Binding ChannelConfigurations.DraftDevice, Mode=TwoWay}" DisplayMemberPath="DisplayName" Padding="6,4" />
-                    <TextBlock Text="未检测到设备时，请先到采集页测试放大器连接。" Margin="0,12,0,0" FontSize="12" Foreground="#64748B" TextWrapping="Wrap" />
-                </StackPanel>
+        <!-- 选择设备弹窗 (严格复刻 UI 设计与业务逻辑联动) -->
+        <Grid Panel.ZIndex="100">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ChannelConfigurations.IsDevicePickerVisible}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <!-- 保持模态命中拦截，但不把新建通道页面压成灰色。 -->
+            <Border Background="Transparent" />
+
+            <!-- 居中浮层卡片 -->
+            <Border Width="520" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Color="#0F172A" Opacity="0.16" />
+                </Border.Effect>
+                <Grid Margin="24,22,24,20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" /> <!-- 0. 标题与关闭按钮 -->
+                        <RowDefinition Height="Auto" /> <!-- 1. 说明提示文字 -->
+                        <RowDefinition Height="Auto" /> <!-- 2. 表单：设备选择行 -->
+                        <RowDefinition Height="Auto" /> <!-- 3. 分割线 -->
+                        <RowDefinition Height="Auto" /> <!-- 4. 底部操作按钮 -->
+                    </Grid.RowDefinitions>
+
+                    <!-- 0. 标题栏与右上角关闭 X 按钮 -->
+                    <Grid Grid.Row="0">
+                        <TextBlock Text="选择设备" FontSize="18" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                        <Button Style="{StaticResource DialogCloseIconButton}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Click="OnCancelDeviceSelectionClick" ToolTip="关闭">
+                            <Path Data="M 1,1 L 11,11 M 11,1 L 1,11" Width="11" Height="11" Stretch="Uniform"
+                                  Stroke="#94A3B8" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Button>
+                    </Grid>
+
+                    <!-- 1. 说明提示文字 -->
+                    <StackPanel Grid.Row="1" Margin="0,12,0,24">
+                        <TextBlock Text="选择后自动读取该设备的物理输入和默认电极模板。" FontSize="13" Foreground="#475569" LineHeight="20" />
+                        <TextBlock Text="未检测到设备时，请先到采集页测试放大器连接。" FontSize="13" Foreground="#475569" Margin="0,3,0,0" LineHeight="20" />
+                    </StackPanel>
+
+                    <!-- 2. 表单：设备选择行 -->
+                    <Grid Grid.Row="2" Margin="0,0,0,28">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="56" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="设备" FontSize="13.5" Foreground="#334155" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" x:Name="DevicePickerComboBox"
+                                  ItemsSource="{Binding Acquisition.Devices}"
+                                  SelectedItem="{Binding ChannelConfigurations.PendingDeviceSelection, Mode=TwoWay}"
+                                  DisplayMemberPath="DisplayName"
+                                  Style="{StaticResource DevicePickerComboBoxStyle}" />
+                    </Grid>
+
+                    <!-- 3. 分割线 -->
+                    <Border Grid.Row="3" Height="1" Background="#F1F5F9" Margin="-24,0,-24,18" />
+
+                    <!-- 4. 底部操作按钮 -->
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <!-- 取消按钮 -->
+                        <Button Style="{StaticResource DialogCancelButton}" Click="OnCancelDeviceSelectionClick" Margin="0,0,12,0" ToolTip="取消">
+                            <TextBlock Text="取消" FontSize="13" FontWeight="Medium" Foreground="#1677FF" VerticalAlignment="Center" />
+                        </Button>
+                        <!-- 确定按钮 -->
+                        <Button Style="{StaticResource DialogConfirmButton}"
+                                Command="{Binding ChannelConfigurations.ConfirmDeviceSelectionCommand}"
+                                IsEnabled="{Binding ChannelConfigurations.HasPendingDeviceSelection}"
+                                ToolTip="确定">
+                            <TextBlock Text="确定" FontSize="13" FontWeight="Medium" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
             </Border>
-        </Border>
+        </Grid>
     </Grid>
 </UserControl>

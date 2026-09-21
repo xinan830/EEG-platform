@@ -174,6 +174,28 @@ public sealed class ChannelConfigurationProfileTests
     }
 
     [Fact]
+    public void NewProfile_DevicePicker_DefersPhysicalMappingUntilSelectionIsConfirmed()
+    {
+        var workspace = CreateWorkspace();
+        var device = CreateDefaultDevice();
+
+        workspace.BeginNewProfile();
+        workspace.PendingDeviceSelection = device;
+
+        Assert.True(workspace.IsDevicePickerVisible);
+        Assert.Null(workspace.DraftDevice);
+        Assert.Empty(workspace.DraftRows);
+        Assert.True(workspace.HasPendingDeviceSelection);
+
+        workspace.ConfirmPendingDeviceSelection();
+
+        Assert.False(workspace.IsDevicePickerVisible);
+        Assert.Same(device, workspace.DraftDevice);
+        Assert.NotEmpty(workspace.DraftRows);
+        Assert.False(workspace.HasPendingDeviceSelection);
+    }
+
+    [Fact]
     public void EditingProfile_UsesIndependentDraftRows_AndDisplayToggleUpdatesOnlyTheDraft()
     {
         var workspace = CreateWorkspace();

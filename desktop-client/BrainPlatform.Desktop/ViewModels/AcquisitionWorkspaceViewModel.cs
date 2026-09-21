@@ -438,7 +438,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
 
         AcquisitionStatusText = deviceSession.Snapshot.Detail;
         OperationMessage = Devices.Count > 0
-            ? "连接测试成功。采样率和量程均来自当前放大器，请从下拉框选择。"
+            ? "连接测试成功。采样率和量程均已从当前放大器读取；量程默认采用首个合法兼容组合，需要时可点击“编辑”手动调整。"
             : "未检测到放大器。请检查设备电源、驱动和 USB 连接。";
         if (Devices.Count > 0)
         {
