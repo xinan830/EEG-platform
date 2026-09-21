@@ -1,4 +1,5 @@
 using BrainPlatform.Desktop.Acquisition.Contracts;
+using System.Globalization;
 using System.Text.Json.Serialization;
 
 namespace BrainPlatform.Desktop.Configuration;
@@ -49,6 +50,9 @@ public sealed record ChannelConfigurationProfile(
     public int MontageReferenceCount { get; init; }
 
     [JsonIgnore]
+    public bool HasMontageReferences => MontageReferenceCount > 0;
+
+    [JsonIgnore]
     public bool IsSignalLocked => Source == ChannelConfigurationSource.System || MontageReferenceCount > 0;
 
     [JsonIgnore]
@@ -70,6 +74,10 @@ public sealed record ChannelConfigurationProfile(
 
     public string UpdatedAtText => UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
+    /// <summary>Compact list-cell text; the full description remains available in the tooltip.</summary>
+    [JsonIgnore]
+    public string DescriptionPreview => Abbreviate(Description, 15);
+
     [JsonIgnore]
     public string HardwareWiringSummary =>
         $"REF：{DisplayLocation(HardwareReferenceElectrodeLocation, "REF")} · " +
@@ -81,6 +89,22 @@ public sealed record ChannelConfigurationProfile(
     [JsonIgnore]
     public string StatusDetail { get; init; } = "连接设备后验证此配置是否可用。";
 
+    /// <summary>
+    /// The single state shown in the channel-configuration list. Compatibility
+    /// is evaluated first; edit locks are a separate concern and never make a
+    /// disconnected or incompatible device look like a permission problem.
+    /// </summary>
+    [JsonIgnore]
+    public string ListStatusLabel => StatusLabel == "待连接"
+        ? "待连接"
+        : !IsCompatibleWithCurrentDevice
+            ? "设备不匹配"
+            : HasMontageReferences
+                ? "被导联引用"
+                : IsSignalLocked
+                    ? "不可修改"
+                    : "可用";
+
     [JsonIgnore]
     public string DeviceModelLabel => !string.IsNullOrWhiteSpace(DeviceModel)
         ? DeviceModel
@@ -88,6 +112,15 @@ public sealed record ChannelConfigurationProfile(
 
     private static string DisplayLocation(string? location, string fallback) =>
         string.IsNullOrWhiteSpace(location) ? fallback : location.Trim();
+
+    private static string Abbreviate(string? value, int maximumTextElements)
+    {
+        var text = value?.Trim() ?? string.Empty;
+        var starts = StringInfo.ParseCombiningCharacters(text);
+        return starts.Length <= maximumTextElements
+            ? text
+            : string.Concat(text.AsSpan(0, starts[maximumTextElements]), "…");
+    }
 }
 
 public sealed record ChannelConfigurationEntry(

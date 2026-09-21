@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private AcquisitionPreparationView? acquisitionPreparationView;
     private DeviceOverviewView? overviewView;
     private ProjectListView? projectListView;
+    private ProjectDetailView? projectDetailView;
     private SettingsView? settingsView;
     private ChannelListView? channelListView;
     private ChannelDetailView? channelDetailView;
@@ -33,6 +34,7 @@ public partial class MainWindow : Window
         // Initialize view instances immediately for instant UI display
         acquisitionView = new AcquisitionWorkspaceView();
         projectListView = new ProjectListView();
+        projectDetailView = new ProjectDetailView();
         settingsView = new SettingsView();
         channelListView = new ChannelListView();
         channelDetailView = new ChannelDetailView();
@@ -132,6 +134,26 @@ public partial class MainWindow : Window
             viewModel.Projects.RefreshRecordings();
         }
         MainContentHost.Content = projectListView;
+        SelectNavigation(NavProjectsBtn);
+    }
+
+    public void ShowProjectDetailView()
+    {
+        DisposeRecordingReview();
+        SetImmersiveChrome(false);
+        projectDetailView ??= new ProjectDetailView();
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            if (viewModel.Projects.SelectedProject is null)
+            {
+                ShowProjectListView();
+                return;
+            }
+
+            viewModel.Projects.RefreshRecordings();
+        }
+
+        MainContentHost.Content = projectDetailView;
         SelectNavigation(NavProjectsBtn);
     }
 

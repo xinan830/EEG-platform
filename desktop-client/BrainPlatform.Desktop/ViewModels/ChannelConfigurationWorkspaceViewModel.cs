@@ -29,6 +29,13 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     private bool isReadOnlyDraft;
     private bool isSignalLockedDraft;
     private bool isCreatingVersion;
+    private string searchText = string.Empty;
+    private string deviceModelFilter = "全部型号";
+    private string sourceFilter = "全部来源";
+    private string statusFilter = "全部状态";
+    private int pageSize = 10;
+    private int currentPage = 1;
+    private string channelSearchText = string.Empty;
 
     public ChannelConfigurationWorkspaceViewModel(
         ChannelMappingViewModel mapping,
@@ -46,10 +53,84 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         SaveDraftCommand = new AsyncRelayCommand(SaveDraftAsync, ReportCommandError);
         CloseDraftCommand = new AsyncRelayCommand(() => { CloseDraft(); return Task.CompletedTask; }, ReportCommandError);
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, ReportCommandError);
+        PreviousPageCommand = new RelayCommand(() => CurrentPage--, () => CanPreviousPage);
+        NextPageCommand = new RelayCommand(() => CurrentPage++, () => CanNextPage);
         mapping.DisplayChannelsChanged += OnMappingChanged;
     }
 
     public ObservableCollection<ChannelConfigurationProfile> Profiles { get; } = [];
+
+    public ObservableCollection<ChannelConfigurationProfile> FilteredProfiles { get; } = [];
+
+    public IReadOnlyList<string> SourceFilterOptions { get; } = ["全部来源", "系统预设", "用户自定义"];
+
+    public IReadOnlyList<string> StatusFilterOptions { get; } =
+        ["全部状态", "可用", "设备不匹配", "待连接", "被导联引用", "不可修改"];
+
+    public IReadOnlyList<int> PageSizeOptions { get; } = [10, 20, 50];
+
+    public int PageSize
+    {
+        get => pageSize;
+        set
+        {
+            var normalized = PageSizeOptions.Contains(value) ? value : 10;
+            if (SetProperty(ref pageSize, normalized))
+            {
+                currentPage = 1;
+                RaisePropertyChanged(nameof(CurrentPage));
+                ApplyFilters();
+            }
+        }
+    }
+
+    public int CurrentPage
+    {
+        get => currentPage;
+        set
+        {
+            var normalized = Math.Clamp(value, 1, TotalPages);
+            if (SetProperty(ref currentPage, normalized))
+            {
+                ApplyFilters();
+            }
+        }
+    }
+
+    public int TotalItemCount { get; private set; }
+
+    public int TotalPages { get; private set; } = 1;
+
+    public bool CanPreviousPage => CurrentPage > 1;
+
+    public bool CanNextPage => CurrentPage < TotalPages;
+
+    public IReadOnlyList<string> DeviceModelFilterOptions =>
+        ["全部型号", .. Profiles.Select(profile => profile.DeviceModelLabel).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(value => value)];
+
+    public string SearchText
+    {
+        get => searchText;
+        set { if (SetProperty(ref searchText, value)) ApplyFilters(resetToFirstPage: true); }
+    }
+
+    public string DeviceModelFilter
+    {
+        get => deviceModelFilter;
+        set { if (SetProperty(ref deviceModelFilter, value)) ApplyFilters(resetToFirstPage: true); }
+    }
+
+    public string SourceFilter
+    {
+        get => sourceFilter;
+        set { if (SetProperty(ref sourceFilter, value)) ApplyFilters(resetToFirstPage: true); }
+    }
+
+    public string StatusFilter
+    {
+        get => statusFilter;
+        set { if (SetProperty(ref statusFilter, value)) ApplyFilters(resetToFirstPage: true); }
+    }
 
     public event EventHandler? ProfilesChanged;
 
@@ -61,6 +142,10 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 
     public ICommand DeleteSelectedCommand { get; }
 
+    public ICommand PreviousPageCommand { get; }
+
+    public ICommand NextPageCommand { get; }
+
     public ChannelConfigurationProfile? SelectedProfile
     {
         get => selectedProfile;
@@ -70,6 +155,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             {
                 RaisePropertyChanged(nameof(CanDeleteSelected));
                 RaisePropertyChanged(nameof(CanCreateVersionSelected));
+                RaisePageCommandStateChanged();
             }
         }
     }
@@ -90,6 +176,41 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 
     public ObservableCollection<ChannelConfigurationDraftRow> DraftRows { get; } = [];
 
+    public ObservableCollection<ChannelConfigurationDraftRow> FilteredDraftRows { get; } = [];
+
+    public string ChannelSearchText
+    {
+        get => channelSearchText;
+        set
+        {
+            if (SetProperty(ref channelSearchText, value))
+            {
+                ApplyDraftRowFilter();
+            }
+        }
+    }
+
+
+    public string DraftSourceLabel => isReadOnlyDraft && draftSourceProfile?.Source == ChannelConfigurationSource.System
+        ? "系统默认"
+        : "用户创建";
+
+    public string DraftDeviceVendor => DescribeDeviceVendor(DraftDevice?.DriverId ?? draftSourceProfile?.DeviceDriverId);
+
+    public string DraftDeviceModel => DraftDevice?.Model ?? draftSourceProfile?.DeviceModel ?? "设备未提供型号";
+
+    public int DraftMontageReferenceCount => draftProfileId is null && !isReadOnlyDraft
+        ? 0
+        : draftSourceProfile?.MontageReferenceCount ?? 0;
+
+    public string DraftCreatedAtText => draftCreatedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "保存后生成";
+
+    public string DraftUpdatedAtText => draftProfileId is null ? "保存后生成" : draftSourceProfile?.UpdatedAtText ?? "保存后生成";
+
+    public string DraftStatusLabel => isReadOnlyDraft
+        ? "系统默认"
+        : isSignalLockedDraft ? "被导联引用" : "可编辑";
+
     public AcquisitionDeviceDescriptor? DraftDevice
     {
         get => draftDevice;
@@ -98,6 +219,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             if (SetProperty(ref draftDevice, value))
             {
                 RaisePropertyChanged(nameof(IsDevicePickerVisible));
+                RaisePropertyChanged(nameof(DraftDeviceVendor));
+                RaisePropertyChanged(nameof(DraftDeviceModel));
                 if (value is not null)
                 {
                     if (deviceSession is not null &&
@@ -251,6 +374,38 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         StatusText = $"已基于“{profile.Name}”创建可编辑的新版本草稿；原配置及其导联引用不会改变。";
     }
 
+    public void BeginCopySelected()
+    {
+        var profile = SelectedProfile ?? throw new InvalidOperationException("请先选择一份通道配置。");
+        draftSourceProfile = profile;
+        isReadOnlyDraft = false;
+        isSignalLockedDraft = false;
+        isCreatingVersion = false;
+        draftProfileId = null;
+        draftCreatedAtUtc = null;
+        DraftName = $"{profile.Name} 副本";
+        DraftDescription = profile.Description;
+        DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
+        DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
+        DraftDevice = null;
+        DraftRows.Clear();
+        ChannelSearchText = string.Empty;
+        IsDraftOpen = true;
+        RaiseDraftModePropertiesChanged();
+
+        if (deviceSession?.SelectedDevice is { } device)
+        {
+            DraftDevice = device;
+        }
+        else if (mapping.HasLoadedDevice &&
+                 string.Equals(profile.DeviceSignature, mapping.GetDeviceSignature(), StringComparison.Ordinal))
+        {
+            BuildDraftRowsFromCurrentDevice(profile);
+        }
+
+        StatusText = $"已基于“{profile.Name}”创建副本草稿；保存后将成为独立的用户配置。";
+    }
+
     public void CloseDraft()
     {
         IsDraftOpen = false;
@@ -289,6 +444,14 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             ? Profiles.FirstOrDefault()
             : Profiles.FirstOrDefault(profile => profile.Id == selectedId);
 
+        RaisePropertyChanged(nameof(DeviceModelFilterOptions));
+        if (!DeviceModelFilterOptions.Contains(DeviceModelFilter, StringComparer.OrdinalIgnoreCase))
+        {
+            deviceModelFilter = "全部型号";
+            RaisePropertyChanged(nameof(DeviceModelFilter));
+        }
+        ApplyFilters();
+
         StatusText = mapping.HasLoadedDevice
             ? $"已载入 {Profiles.Count} 个通道配置。当前设备有 {mapping.ActualEegInputCount} 个可标注 EEG 输入。"
             : "请先连接放大器；系统只会向导联配置提供与当前设备兼容的通道配置。";
@@ -296,6 +459,86 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         RaisePropertyChanged(nameof(CanCreateVersionSelected));
         ProfilesChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    private void ApplyFilters(bool resetToFirstPage = false)
+    {
+        if (resetToFirstPage && currentPage != 1)
+        {
+            currentPage = 1;
+            RaisePropertyChanged(nameof(CurrentPage));
+        }
+
+        var search = SearchText.Trim();
+        var filtered = Profiles.Where(profile =>
+            string.IsNullOrWhiteSpace(search) ||
+            profile.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+            profile.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+            profile.DeviceModelLabel.Contains(search, StringComparison.CurrentCultureIgnoreCase));
+
+        if (DeviceModelFilter != "全部型号")
+        {
+            filtered = filtered.Where(profile => profile.DeviceModelLabel == DeviceModelFilter);
+        }
+
+        if (SourceFilter is "系统预设" or "用户自定义")
+        {
+            var source = SourceFilter == "系统预设"
+                ? ChannelConfigurationSource.System
+                : ChannelConfigurationSource.User;
+            filtered = filtered.Where(profile => profile.Source == source);
+        }
+
+        if (StatusFilter != "全部状态")
+        {
+            filtered = filtered.Where(profile => MatchesStatusFilter(profile, StatusFilter));
+        }
+
+        var results = filtered.ToArray();
+        TotalItemCount = results.Length;
+        TotalPages = Math.Max(1, (int)Math.Ceiling(results.Length / (double)PageSize));
+        if (currentPage > TotalPages)
+        {
+            currentPage = TotalPages;
+            RaisePropertyChanged(nameof(CurrentPage));
+        }
+
+        FilteredProfiles.Clear();
+        foreach (var profile in results.Skip((CurrentPage - 1) * PageSize).Take(PageSize))
+        {
+            FilteredProfiles.Add(profile);
+        }
+
+        // Never leave command actions pointing at an item hidden by a filter or page change.
+        if (SelectedProfile is not null && !FilteredProfiles.Contains(SelectedProfile))
+        {
+            SelectedProfile = FilteredProfiles.FirstOrDefault();
+        }
+
+        RaisePropertyChanged(nameof(TotalItemCount));
+        RaisePropertyChanged(nameof(TotalPages));
+        RaisePropertyChanged(nameof(CanPreviousPage));
+        RaisePropertyChanged(nameof(CanNextPage));
+        RaisePageCommandStateChanged();
+    }
+
+    private void RaisePageCommandStateChanged()
+    {
+        (PreviousPageCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (NextPageCommand as RelayCommand)?.RaiseCanExecuteChanged();
+    }
+
+    private bool MatchesStatusFilter(ChannelConfigurationProfile profile, string status) => status switch
+    {
+        // “可用”描述的是配置能否用于当前设备；被导联引用只会锁定编辑，
+        // 不会让一套仍与设备兼容的配置变得不可用。
+        "可用" => mapping.HasLoadedDevice && profile.IsCompatibleWithCurrentDevice,
+        "设备不匹配" => mapping.HasLoadedDevice && !profile.IsCompatibleWithCurrentDevice,
+        "待连接" => !mapping.HasLoadedDevice,
+        "被导联引用" => profile.MontageReferenceCount > 0,
+        // “不可修改”是权限筛选：系统默认和被导联引用的配置都属于只读配置。
+        "不可修改" => profile.IsSignalLocked,
+        _ => true,
+    };
 
     private void OnMappingChanged(object? sender, EventArgs eventArgs)
     {
@@ -363,6 +606,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             DraftRows.Add(row);
         }
         RaiseDraftCounts();
+        ApplyDraftRowFilter();
     }
 
     private void OnDraftRowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
@@ -381,6 +625,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
                     : $"已关闭显示{identity}。");
             }
             RaiseDraftCounts();
+            ApplyDraftRowFilter();
         }
     }
 
@@ -469,13 +714,33 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     private static string DefaultLocation(string? location, string fallback) =>
         string.IsNullOrWhiteSpace(location) ? fallback : location.Trim();
 
+    private static string DescribeDeviceVendor(string? driverId) => driverId?.Trim() switch
+    {
+        { Length: > 0 } value when value.StartsWith("ant", StringComparison.OrdinalIgnoreCase) => "ANT",
+        { Length: > 0 } value => value,
+        _ => "未选择设备",
+    };
+
     private void RaiseDraftCounts()
     {
         RaisePropertyChanged(nameof(DraftEegInputCount));
         RaisePropertyChanged(nameof(DraftEnabledCount));
     }
 
-    private async Task DeleteSelectedAsync()
+    private void ApplyDraftRowFilter()
+    {
+        var search = ChannelSearchText.Trim();
+        FilteredDraftRows.Clear();
+        foreach (var row in DraftRows.Where(row =>
+                     string.IsNullOrWhiteSpace(search) ||
+                     row.NativeChannelIndex.ToString(System.Globalization.CultureInfo.InvariantCulture).Contains(search, StringComparison.Ordinal) ||
+                     row.ElectrodeLabel.Contains(search, StringComparison.CurrentCultureIgnoreCase)))
+        {
+            FilteredDraftRows.Add(row);
+        }
+    }
+
+    public async Task DeleteSelectedAsync()
     {
         if (SelectedProfile is not { CanDelete: true } profile)
         {
@@ -504,5 +769,12 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         RaisePropertyChanged(nameof(IsSignalLockedDraft));
         RaisePropertyChanged(nameof(DraftLockMessage));
         RaisePropertyChanged(nameof(DraftTitle));
+        RaisePropertyChanged(nameof(DraftSourceLabel));
+        RaisePropertyChanged(nameof(DraftDeviceVendor));
+        RaisePropertyChanged(nameof(DraftDeviceModel));
+        RaisePropertyChanged(nameof(DraftMontageReferenceCount));
+        RaisePropertyChanged(nameof(DraftCreatedAtText));
+        RaisePropertyChanged(nameof(DraftUpdatedAtText));
+        RaisePropertyChanged(nameof(DraftStatusLabel));
     }
 }

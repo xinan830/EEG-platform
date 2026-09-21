@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using BrainPlatform.Desktop.Projects;
 using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Views;
@@ -50,6 +51,22 @@ public partial class ProjectListView : UserControl
                     workspace.Acquisition.SelectedProject = saved;
                 }
             }, workspace.Notifications);
+        }
+    }
+
+    private void OnOpenProjectDetailClick(object sender, RoutedEventArgs e)
+    {
+        var project = sender switch
+        {
+            ListBox list => list.SelectedItem as ResearchProject,
+            FrameworkElement element => element.DataContext as ResearchProject,
+            _ => null,
+        };
+        if (project is not null) Workspace.Projects.SelectedProject = project;
+
+        if (Workspace.Projects.SelectedProject is not null)
+        {
+            (Window.GetWindow(this) as MainWindow)?.ShowProjectDetailView();
         }
     }
 

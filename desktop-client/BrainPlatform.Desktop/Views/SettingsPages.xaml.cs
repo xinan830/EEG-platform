@@ -71,6 +71,23 @@ public partial class ChannelListView : UserControl
         }
     }
 
+    private void OnCopyProfileClick(object sender, RoutedEventArgs e)
+    {
+        SelectProfile(sender);
+        if (DataContext is DesktopWorkspaceViewModel viewModel && Window.GetWindow(this) is MainWindow mainWindow)
+        {
+            try
+            {
+                viewModel.ChannelConfigurations.BeginCopySelected();
+                mainWindow.ShowChannelDetailView(preserveDraft: true);
+            }
+            catch (Exception exception)
+            {
+                viewModel.Notifications.PublishError(exception.Message);
+            }
+        }
+    }
+
     private void SelectProfile(object sender)
     {
         if (sender is FrameworkElement element &&
@@ -113,6 +130,45 @@ public partial class ChannelDetailView : UserControl
             viewModel.ChannelConfigurations.CanCreateVersionSelected)
         {
             viewModel.ChannelConfigurations.BeginNewVersionSelected();
+        }
+    }
+
+    private void OnCopyConfigurationClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel viewModel)
+        {
+            return;
+        }
+
+        try
+        {
+            viewModel.ChannelConfigurations.BeginCopySelected();
+        }
+        catch (Exception exception)
+        {
+            viewModel.Notifications.PublishError(exception.Message);
+        }
+    }
+
+    private async void OnDeleteConfigurationClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel viewModel ||
+            !viewModel.ChannelConfigurations.CanDeleteSelected)
+        {
+            return;
+        }
+
+        try
+        {
+            await viewModel.ChannelConfigurations.DeleteSelectedAsync();
+            if (Window.GetWindow(this) is MainWindow mainWindow)
+            {
+                mainWindow.ShowChannelListView();
+            }
+        }
+        catch (Exception exception)
+        {
+            viewModel.Notifications.PublishError(exception.Message);
         }
     }
 
@@ -238,6 +294,24 @@ public partial class MontageDetailView : UserControl
         if (Window.GetWindow(this) is MainWindow mainWindow)
         {
             mainWindow.ShowMontageListView();
+        }
+    }
+
+    private void OnCopyMontageConfigurationClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel viewModel ||
+            !viewModel.MontageConfigurations.CanCopySelected)
+        {
+            return;
+        }
+
+        try
+        {
+            viewModel.MontageConfigurations.BeginCopySelected();
+        }
+        catch (Exception exception)
+        {
+            viewModel.Notifications.PublishError(exception.Message);
         }
     }
 }

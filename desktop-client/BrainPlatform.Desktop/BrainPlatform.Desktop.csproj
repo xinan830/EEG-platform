@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -13,4 +13,8 @@
     <PackageReference Include="SciChart" Version="9.1.0.29201" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Remove="Assets\*.png" />
+    <Resource Include="Assets\*.png" />
+  </ItemGroup>
 </Project>

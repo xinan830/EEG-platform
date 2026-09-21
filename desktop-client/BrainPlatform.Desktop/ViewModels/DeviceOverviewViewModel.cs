@@ -85,8 +85,10 @@ public sealed class DeviceOverviewViewModel : ObservableObject, IDisposable
                 return "设备连接后读取";
             }
 
-            return $"{capabilities.Count} 个设备通道 · {CountRole(capabilities, AcquisitionChannelKind.Reference)} 个参考输入 · " +
-                   $"{CountRole(capabilities, AcquisitionChannelKind.Bipolar)} 个双极输入";
+            var referenceInputs = CountRole(capabilities, AcquisitionChannelKind.Reference);
+            var bipolarInputs = CountRole(capabilities, AcquisitionChannelKind.Bipolar);
+            return $"设备通道 {capabilities.Count} · 参考输入 {referenceInputs} · " +
+                   $"双极输入 {bipolarInputs}";
         }
     }
 

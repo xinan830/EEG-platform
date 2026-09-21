@@ -188,8 +188,10 @@ public sealed class MontageProfileTests
             Assert.Equal("系统默认", profile.SourceLabel);
             Assert.Equal("查看", profile.OpenActionLabel);
             Assert.False(profile.CanEdit);
-            Assert.False(profile.CanCopy);
+            Assert.True(profile.CanCopy);
             Assert.False(profile.CanDelete);
+            Assert.Equal("系统预置", profile.CreatedAtText);
+            Assert.Equal("系统预置", profile.UpdatedAtText);
         });
         Assert.Contains(profiles.Single(profile => profile.Name.EndsWith("M1/M2参考"))
             .DerivedChannels, channel => channel.FormulaText.Contains("Mean(M1, M2)"));
@@ -234,6 +236,32 @@ public sealed class MontageProfileTests
         Assert.Equal(systemProfile.ChannelCount, workspace.DraftRows.Count);
         Assert.All(workspace.DraftRows, row => Assert.Equal(MontageNegativeKind.Channel, row.NegativeKind));
         Assert.False(workspace.ShowReferenceGroup);
+    }
+
+    [Fact]
+    public void Workspace_CopyingSparseMontage_PreservesEverySavedDerivedRow()
+    {
+        var source = CreateAntSystemChannelConfiguration();
+        var original = SystemMontageProfileFactory.Create(source)
+            .Single(profile => profile.Name.EndsWith("纵向双极"));
+        var channelWorkspace = new ChannelConfigurationWorkspaceViewModel(
+            new ChannelMappingViewModel(new ChannelLabelMappingStore(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json"))),
+            new ChannelConfigurationProfileStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "channels.json")));
+        channelWorkspace.Profiles.Add(source);
+        var workspace = new MontageConfigurationWorkspaceViewModel(channelWorkspace)
+        {
+            SelectedProfile = original,
+        };
+
+        workspace.BeginCopySelected();
+
+        var copied = workspace.DraftRows
+            .Select(row => row.ToModel(original.AverageReferenceLabels ?? []).FormulaText)
+            .ToArray();
+        Assert.True(workspace.CanEditDraft);
+        Assert.False(workspace.CanEditReferenceMode);
+        Assert.Equal(original.ChannelCount, workspace.DraftRows.Count);
+        Assert.Equal(original.DerivedChannels.Select(channel => channel.FormulaText), copied);
     }
 
     [Fact]

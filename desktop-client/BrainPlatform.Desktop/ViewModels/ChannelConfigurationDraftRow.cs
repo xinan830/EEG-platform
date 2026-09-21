@@ -38,6 +38,8 @@ public sealed class ChannelConfigurationDraftRow : ObservableObject
 
     public bool CanEdit => IsEegInput;
 
+    public string ConfigurationStatus => IsEnabled ? "已显示" : "未显示";
+
     public string ElectrodeLabel
     {
         get => electrodeLabel;
@@ -47,7 +49,13 @@ public sealed class ChannelConfigurationDraftRow : ObservableObject
     public bool IsEnabled
     {
         get => isEnabled;
-        set => SetProperty(ref isEnabled, value);
+        set
+        {
+            if (SetProperty(ref isEnabled, value))
+            {
+                RaisePropertyChanged(nameof(ConfigurationStatus));
+            }
+        }
     }
 
     public int DisplayOrder

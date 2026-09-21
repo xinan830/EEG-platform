@@ -23,7 +23,9 @@ public partial class ProjectEditorDialog : Window
         viewModel.Purpose,
         viewModel.TagsText,
         viewModel.Creator,
-        viewModel.DirectoryPath);
+        viewModel.DirectoryPath,
+        viewModel.Status,
+        viewModel.Notes);
 
     private void OnBrowseDirectoryClick(object sender, RoutedEventArgs e)
     {
@@ -67,6 +69,8 @@ public sealed class ProjectEditorDialogViewModel : ObservableObject
     private string tagsText;
     private string creator;
     private string directoryPath;
+    private string status;
+    private string notes;
     private string errorMessage = string.Empty;
 
     public ProjectEditorDialogViewModel(ResearchProject? project)
@@ -78,6 +82,8 @@ public sealed class ProjectEditorDialogViewModel : ObservableObject
         tagsText = project is null ? string.Empty : string.Join("，", project.Tags);
         creator = project?.Creator ?? Environment.UserName;
         directoryPath = project?.DirectoryPath ?? string.Empty;
+        status = ResearchProjectStatuses.Normalize(project?.Status);
+        notes = project?.Notes ?? string.Empty;
     }
 
     public string DialogTitle { get; }
@@ -87,5 +93,8 @@ public sealed class ProjectEditorDialogViewModel : ObservableObject
     public string TagsText { get => tagsText; set => SetProperty(ref tagsText, value); }
     public string Creator { get => creator; set => SetProperty(ref creator, value); }
     public string DirectoryPath { get => directoryPath; set => SetProperty(ref directoryPath, value); }
+    public IReadOnlyList<string> StatusOptions => ResearchProjectStatuses.FilterOptions.Skip(1).ToArray();
+    public string Status { get => status; set => SetProperty(ref status, ResearchProjectStatuses.Normalize(value)); }
+    public string Notes { get => notes; set => SetProperty(ref notes, value); }
     public string ErrorMessage { get => errorMessage; set => SetProperty(ref errorMessage, value); }
 }

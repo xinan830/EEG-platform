@@ -23,7 +23,7 @@ public partial class AcquisitionWorkspaceView : UserControl
         {
             await workspace.Acquisition.FinishAcquisitionAsync();
             workspace.Projects.RefreshRecordings();
-            window?.ShowProjectListView();
+            window?.ShowProjectDetailView();
         }
         catch (Exception exception)
         {

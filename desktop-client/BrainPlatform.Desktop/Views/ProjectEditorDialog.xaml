@@ -36,6 +36,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,14">
@@ -60,7 +61,17 @@
                     <TextBlock Text="创建者" Foreground="#334155" FontSize="12.5" />
                     <TextBox Text="{Binding Creator, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0" Padding="9,7" />
                 </StackPanel>
-                <StackPanel Grid.Row="4" Grid.ColumnSpan="2">
+                <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,8,14">
+                    <TextBlock Text="项目状态" Foreground="#334155" FontSize="12.5" />
+                    <ComboBox ItemsSource="{Binding StatusOptions}" SelectedItem="{Binding Status, Mode=TwoWay}"
+                              Margin="0,6,0,0" Padding="7,5" />
+                </StackPanel>
+                <StackPanel Grid.Row="4" Grid.Column="1" Margin="8,0,0,14">
+                    <TextBlock Text="备注" Foreground="#334155" FontSize="12.5" />
+                    <TextBox Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}" Margin="0,6,0,0"
+                             Padding="9,7" Height="54" TextWrapping="Wrap" AcceptsReturn="True" />
+                </StackPanel>
+                <StackPanel Grid.Row="5" Grid.ColumnSpan="2">
                     <TextBlock Text="项目目录 *" Foreground="#334155" FontSize="12.5" />
                     <Grid Margin="0,6,0,0">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>

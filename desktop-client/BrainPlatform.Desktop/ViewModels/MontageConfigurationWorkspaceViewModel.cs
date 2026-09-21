@@ -22,8 +22,16 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     private string? draftProfileId;
     private DateTimeOffset? draftCreatedAtUtc;
     private bool isReadOnlyDraft;
+    private bool hasSparseOutputTopology;
     private bool isRefreshingChannelConfigurations;
     private readonly SemaphoreSlim refreshGate = new(1, 1);
+    private string searchText = string.Empty;
+    private string channelConfigurationFilter = "全部通道配置";
+    private string montageMethodFilter = "全部方式";
+    private string sourceFilter = "全部来源";
+    private string statusFilter = "全部状态";
+    private int pageSize = 10;
+    private int currentPage = 1;
 
     public MontageConfigurationWorkspaceViewModel(
         ChannelConfigurationWorkspaceViewModel channelConfigurations,
@@ -46,9 +54,14 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         ApplySpecifiedPairToAllCommand = new AsyncRelayCommand(
             () => { ApplySpecifiedPairToAll(); return Task.CompletedTask; },
             ReportCommandError);
+        PreviousPageCommand = new RelayCommand(() => CurrentPage--, () => CanPreviousPage);
+        NextPageCommand = new RelayCommand(() => CurrentPage++, () => CanNextPage);
     }
 
     public ObservableCollection<MontageProfile> Profiles { get; } = [];
+
+    /// <summary>Profiles after the list-page search, filter, and paging pipeline.</summary>
+    public ObservableCollection<MontageProfile> FilteredProfiles { get; } = [];
 
     public ObservableCollection<MontageProfile> AvailableForAcquisition { get; } = [];
 
@@ -66,6 +79,22 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         new(MontageNegativeKind.SpecifiedPair, "指定双参考"),
     ];
 
+    public IReadOnlyList<string> SourceFilterOptions { get; } = ["全部来源", "系统默认", "用户创建"];
+
+    public IReadOnlyList<string> StatusFilterOptions { get; } =
+        ["全部状态", "可用", "设备不匹配", "来源已修改", "来源已删除", "配置无效"];
+
+    public IReadOnlyList<string> MontageMethodFilterOptions { get; } =
+        ["全部方式", "原始硬件参考", "指定通道", "平均参考", "指定双参考"];
+
+    public IReadOnlyList<int> PageSizeOptions { get; } = [10, 20, 50];
+
+    public IReadOnlyList<string> ChannelConfigurationFilterOptions =>
+        ["全部通道配置", .. Profiles
+            .Select(profile => profile.ChannelConfigurationName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)];
+
     public ICommand RefreshCommand { get; }
 
     public ICommand SaveDraftCommand { get; }
@@ -78,6 +107,76 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
     public ICommand ApplySpecifiedPairToAllCommand { get; }
 
+    public string SearchText
+    {
+        get => searchText;
+        set { if (SetProperty(ref searchText, value)) ApplyFilters(resetToFirstPage: true); }
+    }
+
+    public string ChannelConfigurationFilter
+    {
+        get => channelConfigurationFilter;
+        set { if (SetProperty(ref channelConfigurationFilter, value)) ApplyFilters(resetToFirstPage: true); }
+    }
+
+    public string MontageMethodFilter
+    {
+        get => montageMethodFilter;
+        set { if (SetProperty(ref montageMethodFilter, value)) ApplyFilters(resetToFirstPage: true); }
+    }
+
+    public string SourceFilter
+    {
+        get => sourceFilter;
+        set { if (SetProperty(ref sourceFilter, value)) ApplyFilters(resetToFirstPage: true); }
+    }
+
+    public string StatusFilter
+    {
+        get => statusFilter;
+        set { if (SetProperty(ref statusFilter, value)) ApplyFilters(resetToFirstPage: true); }
+    }
+
+    public int PageSize
+    {
+        get => pageSize;
+        set
+        {
+            var normalized = PageSizeOptions.Contains(value) ? value : 10;
+            if (SetProperty(ref pageSize, normalized))
+            {
+                currentPage = 1;
+                RaisePropertyChanged(nameof(CurrentPage));
+                ApplyFilters();
+            }
+        }
+    }
+
+    public int CurrentPage
+    {
+        get => currentPage;
+        set
+        {
+            var normalized = Math.Clamp(value, 1, TotalPages);
+            if (SetProperty(ref currentPage, normalized))
+            {
+                ApplyFilters();
+            }
+        }
+    }
+
+    public int TotalItemCount { get; private set; }
+
+    public int TotalPages { get; private set; } = 1;
+
+    public bool CanPreviousPage => CurrentPage > 1;
+
+    public bool CanNextPage => CurrentPage < TotalPages;
+
+    public ICommand PreviousPageCommand { get; }
+
+    public ICommand NextPageCommand { get; }
+
     public MontageProfile? SelectedProfile
     {
         get => selectedProfile;
@@ -86,6 +185,8 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
             if (SetProperty(ref selectedProfile, value))
             {
                 RaisePropertyChanged(nameof(CanDeleteSelected));
+                RaisePropertyChanged(nameof(CanCopySelected));
+                RaisePageCommandStateChanged();
             }
         }
     }
@@ -106,6 +207,8 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     public bool CanSelectDraftChannelConfiguration => CanEditDraft && !IsEditingExisting;
 
     public bool CanDeleteSelected => SelectedProfile?.CanDelete == true;
+
+    public bool CanCopySelected => SelectedProfile?.CanCopy == true;
 
     public string DraftName { get => draftName; set => SetProperty(ref draftName, value); }
 
@@ -137,13 +240,18 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         ? $"双参考（{string.Join("、", GetAverageReferenceLabels())}）"
         : "请选择两个通道";
 
-    public bool CanApplyAverageReference => GetAverageReferenceLabels().Count >= 2 && DraftRows.Count > 0;
+    public bool CanEditReferenceMode => CanEditDraft && !hasSparseOutputTopology;
 
-    public bool CanApplySpecifiedPair => GetAverageReferenceLabels().Count == 2 && DraftRows.Count > 0;
+    public bool CanApplyOriginalReference => CanEditReferenceMode && DraftRows.Count > 0;
+
+    public bool CanApplyAverageReference => CanEditReferenceMode && GetAverageReferenceLabels().Count >= 2 && DraftRows.Count > 0;
+
+    public bool CanApplySpecifiedPair => CanEditReferenceMode && GetAverageReferenceLabels().Count == 2 && DraftRows.Count > 0;
 
     public void BeginNewProfile()
     {
         isReadOnlyDraft = false;
+        hasSparseOutputTopology = false;
         RefreshAvailableChannelConfigurations();
         SelectedProfile = null;
         draftProfileId = null;
@@ -169,6 +277,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
         var profile = SelectedProfile;
         isReadOnlyDraft = profile.Source == MontageProfileSource.System;
+        hasSparseOutputTopology = !HasOneOutputPerConfiguredSource(profile);
         draftProfileId = profile.Source == MontageProfileSource.User ? profile.Id : null;
         draftCreatedAtUtc = profile.Source == MontageProfileSource.User ? profile.CreatedAtUtc : null;
         DraftName = profile.Name;
@@ -179,12 +288,12 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         RaisePropertyChanged(nameof(DraftChannelSummary));
         if (isReadOnlyDraft)
         {
-            BuildReadOnlyRows(profile);
+            BuildRowsFromExistingProfile(profile);
             StatusText = "系统默认导联配置仅供查看；如需修改，请使用“复制”。";
         }
         else
         {
-            BuildFixedRows(profile.ChannelConfigurationSnapshot, profile);
+            BuildEditableRows(profile);
             StatusText = "源通道和顺序由通道配置固定；本页只编辑重参考规则。";
         }
         RaiseDraftModePropertiesChanged();
@@ -199,6 +308,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
         var profile = SelectedProfile;
         isReadOnlyDraft = false;
+        hasSparseOutputTopology = !HasOneOutputPerConfiguredSource(profile);
         draftProfileId = null;
         draftCreatedAtUtc = null;
         DraftName = $"{profile.Name} 副本";
@@ -207,7 +317,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         draftChannelConfiguration = profile.ChannelConfigurationSnapshot;
         RaisePropertyChanged(nameof(DraftChannelConfiguration));
         RaisePropertyChanged(nameof(DraftChannelSummary));
-        BuildFixedRows(profile.ChannelConfigurationSnapshot, profile);
+        BuildEditableRows(profile);
         StatusText = $"已从“{profile.Name}”创建副本。";
         RaiseDraftModePropertiesChanged();
     }
@@ -215,6 +325,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     public void CloseDraft()
     {
         isReadOnlyDraft = false;
+        hasSparseOutputTopology = false;
         draftProfileId = null;
         draftCreatedAtUtc = null;
         DraftRows.Clear();
@@ -295,6 +406,10 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
     public void ApplyOriginalReferenceToAll()
     {
+        if (!CanApplyOriginalReference)
+        {
+            throw new InvalidOperationException("此导联配置的输出集合固定，不能整体切换参考方式。");
+        }
         foreach (var row in DraftRows)
         {
             row.NegativeKind = MontageNegativeKind.OriginalHardwareReference;
@@ -358,7 +473,36 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         }
     }
 
-    private void BuildReadOnlyRows(MontageProfile profile)
+    /// <summary>
+    /// Keeps an existing sparse output topology intact. Rebuilding a Cz or
+    /// bipolar montage from every configured source would silently append
+    /// unintended original-reference outputs.
+    /// </summary>
+    private void BuildEditableRows(MontageProfile profile)
+    {
+        if (HasOneOutputPerConfiguredSource(profile))
+        {
+            BuildFixedRows(profile.ChannelConfigurationSnapshot, profile);
+            return;
+        }
+
+        BuildRowsFromExistingProfile(profile);
+    }
+
+    private static bool HasOneOutputPerConfiguredSource(MontageProfile profile)
+    {
+        var sourceLabels = profile.ChannelConfigurationSnapshot.Channels
+            .Where(channel => channel.IsSelectedForDisplay && !string.IsNullOrWhiteSpace(channel.ElectrodeLabel))
+            .Select(channel => channel.ElectrodeLabel.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var positiveLabels = profile.DerivedChannels
+            .Select(channel => channel.PositiveLabel.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return profile.DerivedChannels.Count == sourceLabels.Count && sourceLabels.SetEquals(positiveLabels);
+    }
+
+    private void BuildRowsFromExistingProfile(MontageProfile profile)
     {
         var sourceLabels = profile.ChannelConfigurationSnapshot.Channels
             .Where(channel => channel.IsSelectedForDisplay && !string.IsNullOrWhiteSpace(channel.ElectrodeLabel))
@@ -409,6 +553,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     {
         RaisePropertyChanged(nameof(AverageReferenceSummary));
         RaisePropertyChanged(nameof(SpecifiedPairSummary));
+        RaisePropertyChanged(nameof(CanApplyOriginalReference));
         RaisePropertyChanged(nameof(CanApplyAverageReference));
         RaisePropertyChanged(nameof(CanApplySpecifiedPair));
         foreach (var row in DraftRows)
@@ -539,6 +684,13 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
             SelectedProfile = selectedId is null
                 ? Profiles.FirstOrDefault()
                 : Profiles.FirstOrDefault(profile => profile.Id == selectedId);
+            RaisePropertyChanged(nameof(ChannelConfigurationFilterOptions));
+            if (!ChannelConfigurationFilterOptions.Contains(ChannelConfigurationFilter, StringComparer.OrdinalIgnoreCase))
+            {
+                channelConfigurationFilter = "全部通道配置";
+                RaisePropertyChanged(nameof(ChannelConfigurationFilter));
+            }
+            ApplyFilters();
             StatusText = $"已载入 {Profiles.Count} 份导联配置；可用通道配置 {AvailableChannelConfigurations.Count} 份。";
             RaisePropertyChanged(nameof(AvailableForAcquisition));
         }
@@ -561,10 +713,85 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         notifications.PublishSuccess($"已删除导联配置“{profile.Name}”。");
     }
 
+    private void ApplyFilters(bool resetToFirstPage = false)
+    {
+        if (resetToFirstPage && currentPage != 1)
+        {
+            currentPage = 1;
+            RaisePropertyChanged(nameof(CurrentPage));
+        }
+
+        var search = SearchText.Trim();
+        var filtered = Profiles.Where(profile =>
+            string.IsNullOrWhiteSpace(search) ||
+            profile.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+            profile.Description.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
+            profile.ChannelConfigurationName.Contains(search, StringComparison.CurrentCultureIgnoreCase));
+
+        if (ChannelConfigurationFilter != "全部通道配置")
+        {
+            filtered = filtered.Where(profile =>
+                string.Equals(profile.ChannelConfigurationName, ChannelConfigurationFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (MontageMethodFilter != "全部方式")
+        {
+            filtered = filtered.Where(profile => profile.DerivedChannels.Any(channel =>
+                string.Equals(MontageDisplay.TextFor(channel.NegativeKind), MontageMethodFilter, StringComparison.Ordinal)));
+        }
+
+        if (SourceFilter is "系统默认" or "用户创建")
+        {
+            var source = SourceFilter == "系统默认" ? MontageProfileSource.System : MontageProfileSource.User;
+            filtered = filtered.Where(profile => profile.Source == source);
+        }
+
+        if (StatusFilter != "全部状态")
+        {
+            filtered = filtered.Where(profile => profile.ListStatusLabel == StatusFilter);
+        }
+
+        var results = filtered.ToArray();
+        TotalItemCount = results.Length;
+        TotalPages = Math.Max(1, (int)Math.Ceiling(results.Length / (double)PageSize));
+        if (currentPage > TotalPages)
+        {
+            currentPage = TotalPages;
+            RaisePropertyChanged(nameof(CurrentPage));
+        }
+
+        FilteredProfiles.Clear();
+        foreach (var profile in results.Skip((CurrentPage - 1) * PageSize).Take(PageSize))
+        {
+            FilteredProfiles.Add(profile);
+        }
+
+        if (SelectedProfile is not null && !FilteredProfiles.Contains(SelectedProfile))
+        {
+            SelectedProfile = FilteredProfiles.FirstOrDefault();
+        }
+
+        RaisePropertyChanged(nameof(TotalItemCount));
+        RaisePropertyChanged(nameof(TotalPages));
+        RaisePropertyChanged(nameof(CanPreviousPage));
+        RaisePropertyChanged(nameof(CanNextPage));
+        RaisePageCommandStateChanged();
+    }
+
+    private void RaisePageCommandStateChanged()
+    {
+        (PreviousPageCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (NextPageCommand as RelayCommand)?.RaiseCanExecuteChanged();
+    }
+
     private void RaiseDraftModePropertiesChanged()
     {
         RaisePropertyChanged(nameof(IsEditingExisting));
         RaisePropertyChanged(nameof(CanEditDraft));
+        RaisePropertyChanged(nameof(CanEditReferenceMode));
+        RaisePropertyChanged(nameof(CanApplyOriginalReference));
+        RaisePropertyChanged(nameof(CanApplyAverageReference));
+        RaisePropertyChanged(nameof(CanApplySpecifiedPair));
         RaisePropertyChanged(nameof(DraftTitle));
         RaisePropertyChanged(nameof(ShowReferenceGroup));
         RaisePropertyChanged(nameof(CanSelectDraftChannelConfiguration));

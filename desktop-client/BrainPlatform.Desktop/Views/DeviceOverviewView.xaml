@@ -1,134 +1,405 @@
 <UserControl x:Class="BrainPlatform.Desktop.Views.DeviceOverviewView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="#F3F5F8">
-    <Grid Margin="28,24">
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="#F8FAFC">
+
+    <UserControl.Resources>
+        <!-- 蓝底主要按钮样式 -->
+        <Style x:Key="PrimaryActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2563EB" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1D4ED8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1E40AF" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.6" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 白底描边次要按钮样式 -->
+        <Style x:Key="SecondaryActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Foreground" Value="#1E293B" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#F8FAFC" />
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#CBD5E1" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="#F1F5F9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.6" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="32,28">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="20" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="20" />
+            <RowDefinition Height="24" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
+        <!-- 顶部标题栏与操作按钮 -->
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <StackPanel>
-                <TextBlock Text="总览" FontSize="26" FontWeight="Bold" Foreground="#0F172A" />
-                <TextBlock Text="当前桌面客户端、后端与采集设备的只读状态。设备事实均来自全局设备会话。"
-                           Margin="0,8,0,0" FontSize="13.5" Foreground="#64748B" />
+
+            <!-- 标题与副标题 -->
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="设备总览"
+                           FontSize="24"
+                           FontWeight="Bold"
+                           Foreground="#0F172A" />
+                <TextBlock Text="查看当前设备连接状态与采集准备信息"
+                           Margin="0,6,0,0"
+                           FontSize="13.5"
+                           Foreground="#64748B" />
             </StackPanel>
-            <Button Grid.Column="1" Content="重新检测设备" Command="{Binding Overview.RefreshDeviceCommand}"
-                    Height="36" Padding="18,0" Margin="20,0,0,0" VerticalAlignment="Center"
-                    Background="#2563EB" Foreground="White" BorderThickness="0" Cursor="Hand" />
+
+            <!-- 右侧操作按钮组 -->
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- 连接设备按钮 (Primary) -->
+                <Button Style="{StaticResource PrimaryActionButtonStyle}"
+                        Command="{Binding Overview.RefreshDeviceCommand}"
+                        Margin="0,0,12,0"
+                        ToolTip="{Binding Overview.OperationMessage}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- 链环连接图标 -->
+                        <Path Width="16" Height="16" Stretch="Uniform" Margin="0,0,8,0"
+                              Stroke="#FFFFFF" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M 10.5 13.5 L 13.5 10.5 M 8 11 L 6.5 12.5 C 5 14 5 16.5 6.5 18 C 8 19.5 10.5 19.5 12 18 L 13.5 16.5 M 12.5 9.5 L 14 8 C 15.5 6.5 18 6.5 19.5 8 C 21 9.5 21 12 19.5 13.5 L 18 15" />
+                        <TextBlock Text="连接设备" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+
+                <!-- 刷新状态按钮 (Secondary) -->
+                <Button Style="{StaticResource SecondaryActionButtonStyle}"
+                        Command="{Binding Overview.RefreshDeviceCommand}"
+                        ToolTip="重新检测硬件连接并刷新设备状态">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- 刷新图标 -->
+                        <Path Width="15" Height="15" Stretch="Uniform" Margin="0,0,8,0"
+                              Stroke="#1E293B" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Data="M 21.5 2 V 6 H 17.5 M 2.5 22 V 18 H 6.5 M 20.49 9 A 9 9 0 0 0 5.64 5.64 L 2.5 8.5 M 21.5 15.5 L 18.36 18.36 A 9 9 0 0 1 3.51 15" />
+                        <TextBlock Text="刷新状态" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
 
-        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24">
+        <!-- 主内容卡片容器 -->
+        <Border Grid.Row="2"
+                Background="#FFFFFF"
+                BorderBrush="#E2E8F0"
+                BorderThickness="1"
+                CornerRadius="16"
+                Padding="56,40">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="1" />
+                    <ColumnDefinition Width="1.1*" />
                 </Grid.ColumnDefinitions>
-                <Border Width="48" Height="48" Background="{Binding Overview.StateBackgroundBrush}" CornerRadius="24" VerticalAlignment="Center">
-                    <Ellipse Width="14" Height="14" Fill="{Binding Overview.StateBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
-                <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Overview.StateText}" FontSize="18" FontWeight="SemiBold" Foreground="#0F172A" />
-                    <TextBlock Text="{Binding Overview.DeviceDetail}" Margin="0,5,0,0" FontSize="13" Foreground="#64748B" TextWrapping="Wrap" />
-                </StackPanel>
-                <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
-                    <TextBlock Text="最近状态更新" FontSize="12" Foreground="#94A3B8" HorizontalAlignment="Right" />
-                    <TextBlock Text="{Binding Overview.CheckedAtText}" Margin="0,4,0,0" FontSize="13" Foreground="#334155" HorizontalAlignment="Right" />
-                </StackPanel>
+
+                <!-- 左侧：设备视觉展示与连接状态 -->
+                <Grid Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 浅蓝底圆盘 + 设备硬件照片 + 状态小标 -->
+                    <Grid Grid.Row="0" HorizontalAlignment="Center" Width="380" Height="380">
+                        <!-- 浅蓝背景圆 -->
+                        <Ellipse Fill="#F0F7FF" Width="380" Height="380" />
+
+                        <!-- 设备硬件渲染图 (根据连接状态动态切换带绿灯/不带绿灯图片) -->
+                        <Image x:Name="DeviceStateImage"
+                               Width="320" Height="360"
+                               Stretch="Uniform"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Top" Margin="0,39,0,0">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Setter Property="Source" Value="/Assets/device-disconnected.png" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Connected">
+                                            <Setter Property="Source" Value="/Assets/device-connected.png" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Streaming">
+                                            <Setter Property="Source" Value="/Assets/device-connected.png" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+
+                        <!-- 右下角状态圆标 -->
+                        <Border Width="66" Height="66"
+                                CornerRadius="33"
+                                BorderThickness="4"
+                                BorderBrush="#FFFFFF"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Margin="0,0,44,36" RenderTransformOrigin="0.53,0.375">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#94A3B8" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Connected">
+                                            <Setter Property="Background" Value="#22C55E" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Streaming">
+                                            <Setter Property="Background" Value="#22C55E" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Discovering">
+                                            <Setter Property="Background" Value="#2563EB" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Faulted">
+                                            <Setter Property="Background" Value="#EF4444" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#000000" BlurRadius="16" ShadowDepth="3" Opacity="0.18" Direction="270" />
+                            </Border.Effect>
+                            <!-- 徽章内图标 -->
+                            <Path Width="24" Height="24" Stretch="Uniform"
+                                  Stroke="#FFFFFF" StrokeThickness="2.6"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path.Style>
+                                    <Style TargetType="Path">
+                                        <Setter Property="Data" Value="M 10.5 13.5 L 13.5 10.5 M 8 11 L 6.5 12.5 C 5 14 5 16.5 6.5 18 C 8 19.5 10.5 19.5 12 18 L 13.5 16.5 M 12.5 9.5 L 14 8 C 15.5 6.5 18 6.5 19.5 8 C 21 9.5 21 12 19.5 13.5 L 18 15" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Disconnected">
+                                                <Setter Property="Data" Value="M 4 4 L 20 20 M 10.5 13.5 L 13.5 10.5 M 8 11 L 6.5 12.5 C 5 14 5 16.5 6.5 18 C 8 19.5 10.5 19.5 12 18 L 13.5 16.5 M 12.5 9.5 L 14 8 C 15.5 6.5 18 6.5 19.5 8 C 21 9.5 21 12 19.5 13.5 L 18 15" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="NotConfigured">
+                                                <Setter Property="Data" Value="M 5 12 H 19" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Discovering">
+                                                <Setter Property="Data" Value="M 21.5 2 V 6 H 17.5 M 2.5 22 V 18 H 6.5 M 20.49 9 A 9 9 0 0 0 5.64 5.64 L 2.5 8.5 M 21.5 15.5 L 18.36 18.36 A 9 9 0 0 1 3.51 15" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Faulted">
+                                                <Setter Property="Data" Value="M 12 8 V 13 M 12 17 H 12.01 M 10.29 3.86 L 1.82 18 A 2 2 0 0 0 3.55 21 H 20.45 A 2 2 0 0 0 22.18 18 L 13.71 3.86 A 2 2 0 0 0 10.29 3.86 Z" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Path.Style>
+                            </Path>
+                        </Border>
+                    </Grid>
+
+                    <!-- 状态主标题 -->
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding Overview.StateText}"
+                               FontSize="30"
+                               FontWeight="Bold"
+                               Foreground="#0F172A"
+                               HorizontalAlignment="Center"
+                               Margin="0,28,0,10" />
+
+                    <!-- 状态详细说明 -->
+                    <TextBlock Grid.Row="2"
+                               Text="{Binding Overview.DeviceDetail}"
+                               FontSize="15"
+                               Foreground="#64748B"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="440"
+                               LineHeight="22" />
+                </Grid>
+
+                <!-- 中间垂直分割线 -->
+                <Rectangle Grid.Column="1"
+                           Fill="#F1F5F9"
+                           VerticalAlignment="Stretch"
+                           Margin="0,16" />
+
+                <!-- 右侧：设备信息列表 -->
+                <Grid Grid.Column="2" VerticalAlignment="Center" Margin="56,0,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- 栏目标题 -->
+                    <TextBlock Grid.Row="0"
+                               Text="设备信息"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#0F172A"
+                               Margin="0,0,0,22" />
+
+                    <!-- 卡片 1: 设备型号 -->
+                    <Border Grid.Row="1"
+                            Background="#F4F8FD"
+                            CornerRadius="12"
+                            Padding="24,18"
+                            Margin="0,0,0,16"
+                            MinHeight="82"
+                            ToolTip="{Binding Overview.DriverConfigurationText}">
+                        <Grid VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <!-- 3D 盒子图标 -->
+                            <Path Width="30" Height="30" Stretch="Uniform" Margin="0,0,20,0"
+                                  VerticalAlignment="Center"
+                                  Stroke="#1E3A8A" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Data="M 12,2 L 21,7 V 17 L 12,22 L 3,17 V 7 Z M 12,2 V 12 M 12,12 L 21,7 M 12,12 L 3,7" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="设备型号" FontSize="13.5" Foreground="#64748B" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding Overview.DeviceModel, FallbackValue='-', TargetNullValue='-'}"
+                                           FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 卡片 2: 采样率 -->
+                    <Border Grid.Row="2"
+                            Background="#F4F8FD"
+                            CornerRadius="12"
+                            Padding="24,18"
+                            Margin="0,0,0,16"
+                            MinHeight="82">
+                        <Grid VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <!-- 脉冲心电图图标 -->
+                            <Path Width="30" Height="30" Stretch="Uniform" Margin="0,0,20,0"
+                                  VerticalAlignment="Center"
+                                  Stroke="#1E3A8A" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Data="M 2,12 H 6 L 9,4 L 15,20 L 18,12 H 22" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="采样率" FontSize="13.5" Foreground="#64748B" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding Overview.SupportedSamplingRates, FallbackValue='-', TargetNullValue='-'}"
+                                           FontSize="17" FontWeight="SemiBold" Foreground="#0F172A"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 卡片 3: 通道数 -->
+                    <Border Grid.Row="3"
+                            Background="#F4F8FD"
+                            CornerRadius="12"
+                            Padding="24,18"
+                            Margin="0,0,0,16"
+                            MinHeight="82"
+                            ToolTip="{Binding Overview.PhysicalInputSummary}">
+                        <Grid VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <!-- 四格网格图标 -->
+                            <Path Width="30" Height="30" Stretch="Uniform" Margin="0,0,20,0"
+                                  VerticalAlignment="Center"
+                                  Stroke="#1E3A8A" StrokeThickness="2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  Data="M 3,4 A 1,1 0 0 1 4,3 H 9 A 1,1 0 0 1 10,4 V 9 A 1,1 0 0 1 9,10 H 4 A 1,1 0 0 1 3,9 Z M 14,4 A 1,1 0 0 1 15,3 H 20 A 1,1 0 0 1 21,4 V 9 A 1,1 0 0 1 20,10 H 15 A 1,1 0 0 1 14,9 Z M 3,15 A 1,1 0 0 1 4,14 H 9 A 1,1 0 0 1 10,15 V 20 A 1,1 0 0 1 9,21 H 4 A 1,1 0 0 1 3,20 Z M 14,15 A 1,1 0 0 1 15,14 H 20 A 1,1 0 0 1 21,15 V 20 A 1,1 0 0 1 20,21 H 15 A 1,1 0 0 1 14,20 Z" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="通道数" FontSize="13.5" Foreground="#64748B" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding Overview.Snapshot.SelectedDevice.ChannelCapabilities.Count, FallbackValue='-', TargetNullValue='-'}"
+                                           FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 卡片 4: 序列号 -->
+                    <Border Grid.Row="4"
+                            Background="#F4F8FD"
+                            CornerRadius="12"
+                            Padding="24,18"
+                            MinHeight="82"
+                            ToolTip="{Binding Overview.DeviceInstance}">
+                        <Grid VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <!-- 条形码图标 -->
+                            <Path Width="30" Height="30" Stretch="Uniform" Margin="0,0,20,0"
+                                  VerticalAlignment="Center"
+                                  Stroke="#1E3A8A" StrokeThickness="2.2"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                  Data="M 3,4 V 20 M 6,4 V 20 M 9.5,4 V 20 M 12.5,4 V 20 M 15,4 V 20 M 18,4 V 20 M 21,4 V 20" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="序列号" FontSize="13.5" Foreground="#64748B" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding Overview.DeviceInstance, FallbackValue='-', TargetNullValue='-'}"
+                                           FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
         </Border>
-
-        <Grid Grid.Row="4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.15*" />
-                <ColumnDefinition Width="20" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="18" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="当前设备" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="设备驱动" FontSize="13" Foreground="#64748B" />
-                        <TextBlock Grid.Column="1" Text="{Binding Overview.DriverId}" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
-                    </Grid>
-                    <Grid Grid.Row="4">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="设备型号" FontSize="13" Foreground="#64748B" />
-                        <TextBlock Grid.Column="1" Text="{Binding Overview.DeviceModel}" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
-                    </Grid>
-                    <Grid Grid.Row="6">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="设备实例" FontSize="13" Foreground="#64748B" />
-                        <TextBlock Grid.Column="1" Text="{Binding Overview.DeviceInstance}" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
-                    </Grid>
-                    <Grid Grid.Row="8">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="平台设备标识" FontSize="13" Foreground="#64748B" />
-                        <TextBlock Grid.Column="1" Text="{Binding Overview.DeviceId}" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
-                    </Grid>
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="18" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="设备能力与诊断" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
-                    <StackPanel Grid.Row="2">
-                        <TextBlock Text="支持采样率" FontSize="12" Foreground="#64748B" />
-                        <TextBlock Text="{Binding Overview.SupportedSamplingRates}" Margin="0,4,0,0" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="4">
-                        <TextBlock Text="物理输入" FontSize="12" Foreground="#64748B" />
-                        <TextBlock Text="{Binding Overview.PhysicalInputSummary}" Margin="0,4,0,0" FontSize="13" Foreground="#0F172A" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="6">
-                        <TextBlock Text="能力指纹" FontSize="12" Foreground="#64748B" />
-                        <TextBlock Text="{Binding Overview.CapabilityFingerprint}" Margin="0,4,0,0" FontSize="12" Foreground="#334155" TextWrapping="Wrap" FontFamily="Consolas" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="8">
-                        <TextBlock Text="驱动配置" FontSize="12" Foreground="#64748B" />
-                        <TextBlock Text="{Binding Overview.DriverConfigurationText}" Margin="0,4,0,0" FontSize="12" Foreground="#334155" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="10">
-                        <TextBlock Text="最近操作" FontSize="12" Foreground="#64748B" />
-                        <TextBlock Text="{Binding Overview.OperationMessage}" Margin="0,4,0,0" FontSize="13" Foreground="#334155" TextWrapping="Wrap" />
-                    </StackPanel>
-                </Grid>
-            </Border>
-        </Grid>
     </Grid>
 </UserControl>

@@ -40,6 +40,32 @@ public sealed class ResearchProjectStoreTests
     }
 
     [Fact]
+    public async Task Store_PersistsProjectNotesSeparatelyFromResearchPurpose()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "brain-platform-project-notes-tests", Guid.NewGuid().ToString("N"));
+        var indexPath = Path.Combine(root, "index", "projects.json");
+        var directory = Path.Combine(root, "research-project");
+        var now = DateTimeOffset.UtcNow;
+        var project = new ResearchProject(
+            "project-id", "P20260920001", "测试项目", "说明", "研究目的", [], "tester",
+            directory, now, now, ResearchProjectStatuses.InProgress, "随访时记录受试者状态。");
+        var store = new ResearchProjectStore(indexPath);
+
+        try
+        {
+            await store.SaveAsync(project, CancellationToken.None);
+
+            var restored = Assert.Single(await store.LoadAsync(CancellationToken.None));
+            Assert.Equal("研究目的", restored.Purpose);
+            Assert.Equal("随访时记录受试者状态。", restored.Notes);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void AcquisitionRequest_RejectsMissingProjectIdentity()
     {
         var project = new BrainPlatform.Desktop.Acquisition.Contracts.AcquisitionProjectContext(

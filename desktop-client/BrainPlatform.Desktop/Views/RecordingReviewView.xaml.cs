@@ -149,7 +149,7 @@ public partial class RecordingReviewView : UserControl
 
     private void OnBackClick(object sender, RoutedEventArgs e)
     {
-        (Window.GetWindow(this) as MainWindow)?.ShowProjectListView();
+        (Window.GetWindow(this) as MainWindow)?.ShowProjectDetailView();
     }
 
     private void UpdateControls()

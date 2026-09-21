@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Globalization;
 using System.Text.Json.Serialization;
 
 namespace BrainPlatform.Desktop.Configuration;
@@ -50,11 +51,20 @@ public sealed record MontageProfile(
     public string OpenActionLabel => CanEdit ? "编辑" : "查看";
 
     [JsonIgnore]
-    public bool CanCopy => Source == MontageProfileSource.User;
+    public bool CanCopy => true;
 
     public int ChannelCount => DerivedChannels.Count;
 
-    public string UpdatedAtText => UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+    public string CreatedAtText => Source == MontageProfileSource.System
+        ? "系统预置"
+        : CreatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+    public string UpdatedAtText => Source == MontageProfileSource.System
+        ? "系统预置"
+        : UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+    [JsonIgnore]
+    public string DescriptionPreview => Abbreviate(Description, 15);
 
     [JsonIgnore]
     public string ChannelConfigurationName => ChannelConfigurationSnapshot.Name;
@@ -65,11 +75,26 @@ public sealed record MontageProfile(
     [JsonIgnore]
     public string ChannelSnapshotStatusDetail { get; init; } = "刷新后校验来源通道配置。";
 
+    /// <summary>Short status shown and filtered by the montage list page.</summary>
+    [JsonIgnore]
+    public string ListStatusLabel => ChannelSnapshotStatusLabel == "已同步"
+        ? "可用"
+        : ChannelSnapshotStatusLabel;
+
     [JsonIgnore]
     public string ReferenceSummary => string.Join("、", DerivedChannels
         .Select(channel => channel.NegativeKind)
         .Distinct()
         .Select(MontageDisplay.TextFor));
+
+    private static string Abbreviate(string? value, int maximumTextElements)
+    {
+        var text = value?.Trim() ?? string.Empty;
+        var starts = StringInfo.ParseCombiningCharacters(text);
+        return starts.Length <= maximumTextElements
+            ? text
+            : string.Concat(text.AsSpan(0, starts[maximumTextElements]), "…");
+    }
 }
 
 public sealed record DerivedMontageChannel(
