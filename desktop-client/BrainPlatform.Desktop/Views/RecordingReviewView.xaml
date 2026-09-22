@@ -85,6 +85,7 @@
                                  ToolTip="名义纸速输入；真实物理毫米需要工作站校准。" />
                     <ComboBox Width="82" Style="{StaticResource ReviewPaperSpeedValueStyle}"
                               IsEnabled="{Binding IsPaperSpeedMode}" SelectedValuePath="Tag"
+                              SelectionChanged="OnPaperSpeedSelectionChanged"
                               SelectedValue="{Binding PaperSpeedMillimetersPerSecond, Mode=TwoWay}">
                         <ComboBoxItem Content="5 mm/s" Tag="5" /><ComboBoxItem Content="10 mm/s" Tag="10" />
                         <ComboBoxItem Content="15 mm/s" Tag="15" /><ComboBoxItem Content="30 mm/s" Tag="30" />
@@ -95,6 +96,7 @@
                                  ToolTip="秒/屏输入，直接控制当前回溯窗口长度。" />
                     <ComboBox Width="74" Style="{StaticResource ReviewTimebaseValueStyle}"
                               IsEnabled="{Binding IsTimebaseMode}" SelectedValuePath="Tag"
+                              SelectionChanged="OnTimebaseSelectionChanged"
                               SelectedValue="{Binding TimebaseSecondsPerScreen, Mode=TwoWay}">
                         <ComboBoxItem Content="5 s/屏" Tag="5" /><ComboBoxItem Content="10 s/屏" Tag="10" />
                         <ComboBoxItem Content="15 s/屏" Tag="15" /><ComboBoxItem Content="20 s/屏" Tag="20" />

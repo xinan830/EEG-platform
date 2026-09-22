@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private ProjectListView? projectListView;
     private ProjectDetailView? projectDetailView;
     private SettingsView? settingsView;
+    private ScreenCalibrationView? screenCalibrationView;
     private ChannelListView? channelListView;
     private ChannelDetailView? channelDetailView;
     private MontageListView? montageListView;
@@ -35,6 +36,7 @@ public partial class MainWindow : Window
         projectListView = new ProjectListView();
         projectDetailView = new ProjectDetailView();
         settingsView = new SettingsView();
+        screenCalibrationView = new ScreenCalibrationView();
         channelListView = new ChannelListView();
         channelDetailView = new ChannelDetailView();
         montageListView = new MontageListView();
@@ -102,6 +104,14 @@ public partial class MainWindow : Window
         SetImmersiveChrome(false);
         settingsView ??= new SettingsView();
         MainContentHost.Content = settingsView;
+        SelectNavigation(NavSettingsBtn);
+    }
+
+    public void ShowScreenCalibrationView()
+    {
+        SetImmersiveChrome(false);
+        screenCalibrationView ??= new ScreenCalibrationView();
+        MainContentHost.Content = screenCalibrationView;
         SelectNavigation(NavSettingsBtn);
     }
 

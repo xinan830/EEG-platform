@@ -111,6 +111,7 @@
 
     <views:EegWorkspaceShell WaveformDataContext="{Binding Acquisition.LiveMonitor}"
                              IsImmersiveWaveform="True"
+                             IsEdgeToEdgeTopBar="True"
                              ShowBottomBar="False">
         <views:EegWorkspaceShell.TopBar>
             <Grid>
@@ -124,11 +125,6 @@
                 <DockPanel Grid.Row="0" LastChildFill="False">
                     <!-- 左侧滤波与标尺控制组 -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- 滤波分组标签 -->
-                        <Border Background="#F1F5F9" CornerRadius="4" Padding="6,2" Margin="0,0,10,0" VerticalAlignment="Center">
-                            <TextBlock Text="滤波" FontSize="11.5" FontWeight="SemiBold" Foreground="#475569" />
-                        </Border>
-
                         <!-- 高通 -->
                         <TextBlock Text="高通" Foreground="#64748B" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <ComboBox Style="{StaticResource ModernFilterComboBoxStyle}" Width="88" Height="32"

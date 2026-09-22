@@ -102,6 +102,15 @@ seconds from WPF's device-independent viewport width and the selected mm/s;
 clinical workstations that require physical-mm fidelity still need a monitor
 calibration step because a DIP is not a guaranteed physical millimeter.
 
+### Display scale context
+
+Live acquisition and recording review resolve an immutable display-scale
+context from the window that owns the waveform. The context is refreshed when
+that window is loaded, resized, or moved between monitors. Horizontal paper
+speed uses the calibrated display width; vertical EEG sensitivity uses the
+calibrated display height. A calibration on one window or monitor must not
+mutate the scale of another open acquisition or review window.
+
 ## Failure Behavior
 
 - Missing or malformed manifest/chunk/audit data produces a readable load

@@ -147,6 +147,29 @@ public partial class RecordingReviewView : UserControl
         await ViewModel.SelectViewingMontageAsync(profile);
     }
 
+    private void OnPaperSpeedSelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyScaleSelection(sender, value => ViewModel!.PaperSpeedMillimetersPerSecond = value);
+
+    private void OnTimebaseSelectionChanged(object sender, SelectionChangedEventArgs e) =>
+        ApplyScaleSelection(sender, value => ViewModel!.TimebaseSecondsPerScreen = value);
+
+    private void ApplyScaleSelection(object sender, Action<double> apply)
+    {
+        if (ViewModel is null || sender is not ComboBox { SelectedValue: not null } comboBox)
+        {
+            return;
+        }
+
+        if (double.TryParse(
+                comboBox.SelectedValue.ToString(),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var value))
+        {
+            apply(value);
+        }
+    }
+
     private void OnBackClick(object sender, RoutedEventArgs e)
     {
         (Window.GetWindow(this) as EegSessionWindow)?.Close();

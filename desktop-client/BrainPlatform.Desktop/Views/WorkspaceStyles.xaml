@@ -40,6 +40,13 @@
                             <Setter TargetName="WaveBottomGap" Property="Height" Value="0" />
                             <Setter TargetName="BottomBarBorder" Property="Margin" Value="0" />
                         </Trigger>
+                        <Trigger Property="IsEdgeToEdgeTopBar" Value="True">
+                            <Setter TargetName="WorkspaceRoot" Property="Margin" Value="0" />
+                            <Setter TargetName="TopBarBorder" Property="Margin" Value="0" />
+                            <Setter TargetName="TopBarBorder" Property="BorderThickness" Value="0" />
+                            <Setter TargetName="TopBarBorder" Property="CornerRadius" Value="0" />
+                            <Setter TargetName="TopWaveGap" Property="Height" Value="0" />
+                        </Trigger>
                         <Trigger Property="ShowBottomBar" Value="False">
                             <Setter TargetName="WaveBottomGap" Property="Height" Value="0" />
                             <Setter TargetName="BottomBarRow" Property="Height" Value="0" />

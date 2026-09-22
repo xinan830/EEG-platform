@@ -27,6 +27,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         MontageConfigurations = new MontageConfigurationWorkspaceViewModel(
             ChannelConfigurations,
             notifications: Notifications);
+        ScreenCalibration = new ScreenCalibrationViewModel(notifications: Notifications);
         RefreshBackendCommand = new AsyncRelayCommand(RefreshBackendAsync, ReportCommandError);
         DismissNotificationCommand = new AsyncRelayCommand(() =>
         {
@@ -48,6 +49,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     public ChannelConfigurationWorkspaceViewModel ChannelConfigurations { get; }
 
     public MontageConfigurationWorkspaceViewModel MontageConfigurations { get; }
+
+    public ScreenCalibrationViewModel ScreenCalibration { get; }
 
     public BackendConnectionState BackendState
     {

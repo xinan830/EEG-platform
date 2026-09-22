@@ -53,8 +53,9 @@
             <!-- 2. 两张主设置卡片 -->
             <RowDefinition Height="Auto" />
             <!-- 间距 -->
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="20" />
-            <!-- 3. 底部配置流程建议 -->
+            <!-- 4. 底部配置流程建议 -->
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -268,8 +269,25 @@
             </Border>
         </Grid>
 
-        <!-- ==================== 3. 底部配置流程建议 ==================== -->
-        <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="24,18,28,18">
+        <!-- ==================== 3. 设置入口列表 ==================== -->
+        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="20,8">
+            <Button Background="Transparent" BorderThickness="0" Padding="4,12" Cursor="Hand" Click="OnOpenScreenCalibrationClick">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <Border Width="38" Height="38" Background="#EFF6FF" CornerRadius="19" Margin="0,0,14,0">
+                        <Path Data="M 3,5 H 21 V 19 H 3 Z M 3,9 H 21 M 7,5 V 19 M 17,5 V 19" Width="18" Height="18" Stretch="Uniform" Stroke="#2563EB" StrokeThickness="1.6" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left">
+                        <TextBlock Text="屏幕尺寸校准" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A" />
+                        <TextBlock Text="校准真实屏幕长度，用于走纸速度换算" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" />
+                    </StackPanel>
+                    <Path Grid.Column="2" Data="M 3,8 H 13 M 9,4 L 13,8 L 9,12" Width="14" Height="14" Stretch="Uniform" Stroke="#64748B" StrokeThickness="1.8" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+            </Button>
+        </Border>
+
+        <!-- ==================== 4. 底部配置流程建议 ==================== -->
+        <Border Grid.Row="4" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="24,18,28,18">
             <DockPanel LastChildFill="False">
                 <!-- 左侧提示与文案 -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

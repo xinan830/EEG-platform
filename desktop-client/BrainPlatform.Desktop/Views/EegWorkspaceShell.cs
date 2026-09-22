@@ -42,6 +42,12 @@ public sealed class EegWorkspaceShell : Control
         typeof(EegWorkspaceShell),
         new PropertyMetadata(true));
 
+    public static readonly DependencyProperty IsEdgeToEdgeTopBarProperty = DependencyProperty.Register(
+        nameof(IsEdgeToEdgeTopBar),
+        typeof(bool),
+        typeof(EegWorkspaceShell),
+        new PropertyMetadata(false));
+
     static EegWorkspaceShell()
     {
         DefaultStyleKeyProperty.OverrideMetadata(
@@ -93,5 +99,15 @@ public sealed class EegWorkspaceShell : Control
     {
         get => (bool)GetValue(ShowBottomBarProperty);
         set => SetValue(ShowBottomBarProperty, value);
+    }
+
+    /// <summary>
+    /// Removes the outer and waveform spacing around the top bar for the
+    /// live acquisition workspace without changing the review workspace.
+    /// </summary>
+    public bool IsEdgeToEdgeTopBar
+    {
+        get => (bool)GetValue(IsEdgeToEdgeTopBarProperty);
+        set => SetValue(IsEdgeToEdgeTopBarProperty, value);
     }
 }

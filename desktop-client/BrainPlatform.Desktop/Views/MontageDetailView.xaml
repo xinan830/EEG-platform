@@ -252,7 +252,7 @@
                             <StackPanel Grid.Column="1" Margin="12,0,20,0">
                                 <DockPanel Height="34" Margin="0,0,0,10">
                                     <TextBlock Width="95" Text="适用通道配置" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />
-                                    <ComboBox Style="{StaticResource ModernFilterComboBox}" ItemsSource="{Binding MontageConfigurations.AvailableChannelConfigurations}" SelectedItem="{Binding MontageConfigurations.DraftChannelConfiguration, Mode=TwoWay}" IsEnabled="{Binding MontageConfigurations.CanSelectDraftChannelConfiguration}" DisplayMemberPath="Name" />
+                                    <ComboBox Style="{StaticResource ModernFilterComboBox}" ItemsSource="{Binding MontageConfigurations.AvailableChannelConfigurations}" SelectedValuePath="Id" SelectedValue="{Binding MontageConfigurations.DraftChannelConfigurationId, Mode=TwoWay}" IsEnabled="{Binding MontageConfigurations.CanSelectDraftChannelConfiguration}" DisplayMemberPath="Name" />
                                 </DockPanel>
                                 <DockPanel Height="32" Margin="0,0,0,8">
                                     <TextBlock Width="95" Text="通道概要" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />

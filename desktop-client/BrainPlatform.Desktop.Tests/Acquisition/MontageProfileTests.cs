@@ -233,6 +233,8 @@ public sealed class MontageProfileTests
 
         Assert.False(workspace.CanEditDraft);
         Assert.Equal("查看导联配置", workspace.DraftTitle);
+        Assert.Equal(source.Id, workspace.DraftChannelConfigurationId);
+        Assert.Equal(source.Name, workspace.DraftChannelConfiguration?.Name);
         Assert.Equal(systemProfile.ChannelCount, workspace.DraftRows.Count);
         Assert.All(workspace.DraftRows, row => Assert.Equal(MontageNegativeKind.Channel, row.NegativeKind));
         Assert.False(workspace.ShowReferenceGroup);

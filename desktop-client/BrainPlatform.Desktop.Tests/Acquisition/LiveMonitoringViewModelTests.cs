@@ -67,6 +67,16 @@ public sealed class LiveMonitoringViewModelTests
     }
 
     [Fact]
+    public void PaperSpeed_UsesTheOwningWindowHorizontalScaleOnly()
+    {
+        using var monitor = CreateMonitor(() => Snapshot(AcquisitionState.Ready), () => Metadata());
+        monitor.UpdateScreenScale(new ScreenScaleContext("wide", 0.5, 0.25));
+        monitor.PaperSpeedMillimetersPerSecond = 30;
+
+        Assert.Equal(16, monitor.GetDisplayWindowSeconds(960), precision: 12);
+    }
+
+    [Fact]
     public void Refresh_ShowsPausedStateAndKeepsElapsedRecordingTime()
     {
         var state = new AcquisitionStateSnapshot(

@@ -28,6 +28,14 @@ public partial class SettingsView : UserControl
             mainWindow.ShowMontageListView();
         }
     }
+
+    private void OnOpenScreenCalibrationClick(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this) is MainWindow mainWindow)
+        {
+            mainWindow.ShowScreenCalibrationView();
+        }
+    }
 }
 
 public partial class ChannelListView : UserControl

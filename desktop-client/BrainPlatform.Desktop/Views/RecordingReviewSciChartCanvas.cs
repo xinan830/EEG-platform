@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.Review;
 using BrainPlatform.Desktop.ViewModels;
 using SciChart.Charting;
@@ -45,6 +46,8 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     private readonly List<TraceSeries> traceSeries = [];
     private string[] activeLabels = [];
     private Thickness? lastLabelPlotMargin;
+    private Window? owningWindow;
+    private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
 
     public RecordingReviewSciChartCanvas()
     {
@@ -61,15 +64,16 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         chartHost.SizeChanged += (_, _) =>
         {
             var viewModel = DataContext as RecordingReviewViewModel;
-            viewModel?.UpdateViewportWidth(surface.ActualWidth);
+            viewModel?.UpdateViewportWidth(chartHost.ActualWidth);
             ApplyFrame(viewModel?.CurrentFrame, viewModel);
         };
         Grid.SetColumn(chartHost, 1);
         layout.Children.Add(labels);
         layout.Children.Add(chartHost);
         Content = layout;
+        Loaded += OnLoaded;
         DataContextChanged += OnDataContextChanged;
-        Unloaded += (_, _) => Unsubscribe();
+        Unloaded += OnUnloaded;
         surface.LayoutUpdated += (_, _) => SyncLabelPlotArea();
     }
 
@@ -79,9 +83,14 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         VisualXcceleratorEngine.SetIsEnabled(surface, true);
         xAxis.AutoRange = AutoRange.Never;
         xAxis.VisibleRange = new DoubleRange(0, 10);
+        xAxis.AxisAlignment = AxisAlignment.Bottom;
+        xAxis.DrawLabels = true;
         xAxis.DrawMajorBands = false;
         xAxis.DrawMinorGridLines = false;
         xAxis.DrawMajorGridLines = true;
+        xAxis.DrawMajorTicks = false;
+        xAxis.DrawMinorTicks = false;
+        xAxis.AutoTicks = false;
         xAxis.MajorDelta = 1;
         xAxis.MinorDelta = 0.5;
         xAxis.TextFormatting = "0";
@@ -103,8 +112,50 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     {
         Unsubscribe(e.OldValue as RecordingReviewViewModel);
         Subscribe(e.NewValue as RecordingReviewViewModel);
-        (e.NewValue as RecordingReviewViewModel)?.UpdateViewportWidth(surface.ActualWidth);
+        (e.NewValue as RecordingReviewViewModel)?.UpdateScreenScale(screenScale);
+        (e.NewValue as RecordingReviewViewModel)?.UpdateViewportWidth(chartHost.ActualWidth);
         ApplyFrame((e.NewValue as RecordingReviewViewModel)?.CurrentFrame, e.NewValue as RecordingReviewViewModel);
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs eventArgs)
+    {
+        owningWindow = Window.GetWindow(this);
+        if (owningWindow is not null)
+        {
+            owningWindow.LocationChanged += OnWindowDisplayContextChanged;
+            UpdateScreenScale();
+        }
+
+        ScreenCalibrationMetrics.CalibrationChanged += OnCalibrationChanged;
+        (DataContext as RecordingReviewViewModel)?.UpdateViewportWidth(chartHost.ActualWidth);
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs eventArgs)
+    {
+        ScreenCalibrationMetrics.CalibrationChanged -= OnCalibrationChanged;
+        if (owningWindow is not null)
+        {
+            owningWindow.LocationChanged -= OnWindowDisplayContextChanged;
+            owningWindow = null;
+        }
+
+        Unsubscribe();
+    }
+
+    private void OnWindowDisplayContextChanged(object? sender, EventArgs eventArgs) => UpdateScreenScale();
+
+    private void OnCalibrationChanged(object? sender, EventArgs eventArgs) => UpdateScreenScale();
+
+    private void UpdateScreenScale()
+    {
+        if (owningWindow is null)
+        {
+            return;
+        }
+
+        screenScale = ScreenCalibrationMetrics.ResolveScale(owningWindow);
+        (DataContext as RecordingReviewViewModel)?.UpdateScreenScale(screenScale);
+        ApplyFrame((DataContext as RecordingReviewViewModel)?.CurrentFrame, DataContext as RecordingReviewViewModel);
     }
 
     private void Subscribe(RecordingReviewViewModel? viewModel)
@@ -149,7 +200,6 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
 
         var names = frame.OutputChannelNames.ToArray();
         EnsureTraceSeries(names);
-        recordingTimeLabels.Update(viewModel?.RecordingStartUtc ?? DateTimeOffset.UnixEpoch, 0);
         UpdateVisibleRange(viewModel);
         xAxis.InvalidateElement();
         yAxis.VisibleRange = new DoubleRange(0, Math.Max(1, names.Length));
@@ -210,10 +260,15 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         var yValues = new List<double>();
         var baseline = traceCount - traceIndex - 0.5;
         var hasSegment = false;
-        var pixelsPerMillimeter = VisualTreeHelper.GetDpi(surface).PixelsPerInchY / 25.4;
+        // The plot is laid out in DIP, so sensitivity must use the calibrated
+        // physical DIP/mm conversion, not the monitor's nominal raster DPI.
         var plotHeight = GetPlotArea().Height;
         var sensitivity = (DataContext as RecordingReviewViewModel)?.SensitivityMicrovoltsPerMillimeter ?? 10;
-        var displayScale = traceCount * pixelsPerMillimeter / (plotHeight * sensitivity);
+        var displayScale = ScreenScaleCalculator.VerticalDisplayScale(
+            traceCount,
+            plotHeight,
+            sensitivity,
+            screenScale.MillimetersPerDipY);
         foreach (var segment in frame.Segments)
         {
             if (traceIndex >= segment.Channels.Count)
@@ -318,13 +373,21 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         var end = Math.Max(start + 0.001, Math.Min(viewModel.DurationSeconds, start + viewModel.VisibleDurationSeconds));
         // Keep the last complete frame on screen while a new window is being
         // read. Moving the axis ahead of the frame creates a false white gap.
-        if (viewModel.CurrentFrame is not { } frame ||
-            frame.WindowStartSeconds > start + 0.000_001 ||
-            frame.WindowEndSeconds + 0.000_001 < end)
+        if (viewModel.CurrentFrame is not { } frame)
         {
             return;
         }
 
+        if (frame.WindowStartSeconds <= start + 0.000_001 &&
+            frame.WindowEndSeconds + 0.000_001 >= end)
+        {
+            xAxis.VisibleRange = new DoubleRange(start, end);
+            return;
+        }
+
+        // A frame is a cache block and can be wider than the requested screen
+        // window. Never use its range as the display scale: paper speed and
+        // timebase must control the axis even while the next block is loading.
         xAxis.VisibleRange = new DoubleRange(start, end);
     }
 

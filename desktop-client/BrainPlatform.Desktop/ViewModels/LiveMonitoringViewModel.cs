@@ -20,6 +20,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     private double timebaseSecondsPerScreen = 10;
     private double viewportWidthDips;
     private double sensitivityMicrovoltsPerMillimeter = 10;
+    private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
     private bool isSettingsOpen;
     private string recordingElapsedText = "--:--:--";
     private string captureStatusText = "未开始采集";
@@ -167,6 +168,17 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         RaiseHorizontalScalePropertiesChanged();
     }
 
+    public void UpdateScreenScale(ScreenScaleContext value)
+    {
+        if (value == screenScale)
+        {
+            return;
+        }
+
+        screenScale = value;
+        RaiseHorizontalScalePropertiesChanged();
+    }
+
     public double GetDisplayWindowSeconds(double viewportWidthDips)
     {
         if (viewportWidthDips <= 0)
@@ -176,7 +188,10 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
         return HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase
             ? TimebaseSecondsPerScreen
-            : GetViewportMillimeters(viewportWidthDips) / PaperSpeedMillimetersPerSecond;
+            : ScreenScaleCalculator.VisibleSeconds(
+                viewportWidthDips,
+                screenScale.MillimetersPerDipX,
+                PaperSpeedMillimetersPerSecond);
     }
 
     public double SensitivityMicrovoltsPerMillimeter
@@ -193,10 +208,8 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static double GetViewportMillimeters(double widthDips) =>
-        // A WPF DIP is 1/96 inch. This is a nominal paper-speed conversion;
-        // physical ruler calibration belongs to the workstation, not EEG data.
-        widthDips * 25.4d / 96d;
+    private double GetViewportMillimeters(double widthDips) =>
+        widthDips * screenScale.MillimetersPerDipX;
 
     private void RaiseHorizontalScalePropertiesChanged()
     {

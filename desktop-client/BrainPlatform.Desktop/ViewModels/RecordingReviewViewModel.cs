@@ -23,11 +23,13 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     private double lowPassHz = 30;
     private double notchHz = 50;
     private double sensitivityMicrovoltsPerMillimeter = 10;
+    private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
     private double paperSpeedMillimetersPerSecond = 30;
     private HorizontalTimeScaleMode horizontalTimeScaleMode = HorizontalTimeScaleMode.PaperSpeed;
     private double timebaseSecondsPerScreen = 10;
     private double viewportWidthDips;
     private Task? viewportDurationUpdateTask;
+    private bool viewportDurationUpdatePending;
     private double viewportStartSeconds;
     private RecordingReviewFrame? publishedFrame;
 
@@ -103,18 +105,18 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     public string StatusText => session.StatusText;
 
-    public string RecordingStartText => FormatRecordedTime(0, "HH:mm:ss.fff");
+    public string RecordingStartText => FormatElapsedTime(0);
 
-    public string RecordingEndText => FormatRecordedTime(DurationSeconds, "HH:mm:ss.fff");
+    public string RecordingEndText => FormatElapsedTime(DurationSeconds);
 
-    public string PositionTimeText => FormatRecordedTime(PositionSeconds, "HH:mm:ss.fff");
+    public string PositionTimeText => FormatElapsedTime(PositionSeconds);
 
     public string WindowTimeText
     {
         get
         {
             var end = Math.Min(DurationSeconds, ViewportStartSeconds + VisibleDurationSeconds);
-            return $"{FormatRecordedTime(ViewportStartSeconds, "HH:mm:ss.f")} - {FormatRecordedTime(end, "HH:mm:ss.f")}";
+            return $"{FormatElapsedTime(ViewportStartSeconds)} - {FormatElapsedTime(end)}";
         }
     }
 
@@ -312,6 +314,18 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         ScheduleViewportDurationUpdate();
     }
 
+    public void UpdateScreenScale(ScreenScaleContext value)
+    {
+        if (value == screenScale)
+        {
+            return;
+        }
+
+        screenScale = value;
+        RaiseHorizontalScalePropertiesChanged();
+        ScheduleViewportDurationUpdate();
+    }
+
     public Task SelectViewingMontageAsync(MontageProfile? montage) =>
         session.SelectViewingMontageAsync(montage, playback.PositionSeconds);
 
@@ -476,14 +490,26 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     }
     private void ScheduleViewportDurationUpdate()
     {
-        if (viewportWidthDips <= 0 || viewportDurationUpdateTask is { IsCompleted: false })
+        // A timebase is an explicit seconds-per-screen value and must work
+        // before the SciChart host reports its final width. Paper-speed mode
+        // needs the calibrated physical width and waits for that measurement.
+        if ((HorizontalTimeScaleMode == HorizontalTimeScaleMode.PaperSpeed && viewportWidthDips <= 0) ||
+            viewportDurationUpdateTask is { IsCompleted: false })
         {
+            if (viewportDurationUpdateTask is { IsCompleted: false })
+            {
+                viewportDurationUpdatePending = true;
+            }
+
             return;
         }
 
         var requestedDuration = HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase
             ? TimebaseSecondsPerScreen
-            : GetViewportMillimeters(viewportWidthDips) / PaperSpeedMillimetersPerSecond;
+            : ScreenScaleCalculator.VisibleSeconds(
+                viewportWidthDips,
+                screenScale.MillimetersPerDipX,
+                PaperSpeedMillimetersPerSecond);
         var visibleDuration = Math.Clamp(requestedDuration, 1d, DurationSeconds);
         if (Math.Abs(visibleDuration - VisibleDurationSeconds) < 0.02)
         {
@@ -501,23 +527,20 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         finally
         {
             viewportDurationUpdateTask = null;
-            if (viewportWidthDips > 0)
+            var shouldRerun = viewportDurationUpdatePending;
+            viewportDurationUpdatePending = false;
+            if (shouldRerun && viewportWidthDips > 0)
             {
                 ScheduleViewportDurationUpdate();
             }
         }
     }
 
-    private string FormatRecordedTime(double relativeSeconds, string format) =>
-        recordingStartUtc
-            .AddTicks(ToTicks(Math.Clamp(relativeSeconds, 0, DurationSeconds)))
-            .ToLocalTime()
-            .ToString(format, System.Globalization.CultureInfo.InvariantCulture);
+    private string FormatElapsedTime(double seconds) =>
+        $"{Math.Clamp(seconds, 0, DurationSeconds):0.0} s";
 
-    private static long ToTicks(double seconds) =>
-        checked((long)Math.Round(seconds * TimeSpan.TicksPerSecond, MidpointRounding.AwayFromZero));
-
-    private static double GetViewportMillimeters(double widthDips) => widthDips * 25.4d / 96d;
+    private double GetViewportMillimeters(double widthDips) =>
+        widthDips * screenScale.MillimetersPerDipX;
 
     private void RaiseHorizontalScalePropertiesChanged()
     {

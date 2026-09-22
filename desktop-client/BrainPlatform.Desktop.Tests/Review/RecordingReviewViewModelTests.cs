@@ -212,6 +212,28 @@ public sealed class RecordingReviewViewModelTests
         Assert.Equal(30, viewModel.PaperSpeedMillimetersPerSecond);
     }
 
+    [Fact]
+    public async Task TimebaseMode_WorksBeforeTheWaveformHostReportsItsWidth()
+    {
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var reader = new FakeReader(Manifest(configuration), durationSeconds: 120);
+        await using var viewModel = new RecordingReviewViewModel(reader, catalog);
+        await viewModel.InitializeAsync();
+
+        viewModel.TimebaseSecondsPerScreen = 5;
+        viewModel.HorizontalTimeScaleMode = HorizontalTimeScaleMode.Timebase;
+
+        await WaitUntilAsync(() => Math.Abs(viewModel.VisibleDurationSeconds - 5) < 0.01);
+        Assert.InRange(viewModel.VisibleDurationSeconds, 4.99, 5.01);
+    }
+
     private static LocalRawRecordingManifest Manifest(ChannelConfigurationProfile configuration) => new(
         Guid.NewGuid(),
         "sample_major_float64_v1_with_receive_utc_ticks_and_per_channel_units",

@@ -10,6 +10,7 @@ namespace BrainPlatform.Desktop.Views;
 /// </summary>
 public partial class EegSessionWindow : Window
 {
+    private readonly Window ownerWindow;
     private readonly SessionCloseRequest closeRequest;
     private readonly Func<Task> stopSessionAsync;
     private readonly Action? closed;
@@ -29,6 +30,7 @@ public partial class EegSessionWindow : Window
         ArgumentNullException.ThrowIfNull(closeRequest);
         ArgumentNullException.ThrowIfNull(stopSessionAsync);
 
+        ownerWindow = owner;
         this.closeRequest = closeRequest;
         this.stopSessionAsync = stopSessionAsync;
         this.closed = closed;
@@ -40,7 +42,7 @@ public partial class EegSessionWindow : Window
             DataContext = frameworkElement.DataContext;
         }
         SessionContentHost.Content = content;
-        Closed += (_, _) => this.closed?.Invoke();
+        Closed += OnSessionClosed;
     }
 
     /// <summary>For an explicit in-page completion after the runtime has already stopped.</summary>
@@ -98,6 +100,35 @@ public partial class EegSessionWindow : Window
             }
             IsEnabled = true;
             closeInProgress = false;
+        }
+    }
+
+    private void OnSessionClosed(object? sender, EventArgs e)
+    {
+        closed?.Invoke();
+
+        // The session window is owned by the main platform window. Restore the
+        // owner explicitly so closing a maximized session cannot leave the
+        // platform minimized or hidden behind other windows.
+        if (!ownerWindow.Dispatcher.HasShutdownStarted && !ownerWindow.Dispatcher.HasShutdownFinished)
+        {
+            ownerWindow.Dispatcher.BeginInvoke(() =>
+            {
+                if (ownerWindow.IsLoaded)
+                {
+                    if (ownerWindow.WindowState == WindowState.Minimized)
+                    {
+                        ownerWindow.WindowState = WindowState.Normal;
+                    }
+
+                    if (ownerWindow.Visibility != Visibility.Visible)
+                    {
+                        ownerWindow.Show();
+                    }
+
+                    ownerWindow.Activate();
+                }
+            });
         }
     }
 }

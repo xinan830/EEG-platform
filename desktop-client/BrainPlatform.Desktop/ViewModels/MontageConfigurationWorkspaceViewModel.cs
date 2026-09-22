@@ -221,11 +221,35 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         {
             if (SetProperty(ref draftChannelConfiguration, value))
             {
+                RaisePropertyChanged(nameof(DraftChannelConfigurationId));
                 RaisePropertyChanged(nameof(DraftChannelSummary));
                 if (!IsEditingExisting && value is not null)
                 {
                     BuildFixedRows(value, null);
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The detail ComboBox must select by stable identity rather than by the
+    /// snapshot object instance embedded in a saved montage profile.
+    /// </summary>
+    public string? DraftChannelConfigurationId
+    {
+        get => DraftChannelConfiguration?.Id;
+        set
+        {
+            if (string.Equals(value, DraftChannelConfiguration?.Id, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var selected = AvailableChannelConfigurations.FirstOrDefault(profile =>
+                string.Equals(profile.Id, value, StringComparison.Ordinal));
+            if (selected is not null)
+            {
+                DraftChannelConfiguration = selected;
             }
         }
     }
@@ -284,7 +308,9 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         DraftDescription = profile.Description;
         DraftChannelConfiguration = null;
         draftChannelConfiguration = profile.ChannelConfigurationSnapshot;
+        EnsureDraftChannelConfigurationOption(profile.ChannelConfigurationSnapshot);
         RaisePropertyChanged(nameof(DraftChannelConfiguration));
+        RaisePropertyChanged(nameof(DraftChannelConfigurationId));
         RaisePropertyChanged(nameof(DraftChannelSummary));
         if (isReadOnlyDraft)
         {
@@ -315,7 +341,9 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         DraftDescription = profile.Description;
         DraftChannelConfiguration = null;
         draftChannelConfiguration = profile.ChannelConfigurationSnapshot;
+        EnsureDraftChannelConfigurationOption(profile.ChannelConfigurationSnapshot);
         RaisePropertyChanged(nameof(DraftChannelConfiguration));
+        RaisePropertyChanged(nameof(DraftChannelConfigurationId));
         RaisePropertyChanged(nameof(DraftChannelSummary));
         BuildEditableRows(profile);
         StatusText = $"已从“{profile.Name}”创建副本。";
@@ -574,6 +602,20 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         {
             AvailableChannelConfigurations.Add(profile);
         }
+    }
+
+    private void EnsureDraftChannelConfigurationOption(ChannelConfigurationProfile snapshot)
+    {
+        if (AvailableChannelConfigurations.Any(profile =>
+                string.Equals(profile.Id, snapshot.Id, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        // A deleted source configuration is still retained in the montage
+        // snapshot. Keep it visible in the read-only detail view instead of
+        // rendering an empty ComboBox.
+        AvailableChannelConfigurations.Add(snapshot);
     }
 
     private MontageProfile PrepareSourceStatus(MontageProfile profile)

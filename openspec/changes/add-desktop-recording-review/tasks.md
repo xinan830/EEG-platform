@@ -40,3 +40,9 @@
 - [x] 6.5 Separate navigator preview target from committed waveform target and prefetch nearby chunks without exposing partial data.
 - [x] 6.6 Add filter-contract, cache-hit/invalidation, montage-reuse, interrupted-write, and gap-boundary regressions.
 - [ ] 6.7 Run backend and desktop verification, OpenSpec strict validation, and diff checks. Full desktop suite currently has an existing live-filter transition test failure.
+
+## 7. Window-local screen scaling
+
+- [x] 7.1 Resolve immutable horizontal and vertical mm-per-DIP values per waveform window and monitor.
+- [x] 7.2 Update acquisition and review canvases when their owning window changes display context.
+- [x] 7.3 Use width calibration for paper speed and height calibration for vertical EEG sensitivity, with regression coverage.

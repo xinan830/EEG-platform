@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.ViewModels;
 using SciChart.Charting;
 using SciChart.Charting.Model.DataSeries;
@@ -68,6 +69,8 @@ public sealed class LiveSciChartCanvas : UserControl
     private double activeDisplayWindowSeconds;
     private int activeTraceCount;
     private Thickness? lastLabelPlotMargin;
+    private Window? owningWindow;
+    private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
 
     public LiveSciChartCanvas()
     {
@@ -75,7 +78,11 @@ public sealed class LiveSciChartCanvas : UserControl
         Content = CreateLayout();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
-        DataContextChanged += (_, _) => RequestRefresh();
+        DataContextChanged += (_, _) =>
+        {
+            UpdateScreenScale();
+            RequestRefresh();
+        };
         SizeChanged += (_, _) => RequestRefresh();
         surface.LayoutUpdated += (_, _) => SyncLabelPlotArea();
     }
@@ -142,6 +149,8 @@ public sealed class LiveSciChartCanvas : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs eventArgs)
     {
+        AttachWindowContext();
+        ScreenCalibrationMetrics.CalibrationChanged += OnCalibrationChanged;
         frameWorker = new LatestWaveformFrameWorker(Dispatcher, ApplyFrameResult);
         refreshTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
@@ -160,6 +169,8 @@ public sealed class LiveSciChartCanvas : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs eventArgs)
     {
+        ScreenCalibrationMetrics.CalibrationChanged -= OnCalibrationChanged;
+        DetachWindowContext();
         refreshTimer?.Stop();
         refreshTimer = null;
         eraseAnimationTimer?.Stop();
@@ -168,6 +179,41 @@ public sealed class LiveSciChartCanvas : UserControl
         frameWorker?.Dispose();
         frameWorker = null;
         lastRequestedRevision = null;
+    }
+
+    private void AttachWindowContext()
+    {
+        owningWindow = Window.GetWindow(this);
+        if (owningWindow is not null)
+        {
+            owningWindow.LocationChanged += OnWindowDisplayContextChanged;
+            UpdateScreenScale();
+        }
+    }
+
+    private void DetachWindowContext()
+    {
+        if (owningWindow is not null)
+        {
+            owningWindow.LocationChanged -= OnWindowDisplayContextChanged;
+            owningWindow = null;
+        }
+    }
+
+    private void OnWindowDisplayContextChanged(object? sender, EventArgs eventArgs) => UpdateScreenScale();
+
+    private void OnCalibrationChanged(object? sender, EventArgs eventArgs) => UpdateScreenScale();
+
+    private void UpdateScreenScale()
+    {
+        if (owningWindow is null)
+        {
+            return;
+        }
+
+        screenScale = ScreenCalibrationMetrics.ResolveScale(owningWindow);
+        (DataContext as LiveMonitoringViewModel)?.UpdateScreenScale(screenScale);
+        RequestRefresh();
     }
 
     private void RequestRefresh()
@@ -250,9 +296,14 @@ public sealed class LiveSciChartCanvas : UserControl
             Environment.TickCount64);
         UpdateEraseBand(displayedCursorPosition, activeDisplayWindowSeconds, activeTraceCount);
         yAxis.VisibleRange = new DoubleRange(0, frame.Traces.Count);
-        var pixelsPerMillimeter = VisualTreeHelper.GetDpi(surface).PixelsPerInchY / 25.4;
-        var displayScale = frame.Traces.Count * pixelsPerMillimeter /
-            (result.Request.PlotHeight * result.Request.SensitivityMicrovoltsPerMillimeter);
+        // SciChart/WPF layout sizes are DIP. Use the calibrated physical
+        // conversion instead of raster DPI, which is only a nominal OS scale
+        // and cannot represent the user's measured screen dimensions.
+        var displayScale = ScreenScaleCalculator.VerticalDisplayScale(
+            frame.Traces.Count,
+            result.Request.PlotHeight,
+            result.Request.SensitivityMicrovoltsPerMillimeter,
+            screenScale.MillimetersPerDipY);
 
         using (surface.SuspendUpdates())
         {

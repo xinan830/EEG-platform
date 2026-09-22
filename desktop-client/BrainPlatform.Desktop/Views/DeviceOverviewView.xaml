@@ -82,7 +82,7 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="32,28">
+    <Grid x:Name="OverviewRoot" Margin="32,28" SizeChanged="OnOverviewRootSizeChanged">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="24" />
@@ -142,13 +142,13 @@
         </Grid>
 
         <!-- 主内容卡片容器 -->
-        <Border Grid.Row="2"
+            <Border x:Name="OverviewCard" Grid.Row="2"
                 Background="#FFFFFF"
                 BorderBrush="#E2E8F0"
                 BorderThickness="1"
                 CornerRadius="16"
                 Padding="56,40">
-            <Grid>
+            <Grid x:Name="OverviewContentGrid">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="1" />
@@ -156,7 +156,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- 左侧：设备视觉展示与连接状态 -->
-                <Grid Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,10">
+                <Grid x:Name="OverviewVisualPanel" Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -269,13 +269,13 @@
                 </Grid>
 
                 <!-- 中间垂直分割线 -->
-                <Rectangle Grid.Column="1"
+                <Rectangle x:Name="OverviewDivider" Grid.Column="1"
                            Fill="#F1F5F9"
                            VerticalAlignment="Stretch"
                            Margin="0,16" />
 
                 <!-- 右侧：设备信息列表 -->
-                <Grid Grid.Column="2" VerticalAlignment="Center" Margin="56,0,0,0">
+                <Grid x:Name="OverviewDetailsPanel" Grid.Column="2" VerticalAlignment="Center" Margin="56,0,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
