@@ -82,6 +82,32 @@ def test_filter_snapshot_restore_matches_continuous_stream():
     np.testing.assert_allclose(resumed.process(samples[100:125]), continuous[100:125], rtol=1e-12, atol=1e-15)
 
 
+def test_filter_export_import_checkpoint_matches_continuous_stream():
+    samples = np.sin(np.linspace(0, 8 * np.pi, 180, endpoint=False)).reshape(-1, 1) * 1e-5
+    continuous = DisplaySignalFilter(sfreq=500.0, channel_count=1, notch_freq=50.0).process(samples)
+    first = DisplaySignalFilter(sfreq=500.0, channel_count=1, notch_freq=50.0)
+    first.process(samples[:100])
+    resumed = DisplaySignalFilter(sfreq=500.0, channel_count=1, notch_freq=50.0)
+    resumed.import_checkpoint(first.export_checkpoint())
+    np.testing.assert_allclose(resumed.process(samples[100:125]), continuous[100:125], rtol=1e-12, atol=1e-15)
+
+
+def test_filter_import_rejects_checkpoint_for_different_channel_count():
+    source = DisplaySignalFilter(sfreq=500.0, channel_count=1)
+    source.process(np.zeros((2, 1)))
+    target = DisplaySignalFilter(sfreq=500.0, channel_count=2)
+    with np.testing.assert_raises_regex(ValueError, "invalid filter checkpoint"):
+        target.import_checkpoint(source.export_checkpoint())
+
+
+def test_filter_import_rejects_checkpoint_for_different_cutoff():
+    source = DisplaySignalFilter(sfreq=500.0, channel_count=1, bp_low=0.5, bp_high=70.0)
+    source.process(np.zeros((2, 1)))
+    target = DisplaySignalFilter(sfreq=500.0, channel_count=1, bp_low=1.0, bp_high=70.0)
+    with np.testing.assert_raises_regex(ValueError, "invalid filter checkpoint"):
+        target.import_checkpoint(source.export_checkpoint())
+
+
 def test_display_filter_rejects_an_invalid_cutoff_range():
     with np.testing.assert_raises_regex(ValueError, "低切"):
         DisplaySignalFilter(sfreq=500.0, channel_count=1, bp_low=70.0, bp_high=0.5)

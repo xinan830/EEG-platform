@@ -33,7 +33,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private readonly RecordingReviewWindowCache cache = new();
     private readonly ReviewFilteredSourceChunkCache filteredSourceCache = new();
     private readonly object sourceChunkLoadGate = new();
-    private readonly Dictionary<string, Task<RecordingReviewWindow>> sourceChunkLoads = [];
+    private readonly Dictionary<string, Task<ReviewFilteredSourceChunk>> sourceChunkLoads = [];
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? currentLoad;
     private long revision;
@@ -329,13 +329,13 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         for (var chunkIndex = firstChunk; chunkIndex <= lastChunk; chunkIndex++)
         {
             token.ThrowIfCancellationRequested();
-            chunks.Add(await LoadFilteredSourceChunkAsync(chunkIndex, contract, settings, token));
+            chunks.Add((await LoadFilteredSourceChunkAsync(chunkIndex, contract, settings, token)).Window);
         }
 
         return new SourceBuildResult(CombineChunks(startSeconds, endSeconds, chunks), false);
     }
 
-    private async Task<RecordingReviewWindow> LoadFilteredSourceChunkAsync(
+    private async Task<ReviewFilteredSourceChunk> LoadFilteredSourceChunkAsync(
         int chunkIndex,
         ReviewFilterContract contract,
         RecordingReviewFilterSettings settings,
@@ -358,15 +358,17 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             sampleCount,
             warmupSampleCount,
             "recorded-segments-v1;causal-state-never-crosses-gap");
-        var work = GetOrStartFilteredSourceChunkBuild(key, startSeconds, durationSeconds, settings);
+        var work = GetOrStartFilteredSourceChunkBuild(key, chunkIndex, startSeconds, durationSeconds, settings, contract);
         return await work.WaitAsync(token);
     }
 
-    private Task<RecordingReviewWindow> GetOrStartFilteredSourceChunkBuild(
+    private Task<ReviewFilteredSourceChunk> GetOrStartFilteredSourceChunkBuild(
         ReviewFilteredSourceChunkKey key,
+        int chunkIndex,
         double startSeconds,
         double durationSeconds,
-        RecordingReviewFilterSettings settings)
+        RecordingReviewFilterSettings settings,
+        ReviewFilterContract contract)
     {
         lock (sourceChunkLoadGate)
         {
@@ -375,7 +377,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
                 return existing;
             }
 
-            var created = BuildFilteredSourceChunkAsync(key, startSeconds, durationSeconds, settings, lifetime.Token);
+            var created = BuildFilteredSourceChunkAsync(key, chunkIndex, startSeconds, durationSeconds, settings, contract, lifetime.Token);
             sourceChunkLoads.Add(key.Fingerprint, created);
             _ = created.ContinueWith(completed =>
             {
@@ -391,11 +393,13 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         }
     }
 
-    private async Task<RecordingReviewWindow> BuildFilteredSourceChunkAsync(
+    private async Task<ReviewFilteredSourceChunk> BuildFilteredSourceChunkAsync(
         ReviewFilteredSourceChunkKey key,
+        int chunkIndex,
         double startSeconds,
         double durationSeconds,
         RecordingReviewFilterSettings settings,
+        ReviewFilterContract contract,
         CancellationToken token)
     {
         var cached = await filteredSourceCache.TryReadAsync(key, token);
@@ -407,14 +411,50 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         var raw = await ReadRawAsync(startSeconds, startSeconds + durationSeconds, token);
         if (raw.Segments.Count == 0)
         {
-            return raw;
+            return new ReviewFilteredSourceChunk(raw, null);
         }
 
-        var warmup = await ReadWarmupAsync(startSeconds, settings, token);
-        var filtered = await filter!.ApplyWithWarmupAsync(warmup, raw, reader.Manifest, settings, token);
+        if (filter is not HttpRecordingReviewFilter)
+        {
+            var warmup = await ReadWarmupAsync(startSeconds, settings, token);
+            var legacyFiltered = await filter!.ApplyWithWarmupAsync(
+                warmup,
+                raw,
+                reader.Manifest,
+                settings,
+                token);
+            await filteredSourceCache.StoreAsync(key, legacyFiltered, token);
+            return new ReviewFilteredSourceChunk(legacyFiltered, null);
+        }
+
+        ReviewFilteredSourceChunk? previous = null;
+        if (chunkIndex > 0)
+        {
+            previous = await LoadFilteredSourceChunkAsync(chunkIndex - 1, contract, settings, token);
+        }
+
+        var filteredSegments = new List<RecordingReviewSegment>(raw.Segments.Count);
+        string? checkpoint = null;
+        foreach (var segment in raw.Segments)
+        {
+            var canContinue = previous?.Window.Segments.LastOrDefault() is { } prior &&
+                prior.ChannelCount == segment.ChannelCount &&
+                prior.LastSampleCounter + 1L == segment.FirstSampleCounter;
+            var result = await filter!.ApplyChunkWithCheckpointAsync(
+                canContinue ? previous!.Checkpoint : null,
+                new RecordingReviewWindow(raw.RequestedStartSeconds, raw.ActualStartSeconds, raw.ActualEndSeconds, [segment]),
+                reader.Manifest,
+                settings,
+                token);
+            filteredSegments.AddRange(result.Window.Segments);
+            checkpoint = result.Checkpoint;
+            previous = null;
+        }
+
+        var filtered = raw with { Segments = filteredSegments };
         token.ThrowIfCancellationRequested();
-        await filteredSourceCache.StoreAsync(key, filtered, token);
-        return filtered;
+        await filteredSourceCache.StoreAsync(key, filtered, checkpoint, token);
+        return new ReviewFilteredSourceChunk(filtered, checkpoint);
     }
 
     private async Task<RecordingReviewWindow> ReadRawAsync(double startSeconds, double endSeconds, CancellationToken token)

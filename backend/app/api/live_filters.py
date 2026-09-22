@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from app.core.api_contract import error_response
 from app.services.live_filter import LiveFilterService
+from app.services.waveform_filter import CHECKPOINT_VERSION
 
 
 router = APIRouter(prefix="/api/live-filters", tags=["live-filters"])
@@ -25,6 +26,10 @@ class LiveFilterSessionCreate(BaseModel):
 class LiveFilterBatch(BaseModel):
     sample_count: int = Field(gt=0)
     values_v: list[float]
+
+
+class LiveFilterCheckpoint(BaseModel):
+    checkpoint_b64: str = Field(min_length=1)
 
 
 def _service(request: Request) -> LiveFilterService:
@@ -137,6 +142,29 @@ async def warmup_filter_binary(
         return error_response(request, 404, "LIVE_FILTER_SESSION_NOT_FOUND", "实时滤波会话不存在")
     except ValueError as exc:
         return error_response(request, 422, "LIVE_FILTER_BATCH_INVALID", str(exc))
+
+
+@router.get("/sessions/{session_id}/checkpoint")
+def export_checkpoint(session_id: str, request: Request) -> dict:
+    try:
+        return {
+            "checkpoint_b64": _service(request).export_checkpoint(session_id),
+            "version": CHECKPOINT_VERSION,
+        }
+    except KeyError:
+        return error_response(request, 404, "LIVE_FILTER_SESSION_NOT_FOUND", "实时滤波会话不存在")
+    except ValueError as exc:
+        return error_response(request, 409, "LIVE_FILTER_CHECKPOINT_UNAVAILABLE", str(exc))
+
+
+@router.put("/sessions/{session_id}/checkpoint", status_code=status.HTTP_204_NO_CONTENT)
+def import_checkpoint(session_id: str, payload: LiveFilterCheckpoint, request: Request) -> None:
+    try:
+        _service(request).import_checkpoint(session_id, payload.checkpoint_b64)
+    except KeyError:
+        return error_response(request, 404, "LIVE_FILTER_SESSION_NOT_FOUND", "实时滤波会话不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "LIVE_FILTER_CHECKPOINT_INVALID", str(exc))
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

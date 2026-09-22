@@ -31,6 +31,27 @@ public sealed class ReviewFilteredSourceChunkCacheTests
     }
 
     [Fact]
+    public async Task CompletedChunkPersistsItsCausalCheckpoint()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "brain-platform-review-cache-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var cache = new ReviewFilteredSourceChunkCache(root);
+            var key = Key(new ReviewFilterContract("display-iir-sos-v2", "contract-a"));
+            await cache.StoreAsync(key, Window(), "checkpoint-v1", CancellationToken.None);
+
+            var hit = await cache.TryReadAsync(key, CancellationToken.None);
+
+            Assert.NotNull(hit);
+            Assert.Equal("checkpoint-v1", hit!.Checkpoint);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task CancelledWriteDoesNotCreateReadableChunk()
     {
         var root = Path.Combine(Path.GetTempPath(), "brain-platform-review-cache-tests", Guid.NewGuid().ToString("N"));

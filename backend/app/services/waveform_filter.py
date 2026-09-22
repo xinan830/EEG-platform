@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import base64
+import io
+import json
+
 import numpy as np
 from scipy import signal
 
 
 FilterState = tuple[np.ndarray | None, list[np.ndarray] | None, list[np.ndarray]]
+CHECKPOINT_VERSION = "display-filter-state-v1"
 
 
 DEFAULT_DISPLAY_FILTERS = {
@@ -19,6 +24,7 @@ DEFAULT_DISPLAY_FILTERS = {
 # 静态窗口和 WebSocket 播放必须共用这些值，修改时同步更新回归黄金值。
 DISPLAY_FILTER_CONTRACT = {
     "algorithm_version": "display-iir-sos-v2",
+    "checkpoint_version": CHECKPOINT_VERSION,
     "phase": "causal",
     "coefficient_form": "second_order_sections",
     "state_initialization": "sosfilt_zi_scaled_by_first_sample",
@@ -47,12 +53,14 @@ class DisplaySignalFilter:
         if notch_freq is not None and not 0 < float(notch_freq) < self.sfreq / 2:
             raise ValueError("陷波频率必须低于奈奎斯特频率")
         self.notch_freq = None if notch_freq is None else float(notch_freq)
+        self.bp_low = float(bp_low)
+        self.bp_high = float(bp_high)
         self.baseline_stabilization = bool(baseline_stabilization)
         self.dc_alpha = float(DISPLAY_FILTER_CONTRACT["baseline_alpha"])
         self.sos_notch: np.ndarray | None = None
         if self.notch_freq is not None:
             self.sos_notch = signal.tf2sos(*signal.iirnotch(self.notch_freq, DISPLAY_FILTER_CONTRACT["notch_q"], self.sfreq))
-        self.sos_bp = signal.butter(4, [bp_low, bp_high], btype="bandpass", fs=self.sfreq, output="sos")
+        self.sos_bp = signal.butter(4, [self.bp_low, self.bp_high], btype="bandpass", fs=self.sfreq, output="sos")
         self.dc_offset: np.ndarray | None = None
         self.zi_notch: list[np.ndarray] | None = None
         self.zi_bp: list[np.ndarray] | None = None
@@ -98,3 +106,54 @@ class DisplaySignalFilter:
         self.dc_offset = dc_offset.copy() if dc_offset is not None else None
         self.zi_notch = [item.copy() for item in zi_notch] if zi_notch is not None else None
         self.zi_bp = [item.copy() for item in zi_bp] if zi_bp is not None else None
+
+    def export_checkpoint(self) -> str:
+        """Encode causal state for transfer to another filter session."""
+        state = self.snapshot()
+        payload = io.BytesIO()
+        arrays: dict[str, np.ndarray] = {}
+        metadata: dict[str, object] = {
+            "version": CHECKPOINT_VERSION,
+            "sampling_rate_hz": self.sfreq,
+            "channel_count": self.channel_count,
+            "low_cut_hz": self.bp_low,
+            "high_cut_hz": self.bp_high,
+            "notch_freq_hz": self.notch_freq,
+            "baseline_stabilization": self.baseline_stabilization,
+            "has_dc_offset": state[0] is not None,
+            "has_notch": state[1] is not None,
+        }
+        if state[0] is not None:
+            arrays["dc_offset"] = state[0]
+        if state[1] is not None:
+            arrays.update({f"zi_notch_{index}": value for index, value in enumerate(state[1])})
+        arrays.update({f"zi_bp_{index}": value for index, value in enumerate(state[2])})
+        np.savez_compressed(payload, metadata=np.asarray(json.dumps(metadata)), **arrays)
+        return base64.b64encode(payload.getvalue()).decode("ascii")
+
+    def import_checkpoint(self, encoded: str) -> None:
+        """Restore a checkpoint created by a compatible filter configuration."""
+        try:
+            raw = base64.b64decode(encoded.encode("ascii"), validate=True)
+            with np.load(io.BytesIO(raw), allow_pickle=False) as archive:
+                metadata = json.loads(str(archive["metadata"].item()))
+                if metadata.get("version") != CHECKPOINT_VERSION:
+                    raise ValueError("unsupported filter checkpoint version")
+                if (
+                    int(metadata.get("channel_count", -1)) != self.channel_count
+                    or float(metadata.get("sampling_rate_hz", -1)) != self.sfreq
+                    or float(metadata.get("low_cut_hz", -1)) != self.bp_low
+                    or float(metadata.get("high_cut_hz", -1)) != self.bp_high
+                    or metadata.get("notch_freq_hz") != self.notch_freq
+                    or bool(metadata.get("baseline_stabilization")) != self.baseline_stabilization
+                ):
+                    raise ValueError("filter checkpoint configuration mismatch")
+                dc_offset = archive["dc_offset"].copy() if metadata.get("has_dc_offset") else None
+                zi_bp = [archive[f"zi_bp_{index}"].copy() for index in range(self.channel_count)]
+                zi_notch = None
+                if metadata.get("has_notch"):
+                    zi_notch = [archive[f"zi_notch_{index}"].copy() for index in range(self.channel_count)]
+        except (ValueError, KeyError, OSError, json.JSONDecodeError) as exc:
+            raise ValueError("invalid filter checkpoint") from exc
+
+        self.restore((dc_offset, zi_notch, zi_bp))

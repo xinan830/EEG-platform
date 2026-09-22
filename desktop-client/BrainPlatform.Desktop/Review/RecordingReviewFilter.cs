@@ -50,7 +50,22 @@ public interface IRecordingReviewFilter
         LocalRawRecordingManifest manifest,
         RecordingReviewFilterSettings settings,
         CancellationToken cancellationToken) => ApplyAsync(source, manifest, settings, cancellationToken);
+
+    async Task<RecordingReviewFilterChunkResult> ApplyChunkWithCheckpointAsync(
+        string? checkpoint,
+        RecordingReviewWindow source,
+        LocalRawRecordingManifest manifest,
+        RecordingReviewFilterSettings settings,
+        CancellationToken cancellationToken)
+    {
+        var window = await ApplyAsync(source, manifest, settings, cancellationToken);
+        return new RecordingReviewFilterChunkResult(window, null);
+    }
 }
+
+public sealed record RecordingReviewFilterChunkResult(
+    RecordingReviewWindow Window,
+    string? Checkpoint);
 
 /// <summary>Transient Python-owned display filtering. It never writes the raw recording.</summary>
 public sealed class HttpRecordingReviewFilter(HttpClient httpClient) : IRecordingReviewFilter
@@ -145,6 +160,83 @@ public sealed class HttpRecordingReviewFilter(HttpClient httpClient) : IRecordin
         return source with { Segments = filteredSegments };
     }
 
+    public async Task<RecordingReviewFilterChunkResult> ApplyChunkWithCheckpointAsync(
+        string? checkpoint,
+        RecordingReviewWindow source,
+        LocalRawRecordingManifest manifest,
+        RecordingReviewFilterSettings settings,
+        CancellationToken cancellationToken)
+    {
+        settings.Validate(manifest.SamplingRateHz);
+        if (source.Segments.Count != 1)
+        {
+            throw new ArgumentException("带 checkpoint 的回溯滤波块必须是单个连续片段。", nameof(source));
+        }
+
+        var segment = source.Segments[0];
+        var eegIndexes = manifest.Channels
+            .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
+            .Select(channel => channel.StreamIndex)
+            .ToArray();
+        var sessionId = $"review-{manifest.SessionId:N}-{Guid.NewGuid():N}";
+        try
+        {
+            using var createResponse = await httpClient.PostAsJsonAsync(
+                "api/live-filters/sessions",
+                new FilterSessionRequest(
+                    sessionId,
+                    manifest.SamplingRateHz,
+                    segment.ChannelCount,
+                    eegIndexes,
+                    settings.HighPassHz,
+                    settings.LowPassHz,
+                    settings.NotchHz),
+                cancellationToken);
+            createResponse.EnsureSuccessStatusCode();
+
+            if (checkpoint is not null)
+            {
+                using var checkpointResponse = await httpClient.PutAsJsonAsync(
+                    $"api/live-filters/sessions/{sessionId}/checkpoint",
+                    new FilterCheckpointRequest(checkpoint),
+                    cancellationToken);
+                checkpointResponse.EnsureSuccessStatusCode();
+            }
+
+            var bytes = await FilterSegmentAsync(sessionId, segment, cancellationToken);
+            var payloadLength = checked(segment.SampleMajorValues.Length * sizeof(double));
+            if (bytes.Length != payloadLength)
+            {
+                throw new InvalidOperationException("回溯滤波返回的数据长度与原始窗口不一致。");
+            }
+
+            var values = new double[segment.SampleMajorValues.Length];
+            Buffer.BlockCopy(bytes, 0, values, 0, bytes.Length);
+            using var checkpointRead = await httpClient.GetAsync(
+                $"api/live-filters/sessions/{sessionId}/checkpoint",
+                cancellationToken);
+            checkpointRead.EnsureSuccessStatusCode();
+            var checkpointPayload = await checkpointRead.Content.ReadFromJsonAsync<FilterCheckpointResponse>(cancellationToken)
+                ?? throw new InvalidOperationException("回溯滤波没有返回 checkpoint。");
+            return new RecordingReviewFilterChunkResult(
+                source with { Segments = [segment with { SampleMajorValues = values }] },
+                checkpointPayload.CheckpointB64);
+        }
+        finally
+        {
+            try
+            {
+                using var _ = await httpClient.DeleteAsync(
+                    $"api/live-filters/sessions/{sessionId}",
+                    CancellationToken.None);
+            }
+            catch (HttpRequestException)
+            {
+                // The transient session has no persistence or raw-data ownership.
+            }
+        }
+    }
+
     private async Task WarmupAsync(string sessionId, RecordingReviewSegment segment, CancellationToken cancellationToken)
     {
         using var content = CreateBinaryContent(segment.SampleMajorValues);
@@ -190,4 +282,11 @@ public sealed class HttpRecordingReviewFilter(HttpClient httpClient) : IRecordin
         [property: JsonPropertyName("low_cut_hz")] double LowCutHz,
         [property: JsonPropertyName("high_cut_hz")] double HighCutHz,
         [property: JsonPropertyName("notch_hz")] double? NotchHz);
+
+    private sealed record FilterCheckpointRequest(
+        [property: JsonPropertyName("checkpoint_b64")] string CheckpointB64);
+
+    private sealed record FilterCheckpointResponse(
+        [property: JsonPropertyName("checkpoint_b64")] string CheckpointB64,
+        [property: JsonPropertyName("version")] string Version);
 }

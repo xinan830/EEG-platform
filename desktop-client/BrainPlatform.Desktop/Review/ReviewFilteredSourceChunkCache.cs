@@ -21,7 +21,7 @@ internal sealed class ReviewFilteredSourceChunkCache
             "BrainPlatform", "review-cache");
     }
 
-    public async Task<RecordingReviewWindow?> TryReadAsync(
+    public async Task<ReviewFilteredSourceChunk?> TryReadAsync(
         ReviewFilteredSourceChunkKey key,
         CancellationToken cancellationToken)
     {
@@ -62,8 +62,10 @@ internal sealed class ReviewFilteredSourceChunkCache
             }
 
             if (stream.Position != stream.Length) return null;
-            return new RecordingReviewWindow(header.RequestedStartSeconds, header.ActualStartSeconds,
-                header.ActualEndSeconds, segments);
+            return new ReviewFilteredSourceChunk(
+                new RecordingReviewWindow(header.RequestedStartSeconds, header.ActualStartSeconds,
+                    header.ActualEndSeconds, segments),
+                header.CheckpointB64);
         }
         catch (EndOfStreamException) { return null; }
         catch (IOException) { return null; }
@@ -73,6 +75,13 @@ internal sealed class ReviewFilteredSourceChunkCache
     public async Task StoreAsync(
         ReviewFilteredSourceChunkKey key,
         RecordingReviewWindow window,
+        CancellationToken cancellationToken)
+        => await StoreAsync(key, window, null, cancellationToken);
+
+    public async Task StoreAsync(
+        ReviewFilteredSourceChunkKey key,
+        RecordingReviewWindow window,
+        string? checkpoint,
         CancellationToken cancellationToken)
     {
         if (window.Segments.Count == 0) return;
@@ -84,6 +93,7 @@ internal sealed class ReviewFilteredSourceChunkCache
             window.RequestedStartSeconds,
             window.ActualStartSeconds,
             window.ActualEndSeconds,
+            checkpoint,
             window.Segments.Select(segment => new SegmentDescriptor(
                 segment.FirstSampleCounter, segment.SampleCount, segment.ChannelCount)).ToArray());
         var headerBytes = JsonSerializer.SerializeToUtf8Bytes(header);
@@ -124,9 +134,17 @@ internal sealed class ReviewFilteredSourceChunkCache
         double RequestedStartSeconds,
         double ActualStartSeconds,
         double ActualEndSeconds,
+        string? CheckpointB64,
         IReadOnlyList<SegmentDescriptor> Segments);
 
     private sealed record SegmentDescriptor(long FirstSampleCounter, int SampleCount, int ChannelCount);
+}
+
+public sealed record ReviewFilteredSourceChunk(
+    RecordingReviewWindow Window,
+    string? Checkpoint)
+{
+    public IReadOnlyList<RecordingReviewSegment> Segments => Window.Segments;
 }
 
 public sealed record ReviewFilterContract(string AlgorithmVersion, string Fingerprint)

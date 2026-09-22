@@ -31,6 +31,12 @@ class LiveFilterSession:
     def process(self, values_v: list[float], sample_count: int) -> list[float]:
         return self.process_array(np.asarray(values_v, dtype=np.float64), sample_count).tolist()
 
+    def export_checkpoint(self) -> str:
+        return self.display_filter.export_checkpoint()
+
+    def import_checkpoint(self, encoded: str) -> None:
+        self.display_filter.import_checkpoint(encoded)
+
 
 class LiveFilterService:
     """Owns transient filter state; it never writes recordings, Runs, or SQLite."""
@@ -85,6 +91,18 @@ class LiveFilterService:
     def process_array(self, session_id: str, values: np.ndarray, sample_count: int) -> np.ndarray:
         try:
             return self._sessions[session_id].process_array(values, sample_count)
+        except KeyError as exc:
+            raise KeyError("live filter session does not exist") from exc
+
+    def export_checkpoint(self, session_id: str) -> str:
+        try:
+            return self._sessions[session_id].export_checkpoint()
+        except KeyError as exc:
+            raise KeyError("live filter session does not exist") from exc
+
+    def import_checkpoint(self, session_id: str, encoded: str) -> None:
+        try:
+            self._sessions[session_id].import_checkpoint(encoded)
         except KeyError as exc:
             raise KeyError("live filter session does not exist") from exc
 
