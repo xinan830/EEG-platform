@@ -92,6 +92,27 @@ def test_filter_export_import_checkpoint_matches_continuous_stream():
     np.testing.assert_allclose(resumed.process(samples[100:125]), continuous[100:125], rtol=1e-12, atol=1e-15)
 
 
+def test_low_frequency_checkpoint_resume_matches_continuous_causal_history():
+    samples = np.column_stack((
+        np.sin(np.arange(2400) / 37),
+        np.cos(np.arange(2400) / 53),
+    )).astype(float) * 1e-6
+    continuous_filter = DisplaySignalFilter(
+        sfreq=500.0, channel_count=2, bp_low=0.01, bp_high=70.0,
+    )
+    continuous = continuous_filter.process(samples)
+
+    first = DisplaySignalFilter(sfreq=500.0, channel_count=2, bp_low=0.01, bp_high=70.0)
+    first.process(samples[:1800])
+    resumed = DisplaySignalFilter(sfreq=500.0, channel_count=2, bp_low=0.01, bp_high=70.0)
+    resumed.import_checkpoint(first.export_checkpoint())
+
+    np.testing.assert_allclose(
+        resumed.process(samples[1800:1900]), continuous[1800:1900],
+        rtol=1e-12, atol=1e-15,
+    )
+
+
 def test_filter_import_rejects_checkpoint_for_different_channel_count():
     source = DisplaySignalFilter(sfreq=500.0, channel_count=1)
     source.process(np.zeros((2, 1)))

@@ -57,6 +57,17 @@
       "max_lines": 520,
       "reason": "The canvas owns one live rendering surface, bounded frame worker, sweep erase animation, and display-only geometry; shared axis and plot layout policies are already extracted.",
       "follow_up": "Extract the live erase-band renderer if additional live annotations are added."
+    },
+    "desktop-client/BrainPlatform.Desktop/Review/RecordingReviewSession.cs": {
+      "decision": "split",
+      "max_lines": 620,
+      "reason": "The review session still owns viewport revision and frame publication, while checkpoint orchestration is extracted into dedicated coordinator and cache classes. Keeping the remaining session owner cohesive avoids duplicating playback state during this change.",
+      "follow_up": "Extract review frame loading and filter-setting command bindings after checkpoint coordinator adoption is complete."
+    },
+    "desktop-client/BrainPlatform.Desktop/Review/RecordingReviewFilter.cs": {
+      "decision": "keep",
+      "max_lines": 430,
+      "reason": "The file remains the single typed desktop-to-Python review-filter transport boundary. The persistent anchor cache and scheduling state are extracted; the four-line soft-limit excess keeps request and checkpoint session payload contracts together."
     }
   }
 }

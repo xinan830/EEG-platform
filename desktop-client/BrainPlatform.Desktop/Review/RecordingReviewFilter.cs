@@ -61,6 +61,20 @@ public interface IRecordingReviewFilter
         var window = await ApplyAsync(source, manifest, settings, cancellationToken);
         return new RecordingReviewFilterChunkResult(window, null);
     }
+
+    Task<IRecordingReviewCheckpointSession?> OpenCheckpointSessionAsync(
+        LocalRawRecordingManifest manifest,
+        RecordingReviewFilterSettings settings,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IRecordingReviewCheckpointSession?>(null);
+}
+
+public interface IRecordingReviewCheckpointSession : IAsyncDisposable
+{
+    Task RestoreAsync(string checkpoint, CancellationToken cancellationToken);
+    Task AdvanceAsync(RecordingReviewSegment source, CancellationToken cancellationToken);
+    Task<RecordingReviewSegment> FilterAsync(RecordingReviewSegment source, CancellationToken cancellationToken);
+    Task<string> ExportAsync(CancellationToken cancellationToken);
 }
 
 public sealed record RecordingReviewFilterChunkResult(
@@ -82,8 +96,32 @@ public sealed class HttpRecordingReviewFilter(HttpClient httpClient) : IRecordin
             throw new InvalidOperationException("滤波服务没有返回有效的算法契约版本。");
         }
 
+        var checkpointVersion = contract.TryGetProperty("checkpoint_version", out var version)
+            ? version.GetString() ?? "unknown"
+            : "unknown";
         return new ReviewFilterContract(algorithmVersion,
-            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contract.GetRawText()))).ToLowerInvariant());
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(contract.GetRawText()))).ToLowerInvariant(),
+            checkpointVersion);
+    }
+
+    public async Task<IRecordingReviewCheckpointSession?> OpenCheckpointSessionAsync(
+        LocalRawRecordingManifest manifest,
+        RecordingReviewFilterSettings settings,
+        CancellationToken cancellationToken)
+    {
+        settings.Validate(manifest.SamplingRateHz);
+        var eegIndexes = manifest.Channels
+            .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
+            .Select(channel => channel.StreamIndex)
+            .ToArray();
+        var sessionId = $"review-{manifest.SessionId:N}-{Guid.NewGuid():N}";
+        using var response = await httpClient.PostAsJsonAsync(
+            "api/live-filters/sessions",
+            new FilterSessionRequest(sessionId, manifest.SamplingRateHz, manifest.Channels.Count, eegIndexes,
+                settings.HighPassHz, settings.LowPassHz, settings.NotchHz),
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return new HttpCheckpointSession(httpClient, sessionId);
     }
 
     public async Task<RecordingReviewWindow> ApplyAsync(
@@ -289,4 +327,78 @@ public sealed class HttpRecordingReviewFilter(HttpClient httpClient) : IRecordin
     private sealed record FilterCheckpointResponse(
         [property: JsonPropertyName("checkpoint_b64")] string CheckpointB64,
         [property: JsonPropertyName("version")] string Version);
+
+    private sealed class HttpCheckpointSession(HttpClient client, string sessionId) : IRecordingReviewCheckpointSession
+    {
+        private int disposed;
+
+        public async Task RestoreAsync(string checkpoint, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            using var response = await client.PutAsJsonAsync(
+                $"api/live-filters/sessions/{sessionId}/checkpoint",
+                new FilterCheckpointRequest(checkpoint), cancellationToken);
+            response.EnsureSuccessStatusCode();
+        }
+
+        public async Task AdvanceAsync(RecordingReviewSegment source, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            using var content = CreateBinaryContent(source.SampleMajorValues);
+            using var response = await client.PostAsync(
+                $"api/live-filters/sessions/{sessionId}/warmup/binary?sample_count={source.SampleCount}",
+                content, cancellationToken);
+            response.EnsureSuccessStatusCode();
+        }
+
+        public async Task<RecordingReviewSegment> FilterAsync(
+            RecordingReviewSegment source,
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            using var content = CreateBinaryContent(source.SampleMajorValues);
+            using var response = await client.PostAsync(
+                $"api/live-filters/sessions/{sessionId}/batches/binary?sample_count={source.SampleCount}",
+                content, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            var expected = checked(source.SampleMajorValues.Length * sizeof(double));
+            if (bytes.Length != expected)
+                throw new InvalidOperationException("回溯滤波返回的数据长度与原始窗口不一致。");
+            var values = new double[source.SampleMajorValues.Length];
+            Buffer.BlockCopy(bytes, 0, values, 0, bytes.Length);
+            return source with { SampleMajorValues = values };
+        }
+
+        public async Task<string> ExportAsync(CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            using var response = await client.GetAsync(
+                $"api/live-filters/sessions/{sessionId}/checkpoint", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var payload = await response.Content.ReadFromJsonAsync<FilterCheckpointResponse>(cancellationToken)
+                ?? throw new InvalidOperationException("回溯滤波没有返回 checkpoint。");
+            return payload.CheckpointB64;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref disposed, 1) != 0) return;
+            try
+            {
+                using var _ = await client.DeleteAsync(
+                    $"api/live-filters/sessions/{sessionId}", CancellationToken.None);
+            }
+            catch (HttpRequestException)
+            {
+                // A transient review session owns no persistent scientific data.
+            }
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (Volatile.Read(ref disposed) != 0)
+                throw new ObjectDisposedException(nameof(HttpCheckpointSession));
+        }
+    }
 }

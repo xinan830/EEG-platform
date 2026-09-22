@@ -147,7 +147,10 @@ public sealed record ReviewFilteredSourceChunk(
     public IReadOnlyList<RecordingReviewSegment> Segments => Window.Segments;
 }
 
-public sealed record ReviewFilterContract(string AlgorithmVersion, string Fingerprint)
+public sealed record ReviewFilterContract(
+    string AlgorithmVersion,
+    string Fingerprint,
+    string CheckpointVersion = "unknown")
 {
     public static readonly ReviewFilterContract Unknown = new("unknown", "unknown");
 }

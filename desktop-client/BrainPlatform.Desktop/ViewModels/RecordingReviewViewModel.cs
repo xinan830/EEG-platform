@@ -103,6 +103,10 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     public string StatusText => session.StatusText;
 
+    public ReviewPreparationState PreparationState => session.PreparationState;
+
+    public double? PreparationProgress => PreparationState.Progress;
+
     public string RecordingStartText => FormatElapsedTime(0);
 
     public string RecordingEndText => FormatElapsedTime(DurationSeconds);
@@ -345,6 +349,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         RaisePropertyChanged(nameof(OutputChannelCount));
         RaisePropertyChanged(nameof(IsLoading));
         RaisePropertyChanged(nameof(StatusText));
+        RaisePropertyChanged(nameof(PreparationState));
+        RaisePropertyChanged(nameof(PreparationProgress));
         RaisePlaybackPropertiesChanged();
     }
 

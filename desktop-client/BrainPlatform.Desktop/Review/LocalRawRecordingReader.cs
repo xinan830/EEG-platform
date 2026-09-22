@@ -6,7 +6,7 @@ using BrainPlatform.Desktop.Acquisition.Contracts;
 
 namespace BrainPlatform.Desktop.Review;
 
-public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReviewReader
+public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReviewReader, IRecordingReviewTimeline
 {
     private const int BatchHeaderBytes = sizeof(long) + sizeof(int) + sizeof(int) + sizeof(long);
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -196,6 +196,27 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
         (index.LastSampleCounter - index.FirstSampleCounter + 1d) / manifest.SamplingRateHz;
 
     public LocalRawRecordingManifest Manifest => manifest;
+
+    public long FirstSampleCounter => index.FirstSampleCounter;
+
+    public long GetContiguousSegmentOrigin(long sampleCounter)
+    {
+        var position = -1;
+        for (var current = 0; current < index.Batches.Count; current++)
+        {
+            var batch = index.Batches[current];
+            if (sampleCounter >= batch.FirstSampleCounter && sampleCounter <= batch.LastSampleCounter)
+            {
+                position = current;
+                break;
+            }
+        }
+        if (position < 0) throw new ArgumentOutOfRangeException(nameof(sampleCounter));
+        while (position > 0 && index.Batches[position - 1].LastSampleCounter + 1L ==
+               index.Batches[position].FirstSampleCounter)
+            position--;
+        return index.Batches[position].FirstSampleCounter;
+    }
 
     public ValueTask DisposeAsync()
     {

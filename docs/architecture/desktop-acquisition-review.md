@@ -125,6 +125,21 @@ immutable raw recording
   -> SciChart
 ```
 
+For exact causal review filtering, the desktop may additionally persist a
+disposable checkpoint-anchor cache outside the immutable recording. Anchor keys
+include recording/manifest identity, sampling rate, ordered V source schema,
+filter settings, Python contract/checkpoint version, contiguous-segment origin,
+and next sample counter. A cold distant seek still consumes every preceding
+sample in its contiguous segment once; it does not use a short warm-up as a
+false causal shortcut. Intermediate history advances the Python filter in
+bounded batches without creating display chunks, and completed anchors are
+published atomically. Gaps terminate the old chain and start a new one.
+
+Foreground targets are latest-only and retain the last complete frame until the
+new exact frame is ready. Idle prefetch is bounded and yields whenever a
+foreground target or playback load is active. Anchor files are rebuildable,
+bounded, and never written into the raw recording directory.
+
 Filtered chunk fingerprints include recording/manifest identity, source channel
 schema, sampling rate, filter settings, Python contract/version, sample range,
 warm-up semantics, and processing version. Derived cache files are disposable;
