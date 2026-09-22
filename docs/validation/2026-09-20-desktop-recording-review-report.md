@@ -1,30 +1,48 @@
 # Desktop recording review validation
 
-Date: 2026-09-20
+Date: 2026-09-22
 
 ## Automated evidence
 
-- `dotnet test desktop-client/BrainPlatform.Desktop.Tests/BrainPlatform.Desktop.Tests.csproj -c Release --no-restore -p:UseAppHost=false` — **152 passed, 0 failed**.
+- Commit `18d4b64` unifies acquisition and review display settings, scaling, axes, geometry, and one-second major ticks.
+- Commit `fd2d264` adds versioned causal-filter checkpoint export/import and contiguous review-chunk restoration.
+- `dotnet test desktop-client/BrainPlatform.Desktop.slnx -c Release --no-restore` — **191 passed, 0 failed** on the final full-suite run.
+- `backend/.venv/Scripts/python.exe -m pytest -q` — **243 passed, 0 failed**, with 2 dependency deprecation warnings.
+- `openspec validate --all --strict --no-interactive` — **37 passed, 0 failed** before archive.
+- `openspec validate --specs` — **30 passed, 0 failed** after synchronizing the recording-review main specification.
 - `dotnet build desktop-client/BrainPlatform.Desktop/BrainPlatform.Desktop.csproj -c Release --no-restore -p:UseAppHost=false` — **0 warnings, 0 errors**.
-- `openspec validate add-desktop-recording-review --strict --no-interactive` — **valid**.
-- `git diff --check` — **passed** before this report was added.
-- Focused performance test `RecordingReviewPerformanceTests.FourKilohertzThirtyColumnWindowIsBoundedToRequestedSamples` — **1 passed**. It indexes a 4 kHz / 30-column one-second chunk without payload reads during open and reads only a 0.5-second window.
+- `git diff --check` — **passed** before archive.
+
+The first desktop full-suite run had one timing-sensitive failure in
+`HttpLiveFilterBridgeTests.FilterChange_KeepsActiveFilterPublishingWhileNewSessionWarmsUp`.
+The focused rerun passed, followed by a clean 191/191 full-suite rerun. This is
+recorded as test-flake evidence rather than concealed as a deterministic pass.
 
 ## Covered behavior
 
-- Project recordings expose a `回溯` action only for readable completed/aborted recordings.
-- Review opens without global navigation and returns to the owning project list.
-- Raw sample-major float64/V chunks are indexed by headers and read by requested counter window.
-- Sample-counter gaps remain separate render segments; no zero fill or interpolation is introduced.
-- Acquisition montage is loaded from the immutable recording snapshot. Legacy recordings without a snapshot open on an explicit raw-signal view rather than inheriting a current global montage.
-- Current viewing montage is separate from acquisition montage and compatible alternatives are filtered by recorded Reference/Bipolar source labels; Trigger and Counter are excluded.
-- Montage switches preserve absolute position and visible duration while replacing the complete rendered trace set.
-- Playback uses monotonic wall-clock position and is independent of the UI timer interval.
+- Project recordings open in a dedicated review workspace and return to the owning project.
+- Review reads bounded sample-major float64/V windows from immutable chunks.
+- Sample-counter time remains authoritative; recorded gaps remain explicit and are never zero-filled or interpolated.
+- Acquisition montage metadata remains immutable and separate from the current viewing montage.
+- Compatible montage switching preserves absolute position and visible duration.
+- Playback clock and waveform loading are decoupled, with stale work coalesced.
+- Acquisition and review share display settings, scaling, axes, geometry, and one-second major-axis policy without sharing lifecycle state.
+- Scientific filtering remains in the local Python service.
+- Filtered source chunks use versioned causal checkpoints only across contiguous sample-counter ranges; gaps reset causal state.
+- Incomplete cache entries and incomplete target frames are never exposed as complete results.
 
-## Environment limitation
+## Validation boundary
 
-Hardware-independent automated validation is complete. A manual WPF acceptance run against a real project recording was not performed in this command session because the user's Visual Studio/client process may still own the debug output. The recommended acceptance is to close any running client, launch the current Release/Debug build, open a completed project recording, seek, switch a compatible montage, and return to the project list.
+This is engineering validation, not clinical or diagnostic validation. It does
+not establish calibrated physical paper speed, medical-device compliance, or
+clinical equivalence.
 
-## Performance scope
+A first random seek far into a long recording may still require sequential
+checkpoint generation for all preceding contiguous samples under the selected
+filter settings. Skipping that history would change causal output, especially
+for the supported 0.01 Hz high-pass filter. Optimizing first-jump latency
+therefore requires a separate bounded/background anchor-generation design.
 
-The regression fixture uses a one-second 4 kHz / 30-column chunk to keep CI/test disk use bounded. It verifies window-bounded reads and header-only open behavior; it is not a universal 30-minute hardware benchmark.
+Hardware-independent automated validation is complete. A manual WPF acceptance
+run against a real amplifier and long recording was not performed in this
+command session.
