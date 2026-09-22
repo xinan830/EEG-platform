@@ -15,12 +15,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     private readonly Func<long?> recordingFirstSampleCounterProvider;
     private readonly DispatcherTimer clock;
     private AcquisitionStreamMetadata? streamMetadata;
-    private double paperSpeedMillimetersPerSecond = 30;
-    private HorizontalTimeScaleMode horizontalTimeScaleMode = HorizontalTimeScaleMode.PaperSpeed;
-    private double timebaseSecondsPerScreen = 10;
-    private double viewportWidthDips;
-    private double sensitivityMicrovoltsPerMillimeter = 10;
-    private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
+    private readonly WaveformDisplaySettings displaySettings = new();
     private bool isSettingsOpen;
     private string recordingElapsedText = "--:--:--";
     private string captureStatusText = "未开始采集";
@@ -45,6 +40,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         this.displaySnapshotProvider = displaySnapshotProvider;
         this.displayFilterBoundaryProvider = displayFilterBoundaryProvider ?? (() => []);
         this.recordingFirstSampleCounterProvider = recordingFirstSampleCounterProvider ?? (() => null);
+        displaySettings.PropertyChanged += OnDisplaySettingsChanged;
         ToggleSettingsCommand = new AsyncRelayCommand(ToggleSettingsAsync, ReportCommandError);
         clock = new DispatcherTimer(DispatcherPriority.Background, dispatcher)
         {
@@ -60,6 +56,8 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     /// <summary>Display-only visibility choices for the selected montage outputs.</summary>
     public ObservableCollection<LiveMontageDisplayChannel> MontageChannels { get; } = [];
 
+    public WaveformDisplaySettings DisplaySettings => displaySettings;
+
     public ICommand ToggleSettingsCommand { get; }
 
     /// <summary>
@@ -68,19 +66,8 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     /// </summary>
     public double PaperSpeedMillimetersPerSecond
     {
-        get => paperSpeedMillimetersPerSecond;
-        set
-        {
-            if (value is not (5d or 10d or 15d or 30d or 60d))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            if (SetProperty(ref paperSpeedMillimetersPerSecond, value))
-            {
-                RaiseHorizontalScalePropertiesChanged();
-            }
-        }
+        get => displaySettings.PaperSpeedMillimetersPerSecond;
+        set => displaySettings.PaperSpeedMillimetersPerSecond = value;
     }
 
     /// <summary>
@@ -89,24 +76,13 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     /// </summary>
     public HorizontalTimeScaleMode HorizontalTimeScaleMode
     {
-        get => horizontalTimeScaleMode;
-        set
-        {
-            if (!Enum.IsDefined(value))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            if (SetProperty(ref horizontalTimeScaleMode, value))
-            {
-                RaiseHorizontalScalePropertiesChanged();
-            }
-        }
+        get => displaySettings.HorizontalTimeScaleMode;
+        set => displaySettings.HorizontalTimeScaleMode = value;
     }
 
     public bool IsPaperSpeedMode
     {
-        get => HorizontalTimeScaleMode == HorizontalTimeScaleMode.PaperSpeed;
+        get => displaySettings.IsPaperSpeedMode;
         set
         {
             if (value)
@@ -118,7 +94,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     public bool IsTimebaseMode
     {
-        get => HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase;
+        get => displaySettings.IsTimebaseMode;
         set
         {
             if (value)
@@ -131,23 +107,12 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     /// <summary>Displayed seconds per screen when timebase input is active.</summary>
     public double TimebaseSecondsPerScreen
     {
-        get => timebaseSecondsPerScreen;
-        set
-        {
-            if (value is not (5d or 10d or 15d or 20d or 30d))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            if (SetProperty(ref timebaseSecondsPerScreen, value))
-            {
-                RaiseHorizontalScalePropertiesChanged();
-            }
-        }
+        get => displaySettings.TimebaseSecondsPerScreen;
+        set => displaySettings.TimebaseSecondsPerScreen = value;
     }
 
     /// <summary>The effective screen duration, independent of the chosen input mode.</summary>
-    public double EffectiveTimebaseSeconds => GetDisplayWindowSeconds(Math.Max(1d, viewportWidthDips));
+    public double EffectiveTimebaseSeconds => GetDisplayWindowSeconds(Math.Max(1d, displaySettings.ViewportWidthDips));
 
     /// <summary>
     /// The nominal paper speed corresponding to a timebase selection. It is
@@ -155,28 +120,21 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     /// physical ruler on arbitrary monitors.
     /// </summary>
     public double DerivedPaperSpeedMillimetersPerSecond =>
-        GetViewportMillimeters(Math.Max(1d, viewportWidthDips)) / TimebaseSecondsPerScreen;
+        displaySettings.DerivedPaperSpeedMillimetersPerSecond;
 
     public void UpdateViewportWidth(double widthDips)
     {
-        if (!double.IsFinite(widthDips) || widthDips <= 0 || Math.Abs(widthDips - viewportWidthDips) < 0.5)
+        if (!double.IsFinite(widthDips) || widthDips <= 0 || Math.Abs(widthDips - displaySettings.ViewportWidthDips) < 0.5)
         {
             return;
         }
 
-        viewportWidthDips = widthDips;
-        RaiseHorizontalScalePropertiesChanged();
+        displaySettings.ViewportWidthDips = widthDips;
     }
 
     public void UpdateScreenScale(ScreenScaleContext value)
     {
-        if (value == screenScale)
-        {
-            return;
-        }
-
-        screenScale = value;
-        RaiseHorizontalScalePropertiesChanged();
+        displaySettings.ScreenScale = value;
     }
 
     public double GetDisplayWindowSeconds(double viewportWidthDips)
@@ -186,30 +144,14 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
             throw new ArgumentOutOfRangeException(nameof(viewportWidthDips));
         }
 
-        return HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase
-            ? TimebaseSecondsPerScreen
-            : ScreenScaleCalculator.VisibleSeconds(
-                viewportWidthDips,
-                screenScale.MillimetersPerDipX,
-                PaperSpeedMillimetersPerSecond);
+        return displaySettings.GetVisibleSeconds(viewportWidthDips);
     }
 
     public double SensitivityMicrovoltsPerMillimeter
     {
-        get => sensitivityMicrovoltsPerMillimeter;
-        set
-        {
-            if (value <= 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            SetProperty(ref sensitivityMicrovoltsPerMillimeter, value);
-        }
+        get => displaySettings.SensitivityMicrovoltsPerMillimeter;
+        set => displaySettings.SensitivityMicrovoltsPerMillimeter = value;
     }
-
-    private double GetViewportMillimeters(double widthDips) =>
-        widthDips * screenScale.MillimetersPerDipX;
 
     private void RaiseHorizontalScalePropertiesChanged()
     {
@@ -384,12 +326,19 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         clock.Stop();
+        displaySettings.PropertyChanged -= OnDisplaySettingsChanged;
     }
 
     private Task ToggleSettingsAsync()
     {
         IsSettingsOpen = !IsSettingsOpen;
         return Task.CompletedTask;
+    }
+
+    private void OnDisplaySettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        RaisePropertyChanged(e.PropertyName);
+        RaiseHorizontalScalePropertiesChanged();
     }
 
     private void ReportCommandError(Exception exception) =>

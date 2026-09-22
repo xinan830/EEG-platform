@@ -92,39 +92,18 @@ public sealed class LiveSciChartCanvas : UserControl
         surface.Background = Brushes.White;
         VisualXcceleratorEngine.SetIsEnabled(surface, true);
 
-        xAxis.AutoRange = AutoRange.Never;
-        xAxis.VisibleRange = new DoubleRange(0, 10);
-        xAxis.AxisAlignment = AxisAlignment.Bottom;
-        xAxis.DrawLabels = true;
-        xAxis.DrawMajorBands = false;
-        xAxis.DrawMinorGridLines = false;
-        xAxis.DrawMajorGridLines = true;
-        xAxis.DrawMajorTicks = false;
-        xAxis.DrawMinorTicks = false;
-        xAxis.AutoTicks = false;
-        xAxis.MajorDelta = 1d;
-        xAxis.MinorDelta = 0.5d;
-        xAxis.TextFormatting = "0";
-        xAxis.LabelProvider = sweepTimeLabels;
+        WaveformAxisPolicy.ConfigureHorizontalAxis(xAxis, sweepTimeLabels);
         xAxis.TickTextBrush = new SolidColorBrush(Color.FromRgb(49, 77, 126));
         xAxis.MajorGridLineStyle = new Style(typeof(Line))
         {
             Setters = { new Setter(Shape.StrokeProperty, new SolidColorBrush(Color.FromRgb(226, 232, 240))) },
         };
 
-        yAxis.AutoRange = AutoRange.Never;
-        yAxis.VisibleRange = new DoubleRange(0, 1);
         // The Y axis has no labels or ticks in the EEG stacked-trace view.
         // Keeping its layout slot at the left creates a visible blank gutter
         // between montage labels and the first waveform sample. Put that
         // invisible slot at the far edge instead.
-        yAxis.AxisAlignment = AxisAlignment.Right;
-        yAxis.DrawLabels = false;
-        yAxis.DrawMajorBands = false;
-        yAxis.DrawMinorGridLines = false;
-        yAxis.DrawMajorGridLines = false;
-        yAxis.DrawMajorTicks = false;
-        yAxis.DrawMinorTicks = false;
+        WaveformAxisPolicy.ConfigureStackedTraceAxis(yAxis);
 
         surface.XAxes.Add(xAxis);
         surface.YAxes.Add(yAxis);
@@ -236,7 +215,7 @@ public sealed class LiveSciChartCanvas : UserControl
         var viewportWidthDips = Math.Max(1d, surface.ActualWidth);
         monitor.UpdateViewportWidth(viewportWidthDips);
         var horizontalPixels = Math.Clamp((int)Math.Round(viewportWidthDips), 1, MaximumRenderBuckets);
-        var plotHeight = GetPlotArea().Height;
+        var plotHeight = WaveformPlotLayout.GetPlotArea(surface).Height;
         var displayWindowSeconds = monitor.GetDisplayWindowSeconds(viewportWidthDips);
         var revision = WaveformRenderRevision.Create(
             source,
@@ -485,41 +464,9 @@ public sealed class LiveSciChartCanvas : UserControl
         }
     }
 
-    private Rect GetPlotArea()
-    {
-        if (surface.GridLinesPanel is not FrameworkElement gridLines ||
-            gridLines.ActualWidth <= 0 ||
-            gridLines.ActualHeight <= 0)
-        {
-            return new Rect(0, 0, Math.Max(1, surface.ActualWidth), Math.Max(1, surface.ActualHeight));
-        }
-
-        var origin = gridLines.TranslatePoint(new Point(), surface);
-        return new Rect(origin.X, origin.Y, gridLines.ActualWidth, gridLines.ActualHeight);
-    }
-
     private void SyncLabelPlotArea()
     {
-        var plotArea = GetPlotArea();
-        if (surface.ActualHeight <= 0 || plotArea.Height <= 0)
-        {
-            return;
-        }
-
-        var margin = new Thickness(
-            0,
-            Math.Max(0, plotArea.Top),
-            0,
-            Math.Max(0, surface.ActualHeight - plotArea.Bottom));
-        if (lastLabelPlotMargin is { } previous &&
-            Math.Abs(previous.Top - margin.Top) < 0.1 &&
-            Math.Abs(previous.Bottom - margin.Bottom) < 0.1)
-        {
-            return;
-        }
-
-        lastLabelPlotMargin = margin;
-        channelLabels.Margin = margin;
+        WaveformPlotLayout.SyncLabelPlotArea(surface, channelLabels, ref lastLabelPlotMargin);
     }
 
     private sealed class TraceSeries(XyDataSeries<double, double> data)

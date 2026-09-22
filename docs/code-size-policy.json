@@ -39,6 +39,24 @@
       "decision": "keep",
       "max_lines": 530,
       "reason": "The file owns one serialized local HTTP live-filter session lifecycle: active output, background handoff, transport validation, activation, and cleanup. The transition queue and cancellation state are extracted to PendingLiveFilterTransition.cs; splitting the remaining state owner would introduce competing session locks."
+    },
+    "desktop-client/BrainPlatform.Desktop/ViewModels/LiveMonitoringViewModel.cs": {
+      "decision": "keep",
+      "max_lines": 570,
+      "reason": "The view model coordinates one live waveform display state owner and its bounded frame/render lifecycle; device, raw acquisition, and filter state remain in dedicated services.",
+      "follow_up": "Extract live display command bindings and frame notification adapters before adding further acquisition controls."
+    },
+    "desktop-client/BrainPlatform.Desktop/ViewModels/RecordingReviewViewModel.cs": {
+      "decision": "keep",
+      "max_lines": 530,
+      "reason": "The view model coordinates one review session, playback target, display settings, and latest-only viewport requests; raw reading, caching, and playback clock remain separate owners.",
+      "follow_up": "Extract review toolbar command bindings from the view model before adding further review workflows."
+    },
+    "desktop-client/BrainPlatform.Desktop/Views/LiveSciChartCanvas.cs": {
+      "decision": "keep",
+      "max_lines": 520,
+      "reason": "The canvas owns one live rendering surface, bounded frame worker, sweep erase animation, and display-only geometry; shared axis and plot layout policies are already extracted.",
+      "follow_up": "Extract the live erase-band renderer if additional live annotations are added."
     }
   }
 }

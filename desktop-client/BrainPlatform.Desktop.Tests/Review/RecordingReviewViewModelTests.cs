@@ -228,10 +228,11 @@ public sealed class RecordingReviewViewModelTests
         await viewModel.InitializeAsync();
 
         viewModel.TimebaseSecondsPerScreen = 5;
+        viewModel.TimebaseSecondsPerScreen = 15;
         viewModel.HorizontalTimeScaleMode = HorizontalTimeScaleMode.Timebase;
 
-        await WaitUntilAsync(() => Math.Abs(viewModel.VisibleDurationSeconds - 5) < 0.01);
-        Assert.InRange(viewModel.VisibleDurationSeconds, 4.99, 5.01);
+        await WaitUntilAsync(() => Math.Abs(viewModel.VisibleDurationSeconds - 15) < 0.01);
+        Assert.InRange(viewModel.VisibleDurationSeconds, 14.99, 15.01);
     }
 
     private static LocalRawRecordingManifest Manifest(ChannelConfigurationProfile configuration) => new(

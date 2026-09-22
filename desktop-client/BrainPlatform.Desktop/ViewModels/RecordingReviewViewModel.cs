@@ -22,12 +22,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     private double highPassHz = 1;
     private double lowPassHz = 30;
     private double notchHz = 50;
-    private double sensitivityMicrovoltsPerMillimeter = 10;
-    private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
-    private double paperSpeedMillimetersPerSecond = 30;
-    private HorizontalTimeScaleMode horizontalTimeScaleMode = HorizontalTimeScaleMode.PaperSpeed;
-    private double timebaseSecondsPerScreen = 10;
-    private double viewportWidthDips;
+    private readonly WaveformDisplaySettings displaySettings = new();
     private Task? viewportDurationUpdateTask;
     private bool viewportDurationUpdatePending;
     private double viewportStartSeconds;
@@ -57,6 +52,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         this.recordingName = string.IsNullOrWhiteSpace(recordingName)
             ? "采集记录"
             : recordingName;
+        displaySettings.PropertyChanged += OnDisplaySettingsChanged;
         session.Changed += OnSessionChanged;
         foreach (var item in catalog.CompatibleViewingMontages)
         {
@@ -65,6 +61,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     }
 
     public ObservableCollection<MontageProfile> CompatibleViewingMontages { get; } = [];
+
+    public WaveformDisplaySettings DisplaySettings => displaySettings;
 
     public string AcquisitionMontageText => catalog.AcquisitionMontageStatusText;
 
@@ -158,57 +156,25 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     public double SensitivityMicrovoltsPerMillimeter
     {
-        get => sensitivityMicrovoltsPerMillimeter;
-        set
-        {
-            if (value is not (5d or 10d or 20d or 50d or 100d))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            SetProperty(ref sensitivityMicrovoltsPerMillimeter, value);
-        }
+        get => displaySettings.SensitivityMicrovoltsPerMillimeter;
+        set => displaySettings.SensitivityMicrovoltsPerMillimeter = value;
     }
 
     public double PaperSpeedMillimetersPerSecond
     {
-        get => paperSpeedMillimetersPerSecond;
-        set
-        {
-            if (value is not (5d or 10d or 15d or 30d or 60d))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            if (SetProperty(ref paperSpeedMillimetersPerSecond, value))
-            {
-                RaiseHorizontalScalePropertiesChanged();
-                ScheduleViewportDurationUpdate();
-            }
-        }
+        get => displaySettings.PaperSpeedMillimetersPerSecond;
+        set => displaySettings.PaperSpeedMillimetersPerSecond = value;
     }
 
     public HorizontalTimeScaleMode HorizontalTimeScaleMode
     {
-        get => horizontalTimeScaleMode;
-        set
-        {
-            if (!Enum.IsDefined(value))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            if (SetProperty(ref horizontalTimeScaleMode, value))
-            {
-                RaiseHorizontalScalePropertiesChanged();
-                ScheduleViewportDurationUpdate();
-            }
-        }
+        get => displaySettings.HorizontalTimeScaleMode;
+        set => displaySettings.HorizontalTimeScaleMode = value;
     }
 
     public bool IsPaperSpeedMode
     {
-        get => HorizontalTimeScaleMode == HorizontalTimeScaleMode.PaperSpeed;
+        get => displaySettings.IsPaperSpeedMode;
         set
         {
             if (value)
@@ -220,7 +186,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     public bool IsTimebaseMode
     {
-        get => HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase;
+        get => displaySettings.IsTimebaseMode;
         set
         {
             if (value)
@@ -232,27 +198,15 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     public double TimebaseSecondsPerScreen
     {
-        get => timebaseSecondsPerScreen;
-        set
-        {
-            if (value is not (5d or 10d or 15d or 20d or 30d))
-            {
-                throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            if (SetProperty(ref timebaseSecondsPerScreen, value))
-            {
-                RaiseHorizontalScalePropertiesChanged();
-                ScheduleViewportDurationUpdate();
-            }
-        }
+        get => displaySettings.TimebaseSecondsPerScreen;
+        set => displaySettings.TimebaseSecondsPerScreen = value;
     }
 
     public double EffectiveTimebaseSeconds => VisibleDurationSeconds;
 
-    public double DerivedPaperSpeedMillimetersPerSecond => viewportWidthDips <= 0
+    public double DerivedPaperSpeedMillimetersPerSecond => displaySettings.ViewportWidthDips <= 0
         ? 0
-        : GetViewportMillimeters(viewportWidthDips) / TimebaseSecondsPerScreen;
+        : displaySettings.DerivedPaperSpeedMillimetersPerSecond;
 
     public async Task InitializeAsync()
     {
@@ -304,26 +258,17 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     public void UpdateViewportWidth(double widthDips)
     {
-        if (!double.IsFinite(widthDips) || widthDips <= 0 || Math.Abs(widthDips - viewportWidthDips) < 0.5)
+        if (!double.IsFinite(widthDips) || widthDips <= 0 || Math.Abs(widthDips - displaySettings.ViewportWidthDips) < 0.5)
         {
             return;
         }
 
-        viewportWidthDips = widthDips;
-        RaiseHorizontalScalePropertiesChanged();
-        ScheduleViewportDurationUpdate();
+        displaySettings.ViewportWidthDips = widthDips;
     }
 
     public void UpdateScreenScale(ScreenScaleContext value)
     {
-        if (value == screenScale)
-        {
-            return;
-        }
-
-        screenScale = value;
-        RaiseHorizontalScalePropertiesChanged();
-        ScheduleViewportDurationUpdate();
+        displaySettings.ScreenScale = value;
     }
 
     public Task SelectViewingMontageAsync(MontageProfile? montage) =>
@@ -380,6 +325,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     {
         viewportLoader.Dispose();
         filterUpdater.Dispose();
+        displaySettings.PropertyChanged -= OnDisplaySettingsChanged;
         session.Changed -= OnSessionChanged;
         await session.DisposeAsync();
     }
@@ -493,7 +439,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         // A timebase is an explicit seconds-per-screen value and must work
         // before the SciChart host reports its final width. Paper-speed mode
         // needs the calibrated physical width and waits for that measurement.
-        if ((HorizontalTimeScaleMode == HorizontalTimeScaleMode.PaperSpeed && viewportWidthDips <= 0) ||
+        if ((HorizontalTimeScaleMode == HorizontalTimeScaleMode.PaperSpeed && displaySettings.ViewportWidthDips <= 0) ||
             viewportDurationUpdateTask is { IsCompleted: false })
         {
             if (viewportDurationUpdateTask is { IsCompleted: false })
@@ -504,12 +450,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
             return;
         }
 
-        var requestedDuration = HorizontalTimeScaleMode == HorizontalTimeScaleMode.Timebase
-            ? TimebaseSecondsPerScreen
-            : ScreenScaleCalculator.VisibleSeconds(
-                viewportWidthDips,
-                screenScale.MillimetersPerDipX,
-                PaperSpeedMillimetersPerSecond);
+        var requestedDuration = displaySettings.GetVisibleSeconds(displaySettings.ViewportWidthDips);
         var visibleDuration = Math.Clamp(requestedDuration, 1d, DurationSeconds);
         if (Math.Abs(visibleDuration - VisibleDurationSeconds) < 0.02)
         {
@@ -529,7 +470,10 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
             viewportDurationUpdateTask = null;
             var shouldRerun = viewportDurationUpdatePending;
             viewportDurationUpdatePending = false;
-            if (shouldRerun && viewportWidthDips > 0)
+            // ScheduleViewportDurationUpdate applies the mode-specific guard:
+            // timebase mode is valid before the chart reports a width, while
+            // paper-speed mode must wait for calibrated viewport geometry.
+            if (shouldRerun)
             {
                 ScheduleViewportDurationUpdate();
             }
@@ -539,8 +483,19 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     private string FormatElapsedTime(double seconds) =>
         $"{Math.Clamp(seconds, 0, DurationSeconds):0.0} s";
 
-    private double GetViewportMillimeters(double widthDips) =>
-        widthDips * screenScale.MillimetersPerDipX;
+    private void OnDisplaySettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        RaisePropertyChanged(e.PropertyName);
+        RaiseHorizontalScalePropertiesChanged();
+        if (e.PropertyName is nameof(WaveformDisplaySettings.PaperSpeedMillimetersPerSecond)
+            or nameof(WaveformDisplaySettings.HorizontalTimeScaleMode)
+            or nameof(WaveformDisplaySettings.TimebaseSecondsPerScreen)
+            or nameof(WaveformDisplaySettings.ViewportWidthDips)
+            or nameof(WaveformDisplaySettings.ScreenScale))
+        {
+            ScheduleViewportDurationUpdate();
+        }
+    }
 
     private void RaiseHorizontalScalePropertiesChanged()
     {

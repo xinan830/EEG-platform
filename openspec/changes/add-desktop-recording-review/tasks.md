@@ -46,3 +46,6 @@
 - [x] 7.1 Resolve immutable horizontal and vertical mm-per-DIP values per waveform window and monitor.
 - [x] 7.2 Update acquisition and review canvases when their owning window changes display context.
 - [x] 7.3 Use width calibration for paper speed and height calibration for vertical EEG sensitivity, with regression coverage.
+- [x] 7.4 Centralize shared waveform display settings and geometry calculations while keeping acquisition and review data lifecycles separate.
+- [x] 7.5 Centralize shared waveform axis policy while preserving live and review-specific rendering behavior.
+- [x] 7.6 Centralize shared waveform plot-area and label alignment geometry without merging acquisition/review state.

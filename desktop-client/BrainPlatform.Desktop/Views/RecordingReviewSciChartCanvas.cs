@@ -81,29 +81,10 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     {
         surface.Background = Brushes.White;
         VisualXcceleratorEngine.SetIsEnabled(surface, true);
-        xAxis.AutoRange = AutoRange.Never;
-        xAxis.VisibleRange = new DoubleRange(0, 10);
-        xAxis.AxisAlignment = AxisAlignment.Bottom;
-        xAxis.DrawLabels = true;
-        xAxis.DrawMajorBands = false;
-        xAxis.DrawMinorGridLines = false;
-        xAxis.DrawMajorGridLines = true;
-        xAxis.DrawMajorTicks = false;
-        xAxis.DrawMinorTicks = false;
-        xAxis.AutoTicks = false;
-        xAxis.MajorDelta = 1;
-        xAxis.MinorDelta = 0.5;
-        xAxis.TextFormatting = "0";
-        xAxis.LabelProvider = recordingTimeLabels;
-        yAxis.AutoRange = AutoRange.Never;
-        yAxis.VisibleRange = new DoubleRange(0, 1);
+        WaveformAxisPolicy.ConfigureHorizontalAxis(xAxis, recordingTimeLabels);
         // Keep the invisible Y-axis layout area away from the channel-label
         // column so review uses the same compact waveform start as live view.
-        yAxis.AxisAlignment = AxisAlignment.Right;
-        yAxis.DrawLabels = false;
-        yAxis.DrawMajorBands = false;
-        yAxis.DrawMinorGridLines = false;
-        yAxis.DrawMajorGridLines = false;
+        WaveformAxisPolicy.ConfigureStackedTraceAxis(yAxis);
         surface.XAxes.Add(xAxis);
         surface.YAxes.Add(yAxis);
     }
@@ -262,7 +243,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         var hasSegment = false;
         // The plot is laid out in DIP, so sensitivity must use the calibrated
         // physical DIP/mm conversion, not the monitor's nominal raster DPI.
-        var plotHeight = GetPlotArea().Height;
+        var plotHeight = WaveformPlotLayout.GetPlotArea(surface).Height;
         var sensitivity = (DataContext as RecordingReviewViewModel)?.SensitivityMicrovoltsPerMillimeter ?? 10;
         var displayScale = ScreenScaleCalculator.VerticalDisplayScale(
             traceCount,
@@ -399,41 +380,9 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         }
     }
 
-    private Rect GetPlotArea()
-    {
-        if (surface.GridLinesPanel is not FrameworkElement gridLines ||
-            gridLines.ActualWidth <= 0 ||
-            gridLines.ActualHeight <= 0)
-        {
-            return new Rect(0, 0, Math.Max(1, surface.ActualWidth), Math.Max(1, surface.ActualHeight));
-        }
-
-        var origin = gridLines.TranslatePoint(new Point(), surface);
-        return new Rect(origin.X, origin.Y, gridLines.ActualWidth, gridLines.ActualHeight);
-    }
-
     private void SyncLabelPlotArea()
     {
-        var plotArea = GetPlotArea();
-        if (surface.ActualHeight <= 0 || plotArea.Height <= 0)
-        {
-            return;
-        }
-
-        var margin = new Thickness(
-            0,
-            Math.Max(0, plotArea.Top),
-            0,
-            Math.Max(0, surface.ActualHeight - plotArea.Bottom));
-        if (lastLabelPlotMargin is { } previous &&
-            Math.Abs(previous.Top - margin.Top) < 0.1 &&
-            Math.Abs(previous.Bottom - margin.Bottom) < 0.1)
-        {
-            return;
-        }
-
-        lastLabelPlotMargin = margin;
-        labels.Margin = margin;
+        WaveformPlotLayout.SyncLabelPlotArea(surface, labels, ref lastLabelPlotMargin);
     }
 
     private sealed record TraceSeries(XyDataSeries<double, double> Data);
