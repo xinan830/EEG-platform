@@ -6,7 +6,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Review.Filtering;
 

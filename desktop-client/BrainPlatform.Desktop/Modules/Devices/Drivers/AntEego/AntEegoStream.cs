@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.AntEego;
+namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 
 /// <summary>
 /// Decodes one opened vendor EEG stream. It deliberately returns raw

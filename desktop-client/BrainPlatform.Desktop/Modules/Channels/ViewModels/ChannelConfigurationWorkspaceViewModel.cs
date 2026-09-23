@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 using BrainPlatform.Desktop.Acquisition.Session;
 
 namespace BrainPlatform.Desktop.ViewModels;

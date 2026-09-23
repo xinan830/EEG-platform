@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.Acquisition.AntEego;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 

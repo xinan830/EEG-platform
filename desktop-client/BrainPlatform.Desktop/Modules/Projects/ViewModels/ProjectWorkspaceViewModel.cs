@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
-using BrainPlatform.Desktop.Acquisition.Storage;
 
 namespace BrainPlatform.Desktop.Modules.Projects.ViewModels;
 

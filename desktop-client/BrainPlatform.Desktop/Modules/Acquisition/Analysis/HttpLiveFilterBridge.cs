@@ -3,9 +3,8 @@ using System.Net.Http.Json;
 using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Analysis;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
 public sealed record LiveDisplayFilterSettings(double LowCutHz, double HighCutHz, double? NotchHz)
 {

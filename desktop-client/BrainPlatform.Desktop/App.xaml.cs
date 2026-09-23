@@ -24,7 +24,7 @@ public partial class App : Application
             Timeout = TimeSpan.FromSeconds(3),
         });
 
-        var runtime = new Acquisition.Runtime.ConfiguredAcquisitionRuntime(new HttpClient
+        var runtime = new Modules.Acquisition.Runtime.ConfiguredAcquisitionRuntime(new HttpClient
         {
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(2),

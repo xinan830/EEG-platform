@@ -1,5 +1,4 @@
 
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
 namespace BrainPlatform.Desktop.Views;
 
@@ -200,7 +199,7 @@ public static class WaveformDisplayFrameBuilder
             : double.NaN;
 
     private static IReadOnlyList<DisplayBatch> SelectDisplayBatches(
-        IReadOnlyList<BrainPlatform.Desktop.Acquisition.Contracts.AcquisitionBatch> batches,
+        IReadOnlyList<BrainPlatform.Desktop.Modules.Acquisition.Contracts.AcquisitionBatch> batches,
         IReadOnlyList<LiveDisplayCounterAdjustment> adjustments,
         IReadOnlyList<DisplaySpan> spans)
     {
@@ -458,7 +457,7 @@ public static class WaveformDisplayFrameBuilder
         long DisplayStartSampleOffset);
 
     private sealed record DisplayBatch(
-        BrainPlatform.Desktop.Acquisition.Contracts.AcquisitionBatch Batch,
+        BrainPlatform.Desktop.Modules.Acquisition.Contracts.AcquisitionBatch Batch,
         long FirstDisplaySampleCounter)
     {
         public long LastDisplaySampleCounter => checked(FirstDisplaySampleCounter + Batch.SampleCount - 1L);

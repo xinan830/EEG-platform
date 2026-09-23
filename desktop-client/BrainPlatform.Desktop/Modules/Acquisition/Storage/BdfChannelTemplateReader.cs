@@ -2,7 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 
-namespace BrainPlatform.Desktop.Acquisition.Storage;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Storage;
 
 /// <summary>
 /// Reads BDF header labels only. It never opens or interprets EEG samples.

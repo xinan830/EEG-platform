@@ -1,8 +1,5 @@
-using BrainPlatform.Desktop.Acquisition.Analysis;
-using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Acquisition.Storage;
 
-namespace BrainPlatform.Desktop.Acquisition.Runtime;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 
 public sealed class AcquisitionCoordinator : IAsyncDisposable
 {

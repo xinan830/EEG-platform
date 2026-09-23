@@ -1,7 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using BrainPlatform.Desktop.Acquisition.Analysis;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 

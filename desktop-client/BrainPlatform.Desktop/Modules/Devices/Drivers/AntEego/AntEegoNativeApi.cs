@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Text;
 
-namespace BrainPlatform.Desktop.Acquisition.AntEego;
+namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 
 [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
 internal struct AntEegoNativeAmplifierInfo

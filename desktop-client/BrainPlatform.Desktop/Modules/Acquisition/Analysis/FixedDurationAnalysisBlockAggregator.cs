@@ -1,6 +1,5 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Analysis;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
 /// <summary>
 /// Decouples vendor read granularity from the Python display-filter boundary.

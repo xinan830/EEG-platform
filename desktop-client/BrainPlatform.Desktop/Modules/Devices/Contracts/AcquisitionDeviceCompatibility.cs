@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace BrainPlatform.Desktop.Acquisition.Contracts;
+namespace BrainPlatform.Desktop.Modules.Devices.Contracts;
 
 /// <summary>
 /// The single compatibility identity for reusable channel configuration.

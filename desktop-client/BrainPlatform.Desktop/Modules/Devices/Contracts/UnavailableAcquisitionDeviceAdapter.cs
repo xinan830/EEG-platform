@@ -1,5 +1,5 @@
 
-namespace BrainPlatform.Desktop.Acquisition.Contracts;
+namespace BrainPlatform.Desktop.Modules.Devices.Contracts;
 
 /// <summary>
 /// Deliberately reports no device until a separately validated vendor adapter

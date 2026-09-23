@@ -1,6 +1,5 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Storage;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Storage;
 
 public interface IAcquisitionRawWriterFactory
 {

@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 using System.Globalization;
 using System.Text.Json.Serialization;
 

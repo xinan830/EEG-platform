@@ -1,6 +1,5 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.AntEego;
+namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 
 public sealed record AntEegoAdapterOptions(
     string SdkLibraryPath,

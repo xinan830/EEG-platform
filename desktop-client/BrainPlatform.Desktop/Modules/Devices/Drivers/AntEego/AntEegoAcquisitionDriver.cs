@@ -1,8 +1,6 @@
 using System.Globalization;
-using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Acquisition.Drivers;
 
-namespace BrainPlatform.Desktop.Acquisition.AntEego;
+namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 
 /// <summary>Converts the generic connection envelope into ANT/eego SDK options.</summary>
 public sealed class AntEegoAcquisitionDriver : IAcquisitionDeviceDriver

@@ -1,5 +1,3 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Acquisition.Storage;
 using System.Text.Json;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;

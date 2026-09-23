@@ -1,6 +1,5 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Drivers;
+namespace BrainPlatform.Desktop.Modules.Devices.Drivers;
 
 /// <summary>Stable identity for an installed vendor driver, not a device serial number.</summary>
 public sealed record AcquisitionDriverDescriptor(

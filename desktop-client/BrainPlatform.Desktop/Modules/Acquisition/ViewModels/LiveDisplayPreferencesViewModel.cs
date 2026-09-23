@@ -1,7 +1,4 @@
 using System.ComponentModel;
-using BrainPlatform.Desktop.Acquisition.Analysis;
-using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Acquisition.Runtime;
 
 namespace BrainPlatform.Desktop.ViewModels;
 

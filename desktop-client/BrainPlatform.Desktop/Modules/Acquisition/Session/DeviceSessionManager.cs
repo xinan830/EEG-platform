@@ -1,9 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Acquisition.Drivers;
-using BrainPlatform.Desktop.Acquisition.Runtime;
 
 namespace BrainPlatform.Desktop.Acquisition.Session;
 

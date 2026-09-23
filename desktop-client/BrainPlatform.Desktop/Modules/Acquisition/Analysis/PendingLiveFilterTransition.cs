@@ -1,7 +1,6 @@
 using System.Threading.Channels;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Analysis;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
 /// <summary>
 /// Owns the short-lived queue and cancellation state while a replacement

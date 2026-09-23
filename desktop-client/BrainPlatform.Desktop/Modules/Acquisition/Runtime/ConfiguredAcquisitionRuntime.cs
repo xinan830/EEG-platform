@@ -1,10 +1,6 @@
-using BrainPlatform.Desktop.Acquisition.Analysis;
-using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Acquisition.Drivers;
-using BrainPlatform.Desktop.Acquisition.Storage;
 using System.Net.Http;
 
-namespace BrainPlatform.Desktop.Acquisition.Runtime;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 
 /// <summary>
 /// Application-level owner for an opt-in device adapter and its coordinator.

@@ -1,6 +1,5 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Analysis;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
 /// <summary>Contiguous raw context used only to initialize the next display filter.</summary>
 public sealed record LiveDisplayFilterWarmup(

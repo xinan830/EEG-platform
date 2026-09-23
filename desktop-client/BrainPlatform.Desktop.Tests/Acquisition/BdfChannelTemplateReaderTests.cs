@@ -1,6 +1,4 @@
 using System.Text;
-using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Acquisition.Storage;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 

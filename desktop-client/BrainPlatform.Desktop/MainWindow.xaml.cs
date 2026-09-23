@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Net.Http;
-using BrainPlatform.Desktop.Acquisition.Storage;
 using BrainPlatform.Desktop.Views;
 
 namespace BrainPlatform.Desktop;

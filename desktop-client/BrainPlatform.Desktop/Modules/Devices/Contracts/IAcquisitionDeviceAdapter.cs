@@ -1,5 +1,5 @@
 
-namespace BrainPlatform.Desktop.Acquisition.Contracts;
+namespace BrainPlatform.Desktop.Modules.Devices.Contracts;
 
 /// <summary>
 /// Hardware boundary. The ANT implementation belongs behind this interface and

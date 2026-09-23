@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Acquisition.AntEego;
+namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 
 /// <summary>
 /// ANT/eego requires the auxiliary (bipolar) input range to be 2.5 times the

@@ -1,6 +1,5 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Analysis;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
 /// <summary>
 /// Future boundary for bounded Python analysis input. Implementations must not

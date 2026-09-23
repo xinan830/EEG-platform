@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace BrainPlatform.Desktop.Acquisition.AntEego;
+namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 
 /// <summary>
 /// Owns the vendor-global SDK lifetime. The SDK documentation permits only one

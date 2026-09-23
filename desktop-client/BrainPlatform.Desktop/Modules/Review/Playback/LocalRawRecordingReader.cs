@@ -2,7 +2,6 @@ using System.Buffers;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Review.Playback;
 

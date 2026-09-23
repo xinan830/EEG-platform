@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.IO;
 
-namespace BrainPlatform.Desktop.Acquisition.Storage;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Storage;
 
 /// <summary>
 /// Reads local recording indexes only. It never opens raw sample chunks or

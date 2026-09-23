@@ -1,6 +1,3 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Acquisition.Drivers;
-using BrainPlatform.Desktop.Acquisition.Runtime;
 using BrainPlatform.Desktop.Acquisition.Session;
 using System.Runtime.CompilerServices;
 

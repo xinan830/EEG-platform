@@ -1,6 +1,5 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Runtime;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 
 public sealed record RingBufferAppendResult(int RetainedSampleCount, int EvictedSampleCount, bool InputTooLarge);
 

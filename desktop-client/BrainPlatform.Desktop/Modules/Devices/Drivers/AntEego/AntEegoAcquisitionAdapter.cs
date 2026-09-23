@@ -1,7 +1,6 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 using System.IO;
 
-namespace BrainPlatform.Desktop.Acquisition.AntEego;
+namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 
 /// <summary>
 /// Optional ANT/eego C ABI adapter. It is not the desktop default and does not

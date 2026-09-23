@@ -6,12 +6,7 @@ using System.Text.Json;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using BrainPlatform.Desktop.Acquisition.Analysis;
-using BrainPlatform.Desktop.Acquisition.AntEego;
-using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Acquisition.Runtime;
 using BrainPlatform.Desktop.Acquisition.Session;
-using BrainPlatform.Desktop.Acquisition.Storage;
 
 namespace BrainPlatform.Desktop.ViewModels;
 

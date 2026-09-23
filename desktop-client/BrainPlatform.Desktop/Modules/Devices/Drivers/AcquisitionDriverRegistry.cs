@@ -1,6 +1,5 @@
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Drivers;
+namespace BrainPlatform.Desktop.Modules.Devices.Drivers;
 
 /// <summary>Explicit installed-driver catalog; no runtime SDK probing occurs here.</summary>
 public sealed class AcquisitionDriverRegistry

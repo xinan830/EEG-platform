@@ -1,7 +1,6 @@
 using System.Threading.Channels;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Analysis;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
 public sealed record AnalysisDispatchResult(
     bool Accepted,

@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using BrainPlatform.Desktop.Acquisition.Storage;
 
 namespace BrainPlatform.Desktop.Modules.Projects.ViewModels;
 

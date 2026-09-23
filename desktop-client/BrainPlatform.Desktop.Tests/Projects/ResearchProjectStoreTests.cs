@@ -67,9 +67,9 @@ public sealed class ResearchProjectStoreTests
     [Fact]
     public void AcquisitionRequest_RejectsMissingProjectIdentity()
     {
-        var project = new BrainPlatform.Desktop.Acquisition.Contracts.AcquisitionProjectContext(
+        var project = new BrainPlatform.Desktop.Modules.Acquisition.Contracts.AcquisitionProjectContext(
             "", "", "", Path.GetTempPath(), "{}");
-        var request = new BrainPlatform.Desktop.Acquisition.Contracts.AcquisitionStreamRequest("device", 500, project);
+        var request = new BrainPlatform.Desktop.Modules.Acquisition.Contracts.AcquisitionStreamRequest("device", 500, project);
 
         Assert.Throws<ArgumentException>(request.Validate);
     }

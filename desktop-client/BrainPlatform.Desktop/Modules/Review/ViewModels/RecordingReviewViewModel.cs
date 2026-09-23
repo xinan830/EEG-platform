@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 

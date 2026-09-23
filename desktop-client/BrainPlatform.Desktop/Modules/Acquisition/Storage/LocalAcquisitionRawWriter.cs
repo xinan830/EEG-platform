@@ -1,9 +1,8 @@
 using System.Text.Json;
 using System.IO;
 using System.Runtime.InteropServices;
-using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Acquisition.Storage;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Storage;
 
 /// <summary>
 /// Writes immutable local raw chunks before a batch enters the display buffer

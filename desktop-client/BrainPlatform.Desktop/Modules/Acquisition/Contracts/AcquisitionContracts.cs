@@ -1,6 +1,6 @@
 using System.IO;
 
-namespace BrainPlatform.Desktop.Acquisition.Contracts;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Contracts;
 
 public enum AcquisitionState
 {
