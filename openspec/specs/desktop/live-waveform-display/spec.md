@@ -77,3 +77,44 @@ raw persistence, display filtering, or scientific analysis.
 - **WHEN** the workstation display cannot guarantee ruler-exact physical length
 - **THEN** the desktop SHALL retain resolution-independent nominal layout speed
 - **AND** it SHALL NOT represent the setting as calibrated clinical paper output
+
+### Requirement: Live channel controls represent selected montage outputs
+
+When a live acquisition uses a selected display montage, the live settings
+popup SHALL show that montage's derived output count and names rather than a
+static physical-input count or physical input-label checklist. Selecting an
+output in the popup SHALL control only whether that derived output is rendered
+in the active live session. It SHALL NOT alter the montage formula, montage
+order, source channel configuration, raw acquisition values, raw persistence,
+or scientific analysis reference.
+
+#### Scenario: A bipolar montage has a subset of source channels
+
+- **WHEN** the selected montage derives a subset of its source configuration,
+  such as a bipolar chain
+- **THEN** the popup SHALL report and list only that derived subset
+- **AND** disabling one listed item SHALL remove only its live waveform trace
+
+#### Scenario: No montage is selected
+
+- **WHEN** the live settings popup is opened before a montage is selected
+- **THEN** it SHALL report that no montage is selected
+- **AND** it SHALL NOT fabricate a standard 10-20 channel count or reference mode
+
+### Requirement: Live sweep uses a 0.3-second blank erase range
+
+The live waveform SHALL distinguish newly written samples from retained
+previous-page traces with a white erase range representing exactly 0.3 seconds
+of the current x-axis time scale. The erase range SHALL begin at the current
+received-sample write position and wrap across the page boundary when needed.
+The renderer SHALL NOT draw a blue or other colored cursor line over the erase
+range. The range is presentation-only and SHALL NOT remove raw, filtered, or
+persisted samples.
+
+#### Scenario: Sweep approaches the page boundary
+
+- **WHEN** less than 0.3 seconds remains between the current write position and
+  the right edge
+- **THEN** the white range SHALL cover that remainder and continue from the left
+  edge for the balance of 0.3 seconds
+- **AND** no colored cursor line SHALL be visible
