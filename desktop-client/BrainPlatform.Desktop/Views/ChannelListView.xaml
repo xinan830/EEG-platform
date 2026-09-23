@@ -86,7 +86,7 @@
                                 <Grid>
                                     <ContentPresenter Content="{TemplateBinding SelectionBoxItem}"
                                                       ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                      ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                      ContentTemplateSelector="{x:Null}"
                                                       Margin="{TemplateBinding Padding}"
                                                       VerticalAlignment="Center"
                                                       HorizontalAlignment="Left"
@@ -155,6 +155,8 @@
             <Setter Property="ItemContainerStyle">
                 <Setter.Value>
                     <Style TargetType="ComboBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
                         <Setter Property="Height" Value="32" />
                         <Setter Property="Padding" Value="10,0" />
                         <Setter Property="FontSize" Value="12.5" />

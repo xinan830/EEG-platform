@@ -78,7 +78,7 @@
                             <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
                                 <Grid>
                                     <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                      ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" ContentStringFormat="{TemplateBinding ItemStringFormat}"
+                                                      ContentTemplateSelector="{x:Null}" ContentStringFormat="{TemplateBinding ItemStringFormat}"
                                                       Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Left" IsHitTestVisible="False" />
                                     <Path x:Name="Arrow" Data="M 1,1.5 L 4.5,5 L 8,1.5" Stroke="#64748B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False" />
                                 </Grid>
@@ -104,6 +104,8 @@
             <Setter Property="ItemContainerStyle">
                 <Setter.Value>
                     <Style TargetType="ComboBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
                         <Setter Property="Height" Value="30" /><Setter Property="Padding" Value="8,0" /><Setter Property="FontSize" Value="12" /><Setter Property="Foreground" Value="#334155" /><Setter Property="Cursor" Value="Hand" />
                         <Setter Property="Template">
                             <Setter.Value>

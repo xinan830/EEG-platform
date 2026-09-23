@@ -103,6 +103,8 @@
         <Setter Property="ItemContainerStyle">
             <Setter.Value>
                 <Style TargetType="ComboBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Center" />
                     <Setter Property="Height" Value="34" />
                     <Setter Property="Padding" Value="10,0" />
                     <Setter Property="VerticalContentAlignment" Value="Center" />
