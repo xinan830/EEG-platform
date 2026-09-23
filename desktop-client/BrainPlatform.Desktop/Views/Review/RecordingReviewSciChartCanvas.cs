@@ -28,6 +28,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     private readonly NumericAxis yAxis = new();
     private readonly Grid labels = new();
     private readonly Grid chartHost = new();
+    private readonly Canvas eventMarkers = new() { IsHitTestVisible = false };
     private readonly Border playbackCursor = new()
     {
         Width = 1,
@@ -60,6 +61,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         Grid.SetColumn(labels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
+        chartHost.Children.Add(eventMarkers);
         chartHost.Children.Add(playbackCursor);
         chartHost.SizeChanged += (_, _) =>
         {
@@ -156,7 +158,8 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     {
         if (e.PropertyName is nameof(RecordingReviewViewModel.CurrentFrame)
             or nameof(RecordingReviewViewModel.VisibleDurationSeconds)
-            or nameof(RecordingReviewViewModel.SensitivityMicrovoltsPerMillimeter))
+            or nameof(RecordingReviewViewModel.SensitivityMicrovoltsPerMillimeter)
+            or nameof(RecordingReviewViewModel.RecordingEvents))
         {
             ApplyFrame((sender as RecordingReviewViewModel)?.CurrentFrame, sender as RecordingReviewViewModel);
         }
@@ -165,6 +168,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         {
             UpdateVisibleRange(sender as RecordingReviewViewModel);
             UpdatePlaybackCursor(sender as RecordingReviewViewModel);
+            UpdateEventMarkers(sender as RecordingReviewViewModel);
         }
     }
 
@@ -175,6 +179,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
             emptyMessage.Text = viewModel?.StatusText ?? "等待加载回溯数据";
             emptyMessage.Visibility = Visibility.Visible;
             ClearSeries();
+            eventMarkers.Children.Clear();
             playbackCursor.Visibility = Visibility.Collapsed;
             return;
         }
@@ -197,6 +202,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         }
 
         UpdatePlaybackCursor(viewModel);
+        UpdateEventMarkers(viewModel);
     }
 
     private void EnsureTraceSeries(IReadOnlyList<string> names)
@@ -341,6 +347,43 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
                                     viewModel.PositionSeconds <= visibleEnd
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    private void UpdateEventMarkers(RecordingReviewViewModel? viewModel)
+    {
+        eventMarkers.Children.Clear();
+        if (viewModel is null || chartHost.ActualWidth <= 0 || chartHost.ActualHeight <= 0)
+            return;
+
+        var start = viewModel.ViewportStartSeconds;
+        var end = Math.Min(viewModel.DurationSeconds, start + viewModel.VisibleDurationSeconds);
+        var duration = Math.Max(0.001, end - start);
+        foreach (var item in viewModel.RecordingEvents)
+        {
+            var itemStart = item.StartSample / (double)viewModel.SamplingRateHz;
+            var itemEnd = item.IsInterval ? item.EndSampleExclusive / (double)viewModel.SamplingRateHz : itemStart;
+            if (itemEnd < start || itemStart > end) continue;
+            var left = Math.Clamp((itemStart - start) / duration, 0, 1) * chartHost.ActualWidth;
+            var right = Math.Clamp((itemEnd - start) / duration, 0, 1) * chartHost.ActualWidth;
+            var color = ParseColor(item.DefinitionSnapshot.Color);
+            eventMarkers.Children.Add(new Border
+            {
+                Width = item.IsInterval ? Math.Max(2, right - left) : 2,
+                Height = chartHost.ActualHeight,
+                Background = item.IsInterval
+                    ? new SolidColorBrush(Color.FromArgb(32, color.R, color.G, color.B))
+                    : new SolidColorBrush(color),
+                BorderBrush = item.IsInterval ? new SolidColorBrush(Color.FromArgb(150, color.R, color.G, color.B)) : null,
+                BorderThickness = item.IsInterval ? new Thickness(1, 0, 1, 0) : new Thickness(0),
+                Margin = new Thickness(left, 0, 0, 0),
+            });
+        }
+    }
+
+    private static Color ParseColor(string value)
+    {
+        try { return (Color)ColorConverter.ConvertFromString(value); }
+        catch { return Color.FromRgb(37, 99, 235); }
     }
 
     private void UpdateVisibleRange(RecordingReviewViewModel? viewModel)
