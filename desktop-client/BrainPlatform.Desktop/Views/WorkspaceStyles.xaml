@@ -58,140 +58,17 @@
         </Setter>
     </Style>
 
-    <!-- ComboBoxItem Style with comfortable padding and hover states -->
-    <Style x:Key="ModernFilterComboBoxItemStyle" TargetType="ComboBoxItem">
-        <Setter Property="MinHeight" Value="32" />
-        <Setter Property="Padding" Value="10,6" />
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="Foreground" Value="#1E293B" />
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ComboBoxItem">
-                    <Border Name="ItemBorder"
-                            Background="Transparent"
-                            CornerRadius="4"
-                            Padding="{TemplateBinding Padding}"
-                            Margin="2,1">
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          ContentStringFormat="{TemplateBinding ContentStringFormat}"
-                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" />
-                        </Trigger>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="ItemBorder" Property="Background" Value="#E2E8F0" />
-                            <Setter Property="TextElement.FontWeight" Value="SemiBold" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!--
+   <!-- ComboBoxItem Style with comfortable padding and hover states -->
+   <!--
         WPF's default ComboBoxItem template binds its content alignment through
         FindAncestor ItemsControl. ComboBox popups live in a separate visual
         tree, so that binding is invalid there. Use the same explicit template
         as the filter items as the implicit fallback for every ComboBoxItem.
     -->
-    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernFilterComboBoxItemStyle}" />
+    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource AppComboBoxItemStyle}" />
 
-    <!-- Modern ComboBox Style for Top Filter Toolbar (Comfortable 36px Height) -->
-    <Style x:Key="ModernFilterComboBoxStyle" TargetType="ComboBox">
-        <Setter Property="Height" Value="36" />
-        <Setter Property="Background" Value="#FFFFFF" />
-        <Setter Property="Foreground" Value="#0F172A" />
-        <Setter Property="BorderBrush" Value="#CBD5E1" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="FontSize" Value="13" />
-        <Setter Property="FontWeight" Value="Medium" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="ItemContainerStyle" Value="{StaticResource ModernFilterComboBoxItemStyle}" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ComboBox">
-                    <Grid>
-                        <ToggleButton Name="ToggleButton"
-                                      Background="{TemplateBinding Background}"
-                                      BorderBrush="{TemplateBinding BorderBrush}"
-                                      BorderThickness="{TemplateBinding BorderThickness}"
-                                      Focusable="False"
-                                      IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                      ClickMode="Press">
-                            <ToggleButton.Template>
-                                <ControlTemplate TargetType="ToggleButton">
-                                    <Border Name="Border"
-                                            Background="{TemplateBinding Background}"
-                                            BorderBrush="{TemplateBinding BorderBrush}"
-                                            BorderThickness="{TemplateBinding BorderThickness}"
-                                            CornerRadius="6">
-                                        <Grid>
-                                            <Path HorizontalAlignment="Right"
-                                                  VerticalAlignment="Center"
-                                                  Margin="0,0,10,0"
-                                                  Data="M 0,0 L 4.5,4.5 L 9,0"
-                                                  Stroke="#64748B"
-                                                  StrokeThickness="1.5"
-                                                  StrokeStartLineCap="Round"
-                                                  StrokeEndLineCap="Round"
-                                                  StrokeLineJoin="Round" />
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Border" Property="BorderBrush" Value="#94A3B8" />
-                                            <Setter TargetName="Border" Property="Background" Value="#FAFAFA" />
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ToggleButton.Template>
-                        </ToggleButton>
-                        <ContentPresenter Name="ContentSite"
-                                          IsHitTestVisible="False"
-                                          Content="{TemplateBinding SelectionBoxItem}"
-                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                          Margin="10,0,26,0"
-                                          VerticalAlignment="Center"
-                                          HorizontalAlignment="Left" />
-                        <Popup Name="Popup"
-                               Placement="Bottom"
-                               IsOpen="{TemplateBinding IsDropDownOpen}"
-                               AllowsTransparency="True"
-                               Focusable="False"
-                               PopupAnimation="Slide">
-                            <Grid Name="DropDown"
-                                  SnapsToDevicePixels="True"
-                                  MinWidth="{TemplateBinding ActualWidth}"
-                                  MaxHeight="{TemplateBinding MaxDropDownHeight}">
-                                <Border Name="DropDownBorder"
-                                        Background="#FFFFFF"
-                                        BorderBrush="#E2E8F0"
-                                        BorderThickness="1"
-                                        CornerRadius="6"
-                                        Margin="0,3,0,0">
-                                    <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.12" Color="#000000" />
-                                    </Border.Effect>
-                                    <ScrollViewer Margin="3" SnapsToDevicePixels="True">
-                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
-                                    </ScrollViewer>
-                                </Border>
-                            </Grid>
-                        </Popup>
-                    </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- Toolbar Gear / Action Icon Button -->
+   <!-- Modern ComboBox Style for Top Filter Toolbar (Comfortable 36px Height) -->
+   <!-- Toolbar Gear / Action Icon Button -->
     <Style x:Key="ToolbarGearButtonStyle" TargetType="Button">
         <Setter Property="Width" Value="34" />
         <Setter Property="Height" Value="34" />

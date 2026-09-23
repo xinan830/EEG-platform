@@ -115,34 +115,8 @@
                 </Setter>
             </Style>
 
-            <!-- 现代化下拉框样式 -->
-            <Style x:Key="ModernFilterComboBox" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
-                <Setter Property="Height" Value="30" />
-                <Setter Property="FontSize" Value="12" />
-                <Setter Property="Foreground" Value="#334155" />
-                <Setter Property="Background" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#CBD5E1" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Padding" Value="10,0,22,0" />
-                <Setter Property="VerticalContentAlignment" Value="Center" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="ComboBox">
-                            <Grid x:Name="MainGrid" SnapsToDevicePixels="True">
-                                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
-                                    <Grid>
-                                        <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Left" IsHitTestVisible="False" />
-                                        <Path Data="M 1,1.5 L 5,5.5 L 9,1.5" Stroke="#64748B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0" IsHitTestVisible="False" />
-                                    </Grid>
-                                </Border>
-                            </Grid>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!-- 行内操作图标按钮 -->
+           <!-- 现代化下拉框样式 -->
+           <!-- 行内操作图标按钮 -->
             <Style x:Key="RowActionIconBtn" TargetType="Button" BasedOn="{StaticResource AppRowActionIconButtonStyle}">
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
