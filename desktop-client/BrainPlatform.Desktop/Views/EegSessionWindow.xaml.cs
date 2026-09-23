@@ -37,10 +37,9 @@ public partial class EegSessionWindow : Window
         InitializeComponent();
         Owner = owner;
         Title = title;
-        if (content is FrameworkElement frameworkElement)
-        {
-            DataContext = frameworkElement.DataContext;
-        }
+        // Keep the session content's own DataContext for waveform/review
+        // bindings. The window overlay uses the shared owner workspace state.
+        DataContext = owner.DataContext ?? (content as FrameworkElement)?.DataContext;
         SessionContentHost.Content = content;
         Closed += OnSessionClosed;
     }

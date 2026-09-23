@@ -64,6 +64,8 @@
         <Setter Property="Padding" Value="10,6" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="#1E293B" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
             <Setter.Value>
@@ -73,7 +75,12 @@
                             CornerRadius="4"
                             Padding="{TemplateBinding Padding}"
                             Margin="2,1">
-                        <ContentPresenter VerticalAlignment="Center" />
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          ContentTemplateSelector="{x:Null}"
+                                          ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">

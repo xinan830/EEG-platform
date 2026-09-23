@@ -6,6 +6,6 @@
         Background="#F3F5F8" Closing="OnClosing">
     <Grid>
         <ContentPresenter x:Name="SessionContentHost" />
-        <local:OperationNotificationHost Panel.ZIndex="20" />
+        <local:OperationNotificationHost DataContext="{Binding}" Panel.ZIndex="20" />
     </Grid>
 </Window>
