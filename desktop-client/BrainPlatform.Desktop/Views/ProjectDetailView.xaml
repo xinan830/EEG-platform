@@ -676,9 +676,6 @@
                         <TextBlock Text="{Binding Projects.Recordings.Count, FallbackValue=0, StringFormat=共 {0} 条数据记录}" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <ComboBox Margin="0,0,12,0" Style="{StaticResource PaginationPageSizeComboBoxStyle}" SelectedItem="{Binding Projects.RecordingPageSize, Mode=TwoWay}" ItemStringFormat="{}{0} 条/页">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate><TextBlock Text="{Binding StringFormat={}{0} 条/页}" /></DataTemplate>
-                                </ComboBox.ItemTemplate>
                                 <ComboBox.ItemsSource><Binding Path="Projects.RecordingPageSizeOptions" /></ComboBox.ItemsSource>
                             </ComboBox>
                             <views:PaginationControl CurrentPage="{Binding Projects.RecordingCurrentPage}"

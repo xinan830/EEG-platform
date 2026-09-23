@@ -86,7 +86,6 @@
                                 <Grid>
                                     <ContentPresenter Content="{TemplateBinding SelectionBoxItem}"
                                                       ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                      ContentTemplateSelector="{x:Null}"
                                                       Margin="{TemplateBinding Padding}"
                                                       VerticalAlignment="Center"
                                                       HorizontalAlignment="Left"
@@ -166,7 +165,11 @@
                             <Setter.Value>
                                 <ControlTemplate TargetType="ComboBoxItem">
                                     <Border x:Name="ItemBorder" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter VerticalAlignment="Center" />
+                                        <ContentPresenter Content="{TemplateBinding Content}"
+                                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                          ContentStringFormat="{TemplateBinding ContentStringFormat}"
+                                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">

@@ -78,7 +78,6 @@
                             <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
                                 <Grid>
                                     <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                      ContentTemplateSelector="{x:Null}" ContentStringFormat="{TemplateBinding ItemStringFormat}"
                                                       Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Left" IsHitTestVisible="False" />
                                     <Path x:Name="Arrow" Data="M 1,1.5 L 4.5,5 L 8,1.5" Stroke="#64748B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False" />
                                 </Grid>
@@ -110,7 +109,7 @@
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="ComboBoxItem">
-                                    <Border x:Name="ItemBorder" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}"><ContentPresenter VerticalAlignment="Center" /></Border>
+                                    <Border x:Name="ItemBorder" Background="Transparent" CornerRadius="4" Padding="{TemplateBinding Padding}"><ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" ContentStringFormat="{TemplateBinding ContentStringFormat}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" /></Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" /><Setter Property="Foreground" Value="#0F172A" /></Trigger>
                                         <Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" /><Setter Property="Foreground" Value="#1677FF" /><Setter Property="FontWeight" Value="SemiBold" /></Trigger>

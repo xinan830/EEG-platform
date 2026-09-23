@@ -77,7 +77,6 @@
                             Margin="2,1">
                         <ContentPresenter Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}"
-                                          ContentTemplateSelector="{x:Null}"
                                           ContentStringFormat="{TemplateBinding ContentStringFormat}"
                                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
@@ -95,6 +94,14 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!--
+        WPF's default ComboBoxItem template binds its content alignment through
+        FindAncestor ItemsControl. ComboBox popups live in a separate visual
+        tree, so that binding is invalid there. Use the same explicit template
+        as the filter items as the implicit fallback for every ComboBoxItem.
+    -->
+    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource ModernFilterComboBoxItemStyle}" />
 
     <!-- Modern ComboBox Style for Top Filter Toolbar (Comfortable 36px Height) -->
     <Style x:Key="ModernFilterComboBoxStyle" TargetType="ComboBox">
