@@ -1,5 +1,5 @@
 
-namespace BrainPlatform.Desktop.Acquisition.Session;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Session;
 
 /// <summary>
 /// Compares published discovery facts without relying on collection-reference

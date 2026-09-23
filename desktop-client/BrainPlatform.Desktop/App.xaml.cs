@@ -7,7 +7,7 @@ namespace BrainPlatform.Desktop;
 public partial class App : Application
 {
     private DesktopWorkspaceViewModel? workspace;
-    private Acquisition.Session.DeviceSessionAvailabilityMonitor? deviceAvailabilityMonitor;
+    private Modules.Acquisition.Session.DeviceSessionAvailabilityMonitor? deviceAvailabilityMonitor;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -29,8 +29,8 @@ public partial class App : Application
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(2),
         });
-        var deviceSession = new Acquisition.Session.DeviceSessionManager(runtime);
-        deviceAvailabilityMonitor = new Acquisition.Session.DeviceSessionAvailabilityMonitor(deviceSession, Dispatcher);
+        var deviceSession = new Modules.Acquisition.Session.DeviceSessionManager(runtime);
+        deviceAvailabilityMonitor = new Modules.Acquisition.Session.DeviceSessionAvailabilityMonitor(deviceSession, Dispatcher);
         deviceAvailabilityMonitor.Start();
         var notifications = new OperationNotificationCenter();
         var eventDefinitionService = new EventDefinitionService(new EventDefinitionStore());

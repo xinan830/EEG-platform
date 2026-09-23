@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.Acquisition.Session;
 using System.Runtime.CompilerServices;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;

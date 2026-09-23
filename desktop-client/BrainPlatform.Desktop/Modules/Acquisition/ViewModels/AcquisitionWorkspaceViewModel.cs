@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using BrainPlatform.Desktop.Acquisition.Session;
 
 namespace BrainPlatform.Desktop.ViewModels;
 

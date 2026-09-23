@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
 
-namespace BrainPlatform.Desktop.Acquisition.Session;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Session;
 
 /// <summary>
 /// Uses Windows device-change notifications to request a debounced SDK

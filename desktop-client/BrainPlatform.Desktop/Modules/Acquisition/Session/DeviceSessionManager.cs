@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace BrainPlatform.Desktop.Acquisition.Session;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Session;
 
 public enum DeviceSessionState
 {

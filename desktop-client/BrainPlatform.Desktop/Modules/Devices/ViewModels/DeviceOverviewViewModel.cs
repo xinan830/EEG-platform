@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Windows.Input;
 using System.Windows.Media;
-using BrainPlatform.Desktop.Acquisition.Session;
 
 namespace BrainPlatform.Desktop.ViewModels;
 
