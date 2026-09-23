@@ -1,5 +1,4 @@
 using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Domain;
 using System.IO;
 
 namespace BrainPlatform.Desktop.Acquisition.AntEego;

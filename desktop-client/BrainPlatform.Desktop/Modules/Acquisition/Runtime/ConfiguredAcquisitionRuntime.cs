@@ -2,7 +2,6 @@ using BrainPlatform.Desktop.Acquisition.Analysis;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 using BrainPlatform.Desktop.Acquisition.Drivers;
 using BrainPlatform.Desktop.Acquisition.Storage;
-using BrainPlatform.Desktop.Domain;
 using System.Net.Http;
 
 namespace BrainPlatform.Desktop.Acquisition.Runtime;

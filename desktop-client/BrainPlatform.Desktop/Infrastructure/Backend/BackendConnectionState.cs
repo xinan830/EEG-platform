@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Domain;
+namespace BrainPlatform.Desktop.Infrastructure.Backend;
 
 public sealed record BackendConnectionState(
     bool IsAvailable,

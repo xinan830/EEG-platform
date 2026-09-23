@@ -1,6 +1,6 @@
 using System.Windows.Threading;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Shared.Notifications;
 
 public enum OperationNotificationKind
 {

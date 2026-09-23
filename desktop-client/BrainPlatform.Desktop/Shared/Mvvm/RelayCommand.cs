@@ -1,6 +1,6 @@
 using System.Windows.Input;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Shared.Mvvm;
 
 internal sealed class RelayCommand(Action execute, Func<bool>? canExecute = null) : ICommand
 {

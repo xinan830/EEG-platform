@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Interop;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Shared.Display;
 
 /// <summary>Physical display calibration used by paper-speed rendering.</summary>
 public sealed record ScreenCalibrationProfile(

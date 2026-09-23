@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Domain;
+namespace BrainPlatform.Desktop.Modules.Devices.Domain;
 
 public sealed record DeviceReadiness(bool IsAvailable, string StatusText, string Detail)
 {

@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Shared.Mvvm;
 
 public abstract class ObservableObject : INotifyPropertyChanged
 {

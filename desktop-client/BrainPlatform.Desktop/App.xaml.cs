@@ -20,7 +20,7 @@ public partial class App : Application
         SciChartSurface.SetRuntimeLicenseKey("7iF0IO0u4YmElZ5QNwdqPsiu+0CxVVDJ+A1X/bvIMPf6kI3qYb+a+o+6YaEnIfCPZkWuSAw3xMdQkm7oe8Tczb1mdOlyuTXW6bCVl+KtayjQnwyGl1Mts2tPlKk9CF0eVFsYF42hUGlSRvy3vplCDTEQsUxyHkpq8bVns2PdH8GzoTqZwCrhVpgVceNa3+mmxeRKEqOBGmfR0hHi0ynOAfqAiBUn9rb6dACEEXpiNT6JLyc8Vpx1eBDOYakPa3Gra4fJ2Wh34PjLcxDjfXhFM5CaO3wLMBgpH9MFjcXC3Ko330GpNOBcUhd7tWWHPg0yX+5AlA1SqNhuopnnUMmdVzZZZlTzudvtx+f6pVgDJlnY2gQhTDzRwaH3jkSnvERuYVKdTqoi0eraFEn7dNYGfjgC8q+dR9DjB12V1fP8l6Quq9h5AdD9i9t8Nyf+1DXnmohZke0vNOjSNUGAndnSlJVKAbeFTSNJcC4DADNzx02JSGKy08X7Gtl7eZuBYhTeG+O8JVF+8ZTTLm3EDluHDgPXStCRNvmidEFUjfIwUXKuJ1O2byl9aiw=");
 
         var backendEndpoint = new Uri("http://127.0.0.1:8000/");
-        var healthClient = new Services.BackendHealthClient(new HttpClient
+        var healthClient = new Infrastructure.Backend.BackendHealthClient(new HttpClient
         {
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(3),

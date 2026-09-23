@@ -1,4 +1,4 @@
-using BrainPlatform.Desktop.Services;
+using BrainPlatform.Desktop.Infrastructure.Backend;
 
 namespace BrainPlatform.Desktop.Tests;
 

@@ -47,7 +47,7 @@ public partial class ScreenCalibrationView : UserControl
         if (DataContext is ViewModels.DesktopWorkspaceViewModel workspace)
         {
             workspace.ScreenCalibration.UpdateDisplayContext(
-                Configuration.ScreenCalibrationMetrics.GetDisplayMetrics(window));
+                ScreenCalibrationMetrics.GetDisplayMetrics(window));
         }
     }
 

@@ -1,6 +1,6 @@
 using System.Windows.Input;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Shared.Mvvm;
 
 /// <summary>
 /// Runs UI tasks serially and requires a local error sink. Commands must never

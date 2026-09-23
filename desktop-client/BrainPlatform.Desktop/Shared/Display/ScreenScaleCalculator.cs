@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Shared.Display;
 
 /// <summary>Pure geometry conversions shared by live acquisition and review.</summary>
 public static class ScreenScaleCalculator

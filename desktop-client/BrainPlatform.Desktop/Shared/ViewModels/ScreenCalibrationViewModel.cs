@@ -1,9 +1,8 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
-using BrainPlatform.Desktop.Configuration;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Shared.ViewModels;
 
 public sealed class ScreenCalibrationViewModel : ObservableObject
 {

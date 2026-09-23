@@ -1,6 +1,6 @@
-using BrainPlatform.Desktop.Domain;
+using BrainPlatform.Desktop.Infrastructure.Backend;
 
-namespace BrainPlatform.Desktop.Services;
+namespace BrainPlatform.Desktop.Infrastructure.Backend;
 
 public interface IBackendHealthClient
 {

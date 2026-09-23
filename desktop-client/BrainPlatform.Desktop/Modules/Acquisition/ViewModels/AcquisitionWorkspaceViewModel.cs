@@ -13,7 +13,6 @@ using BrainPlatform.Desktop.Acquisition.Runtime;
 using BrainPlatform.Desktop.Acquisition.Session;
 using BrainPlatform.Desktop.Acquisition.Storage;
 using BrainPlatform.Desktop.Configuration;
-using BrainPlatform.Desktop.Domain;
 using BrainPlatform.Desktop.Events;
 using BrainPlatform.Desktop.Projects;
 
