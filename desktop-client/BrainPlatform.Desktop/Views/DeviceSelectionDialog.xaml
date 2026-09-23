@@ -22,7 +22,7 @@
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="FontSize" Value="13.5" />
                 <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="ItemContainerStyle" Value="{StaticResource ModernFilterComboBoxItemStyle}" />
+                <Setter Property="ItemContainerStyle" Value="{StaticResource AppComboBoxItemStyle}" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="ComboBox">

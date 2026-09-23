@@ -127,7 +127,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- 高通 -->
                         <TextBlock Text="高通" Foreground="#64748B" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <ComboBox Style="{StaticResource ModernFilterComboBoxStyle}" Width="88" Height="32"
+                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="88" Height="32"
                                   IsEnabled="{Binding Acquisition.DisplayPreferences.CanConfigureFilters}"
                                   SelectedValuePath="Tag" SelectedValue="{Binding Acquisition.DisplayPreferences.LiveHighPassHz, Mode=TwoWay}"
                                   ToolTip="由本地 Python 科学引擎执行的实时显示高通。原始记录保持未滤波。">
@@ -152,7 +152,7 @@
 
                         <!-- 低通 -->
                         <TextBlock Text="低通" Foreground="#64748B" FontSize="12.5" VerticalAlignment="Center" Margin="12,0,6,0" />
-                        <ComboBox Style="{StaticResource ModernFilterComboBoxStyle}" Width="88" Height="32"
+                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="88" Height="32"
                                   IsEnabled="{Binding Acquisition.DisplayPreferences.CanConfigureFilters}"
                                   SelectedValuePath="Tag" SelectedValue="{Binding Acquisition.DisplayPreferences.LiveLowPassHz, Mode=TwoWay}"
                                   ToolTip="由本地 Python 科学引擎执行的实时显示低通。原始记录保持未滤波。">
@@ -170,7 +170,7 @@
 
                         <!-- 陷波 -->
                         <TextBlock Text="陷波" Foreground="#64748B" FontSize="12.5" VerticalAlignment="Center" Margin="12,0,6,0" />
-                        <ComboBox Style="{StaticResource ModernFilterComboBoxStyle}" Width="80" Height="32"
+                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="80" Height="32"
                                   IsEnabled="{Binding Acquisition.DisplayPreferences.CanConfigureFilters}"
                                   SelectedValuePath="Tag" SelectedValue="{Binding Acquisition.DisplayPreferences.LiveNotchHz, Mode=TwoWay}"
                                   ToolTip="由本地 Python 科学引擎执行的实时显示陷波。原始记录保持未滤波。">
@@ -184,7 +184,7 @@
 
                         <!-- 灵敏度 -->
                         <TextBlock Text="灵敏度" Foreground="#64748B" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <ComboBox Style="{StaticResource ModernFilterComboBoxStyle}" Width="96" Height="32"
+                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="96" Height="32"
                                   SelectedValuePath="Tag"
                                   SelectedValue="{Binding Acquisition.LiveMonitor.SensitivityMicrovoltsPerMillimeter, Mode=TwoWay}">
                             <ComboBoxItem Content="5 µV/mm" Tag="5" />
@@ -202,7 +202,7 @@
                                          VerticalAlignment="Center" Margin="0,0,6,0"
                                          IsChecked="{Binding Acquisition.LiveMonitor.IsPaperSpeedMode, Mode=TwoWay}"
                                          ToolTip="名义纸速输入。未校准显示器的物理毫米仅作工作站显示参考。" />
-                            <ComboBox Style="{StaticResource ModernFilterComboBoxStyle}" Width="86" Height="32"
+                            <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="86" Height="32"
                                       IsEnabled="{Binding Acquisition.LiveMonitor.IsPaperSpeedMode}"
                                       SelectedValuePath="Tag"
                                       SelectedValue="{Binding Acquisition.LiveMonitor.PaperSpeedMillimetersPerSecond, Mode=TwoWay}">
@@ -217,7 +217,7 @@
                                          VerticalAlignment="Center" Margin="14,0,6,0"
                                          IsChecked="{Binding Acquisition.LiveMonitor.IsTimebaseMode, Mode=TwoWay}"
                                          ToolTip="秒/屏输入，直接控制当前显示窗口的 EEG 时间范围。" />
-                            <ComboBox Style="{StaticResource ModernFilterComboBoxStyle}" Width="86" Height="32"
+                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="86" Height="32"
                                       IsEnabled="{Binding Acquisition.LiveMonitor.IsTimebaseMode}"
                                       SelectedValuePath="Tag"
                                       SelectedValue="{Binding Acquisition.LiveMonitor.TimebaseSecondsPerScreen, Mode=TwoWay}">
@@ -543,7 +543,7 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="放大器" VerticalAlignment="Center" Foreground="#475569" FontSize="13" />
-                                        <ComboBox Grid.Column="1" Height="36" Style="{StaticResource ModernFilterComboBoxStyle}"
+                                        <ComboBox Grid.Column="1" Height="36" Style="{StaticResource AppFilterComboBoxStyle}"
                                                   ItemsSource="{Binding Acquisition.Devices}" SelectedItem="{Binding Acquisition.SelectedDevice}">
                                             <ComboBox.ItemTemplate>
                                                 <DataTemplate>
@@ -560,7 +560,7 @@
                                     </Grid>
                                     <StackPanel Grid.Row="3" Margin="0,14,0,0">
                                         <TextBlock Text="采样率" Foreground="#64748B" FontSize="13" Margin="0,0,0,6" />
-                                        <ComboBox Width="160" Height="36" HorizontalAlignment="Left" Style="{StaticResource ModernFilterComboBoxStyle}"
+                                        <ComboBox Width="160" Height="36" HorizontalAlignment="Left" Style="{StaticResource AppFilterComboBoxStyle}"
                                                   ItemsSource="{Binding Acquisition.SamplingRatesHz}" SelectedItem="{Binding Acquisition.SelectedSamplingRateHz}" ToolTip="采样率 (Hz)" />
                                         <TextBlock Text="{Binding Acquisition.OperationMessage}" Foreground="#64748B" FontSize="12" Margin="0,14,0,0" TextWrapping="Wrap" />
                                     </StackPanel>

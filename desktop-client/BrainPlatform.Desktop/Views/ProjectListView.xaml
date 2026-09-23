@@ -291,7 +291,7 @@
             <!-- 项目状态筛选 -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
                 <TextBlock Text="项目状态" FontSize="13" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <ComboBox Style="{StaticResource ModernFilterComboBox}" Width="130"
+                <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="130"
                           ItemsSource="{Binding Projects.ProjectStatusFilterOptions}"
                           SelectedItem="{Binding Projects.ProjectStatusFilter, Mode=TwoWay}" />
             </StackPanel>
@@ -299,7 +299,7 @@
             <!-- 创建时间使用预设范围筛选，避免手输日期。 -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
                 <TextBlock Text="创建时间" FontSize="13" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,10,0" />
-                <ComboBox Style="{StaticResource ModernFilterComboBox}" Width="130"
+                <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="130"
                           ItemsSource="{Binding Projects.CreatedTimeFilterOptions}"
                           SelectedItem="{Binding Projects.CreatedTimeFilter, Mode=TwoWay}" />
             </StackPanel>

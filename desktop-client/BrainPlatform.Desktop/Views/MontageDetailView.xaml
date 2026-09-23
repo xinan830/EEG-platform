@@ -253,7 +253,7 @@
                             <StackPanel Grid.Column="1" Margin="12,0,20,0">
                                 <DockPanel Height="34" Margin="0,0,0,10">
                                     <TextBlock Width="95" Text="适用通道配置" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />
-                                    <ComboBox Style="{StaticResource ModernFilterComboBox}"
+                                    <ComboBox Style="{StaticResource AppFilterComboBoxStyle}"
                                               ItemsSource="{Binding MontageConfigurations.AvailableChannelConfigurations}"
                                               SelectedValuePath="Id"
                                               SelectedValue="{Binding MontageConfigurations.DraftChannelConfigurationId, Mode=TwoWay}"
@@ -438,7 +438,7 @@
                                                 </Border>
 
                                                 <!-- 2. 重参考方式选择框 -->
-                                                <ComboBox Grid.Column="2" Style="{StaticResource ModernFilterComboBox}" Height="32" Margin="0,0,14,0"
+                                                <ComboBox Grid.Column="2" Style="{StaticResource AppFilterComboBoxStyle}" Height="32" Margin="0,0,14,0"
                                                           ItemsSource="{Binding DataContext.MontageConfigurations.NegativeKinds, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                           SelectedValuePath="Kind" SelectedValue="{Binding NegativeKind, Mode=TwoWay}"
                                                           IsEnabled="{Binding DataContext.MontageConfigurations.CanEditReferenceMode, RelativeSource={RelativeSource AncestorType=UserControl}}">
@@ -454,7 +454,7 @@
                                                 <ComboBox Grid.Column="3" Height="32" Margin="0,0,14,0"
                                                           ItemsSource="{Binding ReferenceOptions}" SelectedItem="{Binding ReferenceSelection, Mode=TwoWay}" IsEnabled="{Binding IsChannelReference}">
                                                     <ComboBox.Style>
-                                                        <Style TargetType="ComboBox" BasedOn="{StaticResource ModernFilterComboBox}">
+                                                        <Style TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
                                                             <Setter Property="Visibility" Value="Visible" />
                                                             <Style.Triggers><DataTrigger Binding="{Binding IsSpecifiedPairReference}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
                                                         </Style>
@@ -470,9 +470,9 @@
                                                         </Style>
                                                     </Grid.Style>
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                                    <ComboBox Style="{StaticResource ModernFilterComboBox}" Height="32" ItemsSource="{Binding PairFirstOptions}" SelectedItem="{Binding SelectedPairFirstLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="第一参考通道" />
+                                                    <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Height="32" ItemsSource="{Binding PairFirstOptions}" SelectedItem="{Binding SelectedPairFirstLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="第一参考通道" />
                                                     <TextBlock Grid.Column="1" Text="+" Margin="6,0" VerticalAlignment="Center" FontWeight="Bold" Foreground="#64748B" />
-                                                    <ComboBox Grid.Column="2" Style="{StaticResource ModernFilterComboBox}" Height="32" ItemsSource="{Binding PairSecondOptions}" SelectedItem="{Binding SelectedPairSecondLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="第二参考通道" />
+                                                    <ComboBox Grid.Column="2" Style="{StaticResource AppFilterComboBoxStyle}" Height="32" ItemsSource="{Binding PairSecondOptions}" SelectedItem="{Binding SelectedPairSecondLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="第二参考通道" />
                                                 </Grid>
 
                                                 <!-- 4. 显示顺序 -->

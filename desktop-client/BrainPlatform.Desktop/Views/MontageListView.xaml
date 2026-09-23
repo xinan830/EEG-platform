@@ -223,25 +223,25 @@
             <!-- 关联通道配置筛选 -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                 <TextBlock Text="关联通道配置" FontSize="13" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <ComboBox Style="{StaticResource ModernFilterComboBox}" Width="130" ItemsSource="{Binding MontageConfigurations.ChannelConfigurationFilterOptions}" SelectedItem="{Binding MontageConfigurations.ChannelConfigurationFilter, Mode=TwoWay}" />
+                <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="130" ItemsSource="{Binding MontageConfigurations.ChannelConfigurationFilterOptions}" SelectedItem="{Binding MontageConfigurations.ChannelConfigurationFilter, Mode=TwoWay}" />
             </StackPanel>
 
             <!-- 导联方式筛选 -->
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                 <TextBlock Text="导联方式" FontSize="13" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <ComboBox Style="{StaticResource ModernFilterComboBox}" Width="120" ItemsSource="{Binding MontageConfigurations.MontageMethodFilterOptions}" SelectedItem="{Binding MontageConfigurations.MontageMethodFilter, Mode=TwoWay}" />
+                <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="120" ItemsSource="{Binding MontageConfigurations.MontageMethodFilterOptions}" SelectedItem="{Binding MontageConfigurations.MontageMethodFilter, Mode=TwoWay}" />
             </StackPanel>
 
             <!-- 来源筛选 -->
             <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                 <TextBlock Text="来源" FontSize="13" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <ComboBox Style="{StaticResource ModernFilterComboBox}" Width="100" ItemsSource="{Binding MontageConfigurations.SourceFilterOptions}" SelectedItem="{Binding MontageConfigurations.SourceFilter, Mode=TwoWay}" />
+                <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="100" ItemsSource="{Binding MontageConfigurations.SourceFilterOptions}" SelectedItem="{Binding MontageConfigurations.SourceFilter, Mode=TwoWay}" />
             </StackPanel>
 
             <!-- 状态筛选 -->
             <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
                 <TextBlock Text="状态" FontSize="13" Foreground="#334155" VerticalAlignment="Center" Margin="0,0,8,0" />
-                <ComboBox Style="{StaticResource ModernFilterComboBox}" Width="100" ItemsSource="{Binding MontageConfigurations.StatusFilterOptions}" SelectedItem="{Binding MontageConfigurations.StatusFilter, Mode=TwoWay}" />
+                <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="100" ItemsSource="{Binding MontageConfigurations.StatusFilterOptions}" SelectedItem="{Binding MontageConfigurations.StatusFilter, Mode=TwoWay}" />
             </StackPanel>
         </Grid>
 

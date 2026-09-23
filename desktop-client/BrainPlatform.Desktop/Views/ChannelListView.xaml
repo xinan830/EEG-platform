@@ -366,17 +366,17 @@
             </Border>
 
             <!-- 设备型号筛选 -->
-            <ComboBox Grid.Column="1" Style="{StaticResource ModernFilterComboBox}" Width="140" Margin="12,0,0,0"
+            <ComboBox Grid.Column="1" Style="{StaticResource AppFilterComboBoxStyle}" Width="140" Margin="12,0,0,0"
                       ItemsSource="{Binding ChannelConfigurations.DeviceModelFilterOptions}"
                       SelectedItem="{Binding ChannelConfigurations.DeviceModelFilter, Mode=TwoWay}" />
 
             <!-- 配置来源筛选 -->
-            <ComboBox Grid.Column="2" Style="{StaticResource ModernFilterComboBox}" Width="140" Margin="12,0,0,0"
+            <ComboBox Grid.Column="2" Style="{StaticResource AppFilterComboBoxStyle}" Width="140" Margin="12,0,0,0"
                       ItemsSource="{Binding ChannelConfigurations.SourceFilterOptions}"
                       SelectedItem="{Binding ChannelConfigurations.SourceFilter, Mode=TwoWay}" />
 
             <!-- 状态筛选 -->
-            <ComboBox Grid.Column="3" Style="{StaticResource ModernFilterComboBox}" Width="130" Margin="12,0,0,0"
+            <ComboBox Grid.Column="3" Style="{StaticResource AppFilterComboBoxStyle}" Width="130" Margin="12,0,0,0"
                       ItemsSource="{Binding ChannelConfigurations.StatusFilterOptions}"
                       SelectedItem="{Binding ChannelConfigurations.StatusFilter, Mode=TwoWay}" />
         </Grid>
@@ -744,7 +744,7 @@
                         <ComboBox Grid.Column="1" Height="38"
                                   ItemsSource="{Binding Acquisition.Devices}"
                                   SelectedItem="{Binding ChannelConfigurations.PendingDeviceSelection, Mode=TwoWay}"
-                                  Style="{StaticResource ModernFilterComboBox}">
+                                  Style="{StaticResource AppFilterComboBoxStyle}">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding DisplayName}" />

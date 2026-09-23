@@ -354,7 +354,7 @@
                     <!-- 项目状态 -->
                     <StackPanel Grid.Column="4">
                         <TextBlock Text="项目状态" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,0,0,8" />
-                        <ComboBox Style="{StaticResource ModernFilterComboBox}"
+                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}"
                                   ItemsSource="{Binding StatusOptions}"
                                   SelectedItem="{Binding Status, Mode=TwoWay}" />
                     </StackPanel>

@@ -15,7 +15,7 @@
             <views:InputRangeVoltageConverter x:Key="InputRangeVoltageConverter" />
 
             <!-- 准备页下拉选择框统一高度 40px，兼顾单屏密度与点击面积。 -->
-            <Style x:Key="PreparationComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource ModernFilterComboBoxStyle}">
+            <Style x:Key="PreparationComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
                 <Setter Property="Height" Value="40" />
             </Style>
         </ResourceDictionary>

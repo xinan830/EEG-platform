@@ -8,14 +8,14 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="WorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <Style x:Key="ReviewPaperSpeedValueStyle" TargetType="ComboBox" BasedOn="{StaticResource ModernFilterComboBoxStyle}">
+            <Style x:Key="ReviewPaperSpeedValueStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsPaperSpeedMode}" Value="False">
                         <Setter Property="Visibility" Value="Collapsed" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
-            <Style x:Key="ReviewTimebaseValueStyle" TargetType="ComboBox" BasedOn="{StaticResource ModernFilterComboBoxStyle}">
+            <Style x:Key="ReviewTimebaseValueStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding IsTimebaseMode}" Value="False">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -38,7 +38,7 @@
                             ToolTip="返回项目列表" />
                     <Separator Width="1" Height="30" Background="#E2E8F0" Margin="18,0" />
                     <TextBlock Text="高通" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <ComboBox Width="82" Style="{StaticResource ModernFilterComboBoxStyle}"
+                    <ComboBox Width="82" Style="{StaticResource AppFilterComboBoxStyle}"
                               SelectedValuePath="Tag" SelectedValue="{Binding HighPassHz, Mode=TwoWay}">
                         <ComboBoxItem Content="0.01 Hz" Tag="0.01" /><ComboBoxItem Content="0.05 Hz" Tag="0.05" />
                         <ComboBoxItem Content="0.1 Hz" Tag="0.1" /><ComboBoxItem Content="0.2 Hz" Tag="0.2" />
@@ -51,7 +51,7 @@
                         <ComboBoxItem Content="5 Hz" Tag="5" /><ComboBoxItem Content="10 Hz" Tag="10" />
                     </ComboBox>
                     <TextBlock Text="低通" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
-                    <ComboBox Width="82" Style="{StaticResource ModernFilterComboBoxStyle}"
+                    <ComboBox Width="82" Style="{StaticResource AppFilterComboBoxStyle}"
                               SelectedValuePath="Tag" SelectedValue="{Binding LowPassHz, Mode=TwoWay}">
                         <ComboBoxItem Content="10 Hz" Tag="10" /><ComboBoxItem Content="20 Hz" Tag="20" />
                         <ComboBoxItem Content="30 Hz" Tag="30" /><ComboBoxItem Content="40 Hz" Tag="40" />
@@ -60,12 +60,12 @@
                         <ComboBoxItem Content="90 Hz" Tag="90" /><ComboBoxItem Content="100 Hz" Tag="100" />
                     </ComboBox>
                     <TextBlock Text="陷波" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
-                    <ComboBox Width="72" Style="{StaticResource ModernFilterComboBoxStyle}"
+                    <ComboBox Width="72" Style="{StaticResource AppFilterComboBoxStyle}"
                               SelectedValuePath="Tag" SelectedValue="{Binding NotchHz, Mode=TwoWay}">
                         <ComboBoxItem Content="关闭" Tag="0" /><ComboBoxItem Content="50 Hz" Tag="50" /><ComboBoxItem Content="60 Hz" Tag="60" />
                     </ComboBox>
                     <TextBlock Text="灵敏度" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
-                    <ComboBox Width="88" Style="{StaticResource ModernFilterComboBoxStyle}"
+                    <ComboBox Width="88" Style="{StaticResource AppFilterComboBoxStyle}"
                               SelectedValuePath="Tag" SelectedValue="{Binding SensitivityMicrovoltsPerMillimeter, Mode=TwoWay}">
                         <ComboBoxItem Content="5 µV/mm" Tag="5" /><ComboBoxItem Content="10 µV/mm" Tag="10" />
                         <ComboBoxItem Content="20 µV/mm" Tag="20" /><ComboBoxItem Content="50 µV/mm" Tag="50" />
@@ -75,7 +75,7 @@
                     <TextBlock Text="当前查看导联" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
                     <ComboBox x:Name="MontageSelector"
                               Width="170"
-                              Style="{StaticResource ModernFilterComboBoxStyle}"
+                              Style="{StaticResource AppFilterComboBoxStyle}"
                               ItemsSource="{Binding CompatibleViewingMontages}"
                               SelectionChanged="OnMontageSelectionChanged"
                               ToolTip="只改变回溯显示方式，不修改原始记录">
