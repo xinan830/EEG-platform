@@ -77,9 +77,14 @@
                               Width="170"
                               Style="{StaticResource ModernFilterComboBoxStyle}"
                               ItemsSource="{Binding CompatibleViewingMontages}"
-                              DisplayMemberPath="Name"
                               SelectionChanged="OnMontageSelectionChanged"
-                              ToolTip="只改变回溯显示方式，不修改原始记录" />
+                              ToolTip="只改变回溯显示方式，不修改原始记录">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                     <RadioButton Content="走纸速度" GroupName="ReviewHorizontalScale" Foreground="#334155" FontSize="12"
                                  VerticalAlignment="Center" Margin="10,0,5,0" IsChecked="{Binding IsPaperSpeedMode, Mode=TwoWay}"
                                  ToolTip="名义纸速输入；真实物理毫米需要工作站校准。" />
