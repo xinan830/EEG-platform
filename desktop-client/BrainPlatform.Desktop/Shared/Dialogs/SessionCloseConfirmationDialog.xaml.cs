@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Shared.Dialogs;
 
 /// <summary>Single visual and behavioral entry point for closing an active EEG session.</summary>
 public partial class SessionCloseConfirmationDialog : Window

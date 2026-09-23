@@ -1,6 +1,6 @@
 using System.Windows;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Shared.Dialogs;
 
 /// <summary>Shared confirmation surface for destructive or session-ending actions.</summary>
 public partial class OperationConfirmationDialog : Window

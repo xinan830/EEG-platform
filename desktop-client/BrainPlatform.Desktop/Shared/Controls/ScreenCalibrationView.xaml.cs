@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Shared.Controls;
 
 public partial class ScreenCalibrationView : UserControl
 {
@@ -23,7 +23,7 @@ public partial class ScreenCalibrationView : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        if (DataContext is ViewModels.DesktopWorkspaceViewModel workspace)
+        if (DataContext is BrainPlatform.Desktop.ViewModels.DesktopWorkspaceViewModel workspace)
         {
             workspace.ScreenCalibration.PersistValidDraftBeforeLeaving();
         }
@@ -44,7 +44,7 @@ public partial class ScreenCalibrationView : UserControl
 
     private void UpdateDisplayContext(Window window)
     {
-        if (DataContext is ViewModels.DesktopWorkspaceViewModel workspace)
+        if (DataContext is BrainPlatform.Desktop.ViewModels.DesktopWorkspaceViewModel workspace)
         {
             workspace.ScreenCalibration.UpdateDisplayContext(
                 ScreenCalibrationMetrics.GetDisplayMetrics(window));

@@ -1,4 +1,4 @@
-<Window x:Class="BrainPlatform.Desktop.Views.OperationConfirmationDialog"
+<Window x:Class="BrainPlatform.Desktop.Shared.Dialogs.OperationConfirmationDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="确认操作" Width="480"

@@ -35,6 +35,7 @@ global using BrainPlatform.Desktop.Modules.Devices.Drivers;
 global using BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 global using BrainPlatform.Desktop.Shared.Controls;
 global using BrainPlatform.Desktop.Shared.Behaviors;
+global using BrainPlatform.Desktop.Shared.Dialogs;
 global using BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 global using BrainPlatform.Desktop.Modules.Channels.ViewModels;
 global using BrainPlatform.Desktop.Modules.Devices.ViewModels;
