@@ -37,6 +37,13 @@ models. For each batch, update `x:Class`, code-behind namespace, resource
 dictionary URIs, and composition references together. Do not combine a view
 migration with UI redesign or behavior changes.
 
+The current migration keeps a small compatibility layer for legacy WPF types
+whose `x:Class` and composition references still use `BrainPlatform.Desktop.Views`
+or `BrainPlatform.Desktop.ViewModels`. No new types may be added to those
+namespaces. They are removed only in a dedicated XAML namespace migration after
+all affected `x:Class`, generated BAML references, and composition sites can be
+changed and tested as one vertical slice.
+
 `App.xaml`, `MainWindow.xaml`, shared resource dictionaries, and the currently
 validated acquisition/review rendering paths stay in place until their own
 dedicated migration batch. WPF resource URIs and BAML compilation make these
