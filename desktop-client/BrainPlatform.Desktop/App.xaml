@@ -7,8 +7,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Views/Styles/ControlStyles.xaml" />
                 <ResourceDictionary Source="Views/Styles/DialogStyles.xaml" />
-                <ResourceDictionary Source="Views/PaginationStyles.xaml" />
-                <ResourceDictionary Source="Views/ScrollBarStyles.xaml" />
+                <ResourceDictionary Source="Views/Styles/PaginationStyles.xaml" />
+                <ResourceDictionary Source="Views/Styles/ScrollBarStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Application-level fallback keeps ComboBoxItem independent of Popup ancestors. -->

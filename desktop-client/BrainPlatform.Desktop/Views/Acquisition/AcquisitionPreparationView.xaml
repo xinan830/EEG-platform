@@ -10,7 +10,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="../Styles/WorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <views:InputRangeVoltageConverter x:Key="InputRangeVoltageConverter" />
 

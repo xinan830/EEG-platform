@@ -11,7 +11,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="../Styles/WorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- 主操作按钮样式 (开始采集) -->
