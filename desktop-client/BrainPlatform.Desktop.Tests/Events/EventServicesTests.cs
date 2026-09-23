@@ -1,4 +1,6 @@
 
+using System.Text.Json;
+
 namespace BrainPlatform.Desktop.Tests.Events;
 
 public sealed class EventServicesTests
@@ -138,6 +140,43 @@ public sealed class EventServicesTests
     }
 
     [Fact]
+    public async Task Legacy_schema_zero_envelopes_load_and_are_promoted_on_the_next_atomic_write()
+    {
+        using var temp = new TemporaryDirectory();
+        Directory.CreateDirectory(temp.Path);
+        var definition = Definition("EO", "睁眼", "#2563EB", null);
+        var definitionsPath = Path.Combine(temp.Path, "definitions.json");
+        await File.WriteAllTextAsync(
+            definitionsPath,
+            JsonSerializer.Serialize(new EventStoreEnvelope<EventDefinition>(0, [definition])),
+            CancellationToken.None);
+
+        var definitions = new EventDefinitionService(new EventDefinitionStore(definitionsPath));
+        Assert.Equal(definition, Assert.Single(await definitions.ListAsync(CancellationToken.None)));
+        await definitions.SaveAsync(definition with { Name = "睁眼阶段", Version = 2, UpdatedAtUtc = DateTimeOffset.UtcNow }, CancellationToken.None);
+        using (var document = JsonDocument.Parse(await File.ReadAllTextAsync(definitionsPath, CancellationToken.None)))
+        {
+            Assert.Equal(1, document.RootElement.GetProperty("SchemaVersion").GetInt32());
+        }
+
+        var legacyEvent = new RecordingEvent(
+            "event-1", "recording-1", definition.Id,
+            new EventDefinitionSnapshot(definition.Code, definition.Name, definition.Color, definition.Version),
+            EventSource.ManualButton, "review", null, 12, 0, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var eventsPath = Path.Combine(temp.Path, "events.json");
+        await File.WriteAllTextAsync(
+            eventsPath,
+            JsonSerializer.Serialize(new EventStoreEnvelope<RecordingEvent>(0, [legacyEvent])),
+            CancellationToken.None);
+
+        var events = new RecordingEventService("recording-1", new RecordingEventStore(temp.Path), definitions);
+        Assert.Equal(legacyEvent, Assert.Single(await events.QueryAsync(new RecordingEventQuery("recording-1"), CancellationToken.None)));
+        await events.UpdateAsync(legacyEvent with { Note = "promoted" }, CancellationToken.None);
+        using var eventsDocument = JsonDocument.Parse(await File.ReadAllTextAsync(eventsPath, CancellationToken.None));
+        Assert.Equal(1, eventsDocument.RootElement.GetProperty("SchemaVersion").GetInt32());
+    }
+
+    [Fact]
     public async Task Corrupt_event_file_is_not_overwritten_during_a_failed_load()
     {
         using var temp = new TemporaryDirectory();
@@ -166,10 +205,12 @@ public sealed class EventServicesTests
             1, DateTimeOffset.UtcNow);
         await using var writer = await new LocalAcquisitionRawWriterFactory().CreateAsync(
             Guid.NewGuid(), metadata, new AcquisitionProjectContext("project", "P001", "Test", rawRoot, "{}"), rawRoot, CancellationToken.None);
-        var events = new RecordingEventService("recording-1", new RecordingEventStore(writer.RecordingDirectory), definitionService);
+        var eventStoreBlocker = Path.Combine(temp.Path, "event-store-blocker");
+        await File.WriteAllTextAsync(eventStoreBlocker, "This file intentionally prevents creating an event-store directory.", CancellationToken.None);
+        var events = new RecordingEventService("recording-1", new RecordingEventStore(eventStoreBlocker), definitionService);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => events.CreateAsync(
-            definition.Id, 0, 0, EventSource.ManualButton, "test", null, null, new CancellationToken(canceled: true)));
+        await Assert.ThrowsAnyAsync<IOException>(() => events.CreateAsync(
+            definition.Id, 0, 0, EventSource.ManualButton, "test", null, null, CancellationToken.None));
         await writer.AppendBatchAsync(new AcquisitionBatch(0, 2, 2, [1e-6, 0, 2e-6, 1], DateTimeOffset.UtcNow), CancellationToken.None);
         await writer.CompleteAsync(DateTimeOffset.UtcNow, CancellationToken.None);
 

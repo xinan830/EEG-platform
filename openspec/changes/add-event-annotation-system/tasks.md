@@ -3,7 +3,7 @@
 - [x] 1.1 Add `EventDefinition`, `RecordingEvent`, source enum, schema version, and validation contracts.
 - [x] 1.2 Add versioned local stores with atomic writes and non-destructive recovery behavior.
 - [ ] 1.3 Define sample-counter to Recording-relative sample conversion, point/interval semantics, and gap/unavailable behavior for counter reset, reconnect, and discontinuity segments.
-- [ ] 1.4 Add model, serialization, migration, and restart round-trip tests before UI integration.
+- [x] 1.4 Add model, serialization, migration, and restart round-trip tests before UI integration.
 
 ## 2. Shortcut and services
 
@@ -25,7 +25,7 @@
 - [x] 4.2 Add the shared event toolbar and shortcut handling without blocking the device read loop or raw writer.
 - [x] 4.3 Capture the current sample coordinate before scheduling asynchronous persistence; persist manual button/shortcut events without reading a later “current sample” from the background task.
 - [x] 4.4 Add acquisition waveform marker rendering with point and interval states.
-- [ ] 4.5 Add integration tests proving an event-write failure does not stop raw acquisition.
+- [x] 4.5 Add integration tests proving an event-write failure does not stop raw acquisition.
 
 ## 5. Review integration
 

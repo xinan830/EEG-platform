@@ -53,7 +53,25 @@ public sealed class RecordingEventStore
         if (!File.Exists(path)) return [];
         await using var stream = File.OpenRead(path);
         var envelope = await JsonSerializer.DeserializeAsync<EventStoreEnvelope<RecordingEvent>>(stream, JsonOptions, cancellationToken);
-        return envelope?.Items ?? [];
+        return Migrate(envelope);
+    }
+
+    private static IReadOnlyList<RecordingEvent> Migrate(EventStoreEnvelope<RecordingEvent>? envelope)
+    {
+        if (envelope is null)
+        {
+            return [];
+        }
+
+        if (envelope.SchemaVersion is < 0 or > CurrentSchemaVersion)
+        {
+            throw new InvalidDataException($"Unsupported recording-event schema version {envelope.SchemaVersion}.");
+        }
+
+        // Schema 0 was the initial envelope shape. Its recording-event payload
+        // is identical to schema 1, so migration only promotes the envelope on
+        // the next atomic write.
+        return envelope.Items ?? [];
     }
 
     private async Task WriteAsync(IReadOnlyList<RecordingEvent> items, CancellationToken cancellationToken)

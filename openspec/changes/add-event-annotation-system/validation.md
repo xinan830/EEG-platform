@@ -12,7 +12,7 @@ Executed on 2026-09-23:
 
 ```text
 dotnet test desktop-client/BrainPlatform.Desktop.Tests/BrainPlatform.Desktop.Tests.csproj --no-restore
-Result: 216 passed, 0 failed, 0 skipped
+Result: 217 passed, 0 failed, 0 skipped
 
 dotnet build desktop-client/BrainPlatform.Desktop/BrainPlatform.Desktop.csproj --no-restore
 Result: 0 warnings, 0 errors
@@ -25,10 +25,11 @@ Result: passed
 ```
 
 The test coverage includes definition Code and shortcut conflicts, definition
-snapshots, point and interval events, restart round-trip persistence, corrupt
-event-file non-overwrite behavior, externally sourced read-only events,
-definition filtering and deletion restrictions, non-zero counter coordinate
-mapping, and raw-writer completion after a failed/cancelled event write.
+snapshots, point and interval events, restart round-trip persistence, schema-0
+envelope promotion on the next atomic write, corrupt event-file non-overwrite
+behavior, externally sourced read-only events, definition filtering and deletion
+restrictions, non-zero counter coordinate mapping, and raw-writer completion
+after a real event-store filesystem write failure.
 
 ## Scientific Time Semantics
 

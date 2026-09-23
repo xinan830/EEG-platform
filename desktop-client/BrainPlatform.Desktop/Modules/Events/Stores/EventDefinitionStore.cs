@@ -54,7 +54,25 @@ public sealed class EventDefinitionStore
         if (!File.Exists(path)) return [];
         await using var stream = File.OpenRead(path);
         var envelope = await JsonSerializer.DeserializeAsync<EventStoreEnvelope<EventDefinition>>(stream, JsonOptions, cancellationToken);
-        return envelope?.Items ?? [];
+        return Migrate(envelope);
+    }
+
+    private static IReadOnlyList<EventDefinition> Migrate(EventStoreEnvelope<EventDefinition>? envelope)
+    {
+        if (envelope is null)
+        {
+            return [];
+        }
+
+        if (envelope.SchemaVersion is < 0 or > CurrentSchemaVersion)
+        {
+            throw new InvalidDataException($"Unsupported event-definition schema version {envelope.SchemaVersion}.");
+        }
+
+        // Schema 0 was the initial envelope shape. Its event-definition payload
+        // is identical to schema 1, so migration only promotes the envelope on
+        // the next atomic write.
+        return envelope.Items ?? [];
     }
 
     private async Task WriteAsync(IReadOnlyList<EventDefinition> definitions, CancellationToken cancellationToken)
