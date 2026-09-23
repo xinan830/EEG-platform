@@ -24,6 +24,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     private SampleCounterContinuityTracker? continuityTracker;
     private SampleBatchRingBuffer? ringBuffer;
     private Guid? sessionId;
+    private Guid? recordingSessionId;
     private AcquisitionStreamRequest? activeRequest;
     private AcquisitionStreamMetadata? streamMetadata;
     private long recordingFirstSampleCounter = -1;
@@ -74,6 +75,10 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     public IReadOnlyList<AcquisitionBatch> GetDisplaySnapshot() => Volatile.Read(ref ringBuffer)?.Snapshot() ?? [];
 
     public long? LatestDisplaySampleCounter => Volatile.Read(ref ringBuffer)?.LastSampleCounter;
+
+    public Guid? RecordingSessionId => recordingSessionId;
+
+    public string? RecordingDirectory => rawWriter?.RecordingDirectory;
 
     public async Task<IReadOnlyList<AcquisitionDeviceDescriptor>> DiscoverAsync(CancellationToken cancellationToken)
     {
@@ -165,6 +170,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             captureTask = Task.Run(() => CaptureLoopAsync(captureCancellation.Token));
             if (startRecordingImmediately)
             {
+                recordingSessionId = openedSessionId;
                 Volatile.Write(ref streamMetadata, publishedMetadata);
                 SetState(AcquisitionState.Recording, "Recording raw EEG data.", openedSessionId);
             }
@@ -215,6 +221,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             {
                 Volatile.Write(ref rawWriter, pendingWriter);
                 pendingWriter = null;
+                this.recordingSessionId = recordingSessionId;
                 SetState(AcquisitionState.Recording, "Recording raw EEG data.", streamSessionId);
             }
             finally
@@ -549,6 +556,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         continuityTracker = null;
         Volatile.Write(ref ringBuffer, null);
         sessionId = null;
+        recordingSessionId = null;
         activeRequest = null;
         Volatile.Write(ref recordingFirstSampleCounter, -1);
         Volatile.Write(ref streamMetadata, null);

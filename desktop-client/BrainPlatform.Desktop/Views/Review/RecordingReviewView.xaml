@@ -110,6 +110,17 @@
                     <TextBlock Text="采样率" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="14,0,8,0" />
                     <TextBlock Text="{Binding SamplingRateHz, Mode=OneWay, StringFormat={}{0} Hz}"
                                FontSize="12" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" />
+                    <ComboBox Width="150" Margin="14,0,0,0" ItemsSource="{Binding RecordingEvents}"
+                              SelectedItem="{Binding SelectedRecordingEvent, Mode=TwoWay}"
+                              ToolTip="选择历史事件并跳转">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding DefinitionSnapshot.Name}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Content="跳转事件" Click="OnSeekToEventClick" Margin="6,0,0,0" Padding="9,4"
+                            ToolTip="跳转到选中的历史事件" />
                 </StackPanel>
 
                 <Border DockPanel.Dock="Right" Margin="12,0,0,0" Padding="10,6" Background="#EFF6FF"

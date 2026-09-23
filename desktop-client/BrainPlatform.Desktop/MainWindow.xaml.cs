@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Net.Http;
 using BrainPlatform.Desktop.Acquisition.Storage;
 using BrainPlatform.Desktop.Configuration;
+using BrainPlatform.Desktop.Events;
 using BrainPlatform.Desktop.Review;
 using BrainPlatform.Desktop.ViewModels;
 using BrainPlatform.Desktop.Views;
@@ -257,7 +258,9 @@ public partial class MainWindow : Window
             catalog,
             recordingName: recording.Name,
             projectName: loadedRecording.Manifest.Project.Name,
-            filter: recordingReviewFilter);
+            filter: recordingReviewFilter,
+            recordingDirectory: recording.RecordingDirectory,
+            eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService);
         try
         {
             await viewModel.InitializeAsync();

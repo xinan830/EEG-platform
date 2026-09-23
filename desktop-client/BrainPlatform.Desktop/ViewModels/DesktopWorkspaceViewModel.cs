@@ -14,7 +14,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     public DesktopWorkspaceViewModel(
         IBackendHealthClient backendHealthClient,
         AcquisitionWorkspaceViewModel acquisition,
-        OperationNotificationCenter? notifications = null)
+        OperationNotificationCenter? notifications = null,
+        EventDefinitionService? eventDefinitionService = null)
     {
         this.backendHealthClient = backendHealthClient;
         Notifications = notifications ?? new OperationNotificationCenter();
@@ -29,7 +30,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
             ChannelConfigurations,
             notifications: Notifications);
         EventDefinitions = new EventDefinitionWorkspaceViewModel(
-            new EventDefinitionService(new EventDefinitionStore()),
+            eventDefinitionService ?? acquisition.EventDefinitionService,
             Notifications);
         ScreenCalibration = new ScreenCalibrationViewModel(notifications: Notifications);
         RefreshBackendCommand = new AsyncRelayCommand(RefreshBackendAsync, ReportCommandError);

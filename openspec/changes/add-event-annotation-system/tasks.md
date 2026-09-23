@@ -21,7 +21,7 @@
 
 ## 4. Acquisition integration
 
-- [ ] 4.1 Expose enabled event definitions and event commands from the acquisition workspace ViewModel.
+- [x] 4.1 Expose enabled event definitions and event commands from the acquisition workspace ViewModel.
 - [ ] 4.2 Add the shared event toolbar and shortcut handling without blocking the device read loop or raw writer.
 - [ ] 4.3 Capture the current sample coordinate before scheduling asynchronous persistence; persist manual button/shortcut events without reading a later “current sample” from the background task.
 - [ ] 4.4 Add acquisition waveform marker rendering with point and interval states.
@@ -29,9 +29,9 @@
 
 ## 5. Review integration
 
-- [ ] 5.1 Load RecordingEvents alongside the existing review session without reading the complete raw recording.
+- [x] 5.1 Load RecordingEvents alongside the existing review session without reading the complete raw recording.
 - [ ] 5.2 Add shared event timeline overlay and event list.
-- [ ] 5.3 Add seek-to-event while preserving the current montage, filter, cache, and playback contracts.
+- [x] 5.3 Add seek-to-event while preserving the current montage, filter, cache, and playback contracts.
 - [ ] 5.4 Add allowed manual create/edit/delete behavior and read-only external/system behavior.
 
 ## 6. External sources and documentation

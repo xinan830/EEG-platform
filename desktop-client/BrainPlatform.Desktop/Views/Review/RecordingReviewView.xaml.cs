@@ -147,6 +147,14 @@ public partial class RecordingReviewView : UserControl
         await ViewModel.SelectViewingMontageAsync(profile);
     }
 
+    private async void OnSeekToEventClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.SelectedRecordingEvent is { } item)
+        {
+            await ViewModel.SeekToEventAsync(item);
+        }
+    }
+
     private void OnPaperSpeedSelectionChanged(object sender, SelectionChangedEventArgs e) =>
         ApplyScaleSelection(sender, value => ViewModel!.PaperSpeedMillimetersPerSecond = value);
 

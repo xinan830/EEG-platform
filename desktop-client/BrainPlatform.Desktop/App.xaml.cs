@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Windows;
 using BrainPlatform.Desktop.ViewModels;
+using BrainPlatform.Desktop.Events;
 using SciChart.Charting.Visuals;
 
 namespace BrainPlatform.Desktop;
@@ -34,10 +35,12 @@ public partial class App : Application
         deviceAvailabilityMonitor = new Acquisition.Session.DeviceSessionAvailabilityMonitor(deviceSession, Dispatcher);
         deviceAvailabilityMonitor.Start();
         var notifications = new OperationNotificationCenter();
+        var eventDefinitionService = new EventDefinitionService(new EventDefinitionStore());
         workspace = new DesktopWorkspaceViewModel(
             healthClient,
-            new AcquisitionWorkspaceViewModel(runtime: runtime, deviceSession: deviceSession, notifications: notifications),
-            notifications);
+            new AcquisitionWorkspaceViewModel(runtime: runtime, deviceSession: deviceSession, notifications: notifications, eventDefinitionService: eventDefinitionService),
+            notifications,
+            eventDefinitionService);
         var reviewFilterClient = new HttpClient
         {
             BaseAddress = backendEndpoint,

@@ -44,6 +44,12 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
     public long? RecordingFirstSampleCounter => coordinator?.RecordingFirstSampleCounter;
 
+    public Guid? RecordingSessionId => coordinator?.RecordingSessionId;
+
+    public string? RecordingDirectory => coordinator?.RecordingDirectory;
+
+    public long? LatestSampleCounter => coordinator?.LatestDisplaySampleCounter;
+
     public IReadOnlyList<AcquisitionDriverDescriptor> AvailableDrivers => driverRegistry.Drivers;
 
     public ConfiguredAcquisitionRuntime(

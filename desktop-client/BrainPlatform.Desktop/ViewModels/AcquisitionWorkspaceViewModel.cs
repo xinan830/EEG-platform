@@ -14,6 +14,7 @@ using BrainPlatform.Desktop.Acquisition.Session;
 using BrainPlatform.Desktop.Acquisition.Storage;
 using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.Domain;
+using BrainPlatform.Desktop.Events;
 using BrainPlatform.Desktop.Projects;
 
 namespace BrainPlatform.Desktop.ViewModels;
@@ -29,6 +30,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     private readonly RecordingHistoryViewModel recordingHistory;
     private readonly ChannelMappingViewModel channelMapping;
     private readonly OperationNotificationCenter? notifications;
+    private readonly EventDefinitionService eventDefinitionService;
     private string sdkLibraryPath;
     private string recordingDirectory;
     private int? savedSamplingRateHz;
@@ -48,13 +50,15 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     private bool isManualInputRangeSelection;
     private bool isPreparationStartInProgress;
     private bool disposed;
+    private string? selectedEventDefinitionId;
 
     public AcquisitionWorkspaceViewModel(
         IAcquisitionSettingsStore? settingsStore = null,
         ConfiguredAcquisitionRuntime? runtime = null,
         DeviceSessionManager? deviceSession = null,
         Dispatcher? dispatcher = null,
-        OperationNotificationCenter? notifications = null)
+        OperationNotificationCenter? notifications = null,
+        EventDefinitionService? eventDefinitionService = null)
     {
         this.settingsStore = settingsStore ?? new LocalAcquisitionSettingsStore();
         this.deviceSession = deviceSession ?? new DeviceSessionManager(runtime ?? new ConfiguredAcquisitionRuntime());
@@ -65,6 +69,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         }
         this.dispatcher = dispatcher ?? Dispatcher.CurrentDispatcher;
         this.notifications = notifications;
+        this.eventDefinitionService = eventDefinitionService ?? new EventDefinitionService(new EventDefinitionStore());
         var settings = LoadSettings();
         sdkLibraryPath = settings.SdkLibraryPath;
         recordingDirectory = settings.RecordingDirectory;
@@ -137,6 +142,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             RaiseInputRangePropertiesChanged();
             return Task.CompletedTask;
         }, ReportCommandError);
+        MarkSelectedEventCommand = new AsyncRelayCommand(MarkSelectedEventAsync, ReportCommandError);
         if (!string.IsNullOrWhiteSpace(sdkLibraryPath))
         {
             _ = InitializeDeviceAsync();
@@ -152,6 +158,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     public ObservableCollection<double> BipolarRangesVolts { get; } = [];
 
     public ObservableCollection<AcquisitionChannelRow> Channels { get; } = [];
+
+    public ObservableCollection<EventDefinition> EnabledEventDefinitions { get; } = [];
 
     public RecordingHistoryViewModel RecordingHistory => recordingHistory;
 
@@ -184,6 +192,16 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     public ICommand CancelInputRangeEditCommand { get; }
 
     public ICommand ConfirmInputRangeEditCommand { get; }
+
+    public ICommand MarkSelectedEventCommand { get; }
+
+    public string? SelectedEventDefinitionId
+    {
+        get => selectedEventDefinitionId;
+        set => SetProperty(ref selectedEventDefinitionId, value);
+    }
+
+    public EventDefinitionService EventDefinitionService => eventDefinitionService;
 
     public string SdkLibraryPath
     {
@@ -436,6 +454,48 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     public bool CanPause => runtime.State.State == AcquisitionState.Recording;
 
     public bool CanResume => runtime.State.State == AcquisitionState.Paused;
+
+    public async Task<RecordingEvent> MarkEventAsync(
+        string definitionId,
+        EventSource source = EventSource.ManualButton,
+        string? sourceDetail = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (runtime.State.State != AcquisitionState.Recording)
+            throw new InvalidOperationException("只有正在记录时才能添加事件标记。");
+
+        // Capture the coordinate before scheduling or awaiting persistence.
+        var recordingId = runtime.RecordingSessionId?.ToString("N")
+            ?? throw new InvalidOperationException("当前没有活动 Recording。");
+        var latestSample = runtime.LatestSampleCounter
+            ?? throw new InvalidOperationException("当前还没有可用的采样坐标。");
+        var directory = runtime.RecordingDirectory
+            ?? throw new InvalidOperationException("当前 Recording 目录不可用。");
+        var service = new RecordingEventService(
+            recordingId,
+            new RecordingEventStore(directory),
+            eventDefinitionService);
+        return await service.CreateAsync(
+            definitionId, latestSample, 0, source, sourceDetail, null, null, cancellationToken);
+    }
+
+    public async Task RefreshEventDefinitionsAsync()
+    {
+        var definitions = await eventDefinitionService.ListAsync(CancellationToken.None);
+        EnabledEventDefinitions.Clear();
+        foreach (var definition in definitions.Where(item => item.IsEnabled).OrderBy(item => item.Name, StringComparer.CurrentCulture))
+            EnabledEventDefinitions.Add(definition);
+        SelectedEventDefinitionId ??= EnabledEventDefinitions.FirstOrDefault()?.Id;
+        RaisePropertyChanged(nameof(EnabledEventDefinitions));
+    }
+
+    private async Task MarkSelectedEventAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedEventDefinitionId))
+            throw new InvalidOperationException("请先选择一个事件定义。");
+        await MarkEventAsync(SelectedEventDefinitionId, EventSource.ManualButton, "acquisition-toolbar");
+        notifications?.PublishSuccess("事件已标记。");
+    }
 
     public async Task StartPreparedPreviewAsync()
     {
@@ -714,6 +774,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             if (state.State is AcquisitionState.Previewing or AcquisitionState.Recording)
             {
                 ApplyStreamMetadata();
+                _ = RefreshEventDefinitionsAsync();
             }
 
             LiveMonitor.Refresh();

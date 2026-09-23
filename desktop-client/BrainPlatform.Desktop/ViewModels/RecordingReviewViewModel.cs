@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.Review;
+using BrainPlatform.Desktop.Events;
 
 namespace BrainPlatform.Desktop.ViewModels;
 
@@ -15,6 +16,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     private readonly string projectName;
     private readonly string recordingName;
     private readonly DateTimeOffset recordingStartUtc;
+    private readonly RecordingEventStore? eventStore;
     private Task? prefetchTask;
     private Task? playbackLoadTask;
     private readonly LatestThrottledTask viewportLoader = new(TimeSpan.FromMilliseconds(50));
@@ -35,7 +37,9 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         string? recordingName = null,
         string? projectName = null,
         IRecordingReviewFilter? filter = null,
-        Func<double>? playbackClockSeconds = null)
+        Func<double>? playbackClockSeconds = null,
+        string? recordingDirectory = null,
+        EventDefinitionService? eventDefinitionService = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -52,6 +56,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         this.recordingName = string.IsNullOrWhiteSpace(recordingName)
             ? "采集记录"
             : recordingName;
+        eventStore = recordingDirectory is null ? null : new RecordingEventStore(recordingDirectory);
+        EventDefinitionService = eventDefinitionService;
         displaySettings.PropertyChanged += OnDisplaySettingsChanged;
         session.Changed += OnSessionChanged;
         foreach (var item in catalog.CompatibleViewingMontages)
@@ -61,6 +67,17 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     }
 
     public ObservableCollection<MontageProfile> CompatibleViewingMontages { get; } = [];
+
+    public ObservableCollection<RecordingEvent> RecordingEvents { get; } = [];
+
+    private RecordingEvent? selectedRecordingEvent;
+    public RecordingEvent? SelectedRecordingEvent
+    {
+        get => selectedRecordingEvent;
+        set => SetProperty(ref selectedRecordingEvent, value);
+    }
+
+    public EventDefinitionService? EventDefinitionService { get; }
 
     public WaveformDisplaySettings DisplaySettings => displaySettings;
 
@@ -215,7 +232,23 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     public async Task InitializeAsync()
     {
         await session.InitializeAsync();
+        await LoadEventsAsync();
         UpdateViewportStart(session.ViewportStartSeconds);
+    }
+
+    public async Task LoadEventsAsync()
+    {
+        if (eventStore is null) return;
+        var events = await eventStore.LoadAsync(CancellationToken.None);
+        RecordingEvents.Clear();
+        foreach (var item in events.OrderBy(item => item.StartSample)) RecordingEvents.Add(item);
+        RaisePropertyChanged(nameof(RecordingEvents));
+    }
+
+    public Task SeekToEventAsync(RecordingEvent item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return SeekAsync(item.StartSample / (double)samplingRateHz);
     }
 
     public Task SeekAsync(double positionSeconds)

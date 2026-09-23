@@ -393,12 +393,18 @@
                                 </StackPanel>
                             </Button>
 
-                            <!-- 事件标记按钮 (预留) -->
-                            <Button IsEnabled="False" Style="{StaticResource LiveActionSecondaryButtonStyle}"
-                                    Margin="8,0,0,0" ToolTip="事件标记尚未接入">
+                            <ComboBox ItemsSource="{Binding Acquisition.EnabledEventDefinitions}"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding Acquisition.SelectedEventDefinitionId, Mode=TwoWay}"
+                                      DisplayMemberPath="Name" Width="116" Height="34" Margin="8,0,0,0"
+                                      ToolTip="选择要标记的事件类型" />
+                            <Button Command="{Binding Acquisition.MarkSelectedEventCommand}"
+                                    IsEnabled="{Binding Acquisition.CanPause}"
+                                    Style="{StaticResource LiveActionSecondaryButtonStyle}"
+                                    Margin="6,0,0,0" ToolTip="在当前采样坐标标记事件">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Path Data="M 6,4 V 20 M 7,5 H 18 L 15,10 L 18,15 H 7" Stroke="#94A3B8" StrokeThickness="1.4" Fill="Transparent" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="事件标记" VerticalAlignment="Center" Foreground="#94A3B8" />
+                                    <Path Data="M 6,4 V 20 M 7,5 H 18 L 15,10 L 18,15 H 7" Stroke="#2563EB" StrokeThickness="1.4" Fill="Transparent" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="标记" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </StackPanel>
