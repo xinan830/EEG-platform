@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Windows.Threading;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
 public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 {

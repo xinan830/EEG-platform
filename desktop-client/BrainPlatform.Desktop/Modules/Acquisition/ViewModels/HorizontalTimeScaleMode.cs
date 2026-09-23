@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
 /// <summary>
 /// Selects the single control used for the display-only horizontal EEG scale.

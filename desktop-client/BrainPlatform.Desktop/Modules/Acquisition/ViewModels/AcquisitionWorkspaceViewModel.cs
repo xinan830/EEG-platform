@@ -7,7 +7,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
 public sealed record AcquisitionChannelRow(int StreamIndex, int NativeChannelIndex, string Role, string Label, string Unit);
 

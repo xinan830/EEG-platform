@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
 public sealed record LiveDisplayPreferences(
     double HighPassHz,

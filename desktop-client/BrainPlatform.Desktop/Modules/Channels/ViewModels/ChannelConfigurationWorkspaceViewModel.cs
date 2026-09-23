@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Channels.ViewModels;
 
 /// <summary>Coordinates user presets with the device-validated live mapping.</summary>
 public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject

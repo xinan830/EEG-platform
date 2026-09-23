@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
 /// <summary>
 /// Shared display-only settings for live acquisition and recording review.

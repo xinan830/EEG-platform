@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Microsoft.Win32;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Channels.ViewModels;
 
 /// <summary>
 /// Presents only physical EEG-capable channels returned by the device. Labels

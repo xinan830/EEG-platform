@@ -1,5 +1,5 @@
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Montages.ViewModels;
 
 /// <summary>
 /// One fixed source-channel row in a montage editor. Its positive source and

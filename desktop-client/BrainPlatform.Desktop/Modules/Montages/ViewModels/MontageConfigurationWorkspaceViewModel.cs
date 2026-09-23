@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Input;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Montages.ViewModels;
 
 /// <summary>
 /// Coordinates display-montage profiles. Channel configuration owns physical

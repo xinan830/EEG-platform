@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Channels.ViewModels;
 
 public sealed class ChannelConfigurationDraftRow : ObservableObject
 {

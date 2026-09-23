@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Devices.ViewModels;
 
 /// <summary>
 /// Read-only projection of the shared device session for the application overview.
