@@ -196,7 +196,7 @@
 
                             <!-- 中栏：适用通道配置与输出导联数 -->
                             <StackPanel Grid.Column="1" Margin="12,0,20,0">
-                                <DockPanel Height="34" Margin="0,0,0,10">
+                                <DockPanel Height="36" Margin="0,0,0,10">
                                     <TextBlock Width="95" Text="适用通道配置" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />
                                     <ComboBox Style="{StaticResource AppFilterComboBoxStyle}"
                                               ItemsSource="{Binding MontageConfigurations.AvailableChannelConfigurations}"
