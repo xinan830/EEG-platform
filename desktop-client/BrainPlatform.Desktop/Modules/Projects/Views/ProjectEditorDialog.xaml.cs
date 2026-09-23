@@ -4,7 +4,7 @@ using System.Windows.Input;
 using System.Collections.ObjectModel;
 using Microsoft.Win32;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Projects.Views;
 
 public partial class ProjectEditorDialog : Window
 {

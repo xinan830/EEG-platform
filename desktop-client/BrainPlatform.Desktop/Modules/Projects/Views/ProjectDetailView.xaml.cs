@@ -3,7 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Projects.Views;
 
 /// <summary>Owns project-detail navigation and actions; it never opens raw EEG itself.</summary>
 public partial class ProjectDetailView : UserControl
