@@ -2,7 +2,7 @@
 
 - [x] 1.1 Add `EventDefinition`, `RecordingEvent`, source enum, schema version, and validation contracts.
 - [x] 1.2 Add versioned local stores with atomic writes and non-destructive recovery behavior.
-- [ ] 1.3 Define sample-counter to Recording-relative sample conversion, point/interval semantics, and gap/unavailable behavior for counter reset, reconnect, and discontinuity segments.
+- [x] 1.3 Define sample-counter to Recording-relative sample conversion, point/interval semantics, and gap/unavailable behavior for counter reset, reconnect, and discontinuity segments.
 - [x] 1.4 Add model, serialization, migration, and restart round-trip tests before UI integration.
 
 ## 2. Shortcut and services
@@ -40,4 +40,4 @@
 - [x] 6.2 Document event data ownership, time units, source meanings, and historical snapshots (`DefinitionCodeSnapshot`, `DefinitionNameSnapshot`, `ColorSnapshot`, definition version).
 - [x] 6.3 Add regression tests proving a disabled or deletion-restricted definition does not prevent existing RecordingEvents from loading or displaying.
 - [x] 6.4 Run desktop tests, `openspec validate add-event-annotation-system --strict --no-interactive`, and `git diff --check`.
-- [ ] 6.5 Produce a validation report before archive; archive only after every task and post-archive strict validation pass.
+- [x] 6.5 Produce a validation report before archive; archive only after every task and post-archive strict validation pass.

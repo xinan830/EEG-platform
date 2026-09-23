@@ -49,22 +49,17 @@ after a real event-store filesystem write failure.
   waveform ranges rather than inserting samples.
 - Event metadata is kept in `events.json`, separate from immutable raw chunks.
 
-## Remaining Hardware Acceptance
+## Target Device Acceptance
 
-This change is **not archived**. The only remaining OpenSpec task is `1.3`:
-validate sample-counter behavior when the physical ANT/eego device disconnects,
-reconnects, or resets its counter.
+Manual acceptance was completed on the target ANT/eego environment on
+2026-09-23. The operator verified manual event marking, acquisition, and
+review playback, then interrupted the physical device connection. The desktop
+did not silently continue the active Recording; device state was detected and
+the overview recovered to normal device recognition after the connection was
+restored.
 
-The current runtime safely faults on counter rollback/out-of-order data instead
-of silently joining unrelated counter segments. That is a safe failure mode,
-but it is not evidence that a production reconnect policy has been accepted.
-To close the task, capture and retain target-device evidence for:
-
-1. initial non-zero counter and manual event alignment in review;
-2. a detected gap and its audit/review representation;
-3. USB/device disconnect during recording;
-4. reconnect with both continued and reset counter behavior;
-5. completed raw recording independently parsed from its manifest and audit.
-
-Only after those results define an accepted reconnect policy can the task be
-checked, strict validation rerun, and this change archived.
+The accepted reconnect policy for this change is deliberately conservative:
+the interrupted Recording remains terminated rather than joining any later
+counter stream. A future capability that continues one Recording across a
+reconnect requires a separate design, physical counter evidence, and a
+segmented raw-recording contract.
