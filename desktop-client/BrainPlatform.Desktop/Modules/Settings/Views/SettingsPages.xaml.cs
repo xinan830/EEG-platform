@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Views;
