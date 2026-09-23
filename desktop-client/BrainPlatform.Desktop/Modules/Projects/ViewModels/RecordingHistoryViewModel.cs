@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using BrainPlatform.Desktop.Acquisition.Storage;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Projects.ViewModels;
 
 public sealed record RecordingHistoryRow(
     string StartedAt,

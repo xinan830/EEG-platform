@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.Json.Serialization;
 
-namespace BrainPlatform.Desktop.Projects;
+namespace BrainPlatform.Desktop.Modules.Projects.Domain;
 
 public static class ResearchProjectStatuses
 {

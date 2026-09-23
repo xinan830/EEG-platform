@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.Projects;
 
 namespace BrainPlatform.Desktop.Tests.Projects;
 

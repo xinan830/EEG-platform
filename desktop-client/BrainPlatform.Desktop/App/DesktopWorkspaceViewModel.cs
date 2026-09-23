@@ -1,7 +1,6 @@
 using System.Windows.Input;
 using System.Windows.Media;
 using System.IO;
-using BrainPlatform.Desktop.Projects;
 using BrainPlatform.Desktop.Infrastructure.Backend;
 
 namespace BrainPlatform.Desktop.ViewModels;

@@ -2,9 +2,8 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
 using BrainPlatform.Desktop.Acquisition.Storage;
-using BrainPlatform.Desktop.Projects;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Projects.ViewModels;
 
 public sealed record ProjectRecordingRow(
     string SessionId,

@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.Json;
 
-namespace BrainPlatform.Desktop.Projects;
+namespace BrainPlatform.Desktop.Modules.Projects.Stores;
 
 public sealed class ResearchProjectStore
 {

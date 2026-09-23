@@ -15,3 +15,6 @@ global using BrainPlatform.Desktop.Modules.Events.Domain;
 global using BrainPlatform.Desktop.Modules.Events.Services;
 global using BrainPlatform.Desktop.Modules.Events.Stores;
 global using BrainPlatform.Desktop.Modules.Events.ViewModels;
+global using BrainPlatform.Desktop.Modules.Projects.Domain;
+global using BrainPlatform.Desktop.Modules.Projects.Stores;
+global using BrainPlatform.Desktop.Modules.Projects.ViewModels;

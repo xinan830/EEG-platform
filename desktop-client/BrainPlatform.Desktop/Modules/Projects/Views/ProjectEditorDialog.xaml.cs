@@ -2,7 +2,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Collections.ObjectModel;
-using BrainPlatform.Desktop.Projects;
 using BrainPlatform.Desktop.ViewModels;
 using Microsoft.Win32;
 
