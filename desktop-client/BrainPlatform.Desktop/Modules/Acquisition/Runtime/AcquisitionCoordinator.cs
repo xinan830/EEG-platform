@@ -380,6 +380,13 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         {
             // StopAsync owns completion and raw-file closure.
         }
+        catch (AcquisitionContinuityException exception)
+        {
+            await FaultAsync(new AcquisitionFault(
+                "SAMPLE_COUNTER_DISCONTINUITY",
+                exception.Message,
+                DateTimeOffset.UtcNow));
+        }
         catch (Exception exception)
         {
             await FaultAsync(new AcquisitionFault(

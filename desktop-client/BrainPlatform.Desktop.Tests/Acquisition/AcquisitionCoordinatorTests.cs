@@ -171,6 +171,37 @@ public sealed class AcquisitionCoordinatorTests
     }
 
     [Fact]
+    public async Task Coordinator_CounterRollbackFaultsWithAnExplicitDiscontinuityAuditCode()
+    {
+        var directory = CreateTempDirectory();
+        await using var stream = new ControlledTestStream();
+        await using var coordinator = new AcquisitionCoordinator(
+            new TestAdapter(stream),
+            new LocalAcquisitionRawWriterFactory(),
+            new NullAcquisitionAnalysisBridge());
+
+        try
+        {
+            var device = Assert.Single(await coordinator.DiscoverAsync(CancellationToken.None));
+            await coordinator.StartAsync(Request(device.DeviceId, directory), CancellationToken.None);
+            await stream.WriteAsync(Batch(100, 2));
+            await stream.WaitForYieldCountAsync(1);
+            await stream.WriteAsync(Batch(50, 2));
+            await stream.WaitForYieldCountAsync(2);
+            await WaitForStateAsync(coordinator, AcquisitionState.Faulted);
+
+            Assert.Equal("SAMPLE_COUNTER_DISCONTINUITY", coordinator.LastFault?.Code);
+            var sessionDirectory = Assert.Single(Directory.GetDirectories(Path.Combine(directory, "recordings")));
+            var audit = await File.ReadAllTextAsync(Path.Combine(sessionDirectory, "audit.jsonl"));
+            Assert.Contains("SAMPLE_COUNTER_DISCONTINUITY", audit);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Coordinator_StoppingPreviewDoesNotCreateAnEmptyRecording()
     {
         var directory = CreateTempDirectory();

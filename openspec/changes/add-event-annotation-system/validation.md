@@ -12,7 +12,7 @@ Executed on 2026-09-23:
 
 ```text
 dotnet test desktop-client/BrainPlatform.Desktop.Tests/BrainPlatform.Desktop.Tests.csproj --no-restore
-Result: 220 passed, 0 failed, 0 skipped
+Result: 221 passed, 0 failed, 0 skipped
 
 dotnet build desktop-client/BrainPlatform.Desktop/BrainPlatform.Desktop.csproj --no-restore
 Result: 0 warnings, 0 errors
@@ -43,7 +43,8 @@ after a real event-store filesystem write failure.
 - Events in a known gap can be persisted with `UnavailableGap` and
   `sample_counter_gap`; they remain traceable but are neither rendered nor
   seekable. A counter rollback is `UnavailableDiscontinuity`; live acquisition
-  faults rather than silently continuing the current Recording.
+  faults rather than silently continuing the current Recording, and records
+  `SAMPLE_COUNTER_DISCONTINUITY` in `audit.jsonl`.
 - Counter gaps are emitted to `audit.jsonl`; review preserves them as empty
   waveform ranges rather than inserting samples.
 - Event metadata is kept in `events.json`, separate from immutable raw chunks.
