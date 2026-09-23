@@ -125,7 +125,7 @@
         </Style>
 
         <!-- 行内操作图标按钮 -->
-        <Style x:Key="RowActionIconBtn" TargetType="Button">
+        <Style x:Key="RowActionIconBtn" TargetType="Button" BasedOn="{StaticResource AppRowActionIconButtonStyle}">
             <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Width" Value="28" /><Setter Property="Height" Value="28" /><Setter Property="Margin" Value="2,0" /><Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -213,7 +213,7 @@
                 <Grid VerticalAlignment="Center">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                     <Path Data="M 14,14 L 19,19 M 6.5,12 A 5.5,5.5 0 1 1 12,6.5 A 5.5,5.5 0 0 1 6.5,12 Z" Width="14" Height="14" Stretch="Uniform" Stroke="#94A3B8" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,8,0" VerticalAlignment="Center" />
-                    <TextBox x:Name="MontageSearchBox" Grid.Column="1" BorderThickness="0" Background="Transparent" VerticalAlignment="Center" FontSize="13" Foreground="#0F172A" Text="{Binding MontageConfigurations.SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBox x:Name="MontageSearchBox" Grid.Column="1" Style="{StaticResource AppSearchBoxStyle}" VerticalAlignment="Center" FontSize="13" Foreground="#0F172A" Text="{Binding MontageConfigurations.SearchText, UpdateSourceTrigger=PropertyChanged}" />
                     <TextBlock Grid.Column="1" Text="搜索导联配置名称、说明..." FontSize="13" Foreground="#94A3B8" IsHitTestVisible="False" VerticalAlignment="Center">
                         <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=MontageSearchBox}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                     </TextBlock>

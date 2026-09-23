@@ -164,7 +164,7 @@
             </Style>
 
             <!-- 行内操作图标按钮 -->
-            <Style x:Key="RowActionIconBtn" TargetType="Button">
+            <Style x:Key="RowActionIconBtn" TargetType="Button" BasedOn="{StaticResource AppRowActionIconButtonStyle}">
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Width" Value="28" />
@@ -268,7 +268,7 @@
                     <Path Data="M 14,14 L 19,19 M 6.5,12 A 5.5,5.5 0 1 1 12,6.5 A 5.5,5.5 0 0 1 6.5,12 Z"
                           Width="14" Height="14" Stretch="Uniform" Stroke="#94A3B8" StrokeThickness="1.6"
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="0,0,8,0" VerticalAlignment="Center" />
-                    <TextBox x:Name="SearchBox" Grid.Column="1"
+                    <TextBox x:Name="SearchBox" Grid.Column="1" Style="{StaticResource AppSearchBoxStyle}"
                              BorderThickness="0" Background="Transparent" VerticalAlignment="Center" FontSize="13" Foreground="#0F172A"
                              Text="{Binding Projects.SearchText, UpdateSourceTrigger=PropertyChanged}" />
                     <!-- 占位提示文字 -->
