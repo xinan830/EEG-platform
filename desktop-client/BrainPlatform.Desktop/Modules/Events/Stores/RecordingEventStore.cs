@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.Json;
 
-namespace BrainPlatform.Desktop.Events;
+namespace BrainPlatform.Desktop.Modules.Events.Stores;
 
 public sealed class RecordingEventStore
 {

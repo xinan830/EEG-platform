@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Net.Http;
 using BrainPlatform.Desktop.Acquisition.Storage;
-using BrainPlatform.Desktop.Events;
 using BrainPlatform.Desktop.Review;
 using BrainPlatform.Desktop.ViewModels;
 using BrainPlatform.Desktop.Views;

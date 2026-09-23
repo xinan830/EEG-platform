@@ -1,8 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
-using BrainPlatform.Desktop.Events;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Events.ViewModels;
 
 public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
 {

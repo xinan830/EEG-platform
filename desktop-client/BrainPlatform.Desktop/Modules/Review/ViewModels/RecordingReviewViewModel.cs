@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 using BrainPlatform.Desktop.Review;
-using BrainPlatform.Desktop.Events;
 
 namespace BrainPlatform.Desktop.ViewModels;
 

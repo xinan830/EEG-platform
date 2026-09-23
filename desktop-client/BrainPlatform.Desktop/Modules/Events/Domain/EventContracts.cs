@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Events;
+namespace BrainPlatform.Desktop.Modules.Events.Domain;
 
 public enum EventSource
 {

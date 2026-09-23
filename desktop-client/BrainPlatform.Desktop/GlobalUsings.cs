@@ -10,3 +10,8 @@ global using BrainPlatform.Desktop.Modules.Montages.Domain;
 global using BrainPlatform.Desktop.Modules.Montages.Stores;
 global using BrainPlatform.Desktop.Modules.Montages.Validation;
 global using BrainPlatform.Desktop.Modules.Acquisition.Session;
+global using BrainPlatform.Desktop.Modules.Events.Adapters;
+global using BrainPlatform.Desktop.Modules.Events.Domain;
+global using BrainPlatform.Desktop.Modules.Events.Services;
+global using BrainPlatform.Desktop.Modules.Events.Stores;
+global using BrainPlatform.Desktop.Modules.Events.ViewModels;

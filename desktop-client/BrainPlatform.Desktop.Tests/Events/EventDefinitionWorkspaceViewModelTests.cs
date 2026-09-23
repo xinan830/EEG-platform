@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.Events;
 using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Tests.Events;

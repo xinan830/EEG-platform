@@ -1,7 +1,6 @@
 using System.Net.Http;
 using System.Windows;
 using BrainPlatform.Desktop.ViewModels;
-using BrainPlatform.Desktop.Events;
 using SciChart.Charting.Visuals;
 
 namespace BrainPlatform.Desktop;

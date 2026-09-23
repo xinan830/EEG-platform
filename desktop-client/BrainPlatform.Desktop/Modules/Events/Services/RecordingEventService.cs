@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Events;
+namespace BrainPlatform.Desktop.Modules.Events.Services;
 
 public sealed class RecordingEventService
 {

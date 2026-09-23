@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Events;
+namespace BrainPlatform.Desktop.Modules.Events.Adapters;
 
 /// <summary>
 /// Input received from a device trigger channel after the acquisition layer has

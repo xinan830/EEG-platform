@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.Events;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 using BrainPlatform.Desktop.Acquisition.Storage;
 
