@@ -6,7 +6,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="../Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <Style x:Key="ReviewPaperSpeedValueStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
                 <Style.Triggers>

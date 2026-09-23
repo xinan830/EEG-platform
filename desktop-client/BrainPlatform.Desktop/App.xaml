@@ -5,10 +5,10 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Views/Styles/ControlStyles.xaml" />
-                <ResourceDictionary Source="Views/Styles/DialogStyles.xaml" />
-                <ResourceDictionary Source="Views/Styles/PaginationStyles.xaml" />
-                <ResourceDictionary Source="Views/Styles/ScrollBarStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/DialogStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/PaginationStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/ScrollBarStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Application-level fallback keeps ComboBoxItem independent of Popup ancestors. -->
