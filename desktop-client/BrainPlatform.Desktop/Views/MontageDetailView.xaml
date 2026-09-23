@@ -254,7 +254,17 @@
                             <StackPanel Grid.Column="1" Margin="12,0,20,0">
                                 <DockPanel Height="34" Margin="0,0,0,10">
                                     <TextBlock Width="95" Text="适用通道配置" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />
-                                    <ComboBox Style="{StaticResource ModernFilterComboBox}" ItemsSource="{Binding MontageConfigurations.AvailableChannelConfigurations}" SelectedValuePath="Id" SelectedValue="{Binding MontageConfigurations.DraftChannelConfigurationId, Mode=TwoWay}" IsEnabled="{Binding MontageConfigurations.CanSelectDraftChannelConfiguration}" DisplayMemberPath="Name" />
+                                    <ComboBox Style="{StaticResource ModernFilterComboBox}"
+                                              ItemsSource="{Binding MontageConfigurations.AvailableChannelConfigurations}"
+                                              SelectedValuePath="Id"
+                                              SelectedValue="{Binding MontageConfigurations.DraftChannelConfigurationId, Mode=TwoWay}"
+                                              IsEnabled="{Binding MontageConfigurations.CanSelectDraftChannelConfiguration}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" />
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
                                 </DockPanel>
                                 <DockPanel Height="32" Margin="0,0,0,8">
                                     <TextBlock Width="95" Text="通道概要" FontSize="13" Foreground="#64748B" VerticalAlignment="Center" />
@@ -431,8 +441,14 @@
                                                 <!-- 2. 重参考方式选择框 -->
                                                 <ComboBox Grid.Column="2" Style="{StaticResource ModernFilterComboBox}" Height="32" Margin="0,0,14,0"
                                                           ItemsSource="{Binding DataContext.MontageConfigurations.NegativeKinds, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                          DisplayMemberPath="Label" SelectedValuePath="Kind" SelectedValue="{Binding NegativeKind, Mode=TwoWay}"
-                                                          IsEnabled="{Binding DataContext.MontageConfigurations.CanEditReferenceMode, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                                          SelectedValuePath="Kind" SelectedValue="{Binding NegativeKind, Mode=TwoWay}"
+                                                          IsEnabled="{Binding DataContext.MontageConfigurations.CanEditReferenceMode, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Label}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
 
                                                 <!-- 3. 负极 / 参考组选择 -->
                                                 <!-- 单参考/平均参考/硬件参考模式 -->

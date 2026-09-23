@@ -58,6 +58,30 @@
       "reason": "The canvas owns one live rendering surface, bounded frame worker, sweep erase animation, and display-only geometry; shared axis and plot layout policies are already extracted.",
       "follow_up": "Extract the live erase-band renderer if additional live annotations are added."
     },
+    "desktop-client/BrainPlatform.Desktop/Views/AcquisitionWorkspaceView.xaml": {
+      "decision": "split",
+      "max_lines": 590,
+      "reason": "The acquisition workspace still composes device selection, recording controls, live display settings, and monitoring panels in one page. This label-only ComboBox fix must not move or duplicate acquisition state while the shared workspace boundaries remain stable.",
+      "follow_up": "Extract the device and recording setup panels into focused views before adding further acquisition controls."
+    },
+    "desktop-client/BrainPlatform.Desktop/Views/ChannelDetailView.xaml": {
+      "decision": "split",
+      "max_lines": 760,
+      "reason": "The channel editor contains a large local form and legacy control templates. The current fix only makes object labels explicit; moving templates during the defect repair would mix visual refactoring with channel draft behavior.",
+      "follow_up": "Move the remaining reusable channel-editor control styles into WorkspaceStyles.xaml and extract the channel mapping table into a focused view."
+    },
+    "desktop-client/BrainPlatform.Desktop/Views/ChannelListView.xaml": {
+      "decision": "split",
+      "max_lines": 790,
+      "reason": "The channel catalogue page also hosts the new-profile device dialog and copied ComboBox styling. The current change keeps the binding fix local to avoid changing draft ownership or dialog lifecycle.",
+      "follow_up": "Extract the new-channel-profile dialog and replace copied ComboBox templates with shared workspace resources."
+    },
+    "desktop-client/BrainPlatform.Desktop/Views/MontageDetailView.xaml": {
+      "decision": "split",
+      "max_lines": 540,
+      "reason": "The montage editor combines metadata, channel selection, and per-row reference controls. The explicit Name and Label templates repair rendering without altering montage selection or reference semantics.",
+      "follow_up": "Extract the montage reference-row editor and consume shared ComboBox resources before adding more reference modes."
+    },
     "desktop-client/BrainPlatform.Desktop/Review/RecordingReviewSession.cs": {
       "decision": "split",
       "max_lines": 620,

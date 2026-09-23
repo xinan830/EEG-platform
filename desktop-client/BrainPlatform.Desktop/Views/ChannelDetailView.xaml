@@ -707,8 +707,13 @@
                             <ComboBox Grid.Column="1" x:Name="DevicePickerComboBox"
                                       ItemsSource="{Binding Acquisition.Devices}"
                                       SelectedItem="{Binding ChannelConfigurations.PendingDeviceSelection, Mode=TwoWay}"
-                                      DisplayMemberPath="DisplayName"
-                                      Style="{StaticResource DevicePickerComboBoxStyle}" />
+                                      Style="{StaticResource DevicePickerComboBoxStyle}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </Grid>
                     </Grid>
 
