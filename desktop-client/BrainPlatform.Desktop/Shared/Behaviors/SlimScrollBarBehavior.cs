@@ -4,7 +4,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Shared.Behaviors;
 
 /// <summary>Applies the shared slim style to scroll bars generated inside a page.</summary>
 public static class SlimScrollBarBehavior

@@ -5,8 +5,10 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:cfg="clr-namespace:BrainPlatform.Desktop.Modules.Montages.Domain"
              xmlns:views="clr-namespace:BrainPlatform.Desktop.Views"
+             xmlns:behaviors="clr-namespace:BrainPlatform.Desktop.Shared.Behaviors"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
              mc:Ignorable="d"
-             views:SlimScrollBarBehavior.IsEnabled="True"
+             behaviors:SlimScrollBarBehavior.IsEnabled="True"
              Background="#F8FAFC">
 
     <UserControl.Resources>
@@ -385,7 +387,7 @@
             <!-- 右侧翻页器 -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <ComboBox Margin="0,0,12,0" Style="{StaticResource PaginationPageSizeComboBoxStyle}" ItemsSource="{Binding MontageConfigurations.PageSizeOptions}" ItemStringFormat="{}{0} 条/页" SelectedItem="{Binding MontageConfigurations.PageSize, Mode=TwoWay}" />
-                <views:PaginationControl CurrentPage="{Binding MontageConfigurations.CurrentPage}"
+                <shared:PaginationControl CurrentPage="{Binding MontageConfigurations.CurrentPage}"
                                          TotalPages="{Binding MontageConfigurations.TotalPages}"
                                          PageRequested="OnMontagePageRequested" />
             </StackPanel>

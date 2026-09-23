@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Shared.Controls;
 
 public partial class PaginationControl : UserControl
 {

@@ -1,6 +1,6 @@
 using System.Windows.Controls;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Shared.Controls;
 
 public partial class OperationNotificationHost : UserControl
 {

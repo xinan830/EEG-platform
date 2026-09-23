@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Shared.Controls;
 
 /// <summary>
 /// Explicit empty state for a navigation destination that has not been built.

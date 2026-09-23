@@ -2,10 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:BrainPlatform.Desktop.Views"
+        xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
         Title="EEG 会话" WindowStyle="SingleBorderWindow" ResizeMode="CanResize" WindowState="Maximized"
         Background="#F3F5F8" Closing="OnClosing">
     <Grid>
         <ContentPresenter x:Name="SessionContentHost" />
-        <local:OperationNotificationHost DataContext="{Binding}" Panel.ZIndex="20" />
+        <shared:OperationNotificationHost DataContext="{Binding}" Panel.ZIndex="20" />
     </Grid>
 </Window>
