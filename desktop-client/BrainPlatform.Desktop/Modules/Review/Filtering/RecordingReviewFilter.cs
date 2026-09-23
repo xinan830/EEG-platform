@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Filtering;
 
 public sealed record RecordingReviewFilterSettings(double HighPassHz, double LowPassHz, double? NotchHz)
 {

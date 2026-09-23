@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Scheduling;
 
 /// <summary>Debounces work and guarantees that only the latest request may run.</summary>
 internal sealed class LatestDelayedTask : IDisposable

@@ -2,8 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using BrainPlatform.Desktop.Review;
-using BrainPlatform.Desktop.ViewModels;
 using SciChart.Charting;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
@@ -11,7 +9,7 @@ using SciChart.Charting.Visuals.Axes;
 using SciChart.Charting.Visuals.RenderableSeries;
 using SciChart.Data.Model;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
 public sealed class RecordingReviewSciChartCanvas : UserControl
 {

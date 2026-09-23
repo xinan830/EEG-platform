@@ -1,5 +1,4 @@
 using System.Windows.Threading;
-using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Views;
 

@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Cache;
 
 public enum ReviewPreparationPhase
 {

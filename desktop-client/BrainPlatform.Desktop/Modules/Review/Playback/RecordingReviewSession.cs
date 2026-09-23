@@ -1,6 +1,6 @@
 using System.Net.Http;
 
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Playback;
 
 public interface IRecordingReviewReader
 {

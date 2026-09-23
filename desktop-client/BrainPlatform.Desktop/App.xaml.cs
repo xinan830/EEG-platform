@@ -1,6 +1,5 @@
 using System.Net.Http;
 using System.Windows;
-using BrainPlatform.Desktop.ViewModels;
 using SciChart.Charting.Visuals;
 
 namespace BrainPlatform.Desktop;
@@ -45,7 +44,7 @@ public partial class App : Application
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(15),
         };
-        var window = new MainWindow(new Review.HttpRecordingReviewFilter(reviewFilterClient))
+        var window = new MainWindow(new Modules.Review.Filtering.HttpRecordingReviewFilter(reviewFilterClient))
         {
             DataContext = workspace,
         };

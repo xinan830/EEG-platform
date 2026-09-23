@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.ViewModels;
 
 using BrainPlatform.Desktop.Acquisition.Contracts;
 

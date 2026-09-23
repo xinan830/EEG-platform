@@ -1,7 +1,7 @@
 using System.IO;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Playback;
 
 public sealed record LocalRawRecordingManifest(
     Guid SessionId,

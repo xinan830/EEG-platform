@@ -1,8 +1,7 @@
 using System.Collections.ObjectModel;
 using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Review;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
 public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposable
 {

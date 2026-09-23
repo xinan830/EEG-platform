@@ -1,5 +1,5 @@
 
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Cache;
 
 /// <summary>
 /// A bounded, in-memory cache for review windows. It deliberately stores only

@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Scheduling;
 
 /// <summary>
 /// Runs the newest requested action at a bounded cadence while input continues.

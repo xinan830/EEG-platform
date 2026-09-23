@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Cache;
 
 internal sealed record ReviewCheckpointAnchorGroupKey(
     Guid RecordingSessionId,

@@ -1,6 +1,6 @@
 using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Montages;
 
 public sealed record ProjectedMontageChannel(string Label, double[] Values);
 

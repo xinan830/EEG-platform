@@ -1,7 +1,6 @@
 using BrainPlatform.Desktop.Acquisition.AntEego;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 using BrainPlatform.Desktop.Acquisition.Runtime;
-using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 

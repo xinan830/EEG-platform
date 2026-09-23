@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.ViewModels;
 using System.Globalization;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;

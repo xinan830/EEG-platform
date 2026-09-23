@@ -1,7 +1,7 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Review;
+namespace BrainPlatform.Desktop.Modules.Review.Montages;
 
 public enum AcquisitionMontageStatus
 {

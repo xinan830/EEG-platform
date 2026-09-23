@@ -1,6 +1,6 @@
 using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
 internal sealed record ResolvedMontageChannel(
     DerivedMontageChannel Definition,

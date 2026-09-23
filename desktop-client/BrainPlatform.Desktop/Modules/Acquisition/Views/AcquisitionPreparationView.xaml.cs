@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Views;
 

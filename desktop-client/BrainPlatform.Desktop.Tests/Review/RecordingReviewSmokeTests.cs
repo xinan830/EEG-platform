@@ -1,7 +1,5 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Review;
-using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Tests.Review;
 

@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
 /// <summary>
 /// Compact review navigator. Thumb dragging is rate-limited to the review

@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.ViewModels;
 using System.Text.Json;
 
 namespace BrainPlatform.Desktop.Tests.Projects;
