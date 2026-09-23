@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Views;
 
 /// <summary>
 /// Hosts one immersive acquisition or review surface. A close is never just a UI
