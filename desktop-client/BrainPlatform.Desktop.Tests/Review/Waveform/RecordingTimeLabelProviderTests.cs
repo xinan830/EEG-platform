@@ -1,4 +1,4 @@
-using BrainPlatform.Desktop.Views;
+using BrainPlatform.Desktop.Modules.Review.Waveform;
 
 namespace BrainPlatform.Desktop.Tests.Views;
 

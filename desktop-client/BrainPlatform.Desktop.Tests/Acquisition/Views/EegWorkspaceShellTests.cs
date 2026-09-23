@@ -1,7 +1,7 @@
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
-using BrainPlatform.Desktop.Views;
+using BrainPlatform.Desktop.Modules.Acquisition.Views;
 
 namespace BrainPlatform.Desktop.Tests.Views;
 

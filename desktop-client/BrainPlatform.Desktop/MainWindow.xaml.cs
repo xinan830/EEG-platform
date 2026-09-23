@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Net.Http;
-using BrainPlatform.Desktop.Views;
 using BrainPlatform.Desktop.Modules.Acquisition.Views;
 using BrainPlatform.Desktop.Modules.Settings.Views;
 using BrainPlatform.Desktop.Modules.Channels.Views;

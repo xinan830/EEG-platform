@@ -1,4 +1,4 @@
-using BrainPlatform.Desktop.Views;
+using BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 

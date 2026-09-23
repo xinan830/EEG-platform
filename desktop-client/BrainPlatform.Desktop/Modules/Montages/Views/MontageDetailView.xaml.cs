@@ -1,8 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Montages.Views;
 
 public partial class MontageDetailView : UserControl
 {
@@ -25,6 +24,7 @@ public partial class MontageDetailView : UserControl
         {
             viewModel.MontageConfigurations.CloseDraft();
         }
+
         if (Window.GetWindow(this) is MainWindow mainWindow)
         {
             mainWindow.ShowMontageListView();

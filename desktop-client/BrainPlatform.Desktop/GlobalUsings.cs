@@ -50,4 +50,3 @@ global using BrainPlatform.Desktop.Modules.Devices.Views;
 global using BrainPlatform.Desktop.Modules.Montages.ViewModels;
 global using BrainPlatform.Desktop.Modules.Montages.Views;
 global using BrainPlatform.Desktop.Modules.Settings.Views;
-global using BrainPlatform.Desktop.Views;
