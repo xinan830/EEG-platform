@@ -45,6 +45,8 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
     public long? LatestSampleCounter => coordinator?.LatestDisplaySampleCounter;
 
+    public IReadOnlyList<AcquisitionGap> GetRecordingGaps() => coordinator?.GetRecordingGaps() ?? [];
+
     public IReadOnlyList<AcquisitionDriverDescriptor> AvailableDrivers => driverRegistry.Drivers;
 
     public ConfiguredAcquisitionRuntime(

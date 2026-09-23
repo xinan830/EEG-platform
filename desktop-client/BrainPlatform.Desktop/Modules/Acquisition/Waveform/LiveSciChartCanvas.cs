@@ -404,6 +404,11 @@ public sealed class LiveSciChartCanvas : UserControl
 
         foreach (var item in monitor.LiveRecordingEvents)
         {
+            if (!item.IsDisplayable)
+            {
+                continue;
+            }
+
             var start = monitor.ToDisplayCounterFromRecordingSample(item.StartSample);
             if (start is null)
             {

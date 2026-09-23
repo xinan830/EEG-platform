@@ -380,6 +380,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     public Task SeekToEventAsync(RecordingEvent item)
     {
         ArgumentNullException.ThrowIfNull(item);
+        if (!item.IsDisplayable)
+            throw new EventValidationException("event_coordinate_unavailable", item.CoordinateUnavailableReason ?? "该事件没有可用的波形坐标。");
         return SeekAsync(item.StartSample / (double)samplingRateHz);
     }
 

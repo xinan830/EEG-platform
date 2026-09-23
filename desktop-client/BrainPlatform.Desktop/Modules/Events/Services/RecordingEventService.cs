@@ -22,7 +22,10 @@ public sealed class RecordingEventService
         string? sourceDetail,
         string? externalCode,
         string? note,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long? sourceSampleCounter = null,
+        EventCoordinateStatus coordinateStatus = EventCoordinateStatus.Resolved,
+        string? coordinateUnavailableReason = null)
     {
         if (startSample < 0) throw new EventValidationException("start_sample_invalid", "事件起始采样点不能为负数。");
         if (durationSamples < 0) throw new EventValidationException("duration_invalid", "事件持续采样数不能为负数。");
@@ -36,6 +39,12 @@ public sealed class RecordingEventService
             Guid.NewGuid().ToString("N"), recordingId, definition.Id,
             new EventDefinitionSnapshot(definition.Code, definition.Name, definition.Color, definition.Version),
             source, sourceDetail, externalCode, startSample, durationSamples, now, now, note);
+        item = item with
+        {
+            SourceSampleCounter = sourceSampleCounter,
+            CoordinateStatus = coordinateStatus,
+            CoordinateUnavailableReason = coordinateUnavailableReason,
+        };
         await store.UpsertAsync(item, cancellationToken);
         return item;
     }

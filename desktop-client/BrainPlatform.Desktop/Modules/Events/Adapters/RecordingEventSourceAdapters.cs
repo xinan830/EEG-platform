@@ -11,7 +11,10 @@ public sealed record DeviceTriggerEventInput(
     long StartSample,
     long DurationSamples = 0,
     string? SourceDetail = null,
-    string? Note = null);
+    string? Note = null,
+    long? SourceSampleCounter = null,
+    EventCoordinateStatus CoordinateStatus = EventCoordinateStatus.Resolved,
+    string? CoordinateUnavailableReason = null);
 
 /// <summary>
 /// Input received from a file annotation importer. Start and duration remain in
@@ -23,7 +26,10 @@ public sealed record ImportedAnnotationEventInput(
     long StartSample,
     long DurationSamples = 0,
     string? SourceDetail = null,
-    string? Note = null);
+    string? Note = null,
+    long? SourceSampleCounter = null,
+    EventCoordinateStatus CoordinateStatus = EventCoordinateStatus.Resolved,
+    string? CoordinateUnavailableReason = null);
 
 /// <summary>
 /// The only translation boundary for physical device triggers. Device code
@@ -41,7 +47,10 @@ public sealed class DeviceTriggerEventAdapter(RecordingEventService events)
             input.SourceDetail ?? "device-trigger",
             input.ExternalCode,
             input.Note,
-            cancellationToken);
+            cancellationToken,
+            input.SourceSampleCounter,
+            input.CoordinateStatus,
+            input.CoordinateUnavailableReason);
 }
 
 /// <summary>
@@ -59,5 +68,8 @@ public sealed class ImportedAnnotationEventAdapter(RecordingEventService events)
             input.SourceDetail ?? "imported-annotation",
             input.ExternalCode,
             input.Note,
-            cancellationToken);
+            cancellationToken,
+            input.SourceSampleCounter,
+            input.CoordinateStatus,
+            input.CoordinateUnavailableReason);
 }

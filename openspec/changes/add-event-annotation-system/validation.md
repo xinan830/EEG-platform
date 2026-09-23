@@ -12,7 +12,7 @@ Executed on 2026-09-23:
 
 ```text
 dotnet test desktop-client/BrainPlatform.Desktop.Tests/BrainPlatform.Desktop.Tests.csproj --no-restore
-Result: 217 passed, 0 failed, 0 skipped
+Result: 220 passed, 0 failed, 0 skipped
 
 dotnet build desktop-client/BrainPlatform.Desktop/BrainPlatform.Desktop.csproj --no-restore
 Result: 0 warnings, 0 errors
@@ -36,9 +36,14 @@ after a real event-store filesystem write failure.
 - `RecordingEvent.StartSample` and `DurationSamples` are Recording-relative
   sample coordinates. Seconds are derived with the manifest sampling rate.
 - Acquisition captures the latest device counter before asynchronous event
-  persistence, subtracts the Recording's first device counter, and rejects a
-  negative result. This avoids using PC wall-clock time and prevents a counter
-  reset from being silently represented as continuous time.
+  persistence, preserves it as `SourceSampleCounter`, then derives
+  `StartSample` by subtracting the Recording's first device counter. Known gaps
+  are not compressed. This avoids using PC wall-clock time and prevents a
+  counter reset from being silently represented as continuous time.
+- Events in a known gap can be persisted with `UnavailableGap` and
+  `sample_counter_gap`; they remain traceable but are neither rendered nor
+  seekable. A counter rollback is `UnavailableDiscontinuity`; live acquisition
+  faults rather than silently continuing the current Recording.
 - Counter gaps are emitted to `audit.jsonl`; review preserves them as empty
   waveform ranges rather than inserting samples.
 - Event metadata is kept in `events.json`, separate from immutable raw chunks.

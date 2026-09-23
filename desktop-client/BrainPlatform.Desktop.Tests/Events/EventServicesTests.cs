@@ -104,13 +104,24 @@ public sealed class EventServicesTests
             new DeviceTriggerEventInput(definition.Id, "TTL_11", 125, SourceDetail: "trigger-channel-28"),
             CancellationToken.None);
         var annotation = await new ImportedAnnotationEventAdapter(events).RecordAsync(
-            new ImportedAnnotationEventInput(definition.Id, "EDF:eyes-open", 500, 250, Note: "imported from EDF+"),
+            new ImportedAnnotationEventInput(
+                definition.Id,
+                "EDF:eyes-open",
+                500,
+                250,
+                Note: "imported from EDF+",
+                SourceSampleCounter: 4_500,
+                CoordinateStatus: EventCoordinateStatus.UnavailableGap,
+                CoordinateUnavailableReason: "sample_counter_gap"),
             CancellationToken.None);
 
         Assert.Equal(EventSource.DeviceTrigger, trigger.Source);
         Assert.Equal("TTL_11", trigger.ExternalCode);
         Assert.Equal(EventSource.ImportedAnnotation, annotation.Source);
         Assert.True(annotation.IsInterval);
+        Assert.Equal(4_500, annotation.SourceSampleCounter);
+        Assert.False(annotation.IsDisplayable);
+        Assert.Equal("sample_counter_gap", annotation.CoordinateUnavailableReason);
         await Assert.ThrowsAsync<EventValidationException>(() => events.DeleteAsync(annotation.Id, CancellationToken.None));
     }
 
@@ -170,10 +181,35 @@ public sealed class EventServicesTests
             CancellationToken.None);
 
         var events = new RecordingEventService("recording-1", new RecordingEventStore(temp.Path), definitions);
-        Assert.Equal(legacyEvent, Assert.Single(await events.QueryAsync(new RecordingEventQuery("recording-1"), CancellationToken.None)));
+        var loadedLegacyEvent = Assert.Single(await events.QueryAsync(new RecordingEventQuery("recording-1"), CancellationToken.None));
+        Assert.Equal(legacyEvent, loadedLegacyEvent);
+        Assert.Null(loadedLegacyEvent.SourceSampleCounter);
+        Assert.Equal(EventCoordinateStatus.Resolved, loadedLegacyEvent.CoordinateStatus);
         await events.UpdateAsync(legacyEvent with { Note = "promoted" }, CancellationToken.None);
         using var eventsDocument = JsonDocument.Parse(await File.ReadAllTextAsync(eventsPath, CancellationToken.None));
-        Assert.Equal(1, eventsDocument.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(2, eventsDocument.RootElement.GetProperty("SchemaVersion").GetInt32());
+    }
+
+    [Fact]
+    public async Task Event_coordinate_provenance_preserves_raw_counter_and_unavailable_reason()
+    {
+        using var temp = new TemporaryDirectory();
+        var store = new RecordingEventStore(temp.Path);
+        var item = new RecordingEvent(
+            "event-gap", "recording-1", "definition-1",
+            new EventDefinitionSnapshot("EO", "睁眼", "#2563EB", 1),
+            EventSource.ImportedAnnotation, "import", "EDF:EO", 120, 0,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
+            SourceSampleCounter: 4_120,
+            CoordinateStatus: EventCoordinateStatus.UnavailableGap,
+            CoordinateUnavailableReason: "sample_counter_gap");
+
+        await store.UpsertAsync(item, CancellationToken.None);
+        var loaded = Assert.Single(await store.LoadAsync(CancellationToken.None));
+
+        Assert.Equal(4_120, loaded.SourceSampleCounter);
+        Assert.False(loaded.IsDisplayable);
+        Assert.Equal("sample_counter_gap", loaded.CoordinateUnavailableReason);
     }
 
     [Fact]

@@ -5,7 +5,7 @@ namespace BrainPlatform.Desktop.Modules.Events.Stores;
 
 public sealed class RecordingEventStore
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private readonly string path;
     private readonly SemaphoreSlim gate = new(1, 1);
@@ -68,9 +68,10 @@ public sealed class RecordingEventStore
             throw new InvalidDataException($"Unsupported recording-event schema version {envelope.SchemaVersion}.");
         }
 
-        // Schema 0 was the initial envelope shape. Its recording-event payload
-        // is identical to schema 1, so migration only promotes the envelope on
-        // the next atomic write.
+        // Schema 0/1 lack the optional raw-counter provenance and coordinate
+        // status fields introduced by schema 2. JSON defaults retain their
+        // previous semantics: resolved coordinate, no raw-counter snapshot.
+        // The envelope is promoted only on the next atomic write.
         return envelope.Items ?? [];
     }
 

@@ -23,6 +23,22 @@ public enum ShortcutScope
     Review,
 }
 
+public enum EventCoordinateStatus
+{
+    Resolved,
+    UnavailableGap,
+    UnavailableDiscontinuity,
+}
+
+public sealed record RecordingEventCoordinate(
+    long RecordingRelativeSample,
+    long SourceSampleCounter,
+    EventCoordinateStatus Status = EventCoordinateStatus.Resolved,
+    string? UnavailableReason = null)
+{
+    public bool IsDisplayable => Status == EventCoordinateStatus.Resolved;
+}
+
 public sealed record EventDefinition(
     string Id,
     string Code,
@@ -58,9 +74,14 @@ public sealed record RecordingEvent(
     long DurationSamples,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
-    string? Note = null)
+    string? Note = null,
+    long? SourceSampleCounter = null,
+    EventCoordinateStatus CoordinateStatus = EventCoordinateStatus.Resolved,
+    string? CoordinateUnavailableReason = null)
 {
     public bool IsInterval => DurationSamples > 0;
+
+    public bool IsDisplayable => CoordinateStatus == EventCoordinateStatus.Resolved;
 
     public long EndSampleExclusive => checked(StartSample + Math.Max(0, DurationSamples));
 }
@@ -137,6 +158,12 @@ internal static class EventValidation
             throw new EventValidationException("start_sample_invalid", "事件起始采样点不能为负数。");
         if (item.DurationSamples < 0)
             throw new EventValidationException("duration_invalid", "事件持续采样数不能为负数。");
+        if (item.SourceSampleCounter is < 0)
+            throw new EventValidationException("source_sample_counter_invalid", "原始设备采样计数不能为负数。");
+        if (item.CoordinateStatus == EventCoordinateStatus.Resolved && item.CoordinateUnavailableReason is not null)
+            throw new EventValidationException("coordinate_status_invalid", "可用事件不能包含不可用坐标原因。");
+        if (item.CoordinateStatus != EventCoordinateStatus.Resolved && string.IsNullOrWhiteSpace(item.CoordinateUnavailableReason))
+            throw new EventValidationException("coordinate_status_invalid", "不可用事件必须包含结构化坐标原因。");
         if (string.IsNullOrWhiteSpace(item.DefinitionSnapshot.Code) || string.IsNullOrWhiteSpace(item.DefinitionSnapshot.Name))
             throw new EventValidationException("snapshot_invalid", "事件历史快照必须包含 Code 和名称。");
     }

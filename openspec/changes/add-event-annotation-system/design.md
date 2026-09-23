@@ -36,6 +36,14 @@ DurationSamples: long
 
 `DurationSamples == 0` 表示点事件；大于零表示区间事件。显示层按 Recording manifest 的 `SamplingRateHz` 计算秒数。若设备样本计数不是从零开始，存储必须同时保存 Recording 内的 sample-counter 坐标或可确定的 offset，不得用 PC 接收时间替代。
 
+当前契约同时保存 `SourceSampleCounter`、`CoordinateStatus` 与
+`CoordinateUnavailableReason`。`StartSample` 是从 Recording 首 counter
+派生的相对坐标，且**不压缩 gap**；因此计数器从 1000 到 1250 的事件坐标为
+250，即使中间有缺失样本。落在已知 gap 的外部/导入事件保留原始 counter，
+标记为 `UnavailableGap`，不绘制也不可跳转。counter 早于 Recording 起点或
+回退时标记为 `UnavailableDiscontinuity`；实时采集的当前策略是 fault 并结束
+该 Recording，不把重连后的 counter 静默拼接到原记录。
+
 采集设备发生断线重连、sample counter reset 或检测到不连续段时，必须创建新的计数段/保存 discontinuity 元数据；禁止把重连后的计数器值静默拼接成连续的 Recording-relative 坐标。落在 gap 或不连续段中的事件必须保留原始计数器信息，并以结构化原因标记为不可用或拒绝保存。
 
 ## Shortcut registry

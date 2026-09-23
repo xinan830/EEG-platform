@@ -357,6 +357,11 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         var duration = Math.Max(0.001, end - start);
         foreach (var item in viewModel.RecordingEvents)
         {
+            if (!item.IsDisplayable)
+            {
+                continue;
+            }
+
             var itemStart = item.StartSample / (double)viewModel.SamplingRateHz;
             var itemEnd = item.IsInterval ? item.EndSampleExclusive / (double)viewModel.SamplingRateHz : itemStart;
             if (itemEnd < start || itemStart > end) continue;

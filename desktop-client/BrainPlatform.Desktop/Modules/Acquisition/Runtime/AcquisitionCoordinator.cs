@@ -28,6 +28,8 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     private AcquisitionFault? lastFault;
     private readonly object pauseGate = new();
     private readonly List<AcquisitionGap> pendingPausedGaps = [];
+    private readonly object recordingGapGate = new();
+    private readonly List<AcquisitionGap> recordingGaps = [];
     private int pauseRequested;
     private bool disposed;
 
@@ -76,6 +78,14 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     public Guid? RecordingSessionId => recordingSessionId;
 
     public string? RecordingDirectory => rawWriter?.RecordingDirectory;
+
+    public IReadOnlyList<AcquisitionGap> GetRecordingGaps()
+    {
+        lock (recordingGapGate)
+        {
+            return recordingGaps.ToArray();
+        }
+    }
 
     public async Task<IReadOnlyList<AcquisitionDeviceDescriptor>> DiscoverAsync(CancellationToken cancellationToken)
     {
@@ -216,6 +226,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             await batchBoundary.WaitAsync(cancellationToken);
             try
             {
+                ClearRecordingGaps();
                 Volatile.Write(ref rawWriter, pendingWriter);
                 pendingWriter = null;
                 this.recordingSessionId = recordingSessionId;
@@ -408,11 +419,13 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
                 if (continuity.Gap is not null)
                 {
                     await activeWriter.AppendGapAsync(continuity.Gap, cancellationToken);
+                    AddRecordingGap(continuity.Gap);
                 }
 
                 foreach (var pausedGap in TakePausedGaps())
                 {
                     await activeWriter.AppendGapAsync(pausedGap, cancellationToken);
+                    AddRecordingGap(pausedGap);
                 }
 
                 await activeWriter.AppendBatchAsync(batch, cancellationToken);
@@ -545,6 +558,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         {
             pendingPausedGaps.Clear();
         }
+        ClearRecordingGaps();
         captureCancellation?.Dispose();
         captureCancellation = null;
         captureTask = null;
@@ -598,6 +612,22 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             var gaps = pendingPausedGaps.ToArray();
             pendingPausedGaps.Clear();
             return gaps;
+        }
+    }
+
+    private void AddRecordingGap(AcquisitionGap gap)
+    {
+        lock (recordingGapGate)
+        {
+            recordingGaps.Add(gap);
+        }
+    }
+
+    private void ClearRecordingGaps()
+    {
+        lock (recordingGapGate)
+        {
+            recordingGaps.Clear();
         }
     }
 

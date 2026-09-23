@@ -469,8 +469,11 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             ?? throw new InvalidOperationException("当前还没有可用的采样坐标。");
         var recordingFirstSample = runtime.RecordingFirstSampleCounter
             ?? throw new InvalidOperationException("当前 Recording 尚未建立首采样坐标。");
-        var relativeSample = checked(latestSample - recordingFirstSample);
-        if (relativeSample < 0)
+        var coordinate = RecordingEventCoordinateResolver.Resolve(
+            latestSample,
+            recordingFirstSample,
+            runtime.GetRecordingGaps());
+        if (coordinate.Status == EventCoordinateStatus.UnavailableDiscontinuity)
         {
             throw new InvalidOperationException("设备采样计数器已重置，无法为当前 Recording 生成可追溯事件坐标。");
         }
@@ -481,7 +484,10 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             new RecordingEventStore(directory),
             eventDefinitionService);
         var item = await service.CreateAsync(
-            definitionId, relativeSample, 0, source, sourceDetail, null, null, cancellationToken);
+            definitionId, coordinate.RecordingRelativeSample, 0, source, sourceDetail, null, null, cancellationToken,
+            sourceSampleCounter: coordinate.SourceSampleCounter,
+            coordinateStatus: coordinate.Status,
+            coordinateUnavailableReason: coordinate.UnavailableReason);
         LiveRecordingEvents.Add(item);
         return item;
     }
