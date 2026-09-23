@@ -16,6 +16,8 @@ public sealed class ScreenCalibrationViewModel : ObservableObject
     private string heightCentimetersText = string.Empty;
     private string statusText = "尚未完成屏幕尺寸校准。";
     private ScreenCalibrationProfile? profile;
+    private CancellationTokenSource? pendingPersist;
+    private long persistRevision;
 
     public ScreenCalibrationViewModel(
         ScreenCalibrationStore? store = null,
@@ -107,6 +109,7 @@ public sealed class ScreenCalibrationViewModel : ObservableObject
             if (SetProperty(ref widthCentimetersText, value))
             {
                 RaiseCalibrationPropertiesChanged();
+                ScheduleAutoPersist();
             }
         }
     }
@@ -119,6 +122,7 @@ public sealed class ScreenCalibrationViewModel : ObservableObject
             if (SetProperty(ref heightCentimetersText, value))
             {
                 RaiseCalibrationPropertiesChanged();
+                ScheduleAutoPersist();
             }
         }
     }
@@ -160,18 +164,8 @@ public sealed class ScreenCalibrationViewModel : ObservableObject
 
     public async Task SaveAsync()
     {
-        if (!TryParse(WidthCentimetersText, out var width) || width is < 5 or > 200)
-        {
-            throw new InvalidOperationException("屏幕宽度请输入 5–200 cm 之间的数值。");
-        }
-
-        if (!TryParse(HeightCentimetersText, out var height) || height is < 3 or > 150)
-        {
-            throw new InvalidOperationException("屏幕高度请输入 3–150 cm 之间的数值。");
-        }
-
-        profile = new ScreenCalibrationProfile(DisplayKey, width, height, DateTimeOffset.UtcNow);
-        store.Save(profile);
+        CancelPendingPersist();
+        profile = SaveDraftOrThrow();
         ScreenCalibrationMetrics.NotifyCalibrationChanged();
         StatusText = "校准已保存，采集与回溯的走纸速度已更新。";
         RaiseCalibrationPropertiesChanged();
@@ -179,8 +173,31 @@ public sealed class ScreenCalibrationViewModel : ObservableObject
         await Task.CompletedTask;
     }
 
+    public void PersistValidDraftBeforeLeaving()
+    {
+        if (!TryParseValidDraft(out _, out _))
+        {
+            return;
+        }
+
+        try
+        {
+            CancelPendingPersist();
+            profile = SaveDraftOrThrow();
+            ScreenCalibrationMetrics.NotifyCalibrationChanged();
+            StatusText = "校准已保存。";
+            RaiseCalibrationPropertiesChanged();
+        }
+        catch (Exception exception)
+        {
+            ReportError(exception);
+        }
+    }
+
     private void Reset()
     {
+        CancelPendingPersist();
+        store.Remove(DisplayKey);
         profile = null;
         WidthCentimetersText = string.Empty;
         HeightCentimetersText = string.Empty;
@@ -191,16 +208,91 @@ public sealed class ScreenCalibrationViewModel : ObservableObject
 
     private void Load()
     {
-        profile = store.Load(DisplayKey);
+        profile = store.Load(DisplayKey) ?? store.LoadLatestValid();
         if (profile is null)
         {
+            widthCentimetersText = string.Empty;
+            heightCentimetersText = string.Empty;
             statusText = "尚未完成屏幕尺寸校准。";
+            RaiseLoadedInputPropertiesChanged();
             return;
         }
 
         widthCentimetersText = profile.WidthCentimeters.ToString("0.#", CultureInfo.CurrentCulture);
         heightCentimetersText = profile.HeightCentimeters.ToString("0.#", CultureInfo.CurrentCulture);
         statusText = $"已载入上次校准：{profile.WidthCentimeters:0.#} × {profile.HeightCentimeters:0.#} cm。";
+        RaiseLoadedInputPropertiesChanged();
+    }
+
+    private void RaiseLoadedInputPropertiesChanged()
+    {
+        RaisePropertyChanged(nameof(WidthCentimetersText));
+        RaisePropertyChanged(nameof(HeightCentimetersText));
+        RaisePropertyChanged(nameof(StatusText));
+    }
+
+    private void ScheduleAutoPersist()
+    {
+        if (!TryParseValidDraft(out _, out _))
+        {
+            return;
+        }
+
+        var revision = Interlocked.Increment(ref persistRevision);
+        pendingPersist?.Cancel();
+        pendingPersist = new CancellationTokenSource();
+        _ = PersistDraftAsync(revision, pendingPersist.Token);
+    }
+
+    private async Task PersistDraftAsync(long revision, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(300, cancellationToken);
+            if (revision != Volatile.Read(ref persistRevision) || !TryParseValidDraft(out _, out _))
+            {
+                return;
+            }
+
+            profile = SaveDraftOrThrow();
+            StatusText = "校准已自动保存。";
+            RaiseCalibrationPropertiesChanged();
+            ScreenCalibrationMetrics.NotifyCalibrationChanged();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            StatusText = $"校准自动保存失败：{exception.Message}";
+        }
+    }
+
+    private ScreenCalibrationProfile SaveDraftOrThrow()
+    {
+        if (!TryParseValidDraft(out var width, out var height))
+        {
+            throw new InvalidOperationException("请输入有效的屏幕宽度和高度：宽度 5–200 cm，高度 3–150 cm。");
+        }
+
+        var nextProfile = new ScreenCalibrationProfile(DisplayKey, width, height, DateTimeOffset.UtcNow);
+        store.Save(nextProfile);
+        return nextProfile;
+    }
+
+    private bool TryParseValidDraft(out double width, out double height)
+    {
+        var hasWidth = TryParse(WidthCentimetersText, out width) && width is >= 5 and <= 200;
+        var hasHeight = TryParse(HeightCentimetersText, out height) && height is >= 3 and <= 150;
+        return hasWidth && hasHeight;
+    }
+
+    private void CancelPendingPersist()
+    {
+        Interlocked.Increment(ref persistRevision);
+        pendingPersist?.Cancel();
+        pendingPersist?.Dispose();
+        pendingPersist = null;
     }
 
     private static bool TryParse(string value, out double result) =>

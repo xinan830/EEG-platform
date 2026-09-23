@@ -23,6 +23,11 @@ public partial class ScreenCalibrationView : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        if (DataContext is ViewModels.DesktopWorkspaceViewModel workspace)
+        {
+            workspace.ScreenCalibration.PersistValidDraftBeforeLeaving();
+        }
+
         if (Window.GetWindow(this) is { } window)
         {
             window.LocationChanged -= OnWindowLocationChanged;

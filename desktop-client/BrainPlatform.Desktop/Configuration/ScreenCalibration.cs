@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Interop;
 
@@ -13,6 +14,7 @@ public sealed record ScreenCalibrationProfile(
     double HeightCentimeters,
     DateTimeOffset UpdatedAtUtc)
 {
+    [JsonIgnore]
     public bool IsValid => WidthCentimeters > 0 && HeightCentimeters > 0;
 }
 
@@ -39,6 +41,7 @@ public readonly record struct ScreenDisplayMetrics(
 
 public sealed class ScreenCalibrationStore
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
     private readonly string path;
 
     public ScreenCalibrationStore(string? path = null)
@@ -51,32 +54,98 @@ public sealed class ScreenCalibrationStore
 
     public ScreenCalibrationProfile? Load(string displayKey)
     {
-        if (!File.Exists(path))
-        {
-            return null;
-        }
+        return LoadProfiles().FirstOrDefault(profile =>
+            profile.IsValid && string.Equals(profile.DisplayKey, displayKey, StringComparison.OrdinalIgnoreCase));
+    }
 
-        try
-        {
-            var profiles = JsonSerializer.Deserialize<List<ScreenCalibrationProfile>>(File.ReadAllText(path)) ?? [];
-            return profiles.FirstOrDefault(profile =>
-                string.Equals(profile.DisplayKey, displayKey, StringComparison.OrdinalIgnoreCase));
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+    public ScreenCalibrationProfile? LoadLatestValid()
+    {
+        return LoadProfiles()
+            .Where(profile => profile.IsValid)
+            .OrderByDescending(profile => profile.UpdatedAtUtc)
+            .FirstOrDefault();
     }
 
     public void Save(ScreenCalibrationProfile profile)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(path) ?? throw new InvalidOperationException("Screen calibration path has no directory."));
-        var profiles = File.Exists(path)
-            ? JsonSerializer.Deserialize<List<ScreenCalibrationProfile>>(File.ReadAllText(path)) ?? []
-            : [];
+        ArgumentNullException.ThrowIfNull(profile);
+        if (!profile.IsValid)
+        {
+            throw new ArgumentException("Screen calibration dimensions must be positive.", nameof(profile));
+        }
+
+        var directory = Path.GetDirectoryName(path)
+            ?? throw new InvalidOperationException("Screen calibration path has no directory.");
+        Directory.CreateDirectory(directory);
+        var profiles = LoadProfiles(tolerateReadErrors: false).ToList();
         profiles.RemoveAll(item => string.Equals(item.DisplayKey, profile.DisplayKey, StringComparison.OrdinalIgnoreCase));
         profiles.Add(profile);
-        File.WriteAllText(path, JsonSerializer.Serialize(profiles, new JsonSerializerOptions { WriteIndented = true }));
+        WriteAtomically(profiles);
+    }
+
+    public void Remove(string displayKey)
+    {
+        var profiles = LoadProfiles(tolerateReadErrors: false).ToList();
+        var removed = profiles.RemoveAll(item =>
+            string.Equals(item.DisplayKey, displayKey, StringComparison.OrdinalIgnoreCase));
+        if (removed > 0)
+        {
+            WriteAtomically(profiles);
+        }
+    }
+
+    private IReadOnlyList<ScreenCalibrationProfile> LoadProfiles(bool tolerateReadErrors = true)
+    {
+        if (!File.Exists(path))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<ScreenCalibrationProfile>>(File.ReadAllText(path)) ?? [];
+        }
+        catch (IOException) when (tolerateReadErrors)
+        {
+            return [];
+        }
+        catch (JsonException) when (tolerateReadErrors)
+        {
+            return [];
+        }
+    }
+
+    private void WriteAtomically(IReadOnlyList<ScreenCalibrationProfile> profiles)
+    {
+        var directory = Path.GetDirectoryName(path)
+            ?? throw new InvalidOperationException("Screen calibration path has no directory.");
+        Directory.CreateDirectory(directory);
+        var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (var stream = new FileStream(
+                       temporaryPath,
+                       FileMode.CreateNew,
+                       FileAccess.Write,
+                       FileShare.None,
+                       4096,
+                       FileOptions.WriteThrough))
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(JsonSerializer.Serialize(profiles, SerializerOptions));
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
+
+            File.Move(temporaryPath, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
     }
 }
 

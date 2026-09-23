@@ -1,5 +1,6 @@
 using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.ViewModels;
+using System.Globalization;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 
@@ -18,6 +19,23 @@ public sealed class ScreenCalibrationTests
         Assert.NotNull(actual);
         Assert.Equal(expected.WidthCentimeters, actual.WidthCentimeters);
         Assert.Equal(expected.HeightCentimeters, actual.HeightCentimeters);
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(path)!, "*.tmp"));
+    }
+
+    [Fact]
+    public void Store_LoadLatestValidUsesMostRecentlyUpdatedProfile()
+    {
+        var path = CreateCalibrationPath();
+        var store = new ScreenCalibrationStore(path);
+        store.Save(new ScreenCalibrationProfile("display-a", 40, 25, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        store.Save(new ScreenCalibrationProfile("display-b", 53.1, 29.9, DateTimeOffset.UtcNow));
+
+        var actual = store.LoadLatestValid();
+
+        Assert.NotNull(actual);
+        Assert.Equal("display-b", actual.DisplayKey);
+        Assert.Equal(53.1, actual.WidthCentimeters);
+        Assert.Equal(29.9, actual.HeightCentimeters);
     }
 
     [Fact]
@@ -53,4 +71,99 @@ public sealed class ScreenCalibrationTests
 
         Assert.Equal(0.004, scale, precision: 12);
     }
+
+    [Fact]
+    public async Task ViewModel_ExplicitSaveRestoresInputsInANewInstance()
+    {
+        var path = CreateCalibrationPath();
+        var first = new ScreenCalibrationViewModel(new ScreenCalibrationStore(path), screenWidthDips: 1_600);
+        first.WidthCentimetersText = "34.3";
+        first.HeightCentimetersText = "21.5";
+
+        await first.SaveAsync();
+
+        var restored = new ScreenCalibrationViewModel(new ScreenCalibrationStore(path), screenWidthDips: 1_600);
+        Assert.Equal(34.3, Parse(restored.WidthCentimetersText));
+        Assert.Equal(21.5, Parse(restored.HeightCentimetersText));
+        Assert.True(restored.IsConfigured);
+    }
+
+    [Fact]
+    public async Task ViewModel_ValidDraftAutoPersistsWithoutExplicitSave()
+    {
+        var path = CreateCalibrationPath();
+        var first = new ScreenCalibrationViewModel(new ScreenCalibrationStore(path), screenWidthDips: 1_600)
+        {
+            WidthCentimetersText = "42.5",
+            HeightCentimetersText = "24.8",
+        };
+
+        await Task.Delay(500);
+
+        var restored = new ScreenCalibrationViewModel(new ScreenCalibrationStore(path), screenWidthDips: 1_600);
+        Assert.Equal(42.5, Parse(restored.WidthCentimetersText));
+        Assert.Equal(24.8, Parse(restored.HeightCentimetersText));
+    }
+
+    [Fact]
+    public void ViewModel_LeavingPageFlushesAValidPendingDraft()
+    {
+        var path = CreateCalibrationPath();
+        var first = new ScreenCalibrationViewModel(new ScreenCalibrationStore(path), screenWidthDips: 1_600)
+        {
+            WidthCentimetersText = "39.6",
+            HeightCentimetersText = "22.1",
+        };
+
+        first.PersistValidDraftBeforeLeaving();
+
+        var restored = new ScreenCalibrationViewModel(new ScreenCalibrationStore(path), screenWidthDips: 1_600);
+        Assert.Equal(39.6, Parse(restored.WidthCentimetersText));
+        Assert.Equal(22.1, Parse(restored.HeightCentimetersText));
+    }
+
+    [Fact]
+    public async Task ViewModel_InvalidDraftDoesNotReplaceLastValidProfile()
+    {
+        var path = CreateCalibrationPath();
+        var store = new ScreenCalibrationStore(path);
+        store.Save(new ScreenCalibrationProfile("primary-display", 34.3, 21.5, DateTimeOffset.UtcNow));
+        var workspace = new ScreenCalibrationViewModel(store, screenWidthDips: 1_600)
+        {
+            WidthCentimetersText = "2",
+            HeightCentimetersText = "20",
+        };
+
+        await Task.Delay(500);
+
+        var persisted = store.Load("primary-display");
+        Assert.NotNull(persisted);
+        Assert.Equal(34.3, persisted.WidthCentimeters);
+        Assert.Equal(21.5, persisted.HeightCentimeters);
+    }
+
+    [Fact]
+    public void ViewModel_DisplayContextReloadNotifiesBothInputBindings()
+    {
+        var path = CreateCalibrationPath();
+        var store = new ScreenCalibrationStore(path);
+        store.Save(new ScreenCalibrationProfile("primary-display", 34.3, 21.5, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        store.Save(new ScreenCalibrationProfile("display-b", 50.2, 28.4, DateTimeOffset.UtcNow));
+        var workspace = new ScreenCalibrationViewModel(store, screenWidthDips: 1_600);
+        var changed = new List<string?>();
+        workspace.PropertyChanged += (_, eventArgs) => changed.Add(eventArgs.PropertyName);
+
+        workspace.UpdateDisplayContext(new ScreenDisplayMetrics("display-b", 2_560, 1_440, 1.5, 1.5));
+
+        Assert.Equal(50.2, Parse(workspace.WidthCentimetersText));
+        Assert.Equal(28.4, Parse(workspace.HeightCentimetersText));
+        Assert.Contains(nameof(ScreenCalibrationViewModel.WidthCentimetersText), changed);
+        Assert.Contains(nameof(ScreenCalibrationViewModel.HeightCentimetersText), changed);
+    }
+
+    private static string CreateCalibrationPath() =>
+        Path.Combine(Path.GetTempPath(), "brain-platform-tests", Guid.NewGuid().ToString("N"), "screen.json");
+
+    private static double Parse(string value) =>
+        double.Parse(value, NumberStyles.Float, CultureInfo.CurrentCulture);
 }
