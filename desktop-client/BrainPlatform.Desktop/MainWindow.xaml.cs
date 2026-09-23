@@ -297,6 +297,7 @@ public partial class MainWindow : Window
             await viewModel.Projects.RefreshAsync();
             await viewModel.ChannelConfigurations.RefreshAsync();
             await viewModel.MontageConfigurations.RefreshAsync();
+            await viewModel.EventDefinitions.RefreshAsync();
         }
     }
 

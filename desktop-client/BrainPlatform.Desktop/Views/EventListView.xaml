@@ -37,7 +37,11 @@
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#0F172A" />
                                     <TextBlock Text="{Binding Code}" Foreground="#64748B" FontSize="11" />
                                 </StackPanel>
-                                <TextBlock Grid.Column="2" Text="{Binding Shortcut, TargetNullValue=未绑定}" Foreground="#64748B" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Shortcut, TargetNullValue=未绑定}" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <Button Content="编辑" Padding="7,3" Click="OnEditClick" />
+                                    <Button Content="删除" Padding="7,3" Margin="5,0,0,0" Click="OnDeleteClick" />
+                                </StackPanel>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

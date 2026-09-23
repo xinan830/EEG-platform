@@ -130,6 +130,14 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
             Shortcut = string.IsNullOrWhiteSpace(DraftShortcut) ? null : DraftShortcut.Trim(),
             IsEnabled = DraftIsEnabled,
         };
+        if (existing?.IsSystem == true &&
+            (!string.Equals(edited.Code, existing.Code, StringComparison.OrdinalIgnoreCase) ||
+             edited.Source != existing.Source ||
+             !string.Equals(edited.Shortcut, existing.Shortcut, StringComparison.OrdinalIgnoreCase) ||
+             edited.ShortcutScope != existing.ShortcutScope))
+        {
+            throw new EventValidationException("system_definition_restricted", "系统事件只能修改显示名称、说明、颜色和启用状态。");
+        }
         var next = existing is null
             ? edited
             : edited with { Version = edited.Version <= existing.Version ? checked(existing.Version + 1) : edited.Version, UpdatedAtUtc = DateTimeOffset.UtcNow };
@@ -157,7 +165,7 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         DraftIsEnabled = value.IsEnabled;
     }
 
-    private async Task DeleteSelectedAsync()
+    public async Task DeleteSelectedAsync()
     {
         if (SelectedDefinition is not { } selected) return;
         var isReferenced = await referenceChecker(selected.Id, CancellationToken.None);
