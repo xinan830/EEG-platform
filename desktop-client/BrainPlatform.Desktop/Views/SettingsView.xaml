@@ -54,6 +54,8 @@
             <RowDefinition Height="Auto" />
             <!-- 间距 -->
             <RowDefinition Height="Auto" />
+            <!-- 3. 事件设置入口 -->
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="20" />
             <!-- 4. 底部配置流程建议 -->
             <RowDefinition Height="Auto" />
@@ -286,8 +288,24 @@
             </Button>
         </Border>
 
+        <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="20,8">
+            <Button Background="Transparent" BorderThickness="0" Padding="4,12" Cursor="Hand" Click="OnOpenEventListClick">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <Border Width="38" Height="38" Background="#F0FDFA" CornerRadius="19" Margin="0,0,14,0">
+                        <TextBlock Text="●" Foreground="#0F766E" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left">
+                        <TextBlock Text="事件设置" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A" />
+                        <TextBlock Text="管理采集与回溯共用的事件定义、颜色和快捷键" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="›" FontSize="24" Foreground="#64748B" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                </Grid>
+            </Button>
+        </Border>
+
         <!-- ==================== 4. 底部配置流程建议 ==================== -->
-        <Border Grid.Row="4" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="24,18,28,18">
+        <Border Grid.Row="5" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="14" Padding="24,18,28,18">
             <DockPanel LastChildFill="False">
                 <!-- 左侧提示与文案 -->
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

@@ -36,6 +36,14 @@ public partial class SettingsView : UserControl
             mainWindow.ShowScreenCalibrationView();
         }
     }
+
+    private void OnOpenEventListClick(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this) is MainWindow mainWindow)
+        {
+            mainWindow.ShowEventListView();
+        }
+    }
 }
 
 public partial class ChannelListView : UserControl

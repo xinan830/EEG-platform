@@ -14,7 +14,7 @@
 
 ## 3. Settings UI
 
-- [ ] 3.1 Register 事件设置 in the settings list and navigation.
+- [x] 3.1 Register 事件设置 in the settings list and navigation.
 - [ ] 3.2 Add event definition list view with search, enabled state, source, color, shortcut, and actions.
 - [ ] 3.3 Add new/edit event view with Code, name, description, color picker, shortcut capture, and validation messages.
 - [ ] 3.4 Add system-event and referenced-event deletion restrictions.

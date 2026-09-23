@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private ChannelDetailView? channelDetailView;
     private MontageListView? montageListView;
     private MontageDetailView? montageDetailView;
+    private EventListView? eventListView;
     private RecordingReviewViewModel? recordingReviewViewModel;
     private LocalRawRecording? recordingReviewRecording;
     private EegSessionWindow? acquisitionSessionWindow;
@@ -41,6 +42,7 @@ public partial class MainWindow : Window
         channelDetailView = new ChannelDetailView();
         montageListView = new MontageListView();
         montageDetailView = new MontageDetailView();
+        eventListView = new EventListView();
         overviewView = new DeviceOverviewView();
         MainContentHost.Content = overviewView;
     }
@@ -112,6 +114,18 @@ public partial class MainWindow : Window
         SetImmersiveChrome(false);
         screenCalibrationView ??= new ScreenCalibrationView();
         MainContentHost.Content = screenCalibrationView;
+        SelectNavigation(NavSettingsBtn);
+    }
+
+    public async void ShowEventListView()
+    {
+        SetImmersiveChrome(false);
+        eventListView ??= new EventListView();
+        if (DataContext is DesktopWorkspaceViewModel workspace)
+        {
+            await workspace.EventDefinitions.RefreshAsync();
+        }
+        MainContentHost.Content = eventListView;
         SelectNavigation(NavSettingsBtn);
     }
 

@@ -1,6 +1,7 @@
 using System.Windows.Input;
 using System.Windows.Media;
 using BrainPlatform.Desktop.Domain;
+using BrainPlatform.Desktop.Events;
 using BrainPlatform.Desktop.Services;
 
 namespace BrainPlatform.Desktop.ViewModels;
@@ -27,6 +28,9 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         MontageConfigurations = new MontageConfigurationWorkspaceViewModel(
             ChannelConfigurations,
             notifications: Notifications);
+        EventDefinitions = new EventDefinitionWorkspaceViewModel(
+            new EventDefinitionService(new EventDefinitionStore()),
+            Notifications);
         ScreenCalibration = new ScreenCalibrationViewModel(notifications: Notifications);
         RefreshBackendCommand = new AsyncRelayCommand(RefreshBackendAsync, ReportCommandError);
         DismissNotificationCommand = new AsyncRelayCommand(() =>
@@ -49,6 +53,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     public ChannelConfigurationWorkspaceViewModel ChannelConfigurations { get; }
 
     public MontageConfigurationWorkspaceViewModel MontageConfigurations { get; }
+
+    public EventDefinitionWorkspaceViewModel EventDefinitions { get; }
 
     public ScreenCalibrationViewModel ScreenCalibration { get; }
 
