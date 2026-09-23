@@ -23,6 +23,8 @@ Project -> Recording -> RecordingEvent -> EventDefinition
 
 RecordingEvent 仍需保存 `EventCodeSnapshot`、`EventNameSnapshot`、`ColorSnapshot` 和定义版本，避免定义后续编辑改变历史显示和分析语义。
 
+事件契约必须明确 `DurationSamples == 0` 表示点事件，`DurationSamples > 0` 表示区间事件。事件记录还应保存创建时的定义快照字段（至少包括 `DefinitionCodeSnapshot`、`DefinitionNameSnapshot`、`ColorSnapshot` 和定义版本），使定义后续停用或修改时历史记录仍可解释。
+
 ## Time and units
 
 RecordingEvent 使用：
@@ -33,6 +35,8 @@ DurationSamples: long
 ```
 
 `DurationSamples == 0` 表示点事件；大于零表示区间事件。显示层按 Recording manifest 的 `SamplingRateHz` 计算秒数。若设备样本计数不是从零开始，存储必须同时保存 Recording 内的 sample-counter 坐标或可确定的 offset，不得用 PC 接收时间替代。
+
+采集设备发生断线重连、sample counter reset 或检测到不连续段时，必须创建新的计数段/保存 discontinuity 元数据；禁止把重连后的计数器值静默拼接成连续的 Recording-relative 坐标。落在 gap 或不连续段中的事件必须保留原始计数器信息，并以结构化原因标记为不可用或拒绝保存。
 
 ## Shortcut registry
 
@@ -89,3 +93,4 @@ Rejected. 两套模型会造成快捷键、来源、时间坐标和颜色解释�
 - 快捷键测试：全局/采集/回溯作用域冲突和停用事件释放。
 - 采集集成测试：标记不阻塞原始写入和设备读循环。
 - 回溯集成测试：加载、跳转、编辑和删除事件不改变 raw chunks。
+- 历史兼容测试：定义被停用或达到删除限制后，已有 RecordingEvent 仍可加载、显示其快照并可按时间查询。

@@ -63,6 +63,19 @@ The desktop SHALL use Recording sample coordinates and the manifest sampling rat
 - **THEN** the desktop SHALL preserve the event's original counter metadata
 - **AND** it SHALL mark the display coordinate as unavailable rather than inserting EEG samples or moving the event silently.
 
+#### Scenario: A device reconnect resets or discontinues the sample counter
+
+- **WHEN** acquisition detects a device reconnect, sample-counter reset, or discontinuity
+- **THEN** the Recording SHALL preserve a new counter segment/discontinuity marker
+- **AND** event coordinates SHALL NOT be silently continued across the boundary
+- **AND** an event in an unavailable segment SHALL be rejected or marked unavailable with a structured reason.
+
+#### Scenario: An event is queried with combined filters
+
+- **WHEN** the event service receives any combination of RecordingId, sample range, definition/code, and source filters
+- **THEN** it SHALL return only events matching every supplied filter
+- **AND** omitted filters SHALL not restrict the result.
+
 ### Requirement: Coordinate shortcut ownership
 
 The desktop SHALL register shortcuts through one registry with explicit `Global`, `Acquisition`, or `Review` scope. Event shortcuts SHALL NOT replace an existing command registration without an explicit conflict resolution.
@@ -104,3 +117,9 @@ The desktop SHALL distinguish system, device-trigger, imported, algorithm, and m
 - **WHEN** a user changes the name or color of an existing event definition
 - **THEN** existing RecordingEvent snapshots SHALL retain their historical display values
 - **AND** new events MAY use the new definition version.
+
+#### Scenario: A referenced definition is disabled or deletion is restricted
+
+- **WHEN** a referenced event definition is disabled or cannot be physically deleted
+- **THEN** existing RecordingEvent records SHALL remain loadable and displayable from their stored snapshots
+- **AND** no historical event SHALL be removed as a side effect.
