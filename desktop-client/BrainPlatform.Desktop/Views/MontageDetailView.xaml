@@ -44,7 +44,7 @@
         </Style>
 
         <!-- 现代化输入框样式 -->
-        <Style x:Key="ModernInputBox" TargetType="TextBox">
+        <Style x:Key="ModernInputBox" TargetType="TextBox" BasedOn="{StaticResource AppTextBoxStyle}">
             <Setter Property="Background" Value="#FFFFFF" /><Setter Property="BorderBrush" Value="#E2E8F0" />
             <Setter Property="BorderThickness" Value="1" /><Setter Property="Foreground" Value="#0F172A" />
             <Setter Property="FontSize" Value="13" /><Setter Property="Height" Value="34" /><Setter Property="Padding" Value="10,0" />
@@ -67,7 +67,7 @@
         </Style>
 
         <!-- 现代化 ComboBox 样式 -->
-        <Style x:Key="ModernFilterComboBox" TargetType="ComboBox">
+        <Style x:Key="ModernFilterComboBox" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
             <Setter Property="Height" Value="34" /><Setter Property="FontSize" Value="12.5" /><Setter Property="Foreground" Value="#334155" />
             <Setter Property="Background" Value="#FFFFFF" /><Setter Property="BorderBrush" Value="#E2E8F0" /><Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="10,0,24,0" /><Setter Property="VerticalContentAlignment" Value="Center" /><Setter Property="Cursor" Value="Hand" />

@@ -5,45 +5,14 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Views/Styles/ControlStyles.xaml" />
+                <ResourceDictionary Source="Views/Styles/DialogStyles.xaml" />
                 <ResourceDictionary Source="Views/PaginationStyles.xaml" />
                 <ResourceDictionary Source="Views/ScrollBarStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <!--
-                WPF's default ComboBoxItem template resolves content alignment
-                through FindAncestor ItemsControl. ComboBox popups are hosted
-                in a separate visual tree, so that lookup is not reliable.
-                Keep an application-level fallback with explicit alignment;
-                page-specific ItemContainerStyle values still take precedence.
-            -->
-            <Style TargetType="ComboBoxItem">
-                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                <Setter Property="VerticalContentAlignment" Value="Center" />
-                <Setter Property="Padding" Value="8,5" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="ComboBoxItem">
-                            <Border x:Name="ItemBorder"
-                                    Background="Transparent"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter Content="{TemplateBinding Content}"
-                                                  ContentTemplate="{TemplateBinding ContentTemplate}"
-                                                  ContentStringFormat="{TemplateBinding ContentStringFormat}"
-                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" />
-                                </Trigger>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter TargetName="ItemBorder" Property="Background" Value="#E2E8F0" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
+            <!-- Application-level fallback keeps ComboBoxItem independent of Popup ancestors. -->
+            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource AppComboBoxItemStyle}" />
         <SolidColorBrush x:Key="CanvasBrush" Color="#F4F7F8" />
         <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
         <SolidColorBrush x:Key="InkBrush" Color="#17242A" />

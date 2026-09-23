@@ -14,7 +14,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <!-- 选择设备弹窗专用的现代 ComboBox 样式 -->
-            <Style x:Key="DevicePickerComboBoxStyle" TargetType="ComboBox">
+            <Style x:Key="DevicePickerComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
                 <Setter Property="Height" Value="38" />
                 <Setter Property="Background" Value="#FFFFFF" />
                 <Setter Property="Foreground" Value="#0F172A" />
@@ -123,7 +123,7 @@
             </Style>
 
             <!-- 弹窗右上角关闭按钮样式 -->
-            <Style x:Key="DialogCloseIconButton" TargetType="Button">
+            <Style x:Key="DialogCloseIconButton" TargetType="Button" BasedOn="{StaticResource AppDialogCloseButtonStyle}">
                 <Setter Property="Width" Value="28" />
                 <Setter Property="Height" Value="28" />
                 <Setter Property="Background" Value="Transparent" />
@@ -146,7 +146,7 @@
             </Style>
 
             <!-- 弹窗底部取消按钮样式 -->
-            <Style x:Key="DialogCancelButton" TargetType="Button">
+            <Style x:Key="DialogCancelButton" TargetType="Button" BasedOn="{StaticResource AppDialogSecondaryButtonStyle}">
                 <Setter Property="Width" Value="76" />
                 <Setter Property="Height" Value="34" />
                 <Setter Property="Background" Value="#FFFFFF" />
@@ -175,7 +175,7 @@
             </Style>
 
             <!-- 弹窗底部确定按钮样式 -->
-            <Style x:Key="DialogConfirmButton" TargetType="Button">
+            <Style x:Key="DialogConfirmButton" TargetType="Button" BasedOn="{StaticResource AppDialogPrimaryButtonStyle}">
                 <Setter Property="Width" Value="76" />
                 <Setter Property="Height" Value="34" />
                 <Setter Property="Background" Value="#1677FF" />

@@ -14,7 +14,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <!-- 弹窗右上角精致关闭按钮样式 -->
-            <Style x:Key="DialogCloseIconButton" TargetType="Button">
+            <Style x:Key="DialogCloseIconButton" TargetType="Button" BasedOn="{StaticResource AppDialogCloseButtonStyle}">
                 <Setter Property="Width" Value="28" />
                 <Setter Property="Height" Value="28" />
                 <Setter Property="Background" Value="Transparent" />
@@ -37,7 +37,7 @@
             </Style>
 
             <!-- 弹窗底部取消按钮样式 -->
-            <Style x:Key="DialogCancelButton" TargetType="Button">
+            <Style x:Key="DialogCancelButton" TargetType="Button" BasedOn="{StaticResource AppDialogSecondaryButtonStyle}">
                 <Setter Property="Height" Value="36" />
                 <Setter Property="Padding" Value="18,0" />
                 <Setter Property="MinWidth" Value="80" />
@@ -71,7 +71,7 @@
             </Style>
 
             <!-- 弹窗底部危险确认按钮样式 -->
-            <Style x:Key="DialogDangerButton" TargetType="Button">
+            <Style x:Key="DialogDangerButton" TargetType="Button" BasedOn="{StaticResource AppDialogDangerButtonStyle}">
                 <Setter Property="Height" Value="36" />
                 <Setter Property="Padding" Value="20,0" />
                 <Setter Property="MinWidth" Value="96" />

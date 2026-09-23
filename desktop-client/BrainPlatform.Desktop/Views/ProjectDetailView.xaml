@@ -15,7 +15,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <!-- 主操作按钮样式 (开始采集) -->
-            <Style x:Key="PrimaryActionButtonStyle" TargetType="Button">
+            <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource AppPrimaryButtonStyle}">
                 <Setter Property="Background" Value="#1677FF" />
                 <Setter Property="Foreground" Value="#FFFFFF" />
                 <Setter Property="FontSize" Value="13" />
@@ -116,7 +116,7 @@
             </Style>
 
             <!-- 现代化下拉框样式 -->
-            <Style x:Key="ModernFilterComboBox" TargetType="ComboBox">
+            <Style x:Key="ModernFilterComboBox" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
                 <Setter Property="Height" Value="30" />
                 <Setter Property="FontSize" Value="12" />
                 <Setter Property="Foreground" Value="#334155" />

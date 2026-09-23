@@ -12,7 +12,7 @@
             </ResourceDictionary.MergedDictionaries>
 
             <!-- 现代化筛选下拉框样式 -->
-            <Style x:Key="ModernFilterComboBox" TargetType="ComboBox">
+            <Style x:Key="ModernFilterComboBox" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
                 <Setter Property="Height" Value="36" />
                 <Setter Property="FontSize" Value="13" />
                 <Setter Property="Foreground" Value="#334155" />
