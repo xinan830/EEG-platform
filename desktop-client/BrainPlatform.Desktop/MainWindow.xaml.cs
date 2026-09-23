@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Net.Http;
 using BrainPlatform.Desktop.Views;
 using BrainPlatform.Desktop.Modules.Acquisition.Views;
+using BrainPlatform.Desktop.Modules.Settings.Views;
 using EventListView = BrainPlatform.Desktop.Modules.Events.Views.EventListView;
 using RecordingReviewView = BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView;
 
