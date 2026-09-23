@@ -1,5 +1,5 @@
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 internal sealed record WaveformRenderRevision(
     int BatchCount,

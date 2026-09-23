@@ -2,7 +2,7 @@ using SciChart.Charting.Visuals.Axes;
 using SciChart.Charting.Visuals.Axes.LabelProviders;
 using SciChart.Data.Model;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 /// <summary>
 /// Shared axis defaults for stacked EEG waveform surfaces.

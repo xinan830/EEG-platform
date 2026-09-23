@@ -1,7 +1,7 @@
 using System.Globalization;
 using SciChart.Charting.Visuals.Axes.LabelProviders;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 internal sealed class SweepTimeLabelProvider : NumericLabelProvider
 {

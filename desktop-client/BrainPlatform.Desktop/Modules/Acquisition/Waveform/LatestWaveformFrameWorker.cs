@@ -1,6 +1,6 @@
 using System.Windows.Threading;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 /// <summary>
 /// Builds only the latest requested display frame away from the WPF dispatcher.

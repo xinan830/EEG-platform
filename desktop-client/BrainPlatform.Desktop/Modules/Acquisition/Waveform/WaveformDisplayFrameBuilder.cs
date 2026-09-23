@@ -1,6 +1,6 @@
 
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 /// <summary>
 /// Converts a retained raw acquisition snapshot into screen-density extrema.

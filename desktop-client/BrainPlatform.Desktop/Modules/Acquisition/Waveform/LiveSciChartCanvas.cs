@@ -11,7 +11,7 @@ using SciChart.Charting.Visuals.Axes;
 using SciChart.Charting.Visuals.RenderableSeries;
 using SciChart.Data.Model;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 /// <summary>
 /// SciChart host for raw acquisition display. It does not own the device,

@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Windows.Data;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 /// <summary>Formats the device-reported V range for a human-facing hardware setting.</summary>
 public sealed class InputRangeVoltageConverter : IValueConverter

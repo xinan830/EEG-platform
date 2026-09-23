@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using SciChart.Charting.Visuals;
 
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 /// <summary>
 /// Shared plot-area geometry for the waveform chart and its external labels.

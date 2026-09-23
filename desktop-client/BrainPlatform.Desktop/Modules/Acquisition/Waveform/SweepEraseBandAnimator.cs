@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Views;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 
 /// <summary>
 /// Presentation-only interpolation between two already received sweep positions.
