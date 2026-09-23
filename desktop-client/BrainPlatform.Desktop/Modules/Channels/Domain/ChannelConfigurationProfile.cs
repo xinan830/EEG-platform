@@ -2,7 +2,7 @@ using BrainPlatform.Desktop.Acquisition.Contracts;
 using System.Globalization;
 using System.Text.Json.Serialization;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Channels.Domain;
 
 public enum ChannelConfigurationSource
 {

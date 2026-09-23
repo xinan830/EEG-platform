@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.IO;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Channels.Stores;
 
 /// <summary>Persists user-created workstation presets, never recordings.</summary>
 public sealed class ChannelConfigurationProfileStore

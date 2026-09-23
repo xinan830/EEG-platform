@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Montages.Domain;
 
 /// <summary>
 /// Builds read-only system montage presets from the validated ANT default

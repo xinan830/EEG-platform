@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.ViewModels;
 using System.Globalization;
 

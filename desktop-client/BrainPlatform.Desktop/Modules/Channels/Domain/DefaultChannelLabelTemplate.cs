@@ -1,6 +1,6 @@
 using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Channels.Domain;
 
 /// <summary>
 /// The local default physical-input layout. It is data only: no EEG file is

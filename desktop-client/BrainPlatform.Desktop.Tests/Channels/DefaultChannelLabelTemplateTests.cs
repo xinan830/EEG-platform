@@ -1,5 +1,4 @@
 using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Configuration;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 

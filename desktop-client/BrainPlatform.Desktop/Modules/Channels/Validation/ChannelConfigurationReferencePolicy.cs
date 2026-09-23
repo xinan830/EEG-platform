@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Channels.Validation;
 
 /// <summary>
 /// Enforces referential immutability between reusable channel profiles and

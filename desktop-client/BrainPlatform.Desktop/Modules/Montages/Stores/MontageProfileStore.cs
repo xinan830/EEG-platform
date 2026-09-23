@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.IO;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Montages.Stores;
 
 /// <summary>Persists user-created montage profiles; recordings own their later snapshots.</summary>
 public sealed class MontageProfileStore

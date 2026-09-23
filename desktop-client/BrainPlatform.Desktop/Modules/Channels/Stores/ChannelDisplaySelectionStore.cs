@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.Json;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Channels.Stores;
 
 /// <summary>
 /// Stores only a workstation's waveform-display choice. It does not alter

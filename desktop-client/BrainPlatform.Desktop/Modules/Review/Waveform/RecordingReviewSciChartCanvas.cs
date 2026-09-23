@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.Review;
 using BrainPlatform.Desktop.ViewModels;
 using SciChart.Charting;

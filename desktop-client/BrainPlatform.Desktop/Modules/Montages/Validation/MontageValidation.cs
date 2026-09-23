@@ -1,4 +1,4 @@
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Montages.Validation;
 
 /// <summary>Pure V1 montage validation. This does not execute any EEG computation.</summary>
 public static class MontageValidation

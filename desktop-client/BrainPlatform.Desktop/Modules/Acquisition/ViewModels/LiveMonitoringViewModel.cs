@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.Events;
 
 namespace BrainPlatform.Desktop.ViewModels;

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.IO;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Channels.Stores;
 
 /// <summary>
 /// Stores the exact profile snapshot that is currently applied to a compatible

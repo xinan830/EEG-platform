@@ -1,6 +1,5 @@
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Acquisition.Contracts;
-using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.ViewModels;
 using BrainPlatform.Desktop.Views;
 

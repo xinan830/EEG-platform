@@ -1,6 +1,6 @@
 using BrainPlatform.Desktop.Acquisition.Contracts;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Channels.Validation;
 
 /// <summary>Validates reusable channel-profile semantics without changing device state.</summary>
 public static class ChannelConfigurationValidation

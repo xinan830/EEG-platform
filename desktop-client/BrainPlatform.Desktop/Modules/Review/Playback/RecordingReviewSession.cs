@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.Configuration;
 using System.Net.Http;
 
 namespace BrainPlatform.Desktop.Review;

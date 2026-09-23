@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.IO;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Acquisition.Session;
 
 /// <summary>
 /// Local workstation preferences only. This file never contains EEG samples,

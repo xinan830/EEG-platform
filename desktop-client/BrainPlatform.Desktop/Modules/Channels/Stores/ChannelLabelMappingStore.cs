@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.IO;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Channels.Stores;
 
 /// <summary>
 /// Stores only user-confirmed physical channel to electrode-label mappings.

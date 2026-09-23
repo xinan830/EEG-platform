@@ -1,7 +1,6 @@
 using System.Text;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 using BrainPlatform.Desktop.Acquisition.Storage;
-using BrainPlatform.Desktop.Configuration;
 using BrainPlatform.Desktop.ViewModels;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;

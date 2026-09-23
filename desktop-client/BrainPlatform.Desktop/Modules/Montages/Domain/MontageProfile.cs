@@ -3,7 +3,7 @@ using System.Text;
 using System.Globalization;
 using System.Text.Json.Serialization;
 
-namespace BrainPlatform.Desktop.Configuration;
+namespace BrainPlatform.Desktop.Modules.Montages.Domain;
 
 public enum MontageProfileSource
 {

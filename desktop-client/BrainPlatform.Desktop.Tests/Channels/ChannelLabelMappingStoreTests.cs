@@ -1,4 +1,3 @@
-using BrainPlatform.Desktop.Configuration;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 
