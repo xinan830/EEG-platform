@@ -260,7 +260,8 @@ public partial class MainWindow : Window
             projectName: loadedRecording.Manifest.Project.Name,
             filter: recordingReviewFilter,
             recordingDirectory: recording.RecordingDirectory,
-            eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService);
+            eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
+            notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications);
         try
         {
             await viewModel.InitializeAsync();

@@ -121,6 +121,19 @@
                     </ComboBox>
                     <Button Content="跳转事件" Click="OnSeekToEventClick" Margin="6,0,0,0" Padding="9,4"
                             ToolTip="跳转到选中的历史事件" />
+                    <ComboBox Width="112" Margin="8,0,0,0"
+                              ItemsSource="{Binding EnabledEventDefinitions}"
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Id"
+                              SelectedValue="{Binding SelectedEventDefinitionId, Mode=TwoWay}"
+                              ToolTip="选择要在当前位置标记的事件类型" />
+                    <Button Content="标记" Command="{Binding MarkSelectedEventCommand}" Margin="6,0,0,0" Padding="9,4"
+                            ToolTip="在当前回溯位置添加人工事件标记" />
+                    <Button Content="删除事件" Command="{Binding DeleteSelectedEventCommand}" Margin="6,0,0,0" Padding="9,4"
+                            IsEnabled="{Binding CanEditSelectedEvent}"
+                            ToolTip="仅可删除人工创建的事件标记" />
+                    <Button Content="编辑事件" Command="{Binding OpenEventEditorCommand}" Margin="6,0,0,0" Padding="9,4"
+                            ToolTip="编辑人工事件的时间范围和备注" />
                 </StackPanel>
 
                 <Border DockPanel.Dock="Right" Margin="12,0,0,0" Padding="10,6" Background="#EFF6FF"
@@ -143,6 +156,28 @@
         <views:EegWorkspaceShell.Waveform>
             <views:RecordingReviewSciChartCanvas />
         </views:EegWorkspaceShell.Waveform>
+
+        <views:EegWorkspaceShell.Overlay>
+            <Popup IsOpen="{Binding IsEventEditorOpen, Mode=TwoWay}" Placement="Center" StaysOpen="True" AllowsTransparency="True">
+                <Border Width="360" Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="8" Padding="22">
+                    <Border.Effect><DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.16" Color="#0F172A" /></Border.Effect>
+                    <StackPanel>
+                        <TextBlock Text="编辑事件" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
+                        <TextBlock Text="仅人工事件可修改；时间基于 Recording 的采样坐标。" Margin="0,5,0,16" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" />
+                        <TextBlock Text="起始时间（秒）" Foreground="#475569" />
+                        <TextBox Text="{Binding EditEventStartSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
+                        <TextBlock Text="持续时间（秒，0 为点事件）" Foreground="#475569" />
+                        <TextBox Text="{Binding EditEventDurationSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
+                        <TextBlock Text="备注" Foreground="#475569" />
+                        <TextBox Text="{Binding EditEventNote, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="72" TextWrapping="Wrap" Margin="0,4,0,16" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Content="取消" Command="{Binding CloseEventEditorCommand}" Padding="14,7" Margin="0,0,8,0" />
+                            <Button Content="保存" Command="{Binding SaveEditedEventCommand}" Padding="14,7" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Popup>
+        </views:EegWorkspaceShell.Overlay>
 
         <views:EegWorkspaceShell.BottomBar>
             <Grid>

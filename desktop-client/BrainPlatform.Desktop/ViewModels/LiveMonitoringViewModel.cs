@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Acquisition.Contracts;
 using BrainPlatform.Desktop.Configuration;
+using BrainPlatform.Desktop.Events;
 
 namespace BrainPlatform.Desktop.ViewModels;
 
@@ -13,6 +14,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     private readonly Func<IReadOnlyList<AcquisitionBatch>> displaySnapshotProvider;
     private readonly Func<IReadOnlyList<long>> displayFilterBoundaryProvider;
     private readonly Func<long?> recordingFirstSampleCounterProvider;
+    private readonly Func<IReadOnlyList<RecordingEvent>> recordingEventsProvider;
     private readonly DispatcherTimer clock;
     private AcquisitionStreamMetadata? streamMetadata;
     private readonly WaveformDisplaySettings displaySettings = new();
@@ -33,13 +35,15 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         Func<IReadOnlyList<AcquisitionBatch>> displaySnapshotProvider,
         Dispatcher dispatcher,
         Func<IReadOnlyList<long>>? displayFilterBoundaryProvider = null,
-        Func<long?>? recordingFirstSampleCounterProvider = null)
+        Func<long?>? recordingFirstSampleCounterProvider = null,
+        Func<IReadOnlyList<RecordingEvent>>? recordingEventsProvider = null)
     {
         this.stateProvider = stateProvider;
         this.metadataProvider = metadataProvider;
         this.displaySnapshotProvider = displaySnapshotProvider;
         this.displayFilterBoundaryProvider = displayFilterBoundaryProvider ?? (() => []);
         this.recordingFirstSampleCounterProvider = recordingFirstSampleCounterProvider ?? (() => null);
+        this.recordingEventsProvider = recordingEventsProvider ?? (() => []);
         displaySettings.PropertyChanged += OnDisplaySettingsChanged;
         ToggleSettingsCommand = new AsyncRelayCommand(ToggleSettingsAsync, ReportCommandError);
         clock = new DispatcherTimer(DispatcherPriority.Background, dispatcher)
@@ -52,6 +56,9 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<LiveDisplayChannel> Channels { get; } = [];
+
+    /// <summary>Durably stored event markers for the active Recording only.</summary>
+    public IReadOnlyList<RecordingEvent> LiveRecordingEvents => recordingEventsProvider();
 
     /// <summary>Display-only visibility choices for the selected montage outputs.</summary>
     public ObservableCollection<LiveMontageDisplayChannel> MontageChannels { get; } = [];
@@ -321,6 +328,28 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
                     .Where(channel => channel.IsVisible)
                     .Select(channel => channel.Name)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Converts an event's Recording-relative sample coordinate back into the
+    /// display counter used by the cyclic live page. A counter reset cannot be
+    /// represented as a continuous display coordinate and returns null.
+    /// </summary>
+    public long? ToDisplayCounterFromRecordingSample(long recordingRelativeSample)
+    {
+        if (recordingRelativeSample < 0 || recordingFirstSampleCounterProvider() is not { } recordingFirst)
+        {
+            return null;
+        }
+
+        try
+        {
+            return ToDisplayCounter(checked(recordingFirst + recordingRelativeSample));
+        }
+        catch (OverflowException)
+        {
+            return null;
+        }
     }
 
     public void Dispose()

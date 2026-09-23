@@ -27,7 +27,7 @@ public sealed class EegWorkspaceShellTests
                 shell.Resources.MergedDictionaries.Add(new ResourceDictionary
                 {
                     Source = new Uri(
-                        "/BrainPlatform.Desktop;component/Views/WorkspaceStyles.xaml",
+                        "/BrainPlatform.Desktop;component/Views/Styles/WorkspaceStyles.xaml",
                         UriKind.RelativeOrAbsolute),
                 });
 

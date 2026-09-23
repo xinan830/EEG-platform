@@ -1,7 +1,9 @@
 using System.Windows.Input;
 using System.Windows.Media;
+using System.IO;
 using BrainPlatform.Desktop.Domain;
 using BrainPlatform.Desktop.Events;
+using BrainPlatform.Desktop.Projects;
 using BrainPlatform.Desktop.Services;
 
 namespace BrainPlatform.Desktop.ViewModels;
@@ -31,7 +33,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
             notifications: Notifications);
         EventDefinitions = new EventDefinitionWorkspaceViewModel(
             eventDefinitionService ?? acquisition.EventDefinitionService,
-            Notifications);
+            Notifications,
+            IsEventDefinitionReferencedAsync);
         ScreenCalibration = new ScreenCalibrationViewModel(notifications: Notifications);
         RefreshBackendCommand = new AsyncRelayCommand(RefreshBackendAsync, ReportCommandError);
         DismissNotificationCommand = new AsyncRelayCommand(() =>
@@ -89,6 +92,29 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     {
         BackendState = BackendConnectionState.Unavailable(exception.Message, DateTimeOffset.Now);
         Notifications.PublishError(exception.Message);
+    }
+
+    private static async Task<bool> IsEventDefinitionReferencedAsync(string definitionId, CancellationToken cancellationToken)
+    {
+        var projects = await new ResearchProjectStore().LoadAsync(cancellationToken);
+        foreach (var project in projects)
+        {
+            if (!Directory.Exists(project.RecordingsDirectory))
+            {
+                continue;
+            }
+
+            foreach (var recordingDirectory in Directory.EnumerateDirectories(project.RecordingsDirectory))
+            {
+                var events = await new RecordingEventStore(recordingDirectory).LoadAsync(cancellationToken);
+                if (events.Any(item => item.DefinitionId == definitionId))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public async ValueTask DisposeAsync()

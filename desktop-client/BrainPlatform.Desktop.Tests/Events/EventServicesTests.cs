@@ -1,4 +1,6 @@
 using BrainPlatform.Desktop.Events;
+using BrainPlatform.Desktop.Acquisition.Contracts;
+using BrainPlatform.Desktop.Acquisition.Storage;
 
 namespace BrainPlatform.Desktop.Tests.Events;
 
@@ -88,6 +90,94 @@ public sealed class EventServicesTests
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         await new RecordingEventStore(temp.Path).UpsertAsync(imported, CancellationToken.None);
         await Assert.ThrowsAsync<EventValidationException>(() => service.DeleteAsync(imported.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task External_source_adapters_preserve_codes_and_create_read_only_events()
+    {
+        using var temp = new TemporaryDirectory();
+        var definition = Definition("STIM_A", "刺激 A", "#7C3AED", null);
+        var definitionService = new EventDefinitionService(new EventDefinitionStore(Path.Combine(temp.Path, "definitions.json")));
+        await definitionService.SaveAsync(definition, CancellationToken.None);
+        var events = new RecordingEventService("recording-1", new RecordingEventStore(temp.Path), definitionService);
+
+        var trigger = await new DeviceTriggerEventAdapter(events).RecordAsync(
+            new DeviceTriggerEventInput(definition.Id, "TTL_11", 125, SourceDetail: "trigger-channel-28"),
+            CancellationToken.None);
+        var annotation = await new ImportedAnnotationEventAdapter(events).RecordAsync(
+            new ImportedAnnotationEventInput(definition.Id, "EDF:eyes-open", 500, 250, Note: "imported from EDF+"),
+            CancellationToken.None);
+
+        Assert.Equal(EventSource.DeviceTrigger, trigger.Source);
+        Assert.Equal("TTL_11", trigger.ExternalCode);
+        Assert.Equal(EventSource.ImportedAnnotation, annotation.Source);
+        Assert.True(annotation.IsInterval);
+        await Assert.ThrowsAsync<EventValidationException>(() => events.DeleteAsync(annotation.Id, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Recording_events_round_trip_after_restart_and_manual_events_can_be_edited()
+    {
+        using var temp = new TemporaryDirectory();
+        var definitionsPath = Path.Combine(temp.Path, "definitions.json");
+        var definitionService = new EventDefinitionService(new EventDefinitionStore(definitionsPath));
+        var definition = Definition("EO", "睁眼", "#2563EB", null);
+        await definitionService.SaveAsync(definition, CancellationToken.None);
+        var firstService = new RecordingEventService("recording-1", new RecordingEventStore(temp.Path), definitionService);
+        var created = await firstService.CreateAsync(definition.Id, 100, 0, EventSource.ManualButton, "review", null, "initial", CancellationToken.None);
+
+        // Recreate both services to exercise JSON persistence, not an in-memory cache.
+        var restartedDefinitions = new EventDefinitionService(new EventDefinitionStore(definitionsPath));
+        var restarted = new RecordingEventService("recording-1", new RecordingEventStore(temp.Path), restartedDefinitions);
+        var loaded = Assert.Single(await restarted.QueryAsync(new RecordingEventQuery("recording-1"), CancellationToken.None));
+        await restarted.UpdateAsync(loaded with { StartSample = 250, DurationSamples = 75, Note = "reviewed" }, CancellationToken.None);
+
+        var updated = Assert.Single(await restarted.QueryAsync(new RecordingEventQuery("recording-1"), CancellationToken.None));
+        Assert.Equal(created.Id, updated.Id);
+        Assert.Equal(250, updated.StartSample);
+        Assert.Equal(75, updated.DurationSamples);
+        Assert.Equal("reviewed", updated.Note);
+        Assert.Equal(created.DefinitionSnapshot, updated.DefinitionSnapshot);
+    }
+
+    [Fact]
+    public async Task Corrupt_event_file_is_not_overwritten_during_a_failed_load()
+    {
+        using var temp = new TemporaryDirectory();
+        Directory.CreateDirectory(temp.Path);
+        var path = Path.Combine(temp.Path, "events.json");
+        await File.WriteAllTextAsync(path, "{ invalid json", CancellationToken.None);
+        var store = new RecordingEventStore(temp.Path);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => store.LoadAsync(CancellationToken.None));
+        Assert.Equal("{ invalid json", await File.ReadAllTextAsync(path, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Event_write_failure_does_not_prevent_the_independent_raw_writer_from_completing()
+    {
+        using var temp = new TemporaryDirectory();
+        Directory.CreateDirectory(temp.Path);
+        var definitionService = new EventDefinitionService(new EventDefinitionStore(Path.Combine(temp.Path, "definitions.json")));
+        var definition = Definition("EO", "睁眼", "#2563EB", null);
+        await definitionService.SaveAsync(definition, CancellationToken.None);
+        var rawRoot = Path.Combine(temp.Path, "raw");
+        var metadata = new AcquisitionStreamMetadata(
+            "test-device", "test device", 500,
+            [new AcquisitionChannel(0, 0, "F3", AcquisitionChannelKind.Reference, "V"),
+             new AcquisitionChannel(1, 31, "Counter", AcquisitionChannelKind.SampleCounter, "count")],
+            1, DateTimeOffset.UtcNow);
+        await using var writer = await new LocalAcquisitionRawWriterFactory().CreateAsync(
+            Guid.NewGuid(), metadata, new AcquisitionProjectContext("project", "P001", "Test", rawRoot, "{}"), rawRoot, CancellationToken.None);
+        var events = new RecordingEventService("recording-1", new RecordingEventStore(writer.RecordingDirectory), definitionService);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => events.CreateAsync(
+            definition.Id, 0, 0, EventSource.ManualButton, "test", null, null, new CancellationToken(canceled: true)));
+        await writer.AppendBatchAsync(new AcquisitionBatch(0, 2, 2, [1e-6, 0, 2e-6, 1], DateTimeOffset.UtcNow), CancellationToken.None);
+        await writer.CompleteAsync(DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.True(File.Exists(Path.Combine(writer.RecordingDirectory, "samples-000001.bin")));
+        Assert.Contains("completed", await File.ReadAllTextAsync(Path.Combine(writer.RecordingDirectory, "audit.jsonl"), CancellationToken.None));
     }
 
     private static EventDefinition Definition(string code, string name, string color, string? shortcut) => new(

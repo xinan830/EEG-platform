@@ -1,9 +1,17 @@
 <UserControl x:Class="BrainPlatform.Desktop.Views.EventListView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:events="clr-namespace:BrainPlatform.Desktop.Events"
              Background="#F3F5F8">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Style x:Key="SystemProtectedEditorStyle" TargetType="Control">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDraftSystemDefinition}" Value="True">
+                    <Setter Property="IsEnabled" Value="False" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
     <Grid Margin="28,24">
         <Grid.RowDefinitions>
@@ -20,9 +28,15 @@
             <Button DockPanel.Dock="Right" Content="新建事件" Padding="18,8" Click="OnNewClick" />
         </DockPanel>
         <Grid Grid.Row="1" Margin="0,0,0,12">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="132" /><ColumnDefinition Width="112" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <TextBox Text="{Binding EventDefinitions.SearchText, UpdateSourceTrigger=PropertyChanged}" Height="34" Padding="10,7" ToolTip="搜索 Code、名称或说明" />
-            <Button Grid.Column="1" Content="刷新" Margin="10,0,0,0" Padding="14,6" Command="{Binding EventDefinitions.RefreshCommand}" />
+            <ComboBox Grid.Column="1" Height="34" Margin="10,0,0,0"
+                      ItemsSource="{Binding EventDefinitions.SourceFilterOptions}"
+                      SelectedItem="{Binding EventDefinitions.SourceFilter, Mode=TwoWay}" ToolTip="按来源筛选" />
+            <ComboBox Grid.Column="2" Height="34" Margin="10,0,0,0"
+                      ItemsSource="{Binding EventDefinitions.StatusFilterOptions}"
+                      SelectedItem="{Binding EventDefinitions.StatusFilter, Mode=TwoWay}" ToolTip="按启用状态筛选" />
+            <Button Grid.Column="3" Content="刷新" Margin="10,0,0,0" Padding="14,6" Command="{Binding EventDefinitions.RefreshCommand}" />
         </Grid>
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -30,17 +44,35 @@
                 <ListBox ItemsSource="{Binding EventDefinitions.FilteredDefinitions}" SelectedItem="{Binding EventDefinitions.SelectedDefinition, Mode=TwoWay}">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,7">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <Ellipse Width="14" Height="14" Fill="{Binding Color}" VerticalAlignment="Center" />
+                            <Grid Margin="0,7,0,9">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Ellipse Width="14" Height="14" Fill="{Binding Color}" VerticalAlignment="Top" Margin="0,3,0,0" />
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#0F172A" />
-                                    <TextBlock Text="{Binding Code}" Foreground="#64748B" FontSize="11" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="#0F172A" />
+                                        <TextBlock Text="{Binding Code}" Foreground="#64748B" FontSize="11" Margin="8,2,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <TextBlock Text="用户创建" Foreground="#2563EB" FontSize="11">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock"><Setter Property="Text" Value="用户创建" /><Style.Triggers><DataTrigger Binding="{Binding IsSystem}" Value="True"><Setter Property="Text" Value="系统预设" /></DataTrigger></Style.Triggers></Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="已启用" Foreground="#16A34A" FontSize="11" Margin="10,0,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock"><Setter Property="Text" Value="已启用" /><Setter Property="Foreground" Value="#16A34A" /><Style.Triggers><DataTrigger Binding="{Binding IsEnabled}" Value="False"><Setter Property="Text" Value="已停用" /><Setter Property="Foreground" Value="#94A3B8" /></DataTrigger></Style.Triggers></Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding Shortcut, TargetNullValue=未绑定快捷键}" Foreground="#64748B" FontSize="11" Margin="10,0,0,0" />
+                                    </StackPanel>
                                 </StackPanel>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Shortcut, TargetNullValue=未绑定}" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                                     <Button Content="编辑" Padding="7,3" Click="OnEditClick" />
-                                    <Button Content="删除" Padding="7,3" Margin="5,0,0,0" Click="OnDeleteClick" />
+                                    <Button Content="删除" Padding="7,3" Margin="5,0,0,0" Click="OnDeleteClick">
+                                        <Button.Style>
+                                            <Style TargetType="Button"><Style.Triggers><DataTrigger Binding="{Binding IsSystem}" Value="True"><Setter Property="IsEnabled" Value="False" /><Setter Property="ToolTip" Value="系统预设不可删除" /></DataTrigger></Style.Triggers></Style>
+                                        </Button.Style>
+                                    </Button>
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -50,12 +82,25 @@
             <Border Grid.Column="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" Padding="20" Visibility="{Binding EventDefinitions.IsEditing, Converter={StaticResource BooleanToVisibilityConverter}, FallbackValue=Collapsed}">
                 <StackPanel DataContext="{Binding EventDefinitions}">
                     <TextBlock Text="事件定义" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,16" />
-                    <TextBlock Text="Code" Foreground="#64748B" /><TextBox Text="{Binding DraftCode, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
+                    <TextBlock Text="来源" Foreground="#64748B" />
+                    <TextBlock Text="{Binding DraftSourceText}" Foreground="#334155" Margin="0,4,0,10" />
+                    <TextBlock Text="Code" Foreground="#64748B" /><TextBox Style="{StaticResource SystemProtectedEditorStyle}" Text="{Binding DraftCode, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
                     <TextBlock Text="名称" Foreground="#64748B" /><TextBox Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
                     <TextBlock Text="说明" Foreground="#64748B" /><TextBox Text="{Binding DraftDescription, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
-                    <TextBlock Text="颜色（#RRGGBB）" Foreground="#64748B" /><TextBox Text="{Binding DraftColor, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
-                    <TextBlock Text="快捷键" Foreground="#64748B" /><TextBox Text="{Binding DraftShortcut, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
+                    <TextBlock Text="颜色" Foreground="#64748B" />
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,6">
+                        <Button Tag="#2563EB" Click="OnColorClick" Width="24" Height="24" Background="#2563EB" BorderBrush="#FFFFFF" BorderThickness="2" ToolTip="蓝色" />
+                        <Button Tag="#16A34A" Click="OnColorClick" Width="24" Height="24" Margin="6,0,0,0" Background="#16A34A" BorderBrush="#FFFFFF" BorderThickness="2" ToolTip="绿色" />
+                        <Button Tag="#EA580C" Click="OnColorClick" Width="24" Height="24" Margin="6,0,0,0" Background="#EA580C" BorderBrush="#FFFFFF" BorderThickness="2" ToolTip="橙色" />
+                        <Button Tag="#DC2626" Click="OnColorClick" Width="24" Height="24" Margin="6,0,0,0" Background="#DC2626" BorderBrush="#FFFFFF" BorderThickness="2" ToolTip="红色" />
+                        <Button Tag="#7C3AED" Click="OnColorClick" Width="24" Height="24" Margin="6,0,0,0" Background="#7C3AED" BorderBrush="#FFFFFF" BorderThickness="2" ToolTip="紫色" />
+                    </StackPanel>
+                    <TextBox Text="{Binding DraftColor, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10" ToolTip="可输入 #RRGGBB 自定义颜色" />
+                    <TextBlock Text="快捷键" Foreground="#64748B" /><TextBox Style="{StaticResource SystemProtectedEditorStyle}" Text="{Binding DraftShortcut, UpdateSourceTrigger=PropertyChanged}" PreviewKeyDown="OnShortcutPreviewKeyDown" Margin="0,4,0,10" ToolTip="在输入框中直接按下快捷键；留空表示不绑定" />
+                    <TextBlock Text="快捷键作用域" Foreground="#64748B" />
+                    <ComboBox Style="{StaticResource SystemProtectedEditorStyle}" ItemsSource="{Binding ShortcutScopes}" SelectedItem="{Binding DraftShortcutScope, Mode=TwoWay}" Margin="0,4,0,10" />
                     <CheckBox Content="启用" IsChecked="{Binding DraftIsEnabled}" Margin="0,0,0,16" />
+                    <TextBlock Text="{Binding SelectedDeleteRestrictionText}" Foreground="#D97706" TextWrapping="Wrap" Margin="0,0,0,12" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="取消" Padding="14,7" Margin="0,0,8,0" Command="{Binding CancelCommand}" />
                         <Button Content="保存" Padding="14,7" Command="{Binding SaveCommand}" />

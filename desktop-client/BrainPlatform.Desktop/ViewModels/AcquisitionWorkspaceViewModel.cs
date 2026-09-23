@@ -85,7 +85,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             () => this.runtime.GetDisplaySnapshot(),
             this.dispatcher,
             () => this.runtime.GetDisplayFilterBoundaries(),
-            () => this.runtime.RecordingFirstSampleCounter);
+            () => this.runtime.RecordingFirstSampleCounter,
+            () => LiveRecordingEvents.ToArray());
         DisplayPreferences = new LiveDisplayPreferencesViewModel(
             this.runtime,
             LiveMonitor,
@@ -160,6 +161,13 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     public ObservableCollection<AcquisitionChannelRow> Channels { get; } = [];
 
     public ObservableCollection<EventDefinition> EnabledEventDefinitions { get; } = [];
+
+    /// <summary>
+    /// Events already durably written for the active recording. The live canvas
+    /// reads this in-memory projection; it never polls the event file on a
+    /// render tick.
+    /// </summary>
+    public ObservableCollection<RecordingEvent> LiveRecordingEvents { get; } = [];
 
     public RecordingHistoryViewModel RecordingHistory => recordingHistory;
 
@@ -469,14 +477,23 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             ?? throw new InvalidOperationException("当前没有活动 Recording。");
         var latestSample = runtime.LatestSampleCounter
             ?? throw new InvalidOperationException("当前还没有可用的采样坐标。");
+        var recordingFirstSample = runtime.RecordingFirstSampleCounter
+            ?? throw new InvalidOperationException("当前 Recording 尚未建立首采样坐标。");
+        var relativeSample = checked(latestSample - recordingFirstSample);
+        if (relativeSample < 0)
+        {
+            throw new InvalidOperationException("设备采样计数器已重置，无法为当前 Recording 生成可追溯事件坐标。");
+        }
         var directory = runtime.RecordingDirectory
             ?? throw new InvalidOperationException("当前 Recording 目录不可用。");
         var service = new RecordingEventService(
             recordingId,
             new RecordingEventStore(directory),
             eventDefinitionService);
-        return await service.CreateAsync(
-            definitionId, latestSample, 0, source, sourceDetail, null, null, cancellationToken);
+        var item = await service.CreateAsync(
+            definitionId, relativeSample, 0, source, sourceDetail, null, null, cancellationToken);
+        LiveRecordingEvents.Add(item);
+        return item;
     }
 
     public async Task RefreshEventDefinitionsAsync()
@@ -693,6 +710,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     {
         var project = SelectedProject ?? throw new InvalidOperationException("当前预览没有关联项目。");
         await runtime.StartRecordingAsync(CancellationToken.None);
+        LiveRecordingEvents.Clear();
         ApplyStreamMetadata();
         LiveMonitor.Refresh();
         AcquisitionStatusText = runtime.State.Detail;

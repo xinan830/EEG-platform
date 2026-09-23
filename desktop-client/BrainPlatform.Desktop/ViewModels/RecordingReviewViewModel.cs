@@ -17,6 +17,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     private readonly string recordingName;
     private readonly DateTimeOffset recordingStartUtc;
     private readonly RecordingEventStore? eventStore;
+    private readonly string recordingId;
+    private readonly OperationNotificationCenter? notifications;
     private Task? prefetchTask;
     private Task? playbackLoadTask;
     private readonly LatestThrottledTask viewportLoader = new(TimeSpan.FromMilliseconds(50));
@@ -39,11 +41,13 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         IRecordingReviewFilter? filter = null,
         Func<double>? playbackClockSeconds = null,
         string? recordingDirectory = null,
-        EventDefinitionService? eventDefinitionService = null)
+        EventDefinitionService? eventDefinitionService = null,
+        OperationNotificationCenter? notifications = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(catalog);
         this.catalog = catalog;
+        recordingId = reader.Manifest.SessionId.ToString("N");
         session = new RecordingReviewSession(reader, catalog, visibleDurationSeconds, filter);
         playback = new RecordingPlaybackController(reader.DurationSeconds, playbackClockSeconds);
         samplingRateHz = reader.Manifest.SamplingRateHz;
@@ -58,6 +62,12 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
             : recordingName;
         eventStore = recordingDirectory is null ? null : new RecordingEventStore(recordingDirectory);
         EventDefinitionService = eventDefinitionService;
+        this.notifications = notifications;
+        MarkSelectedEventCommand = new AsyncRelayCommand(MarkSelectedEventAsync, ReportCommandError);
+        DeleteSelectedEventCommand = new AsyncRelayCommand(DeleteSelectedEventWithNotificationAsync, ReportCommandError);
+        SaveEditedEventCommand = new AsyncRelayCommand(SaveEditedEventAsync, ReportCommandError);
+        OpenEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = true, () => CanEditSelectedEvent);
+        CloseEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = false);
         displaySettings.PropertyChanged += OnDisplaySettingsChanged;
         session.Changed += OnSessionChanged;
         foreach (var item in catalog.CompatibleViewingMontages)
@@ -69,15 +79,52 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     public ObservableCollection<MontageProfile> CompatibleViewingMontages { get; } = [];
 
     public ObservableCollection<RecordingEvent> RecordingEvents { get; } = [];
+    public ObservableCollection<EventDefinition> EnabledEventDefinitions { get; } = [];
+
+    private string? selectedEventDefinitionId;
+    private string editEventNote = string.Empty;
+    private double editEventStartSeconds;
+    private double editEventDurationSeconds;
+    private bool isEventEditorOpen;
+    public string? SelectedEventDefinitionId
+    {
+        get => selectedEventDefinitionId;
+        set => SetProperty(ref selectedEventDefinitionId, value);
+    }
+
+    public string EditEventNote { get => editEventNote; set => SetProperty(ref editEventNote, value); }
+    public double EditEventStartSeconds { get => editEventStartSeconds; set => SetProperty(ref editEventStartSeconds, value); }
+    public double EditEventDurationSeconds { get => editEventDurationSeconds; set => SetProperty(ref editEventDurationSeconds, value); }
+    public bool IsEventEditorOpen { get => isEventEditorOpen; set => SetProperty(ref isEventEditorOpen, value); }
 
     private RecordingEvent? selectedRecordingEvent;
     public RecordingEvent? SelectedRecordingEvent
     {
         get => selectedRecordingEvent;
-        set => SetProperty(ref selectedRecordingEvent, value);
+        set
+        {
+            if (SetProperty(ref selectedRecordingEvent, value))
+            {
+                RaisePropertyChanged(nameof(CanEditSelectedEvent));
+                (OpenEventEditorCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                LoadSelectedEventEditor(value);
+            }
+        }
     }
 
     public EventDefinitionService? EventDefinitionService { get; }
+
+    public System.Windows.Input.ICommand MarkSelectedEventCommand { get; }
+
+    public System.Windows.Input.ICommand DeleteSelectedEventCommand { get; }
+
+    public System.Windows.Input.ICommand SaveEditedEventCommand { get; }
+
+    public System.Windows.Input.ICommand OpenEventEditorCommand { get; }
+
+    public System.Windows.Input.ICommand CloseEventEditorCommand { get; }
+
+    public bool CanEditSelectedEvent => SelectedRecordingEvent is { Source: EventSource.ManualButton or EventSource.KeyboardShortcut };
 
     public WaveformDisplaySettings DisplaySettings => displaySettings;
 
@@ -233,6 +280,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     {
         await session.InitializeAsync();
         await LoadEventsAsync();
+        await LoadEnabledDefinitionsAsync();
         UpdateViewportStart(session.ViewportStartSeconds);
     }
 
@@ -243,7 +291,95 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         RecordingEvents.Clear();
         foreach (var item in events.OrderBy(item => item.StartSample)) RecordingEvents.Add(item);
         RaisePropertyChanged(nameof(RecordingEvents));
+        RaisePropertyChanged(nameof(CanEditSelectedEvent));
     }
+
+    public async Task CreateManualEventAsync(string definitionId, string? note = null)
+    {
+        if (eventStore is null || EventDefinitionService is null)
+            throw new InvalidOperationException("当前回溯记录不支持事件编辑。");
+        var service = new RecordingEventService(recordingId, eventStore, EventDefinitionService);
+        await service.CreateAsync(
+            definitionId,
+            (long)Math.Round(PositionSeconds * samplingRateHz, MidpointRounding.AwayFromZero),
+            0,
+            EventSource.ManualButton,
+            "review-toolbar",
+            null,
+            note,
+            CancellationToken.None);
+        await LoadEventsAsync();
+    }
+
+    public async Task DeleteSelectedEventAsync()
+    {
+        if (eventStore is null || EventDefinitionService is null || SelectedRecordingEvent is not { } item)
+            return;
+        var service = new RecordingEventService(recordingId, eventStore, EventDefinitionService);
+        await service.DeleteAsync(item.Id, CancellationToken.None);
+        SelectedRecordingEvent = null;
+        await LoadEventsAsync();
+    }
+
+    private async Task LoadEnabledDefinitionsAsync()
+    {
+        EnabledEventDefinitions.Clear();
+        if (EventDefinitionService is null) return;
+        foreach (var definition in (await EventDefinitionService.ListAsync(CancellationToken.None)).Where(item => item.IsEnabled))
+            EnabledEventDefinitions.Add(definition);
+        SelectedEventDefinitionId ??= EnabledEventDefinitions.FirstOrDefault()?.Id;
+    }
+
+    private async Task MarkSelectedEventAsync()
+    {
+        if (string.IsNullOrWhiteSpace(SelectedEventDefinitionId))
+            throw new InvalidOperationException("请先选择一个事件定义。");
+
+        await CreateManualEventAsync(SelectedEventDefinitionId);
+        notifications?.PublishSuccess("事件已标记。");
+    }
+
+    private async Task DeleteSelectedEventWithNotificationAsync()
+    {
+        if (!CanEditSelectedEvent)
+            throw new InvalidOperationException("只能删除人工创建的事件标记。");
+
+        await DeleteSelectedEventAsync();
+        notifications?.PublishSuccess("事件已删除。");
+    }
+
+    private async Task SaveEditedEventAsync()
+    {
+        if (eventStore is null || EventDefinitionService is null || SelectedRecordingEvent is not { } item || !CanEditSelectedEvent)
+            throw new InvalidOperationException("当前事件不可编辑。");
+        if (!double.IsFinite(EditEventStartSeconds) || EditEventStartSeconds < 0 || EditEventStartSeconds > DurationSeconds)
+            throw new EventValidationException("event_start_invalid", "事件起始时间超出当前 Recording 范围。");
+        if (!double.IsFinite(EditEventDurationSeconds) || EditEventDurationSeconds < 0 || EditEventStartSeconds + EditEventDurationSeconds > DurationSeconds + 1d / samplingRateHz)
+            throw new EventValidationException("event_duration_invalid", "事件持续时间超出当前 Recording 范围。");
+
+        var startSample = checked((long)Math.Round(EditEventStartSeconds * samplingRateHz, MidpointRounding.AwayFromZero));
+        var durationSamples = checked((long)Math.Round(EditEventDurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero));
+        var service = new RecordingEventService(recordingId, eventStore, EventDefinitionService);
+        await service.UpdateAsync(item with
+        {
+            StartSample = startSample,
+            DurationSamples = durationSamples,
+            Note = string.IsNullOrWhiteSpace(EditEventNote) ? null : EditEventNote.Trim(),
+        }, CancellationToken.None);
+        await LoadEventsAsync();
+        SelectedRecordingEvent = RecordingEvents.FirstOrDefault(value => value.Id == item.Id);
+        IsEventEditorOpen = false;
+        notifications?.PublishSuccess("事件已更新。");
+    }
+
+    private void LoadSelectedEventEditor(RecordingEvent? item)
+    {
+        EditEventStartSeconds = item is null ? 0 : item.StartSample / (double)samplingRateHz;
+        EditEventDurationSeconds = item is { IsInterval: true } ? item.DurationSamples / (double)samplingRateHz : 0;
+        EditEventNote = item?.Note ?? string.Empty;
+    }
+
+    private void ReportCommandError(Exception exception) => notifications?.PublishError(exception.Message);
 
     public Task SeekToEventAsync(RecordingEvent item)
     {

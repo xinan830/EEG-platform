@@ -15,16 +15,16 @@
 ## 3. Settings UI
 
 - [x] 3.1 Register 事件设置 in the settings list and navigation.
-- [ ] 3.2 Add event definition list view with search, enabled state, source, color, shortcut, and actions.
-- [ ] 3.3 Add new/edit event view with Code, name, description, color picker, shortcut capture, and validation messages.
-- [ ] 3.4 Add system-event and referenced-event deletion restrictions.
+- [x] 3.2 Add event definition list view with search, enabled state, source, color, shortcut, and actions.
+- [x] 3.3 Add new/edit event view with Code, name, description, color picker, shortcut capture, and validation messages.
+- [x] 3.4 Add system-event and referenced-event deletion restrictions.
 
 ## 4. Acquisition integration
 
 - [x] 4.1 Expose enabled event definitions and event commands from the acquisition workspace ViewModel.
 - [x] 4.2 Add the shared event toolbar and shortcut handling without blocking the device read loop or raw writer.
 - [x] 4.3 Capture the current sample coordinate before scheduling asynchronous persistence; persist manual button/shortcut events without reading a later “current sample” from the background task.
-- [ ] 4.4 Add acquisition waveform marker rendering with point and interval states.
+- [x] 4.4 Add acquisition waveform marker rendering with point and interval states.
 - [ ] 4.5 Add integration tests proving an event-write failure does not stop raw acquisition.
 
 ## 5. Review integration
@@ -32,12 +32,12 @@
 - [x] 5.1 Load RecordingEvents alongside the existing review session without reading the complete raw recording.
 - [x] 5.2 Add shared event timeline overlay and event list.
 - [x] 5.3 Add seek-to-event while preserving the current montage, filter, cache, and playback contracts.
-- [ ] 5.4 Add allowed manual create/edit/delete behavior and read-only external/system behavior.
+- [x] 5.4 Add allowed manual create/edit/delete behavior and read-only external/system behavior.
 
 ## 6. External sources and documentation
 
-- [ ] 6.1 Define adapters for device Trigger and imported Annotation without changing raw channel semantics.
+- [x] 6.1 Define adapters for device Trigger and imported Annotation without changing raw channel semantics.
 - [x] 6.2 Document event data ownership, time units, source meanings, and historical snapshots (`DefinitionCodeSnapshot`, `DefinitionNameSnapshot`, `ColorSnapshot`, definition version).
 - [x] 6.3 Add regression tests proving a disabled or deletion-restricted definition does not prevent existing RecordingEvents from loading or displaying.
-- [ ] 6.4 Run desktop tests, `openspec validate add-event-annotation-system --strict --no-interactive`, and `git diff --check`.
+- [x] 6.4 Run desktop tests, `openspec validate add-event-annotation-system --strict --no-interactive`, and `git diff --check`.
 - [ ] 6.5 Produce a validation report before archive; archive only after every task and post-archive strict validation pass.

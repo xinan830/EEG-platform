@@ -51,6 +51,8 @@ public sealed class LiveSciChartCanvas : UserControl
         IsHidden = true,
     };
     private readonly Grid channelLabels = new();
+    private readonly Grid chartHost = new();
+    private readonly Canvas eventMarkers = new() { IsHitTestVisible = false };
     private readonly TextBlock emptyMessage = new()
     {
         Text = "等待设备连接并开始记录",
@@ -66,6 +68,7 @@ public sealed class LiveSciChartCanvas : UserControl
     private string[] activeLabels = [];
     private WaveformRenderRevision? lastRequestedRevision;
     private long renderSequence;
+    private WaveformDisplayFrame? currentFrame;
     private double activeDisplayWindowSeconds;
     private int activeTraceCount;
     private Thickness? lastLabelPlotMargin;
@@ -118,11 +121,12 @@ public sealed class LiveSciChartCanvas : UserControl
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         Grid.SetColumn(channelLabels, 0);
-        Grid.SetColumn(surface, 1);
-        Grid.SetColumn(emptyMessage, 1);
+        chartHost.Children.Add(surface);
+        chartHost.Children.Add(emptyMessage);
+        chartHost.Children.Add(eventMarkers);
+        Grid.SetColumn(chartHost, 1);
         layout.Children.Add(channelLabels);
-        layout.Children.Add(surface);
-        layout.Children.Add(emptyMessage);
+        layout.Children.Add(chartHost);
         return layout;
     }
 
@@ -225,6 +229,7 @@ public sealed class LiveSciChartCanvas : UserControl
             plotHeight);
         if (revision == lastRequestedRevision)
         {
+            UpdateEventMarkers(currentFrame, monitor);
             return;
         }
 
@@ -249,10 +254,12 @@ public sealed class LiveSciChartCanvas : UserControl
 
         if (result.Frame is not { } frame)
         {
+            currentFrame = null;
             ShowEmptyState(DataContext as LiveMonitoringViewModel);
             return;
         }
 
+        currentFrame = frame;
         emptyMessage.Text = "等待设备连接并开始采集";
         emptyMessage.Visibility = frame.Traces.All(trace => trace.Points.Count == 0)
             ? Visibility.Visible
@@ -291,6 +298,7 @@ public sealed class LiveSciChartCanvas : UserControl
                 UpdateSeries(traceSeries[index], frame, frame.Traces[index], index, displayScale);
             }
         }
+        UpdateEventMarkers(frame, DataContext as LiveMonitoringViewModel);
     }
 
     private void ShowEmptyState(LiveMonitoringViewModel? monitor)
@@ -299,6 +307,8 @@ public sealed class LiveSciChartCanvas : UserControl
         emptyMessage.Visibility = Visibility.Visible;
         eraseBand.IsHidden = true;
         eraseWrapBand.IsHidden = true;
+        eventMarkers.Children.Clear();
+        currentFrame = null;
         activeDisplayWindowSeconds = 0;
         activeTraceCount = 0;
         eraseBandAnimator.Reset();
@@ -376,6 +386,67 @@ public sealed class LiveSciChartCanvas : UserControl
         annotation.Y1 = 0d;
         annotation.Y2 = (double)traceCount;
         annotation.IsHidden = false;
+    }
+
+    private void UpdateEventMarkers(WaveformDisplayFrame? frame, LiveMonitoringViewModel? monitor)
+    {
+        eventMarkers.Children.Clear();
+        if (frame is null || monitor is null || eventMarkers.ActualWidth <= 0 || eventMarkers.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        var pageStart = frame.WindowStartSampleCounter;
+        var pageEndExclusive = checked(pageStart + frame.WindowSampleCount);
+        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
+        if (plotArea.Width <= 0 || plotArea.Height <= 0)
+        {
+            return;
+        }
+
+        foreach (var item in monitor.LiveRecordingEvents)
+        {
+            var start = monitor.ToDisplayCounterFromRecordingSample(item.StartSample);
+            if (start is null)
+            {
+                continue;
+            }
+
+            var end = item.IsInterval
+                ? monitor.ToDisplayCounterFromRecordingSample(item.EndSampleExclusive)
+                : start;
+            if (start.Value < pageStart || start.Value >= pageEndExclusive || end is null)
+            {
+                continue;
+            }
+
+            var leftFraction = (start.Value - pageStart) / (double)frame.WindowSampleCount;
+            var rightFraction = item.IsInterval
+                ? Math.Clamp((end.Value - pageStart) / (double)frame.WindowSampleCount, leftFraction, 1d)
+                : leftFraction;
+            var color = ParseColor(item.DefinitionSnapshot.Color);
+            var marker = new Border
+            {
+                Width = item.IsInterval
+                    ? Math.Max(2d, (rightFraction - leftFraction) * plotArea.Width)
+                    : 2d,
+                Height = plotArea.Height,
+                Background = item.IsInterval
+                    ? new SolidColorBrush(Color.FromArgb(32, color.R, color.G, color.B))
+                    : new SolidColorBrush(color),
+                BorderBrush = item.IsInterval ? new SolidColorBrush(Color.FromArgb(150, color.R, color.G, color.B)) : null,
+                BorderThickness = item.IsInterval ? new Thickness(1, 0, 1, 0) : new Thickness(0),
+            };
+            Canvas.SetLeft(marker, plotArea.Left + leftFraction * plotArea.Width);
+            Canvas.SetTop(marker, plotArea.Top);
+            eventMarkers.Children.Add(marker);
+        }
+    }
+
+    private static Color ParseColor(string value)
+    {
+        try { return (Color)ColorConverter.ConvertFromString(value); }
+        catch { return Color.FromRgb(37, 99, 235); }
     }
 
     private void EnsureTraceSeries(IReadOnlyList<WaveformDisplayTrace> traces)

@@ -10,6 +10,8 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
     private readonly OperationNotificationCenter notifications;
     private readonly Func<string, CancellationToken, Task<bool>> referenceChecker;
     private string searchText = string.Empty;
+    private string sourceFilter = "全部来源";
+    private string statusFilter = "全部状态";
     private EventDefinition? selectedDefinition;
     private EventDefinition? draft;
     private bool isEditing;
@@ -18,7 +20,9 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
     private string draftDescription = string.Empty;
     private string draftColor = "#2563EB";
     private string draftShortcut = string.Empty;
+    private ShortcutScope draftShortcutScope;
     private bool draftIsEnabled;
+    private bool selectedDefinitionHasHistory;
 
     public EventDefinitionWorkspaceViewModel(
         EventDefinitionService? service = null,
@@ -27,7 +31,10 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
     {
         this.service = service ?? new EventDefinitionService(new EventDefinitionStore());
         this.notifications = notifications ?? new OperationNotificationCenter();
-        this.referenceChecker = referenceChecker ?? ((_, _) => Task.FromResult(true));
+        // The workspace has no project-wide recording index yet. Callers that
+        // own that index inject a real checker; the local settings page treats
+        // definitions as unreferenced until such an index is available.
+        this.referenceChecker = referenceChecker ?? ((_, _) => Task.FromResult(false));
         SaveCommand = new AsyncRelayCommand(SaveDraftAsync, ReportError);
         CancelCommand = new RelayCommand(CancelDraft);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, ReportError);
@@ -37,6 +44,16 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
     public ObservableCollection<EventDefinition> Definitions { get; } = [];
 
     public ObservableCollection<EventDefinition> FilteredDefinitions { get; } = [];
+
+    public IReadOnlyList<string> SourceFilterOptions { get; } = ["全部来源", "系统预设", "用户创建"];
+
+    public IReadOnlyList<string> StatusFilterOptions { get; } = ["全部状态", "已启用", "已停用"];
+
+    public IReadOnlyList<ShortcutScope> ShortcutScopes { get; } = [
+        ShortcutScope.Acquisition,
+        ShortcutScope.Review,
+        ShortcutScope.Global,
+    ];
 
     public ICommand SaveCommand { get; }
     public ICommand CancelCommand { get; }
@@ -52,10 +69,34 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         }
     }
 
+    public string SourceFilter
+    {
+        get => sourceFilter;
+        set
+        {
+            if (SetProperty(ref sourceFilter, value)) ApplyFilter();
+        }
+    }
+
+    public string StatusFilter
+    {
+        get => statusFilter;
+        set
+        {
+            if (SetProperty(ref statusFilter, value)) ApplyFilter();
+        }
+    }
+
     public EventDefinition? SelectedDefinition
     {
         get => selectedDefinition;
-        set => SetProperty(ref selectedDefinition, value);
+        set
+        {
+            if (!SetProperty(ref selectedDefinition, value)) return;
+            RaisePropertyChanged(nameof(CanDeleteSelected));
+            RaisePropertyChanged(nameof(SelectedDeleteRestrictionText));
+            _ = RefreshSelectedDeleteRestrictionAsync(value);
+        }
     }
 
     public EventDefinition? Draft
@@ -70,13 +111,26 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         private set => SetProperty(ref isEditing, value);
     }
 
-    public bool CanDeleteSelected => SelectedDefinition is { IsSystem: false };
+    public bool CanDeleteSelected => SelectedDefinition is { IsSystem: false } && !selectedDefinitionHasHistory;
+
+    public string SelectedDeleteRestrictionText => SelectedDefinition switch
+    {
+        null => string.Empty,
+        { IsSystem: true } => "系统预设不可删除。",
+        _ when selectedDefinitionHasHistory => "该事件已被历史记录引用，只能停用，不能删除。",
+        _ => string.Empty,
+    };
+
+    public bool IsDraftSystemDefinition => Draft?.IsSystem == true;
+
+    public string DraftSourceText => IsDraftSystemDefinition ? "系统预设" : "用户创建";
 
     public string DraftCode { get => draftCode; set => SetProperty(ref draftCode, value); }
     public string DraftName { get => draftName; set => SetProperty(ref draftName, value); }
     public string DraftDescription { get => draftDescription; set => SetProperty(ref draftDescription, value); }
     public string DraftColor { get => draftColor; set => SetProperty(ref draftColor, value); }
     public string DraftShortcut { get => draftShortcut; set => SetProperty(ref draftShortcut, value); }
+    public ShortcutScope DraftShortcutScope { get => draftShortcutScope; set => SetProperty(ref draftShortcutScope, value); }
     public bool DraftIsEnabled { get => draftIsEnabled; set => SetProperty(ref draftIsEnabled, value); }
 
     public async Task RefreshAsync()
@@ -88,7 +142,7 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         ApplyFilter();
         if (SelectedDefinition is { } selected)
             SelectedDefinition = Definitions.FirstOrDefault(item => item.Id == selected.Id);
-        RaisePropertyChanged(nameof(CanDeleteSelected));
+        await RefreshSelectedDeleteRestrictionAsync(SelectedDefinition);
     }
 
     public void BeginNew()
@@ -128,6 +182,7 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
             Description = DraftDescription.Trim(),
             Color = DraftColor.Trim(),
             Shortcut = string.IsNullOrWhiteSpace(DraftShortcut) ? null : DraftShortcut.Trim(),
+            ShortcutScope = DraftShortcutScope,
             IsEnabled = DraftIsEnabled,
         };
         if (existing?.IsSystem == true &&
@@ -144,6 +199,7 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         await service.SaveAsync(next, CancellationToken.None);
         Draft = null;
         IsEditing = false;
+        RaiseDraftPropertiesChanged();
         await RefreshAsync();
         SelectedDefinition = Definitions.FirstOrDefault(item => item.Id == next.Id);
         notifications.PublishSuccess("事件定义已保存。");
@@ -153,6 +209,7 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
     {
         Draft = null;
         IsEditing = false;
+        RaiseDraftPropertiesChanged();
     }
 
     private void LoadDraftFields(EventDefinition value)
@@ -162,7 +219,9 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         DraftDescription = value.Description;
         DraftColor = value.Color;
         DraftShortcut = value.Shortcut ?? string.Empty;
+        DraftShortcutScope = value.ShortcutScope;
         DraftIsEnabled = value.IsEnabled;
+        RaiseDraftPropertiesChanged();
     }
 
     public async Task DeleteSelectedAsync()
@@ -178,14 +237,58 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
     private void ApplyFilter()
     {
         var query = SearchText.Trim();
-        var values = string.IsNullOrEmpty(query)
+        IEnumerable<EventDefinition> values = string.IsNullOrEmpty(query)
             ? Definitions
             : Definitions.Where(item => item.Code.Contains(query, StringComparison.CurrentCultureIgnoreCase) ||
                                         item.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase) ||
                                         item.Description.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+        values = SourceFilter switch
+        {
+            "系统预设" => values.Where(item => item.IsSystem),
+            "用户创建" => values.Where(item => !item.IsSystem),
+            _ => values,
+        };
+        values = StatusFilter switch
+        {
+            "已启用" => values.Where(item => item.IsEnabled),
+            "已停用" => values.Where(item => !item.IsEnabled),
+            _ => values,
+        };
         FilteredDefinitions.Clear();
         foreach (var value in values) FilteredDefinitions.Add(value);
         RaisePropertyChanged(nameof(CanDeleteSelected));
+    }
+
+    public void SetDraftColor(string color)
+    {
+        if (!string.IsNullOrWhiteSpace(color)) DraftColor = color.Trim();
+    }
+
+    private async Task RefreshSelectedDeleteRestrictionAsync(EventDefinition? definition)
+    {
+        selectedDefinitionHasHistory = false;
+        RaisePropertyChanged(nameof(CanDeleteSelected));
+        RaisePropertyChanged(nameof(SelectedDeleteRestrictionText));
+        if (definition is null || definition.IsSystem) return;
+
+        try
+        {
+            var isReferenced = await referenceChecker(definition.Id, CancellationToken.None);
+            if (SelectedDefinition?.Id != definition.Id) return;
+            selectedDefinitionHasHistory = isReferenced;
+            RaisePropertyChanged(nameof(CanDeleteSelected));
+            RaisePropertyChanged(nameof(SelectedDeleteRestrictionText));
+        }
+        catch (Exception exception)
+        {
+            notifications.PublishError($"无法检查事件历史引用：{exception.Message}");
+        }
+    }
+
+    private void RaiseDraftPropertiesChanged()
+    {
+        RaisePropertyChanged(nameof(IsDraftSystemDefinition));
+        RaisePropertyChanged(nameof(DraftSourceText));
     }
 
     private void ReportError(Exception exception) => notifications.PublishError(exception.Message);

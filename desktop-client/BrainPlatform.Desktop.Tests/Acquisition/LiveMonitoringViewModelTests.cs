@@ -26,6 +26,17 @@ public sealed class LiveMonitoringViewModelTests
     }
 
     [Fact]
+    public void RecordingRelativeEventCoordinate_MapsBackToTheNonZeroDeviceCounter()
+    {
+        using var monitor = CreateMonitor(
+            () => Snapshot(AcquisitionState.Recording),
+            () => Metadata(),
+            recordingFirstSampleCounterProvider: () => 12_000);
+
+        Assert.Equal(12_345, monitor.ToDisplayCounterFromRecordingSample(345));
+    }
+
+    [Fact]
     public void DisplayOptions_UsePhysicalPaperSpeedAndRejectUnsupportedValues()
     {
         using var monitor = CreateMonitor(
@@ -288,8 +299,14 @@ public sealed class LiveMonitoringViewModelTests
     private static LiveMonitoringViewModel CreateMonitor(
         Func<AcquisitionStateSnapshot> stateProvider,
         Func<AcquisitionStreamMetadata?> metadataProvider,
-        Func<IReadOnlyList<AcquisitionBatch>>? batchesProvider = null) =>
-        new(stateProvider, metadataProvider, batchesProvider ?? (() => []), Dispatcher.CurrentDispatcher);
+        Func<IReadOnlyList<AcquisitionBatch>>? batchesProvider = null,
+        Func<long?>? recordingFirstSampleCounterProvider = null) =>
+        new(
+            stateProvider,
+            metadataProvider,
+            batchesProvider ?? (() => []),
+            Dispatcher.CurrentDispatcher,
+            recordingFirstSampleCounterProvider: recordingFirstSampleCounterProvider);
 
     private static AcquisitionStateSnapshot Snapshot(AcquisitionState state) =>
         new(state, "test", Guid.NewGuid(), DateTimeOffset.UtcNow);
