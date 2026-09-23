@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Net.Http;
 using BrainPlatform.Desktop.Views;
+using EventListView = BrainPlatform.Desktop.Modules.Events.Views.EventListView;
 
 namespace BrainPlatform.Desktop;
 
