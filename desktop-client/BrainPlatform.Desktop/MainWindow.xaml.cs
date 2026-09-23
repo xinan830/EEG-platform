@@ -5,6 +5,7 @@ using BrainPlatform.Desktop.Views;
 using BrainPlatform.Desktop.Modules.Acquisition.Views;
 using BrainPlatform.Desktop.Modules.Settings.Views;
 using BrainPlatform.Desktop.Modules.Channels.Views;
+using BrainPlatform.Desktop.Modules.Montages.Views;
 using EventListView = BrainPlatform.Desktop.Modules.Events.Views.EventListView;
 using RecordingReviewView = BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView;
 
