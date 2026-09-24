@@ -1,14 +1,17 @@
-using System.Globalization;
 using SciChart.Charting.Visuals.Axes.LabelProviders;
+using BrainPlatform.Desktop.Shared.Waveform;
 
 namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
-/// <summary>Formats recording-relative x values as elapsed seconds.</summary>
+/// <summary>Formats recording-relative x values as estimated local clock time.</summary>
 internal sealed class RecordingTimeLabelProvider : NumericLabelProvider
 {
+    public DateTimeOffset? RecordingStartUtc { get; set; }
+
     public override string FormatLabel(IComparable dataValue)
     {
-        var elapsedSeconds = Convert.ToDouble(dataValue, CultureInfo.InvariantCulture);
-        return elapsedSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+        return RecordingStartUtc is { } startUtc
+            ? RecordingClockLabelFormatter.FormatAlignedSecond(startUtc, Convert.ToDouble(dataValue))
+            : string.Empty;
     }
 }

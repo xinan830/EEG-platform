@@ -396,11 +396,18 @@
                                 </StackPanel>
                             </Button>
 
-                            <ComboBox ItemsSource="{Binding Acquisition.EnabledEventDefinitions}"
+                            <ComboBox Style="{StaticResource AppFilterComboBoxStyle}"
+                                      ItemsSource="{Binding Acquisition.EnabledEventDefinitions}"
                                       SelectedValuePath="Id"
                                       SelectedValue="{Binding Acquisition.SelectedEventDefinitionId, Mode=TwoWay}"
-                                      DisplayMemberPath="Name" Width="116" Height="34" Margin="8,0,0,0"
-                                      ToolTip="选择要标记的事件类型" />
+                                      Width="116" Margin="8,0,0,0"
+                                      ToolTip="选择要标记的事件类型">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                             <Button Command="{Binding Acquisition.MarkSelectedEventCommand}"
                                     IsEnabled="{Binding Acquisition.CanPause}"
                                     Style="{StaticResource LiveActionSecondaryButtonStyle}"

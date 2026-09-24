@@ -11,8 +11,16 @@ public sealed class ShortcutRegistry
         var key = (scope, Normalize(shortcut));
         lock (sync)
         {
-            if (registrations.TryGetValue(key, out var existing) && !string.Equals(existing, commandId, StringComparison.Ordinal))
-                return ShortcutRegistrationResult.Failed(new ShortcutConflict(key.Item2, scope, existing));
+            foreach (var registration in registrations)
+            {
+                if (ScopesOverlap(registration.Key.Scope, scope) &&
+                    registration.Key.Shortcut == key.Item2 &&
+                    !string.Equals(registration.Value, commandId, StringComparison.Ordinal))
+                {
+                    return ShortcutRegistrationResult.Failed(
+                        new ShortcutConflict(key.Item2, registration.Key.Scope, registration.Value));
+                }
+            }
             registrations[key] = commandId;
             return ShortcutRegistrationResult.Success();
         }
@@ -35,5 +43,8 @@ public sealed class ShortcutRegistry
         lock (sync) return registrations.ContainsKey((scope, Normalize(shortcut)));
     }
 
-    private static string Normalize(string shortcut) => string.Join('+', shortcut.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(part => part.ToUpperInvariant()));
+    internal static string Normalize(string shortcut) => string.Join('+', shortcut.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(part => part.ToUpperInvariant()));
+
+    internal static bool ScopesOverlap(ShortcutScope left, ShortcutScope right) =>
+        left == ShortcutScope.Global || right == ShortcutScope.Global || left == right;
 }

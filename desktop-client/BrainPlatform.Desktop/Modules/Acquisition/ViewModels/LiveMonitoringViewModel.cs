@@ -11,6 +11,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     private readonly Func<IReadOnlyList<AcquisitionBatch>> displaySnapshotProvider;
     private readonly Func<IReadOnlyList<long>> displayFilterBoundaryProvider;
     private readonly Func<long?> recordingFirstSampleCounterProvider;
+    private readonly Func<DateTimeOffset?> recordingStartUtcProvider;
     private readonly Func<IReadOnlyList<RecordingEvent>> recordingEventsProvider;
     private readonly DispatcherTimer clock;
     private AcquisitionStreamMetadata? streamMetadata;
@@ -19,6 +20,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     private string recordingElapsedText = "--:--:--";
     private string captureStatusText = "未开始采集";
     private long? displaySessionFirstSampleCounter;
+    private DateTimeOffset? displaySessionStartUtc;
     private long? recordingPauseAnchorRawSampleCounter;
     private long pausedRecordingSampleCount;
     private bool awaitingFirstBatchAfterRecordingPause;
@@ -33,13 +35,15 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         Dispatcher dispatcher,
         Func<IReadOnlyList<long>>? displayFilterBoundaryProvider = null,
         Func<long?>? recordingFirstSampleCounterProvider = null,
-        Func<IReadOnlyList<RecordingEvent>>? recordingEventsProvider = null)
+        Func<IReadOnlyList<RecordingEvent>>? recordingEventsProvider = null,
+        Func<DateTimeOffset?>? recordingStartUtcProvider = null)
     {
         this.stateProvider = stateProvider;
         this.metadataProvider = metadataProvider;
         this.displaySnapshotProvider = displaySnapshotProvider;
         this.displayFilterBoundaryProvider = displayFilterBoundaryProvider ?? (() => []);
         this.recordingFirstSampleCounterProvider = recordingFirstSampleCounterProvider ?? (() => null);
+        this.recordingStartUtcProvider = recordingStartUtcProvider ?? (() => null);
         this.recordingEventsProvider = recordingEventsProvider ?? (() => []);
         displaySettings.PropertyChanged += OnDisplaySettingsChanged;
         ToggleSettingsCommand = new AsyncRelayCommand(ToggleSettingsAsync, ReportCommandError);
@@ -56,6 +60,52 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     /// <summary>Durably stored event markers for the active Recording only.</summary>
     public IReadOnlyList<RecordingEvent> LiveRecordingEvents => recordingEventsProvider();
+
+    public string FormatEventMarker(RecordingEvent item)
+    {
+        var metadata = metadataProvider();
+        var recordingStartUtc = recordingStartUtcProvider();
+        return metadata is null || recordingStartUtc is null
+            ? item.DefinitionSnapshot.Name
+            : RecordingEventDisplayTime.FormatMarker(item, recordingStartUtc.Value, metadata.SamplingRateHz);
+    }
+
+    public string? FormatEventClockTime(RecordingEvent item)
+    {
+        var metadata = metadataProvider();
+        var recordingStartUtc = recordingStartUtcProvider();
+        return metadata is null || recordingStartUtc is null
+            ? null
+            : RecordingClockLabelFormatter.FormatMilliseconds(
+                recordingStartUtc.Value, item.StartSample / (double)metadata.SamplingRateHz);
+    }
+
+    public DateTimeOffset? GetDisplayClockAnchorUtc()
+    {
+        var metadata = streamMetadata;
+        if (metadata is null || displaySessionFirstSampleCounter is not { } sessionFirst)
+        {
+            return null;
+        }
+
+        if (stateProvider().State is AcquisitionState.Recording or AcquisitionState.Paused)
+        {
+            if (recordingStartUtcProvider() is not { } recordingStartUtc)
+            {
+                return null;
+            }
+
+            if (recordingFirstSampleCounterProvider() is not { } recordingFirst)
+            {
+                return displaySessionStartUtc;
+            }
+
+            var elapsedSamples = ToDisplayCounter(recordingFirst) - ToDisplayCounter(sessionFirst);
+            return recordingStartUtc.AddSeconds(-elapsedSamples / (double)metadata.SamplingRateHz);
+        }
+
+        return displaySessionStartUtc;
+    }
 
     /// <summary>Display-only visibility choices for the selected montage outputs.</summary>
     public ObservableCollection<LiveMontageDisplayChannel> MontageChannels { get; } = [];
@@ -264,6 +314,10 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         var currentMetadata = metadataProvider();
         if (!ReferenceEquals(streamMetadata, currentMetadata))
         {
+            if (streamMetadata is null || currentMetadata is null)
+            {
+                displaySessionStartUtc = currentMetadata?.RecordingStartUtc;
+            }
             streamMetadata = currentMetadata;
             ResetDisplayTimeline();
             ReplaceChannels(currentMetadata);

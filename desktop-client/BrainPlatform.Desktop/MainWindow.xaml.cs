@@ -6,6 +6,7 @@ using BrainPlatform.Desktop.Modules.Settings.Views;
 using BrainPlatform.Desktop.Modules.Channels.Views;
 using BrainPlatform.Desktop.Modules.Montages.Views;
 using EventListView = BrainPlatform.Desktop.Modules.Events.Views.EventListView;
+using EventDefinitionEditorView = BrainPlatform.Desktop.Modules.Events.Views.EventDefinitionEditorView;
 using RecordingReviewView = BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView;
 
 namespace BrainPlatform.Desktop;
@@ -23,6 +24,7 @@ public partial class MainWindow : Window
     private MontageListView? montageListView;
     private MontageDetailView? montageDetailView;
     private EventListView? eventListView;
+    private EventDefinitionEditorView? eventDefinitionEditorView;
     private RecordingReviewViewModel? recordingReviewViewModel;
     private LocalRawRecording? recordingReviewRecording;
     private EegSessionWindow? acquisitionSessionWindow;
@@ -118,15 +120,46 @@ public partial class MainWindow : Window
         SelectNavigation(NavSettingsBtn);
     }
 
-    public async void ShowEventListView()
+    public async void ShowEventListView(bool refreshDefinitions = true)
     {
         SetImmersiveChrome(false);
         eventListView ??= new EventListView();
-        if (DataContext is DesktopWorkspaceViewModel workspace)
-        {
-            await workspace.EventDefinitions.RefreshAsync();
-        }
         MainContentHost.Content = eventListView;
+        SelectNavigation(NavSettingsBtn);
+        if (refreshDefinitions && DataContext is DesktopWorkspaceViewModel workspace)
+        {
+            try
+            {
+                await workspace.EventDefinitions.RefreshAsync();
+            }
+            catch (Exception exception)
+            {
+                workspace.Notifications.PublishError($"无法加载事件列表：{exception.Message}");
+            }
+        }
+    }
+
+    public void ShowEventDefinitionEditorView(EventDefinition? definition = null)
+    {
+        SetImmersiveChrome(false);
+        if (DataContext is not DesktopWorkspaceViewModel workspace)
+        {
+            return;
+        }
+
+        if (definition is null)
+        {
+            workspace.EventDefinitions.BeginNew();
+        }
+        else
+        {
+            workspace.EventDefinitions.SelectedDefinition = definition;
+            workspace.EventDefinitions.BeginEditSelected();
+        }
+
+        eventDefinitionEditorView ??= new EventDefinitionEditorView();
+        eventDefinitionEditorView.DataContext = workspace;
+        MainContentHost.Content = eventDefinitionEditorView;
         SelectNavigation(NavSettingsBtn);
     }
 

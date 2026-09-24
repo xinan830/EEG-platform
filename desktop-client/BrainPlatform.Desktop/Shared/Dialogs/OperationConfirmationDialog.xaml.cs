@@ -40,4 +40,9 @@ public sealed record OperationConfirmationRequest(string TitleText, string Messa
         "确认删除导联配置",
         $"确定要删除导联配置“{name}”吗？删除后不能用于新建采集或回溯显示。",
         "确认删除");
+
+    public static OperationConfirmationRequest DeleteEventDefinition(string name) => new(
+        "确认删除事件",
+        $"确定要删除事件“{name}”吗？已有历史记录引用的事件不能删除。",
+        "确认删除");
 }

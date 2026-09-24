@@ -37,6 +37,8 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
     public AcquisitionStreamMetadata? StreamMetadata => coordinator?.StreamMetadata;
 
+    public DateTimeOffset? RecordingStartUtc => coordinator?.RecordingStartUtc;
+
     public long? RecordingFirstSampleCounter => coordinator?.RecordingFirstSampleCounter;
 
     public Guid? RecordingSessionId => coordinator?.RecordingSessionId;

@@ -31,7 +31,9 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         EventDefinitions = new EventDefinitionWorkspaceViewModel(
             eventDefinitionService ?? acquisition.EventDefinitionService,
             Notifications,
-            IsEventDefinitionReferencedAsync);
+            IsEventDefinitionReferencedAsync,
+            cancellationToken => Task.Run(
+                () => LoadReferencedEventDefinitionIdsAsync(cancellationToken), cancellationToken));
         ScreenCalibration = new ScreenCalibrationViewModel(notifications: Notifications);
         RefreshBackendCommand = new AsyncRelayCommand(RefreshBackendAsync, ReportCommandError);
         DismissNotificationCommand = new AsyncRelayCommand(() =>
@@ -96,12 +98,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         var projects = await new ResearchProjectStore().LoadAsync(cancellationToken);
         foreach (var project in projects)
         {
-            if (!Directory.Exists(project.RecordingsDirectory))
-            {
-                continue;
-            }
-
-            foreach (var recordingDirectory in Directory.EnumerateDirectories(project.RecordingsDirectory))
+            foreach (var recordingDirectory in EnumerateEventRecordingDirectories(project))
             {
                 var events = await new RecordingEventStore(recordingDirectory).LoadAsync(cancellationToken);
                 if (events.Any(item => item.DefinitionId == definitionId))
@@ -112,6 +109,39 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         }
 
         return false;
+    }
+
+    private static Task<IReadOnlySet<string>> LoadReferencedEventDefinitionIdsAsync(CancellationToken cancellationToken) =>
+        LoadReferencedEventDefinitionIdsAsync(new ResearchProjectStore(), cancellationToken);
+
+    internal static async Task<IReadOnlySet<string>> LoadReferencedEventDefinitionIdsAsync(
+        ResearchProjectStore projectStore, CancellationToken cancellationToken)
+    {
+        var referencedIds = new HashSet<string>(StringComparer.Ordinal);
+        var projects = await projectStore.LoadAsync(cancellationToken);
+        foreach (var project in projects)
+        {
+            foreach (var recordingDirectory in EnumerateEventRecordingDirectories(project))
+            {
+                var events = await new RecordingEventStore(recordingDirectory).LoadAsync(cancellationToken);
+                foreach (var recordingEvent in events) referencedIds.Add(recordingEvent.DefinitionId);
+            }
+        }
+
+        return referencedIds;
+    }
+
+    private static IEnumerable<string> EnumerateEventRecordingDirectories(ResearchProject project)
+    {
+        foreach (var root in new[]
+                 {
+                     project.RecordingsDirectory,
+                     Path.Combine(project.DirectoryPath, ".trash", "recordings"),
+                 })
+        {
+            if (!Directory.Exists(root)) continue;
+            foreach (var directory in Directory.EnumerateDirectories(root)) yield return directory;
+        }
     }
 
     public async ValueTask DisposeAsync()

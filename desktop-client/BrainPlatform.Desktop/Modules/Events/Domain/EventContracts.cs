@@ -142,6 +142,8 @@ internal static class EventValidation
             throw new EventValidationException("code_required", "事件 Code 不能为空。");
         if (string.IsNullOrWhiteSpace(definition.Name))
             throw new EventValidationException("name_required", "事件名称不能为空。");
+        if (definition.Description.Length > 200)
+            throw new EventValidationException("description_too_long", "事件说明不能超过 200 个字符。");
         if (definition.Version <= 0)
             throw new EventValidationException("version_invalid", "事件定义版本必须为正数。");
         if (!IsValidColor(definition.Color))

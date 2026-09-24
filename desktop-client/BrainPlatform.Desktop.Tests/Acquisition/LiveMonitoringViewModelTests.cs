@@ -34,6 +34,43 @@ public sealed class LiveMonitoringViewModelTests
     }
 
     [Fact]
+    public void DisplayClock_UsesRecordingAnchorWithoutMovingTheSampleTimeline()
+    {
+        var state = Snapshot(AcquisitionState.Previewing);
+        var previewStart = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
+        var recordingStart = previewStart.AddSeconds(8);
+        AcquisitionStreamMetadata metadata = Metadata() with { RecordingStartUtc = previewStart };
+        DateTimeOffset? activeRecordingStart = null;
+        IReadOnlyList<AcquisitionBatch> batches =
+        [
+            new AcquisitionBatch(10_000, 1_000, 12, new double[12_000], previewStart),
+        ];
+        using var monitor = CreateMonitor(
+            () => state, () => metadata, () => batches,
+            recordingFirstSampleCounterProvider: () => state.State == AcquisitionState.Recording ? 15_000 : null,
+            recordingStartUtcProvider: () => activeRecordingStart);
+
+        Assert.Equal(previewStart, monitor.GetDisplayClockAnchorUtc());
+
+        activeRecordingStart = recordingStart;
+        state = Snapshot(AcquisitionState.Recording);
+        batches = [batches[0], new AcquisitionBatch(15_000, 1_000, 12, new double[12_000], recordingStart)];
+        monitor.Refresh();
+
+        Assert.Equal(previewStart, metadata.RecordingStartUtc);
+        Assert.Equal(previewStart.AddSeconds(3), monitor.GetDisplayClockAnchorUtc());
+        Assert.Equal(15_000, monitor.ToDisplayCounterFromRecordingSample(0));
+
+        var eventItem = new RecordingEvent(
+            "event", "recording", "definition", new EventDefinitionSnapshot("TEST", "Test", "#DC2626", 1),
+            EventSource.ManualButton, null, null, 1_000, 0, recordingStart, recordingStart);
+        Assert.Contains(recordingStart.AddSeconds(1).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
+            monitor.FormatEventMarker(eventItem));
+        Assert.Equal(recordingStart.AddSeconds(1).ToLocalTime().ToString("HH:mm:ss.fff"),
+            monitor.FormatEventClockTime(eventItem));
+    }
+
+    [Fact]
     public void DisplayOptions_UsePhysicalPaperSpeedAndRejectUnsupportedValues()
     {
         using var monitor = CreateMonitor(
@@ -297,13 +334,15 @@ public sealed class LiveMonitoringViewModelTests
         Func<AcquisitionStateSnapshot> stateProvider,
         Func<AcquisitionStreamMetadata?> metadataProvider,
         Func<IReadOnlyList<AcquisitionBatch>>? batchesProvider = null,
-        Func<long?>? recordingFirstSampleCounterProvider = null) =>
+        Func<long?>? recordingFirstSampleCounterProvider = null,
+        Func<DateTimeOffset?>? recordingStartUtcProvider = null) =>
         new(
             stateProvider,
             metadataProvider,
             batchesProvider ?? (() => []),
             Dispatcher.CurrentDispatcher,
-            recordingFirstSampleCounterProvider: recordingFirstSampleCounterProvider);
+            recordingFirstSampleCounterProvider: recordingFirstSampleCounterProvider,
+            recordingStartUtcProvider: recordingStartUtcProvider);
 
     private static AcquisitionStateSnapshot Snapshot(AcquisitionState state) =>
         new(state, "test", Guid.NewGuid(), DateTimeOffset.UtcNow);

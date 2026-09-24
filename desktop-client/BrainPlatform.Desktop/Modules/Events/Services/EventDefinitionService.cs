@@ -17,21 +17,46 @@ public sealed class EventDefinitionService
     {
         EventValidation.ValidateDefinition(definition);
         var existing = await store.LoadAsync(cancellationToken);
+        var previous = existing.FirstOrDefault(item => item.Id == definition.Id);
+        if (previous is not null && !string.Equals(previous.Code, definition.Code, StringComparison.Ordinal))
+            throw new EventValidationException("code_immutable", "事件编码创建后不可修改。");
         if (existing.Any(item => item.Id != definition.Id && string.Equals(item.Code, definition.Code, StringComparison.OrdinalIgnoreCase)))
             throw new EventValidationException("duplicate_code", $"事件 Code“{definition.Code}”已存在。");
 
-        var previous = existing.FirstOrDefault(item => item.Id == definition.Id);
+        if (definition.IsEnabled && !string.IsNullOrWhiteSpace(definition.Shortcut))
+        {
+            var conflicting = existing.FirstOrDefault(item =>
+                item.Id != definition.Id && item.IsEnabled &&
+                ShortcutRegistry.ScopesOverlap(item.ShortcutScope, definition.ShortcutScope) &&
+                !string.IsNullOrWhiteSpace(item.Shortcut) &&
+                ShortcutRegistry.Normalize(item.Shortcut) == ShortcutRegistry.Normalize(definition.Shortcut));
+            if (conflicting is not null)
+                throw new EventValidationException("shortcut_conflict", $"快捷键“{definition.Shortcut}”已被事件“{conflicting.Name}”占用。");
+        }
+
         var registration = definition.IsEnabled && definition.Shortcut is not null
             ? shortcuts.TryRegister(definition.Shortcut, definition.ShortcutScope, DefinitionCommandId(definition.Id))
             : ShortcutRegistrationResult.Success();
         if (!registration.Succeeded)
             throw new EventValidationException("shortcut_conflict", $"快捷键“{registration.Conflict!.Shortcut}”已被命令“{registration.Conflict.ExistingCommand}”占用。");
 
+        var registrationChanged = previous is null || !previous.IsEnabled ||
+            !string.Equals(previous.Shortcut, definition.Shortcut, StringComparison.OrdinalIgnoreCase) ||
+            previous.ShortcutScope != definition.ShortcutScope;
+        try
+        {
+            await store.SaveAsync(definition, cancellationToken);
+        }
+        catch
+        {
+            if (registrationChanged && definition.IsEnabled && definition.Shortcut is not null)
+                shortcuts.Unregister(definition.Shortcut, definition.ShortcutScope, DefinitionCommandId(definition.Id));
+            throw;
+        }
+
         if (previous is not null && previous.Shortcut is not null &&
             (!definition.IsEnabled || !string.Equals(previous.Shortcut, definition.Shortcut, StringComparison.OrdinalIgnoreCase) || previous.ShortcutScope != definition.ShortcutScope))
             shortcuts.Unregister(previous.Shortcut, previous.ShortcutScope, DefinitionCommandId(previous.Id));
-
-        await store.SaveAsync(definition, cancellationToken);
     }
 
     public async Task DisableAsync(string id, CancellationToken cancellationToken)

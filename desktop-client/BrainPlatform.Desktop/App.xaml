@@ -6,6 +6,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/TableStyles.xaml" />
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/DialogStyles.xaml" />
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/PaginationStyles.xaml" />
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/ScrollBarStyles.xaml" />

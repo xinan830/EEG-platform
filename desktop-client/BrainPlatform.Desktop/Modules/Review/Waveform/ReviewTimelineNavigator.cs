@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -11,6 +12,10 @@ namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 /// </summary>
 public sealed class ReviewTimelineNavigator : FrameworkElement
 {
+    public static readonly DependencyProperty RecordingStartUtcProperty =
+        DependencyProperty.Register(nameof(RecordingStartUtc), typeof(DateTimeOffset), typeof(ReviewTimelineNavigator),
+            new FrameworkPropertyMetadata(default(DateTimeOffset), FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty DurationSecondsProperty =
         DependencyProperty.Register(nameof(DurationSeconds), typeof(double), typeof(ReviewTimelineNavigator),
             new FrameworkPropertyMetadata(1d, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -25,7 +30,7 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
 
     private const double DragPagesPerSecond = 2d;
     private const double DragStartThresholdDips = 3d;
-    private const double ThumbHeight = 14d;
+    private const double ThumbHeight = 12d;
     private bool dragging;
     private bool hasDragged;
     private Point pointerDownPoint;
@@ -41,6 +46,12 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
     {
         get => (double)GetValue(DurationSecondsProperty);
         set => SetValue(DurationSecondsProperty, value);
+    }
+
+    public DateTimeOffset RecordingStartUtc
+    {
+        get => (DateTimeOffset)GetValue(RecordingStartUtcProperty);
+        set => SetValue(RecordingStartUtcProperty, value);
     }
 
     public double ViewportStartSeconds
@@ -79,6 +90,25 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
             new SolidColorBrush(Color.FromRgb(128, 131, 136)),
             null,
             thumb);
+
+        if (RecordingStartUtc != default && height >= 28)
+        {
+            DrawClockLabels(drawingContext, width);
+        }
+    }
+
+    private void DrawClockLabels(DrawingContext drawingContext, double width)
+    {
+        var positions = width >= 230 ? new[] { 0d, 0.5d, 1d } : new[] { 0d, 1d };
+        foreach (var fraction in positions)
+        {
+            var label = RecordingClockLabelFormatter.Format(RecordingStartUtc, fraction * DurationSeconds);
+            var text = new FormattedText(
+                label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                new Typeface("Segoe UI"), 10, Brushes.DimGray, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            var x = Math.Clamp(width * fraction - text.Width / 2, 0, Math.Max(0, width - text.Width));
+            drawingContext.DrawText(text, new Point(x, 0));
+        }
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
@@ -179,7 +209,7 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         var maxStart = Math.Max(0, duration - visible);
         var start = Math.Clamp(ViewportStartSeconds, 0, maxStart);
         var x = maxStart <= 0 ? 0 : (ActualWidth - width) * start / maxStart;
-        var y = Math.Max(0, (ActualHeight - ThumbHeight) / 2d);
+        var y = Math.Max(0, ActualHeight - ThumbHeight - 3d);
         return new Rect(x, y, width, Math.Min(ThumbHeight, ActualHeight));
     }
 

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using BrainPlatform.Desktop.Modules.Events.Views;
 
 namespace BrainPlatform.Desktop.Modules.Review.Views;
 
@@ -24,6 +25,24 @@ public partial class RecordingReviewView : UserControl
     }
 
     private RecordingReviewViewModel? ViewModel => DataContext as RecordingReviewViewModel;
+
+    private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (ViewModel is not { } viewModel) return;
+        var definition = EventShortcutInput.Match(
+            viewModel.EnabledEventDefinitions, ShortcutScope.Review, e, out var shortcut);
+        if (definition is null) return;
+
+        e.Handled = true;
+        try
+        {
+            await viewModel.CreateKeyboardEventAsync(definition.Id, shortcut);
+        }
+        catch (Exception exception)
+        {
+            viewModel.ReportEventShortcutError(exception);
+        }
+    }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {

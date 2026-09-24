@@ -24,6 +24,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     private Guid? recordingSessionId;
     private AcquisitionStreamRequest? activeRequest;
     private AcquisitionStreamMetadata? streamMetadata;
+    private AcquisitionStreamMetadata? recordingMetadata;
     private long recordingFirstSampleCounter = -1;
     private AcquisitionFault? lastFault;
     private readonly object pauseGate = new();
@@ -61,6 +62,8 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     public AcquisitionFault? LastFault => lastFault;
 
     public AcquisitionStreamMetadata? StreamMetadata => Volatile.Read(ref streamMetadata);
+
+    public DateTimeOffset? RecordingStartUtc => Volatile.Read(ref recordingMetadata)?.RecordingStartUtc;
 
     public long? RecordingFirstSampleCounter
     {
@@ -167,6 +170,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             }
 
             Volatile.Write(ref rawWriter, openedWriter);
+            Volatile.Write(ref recordingMetadata, startRecordingImmediately ? publishedMetadata : null);
             Volatile.Write(ref streamMetadata, openedStream.Metadata);
             sessionId = openedSessionId;
             activeRequest = request;
@@ -228,6 +232,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             {
                 ClearRecordingGaps();
                 Volatile.Write(ref rawWriter, pendingWriter);
+                Volatile.Write(ref this.recordingMetadata, recordingMetadata);
                 pendingWriter = null;
                 this.recordingSessionId = recordingSessionId;
                 SetState(AcquisitionState.Recording, "Recording raw EEG data.", streamSessionId);
@@ -578,6 +583,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         activeRequest = null;
         Volatile.Write(ref recordingFirstSampleCounter, -1);
         Volatile.Write(ref streamMetadata, null);
+        Volatile.Write(ref recordingMetadata, null);
     }
 
     private void AccumulatePausedRange(AcquisitionBatch batch)

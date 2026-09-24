@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 
 namespace BrainPlatform.Desktop.Modules.Events.Views;
 
@@ -15,54 +14,63 @@ public partial class EventListView : UserControl
 
     private void OnNewClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is DesktopWorkspaceViewModel workspace) workspace.EventDefinitions.BeginNew();
+        if (Window.GetWindow(this) is MainWindow mainWindow)
+        {
+            mainWindow.ShowEventDefinitionEditorView();
+        }
     }
 
     private void OnEditClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not DesktopWorkspaceViewModel workspace || sender is not FrameworkElement { DataContext: EventDefinition definition }) return;
-        workspace.EventDefinitions.SelectedDefinition = definition;
-        workspace.EventDefinitions.BeginEditSelected();
+        if (sender is FrameworkElement { DataContext: EventDefinitionListRow row } &&
+            Window.GetWindow(this) is MainWindow mainWindow)
+        {
+            mainWindow.ShowEventDefinitionEditorView(row.Definition);
+        }
     }
 
     private async void OnDeleteClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not DesktopWorkspaceViewModel workspace || sender is not FrameworkElement { DataContext: EventDefinition definition }) return;
-        workspace.EventDefinitions.SelectedDefinition = definition;
-        try { await workspace.EventDefinitions.DeleteSelectedAsync(); }
+        if (DataContext is not DesktopWorkspaceViewModel workspace ||
+            sender is not Button { DataContext: EventDefinitionListRow row } button ||
+            !row.CanDelete) return;
+
+        var definition = row.Definition;
+
+        button.IsEnabled = false;
+        try
+        {
+            if (await workspace.EventDefinitions.IsDefinitionReferencedAsync(definition))
+            {
+                workspace.Notifications.PublishError("该事件已被历史记录引用，只能停用，不能删除。");
+                return;
+            }
+
+            if (!OperationConfirmationDialog.Confirm(Window.GetWindow(this),
+                    OperationConfirmationRequest.DeleteEventDefinition(definition.Name))) return;
+
+            workspace.EventDefinitions.SelectedDefinition = definition;
+            await workspace.EventDefinitions.DeleteSelectedAsync();
+        }
+        catch (Exception exception)
+        {
+            workspace.Notifications.PublishError(exception.Message);
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
+
+    private async void OnToggleEnabledClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel workspace ||
+            sender is not Button { DataContext: EventDefinitionListRow row } button) return;
+
+        var definition = row.Definition;
+        button.IsEnabled = false;
+        try { await workspace.EventDefinitions.SetEnabledAsync(definition, !definition.IsEnabled); }
         catch (Exception exception) { workspace.Notifications.PublishError(exception.Message); }
-    }
-
-    private void OnColorClick(object sender, RoutedEventArgs e)
-    {
-        if (DataContext is DesktopWorkspaceViewModel workspace && sender is FrameworkElement { Tag: string color })
-        {
-            workspace.EventDefinitions.SetDraftColor(color);
-        }
-    }
-
-    private void OnShortcutPreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (DataContext is not DesktopWorkspaceViewModel workspace || IsModifierKey(e.Key))
-        {
-            return;
-        }
-
-        var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        workspace.EventDefinitions.DraftShortcut = FormatShortcut(key, Keyboard.Modifiers);
-        e.Handled = true;
-    }
-
-    private static bool IsModifierKey(Key key) => key is Key.LeftAlt or Key.RightAlt or
-        Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin;
-
-    private static string FormatShortcut(Key key, ModifierKeys modifiers)
-    {
-        var parts = new List<string>();
-        if (modifiers.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
-        if (modifiers.HasFlag(ModifierKeys.Alt)) parts.Add("Alt");
-        if (modifiers.HasFlag(ModifierKeys.Shift)) parts.Add("Shift");
-        parts.Add(key.ToString());
-        return string.Join('+', parts);
+        finally { button.IsEnabled = true; }
     }
 }

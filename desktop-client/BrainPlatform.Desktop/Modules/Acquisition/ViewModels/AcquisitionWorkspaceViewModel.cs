@@ -76,7 +76,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             this.dispatcher,
             () => this.runtime.GetDisplayFilterBoundaries(),
             () => this.runtime.RecordingFirstSampleCounter,
-            () => LiveRecordingEvents.ToArray());
+            () => LiveRecordingEvents.ToArray(),
+            () => this.runtime.RecordingStartUtc);
         DisplayPreferences = new LiveDisplayPreferencesViewModel(
             this.runtime,
             LiveMonitor,
@@ -489,6 +490,14 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             coordinateStatus: coordinate.Status,
             coordinateUnavailableReason: coordinate.UnavailableReason);
         LiveRecordingEvents.Add(item);
+        var recordingStartUtc = runtime.RecordingStartUtc;
+        var samplingRateHz = runtime.StreamMetadata?.SamplingRateHz;
+        var markerTime = recordingStartUtc is { } start && samplingRateHz is > 0
+            ? RecordingEventDisplayTime.FormatClockTime(start, item.StartSample, samplingRateHz.Value)
+            : $"第 {item.StartSample} 个采样点";
+        var message = $"事件“{item.DefinitionSnapshot.Name}”已标记在记录时间 {markerTime}。";
+        OperationMessage = message;
+        notifications?.PublishSuccess(message);
         return item;
     }
 
@@ -507,7 +516,6 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         if (string.IsNullOrWhiteSpace(SelectedEventDefinitionId))
             throw new InvalidOperationException("请先选择一个事件定义。");
         await MarkEventAsync(SelectedEventDefinitionId, EventSource.ManualButton, "acquisition-toolbar");
-        notifications?.PublishSuccess("事件已标记。");
     }
 
     public async Task StartPreparedPreviewAsync()
@@ -698,7 +706,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         AcquisitionStatusText = runtime.State.Detail;
         var notchText = DisplayPreferences.LiveNotchHz > 0 ? $"，{DisplayPreferences.LiveNotchHz:g} Hz 陷波" : "，不使用陷波";
         OperationMessage = $"设备正在实时预览，尚未写入原始记录；显示波形由本地科学引擎执行 {DisplayPreferences.LiveHighPassHz:g}–{DisplayPreferences.LiveLowPassHz:g} Hz 因果滤波{notchText}。";
-        notifications?.PublishSuccess("设备数据流已打开。点击“开始记录”后才会在项目中创建原始记录。");
+        notifications?.PublishSuccess(
+            $"{FormatLocalClock(runtime.State.ChangedAtUtc)} 实时预览已开始，尚未写入原始记录。");
         RaiseCommandAvailabilityChanged();
     }
 
@@ -711,7 +720,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         LiveMonitor.Refresh();
         AcquisitionStatusText = runtime.State.Detail;
         OperationMessage = "正在记录原始 EEG；记录开始时间、项目、通道和导联快照已写入清单。";
-        notifications?.PublishSuccess($"已开始记录，数据归属项目“{project.Name}”。");
+        var recordingStartUtc = runtime.RecordingStartUtc ?? runtime.State.ChangedAtUtc;
+        notifications?.PublishSuccess($"{FormatLocalClock(recordingStartUtc)} 已开始记录，数据归属项目“{project.Name}”。");
         RaiseCommandAvailabilityChanged();
     }
 
@@ -726,7 +736,10 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         OperationMessage = hadRecording
             ? "记录已完成。原始记录目录包含 manifest.json 与 audit.jsonl。"
             : "实时预览已结束；由于没有开始记录，未创建原始记录文件。";
-        notifications?.PublishSuccess(hadRecording ? "记录已完成，原始记录与审计信息已保存。" : "实时预览已结束。");
+        var stoppedAt = FormatLocalClock(runtime.State.ChangedAtUtc);
+        notifications?.PublishSuccess(hadRecording
+            ? $"{stoppedAt} 已停止记录，原始记录与审计信息已保存。"
+            : $"{stoppedAt} 实时预览已结束。");
         RaiseCommandAvailabilityChanged();
     }
 
@@ -736,7 +749,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         LiveMonitor.Refresh();
         AcquisitionStatusText = runtime.State.Detail;
         OperationMessage = "采集已暂停。设备数据流继续排空；暂停期间的样本将作为明确缺口写入审计记录。";
-        notifications?.PublishSuccess("采集已暂停。");
+        notifications?.PublishSuccess($"{FormatLocalClock(runtime.State.ChangedAtUtc)} 记录已暂停，设备采集仍在继续。");
         RaiseCommandAvailabilityChanged();
     }
 
@@ -746,7 +759,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         LiveMonitor.Refresh();
         AcquisitionStatusText = runtime.State.Detail;
         OperationMessage = "采集已恢复。暂停期间未保存的样本会作为明确缺口保留在审计记录中。";
-        notifications?.PublishSuccess("采集已恢复。");
+        notifications?.PublishSuccess($"{FormatLocalClock(runtime.State.ChangedAtUtc)} 记录已恢复。");
         RaiseCommandAvailabilityChanged();
     }
 
@@ -763,6 +776,9 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         OperationMessage = channelMapping.StatusText;
         notifications?.PublishSuccess("已保存当前通道标注与显示选择。");
     }
+
+    private static string FormatLocalClock(DateTimeOffset utc) =>
+        utc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture);
 
     private void ReportCommandError(Exception exception)
     {

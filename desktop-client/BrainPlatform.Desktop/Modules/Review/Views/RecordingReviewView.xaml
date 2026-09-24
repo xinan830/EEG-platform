@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Views"
              xmlns:review="clr-namespace:BrainPlatform.Desktop.Modules.Review.Waveform"
-             Background="#F3F5F8">
+             Background="#F3F5F8" Focusable="True" PreviewKeyDown="OnPreviewKeyDown">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -111,23 +111,31 @@
                     <TextBlock Text="采样率" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="14,0,8,0" />
                     <TextBlock Text="{Binding SamplingRateHz, Mode=OneWay, StringFormat={}{0} Hz}"
                                FontSize="12" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" />
-                    <ComboBox Width="150" Margin="14,0,0,0" ItemsSource="{Binding RecordingEvents}"
-                              SelectedItem="{Binding SelectedRecordingEvent, Mode=TwoWay}"
-                              ToolTip="选择历史事件并跳转">
+                    <ComboBox Width="150" Margin="14,0,0,0" Style="{StaticResource AppFilterComboBoxStyle}"
+                              ItemsSource="{Binding RecordingEventOptions}"
+                              SelectedValuePath="Event"
+                              SelectedValue="{Binding SelectedRecordingEvent, Mode=TwoWay}"
+                              ToolTip="选择历史事件并跳转；钟表时间根据记录起始时间估算">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding DefinitionSnapshot.Name}" />
+                                <TextBlock Text="{Binding DisplayText}" ToolTip="{Binding DetailText}"
+                                           TextTrimming="CharacterEllipsis" />
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
                     <Button Content="跳转事件" Click="OnSeekToEventClick" Margin="6,0,0,0" Padding="9,4"
                             ToolTip="跳转到选中的历史事件" />
-                    <ComboBox Width="112" Margin="8,0,0,0"
+                    <ComboBox Width="112" Margin="8,0,0,0" Style="{StaticResource AppFilterComboBoxStyle}"
                               ItemsSource="{Binding EnabledEventDefinitions}"
-                              DisplayMemberPath="Name"
                               SelectedValuePath="Id"
                               SelectedValue="{Binding SelectedEventDefinitionId, Mode=TwoWay}"
-                              ToolTip="选择要在当前位置标记的事件类型" />
+                              ToolTip="选择要在当前位置标记的事件类型">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                     <Button Content="标记" Command="{Binding MarkSelectedEventCommand}" Margin="6,0,0,0" Padding="9,4"
                             ToolTip="在当前回溯位置添加人工事件标记" />
                     <Button Content="删除事件" Command="{Binding DeleteSelectedEventCommand}" Margin="6,0,0,0" Padding="9,4"
@@ -166,7 +174,10 @@
                         <TextBlock Text="编辑事件" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" />
                         <TextBlock Text="仅人工事件可修改；时间基于 Recording 的采样坐标。" Margin="0,5,0,16" Foreground="#64748B" FontSize="12" TextWrapping="Wrap" />
                         <TextBlock Text="起始时间（秒）" Foreground="#475569" />
-                        <TextBox Text="{Binding EditEventStartSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
+                        <TextBox Text="{Binding EditEventStartSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,4" />
+                        <TextBlock Foreground="#64748B" FontSize="12" Margin="0,0,0,10">
+                            <Run Text="记录时间：" /><Run Text="{Binding EditEventClockText, Mode=OneWay}" />
+                        </TextBlock>
                         <TextBlock Text="持续时间（秒，0 为点事件）" Foreground="#475569" />
                         <TextBox Text="{Binding EditEventDurationSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
                         <TextBlock Text="备注" Foreground="#475569" />
@@ -223,13 +234,14 @@
                     </Button>
                 </StackPanel>
 
-                <review:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="1" Height="22"
+                <review:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="1" Height="30"
+                    RecordingStartUtc="{Binding RecordingStartUtc, Mode=OneWay}"
                     DurationSeconds="{Binding DurationSeconds, Mode=OneWay}"
                     ViewportStartSeconds="{Binding ViewportStartSeconds, Mode=OneWay}"
                     VisibleDurationSeconds="{Binding VisibleDurationSeconds, Mode=OneWay}"
                     PreviewPositionChanged="OnTimelinePreviewPositionChanged"
                     PositionCommitted="OnTimelinePositionCommitted"
-                    ToolTip="点击白色空白轨道跳转；拖动灰色窗口浏览整段记录。蓝线仅显示位置。" />
+                    ToolTip="{Binding RecordingClockRangeText, Mode=OneWay}" />
             </Grid>
         </views:EegWorkspaceShell.BottomBar>
     </views:EegWorkspaceShell>

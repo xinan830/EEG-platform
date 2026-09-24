@@ -143,6 +143,8 @@ public sealed class AcquisitionCoordinatorTests
                 CancellationToken.None);
 
             Assert.Equal(AcquisitionState.Previewing, coordinator.State.State);
+            var previewStartUtc = Assert.IsType<DateTimeOffset>(coordinator.StreamMetadata?.RecordingStartUtc);
+            Assert.Null(coordinator.RecordingStartUtc);
             Assert.False(Directory.Exists(Path.Combine(directory, "recordings")));
             await stream.WriteAsync(Batch(0, 2));
             await stream.WaitForYieldCountAsync(1);
@@ -153,12 +155,20 @@ public sealed class AcquisitionCoordinatorTests
             Assert.Equal(AcquisitionState.Recording, coordinator.State.State);
             Assert.Single(Directory.GetDirectories(Path.Combine(directory, "recordings")));
             Assert.Single(coordinator.GetDisplaySnapshot());
+            Assert.Equal(previewStartUtc, coordinator.StreamMetadata?.RecordingStartUtc);
+            var recordingStartUtc = Assert.IsType<DateTimeOffset>(coordinator.RecordingStartUtc);
+            using (var manifest = System.Text.Json.JsonDocument.Parse(
+                       await File.ReadAllTextAsync(Path.Combine(coordinator.RecordingDirectory!, "manifest.json"))))
+            {
+                Assert.Equal(recordingStartUtc, manifest.RootElement.GetProperty("RecordingStartUtc").GetDateTimeOffset());
+            }
 
             await stream.WriteAsync(Batch(2, 2));
             await stream.WaitForYieldCountAsync(2);
             await WaitForDisplayLastSampleCounterAsync(coordinator, 3);
             Assert.Equal(2, coordinator.RecordingFirstSampleCounter);
             await coordinator.StopAsync(CancellationToken.None);
+            Assert.Null(coordinator.RecordingStartUtc);
 
             var sessionDirectory = Assert.Single(Directory.GetDirectories(Path.Combine(directory, "recordings")));
             using var raw = new BinaryReader(File.OpenRead(Path.Combine(sessionDirectory, "samples-000001.bin")));

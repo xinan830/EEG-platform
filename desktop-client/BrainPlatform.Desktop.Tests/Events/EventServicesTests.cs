@@ -21,6 +21,22 @@ public sealed class EventServicesTests
     }
 
     [Fact]
+    public async Task Restarted_service_rejects_duplicate_enabled_shortcut()
+    {
+        using var temp = new TemporaryDirectory();
+        var path = Path.Combine(temp.Path, "definitions.json");
+        var first = Definition("EO", "睁眼", "#2563EB", "Ctrl+1");
+        await new EventDefinitionService(new EventDefinitionStore(path)).SaveAsync(first, CancellationToken.None);
+
+        var restarted = new EventDefinitionService(new EventDefinitionStore(path));
+        var duplicate = Definition("EC", "闭眼", "#16A34A", "Ctrl + 1");
+        var error = await Assert.ThrowsAsync<EventValidationException>(() => restarted.SaveAsync(duplicate, CancellationToken.None));
+
+        Assert.Equal("shortcut_conflict", error.Code);
+        Assert.Equal(first, Assert.Single(await restarted.ListAsync(CancellationToken.None)));
+    }
+
+    [Fact]
     public async Task Recording_event_keeps_definition_snapshot_when_definition_changes()
     {
         using var temp = new TemporaryDirectory();

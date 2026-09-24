@@ -31,6 +31,7 @@ public sealed class LiveSciChartCanvas : UserControl
     private readonly NumericAxis xAxis = new();
     private readonly NumericAxis yAxis = new();
     private readonly SweepTimeLabelProvider sweepTimeLabels = new();
+    private readonly WallClockSecondTickProvider wallClockTicks = new();
     private readonly SweepEraseBandAnimator eraseBandAnimator = new();
     private readonly BoxAnnotation eraseBand = new()
     {
@@ -50,7 +51,7 @@ public sealed class LiveSciChartCanvas : UserControl
     };
     private readonly Grid channelLabels = new();
     private readonly Grid chartHost = new();
-    private readonly Canvas eventMarkers = new() { IsHitTestVisible = false };
+    private readonly Canvas eventMarkers = new();
     private readonly TextBlock emptyMessage = new()
     {
         Text = "等待设备连接并开始记录",
@@ -94,6 +95,7 @@ public sealed class LiveSciChartCanvas : UserControl
         VisualXcceleratorEngine.SetIsEnabled(surface, true);
 
         WaveformAxisPolicy.ConfigureHorizontalAxis(xAxis, sweepTimeLabels);
+        xAxis.TickProvider = wallClockTicks;
         xAxis.TickTextBrush = new SolidColorBrush(Color.FromRgb(49, 77, 126));
         xAxis.MajorGridLineStyle = new Style(typeof(Line))
         {
@@ -268,7 +270,9 @@ public sealed class LiveSciChartCanvas : UserControl
         xAxis.MajorDelta = 1d;
         xAxis.MinorDelta = 0.5d;
         var cursorPosition = Math.Min(frame.CursorSeconds, Math.Max(0, windowSeconds - 0.001d));
-        sweepTimeLabels.Update(frame.PageStartElapsedSeconds, frame.CursorSeconds);
+        var clockAnchor = (DataContext as LiveMonitoringViewModel)?.GetDisplayClockAnchorUtc();
+        sweepTimeLabels.Update(frame.PageStartElapsedSeconds, frame.CursorSeconds, clockAnchor);
+        wallClockTicks.OriginUtc = clockAnchor?.AddSeconds(frame.PageStartElapsedSeconds);
         xAxis.InvalidateElement();
         activeDisplayWindowSeconds = windowSeconds;
         activeTraceCount = frame.Traces.Count;
@@ -310,7 +314,8 @@ public sealed class LiveSciChartCanvas : UserControl
         activeDisplayWindowSeconds = 0;
         activeTraceCount = 0;
         eraseBandAnimator.Reset();
-        sweepTimeLabels.Update(0, 0);
+        sweepTimeLabels.Update(0, 0, null);
+        wallClockTicks.OriginUtc = null;
         xAxis.InvalidateElement();
         var labels = monitor?.VisibleChannelLabels ?? [];
         if (labels.Count == 0)
@@ -430,6 +435,8 @@ public sealed class LiveSciChartCanvas : UserControl
             var color = ParseColor(item.DefinitionSnapshot.Color);
             var marker = new Border
             {
+                ToolTip = monitor.FormatEventMarker(item),
+                IsHitTestVisible = !item.IsInterval,
                 Width = item.IsInterval
                     ? Math.Max(2d, (rightFraction - leftFraction) * plotArea.Width)
                     : 2d,
@@ -443,6 +450,16 @@ public sealed class LiveSciChartCanvas : UserControl
             Canvas.SetLeft(marker, plotArea.Left + leftFraction * plotArea.Width);
             Canvas.SetTop(marker, plotArea.Top);
             eventMarkers.Children.Add(marker);
+            if (monitor.FormatEventClockTime(item) is { } clockTime)
+            {
+                WaveformEventTimeLabel.Add(
+                    eventMarkers,
+                    plotArea.Left + leftFraction * plotArea.Width,
+                    plotArea.Top + 3,
+                    clockTime,
+                    color,
+                    monitor.FormatEventMarker(item));
+            }
         }
     }
 

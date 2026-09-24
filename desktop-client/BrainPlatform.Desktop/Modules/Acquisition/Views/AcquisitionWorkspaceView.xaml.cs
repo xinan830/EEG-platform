@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using BrainPlatform.Desktop.Modules.Events.Views;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Views;
 
@@ -38,10 +39,8 @@ public partial class AcquisitionWorkspaceView : UserControl
             return;
         }
 
-        var shortcut = BuildShortcut(e);
-        var definition = workspace.EventDefinitions.FilteredDefinitions.FirstOrDefault(item =>
-            item.IsEnabled && item.ShortcutScope == ShortcutScope.Acquisition &&
-            string.Equals(NormalizeShortcut(item.Shortcut), shortcut, StringComparison.OrdinalIgnoreCase));
+        var definition = EventShortcutInput.Match(
+            workspace.Acquisition.EnabledEventDefinitions, ShortcutScope.Acquisition, e, out var shortcut);
         if (definition is null) return;
         e.Handled = true;
         try
@@ -54,17 +53,4 @@ public partial class AcquisitionWorkspaceView : UserControl
         }
     }
 
-    private static string BuildShortcut(KeyEventArgs e)
-    {
-        var parts = new List<string>();
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0) parts.Add("CTRL");
-        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0) parts.Add("ALT");
-        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) parts.Add("SHIFT");
-        parts.Add(e.Key.ToString().ToUpperInvariant());
-        return string.Join('+', parts);
-    }
-
-    private static string NormalizeShortcut(string? value) => string.Join('+',
-        (value ?? string.Empty).Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(item => item.ToUpperInvariant()));
 }

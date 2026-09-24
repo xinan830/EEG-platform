@@ -22,10 +22,11 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
     private readonly SciChartSurface surface = new();
     private readonly NumericAxis xAxis = new();
     private readonly RecordingTimeLabelProvider recordingTimeLabels = new();
+    private readonly WallClockSecondTickProvider wallClockTicks = new();
     private readonly NumericAxis yAxis = new();
     private readonly Grid labels = new();
     private readonly Grid chartHost = new();
-    private readonly Canvas eventMarkers = new() { IsHitTestVisible = false };
+    private readonly Canvas eventMarkers = new();
     private readonly Border playbackCursor = new()
     {
         Width = 1,
@@ -81,6 +82,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         surface.Background = Brushes.White;
         VisualXcceleratorEngine.SetIsEnabled(surface, true);
         WaveformAxisPolicy.ConfigureHorizontalAxis(xAxis, recordingTimeLabels);
+        xAxis.TickProvider = wallClockTicks;
         // Keep the invisible Y-axis layout area away from the channel-label
         // column so review uses the same compact waveform start as live view.
         WaveformAxisPolicy.ConfigureStackedTraceAxis(yAxis);
@@ -171,6 +173,8 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
 
     private void ApplyFrame(RecordingReviewFrame? frame, RecordingReviewViewModel? viewModel)
     {
+        recordingTimeLabels.RecordingStartUtc = viewModel?.RecordingStartUtc;
+        wallClockTicks.OriginUtc = viewModel?.RecordingStartUtc;
         if (frame is null)
         {
             emptyMessage.Text = viewModel?.StatusText ?? "等待加载回溯数据";
@@ -370,6 +374,8 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
             var color = ParseColor(item.DefinitionSnapshot.Color);
             eventMarkers.Children.Add(new Border
             {
+                ToolTip = RecordingEventDisplayTime.FormatMarker(item, viewModel.RecordingStartUtc, viewModel.SamplingRateHz),
+                IsHitTestVisible = !item.IsInterval,
                 Width = item.IsInterval ? Math.Max(2, right - left) : 2,
                 Height = chartHost.ActualHeight,
                 Background = item.IsInterval
@@ -379,6 +385,13 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
                 BorderThickness = item.IsInterval ? new Thickness(1, 0, 1, 0) : new Thickness(0),
                 Margin = new Thickness(left, 0, 0, 0),
             });
+            WaveformEventTimeLabel.Add(
+                eventMarkers,
+                left,
+                3,
+                RecordingClockLabelFormatter.FormatMilliseconds(viewModel.RecordingStartUtc, itemStart),
+                color,
+                RecordingEventDisplayTime.FormatMarker(item, viewModel.RecordingStartUtc, viewModel.SamplingRateHz));
         }
     }
 

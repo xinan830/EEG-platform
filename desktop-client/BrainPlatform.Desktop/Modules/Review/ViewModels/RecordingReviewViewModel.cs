@@ -75,6 +75,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     public ObservableCollection<MontageProfile> CompatibleViewingMontages { get; } = [];
 
     public ObservableCollection<RecordingEvent> RecordingEvents { get; } = [];
+    public ObservableCollection<RecordingEventOption> RecordingEventOptions { get; } = [];
     public ObservableCollection<EventDefinition> EnabledEventDefinitions { get; } = [];
 
     private string? selectedEventDefinitionId;
@@ -89,7 +90,21 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     }
 
     public string EditEventNote { get => editEventNote; set => SetProperty(ref editEventNote, value); }
-    public double EditEventStartSeconds { get => editEventStartSeconds; set => SetProperty(ref editEventStartSeconds, value); }
+    public double EditEventStartSeconds
+    {
+        get => editEventStartSeconds;
+        set
+        {
+            if (SetProperty(ref editEventStartSeconds, value)) RaisePropertyChanged(nameof(EditEventClockText));
+        }
+    }
+    public string EditEventClockText => double.IsFinite(EditEventStartSeconds) &&
+        EditEventStartSeconds >= 0 && EditEventStartSeconds <= DurationSeconds
+        ? RecordingEventDisplayTime.FormatClock(
+            recordingStartUtc,
+            (long)Math.Round(EditEventStartSeconds * samplingRateHz, MidpointRounding.AwayFromZero),
+            samplingRateHz)
+        : "时间无效";
     public double EditEventDurationSeconds { get => editEventDurationSeconds; set => SetProperty(ref editEventDurationSeconds, value); }
     public bool IsEventEditorOpen { get => isEventEditorOpen; set => SetProperty(ref isEventEditorOpen, value); }
 
@@ -170,6 +185,10 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     public string RecordingStartText => FormatElapsedTime(0);
 
     public string RecordingEndText => FormatElapsedTime(DurationSeconds);
+
+    public string RecordingClockRangeText =>
+        $"约 {recordingStartUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss} - " +
+        $"{recordingStartUtc.AddSeconds(DurationSeconds).ToLocalTime():yyyy-MM-dd HH:mm:ss}；点击空白轨道跳转，拖动灰色窗口浏览记录。";
 
     public string PositionTimeText => FormatElapsedTime(PositionSeconds);
 
@@ -283,14 +302,33 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     public async Task LoadEventsAsync()
     {
         if (eventStore is null) return;
+        var selectedId = SelectedRecordingEvent?.Id;
         var events = await eventStore.LoadAsync(CancellationToken.None);
+        SelectedRecordingEvent = null;
         RecordingEvents.Clear();
-        foreach (var item in events.OrderBy(item => item.StartSample)) RecordingEvents.Add(item);
+        RecordingEventOptions.Clear();
+        foreach (var item in events.OrderBy(item => item.StartSample))
+        {
+            RecordingEvents.Add(item);
+            RecordingEventOptions.Add(new RecordingEventOption(
+                item,
+                $"{RecordingEventDisplayTime.FormatClockTime(recordingStartUtc, item.StartSample, samplingRateHz)} {item.DefinitionSnapshot.Name}",
+                RecordingEventDisplayTime.FormatMarker(item, recordingStartUtc, samplingRateHz)));
+        }
+        SelectedRecordingEvent = RecordingEvents.FirstOrDefault(item => item.Id == selectedId);
         RaisePropertyChanged(nameof(RecordingEvents));
         RaisePropertyChanged(nameof(CanEditSelectedEvent));
     }
 
     public async Task CreateManualEventAsync(string definitionId, string? note = null)
+        => await CreateEventAsync(definitionId, EventSource.ManualButton, "review-toolbar", note);
+
+    public async Task CreateKeyboardEventAsync(string definitionId, string shortcut)
+        => await CreateEventAsync(definitionId, EventSource.KeyboardShortcut, shortcut);
+
+    public void ReportEventShortcutError(Exception exception) => ReportCommandError(exception);
+
+    private async Task CreateEventAsync(string definitionId, EventSource source, string sourceDetail, string? note = null)
     {
         if (eventStore is null || EventDefinitionService is null)
             throw new InvalidOperationException("当前回溯记录不支持事件编辑。");
@@ -299,8 +337,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
             definitionId,
             (long)Math.Round(PositionSeconds * samplingRateHz, MidpointRounding.AwayFromZero),
             0,
-            EventSource.ManualButton,
-            "review-toolbar",
+            source,
+            sourceDetail,
             null,
             note,
             CancellationToken.None);
@@ -678,3 +716,5 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         RaisePropertyChanged(nameof(DerivedPaperSpeedMillimetersPerSecond));
     }
 }
+
+public sealed record RecordingEventOption(RecordingEvent Event, string DisplayText, string DetailText);
