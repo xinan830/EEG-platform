@@ -408,7 +408,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     private void LoadSelectedEventEditor(RecordingEvent? item)
     {
-        EditEventStartSeconds = item is null ? 0 : item.StartSample / (double)samplingRateHz;
+        EditEventStartSeconds = item is null ? 0 : RecordingTimeMapper.ToElapsedSeconds(item.StartSample, samplingRateHz);
         EditEventDurationSeconds = item is { IsInterval: true } ? item.DurationSamples / (double)samplingRateHz : 0;
         EditEventNote = item?.Note ?? string.Empty;
     }
@@ -420,7 +420,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         ArgumentNullException.ThrowIfNull(item);
         if (!item.IsDisplayable)
             throw new EventValidationException("event_coordinate_unavailable", item.CoordinateUnavailableReason ?? "该事件没有可用的波形坐标。");
-        return SeekAsync(item.StartSample / (double)samplingRateHz);
+        return SeekAsync(RecordingTimeMapper.ToElapsedSeconds(item.StartSample, samplingRateHz));
     }
 
     public Task SeekAsync(double positionSeconds)

@@ -19,15 +19,13 @@ public static class RecordingEventDisplayTime
         int samplingRateHz)
     {
         var clock = FormatClock(recordingStartUtc, item.StartSample, samplingRateHz);
-        var elapsedSeconds = item.StartSample / (double)samplingRateHz;
+        var elapsedSeconds = RecordingTimeMapper.ToElapsedSeconds(item.StartSample, samplingRateHz);
         return $"{item.DefinitionSnapshot.Name} · 记录时间 {clock}" +
                $"（记录后 {elapsedSeconds.ToString("0.###", CultureInfo.CurrentCulture)} 秒）";
     }
 
     private static DateTimeOffset EstimateLocalTime(DateTimeOffset recordingStartUtc, long startSample, int samplingRateHz)
     {
-        if (samplingRateHz <= 0) throw new ArgumentOutOfRangeException(nameof(samplingRateHz));
-        if (startSample < 0) throw new ArgumentOutOfRangeException(nameof(startSample));
-        return recordingStartUtc.AddSeconds(startSample / (double)samplingRateHz).ToLocalTime();
+        return RecordingTimeMapper.ToLocalTime(recordingStartUtc, startSample, samplingRateHz);
     }
 }

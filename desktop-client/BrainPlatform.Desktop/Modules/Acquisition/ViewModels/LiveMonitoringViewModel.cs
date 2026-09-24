@@ -76,8 +76,8 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         var recordingStartUtc = recordingStartUtcProvider();
         return metadata is null || recordingStartUtc is null
             ? null
-            : RecordingClockLabelFormatter.FormatMilliseconds(
-                recordingStartUtc.Value, item.StartSample / (double)metadata.SamplingRateHz);
+            : RecordingClockLabelFormatter.FormatSampleMilliseconds(
+                recordingStartUtc.Value, item.StartSample, metadata.SamplingRateHz);
     }
 
     public DateTimeOffset? GetDisplayClockAnchorUtc()

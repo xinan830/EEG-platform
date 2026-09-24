@@ -366,8 +366,10 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
                 continue;
             }
 
-            var itemStart = item.StartSample / (double)viewModel.SamplingRateHz;
-            var itemEnd = item.IsInterval ? item.EndSampleExclusive / (double)viewModel.SamplingRateHz : itemStart;
+            var itemStart = RecordingTimeMapper.ToElapsedSeconds(item.StartSample, viewModel.SamplingRateHz);
+            var itemEnd = item.IsInterval
+                ? RecordingTimeMapper.ToElapsedSeconds(item.EndSampleExclusive, viewModel.SamplingRateHz)
+                : itemStart;
             if (itemEnd < start || itemStart > end) continue;
             var left = Math.Clamp((itemStart - start) / duration, 0, 1) * chartHost.ActualWidth;
             var right = Math.Clamp((itemEnd - start) / duration, 0, 1) * chartHost.ActualWidth;
@@ -389,7 +391,8 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
                 eventMarkers,
                 left,
                 3,
-                RecordingClockLabelFormatter.FormatMilliseconds(viewModel.RecordingStartUtc, itemStart),
+                RecordingClockLabelFormatter.FormatSampleMilliseconds(
+                    viewModel.RecordingStartUtc, item.StartSample, viewModel.SamplingRateHz),
                 color,
                 RecordingEventDisplayTime.FormatMarker(item, viewModel.RecordingStartUtc, viewModel.SamplingRateHz));
         }
