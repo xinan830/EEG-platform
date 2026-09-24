@@ -159,6 +159,15 @@ public sealed class LocalAcquisitionRawWriter : IAcquisitionRawWriter
             detected_at_utc = gap.DetectedAtUtc,
         }, cancellationToken);
 
+    public Task AppendLifecycleBoundaryAsync(RecordingLifecycleBoundary boundary, CancellationToken cancellationToken) =>
+        AppendAuditAsync(new
+        {
+            type = "recording_lifecycle",
+            boundary = boundary.Kind.ToString(),
+            sample_counter = boundary.SampleCounter,
+            occurred_at_utc = boundary.OccurredAtUtc,
+        }, cancellationToken);
+
     public Task AppendDiagnosticAsync(
         string code,
         string detail,

@@ -5,6 +5,7 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly RecordingReviewSession session;
+    private readonly IRecordingReviewReader reviewReader;
     private readonly RecordingMontageCatalogResult catalog;
     private readonly RecordingPlaybackController playback;
     private readonly int samplingRateHz;
@@ -42,6 +43,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(catalog);
+        reviewReader = reader;
         this.catalog = catalog;
         recordingId = reader.Manifest.SessionId.ToString("N");
         session = new RecordingReviewSession(reader, catalog, visibleDurationSeconds, filter);
@@ -77,6 +79,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     public ObservableCollection<RecordingEvent> RecordingEvents { get; } = [];
     public ObservableCollection<RecordingEventOption> RecordingEventOptions { get; } = [];
     public ObservableCollection<EventDefinition> EnabledEventDefinitions { get; } = [];
+
+    public IReadOnlyList<RecordingLifecycleBoundary> LifecycleBoundaries => reviewReader.LifecycleBoundaries;
 
     private string? selectedEventDefinitionId;
     private string editEventNote = string.Empty;
@@ -163,6 +167,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     public string RecordingName => recordingName;
 
     public DateTimeOffset RecordingStartUtc => recordingStartUtc;
+    public long RecordingFirstSampleCounter => reviewReader.FirstSampleCounter;
 
     public double VisibleDurationSeconds => session.VisibleDurationSeconds;
 

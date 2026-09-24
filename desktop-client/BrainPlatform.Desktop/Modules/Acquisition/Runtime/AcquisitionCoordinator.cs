@@ -26,12 +26,16 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     private AcquisitionStreamMetadata? streamMetadata;
     private AcquisitionStreamMetadata? recordingMetadata;
     private long recordingFirstSampleCounter = -1;
+    private long recordingLastPersistedSampleCounter = -1;
     private AcquisitionFault? lastFault;
     private readonly object pauseGate = new();
     private readonly List<AcquisitionGap> pendingPausedGaps = [];
     private readonly object recordingGapGate = new();
     private readonly List<AcquisitionGap> recordingGaps = [];
+    private readonly List<RecordingLifecycleBoundary> lifecycleBoundaries = [];
     private int pauseRequested;
+    private bool lifecycleStartedWritten;
+    private bool lifecycleResumePending;
     private bool disposed;
 
     public AcquisitionCoordinator(
@@ -88,6 +92,11 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         {
             return recordingGaps.ToArray();
         }
+    }
+
+    public IReadOnlyList<RecordingLifecycleBoundary> GetLifecycleBoundaries()
+    {
+        lock (recordingGapGate) return lifecycleBoundaries.ToArray();
     }
 
     public async Task<IReadOnlyList<AcquisitionDeviceDescriptor>> DiscoverAsync(CancellationToken cancellationToken)
@@ -320,6 +329,12 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         {
             EnsureState(AcquisitionState.Recording);
             Volatile.Write(ref pauseRequested, 1);
+            var persistedSample = Volatile.Read(ref recordingLastPersistedSampleCounter);
+            if (rawWriter is { } writer && persistedSample >= 0)
+            {
+                await AppendLifecycleBoundaryAsync(writer, new RecordingLifecycleBoundary(
+                    RecordingLifecycleBoundaryKind.Paused, persistedSample, DateTimeOffset.UtcNow), cancellationToken);
+            }
             SetState(AcquisitionState.Paused, "EEG recording paused; device stream remains drained.", sessionId);
         }
         finally
@@ -336,6 +351,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         {
             EnsureState(AcquisitionState.Paused);
             Volatile.Write(ref pauseRequested, 0);
+            lifecycleResumePending = true;
             SetState(AcquisitionState.Recording, "Recording raw EEG data.", sessionId);
         }
         finally
@@ -442,6 +458,19 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
 
                 await activeWriter.AppendBatchAsync(batch, cancellationToken);
                 Interlocked.CompareExchange(ref recordingFirstSampleCounter, batch.FirstSampleCounter, -1);
+                Volatile.Write(ref recordingLastPersistedSampleCounter, batch.LastSampleCounter);
+                if (!lifecycleStartedWritten)
+                {
+                    lifecycleStartedWritten = true;
+                    await AppendLifecycleBoundaryAsync(activeWriter, new RecordingLifecycleBoundary(
+                        RecordingLifecycleBoundaryKind.Started, batch.FirstSampleCounter, batch.ReceivedAtUtc), cancellationToken);
+                }
+                if (lifecycleResumePending)
+                {
+                    lifecycleResumePending = false;
+                    await AppendLifecycleBoundaryAsync(activeWriter, new RecordingLifecycleBoundary(
+                        RecordingLifecycleBoundaryKind.Resumed, batch.FirstSampleCounter, batch.ReceivedAtUtc), cancellationToken);
+                }
             }
 
             var displayBuffer = ringBuffer ?? throw new InvalidOperationException("Ring buffer was not initialized.");
@@ -494,6 +523,13 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
                     await rawWriter.AppendGapAsync(pausedGap, cancellationToken);
                 }
 
+                var lastSample = Volatile.Read(ref recordingLastPersistedSampleCounter);
+                if (lastSample >= 0)
+                {
+                    await AppendLifecycleBoundaryAsync(rawWriter, new RecordingLifecycleBoundary(
+                        RecordingLifecycleBoundaryKind.Stopped, lastSample, DateTimeOffset.UtcNow), cancellationToken);
+                }
+
                 await rawWriter.CompleteAsync(DateTimeOffset.UtcNow, cancellationToken);
             }
 
@@ -509,6 +545,15 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         {
             lifecycle.Release();
         }
+    }
+
+    private async Task AppendLifecycleBoundaryAsync(
+        IAcquisitionRawWriter writer,
+        RecordingLifecycleBoundary boundary,
+        CancellationToken cancellationToken)
+    {
+        await writer.AppendLifecycleBoundaryAsync(boundary, cancellationToken);
+        lock (recordingGapGate) lifecycleBoundaries.Add(boundary);
     }
 
     private async Task FaultAsync(AcquisitionFault fault)
@@ -582,8 +627,12 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         recordingSessionId = null;
         activeRequest = null;
         Volatile.Write(ref recordingFirstSampleCounter, -1);
+        Volatile.Write(ref recordingLastPersistedSampleCounter, -1);
         Volatile.Write(ref streamMetadata, null);
         Volatile.Write(ref recordingMetadata, null);
+        lifecycleStartedWritten = false;
+        lifecycleResumePending = false;
+        lock (recordingGapGate) lifecycleBoundaries.Clear();
     }
 
     private void AccumulatePausedRange(AcquisitionBatch batch)

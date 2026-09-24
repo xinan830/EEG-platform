@@ -301,6 +301,7 @@ public sealed class LiveSciChartCanvas : UserControl
             }
         }
         UpdateEventMarkers(frame, DataContext as LiveMonitoringViewModel);
+        UpdateLifecycleBoundaries(frame, DataContext as LiveMonitoringViewModel);
     }
 
     private void ShowEmptyState(LiveMonitoringViewModel? monitor)
@@ -462,6 +463,51 @@ public sealed class LiveSciChartCanvas : UserControl
             }
         }
     }
+
+    private void UpdateLifecycleBoundaries(WaveformDisplayFrame frame, LiveMonitoringViewModel? monitor)
+    {
+        foreach (var line in eventMarkers.Children.OfType<Line>().ToArray()) eventMarkers.Children.Remove(line);
+        if (monitor is null) return;
+        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
+        var pageStart = frame.WindowStartSampleCounter;
+        var pageEnd = pageStart + frame.WindowSampleCount;
+        foreach (var boundary in monitor.LiveLifecycleBoundaries)
+        {
+            var recordingFirst = monitor.RecordingFirstSampleCounter;
+            if (recordingFirst is null) continue;
+            var relative = boundary.SampleCounter - recordingFirst.Value;
+            var display = monitor.ToDisplayCounterFromRecordingSample(relative);
+            if (display is null || display < pageStart || display >= pageEnd) continue;
+            var x = plotArea.Left + (display.Value - pageStart) / (double)frame.WindowSampleCount * plotArea.Width;
+            eventMarkers.Children.Add(new Line
+            {
+                X1 = x, X2 = x, Y1 = plotArea.Top, Y2 = plotArea.Bottom,
+                Stroke = new SolidColorBrush(Color.FromRgb(51, 65, 85)),
+                StrokeThickness = 1.2,
+                StrokeDashArray = new DoubleCollection { 3, 2 },
+                IsHitTestVisible = false,
+            });
+            WaveformEventTimeLabel.Add(
+                eventMarkers,
+                x,
+                plotArea.Top + 3,
+                RecordingClockLabelFormatter.FormatSampleMilliseconds(
+                    monitor.RecordingStartUtc ?? DateTimeOffset.UtcNow,
+                    relative,
+                    monitor.SamplingRateHz),
+                Color.FromRgb(51, 65, 85),
+                BoundaryText(boundary.Kind));
+        }
+    }
+
+    private static string BoundaryText(RecordingLifecycleBoundaryKind kind) => kind switch
+    {
+        RecordingLifecycleBoundaryKind.Started => "开始记录",
+        RecordingLifecycleBoundaryKind.Paused => "暂停记录",
+        RecordingLifecycleBoundaryKind.Resumed => "恢复记录",
+        RecordingLifecycleBoundaryKind.Stopped => "结束记录",
+        _ => kind.ToString(),
+    };
 
     private static Color ParseColor(string value)
     {

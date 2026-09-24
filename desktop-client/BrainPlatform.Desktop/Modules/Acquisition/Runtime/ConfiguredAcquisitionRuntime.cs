@@ -49,6 +49,8 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
     public IReadOnlyList<AcquisitionGap> GetRecordingGaps() => coordinator?.GetRecordingGaps() ?? [];
 
+    public IReadOnlyList<RecordingLifecycleBoundary> GetLifecycleBoundaries() => coordinator?.GetLifecycleBoundaries() ?? [];
+
     public IReadOnlyList<AcquisitionDriverDescriptor> AvailableDrivers => driverRegistry.Drivers;
 
     public ConfiguredAcquisitionRuntime(

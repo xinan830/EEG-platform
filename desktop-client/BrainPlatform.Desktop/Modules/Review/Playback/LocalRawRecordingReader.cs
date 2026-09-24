@@ -85,7 +85,9 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
         var index = new LocalRawRecordingIndex(batches, payloadBytesReadDuringOpen: 0);
         var reader = new LocalRawRecordingReader(root, manifest, index);
         var gaps = ReadGaps(root, cancellationToken);
-        return new LocalRawRecording(manifest, index, gaps, reader);
+        var lifecycle = ReadLifecycleBoundaries(root, cancellationToken);
+        reader.LifecycleBoundaries = lifecycle;
+        return new LocalRawRecording(manifest, index, gaps, lifecycle, reader);
     }
 
     public async Task<RecordingReviewWindow> ReadWindowAsync(
@@ -195,6 +197,8 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
         (index.LastSampleCounter - index.FirstSampleCounter + 1d) / manifest.SamplingRateHz;
 
     public LocalRawRecordingManifest Manifest => manifest;
+
+    public IReadOnlyList<RecordingLifecycleBoundary> LifecycleBoundaries { get; private set; } = [];
 
     public long FirstSampleCounter => index.FirstSampleCounter;
 
@@ -375,6 +379,34 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
         }
 
         return gaps;
+    }
+
+    private static IReadOnlyList<RecordingLifecycleBoundary> ReadLifecycleBoundaries(string root, CancellationToken cancellationToken)
+    {
+        var path = Path.Combine(root, "audit.jsonl");
+        if (!File.Exists(path)) return [];
+        var boundaries = new List<RecordingLifecycleBoundary>();
+        foreach (var line in File.ReadLines(path))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                using var document = JsonDocument.Parse(line);
+                var value = document.RootElement;
+                if (!value.TryGetProperty("type", out var type) ||
+                    !string.Equals(type.GetString(), "recording_lifecycle", StringComparison.OrdinalIgnoreCase) ||
+                    !value.TryGetProperty("boundary", out var boundary) ||
+                    !Enum.TryParse<RecordingLifecycleBoundaryKind>(boundary.GetString(), true, out var kind) ||
+                    !value.TryGetProperty("sample_counter", out var sample) || !sample.TryGetInt64(out var counter) ||
+                    !value.TryGetProperty("occurred_at_utc", out var occurred) || !occurred.TryGetDateTimeOffset(out var at))
+                {
+                    continue;
+                }
+                boundaries.Add(new RecordingLifecycleBoundary(kind, counter, at));
+            }
+            catch (JsonException) { }
+        }
+        return boundaries.OrderBy(item => item.SampleCounter).ThenBy(item => item.OccurredAtUtc).ToArray();
     }
 
     private static long GetInt64(JsonElement element, string name) =>

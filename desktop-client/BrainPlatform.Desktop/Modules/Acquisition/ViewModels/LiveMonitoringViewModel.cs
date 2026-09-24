@@ -13,6 +13,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
     private readonly Func<long?> recordingFirstSampleCounterProvider;
     private readonly Func<DateTimeOffset?> recordingStartUtcProvider;
     private readonly Func<IReadOnlyList<RecordingEvent>> recordingEventsProvider;
+    private readonly Func<IReadOnlyList<RecordingLifecycleBoundary>> lifecycleBoundariesProvider;
     private readonly DispatcherTimer clock;
     private AcquisitionStreamMetadata? streamMetadata;
     private readonly WaveformDisplaySettings displaySettings = new();
@@ -36,7 +37,8 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         Func<IReadOnlyList<long>>? displayFilterBoundaryProvider = null,
         Func<long?>? recordingFirstSampleCounterProvider = null,
         Func<IReadOnlyList<RecordingEvent>>? recordingEventsProvider = null,
-        Func<DateTimeOffset?>? recordingStartUtcProvider = null)
+        Func<DateTimeOffset?>? recordingStartUtcProvider = null,
+        Func<IReadOnlyList<RecordingLifecycleBoundary>>? lifecycleBoundariesProvider = null)
     {
         this.stateProvider = stateProvider;
         this.metadataProvider = metadataProvider;
@@ -45,6 +47,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         this.recordingFirstSampleCounterProvider = recordingFirstSampleCounterProvider ?? (() => null);
         this.recordingStartUtcProvider = recordingStartUtcProvider ?? (() => null);
         this.recordingEventsProvider = recordingEventsProvider ?? (() => []);
+        this.lifecycleBoundariesProvider = lifecycleBoundariesProvider ?? (() => []);
         displaySettings.PropertyChanged += OnDisplaySettingsChanged;
         ToggleSettingsCommand = new AsyncRelayCommand(ToggleSettingsAsync, ReportCommandError);
         clock = new DispatcherTimer(DispatcherPriority.Background, dispatcher)
@@ -60,6 +63,10 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     /// <summary>Durably stored event markers for the active Recording only.</summary>
     public IReadOnlyList<RecordingEvent> LiveRecordingEvents => recordingEventsProvider();
+    public IReadOnlyList<RecordingLifecycleBoundary> LiveLifecycleBoundaries => lifecycleBoundariesProvider();
+    public long? RecordingFirstSampleCounter => recordingFirstSampleCounterProvider();
+    public int SamplingRateHz => streamMetadata?.SamplingRateHz ?? 0;
+    public DateTimeOffset? RecordingStartUtc => recordingStartUtcProvider();
 
     public string FormatEventMarker(RecordingEvent item)
     {

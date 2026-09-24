@@ -19,6 +19,8 @@ public interface IAcquisitionRawWriter : IAsyncDisposable
 
     Task AppendGapAsync(AcquisitionGap gap, CancellationToken cancellationToken);
 
+    Task AppendLifecycleBoundaryAsync(RecordingLifecycleBoundary boundary, CancellationToken cancellationToken);
+
     Task AppendDiagnosticAsync(string code, string detail, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken);
 
     Task CompleteAsync(DateTimeOffset completedAtUtc, CancellationToken cancellationToken);

@@ -83,6 +83,10 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         VisualXcceleratorEngine.SetIsEnabled(surface, true);
         WaveformAxisPolicy.ConfigureHorizontalAxis(xAxis, recordingTimeLabels);
         xAxis.TickProvider = wallClockTicks;
+        xAxis.MajorGridLineStyle = new Style(typeof(Line))
+        {
+            Setters = { new Setter(Shape.StrokeProperty, new SolidColorBrush(Color.FromRgb(148, 163, 184))) },
+        };
         // Keep the invisible Y-axis layout area away from the channel-label
         // column so review uses the same compact waveform start as live view.
         WaveformAxisPolicy.ConfigureStackedTraceAxis(yAxis);
@@ -168,6 +172,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
             UpdateVisibleRange(sender as RecordingReviewViewModel);
             UpdatePlaybackCursor(sender as RecordingReviewViewModel);
             UpdateEventMarkers(sender as RecordingReviewViewModel);
+            UpdateLifecycleBoundaries(sender as RecordingReviewViewModel);
         }
     }
 
@@ -204,6 +209,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
 
         UpdatePlaybackCursor(viewModel);
         UpdateEventMarkers(viewModel);
+        UpdateLifecycleBoundaries(viewModel);
     }
 
     private void EnsureTraceSeries(IReadOnlyList<string> names)
@@ -403,6 +409,54 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         try { return (Color)ColorConverter.ConvertFromString(value); }
         catch { return Color.FromRgb(37, 99, 235); }
     }
+
+    private void UpdateLifecycleBoundaries(RecordingReviewViewModel? viewModel)
+    {
+        foreach (var line in eventMarkers.Children.OfType<Line>().ToArray())
+        {
+            eventMarkers.Children.Remove(line);
+        }
+
+        if (viewModel is null || chartHost.ActualWidth <= 0 || chartHost.ActualHeight <= 0)
+            return;
+
+        var start = viewModel.ViewportStartSeconds;
+        var end = Math.Min(viewModel.DurationSeconds, start + viewModel.VisibleDurationSeconds);
+        var duration = Math.Max(0.001, end - start);
+        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
+        foreach (var boundary in viewModel.LifecycleBoundaries)
+        {
+            var relativeSample = boundary.SampleCounter - viewModel.RecordingFirstSampleCounter;
+            var seconds = relativeSample / (double)viewModel.SamplingRateHz;
+            if (seconds < start || seconds > end) continue;
+            var x = plotArea.Left + Math.Clamp((seconds - start) / duration, 0, 1) * plotArea.Width;
+            eventMarkers.Children.Add(new Line
+            {
+                X1 = x, X2 = x, Y1 = plotArea.Top, Y2 = plotArea.Bottom,
+                Stroke = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
+                StrokeThickness = 1.2,
+                StrokeDashArray = new DoubleCollection { 3, 2 },
+                IsHitTestVisible = false,
+            });
+            WaveformEventTimeLabel.Add(
+                eventMarkers,
+                x,
+                plotArea.Top + 3,
+                RecordingClockLabelFormatter.FormatSampleMilliseconds(
+                    viewModel.RecordingStartUtc, relativeSample, viewModel.SamplingRateHz),
+                Color.FromRgb(51, 65, 85),
+                BoundaryText(boundary.Kind));
+        }
+    }
+
+    private static string BoundaryText(RecordingLifecycleBoundaryKind kind) => kind switch
+    {
+        RecordingLifecycleBoundaryKind.Started => "开始记录",
+        RecordingLifecycleBoundaryKind.Paused => "暂停记录",
+        RecordingLifecycleBoundaryKind.Resumed => "恢复记录",
+        RecordingLifecycleBoundaryKind.Stopped => "结束记录",
+        _ => kind.ToString(),
+    };
 
     private void UpdateVisibleRange(RecordingReviewViewModel? viewModel)
     {

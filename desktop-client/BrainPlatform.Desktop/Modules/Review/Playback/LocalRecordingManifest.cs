@@ -80,11 +80,13 @@ public sealed class LocalRawRecording : IAsyncDisposable
         LocalRawRecordingManifest manifest,
         LocalRawRecordingIndex index,
         IReadOnlyList<AcquisitionGap> gaps,
+        IReadOnlyList<RecordingLifecycleBoundary> lifecycleBoundaries,
         LocalRawRecordingReader reader)
     {
         Manifest = manifest;
         Index = index;
         Gaps = gaps;
+        LifecycleBoundaries = lifecycleBoundaries;
         Reader = reader;
     }
 
@@ -93,6 +95,8 @@ public sealed class LocalRawRecording : IAsyncDisposable
     public LocalRawRecordingIndex Index { get; }
 
     public IReadOnlyList<AcquisitionGap> Gaps { get; }
+
+    public IReadOnlyList<RecordingLifecycleBoundary> LifecycleBoundaries { get; }
 
     public LocalRawRecordingReader Reader { get; }
 

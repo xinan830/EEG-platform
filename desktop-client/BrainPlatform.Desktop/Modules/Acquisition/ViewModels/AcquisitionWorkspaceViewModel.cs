@@ -77,7 +77,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             () => this.runtime.GetDisplayFilterBoundaries(),
             () => this.runtime.RecordingFirstSampleCounter,
             () => LiveRecordingEvents.ToArray(),
-            () => this.runtime.RecordingStartUtc);
+            () => this.runtime.RecordingStartUtc,
+            () => this.runtime.GetLifecycleBoundaries());
         DisplayPreferences = new LiveDisplayPreferencesViewModel(
             this.runtime,
             LiveMonitor,
@@ -778,7 +779,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     }
 
     private static string FormatLocalClock(DateTimeOffset utc) =>
-        utc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture);
+        utc.ToLocalTime().ToString("HH:mm:ss.fff", CultureInfo.CurrentCulture);
 
     private void ReportCommandError(Exception exception)
     {

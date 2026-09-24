@@ -16,6 +16,19 @@ public enum AcquisitionState
     Faulted,
 }
 
+public enum RecordingLifecycleBoundaryKind
+{
+    Started,
+    Paused,
+    Resumed,
+    Stopped,
+}
+
+public sealed record RecordingLifecycleBoundary(
+    RecordingLifecycleBoundaryKind Kind,
+    long SampleCounter,
+    DateTimeOffset OccurredAtUtc);
+
 public enum AcquisitionChannelKind
 {
     Unknown,

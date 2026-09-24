@@ -5,6 +5,8 @@ namespace BrainPlatform.Desktop.Modules.Review.Playback;
 public interface IRecordingReviewReader
 {
     LocalRawRecordingManifest Manifest { get; }
+    IReadOnlyList<RecordingLifecycleBoundary> LifecycleBoundaries => [];
+    long FirstSampleCounter => 0;
     double DurationSeconds { get; }
     Task<RecordingReviewWindow> ReadWindowAsync(double startSeconds, double durationSeconds, CancellationToken cancellationToken);
 }
