@@ -1,20 +1,27 @@
-# Add official spectral foundation
+# Official algorithm development plan
 
 ## Why
 
-The platform already has frozen Welch PSD and spectrogram services, but the
-Fourier transform is still an implementation detail inside those calculations.
-The next official algorithm phase needs one explicit scientific foundation for
-FFT frequency axes, units, sample coordinates, and transform padding evidence.
+The platform already has several official algorithms and a migrated scientific
+backend, but their history is spread across archived OpenSpec changes. This
+change is the single active plan for the next official algorithm phase. It
+records the complete delivery order, ownership boundaries, and acceptance
+gates so implementation does not restart from an incomplete historical task
+file.
 
 ## Scope
 
-- Add a pure, SI-unit Fourier transform primitive for V-valued samples.
-- Keep recording gaps separate from transform padding; non-finite input is
-  rejected and never repaired by this primitive.
-- Register the primitive in the scientific package without changing the
-  existing PSD/spectrogram numerical contracts.
-- Add independent numerical and contract tests.
+- Freeze the scientific contracts and ownership map before new algorithms.
+- Complete reusable spectral primitives and the shared static/dynamic window
+  execution path.
+- Expose PSD and STFT as traceable official Runtime modules with structured
+  multi-field outputs and artifacts.
+- Keep official algorithm modules independently versioned, parameterized, and
+  independently validated.
+- Integrate results with Run provenance and the existing analysis APIs without
+  moving scientific calculations into the frontend.
+- Close the change only after full backend, reference, OpenSpec, and artifact
+  verification.
 
 ## Out of scope
 
@@ -22,7 +29,9 @@ FFT frequency axes, units, sample coordinates, and transform padding evidence.
 - Adding UI controls or frontend-side scientific calculations.
 - Making arbitrary user-defined algorithms executable.
 
-## Follow-up
+## Source of truth
 
-The next change will expose PSD and STFT as official Runtime modules using
-this primitive and the existing spectral quality gateway.
+The plan is `design.md` and `tasks.md` in this change. The canonical long-term
+contracts remain under `openspec/specs/analysis/`. Archived changes are
+historical evidence only and must not be used as the next implementation
+backlog.
