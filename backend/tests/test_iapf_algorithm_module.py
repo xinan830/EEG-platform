@@ -9,7 +9,7 @@ from app.algorithm_runtime.executor import AlgorithmRuntime
 from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithm_runtime.windows import build_playback_windows
 from app.algorithms.iapf.runner import IapfAlgorithm
-from app.eeg_core.official_algorithms.iapf import IAPFEstimate
+from app.algorithms.iapf.official import IAPFEstimate
 
 
 def _fake_recording(duration_s: float = 40.0):

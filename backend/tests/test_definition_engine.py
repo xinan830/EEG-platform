@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.eeg_core.definition_engine import DefinitionEngineError, evaluate_formula, execute_graph, validate_graph
+from app.legacy.definition_engine import DefinitionEngineError, evaluate_formula, execute_graph, validate_graph
 from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.primitives.units import Unit
 

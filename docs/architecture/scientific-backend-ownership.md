@@ -20,14 +20,9 @@ migrated, but new active scientific code MUST NOT be added there.
 
 ## Compatibility Adapters
 
-These paths are retained only so existing imports and historical callers keep
-working. They MUST delegate and MUST NOT add formulas or policy:
-
-- `app/eeg_core/spectral.py`
-- `app/eeg_core/official_algorithms/faa.py`
-- `app/eeg_core/official_algorithms/iapf.py`
-- `app/eeg_core/official_algorithms/rbp.py`
-- `app/eeg_core/official_algorithms/theta_beta.py`
+No forwarding facade remains for the migrated spectral primitives, official
+IAPF/FAA/RBP/Theta-Beta formulas, or the retired metric playback processor.
+Tests and diagnostic scripts import the canonical owners directly.
 
 ## Validation References
 
@@ -35,26 +30,23 @@ The following remain executable only from validation tests and are not Runtime
 registration targets:
 
 - `app/eeg_core/official_algorithms/validation/`
+- `app/eeg_core/realtime_spectral.py`
 - `app/services/independent_spectral_reference.py`
 
-## Legacy Realtime/Definition Engine
+## Historical References And Definition Engine
 
-These paths still support the existing realtime or historical user-definition
-chain. They are frozen for new active science and will move behind `legacy`
-only after historical-read and desktop compatibility tests pass:
+The legacy metric playback transport and stateful `EEGProcessor` execution
+stack were retired. The remaining paths are validation references or support
+scalar Definition preview; they are not active playback authorities:
 
-- `app/eeg_core/processor*.py`
-- `app/eeg_core/stream_filter.py`
-- `app/eeg_core/realtime_spectral.py`
-- `app/eeg_core/iapf_*.py`
-- `app/eeg_core/definition_engine.py`
+- `app/legacy/definition_engine.py`
 - `app/eeg_core/primitives/` (historical definition graph vocabulary)
 
 ## Rules
 
 1. New PSD, filtering, quality, or official algorithm code goes only in the
    active authority listed above.
-2. A compatibility adapter may import its target, but the target may not import
-   the adapter.
+2. New compatibility forwarding modules require a real product caller and a
+   documented removal gate; test-only aliases are not retained.
 3. Validation references are never registered with Runtime.
 4. Raw data, Run records, and stored artifacts remain outside this migration.

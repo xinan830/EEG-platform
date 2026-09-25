@@ -133,11 +133,9 @@ def test_retired_metric_executor_implementations_are_removed() -> None:
 
 
 def test_retired_definition_engine_is_owned_by_legacy_boundary() -> None:
-    facade = (ROOT / "app" / "eeg_core" / "definition_engine.py").read_text(encoding="utf-8")
     implementation = ROOT / "app" / "legacy" / "definition_engine.py"
     assert implementation.exists()
-    assert "app.legacy.definition_engine" in facade
-    assert "def execute_graph" not in facade
+    assert not (ROOT / "app" / "eeg_core" / "definition_engine.py").exists()
 
 
 def test_product_runtime_does_not_import_or_name_switch_to_retired_official_paths() -> None:
@@ -162,15 +160,21 @@ def test_run_services_have_no_opt_in_retired_user_execution_path() -> None:
         assert "UserDefinitionAlgorithm" not in source
 
 
-def test_playback_service_uses_a_single_processor_boundary() -> None:
-    playback = (ROOT / "app" / "services" / "playback.py").read_text(encoding="utf-8")
-    boundary = (ROOT / "app" / "services" / "playback_processor.py").read_text(encoding="utf-8")
-
-    assert "app.legacy.playback_processor" not in playback
-    assert "create_playback_processor" in playback
-    assert "app.legacy.playback_processor" in boundary
-    assert "class PlaybackProcessor(Protocol)" in boundary
-    assert "PlaybackProcessor" in playback
+def test_retired_metric_playback_has_no_product_execution_path() -> None:
+    for path in (
+        ROOT / "app" / "services" / "playback.py",
+        ROOT / "app" / "services" / "playback_processor.py",
+        ROOT / "app" / "legacy" / "playback_processor.py",
+        ROOT / "app" / "eeg_core" / "processor.py",
+    ):
+        assert not path.exists(), path
+    main = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
+    routes = (ROOT / "app" / "api" / "playback.py").read_text(encoding="utf-8")
+    assert "app.state.playback_service" not in main
+    assert "@router.post(\"/api/recordings/{recording_id}/playback\"" not in routes
+    assert "@router.post(\"/api/playback/{session_id}/control\"" not in routes
+    assert "@router.websocket(\"/api/playback/{session_id}/events\"" not in routes
+    assert "@router.post(\"/api/recordings/{recording_id}/waveform-playback\"" in routes
 
 
 def test_persistence_repositories_have_no_service_facades() -> None:
@@ -186,6 +190,10 @@ def test_official_catalog_and_validation_have_no_redundant_eeg_core_entry_points
     assert not (eeg_core / "official_algorithms" / "registry.py").exists()
     assert not (eeg_core / "analysis_contract.py").exists()
     assert not (eeg_core / "quality.py").exists()
+    for name in ("spectral.py", "faa.py", "offline_metrics.py", "definition_engine.py"):
+        assert not (eeg_core / name).exists()
+    for name in ("faa.py", "iapf.py", "rbp.py", "theta_beta.py"):
+        assert not (eeg_core / "official_algorithms" / name).exists()
 
 
 def test_official_runtime_uses_field_level_output_schemas_only() -> None:
@@ -217,5 +225,5 @@ def test_audit_documents_legacy_deletion_gate() -> None:
     text = document.read_text(encoding="utf-8")
     assert "Historical Run retrieval" in text
     assert "ChannelMapping" in text
-    assert "Compatibility adapters remain intentionally" in text
+    assert "forwarding adapters had moved" in text
     assert "machine-checked" in text

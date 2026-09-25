@@ -88,7 +88,7 @@ def test_reference_calculation_does_not_call_production_spectral_helpers(tmp_pat
     reference = IndependentSpectralReferenceService(
         app.state.recording_service, validations, source_reader=lambda _recording: (values, 100.0, names),
     )
-    import app.eeg_core.spectral as production_spectral
+    import app.scientific.primitives.spectral as production_spectral
 
     monkeypatch.setattr(production_spectral, "preprocess_offline", lambda *_args: (_ for _ in ()).throw(AssertionError("production preprocessing called")))
     monkeypatch.setattr(production_spectral, "estimate_welch_psd", lambda *_args: (_ for _ in ()).throw(AssertionError("production Welch called")))

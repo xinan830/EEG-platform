@@ -3,7 +3,7 @@ import pytest
 
 from app.eeg_core.official_algorithms.validation import shadow_brainbeat, shadow_brainbeat_ema, shadow_faa, shadow_iapf, shadow_rbp, shadow_theta_beta
 from app.algorithms.catalog import ensure_official_definitions, official_definition, official_definition_draft
-from app.eeg_core.spectral import SpectralEstimate
+from app.scientific.primitives.spectral import SpectralEstimate
 from app.services.definitions import DefinitionService
 
 

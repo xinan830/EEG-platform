@@ -21,10 +21,10 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.core.provenance import sha256_json
-from app.eeg_core.faa import LEGACY_FAA_INITIAL_DISCARD_S
+from app.algorithms.faa.official import LEGACY_FAA_INITIAL_DISCARD_S
 from app.eeg_core.official_algorithms.validation import shadow_brainbeat, shadow_brainbeat_ema, shadow_faa, shadow_iapf, shadow_rbp, shadow_theta_beta
 from app.algorithms.catalog import ensure_official_definitions
-from app.eeg_core.spectral import estimate_welch_psd, preprocess_offline
+from app.scientific.primitives.spectral import estimate_welch_psd, preprocess_offline
 from app.models.run import ValidationCreateRequest
 from app.services.definitions import DefinitionService
 from app.services.recordings import RecordingService

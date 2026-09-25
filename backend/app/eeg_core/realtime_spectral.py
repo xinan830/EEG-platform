@@ -1,4 +1,4 @@
-"""Pure spectral helpers used by the legacy real-time processor."""
+"""Pure legacy spectral reference helpers retained for validation tests."""
 
 import numpy as np
 

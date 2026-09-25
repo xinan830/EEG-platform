@@ -14,7 +14,7 @@ from app.eeg_core.primitives.registry import UnknownNodeError
 from app.eeg_core.primitives.signal_nodes import resample, select_channels, window
 from app.eeg_core.primitives.spectral_nodes import band_power, welch_psd
 from app.eeg_core.primitives.types import Scalar
-from app.eeg_core.spectral import estimate_welch_psd
+from app.scientific.primitives.spectral import estimate_welch_psd
 
 
 def _signal(duration_s: float = 30.0, sfreq_hz: float = 100.0) -> EEGSignal:

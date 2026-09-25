@@ -1,7 +1,7 @@
 import numpy as np
 
 from app.scientific.quality import evaluate_spectral_window
-from app.eeg_core.spectral import estimate_welch_psd
+from app.scientific.primitives.spectral import estimate_welch_psd
 
 
 def test_quality_reports_all_stable_reason_codes():

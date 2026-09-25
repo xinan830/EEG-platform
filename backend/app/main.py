@@ -18,7 +18,6 @@ from app.services.audit import AuditService
 from app.services.events import EventMarkerService
 from app.services.reports import ReportSnapshotService
 from app.services.recordings import RecordingService
-from app.services.playback import PlaybackService
 from app.services.waveform_playback import WaveformPlaybackService
 from app.services.run_queue import PersistentRunQueue, RunWorker
 from app.services.validations import ValidationService
@@ -69,7 +68,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.state.recording_service = RecordingService()
-app.state.playback_service = PlaybackService(app.state.recording_service)
 app.state.waveform_playback_service = WaveformPlaybackService(app.state.recording_service)
 app.state.audit_service = AuditService()
 app.state.event_marker_service = EventMarkerService()

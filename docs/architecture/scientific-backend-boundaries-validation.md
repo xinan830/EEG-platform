@@ -13,7 +13,7 @@ record, not clinical validation.
 - `app.algorithm_runtime` imports no concrete module under `app.algorithms`.
 - Active Welch PSD, band power, STFT, FAA, IAPF, RBP, and Theta/Beta authorities
   are declared in `app/scientific/authority_manifest.json`.
-- Legacy `eeg_core` scientific imports are compatibility/reference paths; the
+- Remaining `eeg_core` scientific code is historical or validation-only; the
   migrated implementations are the active authorities documented in the
   ownership inventory.
 - Definition, Run, Validation, and algorithm-preset repositories are owned by
@@ -31,9 +31,8 @@ record, not clinical validation.
   were removed. Historical Run and artifact readers do not import executable
   user-definition code.
 - The retired definition graph engine is owned by
-  `app/legacy/definition_engine.py`; the old `eeg_core` import path remains a
-  compatibility facade, and service modules no longer import `eeg_core`
-  directly.
+  `app/legacy/definition_engine.py`; service modules no longer import
+  `eeg_core` directly, and the old forwarding path was later removed.
 - Services now consume the public `scientific.primitives` and
   `scientific.quality` package facades instead of concrete spectral modules;
   this keeps the import boundary stable while typed dependency injection is
@@ -57,19 +56,14 @@ record, not clinical validation.
 
 ## Compatibility and rollback points
 
-The following adapters remain intentionally present and are not active
-scientific authorities:
-
-- `app.eeg_core.spectral`
-- `app.eeg_core.official_algorithms.*`
-- `app.legacy.playback_processor`
-
 Redundant `services/*_repository`, `eeg_core/analysis_contract`,
 `eeg_core/quality`, `eeg_core/official_definitions`,
 `eeg_core/official_algorithm_shadows`, and
 `eeg_core/official_algorithms/registry` entry points were removed after their
-callers moved to canonical owners. Remaining adapters have validation,
-historical, or playback callers and need a separate parity gate before removal.
+callers moved to canonical owners. The later retirement removed the old
+playback processor and test-only spectral/official-algorithm forwarding
+facades. Reference-only validation formulas and scalar Definition preview are
+retained as implementations, not forwarding entry points.
 
 ## Verification commands and results
 
@@ -103,12 +97,15 @@ passed (CRLF normalization warnings only)
   their adoption across every primitive and official module is still pending;
   this migration is not claiming that all existing payloads have already been
   converted to those types.
-- Compatibility facades remain until all active callers are migrated and a
-  later removal change explicitly approves deletion.
+- Historical scalar Definition preview and independent validation references
+  remain; they are not executable metric playback compatibility routes.
 
-## Remaining acceptance gates
+## Subsequent retirement
 
-The legacy streaming biofeedback processor still powers `/api/playback` and
-cannot be removed until a versioned streaming replacement has parity evidence
-for filter state, update cadence, IAPF locking, RBP, and derived metric payloads.
-Physical ANT/eego lifecycle verification is tracked separately.
+The unused legacy metric playback API and its stateful EEG processor were
+subsequently retired in `retire-legacy-metric-playback`. No streaming metric
+parity is claimed: the route was removed, not replaced by another scientific
+implementation. `/waveform-playback` and official Analysis Runs remain the
+product paths. The retirement gate passed with `281 passed, 2 dependency
+warnings`; its route-absence test and existing waveform tests are included in
+that result. Physical ANT/eego lifecycle verification is tracked separately.

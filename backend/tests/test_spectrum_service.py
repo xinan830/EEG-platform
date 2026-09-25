@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from app.models.analysis_config import AnalysisConfigRequest
-from app.eeg_core.spectral import estimate_spectrogram, estimate_spectrogram_with_quality
+from app.scientific.primitives.spectral import estimate_spectrogram, estimate_spectrogram_with_quality
 from app.services.recordings import RecordingService
 
 

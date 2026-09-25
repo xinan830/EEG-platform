@@ -1,21 +1,12 @@
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
 
-from app.services.playback import PlaybackService
 from app.services.waveform_playback import WaveformPlaybackService
 from app.models.montage import CustomMontageChannelPayload
 from app.core.api_contract import error_response
 
 
 router = APIRouter(tags=["playback"])
-
-
-class PlaybackControl(BaseModel):
-    action: str
-    speed: float | None = None
-    notch: float | None = None
-    bp_low: float | None = None
-    bp_high: float | None = None
 
 
 class WaveformPlaybackControl(BaseModel):
@@ -36,57 +27,12 @@ class WaveformPlaybackCreate(BaseModel):
     custom_montage: list[CustomMontageChannelPayload] | None = None
 
 
-def _service(request: Request) -> PlaybackService:
-    return request.app.state.playback_service
-
-
 def _record_audit(request: Request, action: str, *, recording_id: str | None = None, session_id: str | None = None,
                   parameters: dict[str, object] | None = None) -> None:
     request.app.state.audit_service.record(
         action, str(getattr(request.state, "request_id", "unknown")), recording_id=recording_id,
         session_id=session_id, parameters=parameters,
     )
-
-
-@router.post("/api/recordings/{recording_id}/playback", status_code=status.HTTP_201_CREATED)
-def create_playback(recording_id: str, request: Request) -> dict:
-    try:
-        session = _service(request).create(recording_id)
-        return {"session_id": session.id, "recording_id": recording_id, "status": session.status,
-                "websocket_url": f"/api/playback/{session.id}/events"}
-    except KeyError:
-        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
-    except ValueError as exc:
-        return error_response(request, 422, "PLAYBACK_CREATE_INVALID", str(exc))
-    except RuntimeError as exc:
-        return error_response(request, 409, "PLAYBACK_SESSION_CONFLICT", str(exc))
-
-
-@router.post("/api/playback/{session_id}/control")
-def control_playback(session_id: str, payload: PlaybackControl, request: Request) -> dict:
-    try:
-        values = payload.model_dump(exclude_none=True)
-        values.pop("action", None)
-        return _service(request).require(session_id).control(payload.action, **values)
-    except KeyError:
-        return error_response(request, 404, "PLAYBACK_SESSION_NOT_FOUND", "回放会话不存在")
-    except ValueError as exc:
-        return error_response(request, 422, "PLAYBACK_CONTROL_INVALID", str(exc))
-
-
-@router.websocket("/api/playback/{session_id}/events")
-async def playback_events(session_id: str, websocket: WebSocket) -> None:
-    await websocket.accept()
-    service: PlaybackService = websocket.app.state.playback_service
-    try:
-        session = service.require(session_id)
-        while True:
-            await websocket.send_json(await session.next_message())
-    except KeyError:
-        await websocket.send_json({"type": "error", "detail": "回放会话不存在"})
-        await websocket.close(code=4404)
-    except WebSocketDisconnect:
-        return
 
 
 @router.post("/api/recordings/{recording_id}/waveform-playback", status_code=status.HTTP_201_CREATED)

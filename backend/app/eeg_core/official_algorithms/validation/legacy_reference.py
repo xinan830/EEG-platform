@@ -8,11 +8,11 @@ from scipy import signal
 from app.eeg_core.primitives.compositions import fixed_band_rbp
 from app.eeg_core.primitives.types import ChannelMap, PSDSeries, QualityMask, TimeRange
 from app.eeg_core.primitives.units import Unit
-from app.eeg_core.spectral import band_power
-from app.eeg_core.faa import compute_faa
+from app.scientific.primitives.spectral import SpectralEstimate, band_power
+from app.algorithms.faa.official import compute_faa
 from app.eeg_core.realtime_spectral import segment_brainbeat
-from app.eeg_core.offline_metrics import estimate_iapf, metric_values
-from app.eeg_core.spectral import SpectralEstimate
+from app.algorithms.iapf.official import estimate_iapf
+from app.algorithms.theta_beta.official import metric_values
 
 
 RBP_BANDS = (("delta", 1.0, 4.0), ("theta", 4.0, 8.0), ("alpha", 8.0, 13.0), ("beta", 13.0, 30.0))

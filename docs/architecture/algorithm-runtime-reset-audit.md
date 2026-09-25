@@ -20,11 +20,13 @@ classified by its imports and callers first.
 
 ## Current deletion status
 
-Compatibility adapters remain intentionally. They are still required by
-historical imports, validation/reference tests, and old read paths. The
-deletion task is therefore not complete until the safety rules below are
-machine-checked against the current caller inventory; this is an explicit
-deferred migration, not an accidental omission.
+The 2026-09-16 inventory below records the original deletion gate. By
+2026-09-25, test and diagnostic callers of the forwarding adapters had moved
+to canonical imports; the old metric playback route and its processor were
+retired. The caller inventory and historical-read guarantees are
+machine-checked by architecture and API tests. Scalar Definition preview and
+independent validation references remain as real implementations, not
+forwarding aliases.
 
 The public Run API and direct Run services reject new `definition_metric`
 creation with the stable `USER_DEFINED_ALGORITHM_RETIRED` response. The old
@@ -48,7 +50,7 @@ Runs and artifacts remain readable.
 | `services/runs.py` official branches | generic service coupling | remove concrete-ID branches and delegate to `AlgorithmRuntime` |
 | `services/run_analysis_executor.py` official branches | generic executor coupling | remove concrete-ID branches and normalize module results |
 
-## Known active callers to migrate
+## Callers identified in the 2026-09-16 baseline
 
 - `api/runs.py` currently catches `OfficialChannelMappingRequired`.
 - `services/runs.py` resolves `official_algorithm` and reads recording mapping.

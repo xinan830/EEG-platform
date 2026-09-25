@@ -2,9 +2,9 @@ import numpy as np
 from scipy import signal
 
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, LIVE_ANALYSIS_CONTRACT
-from app.eeg_core.faa import compute_faa
-from app.eeg_core.offline_metrics import metric_values
-from app.eeg_core.spectral import (
+from app.algorithms.faa.official import compute_faa
+from app.algorithms.theta_beta.official import metric_values
+from app.scientific.primitives.spectral import (
     SpectralEstimate,
     band_power,
     estimate_spectrogram_with_quality,

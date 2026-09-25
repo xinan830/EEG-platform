@@ -13,7 +13,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.eeg_core.spectral import estimate_spectrogram_with_quality, preprocess_offline
+from app.scientific.primitives.spectral import estimate_spectrogram_with_quality, preprocess_offline
 
 
 def main() -> None:

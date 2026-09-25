@@ -1,1 +1,1 @@
-"""Legacy official formulas retained for compatibility and validation."""
+"""Historical validation references and non-runnable BrainBeat descriptor."""

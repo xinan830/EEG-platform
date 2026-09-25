@@ -7,7 +7,7 @@ import numpy as np
 from app.algorithm_runtime.executor import AlgorithmRuntime
 from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithms.theta_beta.runner import ThetaBetaAlgorithm
-from app.eeg_core.official_algorithms.iapf import IAPFEstimate
+from app.algorithms.iapf.official import IAPFEstimate
 
 
 def _recording_with_spectrum(*, gate_failed=None, psd=None):
