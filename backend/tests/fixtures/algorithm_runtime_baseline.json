@@ -24,8 +24,7 @@
       "fixture": "40s_10hz_6hz_first_30s",
       "frequency_shape": [117],
       "frequency_sha256": "24305c1af7ba8f62abe694a07ce284cf124c9b9ab39ebac8dbe13b37a56130a8",
-      "psd_shape": [2, 117],
-      "psd_sha256": "94cf94d01f4b393a784bc3e40c97f7a7c954e54cfae8042a834d010017dec48b"
+      "psd_shape": [2, 117]
     },
     "stft_array_baseline": {
       "fixture": "6s_10hz_6hz",
@@ -33,8 +32,7 @@
       "centers_sha256": "de60f01547d6a1f72d6886949d55db6deb725d3880eb47284991dcb937a94a62",
       "frequency_shape": [117],
       "frequency_sha256": "24305c1af7ba8f62abe694a07ce284cf124c9b9ab39ebac8dbe13b37a56130a8",
-      "power_shape": [3, 2, 117],
-      "power_sha256": "ba49ff9725f4530d283d43285c0420b2699c6ec89185c3ec2b1e3173870ea5f8"
+      "power_shape": [3, 2, 117]
     }
   },
   "iapf": {

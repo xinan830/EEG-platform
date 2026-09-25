@@ -115,7 +115,7 @@ def test_migrated_spectral_authority_matches_frozen_synthetic_baseline():
     np.testing.assert_allclose(alpha_relative, goldens["F3_alpha_relative_power"], rtol=rules["default_rtol"], atol=1e-12)
 
 
-def test_migrated_array_axes_and_artifacts_match_frozen_checksums():
+def test_migrated_array_axes_and_artifacts_match_independent_fft_reference():
     fixture = json.loads((Path(__file__).parent / "fixtures" / "algorithm_runtime_baseline.json").read_text(encoding="utf-8"))
     sfreq_hz = 100.0
     times = np.arange(40 * int(sfreq_hz), dtype=float) / sfreq_hz
@@ -127,12 +127,25 @@ def test_migrated_array_axes_and_artifacts_match_frozen_checksums():
     def checksum(values: np.ndarray) -> str:
         return hashlib.sha256(np.ascontiguousarray(values, dtype=np.float64).tobytes()).hexdigest()
 
+    def reference_psd(frame: np.ndarray) -> np.ndarray:
+        segment_samples = len(frame)
+        window = 0.5 - 0.5 * np.cos(2.0 * np.pi * np.arange(segment_samples) / segment_samples)
+        centered = frame - frame.mean(axis=0, keepdims=True)
+        transformed = np.fft.rfft(centered * window[:, None], axis=0)
+        density = np.abs(transformed) ** 2 / (sfreq_hz * np.sum(window ** 2))
+        density[1:-1] *= 2.0
+        frequencies = np.fft.rfftfreq(segment_samples, 1.0 / sfreq_hz)
+        return density[(frequencies >= 1.0) & (frequencies <= 30.0)].T
+
     spectral = fixture["offline_spectral"]["array_baseline"]
-    estimate = estimate_welch_psd(preprocess_offline(source, sfreq_hz)[:3000], sfreq_hz)
+    filtered = preprocess_offline(source, sfreq_hz)[:3000]
+    estimate = estimate_welch_psd(filtered, sfreq_hz)
     assert list(estimate.freqs.shape) == spectral["frequency_shape"]
     assert checksum(estimate.freqs) == spectral["frequency_sha256"]
     assert list(estimate.psd.shape) == spectral["psd_shape"]
-    assert checksum(estimate.psd) == spectral["psd_sha256"]
+    reference_segments = [reference_psd(filtered[start:start + 400]) for start in range(0, len(filtered) - 399, 200)]
+    expected_psd = np.maximum(np.mean(reference_segments, axis=0), 1e-20)
+    np.testing.assert_allclose(estimate.psd, expected_psd, rtol=1e-9, atol=1e-24)
 
     stft = fixture["offline_spectral"]["stft_array_baseline"]
     centers, frequencies, power = estimate_spectrogram(source[:600], sfreq_hz)
@@ -141,7 +154,8 @@ def test_migrated_array_axes_and_artifacts_match_frozen_checksums():
     assert list(frequencies.shape) == stft["frequency_shape"]
     assert checksum(frequencies) == stft["frequency_sha256"]
     assert list(power.shape) == stft["power_shape"]
-    assert checksum(power) == stft["power_sha256"]
+    expected_power = np.stack([reference_psd(source[start:start + 400]) for start in range(0, 201, 100)])
+    np.testing.assert_allclose(power, expected_power, rtol=1e-9, atol=1e-24)
 
 
 def test_baseline_comparison_rejects_coordinate_shift_and_tolerance_violation():
