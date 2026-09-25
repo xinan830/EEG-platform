@@ -8,7 +8,7 @@ from app.models.analysis_config import AnalysisTimeRange
 
 
 class OfficialAlgorithmRunConfig(BaseModel):
-    algorithm_id: Literal["iapf", "theta_beta", "rbp", "faa", "peak_frequency", "band_ratio"]
+    algorithm_id: Literal["iapf", "theta_beta", "rbp", "faa", "peak_frequency", "band_ratio", "psd"]
     scientific_version: str | None = Field(default=None, min_length=1, max_length=160)
     time: AnalysisTimeRange
     channel: str | None = Field(default=None, min_length=1, max_length=160)

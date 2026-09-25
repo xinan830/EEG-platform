@@ -8,7 +8,7 @@ def test_runtime_catalog_exposes_current_official_algorithms_without_definition_
 
     assert response.status_code == 200
     by_id = {item["id"]: item for item in response.json()["algorithms"] if item["source"] == "official"}
-    assert set(by_id) == {"band_ratio", "brainbeat", "faa", "iapf", "peak_frequency", "rbp", "theta_beta"}
+    assert set(by_id) == {"band_ratio", "brainbeat", "faa", "iapf", "peak_frequency", "psd", "rbp", "theta_beta"}
     assert by_id["iapf"]["is_runnable"] is True
     assert by_id["theta_beta"]["is_runnable"] is True
     assert by_id["rbp"]["is_runnable"] is True

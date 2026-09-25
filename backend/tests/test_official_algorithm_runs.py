@@ -153,6 +153,25 @@ def test_official_rbp_run_returns_all_four_backend_band_shares(tmp_path: Path):
     assert metric["chart"]["kind"] == "band_share"
 
 
+def test_official_psd_run_returns_structured_frequency_artifact(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    request = _request(recording_id, "iapf")
+    request.config = {
+        "algorithm_id": "psd", "time": {"start_s": 0, "end_s": 30},
+        "mode": "static", "channel": "Fz",
+    }
+
+    completed = service.create(request)
+
+    assert completed.status is RunStatus.COMPLETED
+    structured = completed.result_summary["structured"]
+    assert structured["output"]["kind"] == "frequency_series"
+    assert structured["channel_order"] == ["Fz"]
+    assert structured["axes"]["frequency_hz"]["unit"] == "Hz"
+    assert structured["arrays"]["psd"]["unit"] == "V^2/Hz"
+    assert service.list_artifacts(completed.run_id)
+
+
 def test_official_faa_run_records_explicit_pair_and_paired_quality(tmp_path: Path):
     service, recording_id = _service(tmp_path)
     completed = service.create(_request(recording_id, "faa"))

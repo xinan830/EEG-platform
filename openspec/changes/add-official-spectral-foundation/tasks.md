@@ -56,12 +56,14 @@ change. Unchecked items are the remaining implementation scope.
 - [x] Register and validate individualized Theta/Beta.
 - [x] Register and validate RBP with its multi-field output schema.
 - [x] Register and validate FAA with its paired-channel contract.
-- [ ] Add a registered official PSD/frequency-series module using the frozen
+- [x] Add a registered official PSD/frequency-series module using the frozen
   scientific spectral gateway.
 - [ ] Add a registered official STFT/time-frequency module using the frozen
   spectrogram gateway.
-- [ ] Expose both new modules through the official catalog with stable
-  scientific and implementation identities.
+- [x] Expose the PSD module through the official catalog with stable scientific
+  and implementation identities.
+- [ ] Expose the STFT module through the official catalog with stable scientific
+  and implementation identities.
 
 ## 5. Provenance and API integration
 

@@ -35,6 +35,17 @@
       "reference_only": false
     },
     {
+      "capability": "official_psd",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.psd.runner.PsdAlgorithm",
+      "owner": "algorithms",
+      "scientific_version": "offline-spectral-v3",
+      "implementation_identity": "psd-runtime-v1",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
       "capability": "official_faa",
       "kind": "algorithm",
       "canonical_import": "app.algorithms.faa.official.compute_faa",
