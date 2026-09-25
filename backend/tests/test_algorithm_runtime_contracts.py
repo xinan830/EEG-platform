@@ -4,10 +4,17 @@ import pytest
 import numpy as np
 from pydantic import ValidationError
 
-from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmFailure, AlgorithmResult, AlgorithmStructuredResult
+from app.algorithm_runtime.contracts import (
+    AlgorithmConfigBase,
+    AlgorithmFailure,
+    AlgorithmResult,
+    AlgorithmStructuredResult,
+    AlgorithmStructuredSeriesResult,
+    StructuredSeriesWindow,
+)
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterSchema
 from app.algorithm_runtime.executor import AlgorithmRuntime
-from app.services.run_analysis_executor import _serialize_structured_result
+from app.services.run_analysis_executor import _serialize_structured_result, _serialize_structured_series_result
 
 
 def test_algorithm_config_rejects_unknown_scientific_fields() -> None:
@@ -81,6 +88,46 @@ def test_structured_result_serializer_keeps_axes_and_values_in_artifact_arrays()
             arrays={"psd": np.ones((1, 2))}, array_units={},
             requested_range={"start_s": 0.0, "end_s": 4.0}, quality="clean",
         )
+
+
+def test_structured_series_requires_window_axis_and_keeps_nan_unavailable_rows() -> None:
+    failure = AlgorithmFailure(code="GAP", message="记录缺口")
+    result = AlgorithmStructuredSeriesResult(
+        output_kind="frequency_series",
+        channel_order=["Fz"],
+        axes={"frequency_hz": np.array([1.0, 2.0])},
+        axis_units={"frequency_hz": "Hz"},
+        arrays={"psd": np.array([[1.0, 2.0], [np.nan, np.nan]])},
+        array_units={"psd": "V^2/Hz"},
+        windows=[
+            StructuredSeriesWindow(start_sample=0, end_sample=400, start_s=0, end_s=4, state="Complete", quality="clean"),
+            StructuredSeriesWindow(start_sample=100, end_sample=500, start_s=1, end_s=5, state="Unavailable", quality="unavailable", failure=failure),
+        ],
+        requested_range={"start_s": 0.0, "end_s": 5.0},
+        quality="partial",
+        evidence={"source_quality": {}, "spectral_evidence": {}, "calculation_trace": {}},
+    )
+
+    summary, arrays = _serialize_structured_series_result(result, "psd", "功率谱密度")
+
+    assert summary["output"]["mode"] == "dynamic"
+    assert summary["arrays"]["psd"] == {"unit": "V^2/Hz", "shape": [2, 2]}
+    assert summary["window_state_counts"] == {"Complete": 1, "Unavailable": 1}
+    assert np.isnan(arrays["psd"][1]).all()
+
+
+def test_structured_series_rejects_infinity_and_wrong_window_axis() -> None:
+    window = StructuredSeriesWindow(start_sample=0, end_sample=400, start_s=0, end_s=4, state="Complete", quality="clean")
+    kwargs = dict(
+        output_kind="frequency_series", channel_order=["Fz"],
+        axes={"frequency_hz": np.array([1.0, 2.0])}, axis_units={"frequency_hz": "Hz"},
+        array_units={"psd": "V^2/Hz"}, windows=[window],
+        requested_range={"start_s": 0.0, "end_s": 4.0}, quality="clean",
+    )
+    with pytest.raises(ValidationError, match="first dimension"):
+        AlgorithmStructuredSeriesResult(arrays={"psd": np.ones((2, 2))}, **kwargs)
+    with pytest.raises(ValidationError, match="contains infinity"):
+        AlgorithmStructuredSeriesResult(arrays={"psd": np.array([[np.inf, 1.0]])}, **kwargs)
 
 
 def test_runtime_attaches_canonical_sample_coordinate_without_replacing_display_range() -> None:

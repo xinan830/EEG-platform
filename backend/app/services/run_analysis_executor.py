@@ -16,6 +16,7 @@ from app.algorithm_runtime.contracts import (
     AlgorithmEvidence,
     AlgorithmResult,
     AlgorithmStructuredResult,
+    AlgorithmStructuredSeriesResult,
 )
 from app.algorithm_runtime.executor import AlgorithmRuntime
 from app.algorithm_runtime.registry import AlgorithmRegistry
@@ -179,6 +180,44 @@ def _serialize_structured_result(result: AlgorithmStructuredResult, algorithm_id
     }, arrays
 
 
+def _serialize_structured_series_result(
+    result: AlgorithmStructuredSeriesResult,
+    algorithm_id: str,
+    label: str,
+) -> tuple[dict[str, object], dict[str, np.ndarray]]:
+    """Persist dynamic matrices while keeping window evidence out of arrays."""
+    evidence = _public_evidence(result.evidence)
+    arrays = {name: np.asarray(value) for name, value in result.arrays.items()}
+    array_units = dict(result.array_units)
+    axis_metadata: dict[str, object] = {}
+    for name, value in result.axes.items():
+        axis = np.asarray(value)
+        key = f"axis_{name}"
+        arrays[key] = axis
+        array_units[key] = result.axis_units[name]
+        axis_metadata[name] = {"array_key": key, "unit": result.axis_units[name], "length": int(axis.size)}
+    quality = {"status": result.quality, "reasons": [result.failure.code] if result.failure else []}
+    state_counts: dict[str, int] = {}
+    for window in result.windows:
+        state_counts[window.state] = state_counts.get(window.state, 0) + 1
+    return {
+        "output": {"id": algorithm_id, "label": label, "kind": result.output_kind, "mode": "dynamic", "quality": quality},
+        "channel_order": result.channel_order,
+        "requested_range": result.requested_range,
+        "actual_range": result.actual_range,
+        "axes": axis_metadata,
+        "arrays": {name: {"unit": array_units[name], "shape": list(value.shape)} for name, value in arrays.items()},
+        "windows": [window.model_dump(mode="json", exclude={"evidence"}) for window in result.windows],
+        "window_state_counts": state_counts,
+        "source_quality": evidence["source_quality"],
+        "spectral_evidence": evidence["spectral_evidence"],
+        "calculation_trace": evidence["calculation_trace"],
+        "official": {"algorithm_id": algorithm_id, **evidence},
+        "quality": quality,
+        "failure": result.failure.model_dump(mode="json") if result.failure else None,
+    }, arrays
+
+
 class RunAnalysisExecutor:
     def __init__(
         self,
@@ -230,6 +269,9 @@ class RunAnalysisExecutor:
         )
         module = self.algorithm_runtime.registry.get(config.algorithm_id, resolved["scientific_version"])
         label = module.manifest.display_name_zh
+        if isinstance(result, AlgorithmStructuredSeriesResult):
+            structured, arrays = _serialize_structured_series_result(result, config.algorithm_id, label)
+            return {"structured": structured}, arrays, None
         if isinstance(result, AlgorithmStructuredResult):
             structured, arrays = _serialize_structured_result(result, config.algorithm_id, label)
             return {"structured": structured}, arrays, None

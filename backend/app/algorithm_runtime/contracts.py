@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Protocol, runtime_checkable
 
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .parameter_schema import AlgorithmParameter, ParameterSchema
@@ -11,6 +12,7 @@ from .parameter_schema import AlgorithmParameter, ParameterSchema
 
 AlgorithmMode = Literal["static", "dynamic"]
 StructuredOutputKind = Literal["frequency_series", "time_frequency"]
+DynamicStructuredOutputKind = Literal["frequency_series", "time_frequency"]
 
 # Persisted dynamic points carry this independently from an algorithm's
 # scientific version.  Altering point timing or evidence requires a new value
@@ -160,6 +162,72 @@ class AlgorithmStructuredResult(BaseModel):
         return self
 
 
+class StructuredSeriesWindow(BaseModel):
+    """One recording-relative window in a dynamic structured result."""
+
+    start_sample: int = Field(ge=0)
+    end_sample: int = Field(gt=0)
+    start_s: float = Field(ge=0)
+    end_s: float = Field(gt=0)
+    state: DynamicAnalysisState
+    quality: str = Field(min_length=1)
+    failure: AlgorithmFailure | None = None
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "StructuredSeriesWindow":
+        if self.end_sample <= self.start_sample or self.end_s <= self.start_s:
+            raise ValueError("structured series window must have a positive range")
+        if self.state in {"Rejected", "Unavailable"} and self.failure is None:
+            raise ValueError("rejected or unavailable window requires a failure reason")
+        return self
+
+
+class AlgorithmStructuredSeriesResult(BaseModel):
+    """Dynamic matrix series persisted through the structured artifact path."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    output_kind: DynamicStructuredOutputKind
+    channel_order: list[str] = Field(min_length=1)
+    axes: dict[str, Any] = Field(default_factory=dict)
+    axis_units: dict[str, str] = Field(default_factory=dict)
+    arrays: dict[str, Any] = Field(default_factory=dict)
+    array_units: dict[str, str] = Field(default_factory=dict)
+    windows: list[StructuredSeriesWindow] = Field(min_length=1)
+    requested_range: dict[str, float]
+    actual_range: dict[str, float] | None = None
+    quality: str = Field(min_length=1)
+    failure: AlgorithmFailure | None = None
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_output(self) -> "AlgorithmStructuredSeriesResult":
+        if not self.arrays:
+            raise ValueError("structured series requires at least one numeric array")
+        if set(self.array_units) != set(self.arrays):
+            raise ValueError("structured series array units must match array names")
+        if set(self.axis_units) != set(self.axes):
+            raise ValueError("structured series axis units must match axis names")
+        if not self.axes:
+            raise ValueError("structured series requires explicit axes")
+        for name, value in self.axes.items():
+            axis = np.asarray(value)
+            if axis.ndim != 1:
+                raise ValueError(f"structured series axis {name!r} must be one-dimensional")
+        for name, value in self.arrays.items():
+            array = np.asarray(value)
+            if array.ndim < 1 or array.shape[0] != len(self.windows):
+                raise ValueError(
+                    f"structured series array {name!r} must use windows as its first dimension"
+                )
+            if np.any(np.isinf(array)):
+                raise ValueError(f"structured series array {name!r} contains infinity")
+        if self.failure is None and self.quality in {"failed", "gate_failed", "unavailable"}:
+            raise ValueError("failed structured series requires a failure reason")
+        return self
+
+
 class AlgorithmSeriesResult(BaseModel):
     values: list[float | None]
     time_s: list[float]
@@ -207,6 +275,6 @@ class AlgorithmModule(Protocol):
 
     def resolve_inputs(self, recording: Any, config: AlgorithmConfigBase) -> AlgorithmInputs: ...
 
-    def execute_static(self, inputs: AlgorithmInputs, config: AlgorithmConfigBase) -> AlgorithmResult | AlgorithmStructuredResult: ...
+    def execute_static(self, inputs: AlgorithmInputs, config: AlgorithmConfigBase) -> AlgorithmResult | AlgorithmStructuredResult | AlgorithmStructuredSeriesResult: ...
 
     def execute_dynamic(self, inputs: AlgorithmInputs, config: AlgorithmConfigBase) -> AlgorithmSeriesResult: ...
