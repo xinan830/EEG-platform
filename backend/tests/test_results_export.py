@@ -2,10 +2,11 @@ import io
 import json
 import zipfile
 
+import numpy as np
 import pytest
 
 from app.services.artifacts import ArtifactIntegrityError
-from app.models.run import ValidationCreateRequest
+from app.models.run import RunStatus, ValidationCreateRequest
 from app.services.results import ResultService
 from app.services.validations import ValidationService
 from test_run_queue import _queue, _request
@@ -52,6 +53,38 @@ def test_result_view_uses_same_analysis_provenance_projection(tmp_path):
 
     assert view["run"]["analysis_provenance"]["contract_version"] == "analysis-provenance-v1"
     assert view["run"]["analysis_provenance"]["config_sha256"] == run.config_sha256
+
+
+def test_structured_preview_verifies_artifact_and_converts_nan_to_null(tmp_path):
+    queue, recording_id = _queue(tmp_path)
+    run = queue.enqueue(_request(recording_id))
+    artifact = queue.base.artifacts.write_npz(
+        run.run_id,
+        "official_algorithm",
+        {"axis_frequency_hz": np.array([1.0, 2.0]), "psd": np.array([[1.0, np.nan]])},
+        "V^2/Hz",
+    )
+    queue.repository.update_status(run.run_id, RunStatus.RUNNING)
+    queue.repository.update_status(run.run_id, RunStatus.COMPLETED, actual_range={"start_s": 0.0, "end_s": 4.0}, result_summary={
+        "structured": {
+            "output": {"id": "psd", "label": "功率谱密度", "kind": "frequency_series", "mode": "dynamic"},
+            "channel_order": ["Fz"], "requested_range": {"start_s": 0.0, "end_s": 4.0},
+            "actual_range": {"start_s": 0.0, "end_s": 4.0},
+            "axes": {"frequency_hz": {"array_key": "axis_frequency_hz", "unit": "Hz", "length": 2}},
+            "arrays": {"psd": {"unit": "V^2/Hz", "shape": [1, 2]}},
+            "windows": [], "window_state_counts": {"Complete": 1}, "quality": "clean",
+        },
+    })
+    service = ResultService(queue, ValidationService(queue.repository.database_path))
+
+    preview = service.structured_preview(run.run_id)
+
+    assert preview["artifact"]["artifact_id"] == artifact.artifact_id
+    assert preview["axes"]["frequency_hz"] == [1.0, 2.0]
+    assert preview["arrays"]["psd"] == [[1.0, None]]
+    (queue.base.artifacts.root / artifact.relative_path).write_bytes(b"corrupt")
+    with pytest.raises(ArtifactIntegrityError):
+        service.structured_preview(run.run_id)
 
 
 def test_result_export_includes_persisted_independent_reference_evidence(tmp_path):

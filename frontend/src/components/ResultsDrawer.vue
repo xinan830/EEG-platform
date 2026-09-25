@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ApiRequestError } from '../api/client'
-import { exportUrl, getResultView, listRunSummaries, type ResultView, type RunSummary } from '../api/results'
+import { exportUrl, getResultView, getStructuredPreview, listRunSummaries, type ResultView, type RunSummary, type StructuredPreview } from '../api/results'
+import StructuredSpectralPreview from './StructuredSpectralPreview.vue'
 import { validateSpectralReference, type SpectralReferenceValidation } from '../api/spectralValidation'
 import { resultRunLabel } from '../utils/resultMetric'
 
@@ -9,6 +10,7 @@ const props = defineProps<{ recordingId: string; startS: number; endS: number; c
 const emit = defineEmits<{ close: [] }>()
 const runs = ref<RunSummary[]>([])
 const selected = ref<ResultView | null>(null)
+const structuredPreview = ref<StructuredPreview | null>(null)
 const loading = ref(false)
 const error = ref('')
 const validation = ref<SpectralReferenceValidation | null>(null)
@@ -27,7 +29,13 @@ async function load() {
 async function select(runId: string) {
   loading.value = true
   error.value = ''
-  try { selected.value = await getResultView(runId) } catch (cause) { error.value = describe(cause) } finally { loading.value = false }
+  try {
+    selected.value = await getResultView(runId)
+    structuredPreview.value = null
+    if (selected.value.run.result_summary && typeof selected.value.run.result_summary.structured === 'object') {
+      structuredPreview.value = await getStructuredPreview(runId)
+    }
+  } catch (cause) { error.value = describe(cause) } finally { loading.value = false }
 }
 
 async function validate() {
@@ -68,6 +76,7 @@ onMounted(load)
               <p v-if="selected.run.error">质量/错误：{{ selected.run.error.code }} · {{ selected.run.error.message }}</p>
             </section>
             <p>数据类别：算法输出；不包含临床结论。Artifact：{{ selected.artifacts.length }} 个</p>
+            <StructuredSpectralPreview v-if="structuredPreview" :preview="structuredPreview" />
             <a :href="exportUrl(selected.run.run_id, validation?.validation_id)">导出可复现 ZIP</a>
           </template>
           <p v-else>选择一个后端 Run 查看其数值、单位、质量状态和可复现导出。</p>

@@ -18,6 +18,18 @@ def get_result(run_id: str, request: Request):
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
 
 
+@router.get("/{run_id}/structured-preview")
+def structured_preview(run_id: str, request: Request, max_cells: int = Query(default=100_000, ge=1, le=1_000_000)):
+    try:
+        return request.app.state.result_service.structured_preview(run_id, max_cells=max_cells)
+    except KeyError:
+        return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
+    except ArtifactIntegrityError:
+        return error_response(request, 409, "ARTIFACT_INTEGRITY_FAILED", "结果文件校验失败")
+    except ValueError as exc:
+        return error_response(request, 409, "STRUCTURED_PREVIEW_UNAVAILABLE", str(exc))
+
+
 @router.get("/{run_id}/export")
 def export_result(run_id: str, request: Request, validation_id: str | None = Query(default=None)):
     try:

@@ -32,6 +32,60 @@ class ResultService:
             "data_classification": {"measured_data": False, "algorithm_output": True, "clinical_interpretation": False},
         }
 
+    def structured_preview(self, run_id: str, *, max_cells: int = 100_000) -> dict[str, object]:
+        """Return a bounded, backend-produced preview of a structured artifact."""
+        if max_cells <= 0 or max_cells > 1_000_000:
+            raise ValueError("preview cell limit is outside the allowed range")
+        run = self.runs.get(run_id)
+        summary = run.result_summary or {}
+        structured = summary.get("structured")
+        if not isinstance(structured, dict):
+            raise ValueError("run does not contain a structured result")
+        artifacts = self.runs.list_artifacts(run_id)
+        if not artifacts:
+            raise KeyError(run_id)
+        artifact = artifacts[0]
+        arrays = self.runs.base.artifacts.read_npz(artifact)
+        numeric_names = [name for name, value in arrays.items() if np.issubdtype(np.asarray(value).dtype, np.number)]
+        numeric_cells = sum(int(np.asarray(arrays[name]).size) for name in numeric_names)
+        if numeric_cells > max_cells:
+            raise ValueError("structured preview exceeds the requested cell limit")
+
+        def json_values(value: np.ndarray) -> object:
+            array = np.asarray(value)
+            if array.ndim == 0:
+                scalar = array.item()
+                return float(scalar) if np.isfinite(scalar) else None
+            return [json_values(item) for item in array]
+
+        preview_arrays = {
+            name: json_values(arrays[name])
+            for name in numeric_names
+            if not name.startswith("axis_")
+        }
+        axes = {
+            name: json_values(arrays[metadata["array_key"]])
+            for name, metadata in (structured.get("axes") or {}).items()
+            if metadata.get("array_key") in arrays
+        }
+        return {
+            "run_id": run.run_id,
+            "artifact": artifact.model_dump(mode="json"),
+            "output": structured.get("output"),
+            "channel_order": structured.get("channel_order", []),
+            "requested_range": structured.get("requested_range"),
+            "actual_range": structured.get("actual_range"),
+            "axes": axes,
+            "axis_metadata": structured.get("axes", {}),
+            "arrays": preview_arrays,
+            "array_metadata": structured.get("arrays", {}),
+            "windows": structured.get("windows", []),
+            "window_state_counts": structured.get("window_state_counts", {}),
+            "quality": structured.get("quality"),
+            "scientific_version": run.scientific_version,
+            "implementation_version": run.implementation_version,
+        }
+
     def export(self, run_id: str, validation_id: str | None = None) -> bytes:
         run = self.runs.get(run_id)
         artifacts = self.runs.list_artifacts(run_id)
