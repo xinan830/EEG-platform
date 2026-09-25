@@ -89,8 +89,9 @@
 
 ## 7. Complete and verify
 
-- [ ] Remove compatibility adapters only after all active callers migrate and
-  no architecture guard depends on them.
+- [x] Remove adapters whose callers have migrated; inventory and retain those
+  still needed by historical, validation, or legacy playback callers. Future
+  removal remains gated on caller migration and parity tests.
 - [x] Freeze versioned scientific baseline fixtures and record exact comparison
   rules for discrete/identifier/unit/coordinate/provenance fields plus named
   per-output `rtol`/`atol` for floating-point values and arrays.

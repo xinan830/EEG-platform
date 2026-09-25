@@ -49,7 +49,6 @@ only after historical-read and desktop compatibility tests pass:
 - `app/eeg_core/iapf_*.py`
 - `app/eeg_core/definition_engine.py`
 - `app/eeg_core/primitives/` (historical definition graph vocabulary)
-- `app/algorithms/user_definition/`
 
 ## Rules
 

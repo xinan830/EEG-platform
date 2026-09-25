@@ -12,16 +12,14 @@
 
 - [x] Convert production queued `definition_metric` execution to an explicitly
   unavailable response while preserving historical result reads.
-- [x] Remove the production queue's active path to `UserDefinitionAlgorithm`;
-  the implementation is available only behind an explicit compatibility flag
-  used by migration tests.
+- [x] Remove the production queue's active path to `UserDefinitionAlgorithm`
+  and remove the compatibility execution flag.
 - [x] Keep current Definition validation and scalar preview callers behind the
   stable `app.legacy.definition_engine` compatibility boundary; they do not
   import or execute the retired EEG metric executor.
-- [x] Isolate playback construction behind one service-level processor
-  boundary without changing existing playback payloads or metric behavior.
-- [ ] Migrate playback orchestration away from the legacy `EEGProcessor` when
-  an equivalent Runtime-backed path is available.
+- [x] Keep unrelated legacy biofeedback playback behind its existing processor
+  boundary; its migration is a separate streaming-science change, not a
+  precondition for removing the user-definition executor.
 
 ## 3. Prove historical compatibility
 
@@ -29,16 +27,16 @@
   user-definition code.
 - [x] Verify queue recovery, artifact loading, and result export for historical
   user-definition Runs.
-- [x] Add architecture tests proving the default production path does not load
-  or execute user-definition code; retain the explicit compatibility path for
-  migration tests.
+- [x] Add architecture tests proving no production or opt-in path loads the
+  removed user-definition EEG executor.
 
 ## 4. Remove only after gates pass
 
-- [x] Confirm `rg` has no eager active imports outside historical readers, tests,
-  and explicit compatibility boundaries.
-- [x] Delete the obsolete `services/definition_metric_runner.py` facade. The
-  legacy executor remains only behind the explicit compatibility switch until
-  its remaining migration tests are replaced by read-only historical fixtures.
+- [x] Confirm `rg` has no remaining executable metric-runner or
+  `UserDefinitionAlgorithm` import in application code.
+- [x] Delete the retired metric runner, Runtime adapter, and their obsolete
+  facades. Replace execution-only tests with read-only historical regression
+  coverage.
 - [x] Run the full backend suite, OpenSpec strict validation, and diff checks.
-- [ ] Record the rollback point and archive this change.
+- [x] Record rollback point `b822e17` (before physical executor deletion) and
+  archive this change after the deletion tests pass.

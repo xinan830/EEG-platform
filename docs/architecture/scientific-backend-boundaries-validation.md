@@ -27,10 +27,9 @@ record, not clinical validation.
 - Historical user-defined Runs, result summaries, and NPZ artifacts remain
   readable through the existing Run endpoints without starting a new user
   executor. This is covered by the historical-read API regression test.
-- The retired metric runner implementation is owned by
-  `app/legacy/definition_metric_runner.py`; its former service facade was
-  removed. Production Run services do not import or construct it unless an
-  explicit compatibility flag is enabled for migration tests.
+- The retired metric runner, Runtime adapter, and compatibility execution flag
+  were removed. Historical Run and artifact readers do not import executable
+  user-definition code.
 - The retired definition graph engine is owned by
   `app/legacy/definition_engine.py`; the old `eeg_core` import path remains a
   compatibility facade, and service modules no longer import `eeg_core`
@@ -48,9 +47,9 @@ record, not clinical validation.
   state. The spectral reference endpoint remains the independent evidence for
   preprocessing/PSD behavior, and the STFT primitive now has an independent
   Hann/FFT axis-and-value comparison.
-- A separate removal proposal is recorded at
-  `openspec/changes/remove-retired-user-definition-executor/`; production
-  execution is disabled, but explicit migration-test execution still exists.
+- The retired executor removal is tracked by
+  `remove-retired-user-definition-executor`; only scalar Definition validation
+  and preview remain available, without reading EEG samples.
 - The versioned baseline now includes compact array evidence: exact shape and
   SHA-256 checksums for PSD/frequency and STFT axes/power, plus explicit scalar
   golden values. Comparison tests reject shifted coordinates and tolerance
@@ -63,8 +62,6 @@ scientific authorities:
 
 - `app.eeg_core.spectral`
 - `app.eeg_core.official_algorithms.*`
-- `app.legacy.user_definition`
-- `app.legacy.definition_metric_runner`
 - `app.legacy.playback_processor`
 
 Redundant `services/*_repository`, `eeg_core/analysis_contract`,
@@ -80,7 +77,7 @@ From `backend`:
 
 ```text
 uv run pytest -q
-298 passed, 2 dependency deprecation warnings
+287 passed, 2 dependency deprecation warnings
 
 Environment: project lockfile (`numpy 2.5.3`, `scipy 1.18.1`, `mne 1.12.1`).
 The system Python environment is not an equivalent validation environment.

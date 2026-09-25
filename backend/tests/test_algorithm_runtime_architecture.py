@@ -13,7 +13,7 @@ def test_runtime_contracts_are_present() -> None:
     assert (runtime / "contracts.py").exists()
     assert (runtime / "parameter_schema.py").exists()
     assert (runtime / "errors.py").exists()
-    assert (ROOT / "app" / "algorithms" / "user_definition" / "runner.py").exists()
+    assert not (ROOT / "app" / "algorithms" / "user_definition" / "runner.py").exists()
 
 
 def _imported_modules(path: Path) -> set[str]:
@@ -122,17 +122,14 @@ def test_runtime_baseline_fixture_is_anonymized_and_locks_scientific_identities(
 
 def test_definition_metrics_do_not_keep_a_second_dynamic_execution_loop() -> None:
     executor = (ROOT / "app" / "services" / "run_analysis_executor.py").read_text(encoding="utf-8")
-    assert "enable_legacy_definition_execution" in executor
+    assert "_execute_definition_metric" not in executor
     assert "_execute_dynamic_definition_metric" not in executor
 
 
-def test_retired_metric_runner_implementation_is_owned_by_legacy_boundary() -> None:
-    implementation = ROOT / "app" / "legacy" / "definition_metric_runner.py"
-    assert implementation.exists()
-    assert "app.services.definition_metric_runner" not in "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in (ROOT / "app").rglob("*.py")
-    )
+def test_retired_metric_executor_implementations_are_removed() -> None:
+    assert not (ROOT / "app" / "legacy" / "definition_metric_runner.py").exists()
+    assert not (ROOT / "app" / "legacy" / "user_definition.py").exists()
+    assert not (ROOT / "app" / "algorithms" / "user_definition" / "runner.py").exists()
 
 
 def test_retired_definition_engine_is_owned_by_legacy_boundary() -> None:
@@ -155,18 +152,14 @@ def test_product_runtime_does_not_import_or_name_switch_to_retired_official_path
     assert "def _execute(self, analysis_type" not in runs
 
 
-def test_production_run_services_do_not_eagerly_import_retired_user_executor() -> None:
+def test_run_services_have_no_opt_in_retired_user_execution_path() -> None:
     runs = (ROOT / "app" / "services" / "runs.py").read_text(encoding="utf-8")
+    queue = (ROOT / "app" / "services" / "run_queue.py").read_text(encoding="utf-8")
     executor = (ROOT / "app" / "services" / "run_analysis_executor.py").read_text(encoding="utf-8")
-
-    # Compatibility imports are allowed only inside the explicit opt-in branch
-    # or the legacy execution method; normal startup must not load executable
-    # user-definition code.
-    assert "from app.legacy.definition_metric_runner import DefinitionMetricRunner" in runs
-    assert "if enable_legacy_definition_execution:" in runs
-    assert "from app.legacy.user_definition import UserDefinitionAlgorithm" in executor
-    assert "if self.metric_runner is None:" in executor
-    assert "from app.legacy.user_definition import UserDefinitionAlgorithm\n" not in executor.split("def _execute_definition_metric", 1)[0]
+    for source in (runs, queue, executor):
+        assert "enable_legacy_definition_execution" not in source
+        assert "DefinitionMetricRunner" not in source
+        assert "UserDefinitionAlgorithm" not in source
 
 
 def test_playback_service_uses_a_single_processor_boundary() -> None:

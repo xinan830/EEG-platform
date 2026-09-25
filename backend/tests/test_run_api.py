@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -223,7 +224,15 @@ def test_user_defined_algorithm_run_creation_returns_retired_response():
     assert body["message"] == "用户自定义算法已经退役，历史运行仍可读取"
 
 
-def test_historical_retired_user_run_and_artifact_remain_readable(tmp_path: Path):
+@pytest.mark.parametrize("summary, values", [
+    ({"output": {"value": 0.5, "unit": "ratio"}}, [0.5]),
+    ({"metric": {"mode": "dynamic", "result_contract_version": "dynamic-analysis-frame-v5",
+                 "series": [{"time_s": 4.0, "analysis_state": "Partial", "value": 0.5},
+                            {"time_s": 5.0, "analysis_state": "Complete", "value": 0.6}]}}, [0.5, 0.6]),
+])
+def test_historical_retired_user_run_and_artifact_remain_readable(
+    tmp_path: Path, summary: dict[str, object], values: list[float],
+):
     client, recording = _configure_services(tmp_path)
     now = utc_now()
     run = AnalysisRun(
@@ -246,7 +255,7 @@ def test_historical_retired_user_run_and_artifact_remain_readable(tmp_path: Path
         window={},
         quality_rules={},
         environment={"execution_path": "legacy-user-definition"},
-        result_summary={"output": {"value": 0.5, "unit": "ratio"}},
+        result_summary=summary,
         created_at=now,
         updated_at=now,
         started_at=now,
@@ -257,7 +266,7 @@ def test_historical_retired_user_run_and_artifact_remain_readable(tmp_path: Path
     artifact = app.state.run_service.artifacts.write_npz(
         run.run_id,
         run.analysis_type,
-        {"F3": np.asarray([0.5], dtype=np.float64)},
+        {"F3": np.asarray(values, dtype=np.float64)},
         "ratio",
     )
 
@@ -266,6 +275,6 @@ def test_historical_retired_user_run_and_artifact_remain_readable(tmp_path: Path
 
     assert response.status_code == 200
     assert response.json()["definition_id"] == "historic-user-definition"
-    assert response.json()["result_summary"]["output"]["value"] == 0.5
+    assert response.json()["result_summary"] == summary
     assert artifacts.status_code == 200
     assert artifacts.json()[0]["artifact_id"] == artifact.artifact_id

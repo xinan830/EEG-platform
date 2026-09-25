@@ -26,6 +26,8 @@ caller imports the executor.
 - no change to official algorithms;
 - no deletion or rewriting of historical database rows or artifacts;
 - no change to scientific formulas or sample coordinates.
+- no migration of the unrelated legacy biofeedback playback endpoint; its
+  stateful streaming contract requires separate parity evidence.
 
 ## Preconditions
 

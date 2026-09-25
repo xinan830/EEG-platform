@@ -25,25 +25,21 @@ class PersistentRunQueue:
         recordings: RecordingService,
         database_path: Path = DATABASE_PATH,
         artifacts_dir: Path = ARTIFACTS_DIR,
-        *,
-        enable_legacy_definition_execution: bool = False,
     ):
         self.base = RunService(
             recordings,
             database_path,
             artifacts_dir,
-            enable_legacy_definition_execution=enable_legacy_definition_execution,
         )
         self.recordings = recordings
-        self.enable_legacy_definition_execution = enable_legacy_definition_execution
         self.repository: RunRepository = self.base.repository
         self.repository.recover_interrupted()
 
     def enqueue(self, request: RunCreateRequest, *, parent_run_id: str | None = None) -> AnalysisRun:
         if request.preview:
             raise ValueError("definition previews use their dedicated endpoint")
-        if request.analysis_type == "definition_metric" and not self.enable_legacy_definition_execution:
-            raise RetiredUserAlgorithmError()
+        if request.analysis_type == "definition_metric":
+            raise RetiredUserAlgorithmError("用户自定义算法已经退役，历史运行仍可读取")
         if request.idempotency_key:
             existing = self.repository.find_idempotency_key(request.idempotency_key)
             if existing is not None:
@@ -83,7 +79,7 @@ class PersistentRunQueue:
             if self._is_cancelled(run.run_id):
                 return self.repository.update_status(run.run_id, RunStatus.CANCELLED)
             recording = self.recordings.require_recording(run.recording_id)
-            if run.analysis_type == "definition_metric" and not self.enable_legacy_definition_execution:
+            if run.analysis_type == "definition_metric":
                 return self.repository.update_status(
                     run.run_id,
                     RunStatus.FAILED,

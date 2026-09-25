@@ -20,7 +20,6 @@ from app.legacy.scalar import Scalar
 from app.scientific.quality import SpectralQualityGateError
 from app.algorithms.catalog import ensure_official_definitions, official_definition_identity
 from app.models.analysis_config import AnalysisConfigRequest
-from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.bootstrap import build_builtin_registry
 from app.algorithm_runtime.contracts import DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
@@ -50,34 +49,21 @@ class RunService:
         recordings: RecordingService,
         database_path: Path = DATABASE_PATH,
         artifacts_dir: Path = ARTIFACTS_DIR,
-        *,
-        enable_legacy_definition_execution: bool = False,
     ):
         self.recordings = recordings
         self.repository = RunRepository(database_path)
         self.artifacts = ArtifactStore(self.repository, artifacts_dir)
         self.definition_service = DefinitionService(database_path)
         ensure_official_definitions(self.definition_service)
-        # The user-definition executor is retired from production.  Keep its
-        # construction behind the explicit compatibility switch so ordinary
-        # RunService instances (including historical readers) do not import or
-        # initialize executable legacy code.
-        metric_runner = None
-        if enable_legacy_definition_execution:
-            from app.legacy.definition_metric_runner import DefinitionMetricRunner
-
-            metric_runner = DefinitionMetricRunner(recordings)
-        self.metric_runner = metric_runner
         self.algorithm_runtime_registry = build_builtin_registry()
         self.executor = RunAnalysisExecutor(
             recordings,
-            self.definition_service,
-            self.metric_runner,
             self.algorithm_runtime_registry,
-            enable_legacy_definition_execution=enable_legacy_definition_execution,
         )
 
     def create(self, request: RunCreateRequest) -> AnalysisRun:
+        if request.analysis_type == "definition_metric":
+            raise RetiredUserAlgorithmError("用户自定义算法已经退役，历史运行仍可读取")
         recording = self.recordings.require_recording(request.recording_id)
         if not recording.source_sha256:
             raise ValueError("recording source identity is unavailable")
@@ -300,34 +286,11 @@ class RunService:
             ],
         }
     def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
+        if request.analysis_type == "definition_metric":
+            raise RetiredUserAlgorithmError("用户自定义算法已经退役，历史运行仍可读取")
         run_definition_id = request.definition_id
         run_definition_version = request.definition_version
-        if request.analysis_type == "definition_metric":
-            if not request.definition_id or not request.definition_version:
-                raise ValueError("definition metric requires a definition ID and version")
-            version = self.definition_service.repository.get_version(request.definition_id, request.definition_version)
-            if version is None:
-                raise ValueError("definition metric version does not exist")
-            metric_config = DefinitionMetricConfig.model_validate(request.config)
-            duration = float(recording.duration_s or 0.0)
-            if metric_config.time.end_s > duration + 1.5 / float(recording.sfreq or 1.0):
-                raise ValueError(f"metric analysis range exceeds recording duration of {duration:.3f} s")
-            config = metric_config.model_dump(mode="json")
-            requested_range = metric_config.time.model_dump(mode="json")
-            actual_range = dict(requested_range)
-            channels = [metric_config.channel]
-            definition = {"kind": "definition_metric", "definition_id": request.definition_id,
-                          "definition_version": request.definition_version, "digest_sha256": version.digest_sha256}
-            scientific_version = "user-metric-dynamic-v1" if metric_config.mode == "dynamic" else "user-metric-run-v1"
-            window = {
-                "mode": metric_config.mode,
-                "welch_segment_s": ANALYSIS_CONTRACT["welch_segment_s"],
-                "welch_overlap": ANALYSIS_CONTRACT["welch_segment_overlap"],
-                "dynamic_window_s": metric_config.dynamic_window_s if metric_config.mode == "dynamic" else None,
-                "refresh_step_s": metric_config.refresh_step_s if metric_config.mode == "dynamic" else None,
-                "alignment": "window_end" if metric_config.mode == "dynamic" else "range",
-            }
-        elif request.analysis_type == "official_algorithm":
+        if request.analysis_type == "official_algorithm":
             official_config = OfficialAlgorithmRunConfig.model_validate(request.config)
             module = self.algorithm_runtime_registry.get(
                 official_config.algorithm_id,
@@ -432,9 +395,6 @@ class RunService:
             # evidence contract is independently versioned so legacy summaries
             # without debug evidence cannot be reused as current Run results.
             "definition_sha256": sha256_json({
-                "definition_digest": definition["digest_sha256"],
-                "result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION if request.analysis_type == "definition_metric" and config.get("mode") == "dynamic" else "definition-metric-evidence-v1",
-            }) if request.analysis_type == "definition_metric" else sha256_json({
                 **definition,
                 "result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION if config.get("mode") == "dynamic" else "official-algorithm-result-evidence-v2",
             }) if request.analysis_type == "official_algorithm" else sha256_json(definition),

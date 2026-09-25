@@ -26,10 +26,10 @@ deletion task is therefore not complete until the safety rules below are
 machine-checked against the current caller inventory; this is an explicit
 deferred migration, not an accidental omission.
 
-The public Run API already rejects new `definition_metric` creation with the
-stable `USER_DEFINED_ALGORITHM_RETIRED` response. The persistent queue retains
-the old executor only for compatibility coverage until its internal execution
-callers are migrated; it is not an active official-algorithm path.
+The public Run API and direct Run services reject new `definition_metric`
+creation with the stable `USER_DEFINED_ALGORITHM_RETIRED` response. The old
+metric executor and opt-in queue path have been removed; persisted historical
+Runs and artifacts remain readable.
 
 ## Candidate classification
 
