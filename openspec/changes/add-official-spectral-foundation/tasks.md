@@ -90,9 +90,9 @@ change. Unchecked items are the remaining implementation scope.
 
 ## 7. Completion gates
 
-- [ ] Backend full test suite passes.
-- [ ] Independent spectral validation passes with explicit tolerances.
-- [ ] OpenSpec strict validation passes.
+- [x] Backend full test suite passes.
+- [x] Independent spectral validation passes with explicit tolerances.
+- [x] OpenSpec strict validation passes.
 - [ ] File-size policy and `git diff --check` pass.
 - [x] Validation report records identities, ranges, units, quality, artifacts,
   and rollback point.
