@@ -11,7 +11,6 @@ from app.services.recordings import RecordingService
 from app.services.runs import RunService
 from app.services.analysis_provenance import serialize_analysis_run
 from app.services.run_analysis_executor import _RecordingAlgorithmContext
-from app.algorithm_runtime.errors import UnsupportedAlgorithmModeError
 from app.main import app
 from fastapi.testclient import TestClient
 
@@ -192,11 +191,56 @@ def test_official_stft_run_returns_structured_time_frequency_artifact(tmp_path: 
     assert service.list_artifacts(completed.run_id)
 
 
-def test_official_stft_rejects_dynamic_mode_until_a_dynamic_contract_exists(tmp_path: Path):
+def test_official_stft_dynamic_run_returns_window_time_frequency_matrix_artifact(tmp_path: Path):
     service, recording_id = _service(tmp_path)
     request = _request(recording_id, "stft", dynamic=True)
-    with pytest.raises(UnsupportedAlgorithmModeError):
-        service.create(request)
+    completed = service.create(request)
+
+    assert completed.status is RunStatus.COMPLETED
+    structured = completed.result_summary["structured"]
+    assert structured["output"]["mode"] == "dynamic"
+    assert structured["output"]["kind"] == "time_frequency"
+    assert structured["arrays"]["power_linear"]["shape"] == [27, 7, 117]
+    assert structured["arrays"]["power_db"]["unit"] == "dB re 1 uV^2/Hz"
+    assert structured["window_state_counts"] == {"Partial": 6, "Complete": 21}
+    assert service.list_artifacts(completed.run_id)
+
+
+def test_official_psd_dynamic_run_returns_window_frequency_matrix_artifact(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    completed = service.create(_request(recording_id, "psd", dynamic=True))
+
+    assert completed.status is RunStatus.COMPLETED
+    structured = completed.result_summary["structured"]
+    assert structured["output"]["mode"] == "dynamic"
+    assert structured["output"]["kind"] == "frequency_series"
+    assert structured["arrays"]["psd"]["shape"] == [27, 117]
+    assert structured["window_state_counts"] == {"Partial": 6, "Complete": 21}
+    assert service.list_artifacts(completed.run_id)
+
+
+@pytest.mark.parametrize("algorithm_id", ["psd", "stft"])
+def test_one_window_dynamic_result_matches_static_result(tmp_path: Path, algorithm_id: str):
+    service, recording_id = _service(tmp_path)
+    static_request = _request(recording_id, algorithm_id)
+    dynamic_request = _request(recording_id, algorithm_id, dynamic=True)
+    static_request.config["time"] = {"start_s": 20, "end_s": 30}
+    dynamic_request.config.update({"time": {"start_s": 20, "end_s": 30}, "dynamic_window_s": 10, "refresh_step_s": 1})
+
+    static_run = service.create(static_request)
+    dynamic_run = service.create(dynamic_request)
+    assert static_run.status is RunStatus.COMPLETED
+    assert dynamic_run.status is RunStatus.COMPLETED
+
+    static_artifact = service.list_artifacts(static_run.run_id)[0]
+    dynamic_artifact = service.list_artifacts(dynamic_run.run_id)[0]
+    static_arrays = service.artifacts.read_npz(static_artifact)
+    dynamic_arrays = service.artifacts.read_npz(dynamic_artifact)
+    if algorithm_id == "psd":
+        np.testing.assert_allclose(dynamic_arrays["psd"][0], static_arrays["psd"], rtol=0, atol=1e-24)
+    else:
+        np.testing.assert_allclose(dynamic_arrays["power_linear"][0], static_arrays["power_linear"], rtol=0, atol=1e-24)
+        np.testing.assert_allclose(dynamic_arrays["power_db"][0], static_arrays["power_db"], rtol=0, atol=1e-12)
 
 
 def test_official_psd_box_range_uses_the_same_static_runtime_contract(tmp_path: Path):

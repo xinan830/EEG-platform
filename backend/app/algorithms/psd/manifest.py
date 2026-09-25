@@ -8,8 +8,8 @@ MANIFEST = AlgorithmManifest(
     purpose_zh="使用冻结的 Welch 契约计算所选原始通道的功率谱密度。",
     scientific_version="offline-spectral-v3",
     implementation_identity="psd-runtime-v1",
-    supported_modes=["static"],
-    output_schema={"fields": [
+    supported_modes=["static", "dynamic"],
+    output_schema={"mode_shapes": {"static": "frequency", "dynamic": "window x frequency"}, "fields": [
         {"name": "frequency_hz", "unit": "Hz", "shape": "frequency", "meaning": "PSD 频率轴"},
         {"name": "psd", "unit": "V^2/Hz", "shape": "frequency", "meaning": "所选通道的功率谱密度"},
     ]},

@@ -14,6 +14,10 @@ from app.algorithm_runtime.contracts import (
 )
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterSchema
 from app.algorithm_runtime.executor import AlgorithmRuntime
+from app.algorithm_runtime.registry import AlgorithmRegistry
+from app.algorithms.psd.runner import PsdAlgorithm
+from app.scientific.primitives.spectral import SpectralEstimate
+from app.scientific.quality import SpectralQualityGateError
 from app.services.run_analysis_executor import _serialize_structured_result, _serialize_structured_series_result
 
 
@@ -112,8 +116,10 @@ def test_structured_series_requires_window_axis_and_keeps_nan_unavailable_rows()
 
     assert summary["output"]["mode"] == "dynamic"
     assert summary["arrays"]["psd"] == {"unit": "V^2/Hz", "shape": [2, 2]}
+    assert summary["arrays"]["window_evidence_json"]["unit"] == "json"
     assert summary["window_state_counts"] == {"Complete": 1, "Unavailable": 1}
     assert np.isnan(arrays["psd"][1]).all()
+    assert '"inner_valid_count"' not in str(arrays["window_evidence_json"])
 
 
 def test_structured_series_rejects_infinity_and_wrong_window_axis() -> None:
@@ -128,6 +134,39 @@ def test_structured_series_rejects_infinity_and_wrong_window_axis() -> None:
         AlgorithmStructuredSeriesResult(arrays={"psd": np.ones((2, 2))}, **kwargs)
     with pytest.raises(ValidationError, match="contains infinity"):
         AlgorithmStructuredSeriesResult(arrays={"psd": np.array([[np.inf, 1.0]])}, **kwargs)
+
+
+def test_dynamic_psd_keeps_a_quality_gate_gap_as_a_rejected_matrix_window() -> None:
+    frequencies = np.arange(1.0, 30.25, 0.25)
+
+    class Recording:
+        id = "dynamic-gap"
+        channel_names = ["Fz"]
+        sfreq_hz = 100.0
+        duration_s = 20.0
+
+        def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str]):
+            if start_s >= 5.0:
+                raise SpectralQualityGateError({
+                    "clean_segments": 0, "total_segments": 1, "clean_ratio": 0.0,
+                    "gate_failed": "low_quality", "rejected_reasons": ["gap"], "evidence": {"gap": {"detected": True}},
+                })
+            return SpectralEstimate(
+                frequencies, np.ones((1, len(frequencies))) * 1e-12,
+                1.0, 1, 1, None, evidence={},
+            )
+
+    registry = AlgorithmRegistry()
+    registry.register(PsdAlgorithm())
+    result = AlgorithmRuntime(registry).execute(
+        algorithm_id="psd", recording=Recording(),
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 1, "end_s": 20, "window_s": 10, "step_s": 1},
+    )
+
+    assert result.quality == "partial"
+    assert {window.state for window in result.windows} == {"Complete", "Rejected"}
+    assert result.windows[-1].failure is not None
+    assert np.isnan(result.arrays["psd"][-1]).all()
 
 
 def test_runtime_attaches_canonical_sample_coordinate_without_replacing_display_range() -> None:

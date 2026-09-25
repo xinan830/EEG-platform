@@ -8,8 +8,8 @@ MANIFEST = AlgorithmManifest(
     purpose_zh="使用冻结的 spectrogram-v2 契约计算所选原始通道的时频功率。",
     scientific_version="spectrogram-v2",
     implementation_identity="stft-runtime-v1",
-    supported_modes=["static"],
-    output_schema={"fields": [
+    supported_modes=["static", "dynamic"],
+    output_schema={"mode_shapes": {"static": "time x frequency", "dynamic": "window x inner_time x frequency"}, "fields": [
         {"name": "time_center_s", "unit": "s", "shape": "time", "meaning": "时频窗中心时间"},
         {"name": "frequency_hz", "unit": "Hz", "shape": "frequency", "meaning": "时频频率轴"},
         {"name": "power_linear", "unit": "V^2/Hz", "shape": "time x frequency", "meaning": "线性功率密度"},

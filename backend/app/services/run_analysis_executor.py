@@ -6,6 +6,7 @@ This class deliberately owns only the pre-existing analysis dispatch paths.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import numpy as np
@@ -189,6 +190,10 @@ def _serialize_structured_series_result(
     evidence = _public_evidence(result.evidence)
     arrays = {name: np.asarray(value) for name, value in result.arrays.items()}
     array_units = dict(result.array_units)
+    arrays["window_evidence_json"] = np.asarray(json.dumps(
+        [window.evidence for window in result.windows], ensure_ascii=False, sort_keys=True,
+    ))
+    array_units["window_evidence_json"] = "json"
     axis_metadata: dict[str, object] = {}
     for name, value in result.axes.items():
         axis = np.asarray(value)

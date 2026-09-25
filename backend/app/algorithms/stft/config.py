@@ -1,7 +1,7 @@
-from app.algorithm_runtime.contracts import AlgorithmConfigBase
+from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmMode
 
 
 class StftConfig(AlgorithmConfigBase):
     """Static single-channel spectrogram configuration."""
 
-    mode: str = "static"
+    mode: AlgorithmMode = "static"

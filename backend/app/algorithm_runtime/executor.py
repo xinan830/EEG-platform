@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from .contracts import AlgorithmEvidence, AlgorithmModule, AlgorithmResult, AlgorithmSeriesResult, AlgorithmStructuredResult
+from .contracts import (
+    AlgorithmEvidence,
+    AlgorithmModule,
+    AlgorithmResult,
+    AlgorithmSeriesResult,
+    AlgorithmStructuredResult,
+    AlgorithmStructuredSeriesResult,
+)
 from .errors import UnsupportedAlgorithmModeError
 from app.scientific.contracts import SampleRange
 
@@ -20,7 +27,7 @@ class AlgorithmRuntime:
         recording: Any,
         config: dict[str, Any],
         scientific_version: str | None = None,
-    ) -> AlgorithmResult | AlgorithmSeriesResult | AlgorithmStructuredResult:
+    ) -> AlgorithmResult | AlgorithmSeriesResult | AlgorithmStructuredResult | AlgorithmStructuredSeriesResult:
         module: AlgorithmModule = self.registry.get(algorithm_id, scientific_version)
         return self.execute_module(module=module, recording=recording, config=config)
 
@@ -30,7 +37,7 @@ class AlgorithmRuntime:
         module: AlgorithmModule,
         recording: Any,
         config: dict[str, Any],
-    ) -> AlgorithmResult | AlgorithmSeriesResult | AlgorithmStructuredResult:
+    ) -> AlgorithmResult | AlgorithmSeriesResult | AlgorithmStructuredResult | AlgorithmStructuredSeriesResult:
         """Execute a concrete module selected by a trusted catalog boundary."""
         typed_config = self.validate_config(module=module, config=config)
         self.validate_parameter_schema(module=module, config=typed_config)
@@ -43,6 +50,19 @@ class AlgorithmRuntime:
             result.evidence = AlgorithmEvidence.model_validate(result.evidence).model_dump(mode="json")
             return result
         result = module.execute_dynamic(inputs, typed_config)
+        if isinstance(result, AlgorithmStructuredSeriesResult):
+            result.evidence = AlgorithmEvidence.model_validate(
+                self._with_sample_coordinate(result.evidence, result.actual_range, inputs.sfreq_hz)
+            ).model_dump(mode="json")
+            for window in result.windows:
+                window.evidence = AlgorithmEvidence.model_validate(
+                    self._with_sample_coordinate(
+                        window.evidence,
+                        {"start_s": window.start_s, "end_s": window.end_s},
+                        inputs.sfreq_hz,
+                    )
+                ).model_dump(mode="json")
+            return result
         # Keep the legacy warmup flags for historical readers, but make the
         # versioned state enum the canonical runtime representation. Older
         # modules may omit states, so only those results are derived from the
