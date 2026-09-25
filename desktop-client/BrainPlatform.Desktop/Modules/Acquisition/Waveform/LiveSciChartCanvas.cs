@@ -71,6 +71,7 @@ public sealed class LiveSciChartCanvas : UserControl
     private double activeDisplayWindowSeconds;
     private int activeTraceCount;
     private Thickness? lastLabelPlotMargin;
+    private string? lastMarkerLayoutSignature;
     private Window? owningWindow;
     private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
 
@@ -137,7 +138,9 @@ public sealed class LiveSciChartCanvas : UserControl
         frameWorker = new LatestWaveformFrameWorker(Dispatcher, ApplyFrameResult);
         refreshTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
-            Interval = TimeSpan.FromMilliseconds(50),
+            // 30 fps keeps the sweep visually continuous while leaving a
+            // larger scheduling budget than a 60 fps display refresh.
+            Interval = TimeSpan.FromMilliseconds(33),
         };
         refreshTimer.Tick += (_, _) => RequestRefresh();
         refreshTimer.Start();
@@ -233,6 +236,9 @@ public sealed class LiveSciChartCanvas : UserControl
             return;
         }
 
+        var pageStart = WaveformDisplayFrameBuilder.GetPageStartSampleCounter(source, displayWindowSeconds);
+        var prepareSeriesForPageSwap = pageStart is not null &&
+            (currentFrame is null || pageStart.Value != currentFrame.WindowStartSampleCounter);
         lastRequestedRevision = revision;
         frameWorker.Request(new WaveformFrameBuildRequest(
             ++renderSequence,
@@ -240,7 +246,9 @@ public sealed class LiveSciChartCanvas : UserControl
             displayWindowSeconds,
             horizontalPixels,
             monitor.SensitivityMicrovoltsPerMillimeter,
-            plotHeight));
+            plotHeight,
+            screenScale.MillimetersPerDipY,
+            prepareSeriesForPageSwap));
     }
 
     private void ApplyFrameResult(WaveformFrameBuildResult result)
@@ -259,6 +267,7 @@ public sealed class LiveSciChartCanvas : UserControl
             return;
         }
 
+        var previousFrame = currentFrame;
         currentFrame = frame;
         emptyMessage.Text = "等待设备连接并开始采集";
         emptyMessage.Visibility = frame.Traces.All(trace => trace.Points.Count == 0)
@@ -297,11 +306,22 @@ public sealed class LiveSciChartCanvas : UserControl
         {
             for (var index = 0; index < frame.Traces.Count; index++)
             {
-                UpdateSeries(traceSeries[index], frame, frame.Traces[index], index, displayScale);
+                if (result.PreparedSeries is { Count: > 0 } prepared &&
+                    frame.WindowStartSampleCounter != previousFrame?.WindowStartSampleCounter &&
+                    index < prepared.Count)
+                {
+                    traceSeries[index].ReplaceData(prepared[index]);
+                }
+                else
+                {
+                    UpdateSeries(traceSeries[index], frame, frame.Traces[index], index, displayScale);
+                }
             }
         }
-        UpdateEventMarkers(frame, DataContext as LiveMonitoringViewModel);
-        UpdateLifecycleBoundaries(frame, DataContext as LiveMonitoringViewModel);
+        if (UpdateEventMarkers(frame, DataContext as LiveMonitoringViewModel))
+        {
+            UpdateLifecycleBoundaries(frame, DataContext as LiveMonitoringViewModel);
+        }
     }
 
     private void ShowEmptyState(LiveMonitoringViewModel? monitor)
@@ -311,6 +331,7 @@ public sealed class LiveSciChartCanvas : UserControl
         eraseBand.IsHidden = true;
         eraseWrapBand.IsHidden = true;
         eventMarkers.Children.Clear();
+        lastMarkerLayoutSignature = null;
         currentFrame = null;
         activeDisplayWindowSeconds = 0;
         activeTraceCount = 0;
@@ -392,12 +413,12 @@ public sealed class LiveSciChartCanvas : UserControl
         annotation.IsHidden = false;
     }
 
-    private void UpdateEventMarkers(WaveformDisplayFrame? frame, LiveMonitoringViewModel? monitor)
+    private bool UpdateEventMarkers(WaveformDisplayFrame? frame, LiveMonitoringViewModel? monitor)
     {
-        eventMarkers.Children.Clear();
         if (frame is null || monitor is null || eventMarkers.ActualWidth <= 0 || eventMarkers.ActualHeight <= 0)
         {
-            return;
+            lastMarkerLayoutSignature = null;
+            return false;
         }
 
         var pageStart = frame.WindowStartSampleCounter;
@@ -405,8 +426,18 @@ public sealed class LiveSciChartCanvas : UserControl
         var plotArea = WaveformPlotLayout.GetPlotArea(surface);
         if (plotArea.Width <= 0 || plotArea.Height <= 0)
         {
-            return;
+            lastMarkerLayoutSignature = null;
+            return false;
         }
+
+        var markerSignature = CreateMarkerLayoutSignature(frame, monitor, plotArea);
+        if (StringComparer.Ordinal.Equals(markerSignature, lastMarkerLayoutSignature))
+        {
+            return false;
+        }
+
+        lastMarkerLayoutSignature = markerSignature;
+        eventMarkers.Children.Clear();
 
         foreach (var item in monitor.LiveRecordingEvents)
         {
@@ -462,6 +493,26 @@ public sealed class LiveSciChartCanvas : UserControl
                     monitor.FormatEventMarker(item));
             }
         }
+
+        return true;
+    }
+
+    private static string CreateMarkerLayoutSignature(
+        WaveformDisplayFrame frame,
+        LiveMonitoringViewModel monitor,
+        Rect plotArea)
+    {
+        var events = string.Join(';', monitor.LiveRecordingEvents.Select(item =>
+            $"{item.Id}:{item.StartSample}:{item.DurationSamples}:{item.CoordinateStatus}:{item.DefinitionSnapshot.Color}"));
+        var boundaries = string.Join(';', monitor.LiveLifecycleBoundaries.Select(boundary =>
+            $"{boundary.Kind}:{boundary.SampleCounter}:{boundary.OccurredAtUtc.UtcTicks}"));
+        return string.Join('|',
+            frame.WindowStartSampleCounter,
+            frame.WindowSampleCount,
+            plotArea.Width.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+            plotArea.Height.ToString("R", System.Globalization.CultureInfo.InvariantCulture),
+            events,
+            boundaries);
     }
 
     private void UpdateLifecycleBoundaries(WaveformDisplayFrame frame, LiveMonitoringViewModel? monitor)
@@ -529,13 +580,14 @@ public sealed class LiveSciChartCanvas : UserControl
         for (var index = 0; index < traces.Count; index++)
         {
             var data = new XyDataSeries<double, double>();
-            surface.RenderableSeries.Add(new FastLineRenderableSeries
+            var renderable = new FastLineRenderableSeries
             {
                 DataSeries = data,
                 Stroke = TraceColors[index % TraceColors.Length],
                 StrokeThickness = 1,
-            });
-            traceSeries.Add(new TraceSeries(data));
+            };
+            surface.RenderableSeries.Add(renderable);
+            traceSeries.Add(new TraceSeries(renderable, data));
         }
 
         RebuildLabels(labels);
@@ -548,36 +600,57 @@ public sealed class LiveSciChartCanvas : UserControl
         int traceIndex,
         double displayScale)
     {
+        var xValues = series.XValues;
+        var yValues = series.YValues;
+        xValues.Clear();
+        yValues.Clear();
+        xValues.EnsureCapacity(trace.Points.Count * 2);
+        yValues.EnsureCapacity(trace.Points.Count * 2);
+
+        var baseline = frame.Traces.Count - traceIndex - .5d;
+        var hasPreviousPoint = false;
+        foreach (var point in trace.Points)
+        {
+            var seconds = point.DisplaySampleOffset / (double)frame.SamplingRateHz;
+            if (point.StartsSegment && hasPreviousPoint)
+            {
+                xValues.Add(Math.Max(0, seconds - .000001d));
+                yValues.Add(double.NaN);
+            }
+
+            xValues.Add(seconds);
+            yValues.Add(baseline + point.MinVolts * 1_000_000d * displayScale);
+            hasPreviousPoint = true;
+        }
+
+        var canUpdateYValues = series.LastXValues.Count == xValues.Count &&
+            series.LastXValues.SequenceEqual(xValues);
         using (series.Data.SuspendUpdates())
         {
-            series.Data.Clear();
-            var baseline = frame.Traces.Count - traceIndex - .5d;
-            var hasPreviousPoint = false;
-            var xValues = series.XValues;
-            var yValues = series.YValues;
-            xValues.Clear();
-            yValues.Clear();
-            xValues.EnsureCapacity(trace.Points.Count * 2);
-            yValues.EnsureCapacity(trace.Points.Count * 2);
-            foreach (var point in trace.Points)
+            if (canUpdateYValues)
             {
-                var seconds = point.DisplaySampleOffset / (double)frame.SamplingRateHz;
-                if (point.StartsSegment && hasPreviousPoint)
+                for (var index = 0; index < yValues.Count; index++)
                 {
-                    xValues.Add(Math.Max(0, seconds - .000001d));
-                    yValues.Add(double.NaN);
+                    if (!double.Equals(series.LastYValues[index], yValues[index]))
+                    {
+                        series.Data.Update(index, yValues[index]);
+                    }
                 }
-
-                xValues.Add(seconds);
-                yValues.Add(baseline + point.MinVolts * 1_000_000d * displayScale);
-                hasPreviousPoint = true;
             }
-
-            if (xValues.Count > 0)
+            else
             {
-                series.Data.Append(xValues, yValues);
+                series.Data.Clear();
+                if (xValues.Count > 0)
+                {
+                    series.Data.Append(xValues, yValues);
+                }
             }
         }
+
+        series.LastXValues.Clear();
+        series.LastXValues.AddRange(xValues);
+        series.LastYValues.Clear();
+        series.LastYValues.AddRange(yValues);
     }
 
     private void RebuildLabels(IReadOnlyList<string> labels)
@@ -606,13 +679,29 @@ public sealed class LiveSciChartCanvas : UserControl
         WaveformPlotLayout.SyncLabelPlotArea(surface, channelLabels, ref lastLabelPlotMargin);
     }
 
-    private sealed class TraceSeries(XyDataSeries<double, double> data)
+    private sealed class TraceSeries(FastLineRenderableSeries renderable, XyDataSeries<double, double> data)
     {
-        public XyDataSeries<double, double> Data { get; } = data;
+        public FastLineRenderableSeries Renderable { get; } = renderable;
+
+        public XyDataSeries<double, double> Data { get; private set; } = data;
 
         public List<double> XValues { get; } = [];
 
         public List<double> YValues { get; } = [];
+
+        public List<double> LastXValues { get; } = [];
+
+        public List<double> LastYValues { get; } = [];
+
+        public void ReplaceData(PreparedWaveformTrace prepared)
+        {
+            Data = prepared.Data;
+            Renderable.DataSeries = prepared.Data;
+            LastXValues.Clear();
+            LastXValues.AddRange(prepared.XValues);
+            LastYValues.Clear();
+            LastYValues.AddRange(prepared.YValues);
+        }
     }
 
 }

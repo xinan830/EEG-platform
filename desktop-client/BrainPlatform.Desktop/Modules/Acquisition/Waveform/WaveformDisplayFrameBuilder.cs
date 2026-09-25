@@ -8,6 +8,31 @@ namespace BrainPlatform.Desktop.Modules.Acquisition.Waveform;
 /// </summary>
 public static class WaveformDisplayFrameBuilder
 {
+    public static long? GetPageStartSampleCounter(
+        LiveWaveformSource? source,
+        double displayWindowSeconds)
+    {
+        if (source is null || source.Batches.Count == 0 || source.Metadata.SamplingRateHz <= 0)
+        {
+            return null;
+        }
+
+        var adjustments = source.DisplayCounterAdjustments ?? [];
+        var sessionFirstCounter = ToDisplayCounter(
+            source.SessionFirstSampleCounter ?? source.Batches[0].FirstSampleCounter,
+            adjustments);
+        var lastBatch = source.Batches[^1];
+        var lastCounter = checked(ToDisplayCounter(lastBatch.FirstSampleCounter, adjustments) + lastBatch.SampleCount - 1L);
+        var pageSamples = checked((int)Math.Max(
+            1d,
+            Math.Round(
+                source.Metadata.SamplingRateHz * displayWindowSeconds,
+                MidpointRounding.AwayFromZero)));
+        var elapsedSamples = checked(lastCounter - sessionFirstCounter + 1L);
+        var pageIndex = (elapsedSamples - 1L) / pageSamples;
+        return checked(sessionFirstCounter + pageIndex * pageSamples);
+    }
+
     public static WaveformDisplayFrame? Build(
         LiveWaveformSource? source,
         double displayWindowSeconds,
