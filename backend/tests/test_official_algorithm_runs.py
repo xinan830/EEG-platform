@@ -199,6 +199,19 @@ def test_official_stft_rejects_dynamic_mode_until_a_dynamic_contract_exists(tmp_
         service.create(request)
 
 
+def test_official_psd_box_range_uses_the_same_static_runtime_contract(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    request = _request(recording_id, "psd")
+    request.config["time"] = {"start_s": 5, "end_s": 15}
+    completed = service.create(request)
+
+    assert completed.status is RunStatus.COMPLETED
+    structured = completed.result_summary["structured"]
+    assert structured["requested_range"] == {"start_s": 5.0, "end_s": 15.0}
+    assert structured["actual_range"] == {"start_s": 5.0, "end_s": 15.0}
+    assert structured["output"]["kind"] == "frequency_series"
+
+
 def test_official_faa_run_records_explicit_pair_and_paired_quality(tmp_path: Path):
     service, recording_id = _service(tmp_path)
     completed = service.create(_request(recording_id, "faa"))

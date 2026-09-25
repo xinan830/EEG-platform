@@ -26,9 +26,9 @@
 
 ## Known boundaries
 
-- PSD and STFT currently expose static Runtime modes only. Dynamic and box
-  selection equivalence remains deferred until a declared dynamic STFT/PSD
-  contract exists; it is not silently treated as equivalent.
+- PSD and STFT currently expose static Runtime modes only. Static and
+  box-selection paths are covered; dynamic execution is explicitly rejected
+  until a declared matrix-series STFT/PSD contract exists.
 - The file-size policy still reports two pre-existing reviewed-size findings:
   `backend/app/services/recordings.py` and `frontend/src/App.vue`.
 

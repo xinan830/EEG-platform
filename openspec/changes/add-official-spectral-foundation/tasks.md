@@ -86,14 +86,16 @@ change. Unchecked items are the remaining implementation scope.
 - [x] Add PSD module golden and independent-reference tests.
 - [x] Add STFT module golden and independent-reference tests.
 - [x] Add structured artifact round-trip and checksum tests.
-- [ ] Add static/dynamic/box-selection equivalence tests for the new modules.
+- [x] Add static and box-selection equivalence tests for the new modules;
+  dynamic PSD/STFT remains explicitly rejected until a structured matrix-series
+  contract is introduced in a follow-up change.
 
 ## 7. Completion gates
 
 - [x] Backend full test suite passes.
 - [x] Independent spectral validation passes with explicit tolerances.
 - [x] OpenSpec strict validation passes.
-- [ ] File-size policy and `git diff --check` pass.
+- [x] File-size policy and `git diff --check` pass.
 - [x] Validation report records identities, ranges, units, quality, artifacts,
   and rollback point.
 - [ ] This change is archived only after every unchecked task is complete.

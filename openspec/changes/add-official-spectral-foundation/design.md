@@ -78,6 +78,11 @@ Large arrays belong in immutable NPZ artifacts with checksums. Run summaries
 contain shape, units, axes metadata, and artifact identity rather than copies
 of the entire matrix.
 
+The PSD and STFT modules in this change are static modules. Dynamic execution
+is deliberately rejected because the current structured result contract models
+one matrix per Run; a future change must define a typed matrix-series contract
+before dynamic PSD/STFT output can be enabled.
+
 ## Archived evidence
 
 The following archived changes provide implementation evidence but are not new
