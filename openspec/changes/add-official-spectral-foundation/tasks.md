@@ -45,7 +45,7 @@ change. Unchecked items are the remaining implementation scope.
 - [x] Route box selection through the same static execution path.
 - [x] Attach sample coordinates, actual ranges, quality, and primitive evidence.
 - [x] Persist structured frequency/time axes through the Runtime artifact path.
-- [ ] Persist large spectral matrices as immutable artifacts rather than Run
+- [x] Persist large spectral matrices as immutable artifacts rather than Run
   summaries or frontend state.
 
 ## 4. Official Runtime modules
@@ -58,11 +58,11 @@ change. Unchecked items are the remaining implementation scope.
 - [x] Register and validate FAA with its paired-channel contract.
 - [x] Add a registered official PSD/frequency-series module using the frozen
   scientific spectral gateway.
-- [ ] Add a registered official STFT/time-frequency module using the frozen
+- [x] Add a registered official STFT/time-frequency module using the frozen
   spectrogram gateway.
 - [x] Expose the PSD module through the official catalog with stable scientific
   and implementation identities.
-- [ ] Expose the STFT module through the official catalog with stable scientific
+- [x] Expose the STFT module through the official catalog with stable scientific
   and implementation identities.
 
 ## 5. Provenance and API integration
@@ -75,7 +75,7 @@ change. Unchecked items are the remaining implementation scope.
   units, and artifact references.
 - [x] Define structured serialization for STFT frequency axis, time centers,
   matrix shape, linear power, display power, and quality rows.
-- [ ] Ensure API responses expose backend-returned arrays without frontend
+- [x] Ensure API responses expose backend-returned arrays without frontend
   recomputation.
 
 ## 6. Validation
@@ -83,9 +83,9 @@ change. Unchecked items are the remaining implementation scope.
 - [x] Keep independent numerical references for existing spectral contracts.
 - [x] Test invalid channels, invalid bands, Nyquist violations, quality gates,
   unavailable values, dynamic states, and provenance for existing modules.
-- [ ] Add PSD module golden and independent-reference tests.
-- [ ] Add STFT module golden and independent-reference tests.
-- [ ] Add structured artifact round-trip and checksum tests.
+- [x] Add PSD module golden and independent-reference tests.
+- [x] Add STFT module golden and independent-reference tests.
+- [x] Add structured artifact round-trip and checksum tests.
 - [ ] Add static/dynamic/box-selection equivalence tests for the new modules.
 
 ## 7. Completion gates
@@ -94,6 +94,6 @@ change. Unchecked items are the remaining implementation scope.
 - [ ] Independent spectral validation passes with explicit tolerances.
 - [ ] OpenSpec strict validation passes.
 - [ ] File-size policy and `git diff --check` pass.
-- [ ] Validation report records identities, ranges, units, quality, artifacts,
+- [x] Validation report records identities, ranges, units, quality, artifacts,
   and rollback point.
 - [ ] This change is archived only after every unchecked task is complete.

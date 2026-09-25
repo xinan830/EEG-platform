@@ -75,6 +75,6 @@ def test_official_definitions_are_immutable_published_records_without_a_shadow_c
     first = ensure_official_definitions(service)
     second = ensure_official_definitions(service)
     assert first == second
-    assert len(service.list()) == 8
+    assert len(service.list()) == 9
     assert official_definition_draft("rbp").graph["outputs"] == ["delta_rbp", "theta_rbp", "alpha_rbp", "beta_rbp"]
     assert official_definition_draft("iapf").quality_rules["execution_kind"] == "official_composite_run_adapter"

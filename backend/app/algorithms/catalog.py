@@ -9,6 +9,7 @@ from app.algorithms.band_ratio.manifest import MANIFEST as BAND_RATIO_MANIFEST
 from app.algorithms.iapf.manifest import MANIFEST as IAPF_MANIFEST
 from app.algorithms.peak_frequency.manifest import MANIFEST as PEAK_FREQUENCY_MANIFEST
 from app.algorithms.psd.manifest import MANIFEST as PSD_MANIFEST
+from app.algorithms.stft.manifest import MANIFEST as STFT_MANIFEST
 from app.algorithms.rbp.manifest import MANIFEST as RBP_MANIFEST
 from app.algorithms.theta_beta.manifest import MANIFEST as THETA_BETA_MANIFEST
 from app.algorithm_runtime.contracts import AlgorithmManifest
@@ -23,6 +24,7 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[AlgorithmManifest, ...] = (
     BAND_RATIO_MANIFEST,
     PEAK_FREQUENCY_MANIFEST,
     PSD_MANIFEST,
+    STFT_MANIFEST,
     THETA_BETA_MANIFEST,
     FAA_MANIFEST,
     BRAINBEAT_MANIFEST,

@@ -69,7 +69,7 @@ STFT:
   frequency_hz[]
   values[channel][time][frequency]
   linear_unit = V^2/Hz
-  display_unit = dB re 1 V^2/Hz
+  display_unit = dB re 1 uV^2/Hz
   matrix_shape
   quality_rows
 ```

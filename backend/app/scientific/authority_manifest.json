@@ -46,6 +46,17 @@
       "reference_only": false
     },
     {
+      "capability": "official_stft",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.stft.runner.StftAlgorithm",
+      "owner": "algorithms",
+      "scientific_version": "spectrogram-v2",
+      "implementation_identity": "stft-runtime-v1",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
       "capability": "official_faa",
       "kind": "algorithm",
       "canonical_import": "app.algorithms.faa.official.compute_faa",

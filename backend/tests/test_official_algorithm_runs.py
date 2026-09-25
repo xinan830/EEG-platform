@@ -11,6 +11,7 @@ from app.services.recordings import RecordingService
 from app.services.runs import RunService
 from app.services.analysis_provenance import serialize_analysis_run
 from app.services.run_analysis_executor import _RecordingAlgorithmContext
+from app.algorithm_runtime.errors import UnsupportedAlgorithmModeError
 from app.main import app
 from fastapi.testclient import TestClient
 
@@ -170,6 +171,32 @@ def test_official_psd_run_returns_structured_frequency_artifact(tmp_path: Path):
     assert structured["axes"]["frequency_hz"]["unit"] == "Hz"
     assert structured["arrays"]["psd"]["unit"] == "V^2/Hz"
     assert service.list_artifacts(completed.run_id)
+
+
+def test_official_stft_run_returns_structured_time_frequency_artifact(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    request = _request(recording_id, "stft")
+    completed = service.create(request)
+
+    assert completed.status is RunStatus.COMPLETED
+    structured = completed.result_summary["structured"]
+    assert structured["output"] == {
+        "id": "stft", "label": "时频分析", "kind": "time_frequency",
+        "quality": {"status": "clean", "reasons": []},
+    }
+    assert structured["channel_order"] == ["Fz"]
+    assert structured["axes"]["time_center_s"]["unit"] == "s"
+    assert structured["axes"]["frequency_hz"]["unit"] == "Hz"
+    assert structured["arrays"]["power_linear"]["unit"] == "V^2/Hz"
+    assert structured["arrays"]["power_db"]["unit"] == "dB re 1 uV^2/Hz"
+    assert service.list_artifacts(completed.run_id)
+
+
+def test_official_stft_rejects_dynamic_mode_until_a_dynamic_contract_exists(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    request = _request(recording_id, "stft", dynamic=True)
+    with pytest.raises(UnsupportedAlgorithmModeError):
+        service.create(request)
 
 
 def test_official_faa_run_records_explicit_pair_and_paired_quality(tmp_path: Path):
