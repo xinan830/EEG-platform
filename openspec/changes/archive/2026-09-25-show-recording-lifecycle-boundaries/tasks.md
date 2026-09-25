@@ -3,4 +3,4 @@
 - [x] Render dashed boundary markers in acquisition and review.
 - [x] Display millisecond lifecycle notifications and labels.
 - [x] Preserve explicit pause gaps.
-- [ ] Verify with a physical device recording containing pause and resume.
+- [x] Verify with a physical device recording containing pause and resume.
