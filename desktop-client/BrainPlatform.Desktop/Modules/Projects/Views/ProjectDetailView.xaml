@@ -520,16 +520,18 @@
                                             <ColumnDefinition Width="1.8*" MinWidth="150" />
                                             <ColumnDefinition Width="1.8*" MinWidth="150" />
                                             <ColumnDefinition Width="1.1*" MinWidth="90" />
+                                            <ColumnDefinition Width="1.1*" MinWidth="90" />
                                             <ColumnDefinition Width="1.3*" MinWidth="110" />
                                             <ColumnDefinition Width="1.1*" MinWidth="90" />
                                             <ColumnDefinition Width="120" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="记录名称" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="10,0,6,0" />
                                         <TextBlock Grid.Column="1" Text="采集时间" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0" />
-                                        <TextBlock Grid.Column="2" Text="采样率" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
-                                        <TextBlock Grid.Column="3" Text="信号通道数" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
-                                        <TextBlock Grid.Column="4" Text="记录状态" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
-                                        <TextBlock Grid.Column="5" Text="操作" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="时长" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <TextBlock Grid.Column="3" Text="采样率" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <TextBlock Grid.Column="4" Text="信号通道数" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <TextBlock Grid.Column="5" Text="记录状态" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <TextBlock Grid.Column="6" Text="操作" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
                                     </Grid>
                                 </Border>
 
@@ -548,6 +550,7 @@
                                                     <ColumnDefinition Width="1.8*" MinWidth="150" />
                                                     <ColumnDefinition Width="1.8*" MinWidth="150" />
                                                     <ColumnDefinition Width="1.1*" MinWidth="90" />
+                                                    <ColumnDefinition Width="1.1*" MinWidth="90" />
                                                     <ColumnDefinition Width="1.3*" MinWidth="110" />
                                                     <ColumnDefinition Width="1.1*" MinWidth="90" />
                                                     <ColumnDefinition Width="120" />
@@ -559,14 +562,17 @@
                                                 <!-- 1. 采集时间 -->
                                                 <TextBlock Grid.Column="1" Text="{Binding StartedAtText}" FontSize="12.5" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="8,0" />
 
-                                                <!-- 2. 采样率 -->
-                                                <TextBlock Grid.Column="2" Text="{Binding SamplingRateText}" FontSize="12.5" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                <!-- 2. 时长 -->
+                                                <TextBlock Grid.Column="2" Text="{Binding DurationText}" FontSize="12.5" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" />
 
-                                                <!-- 3. 信号通道数 -->
-                                                <TextBlock Grid.Column="3" Text="{Binding ChannelCountText}" FontSize="12.5" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                <!-- 3. 采样率 -->
+                                                <TextBlock Grid.Column="3" Text="{Binding SamplingRateText}" FontSize="12.5" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" />
 
-                                                <!-- 4. 记录状态 (胶囊标签) -->
-                                                <Border Grid.Column="4" CornerRadius="10" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <!-- 4. 信号通道数 -->
+                                                <TextBlock Grid.Column="4" Text="{Binding ChannelCountText}" FontSize="12.5" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" />
+
+                                                <!-- 5. 记录状态 (胶囊标签) -->
+                                                <Border Grid.Column="5" CornerRadius="10" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Background" Value="#EFF6FF" />
@@ -587,8 +593,8 @@
                                                     </TextBlock>
                                                 </Border>
 
-                                                <!-- 5. 操作组 (回溯波形按钮) -->
-                                                <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <!-- 6. 操作组 (回溯波形按钮) -->
+                                                <StackPanel Grid.Column="6" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                     <Button Style="{StaticResource RowActionIconBtn}" ToolTip="查看记录回溯" Click="OnOpenReviewClick" IsEnabled="{Binding CanReview}">
                                                         <Path Data="M 1,9 C 1,9 4.5,3 10,3 C 15.5,3 19,9 19,9 C 19,9 15.5,15 10,15 C 4.5,15 1,9 1,9 Z M 10,12 A 3,3 0 1 0 10,6 A 3,3 0 0 0 10,12 Z"
                                                               Width="15" Height="13" Stretch="Uniform" Stroke="#1677FF" StrokeThickness="1.5" />

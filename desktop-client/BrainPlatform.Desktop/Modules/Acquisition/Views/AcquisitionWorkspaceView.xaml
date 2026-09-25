@@ -190,10 +190,16 @@
                         <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="96" Height="32"
                                   SelectedValuePath="Tag"
                                   SelectedValue="{Binding Acquisition.LiveMonitor.SensitivityMicrovoltsPerMillimeter, Mode=TwoWay}">
+                            <ComboBoxItem Content="1 µV/mm" Tag="1" />
+                            <ComboBoxItem Content="2 µV/mm" Tag="2" />
                             <ComboBoxItem Content="5 µV/mm" Tag="5" />
+                            <ComboBoxItem Content="7 µV/mm" Tag="7" />
                             <ComboBoxItem Content="10 µV/mm" Tag="10" />
+                            <ComboBoxItem Content="15 µV/mm" Tag="15" />
                             <ComboBoxItem Content="20 µV/mm" Tag="20" />
                             <ComboBoxItem Content="50 µV/mm" Tag="50" />
+                            <ComboBoxItem Content="70 µV/mm" Tag="70" />
+                            <ComboBoxItem Content="100 µV/mm" Tag="100" />
                         </ComboBox>
 
                         <!-- 细竖分割线 -->

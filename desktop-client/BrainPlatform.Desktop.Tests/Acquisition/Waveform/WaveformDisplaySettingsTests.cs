@@ -31,4 +31,25 @@ public sealed class WaveformDisplaySettingsTests
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.TimebaseSecondsPerScreen = 7);
         Assert.Throws<ArgumentOutOfRangeException>(() => settings.SensitivityMicrovoltsPerMillimeter = 0);
     }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(7)]
+    [InlineData(10)]
+    [InlineData(15)]
+    [InlineData(20)]
+    [InlineData(50)]
+    [InlineData(70)]
+    [InlineData(100)]
+    public void SensitivityAcceptsSupportedClinicalValues(double value)
+    {
+        var settings = new WaveformDisplaySettings
+        {
+            SensitivityMicrovoltsPerMillimeter = value,
+        };
+
+        Assert.Equal(value, settings.SensitivityMicrovoltsPerMillimeter);
+    }
 }

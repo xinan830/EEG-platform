@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json.Serialization;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Storage;
 
@@ -90,6 +91,7 @@ public sealed class LocalAcquisitionRawWriter : IAcquisitionRawWriter
     private readonly StreamWriter auditWriter;
     private int chunkIndex = 1;
     private long unflushedBytes;
+    private long writtenSampleCount;
     private bool isClosed;
 
     public LocalAcquisitionRawWriter(string recordingDirectory, long maxChunkBytes)
@@ -143,6 +145,7 @@ public sealed class LocalAcquisitionRawWriter : IAcquisitionRawWriter
         sampleStream.Write(MemoryMarshal.AsBytes(batch.SampleMajorValues.AsSpan()));
 
         unflushedBytes = checked(unflushedBytes + recordBytes);
+        writtenSampleCount = checked(writtenSampleCount + batch.SampleCount);
         if (unflushedBytes >= FlushThresholdBytes || flushClock.Elapsed >= FlushInterval)
         {
             await FlushSamplesAsync(cancellationToken);
@@ -189,6 +192,7 @@ public sealed class LocalAcquisitionRawWriter : IAcquisitionRawWriter
         }
 
         await AppendAuditAsync(new { type = "completed", completed_at_utc = completedAtUtc }, cancellationToken);
+        await WriteRecordingSummaryAsync("completed", completedAtUtc, cancellationToken);
         isClosed = true;
         await DisposeCoreAsync();
     }
@@ -207,6 +211,7 @@ public sealed class LocalAcquisitionRawWriter : IAcquisitionRawWriter
             fault.Detail,
             occurred_at_utc = fault.OccurredAtUtc,
         }, cancellationToken);
+        await WriteRecordingSummaryAsync("aborted", fault.OccurredAtUtc, cancellationToken);
         isClosed = true;
         await DisposeCoreAsync();
     }
@@ -256,6 +261,66 @@ public sealed class LocalAcquisitionRawWriter : IAcquisitionRawWriter
         unflushedBytes = 0;
         flushClock.Restart();
     }
+
+    private async Task WriteRecordingSummaryAsync(
+        string status,
+        DateTimeOffset completedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        // Flush samples before publishing the summary so its count only becomes
+        // visible once every counted sample is durable in the recording chunks.
+        await FlushSamplesAsync(cancellationToken);
+        var samplingRateHz = ReadSamplingRateFromManifest();
+        var summary = new LocalRecordingSummaryDocument(
+            writtenSampleCount,
+            samplingRateHz,
+            samplingRateHz > 0 ? writtenSampleCount / (double)samplingRateHz : null,
+            completedAtUtc,
+            status);
+        var summaryPath = Path.Combine(RecordingDirectory, "recording-summary.json");
+        var temporaryPath = $"{summaryPath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            await using (var stream = new FileStream(
+                             temporaryPath,
+                             FileMode.CreateNew,
+                             FileAccess.Write,
+                             FileShare.Read,
+                             4096,
+                             FileOptions.WriteThrough | FileOptions.Asynchronous))
+            {
+                await JsonSerializer.SerializeAsync(stream, summary, cancellationToken: cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+            }
+
+            File.Move(temporaryPath, summaryPath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    private int ReadSamplingRateFromManifest()
+    {
+        using var stream = new FileStream(
+            Path.Combine(RecordingDirectory, "manifest.json"),
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite);
+        using var document = JsonDocument.Parse(stream);
+        return document.RootElement.GetProperty("SamplingRateHz").GetInt32();
+    }
+
+    private sealed record LocalRecordingSummaryDocument(
+        [property: JsonPropertyName("effective_sample_count")] long EffectiveSampleCount,
+        [property: JsonPropertyName("sampling_rate_hz")] int SamplingRateHz,
+        [property: JsonPropertyName("effective_duration_seconds")] double? EffectiveDurationSeconds,
+        [property: JsonPropertyName("completed_at_utc")] DateTimeOffset CompletedAtUtc,
+        [property: JsonPropertyName("status")] string Status);
 
     private void ThrowIfClosed()
     {

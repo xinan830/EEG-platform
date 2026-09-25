@@ -8,10 +8,10 @@
     <UserControl.Resources>
         <!-- Form TextBox Style -->
         <Style x:Key="FormTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Height" Value="40" />
-            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Height" Value="46" />
+            <Setter Property="Padding" Value="16,0" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="15" />
             <Setter Property="Foreground" Value="#0F172A" />
             <Setter Property="Background" Value="#FFFFFF" />
             <Setter Property="BorderBrush" Value="#E2E8F0" />
@@ -55,13 +55,13 @@
 
         <!-- Form ComboBox Style -->
         <Style x:Key="FormComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Height" Value="40" />
+            <Setter Property="Height" Value="46" />
             <Setter Property="MaxDropDownHeight" Value="240" />
             <Setter Property="Background" Value="#FFFFFF" />
             <Setter Property="Foreground" Value="#0F172A" />
             <Setter Property="BorderBrush" Value="#E2E8F0" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="15" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource AppComboBoxItemStyle}" />
             <Setter Property="Template">
@@ -144,14 +144,14 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="32,24,32,28">
+    <Grid Margin="44,30,44,34">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <!-- Top Header Navigation & Action Bar -->
-        <Grid Grid.Row="0" Margin="0,0,0,20">
+        <Grid Grid.Row="0" Margin="0,0,0,26">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -167,21 +167,21 @@
                                 <Path Data="M 14 12 L 4 12 M 9 7 L 4 12 L 9 17" Stroke="#1E293B" StrokeThickness="1.8"
                                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="14" Height="14"
                                       Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                <TextBlock Text="返回" FontSize="14" FontWeight="Medium" Foreground="#1E293B" VerticalAlignment="Center" />
+                                <TextBlock Text="返回" FontSize="15" FontWeight="Medium" Foreground="#1E293B" VerticalAlignment="Center" />
                             </StackPanel>
                         </ControlTemplate>
                     </Button.Template>
                 </Button>
 
                 <!-- Page Title (Auto-switches between "新建事件" and "编辑事件") -->
-                <TextBlock Text="{Binding EventDefinitions.DraftPageTitle}" FontSize="26" FontWeight="Bold" Foreground="#0F172A" />
-                <TextBlock Text="配置采集与回放过程中使用的事件定义。" FontSize="13" Foreground="#64748B" Margin="0,6,0,0" />
+                <TextBlock Text="{Binding EventDefinitions.DraftPageTitle}" FontSize="30" FontWeight="Bold" Foreground="#0F172A" />
+                <TextBlock Text="配置采集与回放过程中使用的事件定义。" FontSize="15" Foreground="#64748B" Margin="0,8,0,0" />
             </StackPanel>
 
             <!-- Right: Action Buttons (Cancel + Save) -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                 <!-- Cancel Button -->
-                <Button Click="OnCancelClick" Height="38" Padding="18,0" Background="#FFFFFF"
+                <Button Click="OnCancelClick" Height="44" Padding="22,0" Background="#FFFFFF"
                         BorderBrush="#E2E8F0" BorderThickness="1" Cursor="Hand">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
@@ -193,7 +193,7 @@
                                     <Path Data="M 14 6 L 6 14 M 6 6 L 14 14" Stroke="#2563EB" StrokeThickness="1.8"
                                           StrokeStartLineCap="Round" Width="12" Height="12" Stretch="Uniform"
                                           VerticalAlignment="Center" />
-                                    <TextBlock Text="取消" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B"
+                                    <TextBlock Text="取消" FontSize="15" FontWeight="SemiBold" Foreground="#1E293B"
                                                Margin="8,0,0,0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
@@ -209,7 +209,7 @@
 
                 <!-- Save Button -->
                 <Button Click="OnSaveClick" IsEnabled="{Binding EventDefinitions.CanSave}"
-                        Height="38" Padding="20,0" Margin="12,0,0,0" Background="#1677FF"
+                        Height="44" Padding="24,0" Margin="14,0,0,0" Background="#1677FF"
                         BorderThickness="0" Cursor="Hand">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
@@ -219,7 +219,7 @@
                                     <Path Data="M 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 H 16 L 21 8 V 19 A 2 2 0 0 1 19 21 Z M 17 21 V 13 H 7 V 21 Z M 7 3 V 8 H 15 V 3 Z"
                                           Stroke="#FFFFFF" StrokeThickness="1.5" StrokeLineJoin="Round"
                                           Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
-                                    <TextBlock Text="保存" FontSize="13" FontWeight="SemiBold" Foreground="#FFFFFF"
+                                    <TextBlock Text="保存" FontSize="15" FontWeight="SemiBold" Foreground="#FFFFFF"
                                                Margin="8,0,0,0" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Border>
@@ -240,15 +240,15 @@
         <!-- Main Form Container -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
-                    CornerRadius="14" Padding="36,32,36,28">
+                    CornerRadius="14" Padding="46,40,46,36">
                 <!-- DataContext switched to EventDefinitions inside the form -->
                 <StackPanel DataContext="{Binding EventDefinitions}">
 
                     <!-- Form Grid Layout -->
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="130" />
-                            <ColumnDefinition Width="28" />
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="34" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
@@ -263,10 +263,10 @@
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: 来源 (Source) -->
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="来源" Foreground="#334155" FontSize="13"
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="来源" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,0,0" />
                         <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,20">
-                            <Border Height="40" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1"
+                            <Border Height="46" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1"
                                     CornerRadius="8" Padding="12,0" HorizontalAlignment="Stretch">
                                 <Border Height="24" CornerRadius="12" Padding="10,2" HorizontalAlignment="Left" VerticalAlignment="Center">
                                     <Border.Style>
@@ -279,7 +279,7 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
-                                    <TextBlock Text="{Binding DraftSourceText}" FontSize="12" FontWeight="Medium" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DraftSourceText}" FontSize="14" FontWeight="Medium" VerticalAlignment="Center">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Foreground" Value="#10B981" />
@@ -293,32 +293,32 @@
                                     </TextBlock>
                                 </Border>
                             </Border>
-                            <TextBlock Text="{Binding DraftSourceHelper}" Foreground="#94A3B8" FontSize="12" Margin="0,6,0,0" />
+                            <TextBlock Text="{Binding DraftSourceHelper}" Foreground="#94A3B8" FontSize="13" Margin="0,8,0,0" />
                         </StackPanel>
 
                         <!-- Row 1: 事件编码 (DraftCode) -->
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="事件编码" Foreground="#334155" FontSize="13"
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="事件编码" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,11,0,0" />
                         <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,20">
                             <TextBox x:Name="EventCodeTextBox" Style="{StaticResource FormTextBoxStyle}" IsReadOnly="True"
                                      Text="{Binding DraftCode, Mode=OneWay}"
                                      ToolTip="用于导出和事件匹配的稳定标识" />
-                            <TextBlock Text="由系统自动生成，保存后不可修改。" Foreground="#94A3B8" FontSize="12" Margin="0,6,0,0" />
+                            <TextBlock Text="由系统自动生成，保存后不可修改。" Foreground="#94A3B8" FontSize="13" Margin="0,8,0,0" />
                         </StackPanel>
 
                         <!-- Row 2: 名称 (DraftName) -->
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="名称" Foreground="#334155" FontSize="13"
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="名称" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,20" />
                         <TextBox Grid.Row="2" Grid.Column="2" Style="{StaticResource FormTextBoxStyle}"
                                  Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,20" />
 
                         <!-- Row 3: 说明 (DraftDescription) -->
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="说明" Foreground="#334155" FontSize="13"
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="说明" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,0,0" />
                         <Grid Grid.Row="3" Grid.Column="2" Margin="0,0,0,20">
                             <TextBox Text="{Binding DraftDescription, UpdateSourceTrigger=PropertyChanged}"
                                      MaxLength="200" MinHeight="84" AcceptsReturn="True" TextWrapping="Wrap"
-                                     VerticalContentAlignment="Top" Padding="14,10,14,24" FontSize="13" Foreground="#0F172A"
+                                     VerticalContentAlignment="Top" Padding="16,12,16,28" FontSize="15" Foreground="#0F172A"
                                      Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1">
                                 <TextBox.Resources>
                                     <Style TargetType="Border">
@@ -329,13 +329,13 @@
                             <!-- Character Count Badge inside bottom-right of description box -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                         Margin="0,0,12,8" IsHitTestVisible="False">
-                                <TextBlock Text="{Binding DraftDescriptionLength}" Foreground="#94A3B8" FontSize="12" />
-                                <TextBlock Text="/200" Foreground="#94A3B8" FontSize="12" />
+                                <TextBlock Text="{Binding DraftDescriptionLength}" Foreground="#94A3B8" FontSize="13" />
+                                <TextBlock Text="/200" Foreground="#94A3B8" FontSize="13" />
                             </StackPanel>
                         </Grid>
 
                         <!-- Row 4: 颜色 (DraftColor) -->
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="颜色" Foreground="#334155" FontSize="13"
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="颜色" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,20" />
                         <WrapPanel Grid.Row="4" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,20">
                             <!-- Swatches Panel (Named ColorSwatchPanel for code-behind) -->
@@ -356,18 +356,18 @@
                             <Border Width="1" Height="20" Background="#E2E8F0" Margin="6,0,16,0" VerticalAlignment="Center" />
 
                             <!-- Preview Label + Swatch -->
-                            <TextBlock Text="预览" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Text="预览" Foreground="#64748B" FontSize="15" VerticalAlignment="Center" Margin="0,0,12,0" />
                             <Border Width="30" Height="30" CornerRadius="8" Background="{Binding DraftColorPreviewBrush}"
                                     BorderBrush="#E2E8F0" BorderThickness="1" VerticalAlignment="Center" ToolTip="当前颜色预览" />
 
                             <!-- Custom HEX Input -->
-                            <TextBox Style="{StaticResource FormTextBoxStyle}" Height="34" Width="90"
+                            <TextBox Style="{StaticResource FormTextBoxStyle}" Height="40" Width="104"
                                      Text="{Binding DraftColor, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="12,0,0,0" Padding="8,0" FontSize="12" ToolTip="可输入 #RRGGBB 自定义颜色" />
+                                     Margin="14,0,0,0" Padding="10,0" FontSize="13" ToolTip="可输入 #RRGGBB 自定义颜色" />
                             <Button x:Name="CustomColorButton" Content="更多颜色" Click="OnPickColorClick"
-                                    Height="34" Padding="12,0" Margin="10,0,0,0"
+                                    Height="40" Padding="14,0" Margin="12,0,0,0"
                                     Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1"
-                                    Foreground="#2563EB" FontSize="12" Cursor="Hand" ToolTip="打开颜色选择器">
+                                    Foreground="#2563EB" FontSize="13" Cursor="Hand" ToolTip="打开颜色选择器">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border Background="{TemplateBinding Background}"
@@ -445,7 +445,7 @@
                         </WrapPanel>
 
                         <!-- Row 5: 快捷键 (DraftShortcut) -->
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="快捷键" Foreground="#334155" FontSize="13"
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="快捷键" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,20" />
                         <Grid Grid.Row="5" Grid.Column="2" Margin="0,0,0,20">
                             <TextBox Style="{StaticResource SystemProtectedEditorStyle}"
@@ -490,7 +490,7 @@
                         </Grid>
 
                         <!-- Row 6: 快捷键作用范围 (DraftShortcutScope) -->
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="快捷键作用范围" Foreground="#334155" FontSize="13"
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="快捷键作用范围" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,20" />
                         <ComboBox Grid.Row="6" Grid.Column="2" Style="{StaticResource SystemProtectedComboBoxStyle}"
                                   ItemsSource="{Binding ShortcutScopes}"
@@ -518,7 +518,7 @@
                         </ComboBox>
 
                         <!-- Row 7: 启用状态 (DraftIsEnabled) -->
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="启用状态" Foreground="#334155" FontSize="13"
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="启用状态" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,8" />
                         <StackPanel Grid.Row="7" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
                             <ToggleButton IsChecked="{Binding DraftIsEnabled, Mode=TwoWay}"

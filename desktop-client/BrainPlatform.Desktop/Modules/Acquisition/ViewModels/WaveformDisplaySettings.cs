@@ -23,7 +23,7 @@ public sealed class WaveformDisplaySettings : INotifyPropertyChanged
         get => sensitivityMicrovoltsPerMillimeter;
         set
         {
-            if (value is not (5d or 10d or 20d or 50d or 100d))
+            if (value is not (1d or 2d or 5d or 7d or 10d or 15d or 20d or 50d or 70d or 100d))
             {
                 throw new ArgumentOutOfRangeException(nameof(value));
             }
