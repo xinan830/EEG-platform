@@ -9,6 +9,7 @@ from .spectral import (
     preprocess_offline,
 )
 from .gateway import DEFAULT_SPECTRAL_GATEWAY, ScientificSpectralGateway
+from .fourier import RealFourierTransform, real_fft
 
 __all__ = [
     "SpectralEstimate",
@@ -19,4 +20,6 @@ __all__ = [
     "preprocess_offline",
     "DEFAULT_SPECTRAL_GATEWAY",
     "ScientificSpectralGateway",
+    "RealFourierTransform",
+    "real_fft",
 ]
