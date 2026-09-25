@@ -34,8 +34,8 @@ change. Unchecked items are the remaining implementation scope.
 - [x] Preserve band-power integration and boundary interpolation semantics.
 - [x] Preserve the migrated STFT/spectrogram contract and quality rows.
 - [x] Preserve sample-aligned window construction for static and dynamic Runs.
-- [ ] Add a typed structured result contract for frequency-series output.
-- [ ] Add a typed structured result contract for time-frequency matrix output.
+- [x] Add a typed structured result contract for frequency-series output.
+- [x] Add a typed structured result contract for time-frequency matrix output.
 
 ## 3. Runtime execution model
 
@@ -44,7 +44,7 @@ change. Unchecked items are the remaining implementation scope.
 - [x] Execute dynamic analysis from one range, window, and step contract.
 - [x] Route box selection through the same static execution path.
 - [x] Attach sample coordinates, actual ranges, quality, and primitive evidence.
-- [ ] Persist structured frequency/time axes through the Runtime artifact path.
+- [x] Persist structured frequency/time axes through the Runtime artifact path.
 - [ ] Persist large spectral matrices as immutable artifacts rather than Run
   summaries or frontend state.
 
@@ -69,9 +69,9 @@ change. Unchecked items are the remaining implementation scope.
   identity, configuration hash, and Run lifecycle provenance.
 - [x] Preserve explicit channel, reference, filter, window, and quality
   evidence for existing official algorithms.
-- [ ] Define structured serialization for PSD frequency axes, channel order,
+- [x] Define structured serialization for PSD frequency axes, channel order,
   units, and artifact references.
-- [ ] Define structured serialization for STFT frequency axis, time centers,
+- [x] Define structured serialization for STFT frequency axis, time centers,
   matrix shape, linear power, display power, and quality rows.
 - [ ] Ensure API responses expose backend-returned arrays without frontend
   recomputation.

@@ -10,6 +10,7 @@ from .parameter_schema import AlgorithmParameter, ParameterSchema
 
 
 AlgorithmMode = Literal["static", "dynamic"]
+StructuredOutputKind = Literal["frequency_series", "time_frequency"]
 
 # Persisted dynamic points carry this independently from an algorithm's
 # scientific version.  Altering point timing or evidence requires a new value
@@ -121,6 +122,44 @@ class AlgorithmResult(BaseModel):
     evidence: dict[str, Any] = Field(default_factory=dict)
 
 
+class AlgorithmStructuredResult(BaseModel):
+    """Contract for multi-axis scientific outputs stored as artifacts.
+
+    Numeric arrays are carried only across the in-process execution boundary;
+    the Run layer persists them as immutable NPZ arrays and keeps this
+    metadata in the result summary. This prevents large matrices from being
+    copied into JSON or frontend state.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    output_kind: StructuredOutputKind
+    channel_order: list[str] = Field(min_length=1)
+    axes: dict[str, Any] = Field(default_factory=dict)
+    axis_units: dict[str, str] = Field(default_factory=dict)
+    arrays: dict[str, Any] = Field(default_factory=dict)
+    array_units: dict[str, str] = Field(default_factory=dict)
+    requested_range: dict[str, float]
+    actual_range: dict[str, float] | None = None
+    quality: str
+    failure: AlgorithmFailure | None = None
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_output(self) -> "AlgorithmStructuredResult":
+        if not self.arrays:
+            raise ValueError("structured algorithm result requires at least one numeric array")
+        if set(self.array_units) != set(self.arrays):
+            raise ValueError("structured result array units must match array names")
+        if set(self.axis_units) != set(self.axes):
+            raise ValueError("structured result axis units must match axis names")
+        if not self.axes:
+            raise ValueError("structured algorithm result requires explicit axes")
+        if self.failure is None and self.quality in {"failed", "gate_failed", "unavailable"}:
+            raise ValueError("failed structured result requires a failure reason")
+        return self
+
+
 class AlgorithmSeriesResult(BaseModel):
     values: list[float | None]
     time_s: list[float]
@@ -168,6 +207,6 @@ class AlgorithmModule(Protocol):
 
     def resolve_inputs(self, recording: Any, config: AlgorithmConfigBase) -> AlgorithmInputs: ...
 
-    def execute_static(self, inputs: AlgorithmInputs, config: AlgorithmConfigBase) -> AlgorithmResult: ...
+    def execute_static(self, inputs: AlgorithmInputs, config: AlgorithmConfigBase) -> AlgorithmResult | AlgorithmStructuredResult: ...
 
     def execute_dynamic(self, inputs: AlgorithmInputs, config: AlgorithmConfigBase) -> AlgorithmSeriesResult: ...

@@ -15,6 +15,7 @@ from app.algorithm_runtime.contracts import (
     DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
     AlgorithmEvidence,
     AlgorithmResult,
+    AlgorithmStructuredResult,
 )
 from app.algorithm_runtime.executor import AlgorithmRuntime
 from app.algorithm_runtime.registry import AlgorithmRegistry
@@ -133,6 +134,42 @@ def _serialize_algorithm_result(result: AlgorithmResult, algorithm_id: str, labe
     return payload
 
 
+def _serialize_structured_result(result: AlgorithmStructuredResult, algorithm_id: str, label: str) -> tuple[dict[str, object], dict[str, np.ndarray]]:
+    """Keep structured axes/arrays in the artifact boundary, not JSON."""
+    evidence = _public_evidence(result.evidence)
+    arrays = {name: np.asarray(value) for name, value in result.arrays.items()}
+    array_units = dict(result.array_units)
+    axis_metadata: dict[str, object] = {}
+    for name, value in result.axes.items():
+        axis = np.asarray(value)
+        key = f"axis_{name}"
+        arrays[key] = axis
+        array_units[key] = result.axis_units[name]
+        axis_metadata[name] = {
+            "array_key": key,
+            "unit": result.axis_units[name],
+            "length": int(axis.size),
+        }
+    quality = {"status": result.quality, "reasons": [result.failure.code] if result.failure else []}
+    return {
+        "output": {"id": algorithm_id, "label": label, "kind": result.output_kind, "quality": quality},
+        "channel_order": result.channel_order,
+        "requested_range": result.requested_range,
+        "actual_range": result.actual_range,
+        "axes": axis_metadata,
+        "arrays": {
+            name: {"unit": array_units[name], "shape": list(value.shape)}
+            for name, value in arrays.items()
+        },
+        "source_quality": evidence["source_quality"],
+        "spectral_evidence": evidence["spectral_evidence"],
+        "calculation_trace": evidence["calculation_trace"],
+        "official": {"algorithm_id": algorithm_id, **evidence},
+        "quality": quality,
+        "failure": result.failure.model_dump(mode="json") if result.failure else None,
+    }, arrays
+
+
 class RunAnalysisExecutor:
     def __init__(
         self,
@@ -184,6 +221,9 @@ class RunAnalysisExecutor:
         )
         module = self.algorithm_runtime.registry.get(config.algorithm_id, resolved["scientific_version"])
         label = module.manifest.display_name_zh
+        if isinstance(result, AlgorithmStructuredResult):
+            structured, arrays = _serialize_structured_result(result, config.algorithm_id, label)
+            return {"structured": structured}, arrays, None
         if isinstance(result, AlgorithmResult):
             point = _serialize_algorithm_result(result, config.algorithm_id, label)
             arrays = {"metric_value": np.asarray([np.nan if result.value is None else result.value], dtype=float)}

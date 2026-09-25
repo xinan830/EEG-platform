@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .contracts import AlgorithmEvidence, AlgorithmModule, AlgorithmResult, AlgorithmSeriesResult
+from .contracts import AlgorithmEvidence, AlgorithmModule, AlgorithmResult, AlgorithmSeriesResult, AlgorithmStructuredResult
 from .errors import UnsupportedAlgorithmModeError
 from app.scientific.contracts import SampleRange
 
@@ -20,7 +20,7 @@ class AlgorithmRuntime:
         recording: Any,
         config: dict[str, Any],
         scientific_version: str | None = None,
-    ) -> AlgorithmResult | AlgorithmSeriesResult:
+    ) -> AlgorithmResult | AlgorithmSeriesResult | AlgorithmStructuredResult:
         module: AlgorithmModule = self.registry.get(algorithm_id, scientific_version)
         return self.execute_module(module=module, recording=recording, config=config)
 
@@ -30,7 +30,7 @@ class AlgorithmRuntime:
         module: AlgorithmModule,
         recording: Any,
         config: dict[str, Any],
-    ) -> AlgorithmResult | AlgorithmSeriesResult:
+    ) -> AlgorithmResult | AlgorithmSeriesResult | AlgorithmStructuredResult:
         """Execute a concrete module selected by a trusted catalog boundary."""
         typed_config = self.validate_config(module=module, config=config)
         self.validate_parameter_schema(module=module, config=typed_config)

@@ -8,6 +8,7 @@ from .contracts import (
     AlgorithmParameter,
     AlgorithmResult,
     AlgorithmSeriesResult,
+    AlgorithmStructuredResult,
     ExecutionContext,
 )
 from .errors import AlgorithmRuntimeError, UnknownAlgorithmError, UnsupportedAlgorithmModeError
@@ -20,6 +21,7 @@ __all__ = [
     "AlgorithmParameter",
     "AlgorithmResult",
     "AlgorithmSeriesResult",
+    "AlgorithmStructuredResult",
     "ExecutionContext",
     "AlgorithmRuntimeError",
     "UnknownAlgorithmError",

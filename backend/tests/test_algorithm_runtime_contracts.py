@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import pytest
+import numpy as np
 from pydantic import ValidationError
 
-from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmFailure, AlgorithmResult
+from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmFailure, AlgorithmResult, AlgorithmStructuredResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterSchema
 from app.algorithm_runtime.executor import AlgorithmRuntime
+from app.services.run_analysis_executor import _serialize_structured_result
 
 
 def test_algorithm_config_rejects_unknown_scientific_fields() -> None:
@@ -24,6 +26,61 @@ def test_algorithm_result_can_represent_unavailable_value_without_zero() -> None
     )
     assert result.value is None
     assert result.failure is not None
+
+
+def test_structured_result_declares_axes_units_and_artifact_arrays() -> None:
+    result = AlgorithmStructuredResult(
+        output_kind="frequency_series",
+        channel_order=["Oz", "Fz"],
+        axes={"frequency_hz": np.array([1.0, 2.0, 3.0])},
+        axis_units={"frequency_hz": "Hz"},
+        arrays={"psd": np.ones((2, 3), dtype=float)},
+        array_units={"psd": "V^2/Hz"},
+        requested_range={"start_s": 0.0, "end_s": 4.0},
+        actual_range={"start_s": 0.0, "end_s": 4.0},
+        quality="clean",
+        evidence={"source_quality": {}, "spectral_evidence": {}, "calculation_trace": {}},
+    )
+
+    assert result.output_kind == "frequency_series"
+    assert result.channel_order == ["Oz", "Fz"]
+    assert result.arrays["psd"].shape == (2, 3)
+
+
+def test_structured_result_rejects_missing_axis_or_array_unit() -> None:
+    with pytest.raises(ValidationError, match="explicit axes"):
+        AlgorithmStructuredResult(
+            output_kind="frequency_series", channel_order=["Fz"],
+            arrays={"psd": np.ones((1, 2))}, array_units={"psd": "V^2/Hz"},
+            requested_range={"start_s": 0.0, "end_s": 4.0}, quality="clean",
+        )
+
+
+def test_structured_result_serializer_keeps_axes_and_values_in_artifact_arrays() -> None:
+    result = AlgorithmStructuredResult(
+        output_kind="time_frequency", channel_order=["Fz"],
+        axes={"time_center_s": np.array([2.0]), "frequency_hz": np.array([10.0])},
+        axis_units={"time_center_s": "s", "frequency_hz": "Hz"},
+        arrays={"power_linear": np.ones((1, 1, 1))},
+        array_units={"power_linear": "V^2/Hz"},
+        requested_range={"start_s": 0.0, "end_s": 4.0}, quality="clean",
+        evidence={"source_quality": {}, "spectral_evidence": {}, "calculation_trace": {}},
+    )
+
+    summary, arrays = _serialize_structured_result(result, "stft", "时频分析")
+
+    assert summary["axes"]["frequency_hz"] == {"array_key": "axis_frequency_hz", "unit": "Hz", "length": 1}
+    assert summary["arrays"]["power_linear"] == {"unit": "V^2/Hz", "shape": [1, 1, 1]}
+    assert set(arrays) == {"power_linear", "axis_time_center_s", "axis_frequency_hz"}
+
+    with pytest.raises(ValidationError, match="array units"):
+        AlgorithmStructuredResult(
+            output_kind="frequency_series", channel_order=["Fz"],
+            axes={"frequency_hz": np.array([1.0, 2.0])},
+            axis_units={"frequency_hz": "Hz"},
+            arrays={"psd": np.ones((1, 2))}, array_units={},
+            requested_range={"start_s": 0.0, "end_s": 4.0}, quality="clean",
+        )
 
 
 def test_runtime_attaches_canonical_sample_coordinate_without_replacing_display_range() -> None:
