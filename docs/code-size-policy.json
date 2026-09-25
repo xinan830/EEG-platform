@@ -8,6 +8,11 @@
       "max_lines": 420,
       "reason": "频谱和时频编排已迁至 spectral_analysis.py；剩余代码仅保留 Recording 导入、身份、文件读取、预览和兼容阅图窗口，略高于 400 行但仍是单一文件访问边界。"
     },
+    "backend/app/services/runs.py": {
+      "decision": "keep",
+      "max_lines": 500,
+      "reason": "RunService 是单一的分析运行生命周期边界，统一负责请求解析、缓存键、状态持久化、结果摘要和 artifact 关联；科学公式、SQL repository 和队列执行器已分别下沉到专属边界。当前迁移只增加了退休用户算法的公共入口保护，拆分会复制运行状态语义。"
+    },
     "frontend/src/App.vue": {
       "decision": "split",
       "max_lines": 500,

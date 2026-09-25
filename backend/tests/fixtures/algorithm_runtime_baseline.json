@@ -1,6 +1,14 @@
 {
   "fixture_kind": "deterministic_synthetic_signal_only",
   "source_data": "none",
+  "comparison_rules": {
+    "exact_fields": ["algorithm_version", "scientific_version", "unit", "sample_coordinates", "frequency_coordinates", "provenance"],
+    "floating_point": {
+      "default_rtol": 1e-9,
+      "default_atol": 1e-12,
+      "per_output": {}
+    }
+  },
   "offline_spectral": {
     "algorithm_version": "offline-spectral-v3",
     "frequency_range_hz": [1.0, 30.0],
@@ -11,8 +19,53 @@
       "F3_alpha_power_uV2": 49.99998294,
       "Fz_theta_power_uV2": 32.00000006,
       "F3_alpha_relative_power": 0.9999992453
+    },
+    "array_baseline": {
+      "fixture": "40s_10hz_6hz_first_30s",
+      "frequency_shape": [117],
+      "frequency_sha256": "24305c1af7ba8f62abe694a07ce284cf124c9b9ab39ebac8dbe13b37a56130a8",
+      "psd_shape": [2, 117],
+      "psd_sha256": "94cf94d01f4b393a784bc3e40c97f7a7c954e54cfae8042a834d010017dec48b"
+    },
+    "stft_array_baseline": {
+      "fixture": "6s_10hz_6hz",
+      "centers_shape": [3],
+      "centers_sha256": "de60f01547d6a1f72d6886949d55db6deb725d3880eb47284991dcb937a94a62",
+      "frequency_shape": [117],
+      "frequency_sha256": "24305c1af7ba8f62abe694a07ce284cf124c9b9ab39ebac8dbe13b37a56130a8",
+      "power_shape": [3, 2, 117],
+      "power_sha256": "ba49ff9725f4530d283d43285c0420b2699c6ec89185c3ec2b1e3173870ea5f8"
     }
   },
-  "iapf": {"scientific_version": "official-iapf-v2", "unit": "Hz", "dynamic_warmup_minimum_s": 4.0},
-  "theta_beta_v2": {"scientific_version": "official-theta-beta-v2", "unit": "dimensionless", "requires_one_explicit_raw_channel": true}
+  "iapf": {
+    "scientific_version": "official-iapf-v2",
+    "unit": "Hz",
+    "dynamic_warmup_minimum_s": 4.0,
+    "synthetic_peak_hz": 10.0
+  },
+  "rbp": {
+    "scientific_version": "official-rbp-v1",
+    "relative_band_power": [0.10356271450131578, 0.05165048365773682, 0.7825311288250885, 0.06225567301585896]
+  },
+  "faa": {
+    "scientific_version": "official-faa-v1",
+    "synthetic_faa": 1.3862943611198908
+  },
+  "theta_beta_v2": {
+    "scientific_version": "official-theta-beta-v2",
+    "unit": "dimensionless",
+    "requires_one_explicit_raw_channel": true,
+    "synthetic_brainbeat": 0.06651357515816356,
+    "synthetic_fatigue_fz": 0.7568244434403554
+  },
+  "peak_frequency": {
+    "scientific_version": "official-peak-frequency-v1",
+    "unit": "Hz",
+    "synthetic_peak_hz": 6.0
+  },
+  "band_ratio": {
+    "scientific_version": "official-band-ratio-v1",
+    "unit": "ratio",
+    "synthetic_ratio": 3.0
+  }
 }

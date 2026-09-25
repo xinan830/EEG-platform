@@ -4,7 +4,7 @@ from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmFailure, AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
-from app.eeg_core.official_algorithms.faa import compute_faa
+from .official import compute_faa
 
 from .config import FaaConfig
 from .manifest import MANIFEST
@@ -19,8 +19,8 @@ class FaaAlgorithm:
             AlgorithmParameter(key="channel", label_zh="F3 来源通道", value_type="string", description_zh="选择用于 FAA 左侧 Alpha 功率的原始通道。"),
             AlgorithmParameter(key="f4_channel", label_zh="F4 来源通道", value_type="string", description_zh="选择用于 FAA 右侧 Alpha 功率的原始通道。"),
             AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态")]),
-            AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s"),
-            AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s"),
+            AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
+            AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
         ])
 
     def requested_channels(self, config: AlgorithmConfigBase) -> list[str]:

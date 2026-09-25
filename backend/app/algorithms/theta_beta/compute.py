@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmFailure, AlgorithmResult
-from app.eeg_core.official_algorithms.iapf import estimate_iapf
-from app.eeg_core.spectral import band_power
+from app.algorithms.iapf.official import estimate_iapf
+from app.scientific.primitives.spectral import band_power
 
 
 def compute_theta_beta(

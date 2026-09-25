@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import signal
 
-from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT, LIVE_ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, LIVE_ANALYSIS_CONTRACT
 from app.eeg_core.faa import compute_faa
 from app.eeg_core.offline_metrics import metric_values
 from app.eeg_core.spectral import (
@@ -48,6 +48,20 @@ def test_welch_rejects_paired_artifact_epochs_without_joining_samples():
     assert spectrum.psd.shape == (3, 0)
 
 
+def test_welch_records_input_gap_without_claiming_transform_padding():
+    sfreq = 100.0
+    values = np.ones((8 * int(sfreq), 1), dtype=float) * 10e-6
+    values[200:220, 0] = np.nan
+
+    spectrum = estimate_welch_psd(values, sfreq)
+
+    assert spectrum.evidence["schema_version"] == "spectral-window-evidence-v1"
+    assert spectrum.evidence["gap"]["detected"] is True
+    assert spectrum.evidence["gap"]["non_finite_samples"] == 20
+    assert spectrum.evidence["gap"]["imputed"] is False
+    assert spectrum.evidence["transform_padding"] == {"used": False, "kind": "none", "samples": 0}
+
+
 def test_welch_segments_overlap_inside_long_analysis_window():
     sfreq = 100.0
     times = np.arange(30 * int(sfreq)) / sfreq
@@ -86,6 +100,20 @@ def test_four_second_spectrogram_row_matches_single_welch_psd():
     assert centers.tolist() == [2.0]
     assert quality[0]["status"] == "clean"
     np.testing.assert_allclose(matrix[0], static.psd, rtol=1e-12, atol=1e-18)
+
+
+def test_spectrogram_bad_window_preserves_gap_evidence_and_no_zero_imputation():
+    sfreq = 100.0
+    values = np.ones((8 * int(sfreq), 1), dtype=float) * 10e-6
+    values[400:420, 0] = np.nan
+
+    centers, _frequencies, power, quality = estimate_spectrogram_with_quality(values, sfreq)
+
+    assert centers.tolist() == [2.0, 3.0, 4.0, 5.0, 6.0]
+    assert quality[1]["gap"]["detected"] is True
+    assert quality[1]["gap"]["non_finite_samples"] == 20
+    assert quality[1]["transform_padding"] == {"used": False, "kind": "none", "samples": 0}
+    assert np.isnan(power[1]).all()
 
 
 def test_band_integration_interpolates_boundaries_without_losing_area():

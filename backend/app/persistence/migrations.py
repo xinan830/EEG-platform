@@ -264,6 +264,26 @@ def _migration_008_retire_active_recording_mapping(connection: sqlite3.Connectio
         connection.execute("UPDATE recordings SET mapping_json = NULL")
 
 
+def _migration_009_algorithm_parameter_presets(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE IF NOT EXISTS algorithm_parameter_presets (
+            preset_id TEXT PRIMARY KEY,
+            algorithm_id TEXT NOT NULL,
+            scientific_version TEXT NOT NULL,
+            name TEXT NOT NULL,
+            config_json TEXT NOT NULL,
+            config_sha256 TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(algorithm_id, scientific_version, name)
+        )"""
+    )
+    connection.execute(
+        """CREATE INDEX IF NOT EXISTS idx_algorithm_presets_algorithm
+           ON algorithm_parameter_presets(algorithm_id, scientific_version, updated_at DESC)"""
+    )
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "legacy-tables", _migration_001_legacy_tables),
     Migration(2, "recording-identity", _migration_002_recording_identity),
@@ -273,6 +293,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(6, "persistent-run-queue", _migration_006_persistent_run_queue),
     Migration(7, "validation-evidence", _migration_007_validation_evidence),
     Migration(8, "retire-active-recording-mapping", _migration_008_retire_active_recording_mapping),
+    Migration(9, "algorithm-parameter-presets", _migration_009_algorithm_parameter_presets),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

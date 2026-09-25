@@ -10,7 +10,8 @@ import numpy as np
 from app.core.config import DATABASE_PATH
 from app.core.provenance import canonical_json, execution_environment
 from app.models.run import ValidationCreateRequest, ValidationRun
-from app.services.run_repository import ValidationRepository, utc_now
+from app.persistence.clock import utc_now
+from app.persistence.repositories.run import ValidationRepository
 
 
 class ValidationService:

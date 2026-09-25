@@ -5,7 +5,7 @@ from typing import Any
 
 from app.core.config import DATABASE_PATH
 from app.models.analysis import AnalysisSummary
-from app.eeg_core.analysis_contract import ANALYSIS_ALGORITHM_VERSION
+from app.scientific.contracts.analysis import ANALYSIS_ALGORITHM_VERSION
 from app.models.run import RunCreateRequest, RunStatus
 from app.persistence import connect_database
 from app.services.recordings import RecordingService

@@ -11,7 +11,7 @@ from app.core.config import DATABASE_PATH
 from app.core.provenance import sha256_json
 from app.models.algorithm_definition import AlgorithmDefinition, AlgorithmDefinitionVersion, DefinitionCreateRequest, DefinitionVersionDraft
 from app.persistence import connect_database, migrate_database
-from app.services.run_repository import utc_now
+from app.persistence.clock import utc_now
 
 
 def _json(value: object) -> str:
@@ -45,13 +45,7 @@ class DefinitionRepository:
         return [AlgorithmDefinition(**dict(row)) for row in rows]
 
     def delete(self, definition_id: str) -> bool:
-        """Delete a private definition while retaining completed result records.
-
-        Analysis runs and batch rows intentionally have no foreign key to the
-        definition table: their persisted output/provenance remains readable
-        after a local user removes an algorithm. Queued work cannot execute a
-        deleted definition, so it is cancelled in the same transaction.
-        """
+        """Delete a private definition while retaining completed result records."""
         with self._connect() as connection:
             definition = connection.execute("SELECT owner FROM algorithm_definitions WHERE definition_id = ?", (definition_id,)).fetchone()
             if definition is None:

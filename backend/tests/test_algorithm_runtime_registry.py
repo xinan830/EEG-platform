@@ -6,13 +6,13 @@ from pydantic import BaseModel
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmInputs, AlgorithmManifest, AlgorithmResult
 from app.algorithm_runtime.errors import AmbiguousAlgorithmVersionError, DuplicateAlgorithmError, UnknownAlgorithmError
 from app.algorithm_runtime.executor import AlgorithmRuntime
-from app.algorithm_runtime.parameter_schema import ParameterSchema
+from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterSchema
 from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithm_runtime.windows import build_windows
 
 
 class DemoConfig(AlgorithmConfigBase):
-    pass
+    scale: float = 1
 
 
 class DemoAlgorithm:
@@ -24,12 +24,14 @@ class DemoAlgorithm:
         scientific_version="1.0.0",
         implementation_identity="test-demo-1",
         supported_modes=["static"],
-        output_unit="dimensionless",
+        output_schema={"fields": [{"name": "value", "unit": "dimensionless", "meaning": "测试值"}]},
     )
     config_model = DemoConfig
 
     def parameter_schema(self) -> ParameterSchema:
-        return ParameterSchema()
+        return ParameterSchema(parameters=[
+            AlgorithmParameter(key="scale", label_zh="缩放", value_type="number", minimum=1, maximum=5, step=1),
+        ])
 
     def requested_channels(self, config):
         return [config.channel]
@@ -74,6 +76,17 @@ def test_runtime_validates_config_and_dispatches_without_algorithm_branch() -> N
     )
     assert result.value == 1.0
     assert result.channel == "O2"
+
+
+def test_runtime_rejects_parameter_outside_module_schema() -> None:
+    registry = AlgorithmRegistry()
+    registry.register(DemoAlgorithm())
+    with pytest.raises(ValueError, match="exceeds its maximum"):
+        AlgorithmRuntime(registry).execute(
+            algorithm_id="demo",
+            recording={"id": "r1"},
+            config={"channel": "O2", "mode": "static", "start_s": 0, "end_s": 10, "scale": 6},
+        )
 
 
 def test_registry_requires_an_explicit_version_when_multiple_versions_exist() -> None:

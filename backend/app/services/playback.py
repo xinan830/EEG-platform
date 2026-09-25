@@ -12,10 +12,10 @@ from uuid import uuid4
 
 import numpy as np
 
-from app.eeg_core import EEGProcessor
-from app.eeg_core.analysis_contract import LIVE_ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import LIVE_ANALYSIS_CONTRACT
 from app.models.recording import RecordingSummary
 from app.services.recordings import RecordingService
+from app.services.playback_processor import PlaybackProcessor, create_playback_processor
 
 
 def _json_safe(value: Any) -> Any:
@@ -77,7 +77,7 @@ class PlaybackSession:
         # roles are selected by an algorithm per Run, not aliased globally.
         return np.asarray(data, dtype=float), sfreq, list(names), events
 
-    def _drain_controls(self, processor: EEGProcessor) -> bool:
+    def _drain_controls(self, processor: PlaybackProcessor) -> bool:
         restart = False
         while True:
             try:
@@ -98,7 +98,7 @@ class PlaybackSession:
             elif action == "stop":
                 self._stop.set(); self.status = "stopped"
 
-    def _reset_processor(self, processor: EEGProcessor) -> None:
+    def _reset_processor(self, processor: PlaybackProcessor) -> None:
         processor.reset_buffers()
         processor.start_segment()
         processor.start_rbp_session()
@@ -107,7 +107,7 @@ class PlaybackSession:
     def _run(self) -> None:
         try:
             data, sfreq, names, events = self._canonical_data()
-            processor = EEGProcessor(sfreq, names)
+            processor = create_playback_processor(sfreq, names)
             self._reset_processor(processor)
             self.status = "running"
             self._emit({"type": "info", "sfreq": sfreq, "ch_names": names, "duration_s": len(data) / sfreq,

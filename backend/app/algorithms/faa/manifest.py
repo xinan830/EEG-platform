@@ -9,7 +9,7 @@ MANIFEST = AlgorithmManifest(
     scientific_version="official-faa-v1",
     implementation_identity="faa-runtime-v1",
     supported_modes=["static"],
-    output_unit="dimensionless",
+    output_schema={"fields": [{"name": "faa", "unit": "dimensionless", "meaning": "F4 Alpha 功率对数减 F3 Alpha 功率对数"}]},
     definition_name="Official FAA",
     execution_kind="official_composite_run_adapter",
 )

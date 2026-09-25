@@ -1,22 +1,26 @@
-"""Single source of truth for official algorithm identity and lifecycle."""
+"""Official algorithm catalog backed by Runtime manifests."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from app.algorithms.faa.manifest import MANIFEST as FAA_MANIFEST
+from app.algorithms.band_ratio.manifest import MANIFEST as BAND_RATIO_MANIFEST
 from app.algorithms.iapf.manifest import MANIFEST as IAPF_MANIFEST
+from app.algorithms.peak_frequency.manifest import MANIFEST as PEAK_FREQUENCY_MANIFEST
 from app.algorithms.rbp.manifest import MANIFEST as RBP_MANIFEST
 from app.algorithms.theta_beta.manifest import MANIFEST as THETA_BETA_MANIFEST
-from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+from app.algorithm_runtime.contracts import AlgorithmManifest
 from app.eeg_core.official_algorithms.brainbeat import BRAINBEAT_MANIFEST
-from app.eeg_core.official_algorithms.contracts import OfficialAlgorithmCatalogItem, OfficialAlgorithmManifest
+from app.eeg_core.official_algorithms.contracts import OfficialAlgorithmCatalogItem
+from app.models.algorithm_definition import DefinitionVersionDraft
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 
-# Runnable entries are imported from the exact manifests registered by the
-# runtime. BrainBeat is the sole deliberate non-runnable descriptor.
-OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
+OFFICIAL_ALGORITHM_MANIFESTS: tuple[AlgorithmManifest, ...] = (
     RBP_MANIFEST,
+    BAND_RATIO_MANIFEST,
+    PEAK_FREQUENCY_MANIFEST,
     THETA_BETA_MANIFEST,
     FAA_MANIFEST,
     BRAINBEAT_MANIFEST,
@@ -24,7 +28,7 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[OfficialAlgorithmManifest, ...] = (
 )
 
 
-def _manifest(algorithm_id: str) -> OfficialAlgorithmManifest:
+def _manifest(algorithm_id: str) -> AlgorithmManifest:
     for item in OFFICIAL_ALGORITHM_MANIFESTS:
         if item.algorithm_id == algorithm_id:
             return item
@@ -32,7 +36,7 @@ def _manifest(algorithm_id: str) -> OfficialAlgorithmManifest:
 
 
 def official_definition(algorithm_id: str) -> dict[str, object]:
-    """Compatibility metadata for legacy inspectors and shadow tooling."""
+    """Return stable compatibility metadata derived from the Runtime manifest."""
     manifest = _manifest(algorithm_id)
     values: dict[str, object] = {
         "version": "1.0.0", "implementation": manifest.implementation_identity,
@@ -48,13 +52,16 @@ def official_definition(algorithm_id: str) -> dict[str, object]:
         values.update({"inputs": ["selected_raw_channel", "IAPF"], "formula": "theta(iapf-6..iapf-2) / beta(iapf+2..30)", "channels": ["selected_raw_channel"], "quality": ANALYSIS_CONTRACT["quality_gate_policy"]})
     elif algorithm_id == "iapf":
         values.update({"inputs": ["PSD"], "fit": ANALYSIS_CONTRACT["aperiodic_model"], "search_hz": ANALYSIS_CONTRACT["iapf_search_hz"], "sources": ["peak", "cog"], "lock_candidates": ANALYSIS_CONTRACT["iapf_lock_candidates"]})
+    elif algorithm_id == "peak_frequency":
+        values.update({"inputs": ["PSD"], "formula": "argmax(PSD within declared frequency band)", "edge_policy": "inclusive", "tie_policy": "lowest_frequency_grid_point", "interpolation": "none"})
+    elif algorithm_id == "band_ratio":
+        values.update({"inputs": ["band_power numerator", "band_power denominator"], "formula": "numerator_power / denominator_power", "denominator_policy": "strictly_positive"})
     return values
 
 
-def official_definition_draft(algorithm_id: str):
-    """Return the immutable v1 definition without claiming generic executability."""
-    from app.models.algorithm_definition import DefinitionVersionDraft
-
+def official_definition_draft(algorithm_id: str) -> DefinitionVersionDraft:
+    """Return the immutable v1 definition used for catalog provenance."""
+    manifest = _manifest(algorithm_id)
     metadata = official_definition(algorithm_id)
     if algorithm_id == "rbp":
         nodes: list[dict[str, object]] = []
@@ -73,7 +80,10 @@ def official_definition_draft(algorithm_id: str):
     else:
         graph = {"nodes": [{"id": "out", "type": "output", "inputs": {"source": "$input.official_result"}, "parameters": {}}], "outputs": ["out"]}
         inputs = {"official_result": {"type": "Scalar", "unit": "dimensionless_or_declared_output", "source": "official_composite_adapter"}}
-        output_contract = {"out": {"type": "Scalar", "unit": "Hz" if algorithm_id == "iapf" else "ratio_or_dimensionless"}}
+        output_contract = {
+            field["name"]: {"type": "Scalar", "unit": field["unit"]}
+            for field in manifest.output_schema["fields"]
+        }
     return DefinitionVersionDraft(
         semver=str(metadata["version"]), graph=graph, inputs=inputs, outputs=output_contract,
         units={"input": inputs, "output": output_contract},
@@ -83,7 +93,7 @@ def official_definition_draft(algorithm_id: str):
 
 
 def ensure_official_definitions(service) -> dict[str, str]:
-    """Idempotently persist immutable definition records for registry manifests."""
+    """Idempotently persist immutable definition records for Runtime manifests."""
     from app.models.algorithm_definition import DefinitionCreateRequest
 
     existing = {(item.name, item.owner): item for item in service.list()}
@@ -105,14 +115,10 @@ def ensure_official_definitions(service) -> dict[str, str]:
 
 
 def official_definition_identity(service, algorithm_id: str) -> tuple[str, str, str]:
-    """Return the exact immutable Definition relation for an official module."""
     manifest = _manifest(algorithm_id)
     if not manifest.definition_name:
-        raise RuntimeError(f"official manifest is missing definition name: {algorithm_id}")
-    definition = next(
-        (item for item in service.list() if item.name == manifest.definition_name and item.owner == "platform-official"),
-        None,
-    )
+        raise RuntimeError(f"official definition missing: {algorithm_id}")
+    definition = next((item for item in service.list() if item.name == manifest.definition_name and item.owner == "platform-official"), None)
     if definition is None:
         raise RuntimeError(f"official definition missing: {algorithm_id}")
     version = service.repository.get_version(definition.definition_id, "1.0.0")
@@ -122,7 +128,6 @@ def official_definition_identity(service, algorithm_id: str) -> tuple[str, str, 
 
 
 def official_algorithm_catalog(service) -> list[OfficialAlgorithmCatalogItem]:
-    """Resolve code manifests to installed immutable definition identities."""
     definitions = {(item.name, item.owner): item for item in service.list()}
     catalog: list[OfficialAlgorithmCatalogItem] = []
     for manifest in OFFICIAL_ALGORITHM_MANIFESTS:
@@ -140,7 +145,7 @@ def official_algorithm_catalog(service) -> list[OfficialAlgorithmCatalogItem]:
             scientific_version=manifest.scientific_version, implementation_identity=manifest.implementation_identity,
             execution_kind=manifest.execution_kind, availability=manifest.availability,
             is_runnable=manifest.is_runnable, required_channel_roles=manifest.required_channel_roles,
-            supported_modes=manifest.supported_modes, output_unit=manifest.output_unit, definition_id=definition.definition_id,
-            definition_version=version.semver,
+            supported_modes=manifest.supported_modes, output_schema=manifest.output_schema,
+            definition_id=definition.definition_id, definition_version=version.semver,
         ))
     return catalog

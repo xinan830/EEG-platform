@@ -5,6 +5,9 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.recording import RecordingSummary
+from app.models.run import AnalysisRun, RunStatus
+from app.persistence.clock import utc_now
+from app.persistence.repositories.run import RunRepository
 from app.services.recordings import RecordingService
 from app.services.definitions import DefinitionService
 from app.services.runs import RunService
@@ -206,3 +209,63 @@ def test_definition_preview_persists_unavailable_output_as_gate_failed_not_zero(
     assert body["status"] == "gate_failed"
     assert body["result_summary"]["outputs"]["out"]["value"] is None
     assert body["error"]["code"] == "PREVIEW_OUTPUT_UNAVAILABLE"
+def test_user_defined_algorithm_run_creation_returns_retired_response():
+    response = TestClient(app).post("/api/runs", json={
+        "recording_id": "historical-or-new",
+        "analysis_type": "definition_metric",
+        "definition_id": "user-definition",
+        "definition_version": "1.0.0",
+        "config": {"channel": "F3", "time": {"start_s": 0, "end_s": 10}},
+    })
+    assert response.status_code == 410
+    body = response.json()
+    assert body["code"] == "USER_DEFINED_ALGORITHM_RETIRED"
+    assert body["message"] == "用户自定义算法已经退役，历史运行仍可读取"
+
+
+def test_historical_retired_user_run_and_artifact_remain_readable(tmp_path: Path):
+    client, recording = _configure_services(tmp_path)
+    now = utc_now()
+    run = AnalysisRun(
+        run_id="historic-user-run",
+        recording_id=recording.id,
+        analysis_type="definition_metric",
+        status=RunStatus.COMPLETED,
+        definition_id="historic-user-definition",
+        definition_version="1.0.0",
+        scientific_version="user-definition-v1",
+        implementation_version="legacy-user-definition-build",
+        config={"channel": "F3", "time": {"start_s": 0.0, "end_s": 10.0}},
+        config_sha256="historic-config",
+        cache_key="historic-cache",
+        requested_range={"start_s": 0.0, "end_s": 10.0},
+        actual_range={"start_s": 0.0, "end_s": 10.0},
+        channel_mapping={"channels": ["F3"]},
+        reference={},
+        filters={},
+        window={},
+        quality_rules={},
+        environment={"execution_path": "legacy-user-definition"},
+        result_summary={"output": {"value": 0.5, "unit": "ratio"}},
+        created_at=now,
+        updated_at=now,
+        started_at=now,
+        completed_at=now,
+    )
+    repository = RunRepository(app.state.run_service.repository.database_path)
+    repository.create(run)
+    artifact = app.state.run_service.artifacts.write_npz(
+        run.run_id,
+        run.analysis_type,
+        {"F3": np.asarray([0.5], dtype=np.float64)},
+        "ratio",
+    )
+
+    response = client.get(f"/api/runs/{run.run_id}")
+    artifacts = client.get(f"/api/runs/{run.run_id}/artifacts")
+
+    assert response.status_code == 200
+    assert response.json()["definition_id"] == "historic-user-definition"
+    assert response.json()["result_summary"]["output"]["value"] == 0.5
+    assert artifacts.status_code == 200
+    assert artifacts.json()[0]["artifact_id"] == artifact.artifact_id

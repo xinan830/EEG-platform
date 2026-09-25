@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from app.eeg_core.official_algorithms.registry import ensure_official_definitions, official_algorithm_catalog
+from app.algorithms.catalog import ensure_official_definitions, official_algorithm_catalog
 from app.core.provenance import sha256_json
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
@@ -97,9 +97,11 @@ def test_official_dynamic_iapf_uses_the_shared_dynamic_window_contract(tmp_path:
     assert series[0]["window_end_s"] == 4.0
     assert series[0]["time_s"] == 4.0
     assert series[0]["warmup"] is True
+    assert series[0]["analysis_state"] == "Partial"
     assert series[6]["window_start_s"] == 0.0
     assert series[6]["window_end_s"] == 10.0
     assert series[6]["warmup"] is False
+    assert series[6]["analysis_state"] == "Complete"
     assert all("value" in point and "quality" in point for point in series)
     assert all(point["value"] == point["output"]["value"] for point in series)
     provenance = serialize_analysis_run(completed)["analysis_provenance"]
@@ -136,7 +138,7 @@ def test_catalog_marks_rbp_and_faa_runnable_but_keeps_brainbeat_shadow_only(tmp_
     assert catalog["brainbeat"].availability == "shadow_validation" and catalog["brainbeat"].is_runnable is False
     assert catalog["iapf"].definition_id
     assert catalog["iapf"].definition_version == "1.0.0"
-    assert catalog["iapf"].output_unit == "Hz"
+    assert catalog["iapf"].output_schema["fields"][0]["unit"] == "Hz"
 
 
 def test_official_rbp_run_returns_all_four_backend_band_shares(tmp_path: Path):

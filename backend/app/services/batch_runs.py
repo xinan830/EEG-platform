@@ -14,7 +14,7 @@ from app.models.run import RunCreateRequest, RunStatus
 from app.persistence import connect_database, migrate_database
 from app.services.projects import ProjectService
 from app.services.run_queue import PersistentRunQueue
-from app.services.run_repository import utc_now
+from app.persistence.clock import utc_now
 
 
 class BatchProjectMembershipError(ValueError):

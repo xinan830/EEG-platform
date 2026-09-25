@@ -9,25 +9,41 @@ from uuid import uuid4
 
 from app.core.config import ARTIFACTS_DIR, DATABASE_PATH
 from app.core.provenance import build_cache_key, execution_environment, implementation_version, sha256_json
-from app.eeg_core.quality import SpectralQualityGateError
+from app.scientific.quality import SpectralQualityGateError
 from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredRunError
 from app.services.recordings import RecordingService
-from app.services.run_repository import RunRepository, utc_now
-from app.services.runs import RunService
+from app.persistence.clock import utc_now
+from app.persistence.repositories.run import RunRepository
+from app.services.runs import RetiredUserAlgorithmError, RunService
 
 
 class PersistentRunQueue:
     """Persists queue state; numerical execution remains in the backend service."""
 
-    def __init__(self, recordings: RecordingService, database_path: Path = DATABASE_PATH, artifacts_dir: Path = ARTIFACTS_DIR):
-        self.base = RunService(recordings, database_path, artifacts_dir)
+    def __init__(
+        self,
+        recordings: RecordingService,
+        database_path: Path = DATABASE_PATH,
+        artifacts_dir: Path = ARTIFACTS_DIR,
+        *,
+        enable_legacy_definition_execution: bool = False,
+    ):
+        self.base = RunService(
+            recordings,
+            database_path,
+            artifacts_dir,
+            enable_legacy_definition_execution=enable_legacy_definition_execution,
+        )
         self.recordings = recordings
+        self.enable_legacy_definition_execution = enable_legacy_definition_execution
         self.repository: RunRepository = self.base.repository
         self.repository.recover_interrupted()
 
     def enqueue(self, request: RunCreateRequest, *, parent_run_id: str | None = None) -> AnalysisRun:
         if request.preview:
             raise ValueError("definition previews use their dedicated endpoint")
+        if request.analysis_type == "definition_metric" and not self.enable_legacy_definition_execution:
+            raise RetiredUserAlgorithmError()
         if request.idempotency_key:
             existing = self.repository.find_idempotency_key(request.idempotency_key)
             if existing is not None:
@@ -67,6 +83,16 @@ class PersistentRunQueue:
             if self._is_cancelled(run.run_id):
                 return self.repository.update_status(run.run_id, RunStatus.CANCELLED)
             recording = self.recordings.require_recording(run.recording_id)
+            if run.analysis_type == "definition_metric" and not self.enable_legacy_definition_execution:
+                return self.repository.update_status(
+                    run.run_id,
+                    RunStatus.FAILED,
+                    error=StructuredRunError(
+                        code=RetiredUserAlgorithmError.code,
+                        message="用户自定义算法已经退役，历史运行仍可读取",
+                        stage="analysis",
+                    ),
+                )
             request = RunCreateRequest(recording_id=run.recording_id, analysis_type=run.analysis_type, config=run.config,
                                        definition_id=run.definition_id, definition_version=run.definition_version)
             resolved = self.base._resolve_request(request, recording)

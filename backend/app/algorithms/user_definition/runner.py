@@ -16,11 +16,14 @@ from app.algorithm_runtime.contracts import (
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
-from app.eeg_core.definition_engine import execute_graph
+from app.legacy.definition_engine import execute_graph
 from app.eeg_core.primitives.types import Scalar
-from app.eeg_core.quality import SpectralQualityGateError
+from app.scientific.quality.spectral import SpectralQualityGateError
 from app.models.algorithm_definition import DefinitionVersionDraft
-from app.services.definition_metric_runner import DefinitionMetricRunner
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.legacy.definition_metric_runner import DefinitionMetricRunner
 
 
 class UserDefinitionAlgorithm:
@@ -40,7 +43,7 @@ class UserDefinitionAlgorithm:
             scientific_version=definition.semver,
             implementation_identity="user-definition-runtime-v1",
             supported_modes=["static", "dynamic"],
-            output_unit=self._output_unit(),
+            output_schema={"fields": [{"name": "output", "unit": self._output_unit(), "meaning": "历史用户定义输出"}]},
         )
 
     def _output_unit(self) -> str:

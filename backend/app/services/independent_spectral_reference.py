@@ -15,7 +15,7 @@ import numpy as np
 from scipy import signal
 
 from app.core.provenance import sha256_json
-from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.models.recording import RecordingSummary
 from app.models.run import ValidationCreateRequest, ValidationRun
 from app.models.spectral_validation import SpectralReferenceValidationRequest

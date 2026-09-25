@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.core.config import DATABASE_PATH
-from app.eeg_core.definition_engine import DefinitionEngineError, execute_graph, validate_graph, validate_parameters
+from app.legacy.definition_engine import DefinitionEngineError, execute_graph, validate_graph, validate_parameters
 from app.models.algorithm_definition import AlgorithmDefinition, AlgorithmDefinitionVersion, DefinitionCreateRequest, DefinitionVersionDraft
-from app.services.definition_repository import DefinitionRepository
+from app.persistence.repositories.definition import DefinitionRepository
 
 
 class DefinitionService:

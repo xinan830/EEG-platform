@@ -1,12 +1,14 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
 from app.services.run_queue import PersistentRunQueue
+from app.services.runs import RetiredUserAlgorithmError
 
 
 class SyntheticRecordingService(RecordingService):
@@ -39,6 +41,17 @@ def test_queue_idempotency_claim_and_completion(tmp_path: Path):
     completed = queue.process_next()
     assert completed is not None and completed.status is RunStatus.COMPLETED
     assert queue.list_artifacts(first.run_id)
+
+
+def test_production_queue_rejects_new_user_defined_algorithm_runs(tmp_path: Path):
+    queue, recording_id = _queue(tmp_path)
+    request = RunCreateRequest(
+        recording_id=recording_id,
+        analysis_type="definition_metric",
+        config={},
+    )
+    with pytest.raises(RetiredUserAlgorithmError):
+        queue.enqueue(request)
 
 
 def test_queue_persists_resolved_official_definition_identity(tmp_path: Path):

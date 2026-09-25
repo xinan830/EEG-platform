@@ -5,8 +5,11 @@ import numpy as np
 import pytest
 
 from app.models.run import AnalysisRun, RunStatus
+from app.models.run import RunCreateRequest
+from app.core.provenance import sha256_json
 from app.services.artifacts import ArtifactIntegrityError, ArtifactStore
-from app.services.run_repository import RunRepository, utc_now
+from app.persistence.clock import utc_now
+from app.persistence.repositories.run import RunRepository
 
 
 def _run(run_id: str = "run-1") -> AnalysisRun:
@@ -69,3 +72,17 @@ def test_npz_artifact_round_trip_and_corruption_detection(tmp_path: Path):
     artifact_path.write_bytes(b"corrupted")
     with pytest.raises(ArtifactIntegrityError):
         store.read_npz(artifact)
+
+
+def test_display_state_is_outside_scientific_run_config_and_identity():
+    scientific_config = {"channels": ["Fz"], "time": {"start_s": 0, "end_s": 10}}
+    request = RunCreateRequest(
+        recording_id="recording-1",
+        analysis_type="spectrum",
+        config=scientific_config,
+        display_state={"timebase_s": 5, "paper_speed_mm_s": 30, "sensitivity_uv_mm": 10},
+    )
+
+    assert request.config == scientific_config
+    assert request.display_state["timebase_s"] == 5
+    assert sha256_json(request.config) == sha256_json(scientific_config)

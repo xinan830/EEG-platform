@@ -7,7 +7,7 @@ from fractions import Fraction
 import numpy as np
 from scipy import signal
 
-from app.eeg_core.quality import evaluate_spectral_window
+from app.scientific.quality.spectral import evaluate_spectral_window
 
 from .types import (
     ChannelMap, EEGSignal, PrimitiveValueError, QualityMask, TimeRange,

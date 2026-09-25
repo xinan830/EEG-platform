@@ -1,6 +1,6 @@
 import numpy as np
 
-from app.eeg_core.quality import evaluate_spectral_window
+from app.scientific.quality import evaluate_spectral_window
 from app.eeg_core.spectral import estimate_welch_psd
 
 

@@ -14,7 +14,8 @@ AlgorithmMode = Literal["static", "dynamic"]
 # Persisted dynamic points carry this independently from an algorithm's
 # scientific version.  Altering point timing or evidence requires a new value
 # so older cached summaries cannot be rendered as the current contract.
-DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION = "dynamic-analysis-frame-v4"
+DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION = "dynamic-analysis-frame-v5"
+DynamicAnalysisState = Literal["Partial", "Complete", "Rejected", "Unavailable"]
 
 
 class AlgorithmFailure(BaseModel):
@@ -89,7 +90,7 @@ class AlgorithmManifest(BaseModel):
     scientific_version: str = Field(min_length=1)
     implementation_identity: str = Field(min_length=1)
     supported_modes: list[AlgorithmMode] = Field(default_factory=lambda: ["static"])
-    output_unit: str = Field(min_length=1)
+    output_schema: dict[str, Any] = Field(min_length=1)
     dynamic_policy: DynamicAnalysisPolicy = Field(default_factory=DynamicAnalysisPolicy)
     # Official lifecycle data belongs to the executable module manifest.  User
     # definition modules leave these fields at their generic defaults.
@@ -129,6 +130,7 @@ class AlgorithmSeriesResult(BaseModel):
     quality: list[str]
     failures: list[AlgorithmFailure | None]
     warmups: list[bool] = Field(default_factory=list)
+    states: list[DynamicAnalysisState] = Field(default_factory=list)
     point_evidence: list[dict[str, Any]] = Field(default_factory=list)
     evidence: dict[str, Any] = Field(default_factory=dict)
 
@@ -144,7 +146,7 @@ class AlgorithmModuleContract(BaseModel):
 
     manifest: AlgorithmManifest
     parameters: list[AlgorithmParameter] = Field(default_factory=list)
-    output_schema: dict[str, Any] = Field(default_factory=dict)
+    output_schema: dict[str, Any] = Field(min_length=1)
 
     @property
     def parameter_schema(self) -> ParameterSchema:

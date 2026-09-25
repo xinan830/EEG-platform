@@ -21,10 +21,10 @@ class IapfAlgorithm:
         return ParameterSchema(parameters=[
             AlgorithmParameter(key="channel", label_zh="分析通道", value_type="string", description_zh="从原始记录通道中选择一个通道。"),
             AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
-            AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s"),
-            AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s"),
-            AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", required=False),
-            AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", required=False),
+            AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
+            AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
+            AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=4, maximum=120, step=1, required=False),
+            AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", minimum=0.1, maximum=10, step=0.1, required=False),
         ])
 
     def requested_channels(self, config: AlgorithmConfigBase) -> list[str]:

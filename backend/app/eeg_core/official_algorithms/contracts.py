@@ -33,6 +33,6 @@ class OfficialAlgorithmCatalogItem(BaseModel):
     is_runnable: bool
     required_channel_roles: list[str]
     supported_modes: list[str]
-    output_unit: str
+    output_schema: dict[str, object]
     definition_id: str
     definition_version: str

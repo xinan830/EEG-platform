@@ -12,7 +12,8 @@ import numpy as np
 
 from app.core.config import ARTIFACTS_DIR
 from app.models.run import RunArtifact
-from app.services.run_repository import RunRepository, utc_now
+from app.persistence.clock import utc_now
+from app.persistence.repositories.run import RunRepository
 
 
 class ArtifactIntegrityError(RuntimeError):

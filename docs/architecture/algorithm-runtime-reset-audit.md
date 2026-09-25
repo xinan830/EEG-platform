@@ -10,13 +10,26 @@ classified by its imports and callers first.
 
 | Responsibility | Canonical owner after cutover |
 | --- | --- |
-| Signal loading, preprocessing, PSD, quality and units | `backend/app/eeg_core` signal primitives, moved only when the module boundary is proven |
+| Signal loading, preprocessing, PSD, quality and units | `backend/app/scientific` contracts/primitives; `eeg_core` is compatibility/reference-only |
 | IAPF science | `backend/app/algorithms/iapf` |
 | Single-channel Theta/Beta v2 science | `backend/app/algorithms/theta_beta` |
-| User Definition graph execution | `backend/app/algorithms/user_definition` |
+| User Definition graph execution | retired boundary under `backend/app/legacy`; historical reads only |
 | Registry, schemas, windows, normalized results | `backend/app/algorithm_runtime` |
 | Run lifecycle, cache, provenance and artifacts | `backend/app/services` |
 | Display-only chart state | Vue components/local state |
+
+## Current deletion status
+
+Compatibility adapters remain intentionally. They are still required by
+historical imports, validation/reference tests, and old read paths. The
+deletion task is therefore not complete until the safety rules below are
+machine-checked against the current caller inventory; this is an explicit
+deferred migration, not an accidental omission.
+
+The public Run API already rejects new `definition_metric` creation with the
+stable `USER_DEFINED_ALGORITHM_RETIRED` response. The persistent queue retains
+the old executor only for compatibility coverage until its internal execution
+callers are migrated; it is not an active official-algorithm path.
 
 ## Candidate classification
 
@@ -24,9 +37,9 @@ classified by its imports and callers first.
 | --- | --- | --- |
 | `eeg_core/official_algorithms/iapf.py` | current mathematics | move behind canonical IAPF module, then remove duplicate entry only after equivalence tests |
 | `eeg_core/official_algorithms/theta_beta.py` | legacy bundled metric implementation | replace with single-channel v2; retain only shared band-integration primitive if independently used |
-| `eeg_core/official_algorithms/registry.py` | current official identity plus legacy Definition adapter | split manifest/registry from Definition installation; remove algorithm-specific draft branches after catalog cutover |
-| `eeg_core/official_definitions.py` | compatibility entry point | delete after all imports use the runtime registry |
-| `eeg_core/official_algorithm_shadows.py` | validation compatibility entry point | move validation imports, then delete facade after tests switch to module validation |
+| `eeg_core/official_algorithms/registry.py` | removed compatibility entry point | callers use `app.algorithms.catalog` |
+| `eeg_core/official_definitions.py` | removed compatibility entry point | callers use `app.algorithms.catalog` |
+| `eeg_core/official_algorithm_shadows.py` | removed validation entry point | callers use `app.eeg_core.official_algorithms.validation` |
 | `eeg_core/offline_metrics.py` | compatibility wrapper and historical caller | delete only after old runtime callers are moved and historical reads use stored artifacts |
 | `processing/offline_analysis.py` | current viewer/analysis path until runtime cutover | preserve viewer behavior; split reusable primitives before deleting executable algorithm branches |
 | `models/official_algorithm_run.py` | current mapped official request model | replace with runtime config identity after new Run contract tests pass |
@@ -39,11 +52,12 @@ classified by its imports and callers first.
 
 - `api/runs.py` currently catches `OfficialChannelMappingRequired`.
 - `services/runs.py` resolves `official_algorithm` and reads recording mapping.
-- `services/run_analysis_executor.py` formats IAPF and Theta/Beta outputs by ID.
+- `services/run_analysis_executor.py` formats the normalized Runtime result;
+  legacy formatting callers remain outside the active official path.
 - `api/recordings.py`, `services/recordings.py`, `models/recording.py`, and
   `App.vue` expose the global mapping flow.
-- `official_algorithm_shadows.py` and validation helpers import the old
-  `offline_metrics` facade.
+- Independent validation helpers still import the old `offline_metrics` facade;
+  these references remain until the legacy comparison implementation is retired.
 - `AlgorithmDisplayWorkspace.vue` has fixed official IDs, units, and request
   shapes.
 

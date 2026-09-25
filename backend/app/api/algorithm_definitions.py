@@ -4,10 +4,10 @@ from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, Field
 
 from app.core.api_contract import error_response
-from app.eeg_core.definition_engine import DefinitionEngineError
+from app.legacy.definition_engine import DefinitionEngineError
 from app.models.algorithm_definition import DefinitionCreateRequest, DefinitionVersionDraft
 from app.models.definition_preview import DefinitionPreviewRunRequest
-from app.eeg_core.official_algorithms.registry import OFFICIAL_ALGORITHM_MANIFESTS
+from app.algorithms.catalog import OFFICIAL_ALGORITHM_MANIFESTS
 from app.eeg_core.primitives.registry import NODE_REGISTRY
 from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.primitives.units import Unit

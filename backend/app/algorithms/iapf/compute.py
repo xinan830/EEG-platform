@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmFailure, AlgorithmResult
-from app.eeg_core.official_algorithms.iapf import IAPFEstimate, estimate_iapf
+from .official import IAPFEstimate, estimate_iapf
 
 
 def compute_iapf(

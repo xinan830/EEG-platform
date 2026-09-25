@@ -12,7 +12,7 @@ from app.models.research_project import (
     SessionCreateRequest, Subject, SubjectCreateRequest,
 )
 from app.persistence import connect_database, migrate_database
-from app.services.run_repository import utc_now
+from app.persistence.clock import utc_now
 
 
 class ProjectConflictError(ValueError):

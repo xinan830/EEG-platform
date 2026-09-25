@@ -5,8 +5,8 @@ from typing import Any
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmFailure, AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
-from app.eeg_core.official_algorithms.rbp import RBP_BANDS
-from app.eeg_core.spectral import band_power
+from .official import RBP_BANDS
+from app.scientific.primitives.spectral import band_power
 
 from .config import RbpConfig
 from .manifest import MANIFEST
@@ -20,8 +20,8 @@ class RbpAlgorithm:
         return ParameterSchema(parameters=[
             AlgorithmParameter(key="channel", label_zh="分析通道", value_type="string", description_zh="从原始记录通道中选择一个通道。"),
             AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态")]),
-            AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s"),
-            AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s"),
+            AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
+            AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
         ])
 
     def requested_channels(self, config: AlgorithmConfigBase) -> list[str]:

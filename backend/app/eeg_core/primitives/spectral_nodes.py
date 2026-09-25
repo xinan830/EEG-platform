@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import signal
 
-from app.eeg_core.spectral import band_power as integrate_band_power
+from app.scientific.primitives.spectral import band_power as integrate_band_power
 
 from .types import BandPower, PSDSeries, PrimitiveValueError, QualityMask, RelativePower, TimeRange, WindowedSignal, append_provenance
 from .units import Unit

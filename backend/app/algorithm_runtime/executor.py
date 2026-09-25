@@ -6,6 +6,7 @@ from typing import Any
 
 from .contracts import AlgorithmEvidence, AlgorithmModule, AlgorithmResult, AlgorithmSeriesResult
 from .errors import UnsupportedAlgorithmModeError
+from app.scientific.contracts import SampleRange
 
 
 class AlgorithmRuntime:
@@ -32,17 +33,68 @@ class AlgorithmRuntime:
     ) -> AlgorithmResult | AlgorithmSeriesResult:
         """Execute a concrete module selected by a trusted catalog boundary."""
         typed_config = self.validate_config(module=module, config=config)
+        self.validate_parameter_schema(module=module, config=typed_config)
         inputs = module.resolve_inputs(recording, typed_config)
         if typed_config.mode == "static":
             result = module.execute_static(inputs, typed_config)
+            result.evidence = self._with_sample_coordinate(
+                result.evidence, result.actual_range, inputs.sfreq_hz,
+            )
             result.evidence = AlgorithmEvidence.model_validate(result.evidence).model_dump(mode="json")
             return result
         result = module.execute_dynamic(inputs, typed_config)
+        # Keep the legacy warmup flags for historical readers, but make the
+        # versioned state enum the canonical runtime representation. Older
+        # modules may omit states, so only those results are derived from the
+        # compatibility flags.
+        if len(result.states) != len(result.values):
+            result.states = [
+                "Rejected" if failure is not None and quality == "gate_failed"
+                else "Unavailable" if failure is not None
+                else "Partial" if warmup
+                else "Complete"
+                for quality, failure, warmup in zip(result.quality, result.failures, result.warmups)
+            ]
         result.point_evidence = [
-            AlgorithmEvidence.model_validate(item).model_dump(mode="json")
-            for item in result.point_evidence
+            AlgorithmEvidence.model_validate(
+                self._with_sample_coordinate(
+                    item,
+                    result.windows[index] if index < len(result.windows) else None,
+                    inputs.sfreq_hz,
+                )
+            ).model_dump(mode="json")
+            for index, item in enumerate(result.point_evidence)
         ]
         return result
+
+    @staticmethod
+    def _with_sample_coordinate(
+        evidence: dict[str, Any], time_range: dict[str, float] | None, sfreq_hz: float,
+    ) -> dict[str, Any]:
+        """Attach the canonical scientific coordinate without changing display seconds."""
+        copied = dict(evidence)
+        extensions = dict(copied.get("extensions", {}))
+        existing = extensions.get("sample_coordinate")
+        if isinstance(existing, dict) and existing.get("coordinate_system") == "recording_relative_sample":
+            copied["extensions"] = extensions
+            return copied
+        if time_range is None or "start_s" not in time_range or "end_s" not in time_range:
+            coordinate: dict[str, Any] = {
+                "coordinate_system": "recording_relative_seconds",
+                "sample_range": None,
+            }
+        else:
+            sample_range = SampleRange.from_seconds(
+                float(time_range["start_s"]), float(time_range["end_s"]), float(sfreq_hz),
+            )
+            coordinate = {
+                "coordinate_system": "recording_relative_sample",
+                "sample_range": sample_range.as_dict(),
+                "sfreq_hz": float(sfreq_hz),
+            }
+        extensions["sample_coordinate"] = coordinate
+        copied["extensions"] = extensions
+        return copied
 
     @staticmethod
     def validate_config(*, module: AlgorithmModule, config: dict[str, Any]):
@@ -66,3 +118,13 @@ class AlgorithmRuntime:
                 f"{module.manifest.display_name_zh}动态分析每 {policy.refresh_step_s:g} 秒更新"
             )
         return typed_config
+
+    @staticmethod
+    def validate_parameter_schema(*, module: AlgorithmModule, config: Any) -> None:
+        values = config.model_dump(exclude_none=True)
+        for parameter in module.parameter_schema().parameters:
+            if parameter.key in values:
+                try:
+                    parameter.validate_value(values[parameter.key])
+                except ValueError as exc:
+                    raise ValueError(str(exc)) from exc

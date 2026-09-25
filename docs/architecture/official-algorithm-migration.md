@@ -35,7 +35,7 @@ evidence; FAA and BrainBeat still require their own future cutover evidence.
 
 ## Shadow evidence
 
-`backend/app/eeg_core/official_algorithm_shadows.py` is deliberately
+`backend/app/eeg_core/official_algorithms/validation/` is deliberately
 backend-only. The candidate implementations do not call production helpers
 for the calculation being verified:
 

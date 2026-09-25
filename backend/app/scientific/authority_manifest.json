@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "capability": "welch_psd",
+      "kind": "primitive",
+      "canonical_import": "app.scientific.primitives.spectral.estimate_welch_psd",
+      "owner": "scientific",
+      "scientific_version": "offline-spectral-v3",
+      "implementation_identity": "scientific-spectral-v3",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "band_power",
+      "kind": "primitive",
+      "canonical_import": "app.scientific.primitives.spectral.band_power",
+      "owner": "scientific",
+      "scientific_version": "offline-spectral-v3",
+      "implementation_identity": "scientific-spectral-v3",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "stft",
+      "kind": "primitive",
+      "canonical_import": "app.scientific.primitives.spectral.estimate_spectrogram",
+      "owner": "scientific",
+      "scientific_version": "offline-spectral-v3",
+      "implementation_identity": "scientific-spectral-v3",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_faa",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.faa.official.compute_faa",
+      "owner": "algorithms",
+      "scientific_version": "official-faa-v1",
+      "implementation_identity": "algorithms-official-faa-v1",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_iapf",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.iapf.official.estimate_iapf",
+      "owner": "algorithms",
+      "scientific_version": "official-iapf-v2",
+      "implementation_identity": "algorithms-official-iapf-v2",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_rbp",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.rbp.runner.RbpAlgorithm.execute_static",
+      "owner": "algorithms",
+      "scientific_version": "official-rbp-v1",
+      "implementation_identity": "algorithms-official-rbp-v1",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_theta_beta",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.theta_beta.official.metric_values",
+      "owner": "algorithms",
+      "scientific_version": "official-theta-beta-v2",
+      "implementation_identity": "algorithms-official-theta-beta-v2",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_peak_frequency",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.peak_frequency.runner.PeakFrequencyAlgorithm",
+      "owner": "algorithms",
+      "scientific_version": "official-peak-frequency-v1",
+      "implementation_identity": "peak-frequency-runtime-v1",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_band_ratio",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.band_ratio.runner.BandRatioAlgorithm",
+      "owner": "algorithms",
+      "scientific_version": "official-band-ratio-v1",
+      "implementation_identity": "band-ratio-runtime-v1",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "validation_official_algorithms",
+      "kind": "validation",
+      "canonical_import": "app.eeg_core.official_algorithms.validation",
+      "owner": "eeg_core",
+      "scientific_version": "validation-reference-v1",
+      "implementation_identity": "independent-validation-reference",
+      "authority": false,
+      "executable": false,
+      "reference_only": true,
+      "delegate_to": "validation-only"
+    }
+  ]
+}

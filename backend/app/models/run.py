@@ -37,6 +37,9 @@ class RunCreateRequest(BaseModel):
     recording_id: str = Field(min_length=1)
     analysis_type: Literal["spectrum", "spectrogram", "definition_metric", "official_algorithm"] = "spectrum"
     config: dict[str, Any] = Field(default_factory=dict)
+    # UI-only state is deliberately outside ``config``. It must never affect
+    # scientific validation, Run identity, cache keys, or result provenance.
+    display_state: dict[str, Any] = Field(default_factory=dict)
     definition_id: str | None = None
     definition_version: str | None = None
     preview: bool = False

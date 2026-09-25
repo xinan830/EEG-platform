@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+from typing import Literal
 
 from .errors import InvalidAnalysisWindowError
+
+
+WindowState = Literal["Partial", "Complete"]
 
 
 @dataclass(frozen=True)
@@ -13,7 +17,12 @@ class AnalysisWindow:
     start_s: float
     end_s: float
     center_s: float
-    warmup: bool = False
+    state: WindowState = "Complete"
+
+    @property
+    def warmup(self) -> bool:
+        """Legacy view retained for callers that have not migrated yet."""
+        return self.state == "Partial"
 
 
 @dataclass(frozen=True)
@@ -29,7 +38,12 @@ class DynamicAnalysisFrame:
     window_start_s: float
     window_end_s: float
     requested_window_s: float
-    warmup: bool
+    state: WindowState
+
+    @property
+    def warmup(self) -> bool:
+        """Legacy view retained for algorithm adapters and old serializers."""
+        return self.state == "Partial"
 
     @property
     def actual_window_s(self) -> float:
@@ -63,7 +77,7 @@ def build_windows(
     epsilon = max(1e-9, step_s * 1e-9)
     while cursor <= last_start + epsilon:
         actual_end = cursor + window_s
-        windows.append(AnalysisWindow(cursor, actual_end, cursor + window_s / 2.0))
+        windows.append(AnalysisWindow(cursor, actual_end, cursor + window_s / 2.0, "Complete"))
         cursor += step_s
     return windows
 
@@ -110,18 +124,18 @@ def build_playback_windows(
         cursor = minimum_window_s
         warmup_end = min(window_s, bounded_end)
         while cursor < warmup_end - epsilon:
-            windows.append(AnalysisWindow(bounded_start, cursor, cursor, True))
+            windows.append(AnalysisWindow(bounded_start, cursor, cursor, "Partial"))
             cursor += step_s
         if bounded_end < window_s - epsilon:
             if not windows or abs(windows[-1].end_s - bounded_end) > epsilon:
-                windows.append(AnalysisWindow(bounded_start, bounded_end, bounded_end, True))
+                windows.append(AnalysisWindow(bounded_start, bounded_end, bounded_end, "Partial"))
             return windows
 
     first_end = window_s if bounded_start <= epsilon else bounded_start + window_s
     cursor = first_end
     while cursor <= bounded_end + epsilon:
         actual_end = min(cursor, bounded_end)
-        windows.append(AnalysisWindow(max(bounded_start, actual_end - window_s), actual_end, actual_end))
+        windows.append(AnalysisWindow(max(bounded_start, actual_end - window_s), actual_end, actual_end, "Complete"))
         cursor += step_s
     return windows
 
@@ -143,7 +157,7 @@ def build_dynamic_analysis_frames(
             window_start_s=window.start_s,
             window_end_s=window.end_s,
             requested_window_s=window_s,
-            warmup=window.warmup,
+            state=window.state,
         )
         for window in build_playback_windows(
             start_s,

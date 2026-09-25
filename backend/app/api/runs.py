@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from app.core.api_contract import error_response
 from app.models.run import RunCreateRequest
 from app.services.analysis_provenance import serialize_analysis_run
-from app.services.runs import RunConflictError, RunService
+from app.services.runs import RetiredUserAlgorithmError, RunConflictError, RunService
 
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -19,6 +19,8 @@ def _service(request: Request) -> RunService:
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
 def create_run(payload: RunCreateRequest, request: Request):
     try:
+        if payload.analysis_type == "definition_metric":
+            raise RetiredUserAlgorithmError()
         service = _service(request)
         run = service.enqueue(payload) if hasattr(service, "enqueue") else service.create(payload)
         worker = getattr(request.app.state, "run_worker", None)
@@ -26,6 +28,8 @@ def create_run(payload: RunCreateRequest, request: Request):
             worker.wake()
     except KeyError:
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except RetiredUserAlgorithmError as exc:
+        return error_response(request, 410, exc.code, "用户自定义算法已经退役，历史运行仍可读取")
     except ValueError as exc:
         return error_response(request, 422, "RUN_REQUEST_INVALID", str(exc))
     request.app.state.audit_service.record(

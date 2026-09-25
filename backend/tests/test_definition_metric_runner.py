@@ -4,10 +4,10 @@ import pytest
 
 from app.eeg_core.definition_engine import DefinitionEngineError
 from app.eeg_core.primitives.units import Unit
-from app.eeg_core.quality import SpectralQualityGateError
+from app.scientific.quality import SpectralQualityGateError
 from app.models.algorithm_definition import DefinitionVersionDraft
 from app.models.definition_metric_run import DefinitionMetricConfig
-from app.services.definition_metric_runner import DefinitionMetricRunner
+from app.legacy.definition_metric_runner import DefinitionMetricRunner
 
 
 def _draft(left_feature: str = "theta_power", right_feature: str = "beta_power") -> DefinitionVersionDraft:

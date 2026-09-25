@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from app.eeg_core.official_algorithm_shadows import shadow_brainbeat, shadow_brainbeat_ema, shadow_faa, shadow_iapf, shadow_rbp, shadow_theta_beta
-from app.eeg_core.official_definitions import ensure_official_definitions, official_definition, official_definition_draft
+from app.eeg_core.official_algorithms.validation import shadow_brainbeat, shadow_brainbeat_ema, shadow_faa, shadow_iapf, shadow_rbp, shadow_theta_beta
+from app.algorithms.catalog import ensure_official_definitions, official_definition, official_definition_draft
 from app.eeg_core.spectral import SpectralEstimate
 from app.services.definitions import DefinitionService
 
@@ -75,6 +75,6 @@ def test_official_definitions_are_immutable_published_records_without_a_shadow_c
     first = ensure_official_definitions(service)
     second = ensure_official_definitions(service)
     assert first == second
-    assert len(service.list()) == 5
+    assert len(service.list()) == 7
     assert official_definition_draft("rbp").graph["outputs"] == ["delta_rbp", "theta_rbp", "alpha_rbp", "beta_rbp"]
     assert official_definition_draft("iapf").quality_rules["execution_kind"] == "official_composite_run_adapter"

@@ -15,27 +15,33 @@ from app.core.provenance import (
     implementation_version,
     sha256_json,
 )
-from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
-from app.eeg_core.primitives.types import Scalar
-from app.eeg_core.quality import SpectralQualityGateError
-from app.eeg_core.official_algorithms.registry import ensure_official_definitions, official_definition_identity
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
+from app.legacy.scalar import Scalar
+from app.scientific.quality import SpectralQualityGateError
+from app.algorithms.catalog import ensure_official_definitions, official_definition_identity
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.definition_metric_run import DefinitionMetricConfig
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
-from app.algorithm_runtime.builtins import build_builtin_registry
+from app.bootstrap import build_builtin_registry
 from app.algorithm_runtime.contracts import DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
 from app.models.definition_preview import DefinitionPreviewRunRequest
 from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredRunError
 from app.services.artifacts import ArtifactStore
-from app.services.definition_metric_runner import DefinitionMetricRunner
 from app.services.definitions import DefinitionService
 from app.services.recordings import RecordingService
 from app.services.run_analysis_executor import RunAnalysisExecutor
-from app.services.run_repository import RunRepository, utc_now
+from app.persistence.clock import utc_now
+from app.persistence.repositories.run import RunRepository
 
 
 class RunConflictError(RuntimeError):
     pass
+
+
+class RetiredUserAlgorithmError(ValueError):
+    """Public creation/execution is closed; stored historical Runs remain readable."""
+
+    code = "USER_DEFINED_ALGORITHM_RETIRED"
 
 
 class RunService:
@@ -44,21 +50,39 @@ class RunService:
         recordings: RecordingService,
         database_path: Path = DATABASE_PATH,
         artifacts_dir: Path = ARTIFACTS_DIR,
+        *,
+        enable_legacy_definition_execution: bool = False,
     ):
         self.recordings = recordings
         self.repository = RunRepository(database_path)
         self.artifacts = ArtifactStore(self.repository, artifacts_dir)
         self.definition_service = DefinitionService(database_path)
         ensure_official_definitions(self.definition_service)
-        self.metric_runner = DefinitionMetricRunner(recordings)
+        # The user-definition executor is retired from production.  Keep its
+        # construction behind the explicit compatibility switch so ordinary
+        # RunService instances (including historical readers) do not import or
+        # initialize executable legacy code.
+        metric_runner = None
+        if enable_legacy_definition_execution:
+            from app.legacy.definition_metric_runner import DefinitionMetricRunner
+
+            metric_runner = DefinitionMetricRunner(recordings)
+        self.metric_runner = metric_runner
         self.algorithm_runtime_registry = build_builtin_registry()
-        self.executor = RunAnalysisExecutor(recordings, self.definition_service, self.metric_runner, self.algorithm_runtime_registry)
+        self.executor = RunAnalysisExecutor(
+            recordings,
+            self.definition_service,
+            self.metric_runner,
+            self.algorithm_runtime_registry,
+            enable_legacy_definition_execution=enable_legacy_definition_execution,
+        )
 
     def create(self, request: RunCreateRequest) -> AnalysisRun:
         recording = self.recordings.require_recording(request.recording_id)
         if not recording.source_sha256:
             raise ValueError("recording source identity is unavailable")
         resolved = self._resolve_request(request, recording)
+        # ``display_state`` belongs to the renderer/session, not the scientific Run.
         config_sha256 = sha256_json(resolved["config"])
         build = implementation_version()
         cache_key = build_cache_key(

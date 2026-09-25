@@ -1,4 +1,4 @@
-"""离线定量分析的公开算法契约。"""
+"""Public contracts for offline and realtime quantitative analysis."""
 
 ANALYSIS_ALGORITHM_VERSION = "offline-spectral-v3"
 
@@ -42,9 +42,6 @@ ANALYSIS_CONTRACT: dict[str, object] = {
     "fatigue_formula": "theta / beta",
     "reference": "original_recording_no_software_rereference",
     "faa_formula": "ln(alpha_power_F4) - ln(alpha_power_F3)",
-    # Static FAA Run analyses exactly the submitted absolute range. The
-    # 12-second initial discard belongs only to the legacy realtime/report
-    # pipeline and is declared in LIVE_ANALYSIS_CONTRACT below.
     "faa_static_scope": "exact_requested_absolute_range",
     "metric_iapf_policy": "global_locked_else_last_candidate_else_10Hz",
     "validation_status": "engineering_verified_not_clinically_validated",

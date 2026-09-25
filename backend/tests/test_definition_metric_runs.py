@@ -25,7 +25,12 @@ def _queue_with_metric_definition(tmp_path: Path) -> tuple[PersistentRunQueue, s
     recording = recordings.create_recording("source.edf", ".edf", b"metric-source")
     with recordings._connect() as connection:
         connection.execute("UPDATE recordings SET sfreq = 100, duration_s = 30, channels_json = '[\"F3\"]' WHERE id = ?", (recording.id,))
-    queue = PersistentRunQueue(recordings, recordings.database_path, tmp_path / "artifacts")
+    queue = PersistentRunQueue(
+        recordings,
+        recordings.database_path,
+        tmp_path / "artifacts",
+        enable_legacy_definition_execution=True,
+    )
     definition = queue.base.definition_service.create(DefinitionCreateRequest(name="Theta/Beta 比值"))
     queue.base.definition_service.create_version(definition.definition_id, DefinitionVersionDraft.model_validate({
         "semver": "1.0.0",
@@ -232,12 +237,13 @@ def test_dynamic_definition_metric_emits_every_available_eight_second_warmup_fra
 
     assert completed is not None and completed.status is RunStatus.COMPLETED
     metric = completed.result_summary["metric"]
-    assert metric["result_contract_version"] == "dynamic-analysis-frame-v4"
+    assert metric["result_contract_version"] == "dynamic-analysis-frame-v5"
     assert [point["time_s"] for point in metric["series"]] == [4.0, 5.0, 6.0, 7.0, 8.0]
     assert all(point["window_start_s"] == 0.0 for point in metric["series"])
     assert [point["window_end_s"] for point in metric["series"]] == [4.0, 5.0, 6.0, 7.0, 8.0]
     assert all(point["warmup"] is True for point in metric["series"])
-    assert all(point["result_contract_version"] == "dynamic-analysis-frame-v4" for point in metric["series"])
+    assert all(point["result_contract_version"] == "dynamic-analysis-frame-v5" for point in metric["series"])
+    assert all(point["analysis_state"] == "Partial" for point in metric["series"])
 
 
 def test_definition_metric_evidence_contract_does_not_reuse_legacy_cache(tmp_path: Path):

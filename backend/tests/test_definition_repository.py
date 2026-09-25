@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.models.algorithm_definition import DefinitionCreateRequest, DefinitionVersionDraft
-from app.services.definition_repository import DefinitionRepository
+from app.persistence.repositories.definition import DefinitionRepository
 
 
 def test_definition_versions_are_digest_deduplicated_and_publish_is_idempotent(tmp_path: Path):

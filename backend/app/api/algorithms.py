@@ -4,13 +4,25 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
-from app.algorithm_runtime.builtins import build_builtin_registry
+from app.bootstrap import build_builtin_registry
 from app.algorithm_runtime.errors import AlgorithmRuntimeError
-from app.algorithms.user_definition import UserDefinitionAlgorithm
-from app.eeg_core.official_algorithms.registry import ensure_official_definitions, official_algorithm_catalog
+from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
+from app.algorithms.catalog import ensure_official_definitions, official_algorithm_catalog
 
 
 router = APIRouter(prefix="/api/algorithms", tags=["algorithms"])
+
+
+def _retired_user_parameter_contract() -> list[dict[str, object]]:
+    """Expose the historical input shape without loading its executor."""
+    return [item.model_dump(mode="json") for item in ParameterSchema(parameters=[
+        AlgorithmParameter(key="channel", label_zh="分析通道", value_type="string", description_zh="从原始记录中选择一个通道。"),
+        AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
+        AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s"),
+        AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s"),
+        AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", required=False),
+        AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", required=False),
+    ]).parameters]
 
 
 def _official_items(request: Request) -> list[dict[str, object]]:
@@ -33,7 +45,7 @@ def _official_items(request: Request) -> list[dict[str, object]]:
                 "abbreviation": official.abbreviation,
                 "description": official.purpose_zh,
                 "parameters": [], "modes": list(official.supported_modes),
-                "output": {"unit": official.output_unit},
+                "output_schema": official.output_schema,
                 "dynamic_policy": {"minimum_window_s": 4.0, "window_options_s": [5.0, 10.0, 20.0, 30.0], "default_window_s": 10.0, "refresh_step_s": 1.0, "allow_warmup": True},
                 "availability": official.availability, "is_runnable": False,
                 "definition_id": official.definition_id,
@@ -57,7 +69,7 @@ def _official_items(request: Request) -> list[dict[str, object]]:
             "description": manifest.purpose_zh,
             "parameters": [item.model_dump(mode="json") for item in module.parameter_schema().parameters],
             "modes": list(manifest.supported_modes),
-            "output": {"unit": manifest.output_unit},
+            "output_schema": manifest.output_schema,
             "dynamic_policy": manifest.dynamic_policy.model_dump(mode="json"),
             "availability": official.availability,
             "is_runnable": official.is_runnable,
@@ -81,7 +93,6 @@ def _user_items(request: Request) -> list[dict[str, object]]:
         # The persisted JSON graph schema is for graph validation.  The
         # runtime-facing input card must use the same typed contract as an
         # official module, so the browser never has to infer EEG parameters.
-        runtime_module = UserDefinitionAlgorithm(definition.definition_id, version, metric_runner=None)
         items.append({
             "source": "user",
             "id": definition.definition_id,
@@ -89,12 +100,18 @@ def _user_items(request: Request) -> list[dict[str, object]]:
             "display_name_zh": definition.name,
             "abbreviation": definition.name,
             "description": definition.description,
-            "parameters": [item.model_dump(mode="json") for item in runtime_module.parameter_schema().parameters],
-            "modes": list(runtime_module.manifest.supported_modes),
-            "output": {"unit": runtime_module.manifest.output_unit},
-            "dynamic_policy": runtime_module.manifest.dynamic_policy.model_dump(mode="json"),
-            "availability": "available",
-            "is_runnable": True,
+            "parameters": _retired_user_parameter_contract(),
+            "modes": ["static", "dynamic"],
+            "output": {"unit": str(next(iter(version.outputs.values()), {}).get("unit", "dimensionless"))},
+            "dynamic_policy": {"minimum_window_s": 4.0, "window_options_s": [5.0, 10.0, 20.0, 30.0], "default_window_s": 10.0, "refresh_step_s": 1.0, "allow_warmup": True},
+            # The catalog advertises the retirement state; legacy definition
+            # and historical Run endpoints remain available during migration.
+            "availability": "retired",
+            "status": "retired",
+            "is_runnable": False,
+            "executable": False,
+            "creatable": False,
+            "editable": False,
         })
     return items
 

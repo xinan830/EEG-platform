@@ -8,7 +8,7 @@ from typing import Any
 from app.eeg_core.definition_engine import DefinitionEngineError
 from app.eeg_core.primitives.types import Scalar
 from app.eeg_core.primitives.units import Unit
-from app.eeg_core.quality import SpectralQualityGateError
+from app.scientific.quality.spectral import SpectralQualityGateError
 from app.models.algorithm_definition import DefinitionVersionDraft
 from app.models.definition_metric_run import DefinitionMetricConfig
 

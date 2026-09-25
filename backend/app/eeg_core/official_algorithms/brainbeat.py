@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from app.algorithm_runtime.contracts import AlgorithmManifest
-from app.eeg_core.analysis_contract import LIVE_ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import LIVE_ANALYSIS_CONTRACT
 
 
 # BrainBeat remains an official, non-runnable descriptor until its stateful
@@ -18,7 +18,7 @@ BRAINBEAT_MANIFEST = AlgorithmManifest(
     scientific_version=LIVE_ANALYSIS_CONTRACT["algorithm_version"],
     implementation_identity="realtime-eegprocessor-v1",
     supported_modes=[],
-    output_unit="dimensionless",
+    output_schema={"fields": [{"name": "brainbeat", "unit": "ratio", "meaning": "前额 Theta 与顶区 Alpha 相对功率关系"}]},
     definition_name="Official BRAINBEAT",
     execution_kind="official_composite_shadow_only",
     availability="shadow_validation",

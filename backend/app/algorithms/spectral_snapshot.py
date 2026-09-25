@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot
-from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 
 def spectral_execution_snapshot(config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:

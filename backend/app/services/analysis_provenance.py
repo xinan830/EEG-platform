@@ -148,6 +148,7 @@ def build_analysis_provenance(run: AnalysisRun) -> dict[str, object]:
     actual_range = actual_range or _range(metric.get("actual_range")) or _range(run.actual_range)
     quality = point.get("source_quality") or metric.get("source_quality") or evidence.get("quality")
     quality_payload = _as_dict(quality) or None
+    sample_coordinate = _as_dict(official.get("sample_coordinate")) or None
     channel = point.get("channel") or metric.get("channel") or run.config.get("channel")
 
     faa_fields = _faa_provenance_fields(faa_evidence) if faa_evidence else {}
@@ -167,6 +168,7 @@ def build_analysis_provenance(run: AnalysisRun) -> dict[str, object]:
         "mode": mode,
         "requested_range": _range(run.requested_range),
         "actual_range": actual_range,
+        "sample_coordinate": sample_coordinate,
         "channel": str(channel) if channel is not None else None,
         "channel_mapping": run.channel_mapping,
         "analysis_reference": evidence.get("analysis_reference", run.reference),

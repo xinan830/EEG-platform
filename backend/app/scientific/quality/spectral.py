@@ -6,7 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
+from app.scientific.contracts.types import GapEvidence
 
 
 @dataclass(frozen=True)
@@ -14,6 +15,7 @@ class WindowQuality:
     status: str
     reasons: tuple[str, ...]
     peak_uv: float | None
+    gap: GapEvidence
 
 
 class SpectralQualityGateError(ValueError):
@@ -22,16 +24,22 @@ class SpectralQualityGateError(ValueError):
         self.quality = quality
 
 
-def evaluate_spectral_window(
-    data: np.ndarray,
-    expected_samples: int,
-) -> WindowQuality:
+def evaluate_spectral_window(data: np.ndarray, expected_samples: int) -> WindowQuality:
     """Evaluate one samples-by-channels window without altering its values."""
     values = np.asarray(data, dtype=float)
     reasons: list[str] = []
     if values.ndim != 2 or len(values) != expected_samples:
         reasons.append("missing_samples")
-    finite = values.ndim == 2 and bool(np.isfinite(values).all())
+    finite_mask = np.isfinite(values) if values.ndim == 2 else np.empty((0, 0), dtype=bool)
+    finite = values.ndim == 2 and bool(finite_mask.all())
+    missing_samples = max(expected_samples - len(values), 0) if values.ndim == 2 else expected_samples
+    non_finite_samples = int(np.count_nonzero(~finite_mask.all(axis=1))) if values.ndim == 2 and len(values) else 0
+    gap = GapEvidence(
+        detected=missing_samples > 0 or non_finite_samples > 0,
+        policy="reject",
+        missing_samples=missing_samples,
+        non_finite_samples=non_finite_samples,
+    )
     if not finite:
         reasons.append("non_finite")
         peak_uv = None
@@ -46,7 +54,7 @@ def evaluate_spectral_window(
         if values.size and _has_clipping(values):
             reasons.append("clipping")
     unique = tuple(dict.fromkeys(reasons))
-    return WindowQuality("bad" if unique else "clean", unique, peak_uv)
+    return WindowQuality("bad" if unique else "clean", unique, peak_uv, gap)
 
 
 def _has_clipping(values: np.ndarray) -> bool:

@@ -33,9 +33,12 @@ from app.services.independent_spectral_reference import IndependentSpectralRefer
 from app.services.extension_governance import ExtensionGovernanceService
 from app.api.extensions import router as extensions_router
 from app.api.algorithms import router as algorithms_router
+from app.api.algorithm_presets import router as algorithm_presets_router
 from app.api.live_filters import router as live_filters_router
 from app.services.live_filter import LiveFilterService
-from app.algorithm_runtime.builtins import build_builtin_registry
+from app.bootstrap import build_builtin_registry
+from app.services.algorithm_presets import AlgorithmPresetService
+from app.core.config import DATABASE_PATH
 from app.core.api_contract import (
     RequestContextMiddleware,
     http_exception_handler,
@@ -83,6 +86,10 @@ app.state.independent_spectral_reference_service = IndependentSpectralReferenceS
 )
 app.state.extension_governance_service = ExtensionGovernanceService()
 app.state.algorithm_runtime_registry = build_builtin_registry()
+app.state.algorithm_preset_service = AlgorithmPresetService(
+    app.state.algorithm_runtime_registry,
+    DATABASE_PATH,
+)
 app.state.live_filter_service = LiveFilterService()
 app.include_router(recordings_router)
 app.include_router(analyses_router)
@@ -98,6 +105,7 @@ app.include_router(batch_runs_router)
 app.include_router(results_router)
 app.include_router(extensions_router)
 app.include_router(algorithms_router)
+app.include_router(algorithm_presets_router)
 app.include_router(live_filters_router)
 
 

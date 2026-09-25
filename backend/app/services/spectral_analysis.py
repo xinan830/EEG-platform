@@ -14,10 +14,11 @@ from typing import Any
 
 import numpy as np
 
-from app.eeg_core.analysis_contract import ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.core.provenance import implementation_version
-from app.eeg_core.quality import SpectralQualityGateError
-from app.eeg_core.spectral import band_power, estimate_spectrogram_with_quality, estimate_welch_psd, preprocess_offline
+from app.scientific.quality import SpectralQualityGateError
+from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY, ScientificSpectralGateway
+from app.scientific.primitives import preprocess_offline as preprocess_offline
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.recording import RecordingSummary
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
@@ -30,6 +31,13 @@ FREQUENCY_BANDS = {
     "alpha": (8.0, 13.0),
     "beta": (13.0, 30.0),
 }
+
+
+class _ServiceSpectralGateway(ScientificSpectralGateway):
+    """Default adapter retaining the historical preprocess monkeypatch seam."""
+
+    def preprocess(self, data: np.ndarray, sfreq_hz: float) -> np.ndarray:
+        return preprocess_offline(data, sfreq_hz)
 
 
 def _configured_provenance(payload: dict[str, object], *, mode: str, requested_time: dict[str, float], actual_start: float, actual_end: float, config_hash: str, quality: dict[str, object]) -> dict[str, object]:
@@ -60,9 +68,10 @@ def _configured_provenance(payload: dict[str, object], *, mode: str, requested_t
 class SpectralAnalysisService:
     """Compute frozen PSD and spectrogram contracts from one recording loader."""
 
-    def __init__(self, recordings: Any, preprocess_cache: AnalysisPreprocessCache):
+    def __init__(self, recordings: Any, preprocess_cache: AnalysisPreprocessCache, spectral_gateway: ScientificSpectralGateway | None = None):
         self.recordings = recordings
         self.preprocess_cache = preprocess_cache
+        self.spectral_gateway = spectral_gateway or _ServiceSpectralGateway()
 
     def load_spectrum(
         self,
@@ -76,7 +85,7 @@ class SpectralAnalysisService:
         cached = self.preprocess_cache.get(recording.id, version)
         if cached is None:
             data, sfreq, names, _events = self.recordings.load_data(recording)
-            filtered_all = preprocess_offline(np.asarray(data, dtype=float), sfreq)
+            filtered_all = self.spectral_gateway.preprocess(np.asarray(data, dtype=float), sfreq)
             cached = PreprocessedRecording(filtered_all, sfreq, tuple(names))
             self.preprocess_cache.put(recording.id, version, cached)
         filtered_all, sfreq, names = cached.data, cached.sfreq, list(cached.channel_names)
@@ -97,7 +106,7 @@ class SpectralAnalysisService:
         window = filtered[start_index:stop_index]
         if len(window) < int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * sfreq)):
             raise ValueError("频谱分析窗口至少需要 4 秒")
-        spectrum = estimate_welch_psd(window, sfreq)
+        spectrum = self.spectral_gateway.welch(window, sfreq)
         if spectrum.gate_failed:
             raise SpectralQualityGateError({
                 "clean_segments": spectrum.clean_epochs,
@@ -105,11 +114,12 @@ class SpectralAnalysisService:
                 "clean_ratio": spectrum.signal_quality,
                 "gate_failed": spectrum.gate_failed,
                 "rejected_reasons": list(spectrum.rejected_reasons),
+                "evidence": dict(spectrum.evidence),
             })
         psd_uv = spectrum.psd * 1e12
         absolute = {
             name: {
-                band: float(band_power(spectrum.freqs, spectrum.psd[index], *edges) * 1e12)
+                band: float(self.spectral_gateway.integrate_band(spectrum.freqs, spectrum.psd[index], *edges) * 1e12)
                 for band, edges in FREQUENCY_BANDS.items()
             }
             for index, name in enumerate(requested_names)
@@ -161,7 +171,7 @@ class SpectralAnalysisService:
         indexes = [list(cached.channel_names).index(name) for name in names]
         start_index = int(np.floor(float(start_s) * cached.sfreq))
         stop_index = min(len(cached.data), start_index + int(round(float(window_s) * cached.sfreq)))
-        times, freqs, values, quality = estimate_spectrogram_with_quality(
+        times, freqs, values, quality = self.spectral_gateway.spectrogram(
             cached.data[start_index:stop_index, :][:, indexes], cached.sfreq,
         )
         power_uv = values * 1e12
@@ -171,7 +181,7 @@ class SpectralAnalysisService:
         band_series = {
             name: {
                 band: [
-                    float(band_power(freqs, row, low, high) * 1e12) if np.isfinite(row).all() else float("nan")
+                    float(self.spectral_gateway.integrate_band(freqs, row, low, high) * 1e12) if np.isfinite(row).all() else float("nan")
                     for row in values[:, index, :]
                 ]
                 for band, (low, high) in FREQUENCY_BANDS.items()
@@ -208,6 +218,11 @@ class SpectralAnalysisService:
                 "clean_windows": sum(item["status"] == "clean" for item in quality),
                 "total_windows": len(quality),
                 "bad_windows": sum(item["status"] == "bad" for item in quality),
+                "evidence": {
+                    "schema_version": "spectrogram-window-evidence-v1",
+                    "transform_padding": {"used": False, "kind": "none", "samples": 0},
+                    "gap_detected_windows": sum(bool(item["gap"]["detected"]) for item in quality),
+                },
             },
         }
 
@@ -282,7 +297,7 @@ class SpectralAnalysisService:
             for name in payload["channels"]:
                 rows = np.asarray(source[name], dtype=float)
                 custom_series[name] = [
-                    float(band_power(freqs, row, custom_range.low_hz, custom_range.high_hz))
+                    float(self.spectral_gateway.integrate_band(freqs, row, custom_range.low_hz, custom_range.high_hz))
                     if np.isfinite(row).all() else float("nan")
                     for row in rows
                 ]
