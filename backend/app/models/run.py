@@ -35,7 +35,7 @@ class StructuredRunError(BaseModel):
 
 class RunCreateRequest(BaseModel):
     recording_id: str = Field(min_length=1)
-    analysis_type: Literal["spectrum", "spectrogram", "definition_metric", "official_algorithm"] = "spectrum"
+    analysis_type: Literal["spectrum", "spectrogram", "official_algorithm"] = "spectrum"
     config: dict[str, Any] = Field(default_factory=dict)
     # UI-only state is deliberately outside ``config``. It must never affect
     # scientific validation, Run identity, cache keys, or result provenance.

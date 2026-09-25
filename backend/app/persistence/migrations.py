@@ -284,6 +284,31 @@ def _migration_009_algorithm_parameter_presets(connection: sqlite3.Connection) -
     )
 
 
+def _migration_010_remove_retired_user_algorithm_data(connection: sqlite3.Connection) -> None:
+    """Delete test-era user-algorithm data while preserving raw recordings."""
+    connection.execute(
+        """DELETE FROM run_artifacts
+           WHERE run_id IN (
+               SELECT run_id FROM analysis_runs
+               WHERE analysis_type IN ('definition_metric', 'definition_preview')
+                  OR is_preview = 1
+           )"""
+    )
+    connection.execute(
+        """DELETE FROM analysis_runs
+           WHERE analysis_type IN ('definition_metric', 'definition_preview')
+              OR is_preview = 1"""
+    )
+    connection.execute(
+        """DELETE FROM algorithm_definition_versions
+           WHERE definition_id IN (
+               SELECT definition_id FROM algorithm_definitions WHERE owner = 'local-user'
+           )"""
+    )
+    connection.execute("DELETE FROM algorithm_definitions WHERE owner = 'local-user'")
+    connection.execute("DROP TABLE IF EXISTS analyses")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "legacy-tables", _migration_001_legacy_tables),
     Migration(2, "recording-identity", _migration_002_recording_identity),
@@ -294,6 +319,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(7, "validation-evidence", _migration_007_validation_evidence),
     Migration(8, "retire-active-recording-mapping", _migration_008_retire_active_recording_mapping),
     Migration(9, "algorithm-parameter-presets", _migration_009_algorithm_parameter_presets),
+    Migration(10, "remove-retired-user-algorithm-data", _migration_010_remove_retired_user_algorithm_data),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

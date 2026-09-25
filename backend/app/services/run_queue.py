@@ -14,7 +14,7 @@ from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredR
 from app.services.recordings import RecordingService
 from app.persistence.clock import utc_now
 from app.persistence.repositories.run import RunRepository
-from app.services.runs import RetiredUserAlgorithmError, RunService
+from app.services.runs import RunService
 
 
 class PersistentRunQueue:
@@ -38,8 +38,6 @@ class PersistentRunQueue:
     def enqueue(self, request: RunCreateRequest, *, parent_run_id: str | None = None) -> AnalysisRun:
         if request.preview:
             raise ValueError("definition previews use their dedicated endpoint")
-        if request.analysis_type == "definition_metric":
-            raise RetiredUserAlgorithmError("用户自定义算法已经退役，历史运行仍可读取")
         if request.idempotency_key:
             existing = self.repository.find_idempotency_key(request.idempotency_key)
             if existing is not None:
@@ -79,16 +77,6 @@ class PersistentRunQueue:
             if self._is_cancelled(run.run_id):
                 return self.repository.update_status(run.run_id, RunStatus.CANCELLED)
             recording = self.recordings.require_recording(run.recording_id)
-            if run.analysis_type == "definition_metric":
-                return self.repository.update_status(
-                    run.run_id,
-                    RunStatus.FAILED,
-                    error=StructuredRunError(
-                        code=RetiredUserAlgorithmError.code,
-                        message="用户自定义算法已经退役，历史运行仍可读取",
-                        stage="analysis",
-                    ),
-                )
             request = RunCreateRequest(recording_id=run.recording_id, analysis_type=run.analysis_type, config=run.config,
                                        definition_id=run.definition_id, definition_version=run.definition_version)
             resolved = self.base._resolve_request(request, recording)

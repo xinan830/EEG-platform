@@ -45,4 +45,4 @@ def test_active_catalog_excludes_historical_user_algorithms(tmp_path, monkeypatc
     assert response.status_code == 200
     assert all(item["source"] == "official" for item in response.json()["algorithms"])
     assert not any(item["id"] == definition.definition_id for item in response.json()["algorithms"])
-    assert TestClient(app).get(f"/api/algorithm-definitions/{definition.definition_id}").status_code == 200
+    assert TestClient(app).get(f"/api/algorithm-definitions/{definition.definition_id}").status_code == 404

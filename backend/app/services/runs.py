@@ -35,12 +35,6 @@ class RunConflictError(RuntimeError):
     pass
 
 
-class RetiredUserAlgorithmError(ValueError):
-    """Public creation/execution is closed; stored historical Runs remain readable."""
-
-    code = "USER_DEFINED_ALGORITHM_RETIRED"
-
-
 class RunService:
     def __init__(
         self,
@@ -60,8 +54,6 @@ class RunService:
         )
 
     def create(self, request: RunCreateRequest) -> AnalysisRun:
-        if request.analysis_type == "definition_metric":
-            raise RetiredUserAlgorithmError("用户自定义算法已经退役，历史运行仍可读取")
         recording = self.recordings.require_recording(request.recording_id)
         if not recording.source_sha256:
             raise ValueError("recording source identity is unavailable")
@@ -179,8 +171,6 @@ class RunService:
         return self.repository.list_artifacts(source_id)
 
     def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
-        if request.analysis_type == "definition_metric":
-            raise RetiredUserAlgorithmError("用户自定义算法已经退役，历史运行仍可读取")
         run_definition_id = request.definition_id
         run_definition_version = request.definition_version
         if request.analysis_type == "official_algorithm":

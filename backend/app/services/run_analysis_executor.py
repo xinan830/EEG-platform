@@ -143,9 +143,6 @@ class RunAnalysisExecutor:
         self.algorithm_runtime = AlgorithmRuntime(algorithm_registry) if algorithm_registry is not None else None
 
     def execute(self, analysis_type: str, recording: Any, resolved: dict[str, Any]):
-        if analysis_type == "definition_metric":
-            raise ValueError("用户自定义算法已经退役，历史运行仍可读取")
-
         if analysis_type == "official_algorithm":
             return self._execute_official_algorithm(recording, resolved)
 

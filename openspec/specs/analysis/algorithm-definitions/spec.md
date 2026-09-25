@@ -1,63 +1,43 @@
 # analysis/algorithm-definitions Specification
 
 ## Purpose
-Define immutable, versioned and safely executable backend algorithm definitions
-that compose approved research primitives without modifying current official
-EEG result paths.
+
+Persist immutable Definition identities and versions used as provenance for
+official Runtime algorithms. This is an internal contract, not a user formula
+builder or executable extension point.
+
 ## Requirements
-### Requirement: Persist immutable published definitions
 
-The system SHALL store an algorithm identity and SemVer versions whose published
-graph, parameters, input/output units, quality rules and references cannot be
-modified in place.
+### Requirement: Persist immutable official definitions
 
-#### Scenario: Publish a correction
-- **WHEN** a published definition requires a changed parameter or graph
-- **THEN** the system SHALL require a new SemVer version and retain the prior version unchanged
+The system SHALL store the identity and SemVer version of each official
+algorithm used by a Run. Published graph, parameters, input/output units,
+quality rules, and references SHALL be immutable.
 
-### Requirement: Validate safe closed graphs
+#### Scenario: Official Run records its Definition identity
 
-The system SHALL reject unknown nodes, cycles, missing bindings, incompatible
-types or units, missing required channels and invalid parameters before
-execution.
+- **WHEN** an official algorithm Run is created
+- **THEN** the Run stores the official Definition id, version, and digest
+- **AND THEN** the Definition is resolved from the Runtime catalog
 
-#### Scenario: Reject a cycle
-- **WHEN** graph edges form a cycle
-- **THEN** execution SHALL not start and return structured code `GRAPH_CYCLE`
+### Requirement: Do not expose user authoring
 
-### Requirement: Restrict formulas
+The system SHALL NOT expose Definition creation, editing, publishing, cloning,
+deletion, validation, preview, or Definition-based execution routes.
 
-The system SHALL only accept parsed named inputs, numeric constants,
-parentheses, approved arithmetic and whitelisted functions; it SHALL never
-execute arbitrary Python.
+#### Scenario: User-authoring route is requested
 
-#### Scenario: Reject attribute access
-- **WHEN** a formula contains an attribute, import, index or unknown function
-- **THEN** validation SHALL fail with `FORMULA_INVALID`
+- **WHEN** a client requests a retired Definition-authoring route
+- **THEN** the API responds as an unknown route
 
-### Requirement: Preserve quality and provenance at execution
+### Requirement: Preserve scientific provenance
 
-The executor SHALL retain each primitive's quality and provenance. Unavailable
-scientific values SHALL remain unavailable and shall not become numerical zero.
+Definition records SHALL preserve the official algorithm identity without
+changing the algorithm's formula, units, quality rules, or result contract.
 
-#### Scenario: Divide by zero
-- **WHEN** a graph divides by a zero-valued scalar
-- **THEN** the output SHALL be unavailable with reason `division_by_zero`
+#### Scenario: Official catalog is loaded
 
-### Requirement: Preserve legacy result compatibility
-
-The introduction of definitions SHALL not remove or alter current spectrum,
-spectrogram, Viewer, or official algorithm API behaviour.
-
-#### Scenario: Request frozen spectrum
-- **WHEN** a caller uses `/spectrum/configured`
-- **THEN** it SHALL continue to use `offline-spectral-v3`, independent of draft definitions
-
-### Requirement: Definition capabilities report supported primitive and official execution types
-
-The system SHALL return supported primitive nodes, units, and official execution kinds from `GET /api/algorithm-definitions/capabilities`. Official execution kinds SHALL be derived from the official algorithm registry rather than a separate route-local mapping.
-
-#### Scenario: Capability and catalog execution kinds agree
-
-- **WHEN** a client loads both Definition capabilities and the official algorithm catalog
-- **THEN** each official algorithm id has the same execution kind in both responses.
+- **WHEN** the official algorithm catalog is requested
+- **THEN** every runnable item exposes its Runtime scientific version and
+  Definition version
+- **AND THEN** no user-authored Definition appears in the catalog

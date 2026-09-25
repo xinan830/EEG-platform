@@ -3,11 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ApiRequestError } from '../api/client'
 import { exportUrl, getResultView, listRunSummaries, type ResultView, type RunSummary } from '../api/results'
 import { validateSpectralReference, type SpectralReferenceValidation } from '../api/spectralValidation'
-import DefinitionMetricResultCard from './DefinitionMetricResultCard.vue'
-import DefinitionMetricTrendChart from './DefinitionMetricTrendChart.vue'
-import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
-import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
-import { definitionMetricFromRun, isDynamicMetricResult, resultRunLabel } from '../utils/resultMetric'
+import { resultRunLabel } from '../utils/resultMetric'
 
 const props = defineProps<{ recordingId: string; startS: number; endS: number; channels: string[] }>()
 const emit = defineEmits<{ close: [] }>()
@@ -17,15 +13,6 @@ const loading = ref(false)
 const error = ref('')
 const validation = ref<SpectralReferenceValidation | null>(null)
 const validating = ref(false)
-const selectedMetric = computed(() => definitionMetricFromRun(selected.value?.run))
-const selectedStaticMetric = computed<DefinitionMetricResult | null>(() => {
-  const metric = selectedMetric.value
-  return metric && !isDynamicMetricResult(metric) ? metric : null
-})
-const selectedDynamicMetric = computed<DynamicMetric | null>(() => {
-  const metric = selectedMetric.value
-  return metric && isDynamicMetricResult(metric) ? metric : null
-})
 
 function describe(cause: unknown) {
   return cause instanceof ApiRequestError ? `${cause.code ?? 'REQUEST_FAILED'}: ${cause.message}` : '结果读取失败'
@@ -80,10 +67,6 @@ onMounted(load)
               <p>算法版本：{{ selected.run.scientific_version }} · 实现：{{ selected.run.implementation_version }}</p>
               <p v-if="selected.run.error">质量/错误：{{ selected.run.error.code }} · {{ selected.run.error.message }}</p>
             </section>
-            <DefinitionMetricResultCard v-if="selectedStaticMetric" :result="selectedStaticMetric" />
-            <DefinitionMetricTrendChart v-else-if="selectedDynamicMetric" :result="selectedDynamicMetric" />
-            <p v-else-if="selected.run.analysis_type === 'definition_metric' && selected.run.status === 'completed'">本次算法 Run 没有可呈现的后端指标数据。</p>
-            <p v-else-if="selected.run.analysis_type === 'definition_metric'">算法正在运行或未通过质量门；结果生成后会显示后端返回的数值与图表。</p>
             <p>数据类别：算法输出；不包含临床结论。Artifact：{{ selected.artifacts.length }} 个</p>
             <a :href="exportUrl(selected.run.run_id, validation?.validation_id)">导出可复现 ZIP</a>
           </template>
