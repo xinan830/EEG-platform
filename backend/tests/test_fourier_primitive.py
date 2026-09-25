@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from app.scientific.primitives import real_fft
+from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY, real_fft
 
 
 def test_real_fft_matches_numpy_and_preserves_channel_order_and_range():
@@ -31,6 +31,19 @@ def test_real_fft_reports_transform_padding_separately_from_input_gap():
 
     with pytest.raises(ValueError, match="non-finite"):
         real_fft(np.array([[1.0], [np.nan]]), 100.0, transform_length=4)
+
+
+def test_spectral_gateway_exposes_the_same_canonical_fft():
+    values = np.arange(16, dtype=float)[:, None] * 1e-6
+    direct = real_fft(values, 200.0, start_sample=7, transform_length=32)
+    via_gateway = DEFAULT_SPECTRAL_GATEWAY.fourier(
+        values, 200.0, start_sample=7, transform_length=32,
+    )
+
+    np.testing.assert_array_equal(via_gateway.frequencies_hz, direct.frequencies_hz)
+    np.testing.assert_array_equal(via_gateway.coefficients_v, direct.coefficients_v)
+    assert via_gateway.sample_range == direct.sample_range
+    assert via_gateway.transform_padding == direct.transform_padding
 
 
 @pytest.mark.parametrize(
