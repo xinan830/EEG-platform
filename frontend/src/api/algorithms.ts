@@ -22,7 +22,7 @@ export type DynamicAnalysisPolicy = {
 }
 
 export type AlgorithmCatalogItem = {
-  source: 'official' | 'user'
+  source: 'official'
   id: string
   version: string
   display_name_zh: string

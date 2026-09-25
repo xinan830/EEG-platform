@@ -4,9 +4,6 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import DATABASE_PATH
-from app.models.analysis import AnalysisSummary
-from app.scientific.contracts.analysis import ANALYSIS_ALGORITHM_VERSION
-from app.models.run import RunCreateRequest, RunStatus
 from app.persistence import connect_database
 from app.services.recordings import RecordingService
 from app.services.runs import RunService
@@ -32,10 +29,6 @@ class AnalysisService:
 
     def _connect(self) -> sqlite3.Connection:
         return connect_database(self.database_path)
-
-    def create_analysis(self, recording_id: str) -> AnalysisSummary:
-        self.recordings.require_recording(recording_id)
-        raise RuntimeError("LEGACY_ANALYSIS_RETIRED")
 
     def get_result(self, analysis_id: str) -> dict:
         # New legacy-compatible analyses are AnalysisRuns.  Keep the old table

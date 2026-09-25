@@ -1,128 +1,64 @@
 import sqlite3
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.algorithm_definition import DefinitionCreateRequest
+from app.models.algorithm_definition import DefinitionCreateRequest, DefinitionVersionDraft
 from app.services.definitions import DefinitionService
 
 
-def _draft(semver: str = "1.0.0") -> dict[str, object]:
-    return {"semver": semver, "graph": {"nodes": [{"id": "out", "type": "output", "inputs": {"source": "$input.value"}}], "outputs": ["out"]},
-            "parameter_schema": {"type": "object", "additionalProperties": False}}
-
-
-def test_definition_api_persists_versions_publish_clone_compare_and_errors(tmp_path: Path):
-    app.state.definition_service = DefinitionService(tmp_path / "definitions.sqlite3")
-    client = TestClient(app)
-    created = client.post("/api/algorithm-definitions", json={"name": "Ratio", "description": "test"})
-    assert created.status_code == 201
-    definition_id = created.json()["definition_id"]
-
-    version = client.post(f"/api/algorithm-definitions/{definition_id}/versions", json=_draft())
-    assert version.status_code == 201
-    published = client.post(f"/api/algorithm-definitions/{definition_id}/versions/1.0.0/publish")
-    assert published.json()["state"] == "published"
-    listed = client.get(f"/api/algorithm-definitions/{definition_id}/versions")
-    assert listed.json()[0]["digest_sha256"] == version.json()["digest_sha256"]
-    clone = client.post(f"/api/algorithm-definitions/{definition_id}/clone", json={})
-    assert clone.status_code == 201 and clone.json()["definition_id"] != definition_id
-    invalid = client.post("/api/algorithm-definitions/validate", json={"draft": {**_draft(), "parameter_schema": {"type": "object", "patternProperties": {}}}})
-    assert invalid.status_code == 422
-    assert invalid.json()["code"] == "PARAMETER_INVALID"
-
-
-def test_definition_capabilities_expose_closed_backend_authoring_vocabulary(tmp_path: Path):
-    app.state.definition_service = DefinitionService(tmp_path / "definitions.sqlite3")
-    response = TestClient(app).get("/api/algorithm-definitions/capabilities")
-
-    assert response.status_code == 200
-    assert "welch_psd" in response.json()["nodes"]
-    assert "V^2/Hz" in response.json()["units"]
-    assert response.json()["official_execution"]["iapf"] == "official_composite_run_adapter"
-
-
-def test_definition_api_deletes_unpublished_private_definition_only(tmp_path: Path):
-    app.state.definition_service = DefinitionService(tmp_path / "definitions.sqlite3")
-    client = TestClient(app)
-    created = client.post("/api/algorithm-definitions", json={"name": "My Ratio", "description": "private"})
-    definition_id = created.json()["definition_id"]
-
-    deleted = client.delete(f"/api/algorithm-definitions/{definition_id}")
-
-    assert deleted.status_code == 204
-    assert client.get(f"/api/algorithm-definitions/{definition_id}").status_code == 404
-
-
-def test_definition_api_rejects_platform_owner_and_protects_installed_official_definition(tmp_path: Path):
-    service = DefinitionService(tmp_path / "definitions.sqlite3")
-    app.state.definition_service = service
-    client = TestClient(app)
-
-    spoofed = client.post("/api/algorithm-definitions", json={"name": "Spoof", "owner": "platform-official"})
-    assert spoofed.status_code == 422
-    assert spoofed.json()["code"] == "DEFINITION_OWNER_FORBIDDEN"
-
-    installed = service.create(DefinitionCreateRequest(name="Installed", owner="platform-official"))
-    protected = client.delete(f"/api/algorithm-definitions/{installed.definition_id}")
-    assert protected.status_code == 409
-    assert protected.json()["code"] == "DEFINITION_DELETE_FORBIDDEN"
-
-    cloned = client.post(f"/api/algorithm-definitions/{installed.definition_id}/clone", json={})
-    assert cloned.status_code == 201
-    assert cloned.json()["owner"] == "local-user"
-
-
-def test_definition_api_deletes_private_definitions_referenced_by_completed_runs_or_batches(tmp_path: Path):
-    database_path = tmp_path / "definitions.sqlite3"
+def _historical_definition(database_path: Path) -> tuple[DefinitionService, str]:
     service = DefinitionService(database_path)
-    app.state.definition_service = service
+    definition = service.create(DefinitionCreateRequest(name="Historical ratio", owner="local-user"))
+    service.create_version(definition.definition_id, DefinitionVersionDraft(
+        semver="1.0.0",
+        graph={"nodes": [{"id": "out", "type": "output", "inputs": {"source": "$input.value"}}], "outputs": ["out"]},
+        parameter_schema={"type": "object", "additionalProperties": False},
+    ))
+    service.publish(definition.definition_id, "1.0.0")
+    return service, definition.definition_id
+
+
+def test_historical_definitions_and_versions_remain_readable(tmp_path: Path, monkeypatch):
+    service, definition_id = _historical_definition(tmp_path / "definitions.sqlite3")
+    monkeypatch.setattr(app.state, "definition_service", service)
     client = TestClient(app)
-    run_definition = service.create(DefinitionCreateRequest(name="Run referenced"))
-    batch_definition = service.create(DefinitionCreateRequest(name="Batch referenced"))
-    queued_definition = service.create(DefinitionCreateRequest(name="Queued referenced"))
 
+    assert any(item["definition_id"] == definition_id for item in client.get("/api/algorithm-definitions").json())
+    assert client.get(f"/api/algorithm-definitions/{definition_id}").json()["name"] == "Historical ratio"
+    versions = client.get(f"/api/algorithm-definitions/{definition_id}/versions").json()
+    assert versions[0]["state"] == "published"
+    comparison = client.get(f"/api/algorithm-definitions/{definition_id}/versions/1.0.0/compare/1.0.0")
+    assert comparison.status_code == 200
+    assert comparison.json()["same_digest"] is True
+
+
+@pytest.mark.parametrize(("method", "path"), [
+    ("get", "/api/algorithm-definitions/capabilities"),
+    ("post", "/api/algorithm-definitions"),
+    ("post", "/api/algorithm-definitions/validate"),
+    ("post", "/api/algorithm-definitions/preview"),
+    ("post", "/api/algorithm-definitions/preview-run"),
+    ("post", "/api/algorithm-definitions/{id}/versions"),
+    ("post", "/api/algorithm-definitions/{id}/versions/1.0.0/publish"),
+    ("post", "/api/algorithm-definitions/{id}/clone"),
+    ("delete", "/api/algorithm-definitions/{id}"),
+])
+def test_authoring_routes_are_retired_without_writes(tmp_path: Path, monkeypatch, method: str, path: str):
+    database_path = tmp_path / "definitions.sqlite3"
+    service, definition_id = _historical_definition(database_path)
+    monkeypatch.setattr(app.state, "definition_service", service)
     with sqlite3.connect(database_path) as connection:
-        connection.execute(
-            """INSERT INTO analysis_runs (
-                run_id, recording_id, analysis_type, status, definition_id,
-                scientific_version, implementation_version, config_json, config_sha256,
-                cache_key, requested_range_json, channel_mapping_json, reference_json,
-                filter_json, window_json, quality_rules_json, environment_json,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("run-1", "recording-1", "definition", "completed", run_definition.definition_id,
-             "research-primitives-v1", "test-build", "{}", "config", "cache", "{}", "{}", "{}",
-             "{}", "{}", "{}", "{}", "now", "now"),
-        )
-        connection.execute(
-            """INSERT INTO batch_runs (
-                batch_run_id, project_id, analysis_type, definition_id, config_json,
-                config_sha256, idempotency_key, status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("batch-1", "project-1", "definition", batch_definition.definition_id, "{}", "config",
-             "batch-key", "completed", "now", "now"),
-        )
-        connection.execute(
-            """INSERT INTO analysis_runs (
-                run_id, recording_id, analysis_type, status, definition_id,
-                scientific_version, implementation_version, config_json, config_sha256,
-                cache_key, requested_range_json, channel_mapping_json, reference_json,
-                filter_json, window_json, quality_rules_json, environment_json,
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            ("queued-run", "recording-1", "definition", "queued", queued_definition.definition_id,
-             "research-primitives-v1", "test-build", "{}", "config", "cache", "{}", "{}", "{}",
-             "{}", "{}", "{}", "{}", "now", "now"),
-        )
+        before = tuple(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in ("algorithm_definitions", "algorithm_definition_versions", "analysis_runs"))
 
-    for definition in (run_definition, batch_definition, queued_definition):
-        response = client.delete(f"/api/algorithm-definitions/{definition.definition_id}")
-        assert response.status_code == 204
-        assert client.get(f"/api/algorithm-definitions/{definition.definition_id}").status_code == 404
+    url = path.replace("{id}", definition_id)
+    client = TestClient(app)
+    response = client.post(url, json={}) if method == "post" else getattr(client, method)(url)
 
+    assert response.status_code == 410
+    assert response.json()["code"] == "USER_ALGORITHM_AUTHORING_RETIRED"
     with sqlite3.connect(database_path) as connection:
-        assert connection.execute("SELECT COUNT(*) FROM analysis_runs WHERE definition_id = ?", (run_definition.definition_id,)).fetchone()[0] == 1
-        assert connection.execute("SELECT COUNT(*) FROM batch_runs WHERE definition_id = ?", (batch_definition.definition_id,)).fetchone()[0] == 1
-        assert connection.execute("SELECT status FROM analysis_runs WHERE run_id = 'queued-run'").fetchone()[0] == "cancelled"
+        after = tuple(connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in ("algorithm_definitions", "algorithm_definition_versions", "analysis_runs"))
+    assert after == before

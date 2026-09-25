@@ -1,6 +1,4 @@
-from dataclasses import asdict
-
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request
 
 from app.core.api_contract import error_response
 from app.services.analysis import AnalysisService
@@ -18,25 +16,6 @@ def _service(request: Request) -> AnalysisService:
         database_path=request.app.state.recording_service.database_path,
         run_service=request.app.state.run_service,
     )
-
-
-@router.post("/api/recordings/{recording_id}/analysis", status_code=status.HTTP_201_CREATED)
-def create_analysis(recording_id: str, request: Request) -> dict:
-    try:
-        summary = _service(request).create_analysis(recording_id)
-        request.app.state.audit_service.record(
-            "analysis.create", str(getattr(request.state, "request_id", "unknown")),
-            recording_id=recording_id, parameters={"algorithm_version": summary.algorithm_version},
-        )
-        return asdict(summary)
-    except KeyError:
-        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
-    except RuntimeError as exc:
-        if str(exc) == "LEGACY_ANALYSIS_RETIRED":
-            return error_response(request, 410, "LEGACY_ANALYSIS_RETIRED", "旧分析创建接口已退役，请使用算法运行接口")
-        return error_response(request, 409, "ANALYSIS_UNAVAILABLE", str(exc))
-    except ValueError as exc:
-        return error_response(request, 422, "ANALYSIS_REQUEST_INVALID", str(exc))
 
 
 @router.get("/api/analyses/{analysis_id}")

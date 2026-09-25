@@ -2,9 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { createAlgorithmRun, getRun, type AnalysisRunResponse } from '../api/runs'
 import type { OfficialAlgorithmCatalogItem } from '../api/officialAlgorithms'
-import type { AlgorithmDefinition, AlgorithmDefinitionVersion } from '../types/algorithmDefinition'
 import type { AlgorithmCatalogContext } from '../composables/useAlgorithmCatalog'
-import type { AlgorithmParameter, DynamicAnalysisPolicy } from '../api/algorithms'
+import type { DynamicAnalysisPolicy } from '../api/algorithms'
 import type { Recording } from '../types/recording'
 import type { DefinitionMetricResult } from './DefinitionMetricResultCard.vue'
 import type { DynamicMetric } from './DefinitionMetricTrendChart.vue'
@@ -19,18 +18,15 @@ export type WorkspaceMetricRun = { status: string; result: DefinitionMetricResul
 type DynamicSession = { enabled: boolean; definitions: DynamicDefinition[] }
 const props = defineProps<{ recording: Recording; activeRange?: Range | null; rangeStart: number; rangeEnd: number; channels: string[]; playbackPositionS?: number; playing?: boolean; dynamicActive?: boolean; playbackEpoch?: number; catalog: AlgorithmCatalogContext }>()
 const emit = defineEmits<{ close: []; results: [runs: Record<string, WorkspaceMetricRun>]; dynamicSession: [session: DynamicSession] }>()
-const definitions = computed<AlgorithmDefinition[]>(() => props.catalog.definitions.value)
 const official = computed(() => props.catalog.officialAlgorithms.value)
-const versions = computed<Record<string, AlgorithmDefinitionVersion>>(() => Object.fromEntries(Object.entries(props.catalog.versionsByDefinition.value).flatMap(([id, list]) => list[0] ? [[id, list[0]]] : [])))
-const selectedUsers = ref<string[]>([]); const selectedOfficial = ref<string[]>([])
+const selectedOfficial = ref<string[]>([])
 const settings = ref<Record<string, Settings>>({}); const refreshSeconds = ref<Record<string, number | null>>({}); const running = ref<string[]>([])
 const loading = ref(false); const message = ref(''); const runs = ref<Record<string, WorkspaceMetricRun>>({})
 const DISPLAY_WINDOWS = [10, 20, 30, 60] as const
 const range = computed(() => props.activeRange ?? { start: props.rangeStart, end: props.rangeEnd })
 const channels = computed(() => props.channels.length ? props.channels : props.recording.channels)
-const keys = computed(() => [...selectedUsers.value, ...selectedOfficial.value.map((id) => `official:${id}`)])
-const users = computed(() => definitions.value.filter((item) => item.owner === 'local-user'))
-function catalogItem(key: string) { const source = key.startsWith('official:') ? 'official' : 'user'; const id = key.startsWith('official:') ? key.slice(9) : key; return (props.catalog.algorithms?.value ?? []).find((item) => item.source === source && item.id === id) }
+const keys = computed(() => selectedOfficial.value.map((id) => `official:${id}`))
+function catalogItem(key: string) { return props.catalog.algorithms.value.find((item) => item.id === key.slice(9)) }
 function dynamicPolicy(key: string): DynamicAnalysisPolicy { return catalogItem(key)?.dynamic_policy ?? { minimum_window_s: DEFAULT_DYNAMIC_METRIC_POLICY.minimumWindowS, window_options_s: [5, 10, 20, 30], default_window_s: 10, refresh_step_s: 1, allow_warmup: true } }
 function metricPolicy(key: string): DynamicMetricPolicy { const value = dynamicPolicy(key); return { minimumWindowS: value.minimum_window_s, refreshStepS: value.refresh_step_s, allowWarmup: value.allow_warmup } }
 function channelNamed(name: string, fallback: string) { return channels.value.find((item) => item.toLowerCase() === name.toLowerCase()) ?? fallback }
@@ -46,35 +42,32 @@ function setConfig(key: string, patch: Partial<Settings>) { settings.value = { .
 function isRunning(key: string) { return running.value.includes(key) }
 function setRunning(key: string, value: boolean) { running.value = value ? [...new Set([...running.value, key])] : running.value.filter((item) => item !== key) }
 function isDynamic(value: DefinitionMetricResult | DynamicMetric | null): value is DynamicMetric { return Boolean(value && Array.isArray((value as DynamicMetric).series)) }
-function title(key: string) { return key.startsWith('official:') ? official.value.find((item) => item.algorithm_id === key.slice(9))?.display_name_zh ?? key : users.value.find((item) => item.definition_id === key)?.name ?? key }
-function unit(key: string): string { if (key.startsWith('official:')) return official.value.find((item) => item.algorithm_id === key.slice(9))?.output_unit ?? '未知单位'; const version = versions.value[key]; const outputId = version?.graph?.outputs?.[0]; const value = outputId ? version?.outputs[outputId] : null; return value && typeof value === 'object' && !Array.isArray(value) && typeof (value as Record<string, unknown>).unit === 'string' ? String((value as Record<string, unknown>).unit) : '未知单位' }
+function title(key: string) { return official.value.find((item) => item.algorithm_id === key.slice(9))?.display_name_zh ?? key }
+function unit(key: string): string { return official.value.find((item) => item.algorithm_id === key.slice(9))?.output_unit ?? '未知单位' }
 function availability(item: OfficialAlgorithmCatalogItem) { return item.is_runnable ? '可运行' : item.availability === 'shadow_validation' ? '工程验证中，暂不可运行' : '当前不可运行' }
 function labelsFor(key: string) {
-  const source = key.startsWith('official:') ? 'official' : 'user'; const id = key.startsWith('official:') ? key.slice(9) : key
-  const catalog = props.catalog as AlgorithmCatalogContext & { algorithms?: { value: Array<{ source: string; id: string; parameters: AlgorithmParameter[] | Record<string, unknown> }> } }
-  const fields = catalog.algorithms?.value.find((item) => item.source === source && item.id === id)?.parameters
+  const fields = catalogItem(key)?.parameters
   const labels: Record<string, string> = Array.isArray(fields) ? Object.fromEntries(fields.map((item) => [item.key, item.label_zh])) : {}
   return { channel: labels.channel, f4Channel: labels.f4_channel, startS: labels.start_s, endS: labels.end_s, windowS: labels.window_s }
 }
 function session(enabled: boolean): DynamicSession { return { enabled, definitions: keys.value.filter((key) => config(key).mode === 'dynamic').map((id) => { const value = config(id); const policy = metricPolicy(id); return { id, label: title(id), unit: unit(id), channel: value.channel, windowS: value.windowS, stepS: value.stepS, minimumWindowS: policy.minimumWindowS, allowWarmup: policy.allowWarmup, displayRangeS: value.displayRangeS } }) } }
 function resultOf(run: AnalysisRunResponse): DefinitionMetricResult | DynamicMetric | null { const metric = run.result_summary?.metric; return metric && typeof metric === 'object' ? metric as DefinitionMetricResult | DynamicMetric : null }
-async function load() { loading.value = true; try { await props.catalog.refresh(); await Promise.all(users.value.map((item) => props.catalog.ensureVersions(item.definition_id))) } catch (error) { message.value = error instanceof Error ? error.message : '无法读取算法目录' } finally { loading.value = false } }
+async function load() { loading.value = true; try { await props.catalog.refresh() } catch (error) { message.value = error instanceof Error ? error.message : '无法读取算法目录' } finally { loading.value = false } }
 async function poll(runId: string, key: string, append: boolean) { for (let attempt = 0; attempt < 120; attempt += 1) { const next = await getRun(runId); const result = resultOf(next); const previous = runs.value[key]?.result ?? null; runs.value[key] = { status: next.status, result: append && isDynamic(previous) ? appendOrRetainDynamicMetric(previous, isDynamic(result) ? result : null) : result, error: next.error?.message, run: next, definitionName: title(key) }; if (['completed', 'gate_failed', 'failed', 'cancelled'].includes(next.status)) return; await new Promise<void>((resolve) => window.setTimeout(resolve, 250)) } }
 async function submit(key: string, startS: number, endS: number, dynamic: boolean, append = false) {
   const value = config(key); if (!value.channel || isRunning(key)) return
   if (!dynamic && endS - startS < 4) { message.value = `${title(key)} 的静态分析区间至少需要 4 秒。`; return }
   setRunning(key, true); message.value = ''
   try {
-    const officialId = key.startsWith('official:') ? key.slice(9) : null
-    const scientificVersion = catalogItem(key)?.version ?? (officialId ? official.value.find((item) => item.algorithm_id === officialId)?.scientific_version : undefined)
-    if (officialId && !scientificVersion) throw new Error('官方算法目录缺少科学版本')
-    const request = officialId ? { source: 'official' as const, recordingId: props.recording.id, algorithmId: officialId, scientificVersion: scientificVersion!, channel: value.channel, f4Channel: officialId === 'faa' ? value.f4Channel : undefined, startS, endS, mode: dynamic ? 'dynamic' as const : 'static' as const, dynamicWindowS: dynamic ? value.windowS : undefined, refreshStepS: dynamic ? value.stepS : undefined } : userRequest(key, value, startS, endS, dynamic)
+    const officialId = key.slice(9)
+    const scientificVersion = catalogItem(key)?.version ?? official.value.find((item) => item.algorithm_id === officialId)?.scientific_version
+    if (!scientificVersion) throw new Error('官方算法目录缺少科学版本')
+    const request = { source: 'official' as const, recordingId: props.recording.id, algorithmId: officialId, scientificVersion, channel: value.channel, f4Channel: officialId === 'faa' ? value.f4Channel : undefined, startS, endS, mode: dynamic ? 'dynamic' as const : 'static' as const, dynamicWindowS: dynamic ? value.windowS : undefined, refreshStepS: dynamic ? value.stepS : undefined }
     const created = await createAlgorithmRun(request)
     runs.value[key] = { status: created.status, result: append ? (runs.value[key]?.result ?? null) : resultOf(created), run: created, definitionName: title(key) }; await poll(created.run_id, key, append)
   } catch (error) { runs.value[key] = { status: 'failed', result: null, error: error instanceof Error ? error.message : '提交失败', definitionName: title(key) } }
   finally { setRunning(key, false); emit('results', { ...runs.value }) }
 }
-function userRequest(key: string, value: Settings, startS: number, endS: number, dynamic: boolean) { const version = versions.value[key]; if (!version) throw new Error('没有可运行的算法版本'); return { source: 'user' as const, recordingId: props.recording.id, definitionId: key, definitionVersion: version.semver, channel: value.channel, startS, endS, mode: dynamic ? 'dynamic' as const : 'static' as const, dynamicWindowS: dynamic ? value.windowS : undefined, refreshStepS: dynamic ? value.stepS : undefined } }
 async function runStatic(key: string) { const value = config(key); await submit(key, value.startS, value.endS, false) }
 function scheduledEndpoint(position: number, stepS: number) { return Math.floor(position / stepS) * stepS }
 async function startDynamic() { const dynamicKeys = keys.value.filter((key) => config(key).mode === 'dynamic'); if (!dynamicKeys.length) { message.value = '请先将至少一个已勾选算法设为动态分析。'; return } if (props.playbackPositionS === undefined) { message.value = '等待波形播放位置后再启用动态分析。'; return }; dynamicKeys.forEach((key) => { const policy = metricPolicy(key); const endpoint = scheduledEndpoint(props.playbackPositionS!, policy.refreshStepS); refreshSeconds.value = { ...refreshSeconds.value, [key]: endpoint >= policy.minimumWindowS ? endpoint : null } }); emit('dynamicSession', session(true)); await Promise.all(dynamicKeys.map(async (key) => { const policy = metricPolicy(key); const endpoint = scheduledEndpoint(props.playbackPositionS!, policy.refreshStepS); const window = dynamicMetricBootstrapRange(endpoint, config(key).windowS, policy); if (window) await submit(key, window.startS, window.endS, true) })) }
@@ -83,7 +76,6 @@ function currentRange(key: string) { setConfig(key, { startS: range.value.start,
 watch(() => [props.playing, props.playbackPositionS] as const, ([playing, position]) => { if (playing && props.dynamicActive && position !== undefined) void refreshDynamic(position) })
 watch(() => props.playbackEpoch, () => { runs.value = {}; refreshSeconds.value = {}; emit('results', {}) })
 watch(keys, (next) => { const allowed = new Set(next); const cleaned = Object.fromEntries(Object.entries(settings.value).filter(([key]) => allowed.has(key))); next.forEach((key) => { if (!cleaned[key]) cleaned[key] = defaults(key) }); settings.value = cleaned; if (props.dynamicActive && !next.some((key) => cleaned[key].mode === 'dynamic')) emit('dynamicSession', session(false)) })
-watch(users, (next) => { const allowed = new Set(next.map((item) => item.definition_id)); selectedUsers.value = selectedUsers.value.filter((id) => allowed.has(id)); void Promise.all(next.map((item) => props.catalog.ensureVersions(item.definition_id))) }, { immediate: true })
 onMounted(load)
 </script>
 <template>
@@ -96,9 +88,6 @@ onMounted(load)
         <section v-if="official.length" class="algorithm-definition-group" aria-label="官方内置算法"><h4>官方内置算法</h4>
           <template v-for="item in official" :key="item.algorithm_id"><label :data-testid="`official-algorithm-${item.definition_id}`" :class="['algorithm-checkbox', { 'algorithm-checkbox-disabled': !item.is_runnable }]"><input v-model="selectedOfficial" type="checkbox" :value="item.algorithm_id" :disabled="!item.is_runnable" /><span>{{ item.display_name_zh }}（{{ item.abbreviation }}）</span><small>{{ item.purpose_zh }} · {{ availability(item) }}</small></label><AlgorithmConfigCard v-if="selectedOfficial.includes(item.algorithm_id)" :id="`official:${item.algorithm_id}`" :settings="config(`official:${item.algorithm_id}`)" :dynamic-policy="dynamicPolicy(`official:${item.algorithm_id}`)" :labels="labelsFor(`official:${item.algorithm_id}`)" :show-f4-channel="item.algorithm_id === 'faa'" :dynamic-supported="item.supported_modes.includes('dynamic')" :channels="channels" :running="isRunning(`official:${item.algorithm_id}`)" @update="setConfig(`official:${item.algorithm_id}`, $event)" @current-range="currentRange(`official:${item.algorithm_id}`)" @run-static="runStatic(`official:${item.algorithm_id}`)" /></template>
         </section><p v-else-if="props.catalog.officialError.value" class="definition-muted">{{ props.catalog.officialError.value }}</p>
-        <section class="algorithm-definition-group" aria-label="我的算法"><h4>我的算法</h4>
-          <template v-for="item in users" :key="item.definition_id"><label class="algorithm-checkbox"><input v-model="selectedUsers" type="checkbox" :value="item.definition_id" /><span>{{ item.name }}</span></label><AlgorithmConfigCard v-if="selectedUsers.includes(item.definition_id)" :id="item.definition_id" :settings="config(item.definition_id)" :dynamic-policy="dynamicPolicy(item.definition_id)" :labels="labelsFor(item.definition_id)" :channels="channels" :running="isRunning(item.definition_id)" @update="setConfig(item.definition_id, $event)" @current-range="currentRange(item.definition_id)" @run-static="runStatic(item.definition_id)" /></template><p v-if="!loading && !users.length" class="definition-muted">尚无我的算法</p>
-        </section>
       </aside></div><p v-if="message" class="definition-error">{{ message }}</p>
     </section>
   </div>

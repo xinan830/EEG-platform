@@ -30,7 +30,7 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
     }
 
 
-def test_unified_catalog_gives_user_algorithms_the_same_runtime_parameter_contract(tmp_path, monkeypatch) -> None:
+def test_active_catalog_excludes_historical_user_algorithms(tmp_path, monkeypatch) -> None:
     service = DefinitionService(tmp_path / "catalog.sqlite3")
     monkeypatch.setattr(app.state, "definition_service", service)
     definition = service.create(DefinitionCreateRequest(name="我的比值", description="", owner="local-user"))
@@ -43,11 +43,6 @@ def test_unified_catalog_gives_user_algorithms_the_same_runtime_parameter_contra
     response = TestClient(app).get("/api/algorithms")
 
     assert response.status_code == 200
-    item = next(item for item in response.json()["algorithms"] if item["id"] == definition.definition_id)
-    assert item["source"] == "user"
-    assert item["parameters"][0]["key"] == "channel"
-    assert item["output"] == {"unit": "dimensionless"}
-    assert item["status"] == "retired"
-    assert item["executable"] is False
-    assert item["creatable"] is False
-    assert item["editable"] is False
+    assert all(item["source"] == "official" for item in response.json()["algorithms"])
+    assert not any(item["id"] == definition.definition_id for item in response.json()["algorithms"])
+    assert TestClient(app).get(f"/api/algorithm-definitions/{definition.definition_id}").status_code == 200

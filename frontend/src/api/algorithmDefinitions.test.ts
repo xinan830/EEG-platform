@@ -1,27 +1,16 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { createDefinitionPreview, deleteDefinition } from './algorithmDefinitions'
-import { DEFAULT_DRAFT } from '../types/algorithmDefinition'
+import { getDefinition, listDefinitionVersions } from './algorithmDefinitions'
 
 afterEach(() => vi.unstubAllGlobals())
 
-it('posts explicit scalar preview inputs and absolute recording range', async () => {
-  const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ run_id: 'preview-1', status: 'completed', is_preview: true }), { status: 201 }))
+it('requests historical definitions through read-only endpoints', async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ definition_id: 'old-definition' }), { status: 200 }))
   vi.stubGlobal('fetch', fetchMock)
 
-  await createDefinitionPreview('recording/1', 10, 14, DEFAULT_DRAFT, { value: { value: 2, unit: 'ratio' } })
+  await getDefinition('old/definition')
+  await listDefinitionVersions('old/definition')
 
-  expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/api/algorithm-definitions/preview-run')
-  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
-    recording_id: 'recording/1', time: { start_s: 10, end_s: 14 }, inputs: { value: { value: 2, unit: 'ratio' } },
-  })
-})
-
-it('deletes a definition through the backend rather than hiding it locally', async () => {
-  const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
-  vi.stubGlobal('fetch', fetchMock)
-
-  await deleteDefinition('my-definition')
-
-  expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/api/algorithm-definitions/my-definition')
-  expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'DELETE' })
+  expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/api/algorithm-definitions/old%2Fdefinition')
+  expect(new URL(fetchMock.mock.calls[1][0]).pathname).toBe('/api/algorithm-definitions/old%2Fdefinition/versions')
+  expect(fetchMock.mock.calls.every((call) => !call[1]?.method || call[1].method === 'GET')).toBe(true)
 })

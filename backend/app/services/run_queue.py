@@ -141,9 +141,6 @@ class PersistentRunQueue:
         run = self.get(run_id)
         return self.repository.list_artifacts(run.reused_from_run_id or run.run_id)
 
-    def create_definition_preview(self, *args: Any, **kwargs: Any):
-        return self.base.create_definition_preview(*args, **kwargs)
-
     def _is_cancelled(self, run_id: str) -> bool:
         current = self.get(run_id)
         return current.cancel_requested or current.status is RunStatus.CANCELLED

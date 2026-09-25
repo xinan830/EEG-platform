@@ -11,7 +11,7 @@ class NoopAuditService:
         return None
 
 
-def test_legacy_analysis_creation_is_retired(tmp_path, monkeypatch):
+def test_legacy_analysis_creation_route_is_removed(tmp_path, monkeypatch):
     service = RecordingService(
         storage_dir=tmp_path / "recordings",
         database_path=tmp_path / "catalog.sqlite3",
@@ -23,8 +23,7 @@ def test_legacy_analysis_creation_is_retired(tmp_path, monkeypatch):
 
     response = TestClient(app).post(f"/api/recordings/{recording.id}/analysis")
 
-    assert response.status_code == 410
-    assert response.json()["code"] == "LEGACY_ANALYSIS_RETIRED"
+    assert response.status_code == 404
 
 
 def test_historical_legacy_analysis_remains_read_only_after_calculator_retirement(tmp_path, monkeypatch):

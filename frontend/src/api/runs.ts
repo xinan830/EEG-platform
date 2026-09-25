@@ -13,9 +13,7 @@ type SharedAlgorithmRunFields = {
   f4Channel?: string
 }
 
-export type AlgorithmRunRequest =
-  | (SharedAlgorithmRunFields & { source: 'user'; definitionId: string; definitionVersion: string })
-  | (SharedAlgorithmRunFields & { source: 'official'; algorithmId: string; scientificVersion: string })
+export type AlgorithmRunRequest = SharedAlgorithmRunFields & { source: 'official'; algorithmId: string; scientificVersion: string }
 
 export interface AnalysisRunResponse {
   run_id: string
@@ -39,29 +37,10 @@ export interface AnalysisRunResponse {
 }
 
 export function createAlgorithmRun(value: AlgorithmRunRequest): Promise<AnalysisRunResponse> {
-  return value.source === 'official' ? createOfficialRun(value) : createDefinitionRun(value)
+  return createOfficialRun(value)
 }
 
-function createDefinitionRun(value: Extract<AlgorithmRunRequest, { source: 'user' }>): Promise<AnalysisRunResponse> {
-  const config: Record<string, unknown> = { channel: value.channel, time: { start_s: value.startS, end_s: value.endS } }
-  if (value.mode === 'dynamic') {
-    config.mode = 'dynamic'
-    config.dynamic_window_s = value.dynamicWindowS ?? 10
-    config.refresh_step_s = value.refreshStepS ?? 1
-  }
-  return request('/api/runs', {
-    method: 'POST',
-    body: JSON.stringify({
-      recording_id: value.recordingId,
-      analysis_type: 'definition_metric',
-      definition_id: value.definitionId,
-      definition_version: value.definitionVersion,
-      config,
-    }),
-  })
-}
-
-function createOfficialRun(value: Extract<AlgorithmRunRequest, { source: 'official' }>): Promise<AnalysisRunResponse> {
+function createOfficialRun(value: AlgorithmRunRequest): Promise<AnalysisRunResponse> {
   const config: Record<string, unknown> = {
     algorithm_id: value.algorithmId,
     scientific_version: value.scientificVersion,

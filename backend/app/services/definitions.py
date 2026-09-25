@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.core.config import DATABASE_PATH
-from app.legacy.definition_engine import DefinitionEngineError, execute_graph, validate_graph, validate_parameters
+from app.legacy.definition_engine import validate_graph, validate_parameters
 from app.models.algorithm_definition import AlgorithmDefinition, AlgorithmDefinitionVersion, DefinitionCreateRequest, DefinitionVersionDraft
 from app.persistence.repositories.definition import DefinitionRepository
 
@@ -62,7 +62,3 @@ class DefinitionService:
             raise KeyError("definition version not found")
         return {"left": first, "right": second, "same_digest": first.digest_sha256 == second.digest_sha256,
                 "graph_changed": first.graph != second.graph, "parameter_schema_changed": first.parameter_schema != second.parameter_schema}
-
-    def preview(self, draft: DefinitionVersionDraft, inputs: dict[str, object]) -> dict[str, object]:
-        self.validate(draft)
-        return {"preview": True, "persisted": False, "outputs": execute_graph(draft.graph, inputs)}
