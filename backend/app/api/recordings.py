@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, Query, Request, UploadFile, status
 from pydantic import TypeAdapter, ValidationError
 
 from app.models.recording import RecordingSummary
+from app.models.wpf_recording import WpfRecordingRegistrationRequest
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.montage import CustomMontageChannelPayload
 from app.models.spectral_validation import SpectralReferenceValidationRequest
@@ -66,6 +67,17 @@ async def import_recording(request: Request, file: UploadFile = File(...)) -> di
 @router.get("")
 def list_recordings(request: Request) -> list[dict]:
     return [_serialize(recording) for recording in _service(request).list_recordings()]
+
+
+@router.post("/register-wpf", status_code=status.HTTP_201_CREATED)
+def register_wpf_recording(payload: WpfRecordingRegistrationRequest, request: Request) -> dict:
+    try:
+        recording = _service(request).register_wpf_recording(payload.source_directory)
+    except ValueError as exc:
+        code = getattr(exc, "code", "WPF_RECORDING_INVALID")
+        return error_response(request, 422, code, str(exc))
+    _record_audit(request, "recording.register_wpf", recording.id, {"source_sha256": recording.source_sha256})
+    return _serialize(recording)
 
 
 @router.get("/{recording_id}/montages")

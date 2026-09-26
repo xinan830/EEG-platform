@@ -17,6 +17,7 @@ from app.services.recording_identity import (
     canonical_channel_label,
 )
 from app.services.spectral_analysis import SpectralAnalysisService
+from app.services.wpf_recording import inspect_wpf_recording, load_wpf_data
 
 
 class RecordingService:
@@ -92,6 +93,47 @@ class RecordingService:
         )
         return self.require_recording(recording.id)
 
+    def register_wpf_recording(self, source_directory: str) -> RecordingSummary:
+        facts = inspect_wpf_recording(source_directory)
+        stored_name = f"wpf:{facts.root}"
+        recording_id = f"wpf-{facts.session_id}-{facts.source_sha256[:12]}"
+        with self._connect() as connection:
+            # Path identity keeps registration idempotent across hash-version
+            # repairs, while the content hash still deduplicates moved copies.
+            existing = connection.execute(
+                "SELECT id FROM recordings WHERE source_sha256 = ? OR stored_name = ?",
+                (facts.source_sha256, stored_name),
+            ).fetchone()
+            if existing is not None:
+                return self.require_recording(str(existing["id"]))
+            try:
+                connection.execute(
+                    """INSERT INTO recordings
+                    (id, original_name, stored_name, extension, created_at, sfreq, duration_s,
+                     channels_json, source_sha256, file_size_bytes, raw_channel_labels_json,
+                     canonical_channel_labels_json, channel_types_json, channel_units_json, import_version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (recording_id, facts.root.name, stored_name, ".wpf", facts.recording_start_utc,
+                     facts.sampling_rate_hz, facts.duration_s,
+                     json.dumps([item.label for item in facts.channels if item.stream_index in facts.eeg_indexes], ensure_ascii=False),
+                     facts.source_sha256, sum(path.stat().st_size for path in facts.root.glob("samples-*.bin")),
+                     json.dumps([item.label for item in facts.channels if item.stream_index in facts.eeg_indexes], ensure_ascii=False),
+                     json.dumps([item.label for item in facts.channels if item.stream_index in facts.eeg_indexes], ensure_ascii=False),
+                     json.dumps([item.kind for item in facts.channels if item.stream_index in facts.eeg_indexes]),
+                     json.dumps([item.unit for item in facts.channels if item.stream_index in facts.eeg_indexes]),
+                     "wpf-raw-v1"),
+                )
+            except sqlite3.IntegrityError:
+                # A concurrent request may win between the SELECT and INSERT.
+                existing = connection.execute(
+                    "SELECT id FROM recordings WHERE source_sha256 = ? OR stored_name = ?",
+                    (facts.source_sha256, stored_name),
+                ).fetchone()
+                if existing is None:
+                    raise
+                return self.require_recording(str(existing["id"]))
+        return self.require_recording(recording_id)
+
     def list_recordings(self) -> list[RecordingSummary]:
         with self._connect() as connection:
             rows = connection.execute("SELECT * FROM recordings ORDER BY created_at DESC").fetchall()
@@ -106,6 +148,8 @@ class RecordingService:
 
 
     def load_data(self, recording: RecordingSummary) -> tuple[object, float, list[str], list[dict[str, object]]]:
+        if recording.extension == ".wpf":
+            return load_wpf_data(inspect_wpf_recording(recording.stored_name.removeprefix("wpf:")))
         import mne
 
         path = self.storage_dir / recording.stored_name
