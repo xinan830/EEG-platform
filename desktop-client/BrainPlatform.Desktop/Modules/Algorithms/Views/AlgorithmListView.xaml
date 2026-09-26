@@ -1,0 +1,73 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.AlgorithmListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="#F8FAFC">
+    <Grid Margin="32,28">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="算法列表" FontSize="24" FontWeight="Bold" Foreground="#0F172A" />
+                <TextBlock Text="官方算法由后端统一计算，WPF 负责配置与结果展示。" Margin="0,6,0,0" Foreground="#64748B" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <ComboBox Width="180" Margin="0,0,8,0" Style="{StaticResource AppFilterComboBoxStyle}" MaxDropDownHeight="220" ItemsSource="{Binding AlgorithmCatalog.Projects.Projects}" SelectedItem="{Binding AlgorithmCatalog.Projects.SelectedProject}" ToolTip="选择项目">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <ComboBox Width="250" Margin="0,0,10,0" Style="{StaticResource AppFilterComboBoxStyle}" MaxDropDownHeight="220" ItemsSource="{Binding AlgorithmCatalog.Projects.CompletedRecordings}" SelectedItem="{Binding AlgorithmCatalog.SelectedProjectRecording}" ToolTip="选择已完成记录">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Content="注册记录" Command="{Binding AlgorithmCatalog.RegisterCommand}" Style="{StaticResource ModernDialogSecondaryButtonStyle}" />
+                <Button Content="开始分析" Margin="10,0,0,0" Command="{Binding AlgorithmCatalog.RunCommand}" Style="{StaticResource ModernDialogPrimaryButtonStyle}" />
+                <Button Content="刷新目录" Margin="10,0,0,0" Command="{Binding AlgorithmCatalog.RefreshCommand}" Style="{StaticResource ModernDialogSecondaryButtonStyle}" />
+            </StackPanel>
+        </Grid>
+        <Grid Grid.Row="1" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="180" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <TextBlock Text="PSD 通道" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
+            <ComboBox Grid.Column="1" Style="{StaticResource AppFilterComboBoxStyle}" MaxDropDownHeight="220" IsEnabled="{Binding AlgorithmCatalog.HasRegisteredChannels}" ItemsSource="{Binding AlgorithmCatalog.RegisteredChannels}" SelectedItem="{Binding AlgorithmCatalog.SelectedChannel, Mode=TwoWay}" />
+            <TextBlock Grid.Column="2" Text="开始（秒）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0" />
+            <TextBox Grid.Column="3" Text="{Binding AlgorithmCatalog.StartSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="开始时间（秒）" />
+            <TextBlock Grid.Column="4" Text="结束（秒）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0" />
+            <TextBox Grid.Column="5" Text="{Binding AlgorithmCatalog.EndSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="结束时间（秒）" />
+            <TextBlock Grid.Column="6" Margin="16,0,0,0" VerticalAlignment="Center" Text="先选择项目和已完成记录，再注册后配置范围。" Foreground="#64748B" />
+        </Grid>
+        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="20">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Bottom" Margin="0,16,0,0">
+                    <Border Height="230" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Margin="0,0,0,12">
+                        <Grid>
+                            <Canvas x:Name="PsdCanvas" Margin="48,16,20,34" />
+                            <TextBlock Text="频率（Hz）" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,8" Foreground="#64748B" FontSize="11" />
+                            <TextBlock Text="PSD" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,12,0,0" Foreground="#64748B" FontSize="11" />
+                            <TextBlock Text="{Binding AlgorithmCatalog.PsdValueUnit, StringFormat=单位：{0}}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" Foreground="#64748B" FontSize="11" />
+                            <TextBlock Text="{Binding AlgorithmCatalog.PsdFrequencyRangeText}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="48,0,0,8" Foreground="#64748B" FontSize="11" />
+                            <TextBlock Text="{Binding AlgorithmCatalog.PsdValueRangeText}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="48,8,0,0" Foreground="#64748B" FontSize="11" />
+                            <TextBlock Text="暂无可用 PSD 结构化数据" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#94A3B8">
+                                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.HasPsdPreview}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+                    <TextBlock Text="{Binding AlgorithmCatalog.StatusText}" Foreground="#64748B" />
+                    <TextBlock Text="{Binding AlgorithmCatalog.RunStatusText}" Margin="0,4,0,0" Foreground="#2563EB" />
+                    <TextBlock Text="{Binding AlgorithmCatalog.ResultSummaryText}" Margin="0,8,0,0" Foreground="#0F172A" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding AlgorithmCatalog.ProvenanceText}" Margin="0,4,0,0" Foreground="#475569" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding AlgorithmCatalog.StructuredPreviewText}" Margin="0,4,0,0" Foreground="#475569" TextWrapping="Wrap" />
+                </StackPanel>
+                <ListView ItemsSource="{Binding AlgorithmCatalog.Items}" SelectedItem="{Binding AlgorithmCatalog.SelectedAlgorithm, Mode=TwoWay}" BorderThickness="0">
+                    <ListView.View><GridView>
+                        <GridViewColumn Header="算法" DisplayMemberBinding="{Binding DisplayNameZh}" Width="210" />
+                        <GridViewColumn Header="编码" DisplayMemberBinding="{Binding Id}" Width="150" />
+                        <GridViewColumn Header="科学版本" DisplayMemberBinding="{Binding Version}" Width="180" />
+                        <GridViewColumn Header="模式" DisplayMemberBinding="{Binding ModesDisplay}" Width="140" />
+                        <GridViewColumn Header="状态" DisplayMemberBinding="{Binding AvailabilityDisplay}" Width="160" />
+                    </GridView></ListView.View>
+                </ListView>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

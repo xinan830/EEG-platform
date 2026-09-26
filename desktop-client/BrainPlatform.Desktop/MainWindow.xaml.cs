@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private MontageDetailView? montageDetailView;
     private EventListView? eventListView;
     private EventDefinitionEditorView? eventDefinitionEditorView;
+    private AlgorithmListView? algorithmListView;
     private RecordingReviewViewModel? recordingReviewViewModel;
     private LocalRawRecording? recordingReviewRecording;
     private EegSessionWindow? acquisitionSessionWindow;
@@ -46,6 +47,7 @@ public partial class MainWindow : Window
         montageListView = new MontageListView();
         montageDetailView = new MontageDetailView();
         eventListView = new EventListView();
+        algorithmListView = new AlgorithmListView();
         overviewView = new DeviceOverviewView();
         MainContentHost.Content = overviewView;
     }
@@ -357,6 +359,19 @@ public partial class MainWindow : Window
         else if (sender == NavSettingsBtn)
         {
             ShowSettingsView();
+        }
+        else if (sender == NavAlgorithmsBtn)
+        {
+            SetImmersiveChrome(false);
+            algorithmListView ??= new AlgorithmListView();
+            MainContentHost.Content = algorithmListView;
+            SelectNavigation(NavAlgorithmsBtn);
+            if (DataContext is DesktopWorkspaceViewModel workspace)
+            {
+                algorithmListView.DataContext = workspace;
+                workspace.Projects.RefreshRecordings();
+                _ = workspace.AlgorithmCatalog.RefreshAsync();
+            }
         }
         else
         {

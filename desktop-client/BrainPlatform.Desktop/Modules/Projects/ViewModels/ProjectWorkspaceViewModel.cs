@@ -54,6 +54,9 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
 
     public ObservableCollection<ProjectRecordingRow> Recordings { get; } = [];
 
+    /// <summary>Completed recordings available for offline analysis registration.</summary>
+    public ObservableCollection<ProjectRecordingRow> CompletedRecordings { get; } = [];
+
     public ObservableCollection<ProjectRecordingRow> PagedRecordings { get; } = [];
 
     public IReadOnlyList<int> RecordingPageSizeOptions { get; } = [10, 20, 50];
@@ -271,6 +274,7 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
     {
         var selectedSessionId = SelectedRecording?.SessionId;
         Recordings.Clear();
+        CompletedRecordings.Clear();
         SelectedRecording = null;
         if (SelectedProject is null)
         {
@@ -289,6 +293,10 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
                 $"{recording.SignalChannelCount} 信号通道",
                 recording.Status,
                 recording.RecordingDirectory));
+            if (Recordings[^1].Status == "已完成")
+            {
+                CompletedRecordings.Add(Recordings[^1]);
+            }
         }
 
         SelectedRecording = Recordings.FirstOrDefault(recording => recording.SessionId == selectedSessionId);

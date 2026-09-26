@@ -14,12 +14,15 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         IBackendHealthClient backendHealthClient,
         AcquisitionWorkspaceViewModel acquisition,
         OperationNotificationCenter? notifications = null,
-        EventDefinitionService? eventDefinitionService = null)
+        EventDefinitionService? eventDefinitionService = null,
+        IAlgorithmClient? algorithmClient = null)
     {
         this.backendHealthClient = backendHealthClient;
         Notifications = notifications ?? new OperationNotificationCenter();
         Acquisition = acquisition;
+        Algorithms = algorithmClient ?? throw new ArgumentNullException(nameof(algorithmClient));
         Projects = new ProjectWorkspaceViewModel(Notifications);
+        AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects);
         Overview = new DeviceOverviewViewModel(acquisition.DeviceSession, acquisition);
         ChannelConfigurations = new ChannelConfigurationWorkspaceViewModel(
             acquisition.ChannelMapping,
@@ -44,6 +47,10 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     }
 
     public AcquisitionWorkspaceViewModel Acquisition { get; }
+
+    public IAlgorithmClient Algorithms { get; }
+
+    public AlgorithmListViewModel AlgorithmCatalog { get; }
 
     public ProjectWorkspaceViewModel Projects { get; }
 

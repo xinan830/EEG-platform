@@ -43,6 +43,8 @@ global using BrainPlatform.Desktop.Shared.Dialogs;
 global using BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 global using BrainPlatform.Desktop.Modules.Acquisition.Views;
 global using BrainPlatform.Desktop.Modules.Acquisition.Waveform;
+global using BrainPlatform.Desktop.Modules.Algorithms.Api;
+global using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 global using BrainPlatform.Desktop.Modules.Channels.ViewModels;
 global using BrainPlatform.Desktop.Modules.Devices.ViewModels;
 global using BrainPlatform.Desktop.Modules.Devices.Views;

@@ -79,7 +79,7 @@
                         <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True"
                                Focusable="False" PopupAnimation="Slide">
                             <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Margin="0,3,0,0"
-                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Width="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                     MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                 <Border.Effect>
                                     <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.12" Color="#000000" />
@@ -172,7 +172,7 @@
                                Focusable="False" PopupAnimation="Slide">
                             <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
                                     CornerRadius="8" Margin="0,4,0,0" Padding="4"
-                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Width="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                     MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                 <Border.Effect>
                                     <DropShadowEffect BlurRadius="12" ShadowDepth="3" Opacity="0.08" Color="#000000" />

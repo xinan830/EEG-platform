@@ -18,6 +18,12 @@ The system has one source of truth for each responsibility:
 | Review window, derived chunks, playback target | C# review session/cache | chart control or Python request caller |
 | Analysis provenance and scientific artifacts | backend persistence | desktop SQLite writes |
 
+The WPF client is the product owner for the Windows acquisition, review, and
+offline official-algorithm workspace. The Vue application is retained as a
+validation and contract-inspection surface only. WPF obtains the backend
+algorithm catalog and submits completed recordings through HTTP; it never
+duplicates scientific formulas or writes backend persistence directly.
+
 The UI binds to state owned by these services. A page must not enumerate a
 device, read a recording format, or infer scientific state as a side effect of
 rendering.

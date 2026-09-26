@@ -16,7 +16,36 @@ device. An optional ANT/eego adapter can load a locally installed vendor DLL
 from an explicit x64 path; it is never bundled or selected by default. The
 client includes serialized lifecycle coordination, sample-counter gap auditing,
 bounded display history, raw chunk persistence, and a bounded analysis bridge.
-It does not create AnalysisRuns or access the backend SQLite database.
+It never writes the backend SQLite database directly. After a completed raw
+recording is closed, the client may register that recording through the
+backend HTTP contract and submit an offline official Analysis Run; all
+scientific validation, execution, artifacts, and provenance remain backend
+owned.
+
+## Official Algorithm Workspace
+
+WPF is the product client for the offline official-algorithm workflow. The
+algorithm workspace loads the authoritative catalog from `GET /api/algorithms`,
+registers a completed local WPF recording with
+`POST /api/recordings/register-wpf`, and submits a traceable static Run through
+`POST /api/runs`. It polls the Run until a terminal state and displays the
+backend's structured error, scientific version, requested/actual range, and
+provenance. PSD/STFT previews come from
+`GET /api/runs/{run_id}/structured-preview`; the desktop does not perform FFT,
+PSD, dB conversion, interpolation, integration, or quality classification.
+
+The Vue application remains a validation and contract-inspection platform. It
+is not the product owner for the WPF acquisition or review workflow, and new
+official scientific behavior must be implemented and versioned in the backend
+before either client displays it.
+
+For a static PSD Run in WPF, open the algorithm workspace, select a project
+and one of its completed recordings, then register the record. The backend
+returns the actual channel list and duration. Select PSD, a channel, and the
+requested start/end seconds before starting analysis. Other catalog entries
+are visible but cannot run through this PSD-only form. The result plot shows
+the bounded backend frequency/PSD preview with its declared units; unavailable
+values are left blank rather than drawn as zero.
 
 ## Build And Test
 

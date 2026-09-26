@@ -21,6 +21,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     private readonly ChannelMappingViewModel channelMapping;
     private readonly OperationNotificationCenter? notifications;
     private readonly EventDefinitionService eventDefinitionService;
+    private readonly IRecordingRegistrationClient? recordingRegistrationClient;
     private string sdkLibraryPath;
     private string recordingDirectory;
     private int? savedSamplingRateHz;
@@ -48,7 +49,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         DeviceSessionManager? deviceSession = null,
         Dispatcher? dispatcher = null,
         OperationNotificationCenter? notifications = null,
-        EventDefinitionService? eventDefinitionService = null)
+        EventDefinitionService? eventDefinitionService = null,
+        IRecordingRegistrationClient? recordingRegistrationClient = null)
     {
         this.settingsStore = settingsStore ?? new LocalAcquisitionSettingsStore();
         this.deviceSession = deviceSession ?? new DeviceSessionManager(runtime ?? new ConfiguredAcquisitionRuntime());
@@ -60,6 +62,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         this.dispatcher = dispatcher ?? Dispatcher.CurrentDispatcher;
         this.notifications = notifications;
         this.eventDefinitionService = eventDefinitionService ?? new EventDefinitionService(new EventDefinitionStore());
+        this.recordingRegistrationClient = recordingRegistrationClient;
         var settings = LoadSettings();
         sdkLibraryPath = settings.SdkLibraryPath;
         recordingDirectory = settings.RecordingDirectory;
@@ -226,6 +229,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         get => recordingDirectory;
         set => SetProperty(ref recordingDirectory, value);
     }
+
+    public RegisteredRecording? LastRegisteredRecording { get; private set; }
 
     public AcquisitionDeviceDescriptor? SelectedDevice
     {
@@ -734,8 +739,24 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         LiveMonitor.Refresh();
         AcquisitionStatusText = runtime.State.Detail;
         var hadRecording = stoppedState is AcquisitionState.Recording or AcquisitionState.Paused or AcquisitionState.Stopping;
+        if (hadRecording && recordingRegistrationClient is not null && runtime.RecordingDirectory is { } completedDirectory)
+        {
+            try
+            {
+                LastRegisteredRecording = await recordingRegistrationClient.RegisterWpfRecordingAsync(
+                    completedDirectory, CancellationToken.None);
+                RaisePropertyChanged(nameof(LastRegisteredRecording));
+            }
+            catch (Exception exception)
+            {
+                // Registration must never turn a successfully persisted raw recording into a failed acquisition.
+                notifications?.PublishWarning($"原始记录已保存，但尚未注册到分析服务：{exception.Message}");
+            }
+        }
         OperationMessage = hadRecording
-            ? "记录已完成。原始记录目录包含 manifest.json 与 audit.jsonl。"
+            ? LastRegisteredRecording is null
+                ? "记录已完成。原始记录已保存，尚未注册到分析服务。"
+                : $"记录已完成，已注册分析记录 {LastRegisteredRecording.Id}。"
             : "实时预览已结束；由于没有开始记录，未创建原始记录文件。";
         var stoppedAt = FormatLocalClock(runtime.State.ChangedAtUtc);
         notifications?.PublishSuccess(hadRecording

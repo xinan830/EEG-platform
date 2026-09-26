@@ -34,11 +34,17 @@ public partial class App : Application
         deviceAvailabilityMonitor.Start();
         var notifications = new OperationNotificationCenter();
         var eventDefinitionService = new EventDefinitionService(new EventDefinitionStore());
+        var algorithmClient = new HttpAlgorithmClient(new HttpClient
+        {
+            BaseAddress = backendEndpoint,
+            Timeout = TimeSpan.FromSeconds(15),
+        });
         workspace = new DesktopWorkspaceViewModel(
             healthClient,
-            new AcquisitionWorkspaceViewModel(runtime: runtime, deviceSession: deviceSession, notifications: notifications, eventDefinitionService: eventDefinitionService),
+            new AcquisitionWorkspaceViewModel(runtime: runtime, deviceSession: deviceSession, notifications: notifications, eventDefinitionService: eventDefinitionService, recordingRegistrationClient: algorithmClient),
             notifications,
-            eventDefinitionService);
+            eventDefinitionService,
+            algorithmClient);
         var reviewFilterClient = new HttpClient
         {
             BaseAddress = backendEndpoint,
