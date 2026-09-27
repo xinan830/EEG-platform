@@ -27,7 +27,7 @@
             </StackPanel>
         </Grid>
         <Grid Grid.Row="1" Margin="0,16,0,0">
-            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="180" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <TextBlock Grid.Row="0" Text="{Binding AlgorithmCatalog.ChannelLabel}" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
             <ComboBox Grid.Row="0" Grid.Column="1" Style="{StaticResource AppFilterComboBoxStyle}" MaxDropDownHeight="220" IsEnabled="{Binding AlgorithmCatalog.HasRegisteredChannels}" ItemsSource="{Binding AlgorithmCatalog.RegisteredChannels}" SelectedItem="{Binding AlgorithmCatalog.SelectedChannel, Mode=TwoWay}" />
@@ -69,6 +69,26 @@
                     <TextBox Width="90" Text="{Binding AlgorithmCatalog.DenominatorHighFrequencyText, UpdateSourceTrigger=PropertyChanged}" ToolTip="分母频段上限（Hz）" />
                 </StackPanel>
             </StackPanel>
+            <StackPanel Grid.Row="2" Grid.ColumnSpan="7" Orientation="Horizontal" Margin="0,12,0,0">
+                <TextBlock Text="分析模式" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
+                <ComboBox Width="100" Style="{StaticResource AppFilterComboBoxStyle}"
+                          ItemsSource="{Binding AlgorithmCatalog.AnalysisModes}"
+                          SelectedItem="{Binding AlgorithmCatalog.SelectedAnalysisMode, Mode=TwoWay}"
+                          IsEnabled="{Binding AlgorithmCatalog.IsDynamicModeAvailable}"
+                          ToolTip="选择静态或动态分析模式" />
+                <TextBlock Text="动态窗口（秒）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsDynamicMode}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
+                <ComboBox Width="120" ItemsSource="{Binding AlgorithmCatalog.DynamicWindowOptions}" SelectedItem="{Binding AlgorithmCatalog.SelectedDynamicWindowSeconds, Mode=TwoWay}" IsEnabled="{Binding AlgorithmCatalog.IsDynamicMode}" ToolTip="由算法目录提供的动态窗口选项">
+                    <ComboBox.Style><Style TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsDynamicMode}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></ComboBox.Style>
+                </ComboBox>
+                <TextBlock Text="步长（秒）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsDynamicMode}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
+                <TextBox Width="100" Text="{Binding AlgorithmCatalog.DynamicStepText, UpdateSourceTrigger=PropertyChanged}" ToolTip="动态窗口刷新步长（秒）">
+                    <TextBox.Style><Style TargetType="TextBox"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsDynamicMode}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBox.Style>
+                </TextBox>
+            </StackPanel>
         </Grid>
         <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="20">
             <DockPanel>
@@ -77,7 +97,7 @@
                         <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsRbpSelected}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="相对频段功率" FontWeight="SemiBold" Foreground="#334155" />
+                                <TextBlock Text="{Binding AlgorithmCatalog.RbpCardTitle}" FontWeight="SemiBold" Foreground="#334155" />
                                 <TextBlock DockPanel.Dock="Right" Text="单位：ratio" Foreground="#64748B" />
                             </DockPanel>
                             <UniformGrid Columns="4" Margin="0,14,0,0">
@@ -131,8 +151,32 @@
                     <TextBlock Text="{Binding AlgorithmCatalog.ResultSummaryText}" Margin="0,8,0,0" Foreground="#0F172A" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding AlgorithmCatalog.ProvenanceText}" Margin="0,4,0,0" Foreground="#475569" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding AlgorithmCatalog.StructuredPreviewText}" Margin="0,4,0,0" Foreground="#475569" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding AlgorithmCatalog.DynamicSeriesText}" Margin="0,4,0,0" Foreground="#475569" TextWrapping="Wrap" />
+                    <Border Margin="0,8,0,0" BorderBrush="#E2E8F0" BorderThickness="1" Padding="8">
+                        <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.HasDynamicSeries}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
+                        <ListView ItemsSource="{Binding AlgorithmCatalog.DynamicSeriesPoints}" MaxHeight="150" BorderThickness="0">
+                            <ListView.View><GridView>
+                                <GridViewColumn Header="时间（秒）" DisplayMemberBinding="{Binding TimeSeconds, StringFormat={}{0:0.###}}" Width="100" />
+                                <GridViewColumn Header="结果" DisplayMemberBinding="{Binding ValueText}" Width="100" />
+                                <GridViewColumn Header="状态" DisplayMemberBinding="{Binding State}" Width="90" />
+                                <GridViewColumn Header="质量" DisplayMemberBinding="{Binding Quality}" Width="120" />
+                            </GridView></ListView.View>
+                        </ListView>
+                    </Border>
+                    <Border Margin="0,8,0,0" BorderBrush="#E2E8F0" BorderThickness="1" Padding="8">
+                        <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.HasDynamicWindows}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
+                        <ListView ItemsSource="{Binding AlgorithmCatalog.DynamicWindowRows}" MaxHeight="150" BorderThickness="0">
+                            <ListView.View><GridView>
+                                <GridViewColumn Header="窗口开始（秒）" DisplayMemberBinding="{Binding StartSeconds, StringFormat={}{0:0.###}}" Width="120" />
+                                <GridViewColumn Header="窗口结束（秒）" DisplayMemberBinding="{Binding EndSeconds, StringFormat={}{0:0.###}}" Width="120" />
+                                <GridViewColumn Header="状态" DisplayMemberBinding="{Binding State}" Width="90" />
+                                <GridViewColumn Header="质量" DisplayMemberBinding="{Binding Quality}" Width="120" />
+                                <GridViewColumn Header="原因" DisplayMemberBinding="{Binding Failure}" Width="180" />
+                            </GridView></ListView.View>
+                        </ListView>
+                    </Border>
                 </StackPanel>
-                <ListView ItemsSource="{Binding AlgorithmCatalog.Items}" SelectedItem="{Binding AlgorithmCatalog.SelectedAlgorithm, Mode=TwoWay}" BorderThickness="0">
+                <ListView ItemsSource="{Binding AlgorithmCatalog.Items}" SelectedItem="{Binding AlgorithmCatalog.SelectedAlgorithm, Mode=TwoWay}" SelectionMode="Single" BorderThickness="0">
                     <ListView.View><GridView>
                         <GridViewColumn Header="算法" DisplayMemberBinding="{Binding DisplayNameZh}" Width="210" />
                         <GridViewColumn Header="编码" DisplayMemberBinding="{Binding Id}" Width="150" />

@@ -4,6 +4,7 @@ from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmFailure, AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames
 from .official import compute_faa
 
 from .config import FaaConfig
@@ -18,7 +19,7 @@ class FaaAlgorithm:
         return ParameterSchema(parameters=[
             AlgorithmParameter(key="channel", label_zh="F3 来源通道", value_type="string", description_zh="选择用于 FAA 左侧 Alpha 功率的原始通道。"),
             AlgorithmParameter(key="f4_channel", label_zh="F4 来源通道", value_type="string", description_zh="选择用于 FAA 右侧 Alpha 功率的原始通道。"),
-            AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态")]),
+            AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
         ])
@@ -30,9 +31,9 @@ class FaaAlgorithm:
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
         return AlgorithmExecutionSnapshot(
             window={
-                "mode": "static", "method": "paired_epoch_rfft_density",
+                "mode": config.mode, "method": "paired_epoch_rfft_density",
                 "epoch_s": 2.0, "epoch_overlap": 0.5, "epoch_step_s": 1.0,
-                "window": "hann", "alignment": "range",
+                "window": "hann", "alignment": "window_end" if config.mode == "dynamic" else "range",
             },
             filters={"operation": "per_epoch_mean_removal", "software_bandpass": "not_applied"},
             quality_rules={
@@ -75,4 +76,29 @@ class FaaAlgorithm:
         return AlgorithmResult(value=float(report["faa"]), unit="dimensionless", channel=f"{inputs.channel}/{config.f4_channel}", requested_range={"start_s": config.start_s, "end_s": config.end_s}, actual_range={"start_s": config.start_s, "end_s": config.end_s}, quality="clean", evidence=evidence)
 
     def execute_dynamic(self, inputs: AlgorithmInputs, config: FaaConfig) -> AlgorithmSeriesResult:
-        raise NotImplementedError("FAA dynamic output is not enabled")
+        window_s = config.window_s or self.manifest.dynamic_policy.default_window_s
+        step_s = config.step_s or self.manifest.dynamic_policy.refresh_step_s
+        frames = build_dynamic_analysis_frames(
+            config.start_s, config.end_s, duration_s=inputs.duration_s,
+            window_s=window_s, step_s=step_s,
+            minimum_window_s=self.manifest.dynamic_policy.minimum_window_s,
+            allow_warmup=False,
+        )
+        if not frames:
+            raise ValueError("FAA 动态分析区间没有可执行窗口")
+        results = []
+        for frame in frames:
+            frame_config = config.model_copy(update={"start_s": frame.window_start_s, "end_s": frame.window_end_s})
+            results.append(self.execute_static(inputs, frame_config))
+        return AlgorithmSeriesResult(
+            values=[item.value for item in results],
+            time_s=[frame.time_s for frame in frames],
+            unit="dimensionless", channel=f"{inputs.channel}/{config.f4_channel}",
+            windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames],
+            quality=[item.quality for item in results],
+            failures=[item.failure for item in results],
+            warmups=[False for _ in frames],
+            states=["Rejected" if item.failure is not None else "Complete" for item in results],
+            point_evidence=[item.evidence for item in results],
+            evidence={"window_s": window_s, "step_s": step_s, "paired_epoch": True},
+        )

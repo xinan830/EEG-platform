@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
+from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.scientific.quality import SpectralQualityGateError
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
 from .compute import compute_theta_beta
@@ -64,15 +65,38 @@ class ThetaBetaAlgorithm:
         window_s = config.window_s or 10.0
         step_s = config.step_s or 1.0
         frames = build_dynamic_analysis_frames(config.start_s, config.end_s, duration_s=inputs.duration_s, window_s=window_s, step_s=step_s)
-        results = [
-            compute_theta_beta(
-                self._load(inputs.payload, channel=inputs.channel, start_s=frame.window_start_s, window_s=frame.actual_window_s),
-                channel=inputs.channel,
-                requested_range={"start_s": frame.window_start_s, "end_s": frame.window_end_s},
-                actual_range={"start_s": frame.window_start_s, "end_s": frame.window_end_s},
-            )
-            for frame in frames
-        ]
+        results: list[AlgorithmResult] = []
+        for frame in frames:
+            requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
+            try:
+                spectrum = self._load(
+                    inputs.payload, channel=inputs.channel,
+                    start_s=frame.window_start_s, window_s=frame.actual_window_s,
+                )
+                results.append(compute_theta_beta(
+                    spectrum, channel=inputs.channel,
+                    requested_range=requested_range, actual_range=requested_range,
+                ))
+            except SpectralQualityGateError as exc:
+                # Preserve the rejected point and continue with later windows.
+                quality = dict(exc.quality)
+                results.append(AlgorithmResult(
+                    value=None, unit="dimensionless", channel=inputs.channel,
+                    requested_range=requested_range, actual_range=requested_range,
+                    quality="gate_failed",
+                    failure=AlgorithmFailure(
+                        code="PSD_QUALITY_GATE_FAILED",
+                        message="当前动态窗口未通过 PSD 质量门",
+                        detail=quality,
+                    ),
+                    evidence={
+                        "source_quality": {key: quality[key] for key in (
+                            "clean_segments", "total_segments", "clean_ratio",
+                            "gate_failed", "rejected_reasons",
+                        ) if key in quality},
+                        "spectral_evidence": dict(quality.get("evidence", {})),
+                    },
+                ))
         return AlgorithmSeriesResult(
             values=[result.value for result in results],
             time_s=[frame.time_s for frame in frames],

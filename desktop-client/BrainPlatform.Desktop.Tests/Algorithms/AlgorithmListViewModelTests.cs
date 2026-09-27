@@ -98,6 +98,61 @@ public sealed class AlgorithmListViewModelTests
         Assert.Equal("O1", config.GetProperty("channel").GetString());
         Assert.Equal(1, config.GetProperty("low_hz").GetDouble());
         Assert.Equal(30, config.GetProperty("high_hz").GetDouble());
+        Assert.False(config.TryGetProperty("dynamic_window_s", out _));
+    }
+
+    [Fact]
+    public void DynamicConfig_ContainsWindowAndStepWithoutChangingRange()
+    {
+        var algorithm = new AlgorithmCatalogItem("official", "psd", "offline-spectral-v3", "功率谱密度", "PSD", "", [], ["static", "dynamic"],
+            default, new DynamicAnalysisPolicy(4, [5, 10, 20], 10, 1, true), "available", true, null, null, null);
+        var config = AlgorithmListViewModel.BuildRunConfig(algorithm, "O1", new TimeRange(2, 18), "dynamic", windowSeconds: 10, stepSeconds: 1);
+
+        Assert.Equal("dynamic", config.GetProperty("mode").GetString());
+        Assert.Equal(2, config.GetProperty("time").GetProperty("start_s").GetDouble());
+        Assert.Equal(18, config.GetProperty("time").GetProperty("end_s").GetDouble());
+        Assert.Equal(10, config.GetProperty("dynamic_window_s").GetDouble());
+        Assert.Equal(1, config.GetProperty("refresh_step_s").GetDouble());
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("NaN")]
+    [InlineData("-1")]
+    public void DynamicStep_RejectsNonPositiveValues(string value)
+    {
+        Assert.Throws<InvalidOperationException>(() =>
+            AlgorithmListViewModel.ParsePositiveSecondsOrThrow(value, "刷新步长"));
+    }
+
+    [Fact]
+    public void DynamicScalarPreview_PreservesNullAndWindowState()
+    {
+        var run = new AnalysisRunResponse("run", "recording", "official_algorithm", "completed", "v1", null, null,
+            JsonDocument.Parse("{\"metric\":{\"output\":{\"unit\":\"Hz\"},\"series\":[{\"time_s\":5,\"value\":10.25,\"analysis_state\":\"Complete\",\"quality\":{\"status\":\"clean\"}},{\"time_s\":6,\"value\":null,\"analysis_state\":\"Unavailable\",\"quality\":{\"status\":\"unavailable\"}}]}}").RootElement,
+            null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+        var points = DynamicResultPreview.ParseScalar(run);
+
+        Assert.Equal(2, points.Count);
+        Assert.Equal("10.25", points[0].ValueText);
+        Assert.Equal("不可用", points[1].ValueText);
+        Assert.Equal("Unavailable", points[1].State);
+    }
+
+    [Fact]
+    public void DynamicStructuredPreview_ParsesWindowFailureCode()
+    {
+        var preview = new StructuredPreviewResponse("run", new RunArtifact("a", "run", "dynamic", "x", "application/octet-stream", 1, "hash", null, new Dictionary<string, int[]>() { ["psd"] = [2, 3] }, DateTimeOffset.UtcNow),
+            null, ["O1"], null, null, new Dictionary<string, JsonElement>(), new Dictionary<string, JsonElement>(), new Dictionary<string, JsonElement>(), new Dictionary<string, JsonElement>(),
+            [JsonDocument.Parse("{\"start_s\":0,\"end_s\":5,\"state\":\"Rejected\",\"quality\":\"gate_failed\",\"failure\":{\"code\":\"GAP\"}}").RootElement],
+            new Dictionary<string, int> { ["Rejected"] = 1 }, null, "v1", "impl");
+
+        var rows = DynamicResultPreview.ParseStructured(preview);
+
+        Assert.Single(rows);
+        Assert.Equal("Rejected", rows[0].State);
+        Assert.Equal("GAP", rows[0].Failure);
     }
 
     [Fact]
@@ -216,6 +271,20 @@ public sealed class AlgorithmListViewModelTests
         Assert.Contains("Delta：0.4", summary);
         Assert.Contains("Alpha：0.3", summary);
         Assert.Contains("单位：ratio", summary);
+    }
+
+    [Fact]
+    public void DynamicSummary_UsesLatestUsableWindowInsteadOfRejectedFirstWindow()
+    {
+        var run = new AnalysisRunResponse("run-rbp-dynamic", "recording", "official_algorithm", "completed", "offline-spectral-v3", null, null,
+            JsonDocument.Parse("{\"metric\":{\"output\":{\"value\":null,\"unit\":\"ratio\"},\"series\":[{\"time_s\":4,\"value\":null,\"analysis_state\":\"Rejected\",\"quality\":{\"status\":\"gate_failed\"}},{\"time_s\":10,\"band_values\":{\"delta\":0.4,\"theta\":0.1,\"alpha\":0.3,\"beta\":0.2},\"analysis_state\":\"Complete\",\"quality\":{\"status\":\"clean\"}}]}}").RootElement,
+            null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+        var summary = AlgorithmListViewModel.BuildResultSummary(run);
+
+        Assert.Contains("最近有效窗口 10 秒", summary);
+        Assert.Contains("Delta：0.4", summary);
+        Assert.DoesNotContain("指标：不可用", summary);
     }
 
     [Fact]

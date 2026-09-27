@@ -304,6 +304,8 @@ class RunAnalysisExecutor:
                      "spectral_evidence": evidence.get("spectral_evidence", {}), "warmup": warmup, "analysis_state": analysis_state,
                      "calculation_trace": evidence.get("calculation_trace", {}),
                      "official": {"algorithm_id": config.algorithm_id, **evidence}, "chart": {"kind": "none"}}
+            if index < len(result.output_values):
+                point["band_values"] = result.output_values[index]
             points.append(point)
             values.append(np.nan if value is None else float(value))
         first = points[0] if points else {"output": {"id": config.algorithm_id, "label": label, "unit": result.unit}, "channel": result.channel}

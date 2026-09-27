@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
+from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.scientific.quality import SpectralQualityGateError
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
 from .compute import compute_iapf
@@ -74,15 +75,39 @@ class IapfAlgorithm:
             minimum_window_s=policy.minimum_window_s,
             allow_warmup=policy.allow_warmup,
         )
-        results = [
-            compute_iapf(
-                self._load(inputs.payload, channel=inputs.channel, start_s=frame.window_start_s, window_s=frame.actual_window_s),
-                channel=inputs.channel,
-                requested_range={"start_s": frame.window_start_s, "end_s": frame.window_end_s},
-                actual_range={"start_s": frame.window_start_s, "end_s": frame.window_end_s},
-            )
-            for frame in frames
-        ]
+        results: list[AlgorithmResult] = []
+        for frame in frames:
+            requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
+            try:
+                spectrum = self._load(
+                    inputs.payload, channel=inputs.channel,
+                    start_s=frame.window_start_s, window_s=frame.actual_window_s,
+                )
+                results.append(compute_iapf(
+                    spectrum, channel=inputs.channel,
+                    requested_range=requested_range, actual_range=requested_range,
+                ))
+            except SpectralQualityGateError as exc:
+                # A rejected dynamic window is evidence for that point, not a
+                # reason to discard all later windows in the same recording.
+                quality = dict(exc.quality)
+                results.append(AlgorithmResult(
+                    value=None, unit="Hz", channel=inputs.channel,
+                    requested_range=requested_range, actual_range=requested_range,
+                    quality="gate_failed",
+                    failure=AlgorithmFailure(
+                        code="PSD_QUALITY_GATE_FAILED",
+                        message="当前动态窗口未通过 PSD 质量门",
+                        detail=quality,
+                    ),
+                    evidence={
+                        "source_quality": {key: quality[key] for key in (
+                            "clean_segments", "total_segments", "clean_ratio",
+                            "gate_failed", "rejected_reasons",
+                        ) if key in quality},
+                        "spectral_evidence": dict(quality.get("evidence", {})),
+                    },
+                ))
         return AlgorithmSeriesResult(
             values=[result.value for result in results],
             time_s=[frame.time_s for frame in frames],

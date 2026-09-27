@@ -10,6 +10,7 @@ from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithm_runtime.windows import build_playback_windows
 from app.algorithms.iapf.runner import IapfAlgorithm
 from app.algorithms.iapf.official import IAPFEstimate
+from app.scientific.quality import SpectralQualityGateError
 
 
 def _fake_recording(duration_s: float = 40.0):
@@ -89,6 +90,35 @@ def test_iapf_dynamic_accepts_the_shared_ten_second_one_second_policy(monkeypatc
         config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 10, "window_s": 10, "step_s": 1},
     )
     assert result.time_s[-1] == 10.0
+
+
+def test_iapf_dynamic_keeps_a_rejected_window_and_continues(monkeypatch) -> None:
+    runtime = _runtime(monkeypatch)
+    spectrum = SimpleNamespace(gate_failed=None, freqs=np.linspace(1.0, 30.0, 117), psd=np.ones((1, 117), dtype=float))
+    calls = 0
+
+    def load_spectrum(*, start_s, window_s, channels):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise SpectralQualityGateError({
+                "clean_segments": 0, "total_segments": 1, "clean_ratio": 0.0,
+                "gate_failed": "low_quality", "rejected_reasons": ["amplitude_threshold"],
+                "evidence": {"gap": {"detected": False}},
+            })
+        return spectrum
+
+    recording = SimpleNamespace(id="r1", channel_names=["Fz"], sfreq_hz=500.0, duration_s=12.0, load_spectrum=load_spectrum)
+    result = runtime.execute(
+        algorithm_id="iapf", recording=recording,
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 6, "window_s": 10, "step_s": 1},
+    )
+    assert result.values[0] is None
+    assert result.quality[0] == "gate_failed"
+    assert result.failures[0].code == "PSD_QUALITY_GATE_FAILED"
+    assert result.values[1:] == [10.0, 10.0]
+    assert result.states[0] == "Rejected"
+    assert result.states[1:] == ["Partial", "Partial"]
 
 
 def test_later_generic_catchup_never_restarts_warmup_from_a_trailing_boundary() -> None:

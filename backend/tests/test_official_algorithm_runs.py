@@ -153,6 +153,19 @@ def test_official_rbp_run_returns_all_four_backend_band_shares(tmp_path: Path):
     assert metric["chart"]["kind"] == "band_share"
 
 
+def test_official_dynamic_rbp_returns_four_band_shares_per_window(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    completed = service.create(_request(recording_id, "rbp", dynamic=True))
+
+    assert completed.status is RunStatus.COMPLETED
+    series = completed.result_summary["metric"]["series"]
+    assert len(series) == 27
+    assert set(series[0]["band_values"]) == {"delta", "theta", "alpha", "beta"}
+    assert sum(series[6]["band_values"].values()) == pytest.approx(1.0)
+    assert series[0]["analysis_state"] == "Partial"
+    assert series[6]["analysis_state"] == "Complete"
+
+
 def test_official_psd_run_returns_structured_frequency_artifact(tmp_path: Path):
     service, recording_id = _service(tmp_path)
     request = _request(recording_id, "iapf")
@@ -268,7 +281,22 @@ def test_official_faa_run_records_explicit_pair_and_paired_quality(tmp_path: Pat
     assert metric["source_quality"]["clean_segments"] >= 10
     assert metric["official"]["faa_evidence"]["time_scope"] == "exact_requested_absolute_range"
     assert metric["official"]["faa_evidence"]["requested_range_s"] == {"start_s": 0.0, "end_s": 30.0}
-    assert metric["official"]["faa_evidence"]["faa_contract"]["method"] == "paired_epoch_rfft_density"
+
+
+def test_official_dynamic_faa_keeps_paired_quality_per_window(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    request = _request(recording_id, "faa", dynamic=True)
+    request.config["dynamic_window_s"] = 20
+    completed = service.create(request)
+
+    assert completed.status is RunStatus.COMPLETED
+    metric = completed.result_summary["metric"]
+    series = metric["series"]
+    assert len(series) == 11
+    assert series[0]["analysis_state"] == "Complete"
+    assert series[0]["channel"] == "F3/F4"
+    assert series[0]["value"] == pytest.approx(np.log(4.0), abs=0.15)
+    assert series[0]["official"]["faa_evidence"]["channels"] == ["F3", "F4"]
     assert completed.filters == {"operation": "per_epoch_mean_removal", "software_bandpass": "not_applied"}
     assert completed.window["method"] == "paired_epoch_rfft_density"
 

@@ -8,7 +8,7 @@ MANIFEST = AlgorithmManifest(
     purpose_zh="展示所选通道 Delta、Theta、Alpha、Beta 在 1–30 Hz 总功率中的相对占比。",
     scientific_version="offline-spectral-v3",
     implementation_identity="rbp-runtime-v1",
-    supported_modes=["static"],
+    supported_modes=["static", "dynamic"],
     output_schema={"fields": [
         {"name": "delta", "unit": "ratio", "meaning": "Delta 相对功率"},
         {"name": "theta", "unit": "ratio", "meaning": "Theta 相对功率"},

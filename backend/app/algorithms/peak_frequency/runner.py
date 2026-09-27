@@ -3,10 +3,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
+from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
+from app.scientific.quality import SpectralQualityGateError
 
 from .compute import compute_peak_frequency
 from .config import PeakFrequencyConfig
@@ -64,9 +65,29 @@ class PeakFrequencyAlgorithm:
         window_s, step_s = config.window_s or 10.0, config.step_s or 1.0
         frames = build_dynamic_analysis_frames(config.start_s, config.end_s, duration_s=inputs.duration_s, window_s=window_s, step_s=step_s,
                                                minimum_window_s=self.manifest.dynamic_policy.minimum_window_s, allow_warmup=self.manifest.dynamic_policy.allow_warmup)
-        results = [compute_peak_frequency(self._load(inputs.payload, channel=inputs.channel, start_s=frame.window_start_s, window_s=frame.actual_window_s), channel=inputs.channel,
-                                          low_hz=config.low_hz, high_hz=config.high_hz,
-                                          requested_range={"start_s": frame.window_start_s, "end_s": frame.window_end_s}, actual_range={"start_s": frame.window_start_s, "end_s": frame.window_end_s}) for frame in frames]
+        results: list[AlgorithmResult] = []
+        for frame in frames:
+            requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
+            try:
+                results.append(compute_peak_frequency(
+                    self._load(inputs.payload, channel=inputs.channel, start_s=frame.window_start_s, window_s=frame.actual_window_s),
+                    channel=inputs.channel, low_hz=config.low_hz, high_hz=config.high_hz,
+                    requested_range=requested_range, actual_range=requested_range,
+                ))
+            except SpectralQualityGateError as exc:
+                quality = dict(exc.quality)
+                results.append(AlgorithmResult(
+                    value=None, unit="Hz", channel=inputs.channel,
+                    requested_range=requested_range, actual_range=requested_range,
+                    quality="gate_failed",
+                    failure=AlgorithmFailure(code="PSD_QUALITY_GATE_FAILED", message="当前动态窗口未通过 PSD 质量门", detail=quality),
+                    evidence={
+                        "source_quality": {key: quality[key] for key in (
+                            "clean_segments", "total_segments", "clean_ratio", "gate_failed", "rejected_reasons",
+                        ) if key in quality},
+                        "spectral_evidence": dict(quality.get("evidence", {})),
+                    },
+                ))
         return AlgorithmSeriesResult(values=[item.value for item in results], time_s=[frame.time_s for frame in frames], unit="Hz", channel=inputs.channel,
                                      windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames], quality=[item.quality for item in results],
                                      failures=[item.failure for item in results], warmups=[frame.warmup for frame in frames], point_evidence=[item.evidence for item in results],

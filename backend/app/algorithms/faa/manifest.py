@@ -1,4 +1,4 @@
-from app.algorithm_runtime.contracts import AlgorithmManifest
+from app.algorithm_runtime.contracts import AlgorithmManifest, DynamicAnalysisPolicy
 
 
 MANIFEST = AlgorithmManifest(
@@ -8,7 +8,8 @@ MANIFEST = AlgorithmManifest(
     purpose_zh="比较明确选择的 F3 与 F4 来源通道的 Alpha 功率对数差。",
     scientific_version="official-faa-v1",
     implementation_identity="faa-runtime-v1",
-    supported_modes=["static"],
+    supported_modes=["static", "dynamic"],
+    dynamic_policy=DynamicAnalysisPolicy(minimum_window_s=11.0, window_options_s=[20.0, 30.0], default_window_s=20.0, refresh_step_s=1.0, allow_warmup=False),
     output_schema={"fields": [{"name": "faa", "unit": "dimensionless", "meaning": "F4 Alpha 功率对数减 F3 Alpha 功率对数"}]},
     definition_name="Official FAA",
     execution_kind="official_composite_run_adapter",

@@ -239,6 +239,7 @@ class AlgorithmSeriesResult(BaseModel):
     warmups: list[bool] = Field(default_factory=list)
     states: list[DynamicAnalysisState] = Field(default_factory=list)
     point_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    output_values: list[dict[str, float | None]] = Field(default_factory=list)
     evidence: dict[str, Any] = Field(default_factory=dict)
 
 

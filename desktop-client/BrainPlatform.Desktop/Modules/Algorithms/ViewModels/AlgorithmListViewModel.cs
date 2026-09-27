@@ -17,11 +17,16 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     private string sourceDirectory = string.Empty;
     private RegisteredRecording? registeredRecording;
     private AlgorithmCatalogItem? selectedAlgorithm;
+    private string? selectedAlgorithmId;
     private ProjectRecordingRow? selectedProjectRecording;
     private string runStatusText = "尚未提交分析。";
     private string resultSummaryText = "暂无结果摘要。";
     private string provenanceText = "暂无溯源信息。";
     private string structuredPreviewText = "暂无结构化预览。";
+    private string dynamicSeriesText = "暂无动态结果。";
+    private string selectedAnalysisMode = "静态";
+    private double selectedDynamicWindowSeconds = 10.0;
+    private string dynamicStepText = "1";
     private string selectedChannel = string.Empty;
     private string selectedF4Channel = string.Empty;
     private string startSecondsText = "0";
@@ -105,7 +110,12 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         set
         {
             if (!SetProperty(ref selectedAlgorithm, value)) return;
+            if (value is not null)
+                selectedAlgorithmId = value.Id;
             ClearPreviews();
+            SelectedAnalysisMode = "静态";
+            SelectedDynamicWindowSeconds = value?.DynamicPolicy.DefaultWindowSeconds ?? 10.0;
+            DynamicStepText = value?.DynamicPolicy.RefreshStepSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) ?? "1";
             RaisePropertyChanged(nameof(IsPsdSelected));
             RaisePropertyChanged(nameof(IsStftSelected));
             RaisePropertyChanged(nameof(IsRbpSelected));
@@ -115,6 +125,8 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             RaisePropertyChanged(nameof(IsIapfSelected));
             RaisePropertyChanged(nameof(IsThetaBetaSelected));
             RaisePropertyChanged(nameof(ChannelLabel));
+            RaisePropertyChanged(nameof(IsDynamicModeAvailable));
+            RaisePropertyChanged(nameof(DynamicWindowOptions));
         }
     }
     public bool IsPsdSelected => SelectedAlgorithm?.Id == "psd";
@@ -177,7 +189,30 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     public string ResultSummaryText { get => resultSummaryText; private set => SetProperty(ref resultSummaryText, value); }
     public string ProvenanceText { get => provenanceText; private set => SetProperty(ref provenanceText, value); }
     public string StructuredPreviewText { get => structuredPreviewText; private set => SetProperty(ref structuredPreviewText, value); }
+    public string DynamicSeriesText { get => dynamicSeriesText; private set => SetProperty(ref dynamicSeriesText, value); }
+    public IReadOnlyList<string> AnalysisModes { get; } = ["静态", "动态"];
+    public string SelectedAnalysisMode
+    {
+        get => selectedAnalysisMode;
+        set
+        {
+            if (!SetProperty(ref selectedAnalysisMode, value)) return;
+            ClearPreviews();
+            RaisePropertyChanged(nameof(IsDynamicMode));
+            RaisePropertyChanged(nameof(RbpCardTitle));
+        }
+    }
+    public bool IsDynamicMode => SelectedAnalysisMode == "动态";
+    public string RbpCardTitle => IsDynamicMode ? "相对频段功率（最近有效窗口）" : "相对频段功率";
+    public bool IsDynamicModeAvailable => SelectedAlgorithm?.Modes.Contains("dynamic") == true;
+    public IReadOnlyList<double> DynamicWindowOptions => SelectedAlgorithm?.DynamicPolicy.WindowOptionsSeconds ?? [];
+    public double SelectedDynamicWindowSeconds { get => selectedDynamicWindowSeconds; set => SetProperty(ref selectedDynamicWindowSeconds, value); }
+    public string DynamicStepText { get => dynamicStepText; set => SetProperty(ref dynamicStepText, value); }
     public ObservableCollection<PsdPreviewPoint?> PsdPreviewPoints { get; } = [];
+    public ObservableCollection<DynamicSeriesPoint> DynamicSeriesPoints { get; } = [];
+    public ObservableCollection<DynamicWindowRow> DynamicWindowRows { get; } = [];
+    public bool HasDynamicSeries => DynamicSeriesPoints.Count > 0;
+    public bool HasDynamicWindows => DynamicWindowRows.Count > 0;
     public string PsdFrequencyUnit { get => psdFrequencyUnit; private set => SetProperty(ref psdFrequencyUnit, value); }
     public string PsdValueUnit { get => psdValueUnit; private set => SetProperty(ref psdValueUnit, value); }
     public bool HasPsdPreview { get => hasPsdPreview; private set => SetProperty(ref hasPsdPreview, value); }
@@ -203,8 +238,50 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         try
         {
             var items = await client.ListAlgorithmsAsync(CancellationToken.None);
-            Items.Clear();
-            foreach (var item in items) Items.Add(item);
+            // Synchronize in place. Clearing the collection causes WPF to emit a
+            // transient SelectedItem=null and rebuild the whole ListView. That
+            // is visible as a selection flash when refresh overlaps a click.
+            // Keeping existing rows (and moving them into catalog order) avoids
+            // that transient state while still removing stale algorithms.
+            var incomingIds = items.Select(item => item.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            for (var index = Items.Count - 1; index >= 0; index--)
+            {
+                if (!incomingIds.Contains(Items[index].Id))
+                    Items.RemoveAt(index);
+            }
+
+            for (var index = 0; index < items.Count; index++)
+            {
+                var incoming = items[index];
+                var existingIndex = -1;
+                for (var candidateIndex = 0; candidateIndex < Items.Count; candidateIndex++)
+                {
+                    if (string.Equals(Items[candidateIndex].Id, incoming.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        existingIndex = candidateIndex;
+                        break;
+                    }
+                }
+
+                if (existingIndex < 0)
+                {
+                    Items.Insert(index, incoming);
+                    continue;
+                }
+
+                if (existingIndex != index)
+                    Items.Move(existingIndex, index);
+
+                if (!Equals(Items[index], incoming) &&
+                    !string.Equals(incoming.Id, selectedAlgorithmId, StringComparison.OrdinalIgnoreCase))
+                {
+                    Items[index] = incoming;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(selectedAlgorithmId))
+                SelectedAlgorithm = Items.FirstOrDefault(item => string.Equals(item.Id, selectedAlgorithmId, StringComparison.OrdinalIgnoreCase));
             StatusText = $"已加载 {Items.Count} 个官方算法。";
         }
         catch (Exception exception)
@@ -235,6 +312,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         ResultSummaryText = "暂无结果摘要。";
         ProvenanceText = "暂无溯源信息。";
         StructuredPreviewText = "暂无结构化预览。";
+        DynamicSeriesText = "暂无动态结果。";
         ClearPreviews();
         if (SelectedProjectRecording is not { Status: "已完成" } || string.IsNullOrWhiteSpace(SourceDirectory))
         {
@@ -269,10 +347,13 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     private async Task RunAsync()
     {
         var algorithm = SelectedAlgorithm ?? throw new InvalidOperationException("请选择一个官方算法。");
-        if (!IsSupportedStaticAlgorithm(algorithm))
+        if (!IsSupportedAlgorithm(algorithm))
         {
-            throw new InvalidOperationException("当前配置页仅支持可运行的静态 PSD、STFT、RBP、峰频率、频段功率比、FAA、IAPF 和 Theta/Beta；其他算法需要各自的参数契约。");
+            throw new InvalidOperationException("当前算法不可运行，或未声明可用的分析模式。");
         }
+        var dynamic = IsDynamicMode;
+        if (dynamic && !IsDynamicModeAvailable)
+            throw new InvalidOperationException("当前算法未声明动态分析模式。");
         if (RegisteredRecording is null)
         {
             throw new InvalidOperationException("请先注册一条已完成的 WPF 记录。");
@@ -296,11 +377,14 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
                 NumeratorLowFrequencyText, NumeratorHighFrequencyText,
                 DenominatorLowFrequencyText, DenominatorHighFrequencyText,
                 RegisteredRecording.SamplingRateHz)
-            : null;
+             : null;
+        var stepSeconds = dynamic ? ParsePositiveSecondsOrThrow(DynamicStepText, "刷新步长") : 0;
+        if (dynamic && SelectedDynamicWindowSeconds < algorithm.DynamicPolicy.MinimumWindowSeconds)
+            throw new InvalidOperationException($"动态窗口不能小于 {algorithm.DynamicPolicy.MinimumWindowSeconds:0.###} 秒。");
         ClearPreviews();
         var start = requestedRange.StartSeconds;
         var end = requestedRange.EndSeconds;
-        var config = BuildStaticRunConfig(algorithm, SelectedChannel, requestedRange, frequencyBand, ratioBands, algorithm.Id == "faa" ? SelectedF4Channel : null);
+        var config = BuildRunConfig(algorithm, SelectedChannel, requestedRange, dynamic ? "dynamic" : "static", frequencyBand, ratioBands, algorithm.Id == "faa" ? SelectedF4Channel : null, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null);
         var run = await client.CreateRunAsync(new AnalysisRunRequest(RegisteredRecording.Id, "official_algorithm", config), CancellationToken.None);
         RunStatusText = $"{algorithm.DisplayNameZh}：{run.Status}（{run.RunId}）";
         run = await PollRunToTerminalAsync(run, algorithm.DisplayNameZh, CancellationToken.None);
@@ -309,10 +393,19 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             RunStatusText += "，结果已由后端保存。";
             ResultSummaryText = BuildResultSummary(run);
             ProvenanceText = BuildProvenance(run);
-            if (algorithm.Id == "rbp")
+            DynamicSeriesText = dynamic ? BuildDynamicSeriesSummary(run) : "暂无动态结果。";
+            if (dynamic && algorithm.Id is not "psd" and not "stft")
+                SetDynamicSeries(run);
+            if (algorithm.Id == "rbp" && !dynamic)
             {
                 UpdateRbpValues(run);
                 StructuredPreviewText = "RBP 为四频段标量结果，数值由后端直接返回，未在客户端重算。";
+            }
+            else if (algorithm.Id == "rbp" && dynamic)
+            {
+                SetDynamicSeries(run);
+                UpdateDynamicRbpValues(run);
+                StructuredPreviewText = "动态 RBP 每个窗口返回 Delta、Theta、Alpha、Beta 相对功率，数值由后端直接返回，未在客户端重算。";
             }
             else if (algorithm.Id == "peak_frequency")
             {
@@ -336,7 +429,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             }
             else
             {
-                await LoadStructuredPreviewAsync(run.RunId, algorithm.Id);
+                await LoadStructuredPreviewAsync(run.RunId, algorithm.Id, dynamic);
             }
         }
         else if (run.Error is not null)
@@ -405,25 +498,67 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         TimeRange range,
         FrequencyBand? frequencyBand = null,
         BandRatioBands? ratioBands = null,
-        string? f4Channel = null) =>
-        JsonSerializer.SerializeToElement(new
+        string? f4Channel = null) => BuildRunConfig(algorithm, channel, range, "static", frequencyBand, ratioBands, f4Channel, null, null);
+
+    internal static JsonElement BuildRunConfig(
+        AlgorithmCatalogItem algorithm,
+        string channel,
+        TimeRange range,
+        string mode,
+        FrequencyBand? frequencyBand = null,
+        BandRatioBands? ratioBands = null,
+        string? f4Channel = null,
+        double? windowSeconds = null,
+        double? stepSeconds = null) =>
+        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds));
+
+    private static Dictionary<string, object?> BuildRunConfigPayload(
+        AlgorithmCatalogItem algorithm,
+        string channel,
+        TimeRange range,
+        string mode,
+        FrequencyBand? frequencyBand,
+        BandRatioBands? ratioBands,
+        string? f4Channel,
+        double? windowSeconds,
+        double? stepSeconds)
+    {
+        var payload = new Dictionary<string, object?>
         {
-            algorithm_id = algorithm.Id,
-            scientific_version = algorithm.Version,
-            time = new { start_s = range.StartSeconds, end_s = range.EndSeconds },
-            channel,
-            mode = "static",
-            low_hz = frequencyBand?.LowHz,
-            high_hz = frequencyBand?.HighHz,
-            numerator_low_hz = ratioBands?.Numerator.LowHz,
-            numerator_high_hz = ratioBands?.Numerator.HighHz,
-            denominator_low_hz = ratioBands?.Denominator.LowHz,
-            denominator_high_hz = ratioBands?.Denominator.HighHz,
-            f4_channel = f4Channel,
-        });
+            ["algorithm_id"] = algorithm.Id,
+            ["scientific_version"] = algorithm.Version,
+            ["time"] = new { start_s = range.StartSeconds, end_s = range.EndSeconds },
+            ["channel"] = channel,
+            ["mode"] = mode,
+            ["low_hz"] = frequencyBand?.LowHz,
+            ["high_hz"] = frequencyBand?.HighHz,
+            ["numerator_low_hz"] = ratioBands?.Numerator.LowHz,
+            ["numerator_high_hz"] = ratioBands?.Numerator.HighHz,
+            ["denominator_low_hz"] = ratioBands?.Denominator.LowHz,
+            ["denominator_high_hz"] = ratioBands?.Denominator.HighHz,
+            ["f4_channel"] = f4Channel,
+        };
+        if (windowSeconds is double window && stepSeconds is double step)
+        {
+            payload["dynamic_window_s"] = window;
+            payload["refresh_step_s"] = step;
+        }
+        return payload;
+    }
+
+    internal static bool IsSupportedAlgorithm(AlgorithmCatalogItem? algorithm) =>
+        algorithm is { IsRunnable: true } && (algorithm.Id is "psd" or "stft" or "rbp" or "peak_frequency" or "band_ratio" or "faa" or "iapf" or "theta_beta") && algorithm.Modes.Any();
 
     internal static bool IsSupportedStaticAlgorithm(AlgorithmCatalogItem? algorithm) =>
-        algorithm is { IsRunnable: true } && (algorithm.Id is "psd" or "stft" or "rbp" or "peak_frequency" or "band_ratio" or "faa" or "iapf" or "theta_beta") && algorithm.Modes.Contains("static");
+        IsSupportedAlgorithm(algorithm) && algorithm!.Modes.Contains("static");
+
+    internal static double ParsePositiveSecondsOrThrow(string text, string label)
+    {
+        if (!double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value) ||
+            !double.IsFinite(value) || value <= 0)
+            throw new InvalidOperationException($"请输入有效的{label}，必须大于 0。 ");
+        return value;
+    }
 
     internal async Task<AnalysisRunResponse> PollRunToTerminalAsync(
         AnalysisRunResponse run,
@@ -440,13 +575,21 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         return run;
     }
 
-    private async Task LoadStructuredPreviewAsync(string runId, string algorithmId)
+    private async Task LoadStructuredPreviewAsync(string runId, string algorithmId, bool dynamic = false)
     {
         try
         {
-            var preview = await client.GetStructuredPreviewAsync(runId, algorithmId == "stft" ? 100_000 : 4_000, CancellationToken.None);
+            // Dynamic PSD contains one row per analysis window. Keep the
+            // preview bounded, but do not reject a normal 60-window result.
+            var preview = await client.GetStructuredPreviewAsync(runId, algorithmId == "stft" ? 1_000_000 : 20_000, CancellationToken.None);
             StructuredPreviewText = BuildStructuredPreview(preview);
-            if (algorithmId == "stft")
+            if (dynamic)
+            {
+                // Dynamic matrices are represented by bounded backend metadata
+                // until the final chart redesign; no science is recomputed here.
+                SetDynamicWindows(preview);
+            }
+            else if (algorithmId == "stft")
             {
                 StftResult = StftPreview.Parse(preview);
                 RaisePropertyChanged(nameof(HasStftPreview));
@@ -475,6 +618,11 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     {
         ClearPsdPreview();
         StftResult = null;
+        DynamicSeriesText = "暂无动态结果。";
+        DynamicSeriesPoints.Clear();
+        DynamicWindowRows.Clear();
+        RaisePropertyChanged(nameof(HasDynamicSeries));
+        RaisePropertyChanged(nameof(HasDynamicWindows));
         RbpDeltaText = RbpThetaText = RbpAlphaText = RbpBetaText = "不可用";
         RaisePropertyChanged(nameof(HasStftPreview));
         RaisePropertyChanged(nameof(StftAxisText));
@@ -488,6 +636,38 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         PsdValueUnit = "";
         PsdFrequencyRangeText = "";
         PsdValueRangeText = "";
+    }
+
+    private void SetDynamicSeries(AnalysisRunResponse run)
+    {
+        DynamicSeriesPoints.Clear();
+        foreach (var point in DynamicResultPreview.ParseScalar(run))
+            DynamicSeriesPoints.Add(point);
+        RaisePropertyChanged(nameof(HasDynamicSeries));
+    }
+
+    private void SetDynamicWindows(StructuredPreviewResponse preview)
+    {
+        DynamicWindowRows.Clear();
+        foreach (var window in DynamicResultPreview.ParseStructured(preview))
+            DynamicWindowRows.Add(window);
+        RaisePropertyChanged(nameof(HasDynamicWindows));
+    }
+
+    private static string BuildDynamicSeriesSummary(AnalysisRunResponse run)
+    {
+        if (run.ResultSummary is not { } summary || !summary.TryGetProperty("metric", out var metric) || metric.ValueKind != JsonValueKind.Object)
+            return "动态结果未返回可展示的时间序列。";
+        if (!metric.TryGetProperty("series", out var series) || series.ValueKind != JsonValueKind.Array)
+            return "动态结果没有时间序列；请查看结构化预览或运行状态。";
+        var points = series.EnumerateArray().ToArray();
+        var states = points.GroupBy(point => point.TryGetProperty("analysis_state", out var state) ? state.GetString() ?? "未知" : "未知")
+            .Select(group => $"{group.Key}={group.Count()}");
+        var output = metric.TryGetProperty("output", out var outputElement) && outputElement.ValueKind == JsonValueKind.Object
+            ? outputElement : default;
+        var unit = output.ValueKind == JsonValueKind.Object && output.TryGetProperty("unit", out var unitElement)
+            ? unitElement.GetString() ?? "" : "";
+        return $"动态时间序列：{points.Length} 个窗口；状态：{string.Join("、", states)}；单位：{unit}。数值与状态由后端返回。";
     }
 
     private void BuildPsdPreview(StructuredPreviewResponse preview)
@@ -537,6 +717,32 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             return "后端已保存频谱结果；曲线与单位见结构化预览。";
         }
 
+        if (metric.TryGetProperty("series", out var dynamicSeries) && dynamicSeries.ValueKind == JsonValueKind.Array)
+        {
+            var points = dynamicSeries.EnumerateArray().ToArray();
+            var latest = points.LastOrDefault(point => HasUsableDynamicValue(point));
+            var windowText = latest.ValueKind == JsonValueKind.Object && latest.TryGetProperty("time_s", out var time) && time.TryGetDouble(out var seconds)
+                ? $"最近有效窗口 {seconds:0.###} 秒"
+                : "暂无有效窗口";
+            var status = latest.ValueKind == JsonValueKind.Object && latest.TryGetProperty("quality", out var latestQuality)
+                ? FormatQuality(latestQuality)
+                : "未提供";
+            if (latest.ValueKind == JsonValueKind.Object && latest.TryGetProperty("band_values", out var latestBands) && latestBands.ValueKind == JsonValueKind.Object)
+            {
+                var bandText = string.Join("；", latestBands.EnumerateObject().Select(item =>
+                    $"{FormatBandName(item.Name)}：{FormatJsonValue(item.Value)}"));
+                return $"动态结果：{points.Length} 个窗口；{windowText}；{bandText}；单位：ratio；状态：{status}";
+            }
+            var latestValue = latest.ValueKind == JsonValueKind.Object && latest.TryGetProperty("value", out var latestValueElement)
+                ? FormatJsonValue(latestValueElement)
+                : "不可用";
+            var latestUnit = metric.TryGetProperty("output", out var dynamicOutput) && dynamicOutput.ValueKind == JsonValueKind.Object &&
+                             dynamicOutput.TryGetProperty("unit", out var dynamicUnit)
+                ? dynamicUnit.GetString() ?? ""
+                : "";
+            return $"动态结果：{points.Length} 个窗口；{windowText}；指标：{latestValue}{(string.IsNullOrWhiteSpace(latestUnit) ? "" : $" {latestUnit}")}；状态：{status}";
+        }
+
         var output = metric.TryGetProperty("output", out var outputElement) && outputElement.ValueKind == JsonValueKind.Object
             ? outputElement
             : default;
@@ -579,6 +785,33 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         RbpThetaText = FormatBandValue(values, "theta");
         RbpAlphaText = FormatBandValue(values, "alpha");
         RbpBetaText = FormatBandValue(values, "beta");
+    }
+
+    private void UpdateDynamicRbpValues(AnalysisRunResponse run)
+    {
+        if (run.ResultSummary is not { } summary || !summary.TryGetProperty("metric", out var metric) ||
+            !metric.TryGetProperty("series", out var series) || series.ValueKind != JsonValueKind.Array)
+            return;
+        var point = series.EnumerateArray()
+            .LastOrDefault(item => item.TryGetProperty("band_values", out var bands) &&
+                                   bands.ValueKind == JsonValueKind.Object &&
+                                   bands.EnumerateObject().Any(entry => entry.Value.ValueKind == JsonValueKind.Number));
+        if (point.ValueKind != JsonValueKind.Object || !point.TryGetProperty("band_values", out var values))
+            return;
+        RbpDeltaText = FormatBandValue(values, "delta");
+        RbpThetaText = FormatBandValue(values, "theta");
+        RbpAlphaText = FormatBandValue(values, "alpha");
+        RbpBetaText = FormatBandValue(values, "beta");
+    }
+
+    private static bool HasUsableDynamicValue(JsonElement point)
+    {
+        if (point.ValueKind != JsonValueKind.Object) return false;
+        if (point.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.Number &&
+            value.TryGetDouble(out var scalar) && double.IsFinite(scalar)) return true;
+        return point.TryGetProperty("band_values", out var bands) && bands.ValueKind == JsonValueKind.Object &&
+               bands.EnumerateObject().Any(item => item.Value.ValueKind == JsonValueKind.Number &&
+                                                   item.Value.TryGetDouble(out var number) && double.IsFinite(number));
     }
 
     private static string FormatBandValue(JsonElement values, string key) =>
@@ -666,9 +899,12 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             return FormatJsonValue(value);
         }
 
-        var values = value.EnumerateArray().Take(3).Select(FormatJsonValue).ToArray();
+        var values = value.EnumerateArray().Take(3).Select(PreviewValue).ToArray();
         return values.Length == 0 ? "[]" : $"[{string.Join(", ", values)}{(value.GetArrayLength() > values.Length ? ", …" : "")}]";
     }
+
+    private static string PreviewValue(JsonElement value) =>
+        value.ValueKind == JsonValueKind.Array ? "[…]" : FormatJsonValue(value);
 
     private static string FormatRange(TimeRange? range) => range is null
         ? "未提供"
