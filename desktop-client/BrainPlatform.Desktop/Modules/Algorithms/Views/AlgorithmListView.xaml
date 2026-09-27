@@ -27,19 +27,69 @@
             </StackPanel>
         </Grid>
         <Grid Grid.Row="1" Margin="0,16,0,0">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="180" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-            <TextBlock Text="PSD 通道" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
-            <ComboBox Grid.Column="1" Style="{StaticResource AppFilterComboBoxStyle}" MaxDropDownHeight="220" IsEnabled="{Binding AlgorithmCatalog.HasRegisteredChannels}" ItemsSource="{Binding AlgorithmCatalog.RegisteredChannels}" SelectedItem="{Binding AlgorithmCatalog.SelectedChannel, Mode=TwoWay}" />
-            <TextBlock Grid.Column="2" Text="开始（秒）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0" />
-            <TextBox Grid.Column="3" Text="{Binding AlgorithmCatalog.StartSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="开始时间（秒）" />
-            <TextBlock Grid.Column="4" Text="结束（秒）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0" />
-            <TextBox Grid.Column="5" Text="{Binding AlgorithmCatalog.EndSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="结束时间（秒）" />
-            <TextBlock Grid.Column="6" Margin="16,0,0,0" VerticalAlignment="Center" Text="先选择项目和已完成记录，再注册后配置范围。" Foreground="#64748B" />
+            <TextBlock Grid.Row="0" Text="{Binding AlgorithmCatalog.ChannelLabel}" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
+            <ComboBox Grid.Row="0" Grid.Column="1" Style="{StaticResource AppFilterComboBoxStyle}" MaxDropDownHeight="220" IsEnabled="{Binding AlgorithmCatalog.HasRegisteredChannels}" ItemsSource="{Binding AlgorithmCatalog.RegisteredChannels}" SelectedItem="{Binding AlgorithmCatalog.SelectedChannel, Mode=TwoWay}" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="开始（秒）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0" />
+            <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding AlgorithmCatalog.StartSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="开始时间（秒）" />
+            <TextBlock Grid.Row="0" Grid.Column="4" Text="结束（秒）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0" />
+            <TextBox Grid.Row="0" Grid.Column="5" Text="{Binding AlgorithmCatalog.EndSecondsText, UpdateSourceTrigger=PropertyChanged}" ToolTip="结束时间（秒）" />
+            <TextBlock Grid.Row="0" Grid.Column="6" Margin="16,0,0,0" VerticalAlignment="Center" Text="先选择项目和已完成记录，再注册后配置范围。" Foreground="#64748B" />
+            <StackPanel Grid.Row="1" Grid.ColumnSpan="7" Orientation="Horizontal" Margin="0,12,0,0">
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsFaaSelected}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                    <TextBlock Text="FAA F4 通道" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
+                    <ComboBox Width="180" Style="{StaticResource AppFilterComboBoxStyle}" MaxDropDownHeight="220" IsEnabled="{Binding AlgorithmCatalog.HasRegisteredChannels}" ItemsSource="{Binding AlgorithmCatalog.RegisteredChannels}" SelectedItem="{Binding AlgorithmCatalog.SelectedF4Channel, Mode=TwoWay}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsPeakFrequencySelected}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                    <TextBlock Text="频段预设" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
+                    <ComboBox Width="150" Margin="0,0,16,0" Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding AlgorithmCatalog.FrequencyBandPresets}" SelectedValuePath="Name" SelectedValue="{Binding AlgorithmCatalog.SelectedPeakBandPreset, Mode=TwoWay}" ToolTip="选择标准频段，或选择自定义后手动输入">
+                        <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="频段下限（Hz）" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
+                    <TextBox Width="120" Text="{Binding AlgorithmCatalog.LowFrequencyText, UpdateSourceTrigger=PropertyChanged}" ToolTip="峰频率分析下限（Hz）" />
+                    <TextBlock Text="频段上限（Hz）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0" />
+                    <TextBox Width="120" Text="{Binding AlgorithmCatalog.HighFrequencyText, UpdateSourceTrigger=PropertyChanged}" ToolTip="峰频率分析上限（Hz），必须低于 Nyquist 频率" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="24,0,0,0">
+                    <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsBandRatioSelected}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                    <TextBlock Text="比值预设" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
+                    <ComboBox Width="140" Margin="0,0,16,0" Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding AlgorithmCatalog.BandRatioPresets}" SelectedValuePath="Name" SelectedValue="{Binding AlgorithmCatalog.SelectedRatioPreset, Mode=TwoWay}" ToolTip="选择标准比值频段，或选择自定义后手动输入">
+                        <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="分子下限（Hz）" VerticalAlignment="Center" Foreground="#475569" Margin="0,0,8,0" />
+                    <TextBox Width="90" Text="{Binding AlgorithmCatalog.NumeratorLowFrequencyText, UpdateSourceTrigger=PropertyChanged}" ToolTip="分子频段下限（Hz）" />
+                    <TextBlock Text="分子上限（Hz）" VerticalAlignment="Center" Foreground="#475569" Margin="12,0,8,0" />
+                    <TextBox Width="90" Text="{Binding AlgorithmCatalog.NumeratorHighFrequencyText, UpdateSourceTrigger=PropertyChanged}" ToolTip="分子频段上限（Hz）" />
+                    <TextBlock Text="分母下限（Hz）" VerticalAlignment="Center" Foreground="#475569" Margin="16,0,8,0" />
+                    <TextBox Width="90" Text="{Binding AlgorithmCatalog.DenominatorLowFrequencyText, UpdateSourceTrigger=PropertyChanged}" ToolTip="分母频段下限（Hz）" />
+                    <TextBlock Text="分母上限（Hz）" VerticalAlignment="Center" Foreground="#475569" Margin="12,0,8,0" />
+                    <TextBox Width="90" Text="{Binding AlgorithmCatalog.DenominatorHighFrequencyText, UpdateSourceTrigger=PropertyChanged}" ToolTip="分母频段上限（Hz）" />
+                </StackPanel>
+            </StackPanel>
         </Grid>
         <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="20">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Bottom" Margin="0,16,0,0">
+                    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+                        <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsRbpSelected}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock Text="相对频段功率" FontWeight="SemiBold" Foreground="#334155" />
+                                <TextBlock DockPanel.Dock="Right" Text="单位：ratio" Foreground="#64748B" />
+                            </DockPanel>
+                            <UniformGrid Columns="4" Margin="0,14,0,0">
+                                <StackPanel><TextBlock Text="Delta" Foreground="#64748B" /><TextBlock Text="{Binding AlgorithmCatalog.RbpDeltaText}" FontSize="20" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,4,0,0" /></StackPanel>
+                                <StackPanel><TextBlock Text="Theta" Foreground="#64748B" /><TextBlock Text="{Binding AlgorithmCatalog.RbpThetaText}" FontSize="20" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,4,0,0" /></StackPanel>
+                                <StackPanel><TextBlock Text="Alpha" Foreground="#64748B" /><TextBlock Text="{Binding AlgorithmCatalog.RbpAlphaText}" FontSize="20" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,4,0,0" /></StackPanel>
+                                <StackPanel><TextBlock Text="Beta" Foreground="#64748B" /><TextBlock Text="{Binding AlgorithmCatalog.RbpBetaText}" FontSize="20" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,4,0,0" /></StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
                     <Border Height="230" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Margin="0,0,0,12">
+                        <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsPsdSelected}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
                         <Grid>
                             <Canvas x:Name="PsdCanvas" Margin="48,16,20,34" />
                             <TextBlock Text="频率（Hz）" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,8" Foreground="#64748B" FontSize="11" />
@@ -49,6 +99,30 @@
                             <TextBlock Text="{Binding AlgorithmCatalog.PsdValueRangeText}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="48,8,0,0" Foreground="#64748B" FontSize="11" />
                             <TextBlock Text="暂无可用 PSD 结构化数据" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#94A3B8">
                                 <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.HasPsdPreview}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+                    <Border Height="280" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Margin="0,0,0,12">
+                        <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.IsStftSelected}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
+                        <Grid Margin="12">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="50" /><ColumnDefinition Width="*" /><ColumnDefinition Width="64" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="20" /><RowDefinition Height="*" /><RowDefinition Height="32" /></Grid.RowDefinitions>
+                            <TextBlock Grid.Column="1" Text="时频功率" Foreground="#475569" FontSize="11" />
+                            <TextBlock Grid.Row="1" Text="频率 (Hz)" Foreground="#475569" FontSize="11" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+                            <Border Grid.Row="1" Grid.Column="1" BorderBrush="#CBD5E1" BorderThickness="1" Background="#E2E8F0">
+                                <Image x:Name="StftImage" Stretch="Fill" SnapsToDevicePixels="True" />
+                            </Border>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Margin="8,0,0,0">
+                                <TextBlock Text="{Binding AlgorithmCatalog.StftResult.MaximumDb, StringFormat={}{0:0.#}}" FontSize="10" Foreground="#475569" />
+                                <Border Height="150" Margin="0,4" x:Name="StftLegend">
+                                    <Border.Background><LinearGradientBrush StartPoint="0,1" EndPoint="0,0"><GradientStop Color="#19334B" Offset="0" /><GradientStop Color="#287F92" Offset="0.35" /><GradientStop Color="#E4BD5C" Offset="0.7" /><GradientStop Color="#D94C44" Offset="1" /></LinearGradientBrush></Border.Background>
+                                </Border>
+                                <TextBlock Text="{Binding AlgorithmCatalog.StftResult.MinimumDb, StringFormat={}{0:0.#}}" FontSize="10" Foreground="#475569" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding AlgorithmCatalog.StftAxisText}" Foreground="#475569" FontSize="11" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="dB" Foreground="#475569" FontSize="11" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="暂无可用 STFT 结构化数据" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B">
+                                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmCatalog.HasStftPreview}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
                             </TextBlock>
                         </Grid>
                     </Border>

@@ -73,6 +73,22 @@ def test_spectrum_run_records_provenance_artifact_and_cache_reuse(tmp_path: Path
     assert artifacts[0]["unit"] == "uV^2/Hz"
 
 
+def test_nested_cache_reuse_resolves_original_artifact_for_preview(tmp_path: Path):
+    client, recording = _configure_services(tmp_path)
+    request = {
+        "recording_id": recording.id,
+        "analysis_type": "spectrum",
+        "config": {"mode": "static", "channels": ["F3"], "time": {"start_s": 0.0, "end_s": 10.0}},
+    }
+    first = client.post("/api/runs", json=request).json()
+    second = client.post("/api/runs", json=request).json()
+    third = client.post("/api/runs", json=request).json()
+
+    assert second["reused_from_run_id"] == first["run_id"]
+    assert third["reused_from_run_id"] == first["run_id"]
+    assert client.get(f"/api/runs/{third['run_id']}/artifacts").status_code == 200
+
+
 def test_run_resource_adds_backend_authored_analysis_provenance(tmp_path: Path):
     client, recording = _configure_services(tmp_path)
 

@@ -97,6 +97,12 @@
       "decision": "keep",
       "max_lines": 430,
       "reason": "The file remains the single typed desktop-to-Python review-filter transport boundary. The persistent anchor cache and scheduling state are extracted; the four-line soft-limit excess keeps request and checkpoint session payload contracts together."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/AlgorithmListViewModel.cs": {
+      "decision": "split",
+      "max_lines": 500,
+      "reason": "算法列表状态仍是单一注册、Run 轮询和结果摘要边界；PSD 与 STFT 数值预览已抽到独立解析/渲染文件，本轮保留共享 Run 状态以避免重复。",
+      "follow_up": "在增加第三个可运行算法前，抽取注册/Run 状态协调器和摘要格式化器。"
     }
   }
 }

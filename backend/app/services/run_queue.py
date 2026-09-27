@@ -83,8 +83,9 @@ class PersistentRunQueue:
             actual_range = resolved["actual_range"]
             cached = self.repository.find_completed_cache(run.cache_key)
             if cached is not None and cached.run_id != run.run_id:
+                artifact_source_run_id = self.base.resolve_artifact_source_run_id(cached.run_id)
                 return self.repository.update_status(run.run_id, RunStatus.COMPLETED, actual_range=cached.actual_range,
-                                                     result_summary=cached.result_summary, reused_from_run_id=cached.run_id)
+                                                     result_summary=cached.result_summary, reused_from_run_id=artifact_source_run_id)
             result, arrays, unit = self.base.executor.execute(run.analysis_type, recording, resolved)
             if self._is_cancelled(run.run_id):
                 return self.repository.update_status(run.run_id, RunStatus.CANCELLED, actual_range=resolved["actual_range"])
@@ -126,8 +127,7 @@ class PersistentRunQueue:
                             batch_run_id=previous.batch_run_id), parent_run_id=previous.run_id)
 
     def list_artifacts(self, run_id: str):
-        run = self.get(run_id)
-        return self.repository.list_artifacts(run.reused_from_run_id or run.run_id)
+        return self.repository.list_artifacts(self.base.resolve_artifact_source_run_id(run_id))
 
     def _is_cancelled(self, run_id: str) -> bool:
         current = self.get(run_id)

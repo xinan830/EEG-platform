@@ -98,12 +98,13 @@ class RunService:
 
         cached = self.repository.find_completed_cache(cache_key)
         if cached is not None and cached.run_id != run.run_id:
+            artifact_source_run_id = self.resolve_artifact_source_run_id(cached.run_id)
             return self.repository.update_status(
                 run.run_id,
                 RunStatus.COMPLETED,
                 actual_range=cached.actual_range,
                 result_summary=cached.result_summary,
-                reused_from_run_id=cached.run_id,
+                reused_from_run_id=artifact_source_run_id,
             )
 
         try:
@@ -166,9 +167,20 @@ class RunService:
         return self.repository.update_status(run_id, RunStatus.CANCELLED)
 
     def list_artifacts(self, run_id: str):
-        run = self.get(run_id)
-        source_id = run.reused_from_run_id or run.run_id
-        return self.repository.list_artifacts(source_id)
+        return self.repository.list_artifacts(self.resolve_artifact_source_run_id(run_id))
+
+    def resolve_artifact_source_run_id(self, run_id: str) -> str:
+        """Follow cache reuse provenance to the Run that owns the artifact."""
+        visited: set[str] = set()
+        current_id = run_id
+        while True:
+            if current_id in visited:
+                raise ValueError("Run cache reuse chain contains a cycle")
+            visited.add(current_id)
+            current = self.get(current_id)
+            if not current.reused_from_run_id:
+                return current.run_id
+            current_id = current.reused_from_run_id
 
     def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
         run_definition_id = request.definition_id

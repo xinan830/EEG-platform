@@ -24,13 +24,20 @@ public partial class AlgorithmListView : UserControl
         viewModel = (args.NewValue as DesktopWorkspaceViewModel)?.AlgorithmCatalog;
         if (viewModel is not null) viewModel.PropertyChanged += OnViewModelPropertyChanged;
         DrawPsd();
+        DrawStft();
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
         if (args.PropertyName is nameof(AlgorithmListViewModel.HasPsdPreview) or nameof(AlgorithmListViewModel.PsdPreviewPoints))
             Dispatcher.InvokeAsync(DrawPsd);
+        if (args.PropertyName is nameof(AlgorithmListViewModel.StftResult))
+            Dispatcher.InvokeAsync(DrawStft);
     }
+
+    private void DrawStft() => StftImage.Source = viewModel?.StftResult is { } preview
+        ? StftBitmapRenderer.Create(preview)
+        : null;
 
     private void DrawPsd()
     {

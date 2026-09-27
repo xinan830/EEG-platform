@@ -7,7 +7,7 @@ using BrainPlatform.Desktop.Modules.Projects.ViewModels;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels;
 
-public sealed class AlgorithmListViewModel : ObservableObject
+public sealed partial class AlgorithmListViewModel : ObservableObject
 {
     public sealed record PsdPreviewPoint(double Frequency, double Value);
     private readonly IAlgorithmClient client;
@@ -23,13 +23,28 @@ public sealed class AlgorithmListViewModel : ObservableObject
     private string provenanceText = "暂无溯源信息。";
     private string structuredPreviewText = "暂无结构化预览。";
     private string selectedChannel = string.Empty;
+    private string selectedF4Channel = string.Empty;
     private string startSecondsText = "0";
     private string endSecondsText = string.Empty;
+    private string lowFrequencyText = "1";
+    private string highFrequencyText = "30";
+    private string numeratorLowFrequencyText = "4";
+    private string numeratorHighFrequencyText = "8";
+    private string denominatorLowFrequencyText = "8";
+    private string denominatorHighFrequencyText = "13";
+    private string selectedPeakBandPreset = "自定义";
+    private string selectedRatioPreset = "自定义";
+    private bool applyingBandPreset;
     private string psdFrequencyUnit = "Hz";
     private string psdValueUnit = "";
     private bool hasPsdPreview;
     private string psdFrequencyRangeText = "";
     private string psdValueRangeText = "";
+    private StftPreview? stftPreview;
+    private string rbpDeltaText = "不可用";
+    private string rbpThetaText = "不可用";
+    private string rbpAlphaText = "不可用";
+    private string rbpBetaText = "不可用";
 
     public AlgorithmListViewModel(IAlgorithmClient client, OperationNotificationCenter notifications, ProjectWorkspaceViewModel? projects = null)
     {
@@ -47,6 +62,21 @@ public sealed class AlgorithmListViewModel : ObservableObject
     public ICommand RunCommand { get; }
     public ProjectWorkspaceViewModel? Projects { get; }
     public ObservableCollection<string> RegisteredChannels { get; } = [];
+    public IReadOnlyList<FrequencyBandPreset> FrequencyBandPresets { get; } =
+    [
+        new("自定义", null, null),
+        new("Delta（1–4 Hz）", 1, 4),
+        new("Theta（4–8 Hz）", 4, 8),
+        new("Alpha（8–13 Hz）", 8, 13),
+        new("Beta（13–30 Hz）", 13, 30),
+    ];
+    public IReadOnlyList<BandRatioPreset> BandRatioPresets { get; } =
+    [
+        new("自定义", null, null, null, null),
+        new("Theta / Beta", 4, 8, 13, 30),
+        new("Alpha / Theta", 8, 13, 4, 8),
+        new("Alpha / Beta", 8, 13, 13, 30),
+    ];
 
     public string SourceDirectory { get => sourceDirectory; private set => SetProperty(ref sourceDirectory, value); }
     public ProjectRecordingRow? SelectedProjectRecording
@@ -59,14 +89,90 @@ public sealed class AlgorithmListViewModel : ObservableObject
             RegisteredRecording = null;
             RegisteredChannels.Clear();
             SelectedChannel = string.Empty;
+            SelectedF4Channel = string.Empty;
             EndSecondsText = string.Empty;
+            ClearPreviews();
         }
     }
     public string SelectedChannel { get => selectedChannel; set => SetProperty(ref selectedChannel, value); }
+    public string SelectedF4Channel { get => selectedF4Channel; set => SetProperty(ref selectedF4Channel, value); }
     public string StartSecondsText { get => startSecondsText; set => SetProperty(ref startSecondsText, value); }
     public string EndSecondsText { get => endSecondsText; set => SetProperty(ref endSecondsText, value); }
     public RegisteredRecording? RegisteredRecording { get => registeredRecording; private set => SetProperty(ref registeredRecording, value); }
-    public AlgorithmCatalogItem? SelectedAlgorithm { get => selectedAlgorithm; set => SetProperty(ref selectedAlgorithm, value); }
+    public AlgorithmCatalogItem? SelectedAlgorithm
+    {
+        get => selectedAlgorithm;
+        set
+        {
+            if (!SetProperty(ref selectedAlgorithm, value)) return;
+            ClearPreviews();
+            RaisePropertyChanged(nameof(IsPsdSelected));
+            RaisePropertyChanged(nameof(IsStftSelected));
+            RaisePropertyChanged(nameof(IsRbpSelected));
+            RaisePropertyChanged(nameof(IsPeakFrequencySelected));
+            RaisePropertyChanged(nameof(IsBandRatioSelected));
+            RaisePropertyChanged(nameof(IsFaaSelected));
+            RaisePropertyChanged(nameof(IsIapfSelected));
+            RaisePropertyChanged(nameof(IsThetaBetaSelected));
+            RaisePropertyChanged(nameof(ChannelLabel));
+        }
+    }
+    public bool IsPsdSelected => SelectedAlgorithm?.Id == "psd";
+    public bool IsStftSelected => SelectedAlgorithm?.Id == "stft";
+    public bool IsRbpSelected => SelectedAlgorithm?.Id == "rbp";
+    public bool IsPeakFrequencySelected => SelectedAlgorithm?.Id == "peak_frequency";
+    public bool IsBandRatioSelected => SelectedAlgorithm?.Id == "band_ratio";
+    public bool IsFaaSelected => SelectedAlgorithm?.Id == "faa";
+    public bool IsIapfSelected => SelectedAlgorithm?.Id == "iapf";
+    public bool IsThetaBetaSelected => SelectedAlgorithm?.Id == "theta_beta";
+    public string ChannelLabel => IsFaaSelected ? "FAA F3 通道" : IsStftSelected ? "STFT 通道" : IsRbpSelected ? "RBP 通道" : IsPeakFrequencySelected ? "峰频率通道" : IsBandRatioSelected ? "频段比通道" : IsIapfSelected ? "IAPF 通道" : IsThetaBetaSelected ? "Theta/Beta 通道" : "PSD 通道";
+    public string LowFrequencyText { get => lowFrequencyText; set { if (SetProperty(ref lowFrequencyText, value) && !applyingBandPreset) SelectedPeakBandPreset = "自定义"; } }
+    public string HighFrequencyText { get => highFrequencyText; set { if (SetProperty(ref highFrequencyText, value) && !applyingBandPreset) SelectedPeakBandPreset = "自定义"; } }
+    public string NumeratorLowFrequencyText { get => numeratorLowFrequencyText; set { if (SetProperty(ref numeratorLowFrequencyText, value) && !applyingBandPreset) SelectedRatioPreset = "自定义"; } }
+    public string NumeratorHighFrequencyText { get => numeratorHighFrequencyText; set { if (SetProperty(ref numeratorHighFrequencyText, value) && !applyingBandPreset) SelectedRatioPreset = "自定义"; } }
+    public string DenominatorLowFrequencyText { get => denominatorLowFrequencyText; set { if (SetProperty(ref denominatorLowFrequencyText, value) && !applyingBandPreset) SelectedRatioPreset = "自定义"; } }
+    public string DenominatorHighFrequencyText { get => denominatorHighFrequencyText; set { if (SetProperty(ref denominatorHighFrequencyText, value) && !applyingBandPreset) SelectedRatioPreset = "自定义"; } }
+    public string SelectedPeakBandPreset
+    {
+        get => selectedPeakBandPreset;
+        set
+        {
+            if (!SetProperty(ref selectedPeakBandPreset, value)) return;
+            var preset = FrequencyBandPresets.FirstOrDefault(item => item.Name == value);
+            if (preset?.LowHz is double low && preset.HighHz is double high)
+            {
+                applyingBandPreset = true;
+                try
+                {
+                    LowFrequencyText = low.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                    HighFrequencyText = high.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                }
+                finally { applyingBandPreset = false; }
+            }
+        }
+    }
+    public string SelectedRatioPreset
+    {
+        get => selectedRatioPreset;
+        set
+        {
+            if (!SetProperty(ref selectedRatioPreset, value)) return;
+            var preset = BandRatioPresets.FirstOrDefault(item => item.Name == value);
+            if (preset?.NumeratorLowHz is double numeratorLow && preset.NumeratorHighHz is double numeratorHigh &&
+                preset.DenominatorLowHz is double denominatorLow && preset.DenominatorHighHz is double denominatorHigh)
+            {
+                applyingBandPreset = true;
+                try
+                {
+                    NumeratorLowFrequencyText = numeratorLow.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                    NumeratorHighFrequencyText = numeratorHigh.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                    DenominatorLowFrequencyText = denominatorLow.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                    DenominatorHighFrequencyText = denominatorHigh.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+                }
+                finally { applyingBandPreset = false; }
+            }
+        }
+    }
     public string RunStatusText { get => runStatusText; private set => SetProperty(ref runStatusText, value); }
     public string ResultSummaryText { get => resultSummaryText; private set => SetProperty(ref resultSummaryText, value); }
     public string ProvenanceText { get => provenanceText; private set => SetProperty(ref provenanceText, value); }
@@ -78,6 +184,14 @@ public sealed class AlgorithmListViewModel : ObservableObject
     public bool HasRegisteredChannels => RegisteredChannels.Count > 0;
     public string PsdFrequencyRangeText { get => psdFrequencyRangeText; private set => SetProperty(ref psdFrequencyRangeText, value); }
     public string PsdValueRangeText { get => psdValueRangeText; private set => SetProperty(ref psdValueRangeText, value); }
+    public StftPreview? StftResult { get => stftPreview; private set => SetProperty(ref stftPreview, value); }
+    public bool HasStftPreview => StftResult is not null;
+    public string RbpDeltaText { get => rbpDeltaText; private set => SetProperty(ref rbpDeltaText, value); }
+    public string RbpThetaText { get => rbpThetaText; private set => SetProperty(ref rbpThetaText, value); }
+    public string RbpAlphaText { get => rbpAlphaText; private set => SetProperty(ref rbpAlphaText, value); }
+    public string RbpBetaText { get => rbpBetaText; private set => SetProperty(ref rbpBetaText, value); }
+    public string StftAxisText => StftResult is null ? "时间 (s)" :
+        $"请求范围 {StftResult.RequestedRange.StartSeconds:0.###} - {StftResult.RequestedRange.EndSeconds:0.###} s  ·  时频中心 {StftResult.TimesSeconds[0]:0.###} - {StftResult.TimesSeconds[^1]:0.###} s  ·  频率 {StftResult.FrequenciesHz[0]:0.###} - {StftResult.FrequenciesHz[^1]:0.###} Hz  ·  {StftResult.PowerUnit}";
 
     public string StatusText { get => statusText; private set => SetProperty(ref statusText, value); }
     public bool IsLoading { get => isLoading; private set => SetProperty(ref isLoading, value); }
@@ -121,7 +235,7 @@ public sealed class AlgorithmListViewModel : ObservableObject
         ResultSummaryText = "暂无结果摘要。";
         ProvenanceText = "暂无溯源信息。";
         StructuredPreviewText = "暂无结构化预览。";
-        ClearPsdPreview();
+        ClearPreviews();
         if (SelectedProjectRecording is not { Status: "已完成" } || string.IsNullOrWhiteSpace(SourceDirectory))
         {
             throw new InvalidOperationException("请先从项目中选择一条已完成的记录。");
@@ -147,16 +261,17 @@ public sealed class AlgorithmListViewModel : ObservableObject
             throw new InvalidOperationException("注册记录没有可分析的 EEG 通道。");
         RaisePropertyChanged(nameof(HasRegisteredChannels));
         SelectedChannel = RegisteredChannels[0];
+        SelectedF4Channel = RegisteredChannels.Count > 1 ? RegisteredChannels[1] : string.Empty;
         EndSecondsText = RegisteredRecording.DurationSeconds.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-        StatusText = $"已注册记录：{RegisteredRecording.OriginalName}，{RegisteredRecording.DurationSeconds.Value:0.###} 秒。请选择 PSD 通道和分析范围。";
+        StatusText = $"已注册记录：{RegisteredRecording.OriginalName}，{RegisteredRecording.DurationSeconds.Value:0.###} 秒。请选择分析通道和范围。";
     }
 
     private async Task RunAsync()
     {
-        var algorithm = SelectedAlgorithm;
-        if (algorithm is null || !string.Equals(algorithm.Id, "psd", StringComparison.Ordinal))
+        var algorithm = SelectedAlgorithm ?? throw new InvalidOperationException("请选择一个官方算法。");
+        if (!IsSupportedStaticAlgorithm(algorithm))
         {
-            throw new InvalidOperationException("当前配置页仅支持功率谱密度（PSD）；其他算法需要各自的参数契约。 ");
+            throw new InvalidOperationException("当前配置页仅支持可运行的静态 PSD、STFT、RBP、峰频率、频段功率比、FAA、IAPF 和 Theta/Beta；其他算法需要各自的参数契约。");
         }
         if (RegisteredRecording is null)
         {
@@ -164,18 +279,28 @@ public sealed class AlgorithmListViewModel : ObservableObject
         }
         if (string.IsNullOrWhiteSpace(SelectedChannel) || !RegisteredChannels.Contains(SelectedChannel))
             throw new InvalidOperationException("请选择注册记录返回的有效分析通道。");
+        if (algorithm.Id == "faa" &&
+            (string.IsNullOrWhiteSpace(SelectedF4Channel) || !RegisteredChannels.Contains(SelectedF4Channel)))
+            throw new InvalidOperationException("请选择注册记录返回的有效 FAA F4 来源通道。");
+        if (algorithm.Id == "faa" && string.Equals(SelectedChannel, SelectedF4Channel, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("FAA 的 F3 与 F4 来源通道必须不同。");
         var durationSeconds = RegisteredRecording.DurationSeconds ?? throw new InvalidOperationException("注册记录没有可用的时长。");
         var requestedRange = ParseStaticRangeOrThrow(StartSecondsText, EndSecondsText, durationSeconds);
+        if (algorithm.Id == "stft" && requestedRange.EndSeconds - requestedRange.StartSeconds < 4.0)
+            throw new InvalidOperationException("STFT 分析区间至少需要 4 秒。");
+        var frequencyBand = algorithm.Id == "peak_frequency"
+            ? ParseFrequencyBandOrThrow(LowFrequencyText, HighFrequencyText, RegisteredRecording.SamplingRateHz)
+            : null;
+        var ratioBands = algorithm.Id == "band_ratio"
+            ? ParseBandRatioBandsOrThrow(
+                NumeratorLowFrequencyText, NumeratorHighFrequencyText,
+                DenominatorLowFrequencyText, DenominatorHighFrequencyText,
+                RegisteredRecording.SamplingRateHz)
+            : null;
+        ClearPreviews();
         var start = requestedRange.StartSeconds;
         var end = requestedRange.EndSeconds;
-        var config = JsonSerializer.SerializeToElement(new
-        {
-            algorithm_id = algorithm.Id,
-            scientific_version = algorithm.Version,
-            time = new { start_s = start, end_s = end },
-            channel = SelectedChannel,
-            mode = "static",
-        });
+        var config = BuildStaticRunConfig(algorithm, SelectedChannel, requestedRange, frequencyBand, ratioBands, algorithm.Id == "faa" ? SelectedF4Channel : null);
         var run = await client.CreateRunAsync(new AnalysisRunRequest(RegisteredRecording.Id, "official_algorithm", config), CancellationToken.None);
         RunStatusText = $"{algorithm.DisplayNameZh}：{run.Status}（{run.RunId}）";
         run = await PollRunToTerminalAsync(run, algorithm.DisplayNameZh, CancellationToken.None);
@@ -184,7 +309,35 @@ public sealed class AlgorithmListViewModel : ObservableObject
             RunStatusText += "，结果已由后端保存。";
             ResultSummaryText = BuildResultSummary(run);
             ProvenanceText = BuildProvenance(run);
-            await LoadStructuredPreviewAsync(run.RunId);
+            if (algorithm.Id == "rbp")
+            {
+                UpdateRbpValues(run);
+                StructuredPreviewText = "RBP 为四频段标量结果，数值由后端直接返回，未在客户端重算。";
+            }
+            else if (algorithm.Id == "peak_frequency")
+            {
+                StructuredPreviewText = "频段峰频率为后端标量结果，数值由后端直接返回，未在客户端重算。";
+            }
+            else if (algorithm.Id == "band_ratio")
+            {
+                StructuredPreviewText = "频段功率比为后端标量结果，数值由后端直接返回，未在客户端重算。";
+            }
+            else if (algorithm.Id == "faa")
+            {
+                StructuredPreviewText = "额叶 Alpha 不对称性为后端标量结果，数值由后端直接返回，未在客户端重算。";
+            }
+            else if (algorithm.Id == "iapf")
+            {
+                StructuredPreviewText = "个体 Alpha 峰频率为后端标量结果，数值由后端直接返回，未在客户端重算。";
+            }
+            else if (algorithm.Id == "theta_beta")
+            {
+                StructuredPreviewText = "Theta/Beta 比值为后端标量结果，数值由后端直接返回，未在客户端重算。";
+            }
+            else
+            {
+                await LoadStructuredPreviewAsync(run.RunId, algorithm.Id);
+            }
         }
         else if (run.Error is not null)
         {
@@ -214,6 +367,64 @@ public sealed class AlgorithmListViewModel : ObservableObject
         return new TimeRange(start, end);
     }
 
+    internal sealed record FrequencyBand(double LowHz, double HighHz);
+    internal sealed record BandRatioBands(FrequencyBand Numerator, FrequencyBand Denominator);
+    public sealed record FrequencyBandPreset(string Name, double? LowHz, double? HighHz);
+    public sealed record BandRatioPreset(string Name, double? NumeratorLowHz, double? NumeratorHighHz, double? DenominatorLowHz, double? DenominatorHighHz);
+
+    internal static FrequencyBand ParseFrequencyBandOrThrow(string lowText, string highText, double? samplingRateHz)
+    {
+        if (!double.TryParse(lowText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var low) ||
+            !double.TryParse(highText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var high) ||
+            !double.IsFinite(low) || !double.IsFinite(high) || low < 0 || high <= low)
+        {
+            throw new InvalidOperationException("请输入有效的频段范围，下限必须小于上限。");
+        }
+
+        if (samplingRateHz is not > 0 || !double.IsFinite(samplingRateHz.Value) || high >= samplingRateHz.Value / 2.0)
+        {
+            throw new InvalidOperationException("频段上限必须低于记录采样率的 Nyquist 频率。");
+        }
+
+        return new FrequencyBand(low, high);
+    }
+
+    internal static BandRatioBands ParseBandRatioBandsOrThrow(
+        string numeratorLowText, string numeratorHighText,
+        string denominatorLowText, string denominatorHighText,
+        double? samplingRateHz)
+    {
+        var numerator = ParseFrequencyBandOrThrow(numeratorLowText, numeratorHighText, samplingRateHz);
+        var denominator = ParseFrequencyBandOrThrow(denominatorLowText, denominatorHighText, samplingRateHz);
+        return new BandRatioBands(numerator, denominator);
+    }
+
+    internal static JsonElement BuildStaticRunConfig(
+        AlgorithmCatalogItem algorithm,
+        string channel,
+        TimeRange range,
+        FrequencyBand? frequencyBand = null,
+        BandRatioBands? ratioBands = null,
+        string? f4Channel = null) =>
+        JsonSerializer.SerializeToElement(new
+        {
+            algorithm_id = algorithm.Id,
+            scientific_version = algorithm.Version,
+            time = new { start_s = range.StartSeconds, end_s = range.EndSeconds },
+            channel,
+            mode = "static",
+            low_hz = frequencyBand?.LowHz,
+            high_hz = frequencyBand?.HighHz,
+            numerator_low_hz = ratioBands?.Numerator.LowHz,
+            numerator_high_hz = ratioBands?.Numerator.HighHz,
+            denominator_low_hz = ratioBands?.Denominator.LowHz,
+            denominator_high_hz = ratioBands?.Denominator.HighHz,
+            f4_channel = f4Channel,
+        });
+
+    internal static bool IsSupportedStaticAlgorithm(AlgorithmCatalogItem? algorithm) =>
+        algorithm is { IsRunnable: true } && (algorithm.Id is "psd" or "stft" or "rbp" or "peak_frequency" or "band_ratio" or "faa" or "iapf" or "theta_beta") && algorithm.Modes.Contains("static");
+
     internal async Task<AnalysisRunResponse> PollRunToTerminalAsync(
         AnalysisRunResponse run,
         string algorithmDisplayName,
@@ -229,26 +440,44 @@ public sealed class AlgorithmListViewModel : ObservableObject
         return run;
     }
 
-    private async Task LoadStructuredPreviewAsync(string runId)
+    private async Task LoadStructuredPreviewAsync(string runId, string algorithmId)
     {
         try
         {
-            var preview = await client.GetStructuredPreviewAsync(runId, 4_000, CancellationToken.None);
+            var preview = await client.GetStructuredPreviewAsync(runId, algorithmId == "stft" ? 100_000 : 4_000, CancellationToken.None);
             StructuredPreviewText = BuildStructuredPreview(preview);
-            BuildPsdPreview(preview);
+            if (algorithmId == "stft")
+            {
+                StftResult = StftPreview.Parse(preview);
+                RaisePropertyChanged(nameof(HasStftPreview));
+                RaisePropertyChanged(nameof(StftAxisText));
+            }
+            else BuildPsdPreview(preview);
+        }
+        catch (AlgorithmApiException exception) when (exception.Code == "REQUEST_INVALID" && algorithmId == "stft")
+        {
+            StructuredPreviewText = "STFT 结果已保存，但预览超过 100,000 个数值单元或无法读取；请缩短分析范围后重新运行。";
+            ClearPreviews();
         }
         catch (AlgorithmApiException exception) when (exception.Code is "REQUEST_INVALID" or "RESOURCE_NOT_FOUND")
         {
-            // Scalar algorithms have no matrix artifact. This is an expected
-            // absence, not a failed Run and not permission to invent values.
-            StructuredPreviewText = "该算法没有可展示的结构化矩阵预览。";
-            ClearPsdPreview();
+            StructuredPreviewText = $"结构化预览不可用：{exception.Code}：{exception.Message}";
+            ClearPreviews();
         }
         catch (Exception exception)
         {
             StructuredPreviewText = $"结构化预览不可用：{exception.Message}";
-            ClearPsdPreview();
+            ClearPreviews();
         }
+    }
+
+    private void ClearPreviews()
+    {
+        ClearPsdPreview();
+        StftResult = null;
+        RbpDeltaText = RbpThetaText = RbpAlphaText = RbpBetaText = "不可用";
+        RaisePropertyChanged(nameof(HasStftPreview));
+        RaisePropertyChanged(nameof(StftAxisText));
     }
 
     private void ClearPsdPreview()
@@ -296,7 +525,7 @@ public sealed class AlgorithmListViewModel : ObservableObject
         }
     }
 
-    private static string BuildResultSummary(AnalysisRunResponse run)
+    internal static string BuildResultSummary(AnalysisRunResponse run)
     {
         if (run.ResultSummary is not { } summary || summary.ValueKind != JsonValueKind.Object)
         {
@@ -318,22 +547,74 @@ public sealed class AlgorithmListViewModel : ObservableObject
             ? unitElement.GetString() ?? ""
             : "";
         var quality = metric.TryGetProperty("quality", out var qualityElement)
-            ? FormatJsonValue(qualityElement)
+            ? FormatQuality(qualityElement)
             : "未提供";
         var channel = metric.TryGetProperty("channel", out var channelElement)
             ? channelElement.GetString() ?? ""
             : "";
+        if (metric.TryGetProperty("band_values", out var bands) && bands.ValueKind == JsonValueKind.Object)
+        {
+            var bandText = string.Join("；", bands.EnumerateObject().Select(item =>
+                $"{FormatBandName(item.Name)}：{FormatJsonValue(item.Value)}"));
+            return $"频段相对功率：{bandText}；单位：ratio；通道：{(string.IsNullOrWhiteSpace(channel) ? "未指定" : channel)}；质量：{quality}";
+        }
         return $"指标：{value}{(string.IsNullOrWhiteSpace(unit) ? "" : $" {unit}")}；通道：{(string.IsNullOrWhiteSpace(channel) ? "未指定" : channel)}；质量：{quality}";
     }
 
-    private static string BuildProvenance(AnalysisRunResponse run)
+    private static string FormatBandName(string name) => name.ToLowerInvariant() switch
+    {
+        "delta" => "Delta",
+        "theta" => "Theta",
+        "alpha" => "Alpha",
+        "beta" => "Beta",
+        _ => name,
+    };
+
+    private void UpdateRbpValues(AnalysisRunResponse run)
+    {
+        if (run.ResultSummary is not { } summary || !summary.TryGetProperty("metric", out var metric) ||
+            !metric.TryGetProperty("band_values", out var values) || values.ValueKind != JsonValueKind.Object)
+            return;
+        RbpDeltaText = FormatBandValue(values, "delta");
+        RbpThetaText = FormatBandValue(values, "theta");
+        RbpAlphaText = FormatBandValue(values, "alpha");
+        RbpBetaText = FormatBandValue(values, "beta");
+    }
+
+    private static string FormatBandValue(JsonElement values, string key) =>
+        values.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number &&
+        value.TryGetDouble(out var number) && double.IsFinite(number)
+            ? number.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)
+            : "不可用";
+
+    private static string FormatQuality(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.String)
+            return value.GetString() ?? "未提供";
+        if (value.ValueKind != JsonValueKind.Object)
+            return FormatJsonValue(value);
+        var status = value.TryGetProperty("status", out var statusElement) ? statusElement.GetString() : null;
+        var reasons = value.TryGetProperty("reasons", out var reasonsElement) && reasonsElement.ValueKind == JsonValueKind.Array
+            ? string.Join("、", reasonsElement.EnumerateArray().Select(FormatJsonValue))
+            : "";
+        return string.IsNullOrWhiteSpace(reasons)
+            ? status switch { "clean" => "良好（clean）", "gate_failed" => "未通过质量门", _ => status ?? "未提供" }
+            : $"{status ?? "未提供"}：{reasons}";
+    }
+
+    internal static string BuildProvenance(AnalysisRunResponse run)
     {
         var provenance = run.AnalysisProvenance is { } value && value.ValueKind == JsonValueKind.Object
             ? value
             : default;
-        var version = provenance.ValueKind == JsonValueKind.Object && provenance.TryGetProperty("scientific_algorithm_version", out var versionElement)
-            ? versionElement.GetString() ?? run.ScientificVersion ?? "未知"
-            : run.ScientificVersion ?? "未知";
+        // The Run-level version identifies the selected official algorithm.
+        // The provenance payload may also contain the lower-level spectral
+        // implementation version; it must not replace the algorithm identity
+        // shown to the operator.
+        var version = run.ScientificVersion ??
+            (provenance.ValueKind == JsonValueKind.Object && provenance.TryGetProperty("scientific_algorithm_version", out var versionElement)
+                ? versionElement.GetString() ?? "未知"
+                : "未知");
         var mode = provenance.ValueKind == JsonValueKind.Object && provenance.TryGetProperty("mode", out var modeElement)
             ? modeElement.GetString() ?? "未知"
             : "未知";
