@@ -183,3 +183,226 @@ reducing them to one scalar or recomputing them.
 
 - **WHEN** a dynamic RBP Run completes for a valid window
 - **THEN** the result contains all four band values and the window state.
+
+### Requirement: WPF submits static Band Ratio with two explicit frequency bands
+
+WPF SHALL allow Band Ratio in static mode and SHALL submit one registered
+channel, exact time range, numerator and denominator band edges, algorithm ID,
+and scientific version. It SHALL reject invalid ordering and Nyquist bounds
+before submission.
+
+#### Scenario: Valid Band Ratio request
+
+- **WHEN** the operator selects Band Ratio, a channel, a valid time range, and
+  two valid bands below Nyquist
+- **THEN** WPF submits those exact inputs to one official Run
+
+#### Scenario: Invalid Band Ratio bands
+
+- **WHEN** either band is missing, nonfinite, negative, reversed, equal, or has
+  an upper edge at or above Nyquist
+- **THEN** WPF refuses submission with a specific validation message
+
+### Requirement: Band Ratio displays backend-owned scalar output
+
+WPF SHALL display the backend-returned ratio, unit, quality, channel,
+requested/actual range, Run identity, and provenance. It SHALL not calculate
+the ratio in the client or request a matrix preview.
+
+#### Scenario: Completed Band Ratio result
+
+- **WHEN** the official Run completes with a scalar ratio output
+- **THEN** WPF displays the backend value and provenance without client-side
+  recomputation
+
+### Requirement: WPF submits static FAA with two distinct source channels
+
+WPF SHALL allow FAA only in static mode and SHALL submit the registered F3
+source channel, registered F4 source channel, exact time range, algorithm ID,
+and scientific version. It SHALL reject missing, unknown, or identical source
+channels before submission.
+
+#### Scenario: Valid FAA request
+
+- **WHEN** the operator selects FAA, two different registered channels, and a
+  valid static time range
+- **THEN** WPF submits both source channels to one official FAA Run
+
+#### Scenario: Invalid FAA channel selection
+
+- **WHEN** either channel is missing/unknown or both selectors contain the same
+  channel
+- **THEN** WPF refuses submission with a specific validation message
+
+### Requirement: FAA displays backend-owned scalar output
+
+WPF SHALL display the backend-returned FAA value, unit, quality, source
+channels, requested/actual range, Run identity, and provenance. It SHALL not
+recompute Alpha power or FAA in the client.
+
+#### Scenario: Completed FAA result
+
+- **WHEN** the official FAA Run completes with a scalar result
+- **THEN** WPF displays the backend value and provenance without client-side
+  recomputation
+
+### Requirement: WPF submits static IAPF using a registered channel
+
+WPF SHALL allow IAPF in static mode and SHALL submit one registered channel,
+exact time range, algorithm ID, and scientific version. It SHALL reject an
+unregistered or missing channel before submission.
+
+#### Scenario: Valid IAPF request
+
+- **WHEN** the operator selects IAPF, a registered channel, and a valid static
+  time range
+- **THEN** WPF submits those exact inputs to one official IAPF Run
+
+### Requirement: IAPF displays backend-owned scalar output
+
+WPF SHALL display the backend-returned IAPF value in Hz, quality, channel,
+requested/actual range, Run identity, and provenance. It SHALL not calculate or
+interpolate IAPF in the client.
+
+#### Scenario: Completed IAPF result
+
+- **WHEN** the official IAPF Run completes with a scalar result or structured
+  unavailable reason
+- **THEN** WPF displays the backend value or unavailable state without
+  converting null to zero
+
+### Requirement: WPF submits static Peak Frequency with an explicit frequency band
+
+WPF SHALL allow Peak Frequency only in static mode and SHALL submit one
+registered backend channel, exact time range, `low_hz`, `high_hz`, algorithm ID,
+and scientific version. It SHALL reject invalid band values before submission.
+
+#### Scenario: Valid Peak Frequency request
+
+- **WHEN** the operator selects Peak Frequency, a channel, a valid time range,
+  and `low_hz < high_hz < Nyquist`
+- **THEN** WPF submits those exact inputs to one official Run
+
+#### Scenario: Invalid frequency band
+
+- **WHEN** either edge is missing/nonfinite/negative, the edges are reversed or
+  equal, or the high edge is at or above Nyquist
+- **THEN** WPF refuses submission with a specific validation message
+
+### Requirement: Peak Frequency displays backend-owned scalar output
+
+WPF SHALL display the backend-returned peak frequency in Hz, quality, channel,
+requested/actual range, Run identity, and provenance. It SHALL not calculate,
+interpolate, or request a matrix preview for this scalar result.
+
+#### Scenario: Completed Peak Frequency result
+
+- **WHEN** the official Run completes with a scalar `peak_frequency_hz` output
+- **THEN** WPF displays the backend value and its Hz unit together with the
+  returned quality, channel, requested/actual range, Run identity, and
+  provenance, without requesting a structured matrix preview
+
+### Requirement: WPF submits static RBP using backend-declared inputs
+
+WPF SHALL allow a runnable catalog RBP item in static mode only after a completed
+recording is registered. It SHALL submit the selected backend channel, exact
+finite in-record start/end seconds, algorithm ID, scientific version, and
+`mode=static`. It SHALL not submit dynamic RBP through this form.
+
+#### Scenario: Valid RBP Run
+
+- **WHEN** the operator selects RBP, a registered channel, and a valid range
+- **THEN** WPF creates one official Run with those exact inputs
+- **AND** WPF retains the Run identity and backend provenance
+
+### Requirement: RBP is displayed as backend-owned band shares
+
+WPF SHALL display backend-returned Delta, Theta, Alpha, and Beta ratio values and
+the `ratio` unit. Null values, failed quality, and unavailable results SHALL
+remain explicitly unavailable. WPF SHALL not request a matrix preview or
+recompute band power.
+
+#### Scenario: Completed RBP result
+
+- **WHEN** the backend returns a completed RBP metric with four band values
+- **THEN** WPF displays all four values and the quality/provenance text
+- **AND** no PSD curve or STFT bitmap is shown as the RBP result
+
+### Requirement: WPF submits official static STFT with explicit raw inputs
+
+WPF SHALL use a completed, backend-registered recording, one backend-declared raw EEG channel, an explicit finite in-record range of at least four seconds, and the catalog scientific version. It SHALL submit `mode=static` without changing the backend algorithm or raw recording. The dynamic mode SHALL remain unavailable in this form.
+
+#### Scenario: Valid static STFT request
+
+- **WHEN** the operator chooses STFT, a registered channel, and a valid requested start/end range
+- **THEN** WPF sends those exact seconds and channel in an official-algorithm Run
+- **AND** displays the backend Run identity, requested/actual range, quality, and result status
+
+#### Scenario: Invalid range or channel
+
+- **WHEN** the range is shorter than four seconds, nonfinite, outside the recording, or the channel is absent from the registration response
+- **THEN** WPF refuses submission and shows a specific error
+
+### Requirement: STFT preview preserves backend axes, units, quality, and missing cells
+
+WPF SHALL render only a bounded backend-produced static `time x frequency` matrix. Time centers SHALL be labeled in seconds, frequency in Hz, and power in `dB re 1 uV^2/Hz`. WPF SHALL NOT derive spectral power or replace null/nonfinite cells with zero. Invalid shape/unit or a preview over the cell limit SHALL be reported as unavailable without claiming that the completed Run failed.
+
+#### Scenario: A partial preview contains unavailable cells
+
+- **WHEN** a completed Run returns a valid two-dimensional `power_db` matrix containing null cells
+- **THEN** WPF leaves those cells visually distinct from numeric power and keeps the backend quality/provenance readable
+
+#### Scenario: Preview exceeds the transport ceiling
+
+- **WHEN** the backend rejects a requested 100,000-cell preview
+- **THEN** WPF explains that the saved result is too large for this view and suggests a shorter analysis range
+
+### Requirement: WPF submits static Theta/Beta using a registered channel
+
+WPF SHALL allow Theta/Beta in static mode and SHALL submit one registered
+channel, exact time range, algorithm ID, and scientific version.
+
+#### Scenario: Valid Theta/Beta request
+
+- **WHEN** the operator selects Theta/Beta, a registered channel, and a valid
+  static time range
+- **THEN** WPF submits those exact inputs to one official Run
+
+### Requirement: Theta/Beta displays backend-owned scalar output
+
+WPF SHALL display the backend-returned ratio, quality, channel,
+requested/actual range, Run identity, and provenance. It SHALL preserve a
+backend unavailable result and SHALL not calculate IAPF or the ratio in the
+client.
+
+#### Scenario: Completed or unavailable Theta/Beta result
+
+- **WHEN** the official Run completes with a scalar ratio or structured quality
+  failure
+- **THEN** WPF displays the backend value or unavailable state without
+  converting null to zero
+
+### Requirement: WPF provides standard frequency-band presets without hiding exact values
+
+WPF SHALL provide standard band presets for Peak Frequency and Band Ratio,
+populate the existing numeric inputs when selected, and submit the resulting
+numeric values. Editing a populated value SHALL mark the selection as Custom.
+
+#### Scenario: Preset selection and manual override
+
+- **WHEN** the operator selects Alpha for Peak Frequency or Theta/Beta for Band
+  Ratio
+- **THEN** WPF fills the corresponding numeric fields, and after any manual
+  edit displays Custom while preserving the edited values for validation and
+  submission
+
+### Requirement: Fixed official definitions remain distinct from generic presets
+
+WPF SHALL NOT expose frequency preset editing as a replacement for the fixed
+IAPF or official Theta/Beta definitions.
+
+#### Scenario: IAPF remains fixed
+
+- **WHEN** the operator selects IAPF
+- **THEN** no generic band preset is shown and the backend IAPF contract remains
+  unchanged
