@@ -158,47 +158,6 @@ public sealed class HttpAlgorithmClientTests
         Assert.Equal("PSD_QUALITY_GATE_FAILED", run.Error!.Code);
     }
 
-    [Fact]
-    public async Task AlgorithmListViewModel_PollsQueuedRunUntilTerminalState()
-    {
-        var client = new PollingClient();
-        var viewModel = new AlgorithmListViewModel(client, new OperationNotificationCenter());
-
-        var result = await viewModel.PollRunToTerminalAsync(
-            Run("queued"), "功率谱密度", CancellationToken.None);
-
-        Assert.Equal("completed", result.Status);
-        Assert.Equal(1, client.PollCount);
-        Assert.Contains("completed", viewModel.RunStatusText);
-    }
-
-    private static AnalysisRunResponse Run(string status) => new(
-        "run-1", "rec-1", "official_algorithm", status, "official-psd-v1", null, null,
-        null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
-
-    private sealed class PollingClient : IAlgorithmClient
-    {
-        public int PollCount { get; private set; }
-
-        public Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<AnalysisRunResponse> CreateRunAsync(AnalysisRunRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<AnalysisRunResponse> GetRunAsync(string runId, CancellationToken cancellationToken)
-        {
-            PollCount++;
-            return Task.FromResult(Run("completed"));
-        }
-
-        public Task<IReadOnlyList<RunArtifact>> ListArtifactsAsync(string runId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<StructuredPreviewResponse> GetStructuredPreviewAsync(string runId, int maxCells, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-    }
-
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(

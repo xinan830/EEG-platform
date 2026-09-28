@@ -12,7 +12,7 @@ public sealed class StftPreviewTests
         var algorithm = new AlgorithmCatalogItem("official", "stft", "spectrogram-v2", "时频分析", "STFT", "", [], ["static", "dynamic"], default,
             new DynamicAnalysisPolicy(4, [], 4, 1, false), "available", true, null, null, null);
 
-        var config = AlgorithmListViewModel.BuildStaticRunConfig(algorithm, "O1", new TimeRange(1.25, 9.875));
+        var config = AlgorithmRunConfiguration.BuildStaticRunConfig(algorithm, "O1", new TimeRange(1.25, 9.875));
 
         Assert.Equal("stft", config.GetProperty("algorithm_id").GetString());
         Assert.Equal("spectrogram-v2", config.GetProperty("scientific_version").GetString());

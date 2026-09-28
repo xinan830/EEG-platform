@@ -100,9 +100,9 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/AlgorithmListViewModel.cs": {
       "decision": "split",
-      "max_lines": 500,
-      "reason": "算法列表状态仍是单一注册、Run 轮询和结果摘要边界；PSD 与 STFT 数值预览已抽到独立解析/渲染文件，本轮保留共享 Run 状态以避免重复。",
-      "follow_up": "在增加第三个可运行算法前，抽取注册/Run 状态协调器和摘要格式化器。"
+      "max_lines": 450,
+      "reason": "Run 配置、注册/轮询协调、结果格式化，以及 PSD/STFT/动态预览状态已分别归入专责文件；主 ViewModel 只协调页面输入与业务流程。",
+      "follow_up": "继续保持 Run 配置、执行协调、结果格式化和预览状态分离；新增算法前补充对应行为测试。"
     }
   }
 }
