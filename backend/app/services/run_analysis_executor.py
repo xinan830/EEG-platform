@@ -36,16 +36,18 @@ class _RecordingAlgorithmContext:
         self.sfreq_hz = float(getattr(recording, "sfreq_hz", None) or getattr(recording, "sfreq", None) or 0.0)
         self.duration_s = float(recording.duration_s or 0.0)
 
-    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 30.0, notch_hz: float | None = None) -> SpectralEstimate:
-        payload = self._recordings.load_spectrum(self._recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz)
+    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 30.0, notch_hz: float | None = None, filter_low_hz: float | None = None, filter_high_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None) -> SpectralEstimate:
+        payload = self._recordings.load_spectrum(self._recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz)
         ordered = list(payload["channels"])
         selected = ordered[0]
         evidence = {
             "sfreq_hz": float(payload["sfreq_hz"]),
             "analysis_reference": payload["analysis_reference"],
             "algorithm_version": payload["algorithm_version"],
-            "filter_contract": payload["filter_contract"],
             "welch_contract": payload["welch_contract"],
+            "filter_contract": dict(payload["filter_contract"]),
+            "filter_frequency_range_hz": dict(payload["filter_frequency_range_hz"]),
+            "output_frequency_range_hz": dict(payload["frequency_range_hz"]),
             "units": payload["units"],
             "frequencies_hz": list(payload["frequencies_hz"]),
             "channels": ordered,

@@ -33,7 +33,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     private string startSecondsText = "0";
     private string endSecondsText = string.Empty;
     private string lowFrequencyText = "1";
-    private string highFrequencyText = "30";
+    private string highFrequencyText = "50";
     private string selectedNotchFrequency = "50 Hz";
     private string numeratorLowFrequencyText = "4";
     private string numeratorHighFrequencyText = "8";

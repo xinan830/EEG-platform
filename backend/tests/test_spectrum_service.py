@@ -69,6 +69,35 @@ def test_spectrum_uses_the_requested_frequency_range_for_filter_cache_and_output
     assert default["filter_contract"]["notch_hz"] is None
 
 
+def test_spectrum_separates_filter_range_from_output_axis_and_reuses_filter_cache(tmp_path, monkeypatch):
+    service, recording = _service(tmp_path)
+    sfreq = 200.0
+    times = np.arange(20 * int(sfreq)) / sfreq
+    data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz"], []))
+
+    first = service.load_spectrum(
+        recording, 0.0, 20.0, ["Fz"], notch_hz=60.0,
+        filter_low_hz=0.5, filter_high_hz=40.0,
+        output_low_hz=1.0, output_high_hz=50.0,
+    )
+    second = service.load_spectrum(
+        recording, 0.0, 20.0, ["Fz"], notch_hz=60.0,
+        filter_low_hz=0.5, filter_high_hz=40.0,
+        output_low_hz=5.0, output_high_hz=10.0,
+    )
+
+    assert first["filter_contract"]["bandpass_hz"] == [0.5, 40.0]
+    assert first["filter_contract"]["notch_hz"] == 60.0
+    assert first["filter_frequency_range_hz"] == {"low_hz": 0.5, "high_hz": 40.0}
+    assert first["frequency_range_hz"] == {"low_hz": 1.0, "high_hz": 50.0}
+    assert first["frequencies_hz"][0] == 1.0
+    assert first["frequencies_hz"][-1] == 50.0
+    assert second["frequencies_hz"][0] == 5.0
+    assert second["frequencies_hz"][-1] == 10.0
+    assert first["filter_contract"]["bandpass_hz"] == second["filter_contract"]["bandpass_hz"]
+
+
 def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
     sfreq = 100.0

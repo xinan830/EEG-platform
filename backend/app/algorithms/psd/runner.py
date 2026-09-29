@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -36,7 +35,7 @@ class PsdAlgorithm:
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="low_hz", label_zh="高通截止频率", value_type="number", unit="Hz", minimum=0, step=0.1),
-            AlgorithmParameter(key="high_hz", label_zh="低通截止频率", value_type="number", unit="Hz", minimum=0, step=0.1),
+            AlgorithmParameter(key="high_hz", label_zh="低通截止频率", value_type="number", unit="Hz", minimum=0, default=50.0, step=0.1),
             AlgorithmParameter(key="notch_hz", label_zh="陷波频率", value_type="enum", required=False, default=50.0, options=[ParameterOption(value=0.0, label_zh="关闭"), ParameterOption(value=50.0, label_zh="50 Hz"), ParameterOption(value=60.0, label_zh="60 Hz")]),
             AlgorithmParameter(key="window_s", label_zh="动态窗口", value_type="number", unit="s", minimum=4, step=1),
             AlgorithmParameter(key="step_s", label_zh="动态步长", value_type="number", unit="s", minimum=1, step=1),
@@ -59,32 +58,28 @@ class PsdAlgorithm:
             raise ValueError("PSD 分析区间至少需要 4 秒")
         if config.high_hz >= float(recording.sfreq_hz) / 2.0:
             raise ValueError(f"PSD 最高频率必须低于奈奎斯特频率（{float(recording.sfreq_hz) / 2:g}Hz）")
+        if config.mode == "dynamic" and float(recording.sfreq_hz) / 2.0 <= 50.0:
+            raise ValueError("PSD 动态趋势轴固定为 1–50 Hz，记录奈奎斯特频率必须高于 50 Hz")
         return AlgorithmInputs(
             recording_id=str(getattr(recording, "id", "unknown")), channel=selected,
             sfreq_hz=float(recording.sfreq_hz), duration_s=float(recording.duration_s), payload=recording,
         )
 
     @staticmethod
-    def _load(recording: Any, *, channel: str, start_s: float, window_s: float, low_hz: float, high_hz: float, notch_hz: float | None) -> Any:
-        loader: Callable[..., Any] = getattr(recording, "load_spectrum")
-        try:
-            return loader(start_s=start_s, window_s=window_s, channels=[channel], low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz)
-        except TypeError as exc:
-            # Keep lightweight test/double contexts compatible while the real
-            # recording boundary uses the explicit frequency contract.
-            if not any(key in str(exc) for key in ("low_hz", "high_hz", "notch_hz")):
-                raise
-            try:
-                return loader(start_s=start_s, window_s=window_s, channels=[channel], low_hz=low_hz, high_hz=high_hz)
-            except TypeError as retry_exc:
-                if "low_hz" not in str(retry_exc) and "high_hz" not in str(retry_exc):
-                    raise
-                return loader(start_s=start_s, window_s=window_s, channels=[channel])
+    def _load(recording: Any, *, channel: str, start_s: float, window_s: float, filter_low_hz: float, filter_high_hz: float, output_low_hz: float, output_high_hz: float, notch_hz: float | None) -> Any:
+        return recording.load_spectrum(
+            start_s=start_s, window_s=window_s, channels=[channel],
+            filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz,
+            output_low_hz=output_low_hz, output_high_hz=output_high_hz,
+            notch_hz=notch_hz,
+        )
 
     def execute_static(self, inputs: AlgorithmInputs, config: PsdConfig) -> AlgorithmStructuredResult:
         spectrum = self._load(
             inputs.payload, channel=inputs.channel, start_s=config.start_s,
-            window_s=config.end_s - config.start_s, low_hz=config.low_hz, high_hz=config.high_hz,
+            window_s=config.end_s - config.start_s,
+            filter_low_hz=config.low_hz, filter_high_hz=config.high_hz,
+            output_low_hz=config.low_hz, output_high_hz=config.high_hz,
             notch_hz=config.notch_hz,
         )
         requested = {"start_s": config.start_s, "end_s": config.end_s}
@@ -143,8 +138,8 @@ class PsdAlgorithm:
         # shape from later complete windows.
         # Dynamic PSD is a time trend over a stable display axis. Its axis is
         # intentionally independent from the static PSD range controls.
-        fixed_trend_axis = "notch_hz" in config.model_fields_set and inputs.sfreq_hz / 2.0 > 50.0
-        trend_low_hz, trend_high_hz = (1.0, 50.0) if fixed_trend_axis else (config.low_hz, config.high_hz)
+        fixed_trend_axis = True
+        trend_low_hz, trend_high_hz = 1.0, 50.0
         if trend_high_hz >= inputs.sfreq_hz / 2.0:
             raise ValueError("动态 PSD 的固定趋势范围 1–50 Hz 超出奈奎斯特频率")
         frequencies = self._frequency_axis(inputs.sfreq_hz, trend_low_hz, trend_high_hz)
@@ -158,7 +153,9 @@ class PsdAlgorithm:
                 spectrum = self._load(
                     inputs.payload, channel=inputs.channel,
                     start_s=frame.window_start_s, window_s=frame.actual_window_s,
-                    low_hz=trend_low_hz, high_hz=trend_high_hz, notch_hz=config.notch_hz,
+                    filter_low_hz=config.low_hz, filter_high_hz=config.high_hz,
+                    output_low_hz=trend_low_hz, output_high_hz=trend_high_hz,
+                    notch_hz=config.notch_hz,
                 )
                 current_frequencies = np.asarray(spectrum.freqs, dtype=float)
                 if not np.array_equal(frequencies, current_frequencies):
@@ -173,6 +170,10 @@ class PsdAlgorithm:
                         "rejected_reasons": list(spectrum.rejected_reasons),
                     },
                     "spectral_evidence": dict(getattr(spectrum, "evidence", {})),
+                    "calculation_trace": {
+                        "filter_frequency_range_hz": {"low_hz": config.low_hz, "high_hz": config.high_hz},
+                        "output_frequency_range_hz": {"low_hz": trend_low_hz, "high_hz": trend_high_hz},
+                    },
                 }
                 if isinstance(evidence["spectral_evidence"].get("amplitude"), dict):
                     evidence["source_quality"]["amplitude"] = evidence["spectral_evidence"]["amplitude"]

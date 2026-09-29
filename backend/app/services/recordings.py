@@ -243,9 +243,13 @@ class RecordingService:
         low_hz: float = 1.0,
         high_hz: float = 30.0,
         notch_hz: float | None | object = _AUTO_NOTCH,
+        filter_low_hz: float | None = None,
+        filter_high_hz: float | None = None,
+        output_low_hz: float | None = None,
+        output_high_hz: float | None = None,
     ) -> dict:
         """Compatibility facade for the offline spectral analysis use case."""
-        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz)
+        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz)
 
     def load_spectrogram(
         self,

@@ -137,7 +137,7 @@ def test_structured_series_rejects_infinity_and_wrong_window_axis() -> None:
 
 
 def test_dynamic_psd_keeps_a_quality_gate_gap_as_a_rejected_matrix_window() -> None:
-    frequencies = np.arange(1.0, 30.25, 0.25)
+    frequencies = PsdAlgorithm._frequency_axis(200.0, 1.0, 50.0)
 
     class Recording:
         id = "dynamic-gap"
@@ -145,7 +145,7 @@ def test_dynamic_psd_keeps_a_quality_gate_gap_as_a_rejected_matrix_window() -> N
         sfreq_hz = 200.0
         duration_s = 20.0
 
-        def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str]):
+        def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], **_ranges):
             if start_s >= 5.0:
                 raise SpectralQualityGateError({
                     "clean_segments": 0, "total_segments": 1, "clean_ratio": 0.0,
@@ -176,13 +176,13 @@ def test_dynamic_psd_keeps_a_fixed_custom_frequency_axis_after_rejected_warmup()
         sfreq_hz = 200.0
         duration_s = 20.0
 
-        def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float, high_hz: float):
+        def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], output_low_hz: float, output_high_hz: float, **_ranges):
             if window_s < 5.0:
                 raise SpectralQualityGateError({
                     "clean_segments": 0, "total_segments": 1, "clean_ratio": 0.0,
                     "gate_failed": "low_quality", "rejected_reasons": ["warmup"], "evidence": {},
                 })
-            frequencies = PsdAlgorithm._frequency_axis(self.sfreq_hz, low_hz, high_hz)
+            frequencies = PsdAlgorithm._frequency_axis(self.sfreq_hz, output_low_hz, output_high_hz)
             return SpectralEstimate(
                 frequencies, np.ones((1, len(frequencies))) * 1e-12,
                 1.0, 1, 1, None, evidence={},
@@ -193,11 +193,11 @@ def test_dynamic_psd_keeps_a_fixed_custom_frequency_axis_after_rejected_warmup()
     result = AlgorithmRuntime(registry).execute(
         algorithm_id="psd", recording=Recording(),
         config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 20,
-                "window_s": 10, "step_s": 1, "low_hz": 0.5, "high_hz": 50.0},
+                "window_s": 10, "step_s": 1, "low_hz": 0.5, "high_hz": 40.0},
     )
 
     assert result.quality == "partial"
-    assert result.axes["frequency_hz"][0] == 0.5
+    assert result.axes["frequency_hz"][0] == 1.0
     assert result.axes["frequency_hz"][-1] == 50.0
     assert result.arrays["psd"].shape == (len(result.windows), len(result.axes["frequency_hz"]))
     assert np.isnan(result.arrays["psd"][0]).all()

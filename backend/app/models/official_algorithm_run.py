@@ -38,6 +38,8 @@ class OfficialAlgorithmRunConfig(BaseModel):
                 raise ValueError(f"{self.algorithm_id} requires low_hz and high_hz")
             if self.high_hz <= self.low_hz:
                 raise ValueError(f"{self.algorithm_id} frequency range must satisfy high_hz > low_hz")
+            if self.algorithm_id == "psd" and self.low_hz <= 0.0:
+                raise ValueError("PSD high-pass frequency must be greater than zero")
         if self.algorithm_id == "psd" and self.notch_hz == 0:
             self.notch_hz = None
         if self.algorithm_id == "psd" and self.notch_hz is not None and self.notch_hz not in (50.0, 60.0):

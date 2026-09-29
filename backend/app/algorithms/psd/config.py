@@ -7,13 +7,13 @@ class PsdConfig(AlgorithmConfigBase):
     """Static single-channel PSD configuration."""
 
     mode: AlgorithmMode = "static"
-    low_hz: float = Field(default=1.0, ge=0.0)
+    low_hz: float = Field(default=1.0, gt=0.0)
     high_hz: float = Field(default=30.0, gt=0.0)
     notch_hz: float | None = Field(default=50.0)
 
     @model_validator(mode="after")
     def validate_frequency_range(self) -> "PsdConfig":
-        if self.high_hz <= self.low_hz:
+        if self.low_hz <= 0.0 or self.high_hz <= self.low_hz:
             raise ValueError("PSD frequency range must satisfy high_hz > low_hz")
         if self.notch_hz == 0:
             self.notch_hz = None

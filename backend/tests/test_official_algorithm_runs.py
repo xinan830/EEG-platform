@@ -16,9 +16,11 @@ from fastapi.testclient import TestClient
 
 
 class OfficialSyntheticRecordingService(RecordingService):
+    synthetic_sfreq_hz = 100.0
+
     def load_data(self, _recording):
-        sfreq = 100.0
-        time_s = np.arange(3000) / sfreq
+        sfreq = self.synthetic_sfreq_hz
+        time_s = np.arange(int(30 * sfreq)) / sfreq
         alpha = 12e-6 * np.sin(2 * np.pi * 10 * time_s)
         return np.column_stack((
             8e-6 * np.sin(2 * np.pi * 6 * time_s) + alpha, alpha * 1.1, alpha * 1.2,
@@ -26,11 +28,12 @@ class OfficialSyntheticRecordingService(RecordingService):
         )), sfreq, ["Fz", "Pz", "O2", "F3", "F4"], []
 
 
-def _service(tmp_path: Path) -> tuple[RunService, str]:
+def _service(tmp_path: Path, *, sfreq_hz: float = 100.0) -> tuple[RunService, str]:
     recordings = OfficialSyntheticRecordingService(tmp_path / "recordings", tmp_path / "official.sqlite3")
+    recordings.synthetic_sfreq_hz = sfreq_hz
     recording = recordings.create_recording("official.edf", ".edf", b"official-source")
     with recordings._connect() as connection:
-        connection.execute("UPDATE recordings SET sfreq = 100, duration_s = 30, channels_json = '[\"Fz\", \"Pz\", \"O2\", \"F3\", \"F4\"]' WHERE id = ?", (recording.id,))
+        connection.execute("UPDATE recordings SET sfreq = ?, duration_s = 30, channels_json = '[\"Fz\", \"Pz\", \"O2\", \"F3\", \"F4\"]' WHERE id = ?", (sfreq_hz, recording.id))
     service = RunService(recordings, recordings.database_path, tmp_path / "artifacts")
     ensure_official_definitions(service.definition_service)
     return service, recording.id
@@ -220,21 +223,21 @@ def test_official_stft_dynamic_run_returns_window_time_frequency_matrix_artifact
 
 
 def test_official_psd_dynamic_run_returns_window_frequency_matrix_artifact(tmp_path: Path):
-    service, recording_id = _service(tmp_path)
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
     completed = service.create(_request(recording_id, "psd", dynamic=True))
 
     assert completed.status is RunStatus.COMPLETED
     structured = completed.result_summary["structured"]
     assert structured["output"]["mode"] == "dynamic"
     assert structured["output"]["kind"] == "frequency_series"
-    assert structured["arrays"]["psd"]["shape"] == [27, 117]
+    assert structured["arrays"]["psd"]["shape"] == [27, 197]
     assert structured["window_state_counts"] == {"Partial": 6, "Complete": 21}
     assert service.list_artifacts(completed.run_id)
 
 
 @pytest.mark.parametrize("algorithm_id", ["psd", "stft"])
 def test_one_window_dynamic_result_matches_static_result(tmp_path: Path, algorithm_id: str):
-    service, recording_id = _service(tmp_path)
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0 if algorithm_id == "psd" else 100.0)
     static_request = _request(recording_id, algorithm_id)
     dynamic_request = _request(recording_id, algorithm_id, dynamic=True)
     static_request.config["time"] = {"start_s": 20, "end_s": 30}
@@ -250,14 +253,14 @@ def test_one_window_dynamic_result_matches_static_result(tmp_path: Path, algorit
     static_arrays = service.artifacts.read_npz(static_artifact)
     dynamic_arrays = service.artifacts.read_npz(dynamic_artifact)
     if algorithm_id == "psd":
-        np.testing.assert_allclose(dynamic_arrays["psd"][0], static_arrays["psd"], rtol=0, atol=1e-24)
+        np.testing.assert_allclose(dynamic_arrays["psd"][0, :static_arrays["psd"].shape[0]], static_arrays["psd"], rtol=0, atol=1e-24)
     else:
         np.testing.assert_allclose(dynamic_arrays["power_linear"][0], static_arrays["power_linear"], rtol=0, atol=1e-24)
         np.testing.assert_allclose(dynamic_arrays["power_db"][0], static_arrays["power_db"], rtol=0, atol=1e-12)
 
 
 def test_official_psd_box_range_uses_the_same_static_runtime_contract(tmp_path: Path):
-    service, recording_id = _service(tmp_path)
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
     request = _request(recording_id, "psd")
     request.config["time"] = {"start_s": 5, "end_s": 15}
     completed = service.create(request)

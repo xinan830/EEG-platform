@@ -1,0 +1,4 @@
+- [x] Add explicit filter/output range contract to spectral loading.
+- [x] Update official PSD static and dynamic execution and provenance.
+- [x] Add regression tests for dynamic filter settings and fixed output axis.
+- [ ] Run backend tests, strict OpenSpec validation, and diff checks.
