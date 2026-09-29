@@ -33,6 +33,35 @@ def test_offline_preprocessing_matches_independent_scipy_reference():
     assert LIVE_ANALYSIS_CONTRACT["faa_initial_discard_s"] == 12.0
 
 
+def test_psd_frequency_range_changes_the_declared_filter_and_welch_axis():
+    sfreq = 200.0
+    times = np.arange(20 * int(sfreq)) / sfreq
+    source = (20e-6 * np.sin(2 * np.pi * 40 * times) + 10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+
+    filtered = preprocess_offline(source, sfreq, low_hz=0.5, high_hz=50.0)
+    estimate = estimate_welch_psd(filtered, sfreq, low_hz=0.5, high_hz=50.0)
+
+    assert estimate.gate_failed is None
+    assert estimate.freqs[0] == 0.5
+    assert estimate.freqs[-1] == 50.0
+    assert estimate.psd.shape == (1, len(estimate.freqs))
+
+
+def test_optional_powerline_notch_is_zero_phase_and_preserves_other_frequency():
+    sfreq = 1000.0
+    times = np.arange(20 * int(sfreq)) / sfreq
+    source = np.column_stack([
+        20e-6 * np.sin(2 * np.pi * 50 * times) + 10e-6 * np.sin(2 * np.pi * 10 * times),
+    ])
+
+    filtered = preprocess_offline(source, sfreq, low_hz=0.5, high_hz=50.0, notch_hz=50.0, notch_q=30.0)
+    spectrum = np.abs(np.fft.rfft(filtered[:, 0]))
+    fifty_power = spectrum[int(50.0 * len(filtered) / sfreq)]
+    ten_power = spectrum[int(10.0 * len(filtered) / sfreq)]
+
+    assert fifty_power < 0.1 * ten_power
+
+
 def test_welch_rejects_paired_artifact_epochs_without_joining_samples():
     sfreq = 100.0
     times = np.arange(8 * int(sfreq)) / sfreq
@@ -72,6 +101,40 @@ def test_welch_segments_overlap_inside_long_analysis_window():
     assert spectrum.total_epochs == 14
     assert spectrum.clean_epochs == 14
     assert spectrum.gate_failed is None
+    assert spectrum.evidence["welch"] == {
+        "segment_s": 4.0,
+        "segment_samples": 400,
+        "overlap_fraction": 0.5,
+        "overlap_samples": 200,
+        "step_s": 2.0,
+        "window": "hann",
+        "scaling": "density",
+    }
+
+
+def test_welch_uses_declared_internal_overlap_for_each_clean_epoch():
+    sfreq = 100.0
+    times = np.arange(8 * int(sfreq)) / sfreq
+    values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+
+    spectrum = estimate_welch_psd(values, sfreq)
+    expected_rows = []
+    for start in (0, 200, 400):
+        frequencies, row = signal.welch(
+            values[start:start + 400, 0],
+            fs=sfreq,
+            window="hann",
+            nperseg=400,
+            noverlap=200,
+            detrend="constant",
+            scaling="density",
+        )
+        expected_rows.append(row)
+    mask = (frequencies >= 1.0) & (frequencies <= 30.0)
+
+    np.testing.assert_allclose(spectrum.freqs, frequencies[mask])
+    expected = np.maximum(np.mean(expected_rows, axis=0), 1e-20)[mask]
+    np.testing.assert_allclose(spectrum.psd[0], expected)
 
 
 def test_known_amplitude_sine_integrates_to_mean_square_power():

@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using BrainPlatform.Desktop.Modules.Algorithms.ViewModels;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 

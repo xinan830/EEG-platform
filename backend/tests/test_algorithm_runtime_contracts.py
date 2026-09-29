@@ -142,7 +142,7 @@ def test_dynamic_psd_keeps_a_quality_gate_gap_as_a_rejected_matrix_window() -> N
     class Recording:
         id = "dynamic-gap"
         channel_names = ["Fz"]
-        sfreq_hz = 100.0
+        sfreq_hz = 200.0
         duration_s = 20.0
 
         def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str]):
@@ -167,6 +167,40 @@ def test_dynamic_psd_keeps_a_quality_gate_gap_as_a_rejected_matrix_window() -> N
     assert {window.state for window in result.windows} == {"Complete", "Rejected"}
     assert result.windows[-1].failure is not None
     assert np.isnan(result.arrays["psd"][-1]).all()
+
+
+def test_dynamic_psd_keeps_a_fixed_custom_frequency_axis_after_rejected_warmup() -> None:
+    class Recording:
+        id = "dynamic-custom-axis"
+        channel_names = ["Fz"]
+        sfreq_hz = 200.0
+        duration_s = 20.0
+
+        def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float, high_hz: float):
+            if window_s < 5.0:
+                raise SpectralQualityGateError({
+                    "clean_segments": 0, "total_segments": 1, "clean_ratio": 0.0,
+                    "gate_failed": "low_quality", "rejected_reasons": ["warmup"], "evidence": {},
+                })
+            frequencies = PsdAlgorithm._frequency_axis(self.sfreq_hz, low_hz, high_hz)
+            return SpectralEstimate(
+                frequencies, np.ones((1, len(frequencies))) * 1e-12,
+                1.0, 1, 1, None, evidence={},
+            )
+
+    registry = AlgorithmRegistry()
+    registry.register(PsdAlgorithm())
+    result = AlgorithmRuntime(registry).execute(
+        algorithm_id="psd", recording=Recording(),
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 20,
+                "window_s": 10, "step_s": 1, "low_hz": 0.5, "high_hz": 50.0},
+    )
+
+    assert result.quality == "partial"
+    assert result.axes["frequency_hz"][0] == 0.5
+    assert result.axes["frequency_hz"][-1] == 50.0
+    assert result.arrays["psd"].shape == (len(result.windows), len(result.axes["frequency_hz"]))
+    assert np.isnan(result.arrays["psd"][0]).all()
 
 
 def test_runtime_attaches_canonical_sample_coordinate_without_replacing_display_range() -> None:

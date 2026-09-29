@@ -1,7 +1,6 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
-using BrainPlatform.Desktop.Modules.Algorithms.ViewModels;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 

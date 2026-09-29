@@ -38,6 +38,9 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="RowBorder" Property="Background" Value="#F8FAFC" />
                         </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="RowBorder" Property="Background" Value="#F0F7FF" />
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

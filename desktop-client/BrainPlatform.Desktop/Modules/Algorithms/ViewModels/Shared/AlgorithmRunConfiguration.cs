@@ -1,7 +1,7 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
-namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 
 internal static class AlgorithmRunConfiguration
 {
@@ -65,8 +65,9 @@ internal static class AlgorithmRunConfiguration
         BandRatioBands? ratioBands = null,
         string? f4Channel = null,
         double? windowSeconds = null,
-        double? stepSeconds = null) =>
-        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds));
+        double? stepSeconds = null,
+        double? notchHz = 50.0) =>
+        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds, notchHz));
 
     internal static bool IsSupportedAlgorithm(AlgorithmCatalogItem? algorithm) =>
         algorithm is { IsRunnable: true } &&
@@ -93,7 +94,8 @@ internal static class AlgorithmRunConfiguration
         BandRatioBands? ratioBands,
         string? f4Channel,
         double? windowSeconds,
-        double? stepSeconds)
+        double? stepSeconds,
+        double? notchHz)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -110,6 +112,9 @@ internal static class AlgorithmRunConfiguration
             ["denominator_high_hz"] = ratioBands?.Denominator.HighHz,
             ["f4_channel"] = f4Channel,
         };
+
+        if (algorithm.Id == "psd")
+            payload["notch_hz"] = notchHz;
 
         if (windowSeconds is double window && stepSeconds is double step)
         {

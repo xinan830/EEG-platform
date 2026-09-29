@@ -1,7 +1,7 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
-namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 
 internal static class AlgorithmResultFormatter
 {
@@ -131,9 +131,51 @@ internal static class AlgorithmResultFormatter
     internal static string MetadataUnit(IReadOnlyDictionary<string, JsonElement> metadata, string key)
     {
         if (metadata.TryGetValue(key, out var value) && value.ValueKind == JsonValueKind.Object && value.TryGetProperty("unit", out var unit))
-            return unit.GetString() ?? "未声明单位";
+        {
+            var raw = unit.GetString();
+            return key.Equals("psd", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(raw, "V^2/Hz", StringComparison.OrdinalIgnoreCase)
+                ? "μV²/Hz"
+                : raw ?? "未声明单位";
+        }
         return "未声明单位";
     }
+
+    internal static string FormatQualityForDisplay(JsonElement value) => FormatQuality(value);
+
+    internal static string FormatWindowStateForDisplay(string state) => state switch
+    {
+        "Partial" or "partial" => "部分完成",
+        "Complete" or "complete" => "完整",
+        "Rejected" or "rejected" => "已拒绝",
+        "Unavailable" or "unavailable" => "不可用",
+        _ => string.IsNullOrWhiteSpace(state) ? "未提供" : state,
+    };
+
+    internal static string FormatFailureCodeForDisplay(string code) => code switch
+    {
+        "PSD_WINDOW_QUALITY_GATE_FAILED" => "未通过 PSD 质量门",
+        "PSD_WINDOW_UNAVAILABLE" => "窗口不可用",
+        "PSD_QUALITY_GATE_FAILED" => "未通过 PSD 质量门",
+        "QUALITY_GATE_FAILED" => "质量门失败",
+        "ANALYSIS_INPUT_INVALID" => "分析输入无效",
+        "ANALYSIS_EXECUTION_FAILED" => "分析执行失败",
+        _ => string.IsNullOrWhiteSpace(code) ? "未提供" : code,
+    };
+
+    internal static string FormatQualityReasonForDisplay(string reason) => reason switch
+    {
+        "amplitude_threshold" => "振幅超过质量阈值",
+        "flatline" => "信号平线",
+        "non_finite" => "包含非有限数值",
+        "clipping" => "信号削波",
+        "missing_samples" => "缺少采样点",
+        "low_quality" => "有效信号比例过低",
+        "PSD_WINDOW_QUALITY_GATE_FAILED" => "未通过 PSD 质量门",
+        "PSD_QUALITY_GATE_FAILED" => "未通过 PSD 质量门",
+        "QUALITY_GATE_FAILED" => "质量门失败",
+        _ => string.IsNullOrWhiteSpace(reason) ? "未提供" : reason,
+    };
 
     private static string FormatBandName(string name) => name.ToLowerInvariant() switch
     {
@@ -157,17 +199,29 @@ internal static class AlgorithmResultFormatter
     private static string FormatQuality(JsonElement value)
     {
         if (value.ValueKind == JsonValueKind.String)
-            return value.GetString() ?? "未提供";
+            return FormatQualityStatus(value.GetString());
         if (value.ValueKind != JsonValueKind.Object)
             return FormatJsonValue(value);
         var status = value.TryGetProperty("status", out var statusElement) ? statusElement.GetString() : null;
         var reasons = value.TryGetProperty("reasons", out var reasonsElement) && reasonsElement.ValueKind == JsonValueKind.Array
-            ? string.Join("、", reasonsElement.EnumerateArray().Select(FormatJsonValue))
+            ? string.Join("、", reasonsElement.EnumerateArray().Select(item =>
+                item.ValueKind == JsonValueKind.String
+                    ? FormatQualityReasonForDisplay(item.GetString() ?? "")
+                    : FormatJsonValue(item)))
             : "";
         return string.IsNullOrWhiteSpace(reasons)
-            ? status switch { "clean" => "良好（clean）", "gate_failed" => "未通过质量门", _ => status ?? "未提供" }
-            : $"{status ?? "未提供"}：{reasons}";
+            ? FormatQualityStatus(status)
+            : $"{FormatQualityStatus(status)}：{reasons}";
     }
+
+    private static string FormatQualityStatus(string? status) => status switch
+    {
+        "clean" => "良好",
+        "partial" => "部分完成",
+        "gate_failed" => "未通过质量门",
+        "unavailable" => "不可用",
+        _ => string.IsNullOrWhiteSpace(status) ? "未提供" : status,
+    };
 
     private static string FormatRange(TimeRange? range) => range is null
         ? "未提供"

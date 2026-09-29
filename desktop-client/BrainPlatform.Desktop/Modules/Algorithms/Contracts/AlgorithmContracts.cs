@@ -36,6 +36,34 @@ public sealed record AlgorithmCatalogItem(
         _ => Availability,
     };
 
+    public string StatusDisplay => Availability switch
+    {
+        "available" when IsRunnable => "可用",
+        "available" => "不可运行",
+        "shadow_validation" => "验证中",
+        "unavailable" => "不可用",
+        _ => "未知",
+    };
+
+    // This is a display classification only. The backend output schema and
+    // algorithm id remain the scientific source of truth; the desktop must not
+    // infer or recompute scientific values from this label.
+    public string ResultTypeDisplay => Id switch
+    {
+        "psd" => "频谱图",
+        "stft" => "时频图",
+        "rbp" => "频段功率结果",
+        _ => "标量结果",
+    };
+
+    public string AlgorithmTypeDisplay => Id switch
+    {
+        "psd" => "频谱",
+        "stft" => "时频",
+        "rbp" => "频段功率",
+        _ => "标量",
+    };
+
     private static string FormatMode(string mode) => mode switch
     {
         "static" => "静态",
@@ -128,7 +156,8 @@ public sealed record StructuredPreviewResponse(
     [property: JsonPropertyName("window_state_counts")] IReadOnlyDictionary<string, int> WindowStateCounts,
     [property: JsonPropertyName("quality")] JsonElement? Quality,
     [property: JsonPropertyName("scientific_version")] string? ScientificVersion,
-    [property: JsonPropertyName("implementation_version")] string? ImplementationVersion);
+    [property: JsonPropertyName("implementation_version")] string? ImplementationVersion,
+    [property: JsonPropertyName("failure")] JsonElement? Failure = null);
 
 public sealed class AlgorithmApiException : Exception
 {

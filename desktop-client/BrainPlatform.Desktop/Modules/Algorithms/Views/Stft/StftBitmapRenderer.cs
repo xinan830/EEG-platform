@@ -2,7 +2,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels;
 
-namespace BrainPlatform.Desktop.Modules.Algorithms.Views;
+namespace BrainPlatform.Desktop.Modules.Algorithms.Views.Stft;
 
 internal static class StftBitmapRenderer
 {

@@ -33,7 +33,8 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsImmersiveWaveform" Value="True">
                             <Setter TargetName="WorkspaceRoot" Property="Margin" Value="0,12,0,0" />
-                            <Setter TargetName="TopBarBorder" Property="Margin" Value="16,0,16,0" />
+                            <Setter TargetName="TopBarBorder" Property="Margin" Value="0" />
+                            <Setter TargetName="TopWaveGap" Property="Height" Value="4" />
                             <Setter TargetName="WaveformBorder" Property="BorderThickness" Value="0" />
                             <Setter TargetName="WaveformBorder" Property="CornerRadius" Value="0" />
                             <Setter TargetName="WaveformBorder" Property="Padding" Value="0" />

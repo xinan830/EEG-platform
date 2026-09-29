@@ -16,8 +16,9 @@ class OfficialAlgorithmRunConfig(BaseModel):
     mode: Literal["static", "dynamic"] = "static"
     dynamic_window_s: float = Field(default=10, gt=0)
     refresh_step_s: float = Field(default=1, gt=0)
-    low_hz: float | None = Field(default=None, ge=0)
-    high_hz: float | None = Field(default=None, ge=0)
+    low_hz: float | None = Field(default=1.0, ge=0)
+    high_hz: float | None = Field(default=30.0, ge=0)
+    notch_hz: float | None = Field(default=None)
     numerator_low_hz: float | None = Field(default=None, ge=0)
     numerator_high_hz: float | None = Field(default=None, ge=0)
     denominator_low_hz: float | None = Field(default=None, ge=0)
@@ -32,11 +33,15 @@ class OfficialAlgorithmRunConfig(BaseModel):
                 raise ValueError("FAA F3 and F4 source channels must be different")
         elif not self.channel:
             raise ValueError(f"{self.algorithm_id} requires an analysis channel")
-        if self.algorithm_id == "peak_frequency":
+        if self.algorithm_id in {"peak_frequency", "psd"}:
             if self.low_hz is None or self.high_hz is None:
-                raise ValueError("peak_frequency requires low_hz and high_hz")
+                raise ValueError(f"{self.algorithm_id} requires low_hz and high_hz")
             if self.high_hz <= self.low_hz:
-                raise ValueError("peak_frequency band must satisfy high_hz > low_hz")
+                raise ValueError(f"{self.algorithm_id} frequency range must satisfy high_hz > low_hz")
+        if self.algorithm_id == "psd" and self.notch_hz == 0:
+            self.notch_hz = None
+        if self.algorithm_id == "psd" and self.notch_hz is not None and self.notch_hz not in (50.0, 60.0):
+            raise ValueError("PSD notch_hz must be null, 50, or 60")
         if self.algorithm_id == "band_ratio":
             bands = (
                 self.numerator_low_hz, self.numerator_high_hz,
@@ -62,8 +67,10 @@ class OfficialAlgorithmRunConfig(BaseModel):
         }
         if self.algorithm_id == "faa":
             config["f4_channel"] = str(self.f4_channel)
-        if self.algorithm_id == "peak_frequency":
+        if self.algorithm_id in {"peak_frequency", "psd"}:
             config.update({"low_hz": float(self.low_hz), "high_hz": float(self.high_hz)})
+        if self.algorithm_id == "psd":
+            config["notch_hz"] = None if self.notch_hz is None else float(self.notch_hz)
         if self.algorithm_id == "band_ratio":
             config.update({
                 "numerator_low_hz": float(self.numerator_low_hz),

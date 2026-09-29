@@ -1,0 +1,1 @@
+using System.Windows.Controls; namespace BrainPlatform.Desktop.Modules.Algorithms.Views.PeakFrequency; public partial class PeakFrequencyDetailView : UserControl { public PeakFrequencyDetailView() => InitializeComponent(); }

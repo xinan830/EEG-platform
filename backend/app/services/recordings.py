@@ -16,7 +16,7 @@ from app.services.recording_identity import (
     backfill_recording_identity,
     canonical_channel_label,
 )
-from app.services.spectral_analysis import SpectralAnalysisService
+from app.services.spectral_analysis import SpectralAnalysisService, _AUTO_NOTCH
 from app.services.wpf_recording import inspect_wpf_recording, load_wpf_data
 
 
@@ -239,9 +239,13 @@ class RecordingService:
         start_s: float = 0.0,
         window_s: float = 30.0,
         channels: list[str] | None = None,
+        *,
+        low_hz: float = 1.0,
+        high_hz: float = 30.0,
+        notch_hz: float | None | object = _AUTO_NOTCH,
     ) -> dict:
         """Compatibility facade for the offline spectral analysis use case."""
-        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels)
+        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz)
 
     def load_spectrogram(
         self,

@@ -33,11 +33,11 @@ class _RecordingAlgorithmContext:
         self._recording = recording
         self.id = recording.id
         self.channel_names = list(recording.channels)
-        self.sfreq_hz = float(recording.sfreq or 0.0)
+        self.sfreq_hz = float(getattr(recording, "sfreq_hz", None) or getattr(recording, "sfreq", None) or 0.0)
         self.duration_s = float(recording.duration_s or 0.0)
 
-    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str]) -> SpectralEstimate:
-        payload = self._recordings.load_spectrum(self._recording, start_s, window_s, channels)
+    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 30.0, notch_hz: float | None = None) -> SpectralEstimate:
+        payload = self._recordings.load_spectrum(self._recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz)
         ordered = list(payload["channels"])
         selected = ordered[0]
         evidence = {

@@ -1,0 +1,1 @@
+using System.Windows.Controls; namespace BrainPlatform.Desktop.Modules.Algorithms.Views.Brainbeat; public partial class BrainbeatDetailView : UserControl { public BrainbeatDetailView() => InitializeComponent(); }

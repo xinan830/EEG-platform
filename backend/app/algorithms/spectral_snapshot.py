@@ -7,6 +7,8 @@ from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 
 def spectral_execution_snapshot(config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
+    high_hz = float(getattr(config, "high_hz", ANALYSIS_CONTRACT["bandpass_hz"][1]))
+    notch_hz = 50.0 if high_hz >= 45.0 else None
     return AlgorithmExecutionSnapshot(
         window={
             "mode": config.mode,
@@ -25,6 +27,13 @@ def spectral_execution_snapshot(config: AlgorithmConfigBase) -> AlgorithmExecuti
                 "preprocessing_phase",
                 "filter_form",
             )
+        } | {
+            "bandpass_hz": [
+                float(getattr(config, "low_hz", ANALYSIS_CONTRACT["bandpass_hz"][0])),
+                high_hz,
+            ],
+            "notch_hz": notch_hz,
+            "notch_quality_factor": 30.0 if notch_hz is not None else None,
         },
         quality_rules={
             "minimum_clean_ratio": ANALYSIS_CONTRACT["minimum_clean_epoch_ratio"],

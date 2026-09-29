@@ -31,13 +31,43 @@ FREQUENCY_BANDS = {
     "alpha": (8.0, 13.0),
     "beta": (13.0, 30.0),
 }
+POWERLINE_NOTCH_HZ = 50.0
+POWERLINE_NOTCH_Q = 30.0
+_AUTO_NOTCH = object()
+
+
+def _notch_for_requested_range(high_hz: float) -> float | None:
+    """Use the mains notch only for ranges that expose the power-line band."""
+    return POWERLINE_NOTCH_HZ if high_hz >= 45.0 else None
+
+
+def _spectral_cache_identity(low_hz: float, high_hz: float, notch_hz: float | None = None) -> str:
+    notch = "off" if notch_hz is None else f"{notch_hz:g}"
+    return f"{ANALYSIS_CONTRACT['algorithm_version']}:bandpass={low_hz:g}-{high_hz:g}Hz:notch={notch}"
 
 
 class _ServiceSpectralGateway(ScientificSpectralGateway):
     """Default adapter retaining the historical preprocess monkeypatch seam."""
 
-    def preprocess(self, data: np.ndarray, sfreq_hz: float) -> np.ndarray:
-        return preprocess_offline(data, sfreq_hz)
+    def preprocess(
+        self,
+        data: np.ndarray,
+        sfreq_hz: float,
+        *,
+        low_hz: float | None = None,
+        high_hz: float | None = None,
+        notch_hz: float | None | object = _AUTO_NOTCH,
+        notch_q: float = POWERLINE_NOTCH_Q,
+    ) -> np.ndarray:
+        # Keep the established two-argument monkeypatch seam for the frozen
+        # default contract. Non-default ranges must use the explicit contract.
+        default_low, default_high = (float(value) for value in ANALYSIS_CONTRACT["bandpass_hz"])
+        if low_hz == default_low and high_hz == default_high and notch_hz is None:
+            return preprocess_offline(data, sfreq_hz)
+        return preprocess_offline(
+            data, sfreq_hz, low_hz=low_hz, high_hz=high_hz,
+            notch_hz=notch_hz, notch_q=notch_q,
+        )
 
 
 def _configured_provenance(payload: dict[str, object], *, mode: str, requested_time: dict[str, float], actual_start: float, actual_end: float, config_hash: str, quality: dict[str, object]) -> dict[str, object]:
@@ -79,15 +109,33 @@ class SpectralAnalysisService:
         start_s: float = 0.0,
         window_s: float = 30.0,
         channels: list[str] | None = None,
+        *,
+        low_hz: float = 1.0,
+        high_hz: float = 30.0,
+        notch_hz: float | None | object = _AUTO_NOTCH,
     ) -> dict[str, object]:
         """Return frozen v3 PSD, absolute band power, and relative power."""
+        low_hz = float(low_hz)
+        high_hz = float(high_hz)
+        if not np.isfinite(low_hz) or not np.isfinite(high_hz) or low_hz <= 0.0 or high_hz <= low_hz:
+            raise ValueError("PSD 频率范围无效")
         version = str(ANALYSIS_CONTRACT["algorithm_version"])
-        cached = self.preprocess_cache.get(recording.id, version)
+        # Filtering is part of the scientific contract. Never reuse a 1-30 Hz
+        # preprocessed signal for a requested 0.5-50 Hz PSD (or vice versa).
+        if notch_hz is _AUTO_NOTCH:
+            notch_hz = _notch_for_requested_range(high_hz)
+        elif notch_hz is not None and float(notch_hz) not in (50.0, 60.0):
+            raise ValueError("陷波仅支持关闭、50Hz 或 60Hz")
+        cache_identity = _spectral_cache_identity(low_hz, high_hz, notch_hz)
+        cached = self.preprocess_cache.get(recording.id, cache_identity)
         if cached is None:
             data, sfreq, names, _events = self.recordings.load_data(recording)
-            filtered_all = self.spectral_gateway.preprocess(np.asarray(data, dtype=float), sfreq)
+            filtered_all = self.spectral_gateway.preprocess(
+                np.asarray(data, dtype=float), sfreq, low_hz=low_hz, high_hz=high_hz,
+                notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
+            )
             cached = PreprocessedRecording(filtered_all, sfreq, tuple(names))
-            self.preprocess_cache.put(recording.id, version, cached)
+            self.preprocess_cache.put(recording.id, cache_identity, cached)
         filtered_all, sfreq, names = cached.data, cached.sfreq, list(cached.channel_names)
         available = {name.casefold(): name for name in names}
         requested = names if channels is None else [available.get(item.casefold()) for item in channels]
@@ -100,13 +148,23 @@ class SpectralAnalysisService:
         filtered = filtered_all[:, indexes]
         duration_s = len(filtered) / sfreq
         actual_start = max(0.0, min(float(start_s), duration_s))
-        validate_recording_analysis_input(duration_s, sfreq, names, actual_start, duration_s, requested_names, (1.0, 30.0))
+        if high_hz >= sfreq / 2.0:
+            raise ValueError(f"PSD 最高频率必须低于奈奎斯特频率（{sfreq / 2:g}Hz）")
+        validate_recording_analysis_input(duration_s, sfreq, names, actual_start, duration_s, requested_names)
         start_index = int(np.floor(actual_start * sfreq))
         stop_index = min(len(filtered), start_index + int(round(float(window_s) * sfreq)))
         window = filtered[start_index:stop_index]
         if len(window) < int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * sfreq)):
             raise ValueError("频谱分析窗口至少需要 4 秒")
-        spectrum = self.spectral_gateway.welch(window, sfreq)
+        # Keep the standard 1-30 Hz bands available as evidence even when the
+        # requested PSD display range is narrower. The final returned axis is
+        # still clipped to exactly [low_hz, high_hz].
+        band_floor = min(edge[0] for edge in FREQUENCY_BANDS.values())
+        band_ceiling = max(edge[1] for edge in FREQUENCY_BANDS.values())
+        spectrum = self.spectral_gateway.welch(
+            window, sfreq, low_hz=min(low_hz, band_floor),
+            high_hz=max(high_hz, band_ceiling),
+        )
         if spectrum.gate_failed:
             raise SpectralQualityGateError({
                 "clean_segments": spectrum.clean_epochs,
@@ -119,15 +177,28 @@ class SpectralAnalysisService:
         psd_uv = spectrum.psd * 1e12
         absolute = {
             name: {
-                band: float(self.spectral_gateway.integrate_band(spectrum.freqs, spectrum.psd[index], *edges) * 1e12)
+                band: (
+                    float(self.spectral_gateway.integrate_band(spectrum.freqs, spectrum.psd[index], *edges) * 1e12)
+                    if edges[0] >= spectrum.freqs[0] and edges[1] <= spectrum.freqs[-1]
+                    else None
+                )
                 for band, edges in FREQUENCY_BANDS.items()
             }
             for index, name in enumerate(requested_names)
         }
         relative = {
-            name: {band: value / sum(values.values()) if sum(values.values()) > 0 else 0.0 for band, value in values.items()}
+            name: {
+                band: value / total if value is not None and total > 0 else None
+                for band, value in values.items()
+            }
             for name, values in absolute.items()
+            for total in [sum(value for value in values.values() if value is not None)]
         }
+        mask = (spectrum.freqs >= low_hz) & (spectrum.freqs <= high_hz)
+        if not np.any(mask):
+            raise ValueError("请求的 PSD 频率范围没有可用频率点")
+        frequencies = spectrum.freqs[mask]
+        psd_values = psd_uv[:, mask]
         return {
             "recording_id": recording.id,
             "window_start_s": actual_start,
@@ -136,15 +207,17 @@ class SpectralAnalysisService:
             "channels": requested_names,
             "analysis_reference": ANALYSIS_CONTRACT["reference"],
             "algorithm_version": ANALYSIS_CONTRACT["algorithm_version"],
-            "filter_contract": {key: ANALYSIS_CONTRACT[key] for key in (
+            "filter_contract": {**{key: ANALYSIS_CONTRACT[key] for key in (
                 "bandpass_type", "bandpass_prototype_order", "bandpass_hz", "preprocessing_phase", "filter_form",
-            )},
+            )}, "bandpass_hz": [low_hz, high_hz], "notch_hz": notch_hz,
+            "notch_quality_factor": POWERLINE_NOTCH_Q if notch_hz is not None else None},
             "welch_contract": {key: ANALYSIS_CONTRACT[key] for key in (
                 "welch_segment_s", "welch_segment_overlap", "welch_step_s", "welch_window", "welch_scaling",
             )},
             "units": {"psd": "uV^2/Hz", "absolute_power": "uV^2", "relative_power": "ratio"},
-            "frequencies_hz": spectrum.freqs.tolist(),
-            "psd": {name: psd_uv[index].tolist() for index, name in enumerate(requested_names)},
+            "frequencies_hz": frequencies.tolist(),
+            "psd": {name: psd_values[index].tolist() for index, name in enumerate(requested_names)},
+            "frequency_range_hz": {"low_hz": low_hz, "high_hz": high_hz},
             "band_power": absolute,
             "relative_band_power": relative,
             "quality": {
@@ -166,7 +239,8 @@ class SpectralAnalysisService:
         """Return spectrogram-v2 from the continuous v3-preprocessed signal."""
         payload = self.load_spectrum(recording, start_s=start_s, window_s=window_s, channels=channels)
         names = list(payload["channels"])
-        cached = self.preprocess_cache.get(recording.id, str(payload["algorithm_version"]))
+        default_low, default_high = (float(value) for value in ANALYSIS_CONTRACT["bandpass_hz"])
+        cached = self.preprocess_cache.get(recording.id, _spectral_cache_identity(default_low, default_high))
         assert cached is not None
         indexes = [list(cached.channel_names).index(name) for name in names]
         start_index = int(np.floor(float(start_s) * cached.sfreq))

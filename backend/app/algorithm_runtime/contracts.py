@@ -51,7 +51,7 @@ class DynamicAnalysisPolicy(BaseModel):
 
     minimum_window_s: float = Field(default=4.0, gt=0)
     window_options_s: list[float] = Field(default_factory=lambda: [5.0, 10.0, 20.0, 30.0])
-    default_window_s: float = Field(default=10.0, gt=0)
+    default_window_s: float = Field(default=5.0, gt=0)
     refresh_step_s: float = Field(default=1.0, gt=0)
     allow_warmup: bool = True
 

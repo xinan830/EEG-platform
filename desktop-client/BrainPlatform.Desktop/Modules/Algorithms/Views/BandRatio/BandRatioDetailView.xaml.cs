@@ -1,0 +1,1 @@
+using System.Windows.Controls; namespace BrainPlatform.Desktop.Modules.Algorithms.Views.BandRatio; public partial class BandRatioDetailView : UserControl { public BandRatioDetailView() => InitializeComponent(); }

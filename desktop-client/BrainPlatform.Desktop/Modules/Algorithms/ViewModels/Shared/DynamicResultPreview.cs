@@ -1,7 +1,7 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
-namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 
 public sealed record DynamicSeriesPoint(
     double TimeSeconds,
@@ -49,10 +49,10 @@ public static class DynamicResultPreview
         {
             var start = Number(window, "start_s");
             var end = Number(window, "end_s");
-            var state = String(window, "state");
-            var quality = String(window, "quality");
+            var state = AlgorithmResultFormatter.FormatWindowStateForDisplay(String(window, "state"));
+            var quality = AlgorithmResultFormatter.FormatQualityReasonForDisplay(String(window, "quality"));
             var failure = window.TryGetProperty("failure", out var failureElement) && failureElement.ValueKind == JsonValueKind.Object
-                ? String(failureElement, "code")
+                ? AlgorithmResultFormatter.FormatFailureCodeForDisplay(String(failureElement, "code"))
                 : "";
             return new DynamicWindowRow(start, end, state, quality, failure);
         }).ToArray();

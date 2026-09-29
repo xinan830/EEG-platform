@@ -82,6 +82,7 @@ class ResultService:
             "windows": structured.get("windows", []),
             "window_state_counts": structured.get("window_state_counts", {}),
             "quality": structured.get("quality"),
+            "failure": structured.get("failure"),
             "scientific_version": run.scientific_version,
             "implementation_version": run.implementation_version,
         }

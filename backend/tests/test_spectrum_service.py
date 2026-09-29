@@ -49,6 +49,26 @@ def test_spectrum_exposes_backend_declared_welch_step(tmp_path, monkeypatch):
     assert payload["welch_contract"]["welch_step_s"] == 2.0
 
 
+def test_spectrum_uses_the_requested_frequency_range_for_filter_cache_and_output(tmp_path, monkeypatch):
+    service, recording = _service(tmp_path)
+    sfreq = 200.0
+    times = np.arange(20 * int(sfreq)) / sfreq
+    data = (10e-6 * np.sin(2 * np.pi * 40 * times) + 6e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz"], []))
+
+    wide = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=0.5, high_hz=50.0)
+    default = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=1.0, high_hz=30.0)
+
+    assert wide["frequencies_hz"][0] == 0.5
+    assert wide["frequencies_hz"][-1] == 50.0
+    assert wide["filter_contract"]["bandpass_hz"] == [0.5, 50.0]
+    assert wide["filter_contract"]["notch_hz"] == 50.0
+    assert wide["filter_contract"]["notch_quality_factor"] == 30.0
+    assert default["frequencies_hz"][0] == 1.0
+    assert default["frequencies_hz"][-1] == 30.0
+    assert default["filter_contract"]["notch_hz"] is None
+
+
 def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
     sfreq = 100.0

@@ -1,7 +1,7 @@
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
-namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels;
+namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 
 internal sealed class AlgorithmRunCoordinator(IAlgorithmClient client)
 {

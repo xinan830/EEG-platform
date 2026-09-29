@@ -76,28 +76,6 @@
             </Setter>
         </Style>
 
-        <!-- 列表表头文字样式 -->
-        <Style x:Key="TableHeaderText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12.5" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Foreground" Value="#64748B" /><Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-
-        <!-- 列表行样式 -->
-        <Style x:Key="MontageProfileRowStyle" TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="0" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="#F1F5F9" /><Setter Property="Background" Value="#FFFFFF" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="FocusVisualStyle" Value="{x:Null}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
-                            <ContentPresenter HorizontalAlignment="Stretch" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Root" Property="Background" Value="#F8FAFC" /></Trigger>
-                            <Trigger Property="IsSelected" Value="True"><Setter TargetName="Root" Property="Background" Value="#F0F7FF" /></Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </UserControl.Resources>
 
     <Grid Margin="24,20">
@@ -185,7 +163,7 @@
         </Grid>
 
         <!-- 3. 数据表格容器 (响应式全宽拉伸自适应，表头与每一行使用完全一致的自适应列定义) -->
-        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
+        <Border Grid.Row="2" Style="{StaticResource AppTableSurfaceStyle}">
             <ScrollViewer x:Name="TableScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Visible">
                 <Grid MinWidth="{Binding ViewportWidth, ElementName=TableScrollViewer}" HorizontalAlignment="Stretch" Grid.IsSharedSizeScope="True"
                       UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display">
@@ -195,7 +173,7 @@
                     </Grid.RowDefinitions>
 
                     <!-- 表头 (浅蓝底色 #F4F8FD，与每一行使用完全一致的列定义) -->
-                    <Border Grid.Row="0" Background="#F4F8FD" BorderThickness="0,0,0,1" BorderBrush="#E2E8F0" CornerRadius="8,8,0,0">
+                    <Border Grid.Row="0" Style="{StaticResource AppTableHeaderBarStyle}">
                         <Grid Margin="16,0" UseLayoutRounding="True" SnapsToDevicePixels="True">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="1.25*" MinWidth="150" />
@@ -210,22 +188,21 @@
                                 <ColumnDefinition Width="120" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0" Text="配置名称" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="10,0,6,0" />
-                            <TextBlock Grid.Column="1" Text="配置说明" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0,16,0" />
-                            <TextBlock Grid.Column="2" Text="关联通道配置" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="16,0,8,0" />
-                            <TextBlock Grid.Column="3" Text="导联方式" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="8,0" />
-                            <TextBlock Grid.Column="4" Text="输出导联数" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
-                            <TextBlock Grid.Column="5" Text="来源" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
-                            <TextBlock Grid.Column="6" Text="创建时间" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
-                            <TextBlock Grid.Column="7" Text="最后修改时间" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
-                            <TextBlock Grid.Column="8" Text="当前状态" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
-                            <TextBlock Grid.Column="9" Text="操作" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="0" Text="配置名称" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Left" Margin="10,0,6,0" />
+                            <TextBlock Grid.Column="1" Text="配置说明" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Left" Margin="8,0,16,0" />
+                            <TextBlock Grid.Column="2" Text="关联通道配置" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Left" Margin="16,0,8,0" />
+                            <TextBlock Grid.Column="3" Text="导联方式" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Left" Margin="8,0" />
+                            <TextBlock Grid.Column="4" Text="输出导联数" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="5" Text="来源" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="6" Text="创建时间" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="7" Text="最后修改时间" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="8" Text="当前状态" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="9" Text="操作" Style="{StaticResource AppTableHeaderTextStyle}" HorizontalAlignment="Center" TextAlignment="Center" />
                         </Grid>
                     </Border>
 
                     <!-- 表格内容 (与表头完全一致的自适应列定义) -->
-                    <ListBox Grid.Row="1" BorderThickness="0" Background="#FFFFFF"
-                             ItemContainerStyle="{StaticResource MontageProfileRowStyle}"
+                    <ListBox Grid.Row="1" Style="{StaticResource AppTableBodyListBoxStyle}"
                              ItemsSource="{Binding MontageConfigurations.FilteredProfiles}"
                              SelectedItem="{Binding MontageConfigurations.SelectedProfile, Mode=TwoWay}"
                              HorizontalContentAlignment="Stretch"
@@ -233,7 +210,7 @@
                              ScrollViewer.VerticalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid Height="52" Margin="16,0" UseLayoutRounding="True" SnapsToDevicePixels="True">
+                                <Grid Style="{StaticResource AppTableRowGridStyle}" Margin="16,0" UseLayoutRounding="True" SnapsToDevicePixels="True">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="1.25*" MinWidth="150" />
                                         <ColumnDefinition Width="1.10*" MinWidth="220" />
@@ -247,11 +224,20 @@
                                         <ColumnDefinition Width="120" />
                                     </Grid.ColumnDefinitions>
 
+                                    <Border Grid.ColumnSpan="10" Style="{StaticResource AppTableRowDividerStyle}" />
+
                                     <!-- 0. 配置名称 -->
                                     <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="Bold" FontSize="13" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="10,0,6,0" />
 
                                     <!-- 1. 配置说明 (文本省略 + 气泡) -->
-                                    <TextBlock Grid.Column="1" Text="{Binding DescriptionPreview}" FontSize="12.5" Foreground="#64748B" ToolTip="{Binding Description}" VerticalAlignment="Center" HorizontalAlignment="Left" TextAlignment="Left" TextTrimming="CharacterEllipsis" Margin="8,0,16,0" />
+                                    <TextBlock Grid.Column="1" Text="{Binding DescriptionPreview}" FontSize="12.5" Foreground="#64748B"
+                                               VerticalAlignment="Center" HorizontalAlignment="Left" TextAlignment="Left"
+                                               TextTrimming="CharacterEllipsis" Margin="8,0,16,0"
+                                               ToolTipService.InitialShowDelay="100" ToolTipService.ShowDuration="20000">
+                                        <TextBlock.ToolTip>
+                                            <ToolTip Style="{StaticResource AppDescriptionToolTipStyle}" Content="{Binding Description}" />
+                                        </TextBlock.ToolTip>
+                                    </TextBlock>
 
                                     <!-- 2. 关联通道配置 (文本省略 + 气泡) -->
                                     <TextBlock Grid.Column="2" Text="{Binding ChannelConfigurationName}" FontSize="12.5" Foreground="#334155" ToolTip="{Binding ChannelConfigurationName}" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="16,0,8,0" />

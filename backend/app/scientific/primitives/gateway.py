@@ -19,11 +19,30 @@ from .fourier import RealFourierTransform, real_fft
 class ScientificSpectralGateway:
     """Stable service boundary; numerical ownership remains in ``spectral``."""
 
-    def preprocess(self, data: np.ndarray, sfreq_hz: float) -> np.ndarray:
-        return preprocess_offline(data, sfreq_hz)
+    def preprocess(
+        self,
+        data: np.ndarray,
+        sfreq_hz: float,
+        *,
+        low_hz: float | None = None,
+        high_hz: float | None = None,
+        notch_hz: float | None = None,
+        notch_q: float = 30.0,
+    ) -> np.ndarray:
+        return preprocess_offline(
+            data, sfreq_hz, low_hz=low_hz, high_hz=high_hz,
+            notch_hz=notch_hz, notch_q=notch_q,
+        )
 
-    def welch(self, data: np.ndarray, sfreq_hz: float) -> SpectralEstimate:
-        return estimate_welch_psd(data, sfreq_hz)
+    def welch(
+        self,
+        data: np.ndarray,
+        sfreq_hz: float,
+        *,
+        low_hz: float | None = None,
+        high_hz: float | None = None,
+    ) -> SpectralEstimate:
+        return estimate_welch_psd(data, sfreq_hz, low_hz=low_hz, high_hz=high_hz)
 
     def spectrogram(self, data: np.ndarray, sfreq_hz: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, Any]]]:
         return estimate_spectrogram_with_quality(data, sfreq_hz)

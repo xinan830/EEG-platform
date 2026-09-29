@@ -1,6 +1,5 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
-using BrainPlatform.Desktop.Modules.Algorithms.ViewModels;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
@@ -151,8 +150,73 @@ public sealed class AlgorithmListViewModelTests
         var rows = DynamicResultPreview.ParseStructured(preview);
 
         Assert.Single(rows);
-        Assert.Equal("Rejected", rows[0].State);
+        Assert.Equal("已拒绝", rows[0].State);
         Assert.Equal("GAP", rows[0].Failure);
+    }
+
+    [Fact]
+    public void DynamicPreview_ReleasesWindowsByCursorAndCanReset()
+    {
+        var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter());
+        catalog.SelectedAlgorithm = Algorithm("psd") with { Modes = ["static", "dynamic"] };
+        catalog.SelectedAnalysisMode = "动态";
+        catalog.DynamicWindowRows.Add(new DynamicWindowRow(0, 4, "Partial", "warmup", ""));
+        catalog.DynamicWindowRows.Add(new DynamicWindowRow(0, 10, "Complete", "clean", ""));
+        catalog.DynamicWindowRows.Add(new DynamicWindowRow(1, 11, "Complete", "clean", ""));
+
+        catalog.StepDynamicPreviewCommand.Execute(null);
+
+        Assert.Equal(1, catalog.DynamicPreviewCursorSeconds);
+        Assert.Empty(catalog.DynamicPreviewRows);
+
+        catalog.DynamicPreviewCursorSecondsForTest(10);
+        catalog.StepDynamicPreviewCommand.Execute(null);
+        Assert.Equal(3, catalog.DynamicPreviewRows.Count);
+
+        catalog.ResetDynamicPreviewCommand.Execute(null);
+        Assert.Equal(0, catalog.DynamicPreviewCursorSeconds);
+        Assert.Empty(catalog.DynamicPreviewRows);
+    }
+
+    [Fact]
+    public void DynamicPreviewContext_ForwardsCollectionStateChanges()
+    {
+        var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter());
+        var context = new AnalysisContextViewModel(catalog);
+        catalog.SelectedAlgorithm = Algorithm("psd") with { Modes = ["static", "dynamic"] };
+        catalog.SelectedAnalysisMode = "动态";
+        catalog.DynamicWindowRows.Add(new DynamicWindowRow(0, 10, "Complete", "clean", ""));
+        catalog.DynamicPreviewCursorSecondsForTest(10);
+
+        var changed = new List<string>();
+        context.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is not null) changed.Add(args.PropertyName);
+        };
+
+        catalog.ResetDynamicPreviewCommand.Execute(null);
+
+        Assert.Empty(context.DynamicPreviewRows);
+        Assert.Contains(nameof(AnalysisContextViewModel.DynamicPreviewRows), changed);
+        Assert.Contains(nameof(AnalysisContextViewModel.DynamicPreviewCursorText), changed);
+    }
+
+    private static AlgorithmCatalogItem Algorithm(string id) => new(
+        "official", id, "v1", id, id.ToUpperInvariant(), "", [], ["static"], default,
+        new DynamicAnalysisPolicy(4, [], 10, 1, false), "available", true, null, null, null);
+
+    private sealed class UnsupportedAlgorithmClient : IAlgorithmClient
+    {
+        public Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<AnalysisRunResponse> CreateRunAsync(AnalysisRunRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<AnalysisRunResponse> GetRunAsync(string runId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<IReadOnlyList<RunArtifact>> ListArtifactsAsync(string runId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<StructuredPreviewResponse> GetStructuredPreviewAsync(string runId, int maxCells, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     [Fact]

@@ -89,7 +89,10 @@
                         <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" PopupAnimation="Fade">
                             <Border Background="#FFFFFF" BorderBrush="#D6E4F7" BorderThickness="1" CornerRadius="6" Margin="0,4,0,0"
                                     MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" Padding="4">
-                                <ScrollViewer><StackPanel IsItemsHost="True" /></ScrollViewer>
+                                <ScrollViewer HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <StackPanel IsItemsHost="True" />
+                                </ScrollViewer>
                             </Border>
                         </Popup>
                     </Grid>

@@ -43,21 +43,62 @@ def _gap_summary(checks: list[Any], values: np.ndarray | None = None, expected_s
 
 
 def _spectral_evidence(checks: list[Any], *, transform_padding: TransformPaddingEvidence, values: np.ndarray | None = None, expected_samples: int | None = None) -> dict[str, Any]:
+    peak_values = [check.peak_uv for check in checks if check.peak_uv is not None and np.isfinite(check.peak_uv)]
+    peak_uv = max(peak_values) if peak_values else None
+    threshold_uv = float(ANALYSIS_CONTRACT["artifact_peak_uv"])
     return {
         "schema_version": "spectral-window-evidence-v1",
+        "welch": {
+            "segment_s": float(ANALYSIS_CONTRACT["welch_segment_s"]),
+            "segment_samples": expected_samples,
+            "overlap_fraction": float(ANALYSIS_CONTRACT["welch_segment_overlap"]),
+            "overlap_samples": None,
+            "step_s": float(ANALYSIS_CONTRACT["welch_step_s"]),
+            "window": str(ANALYSIS_CONTRACT["welch_window"]),
+            "scaling": str(ANALYSIS_CONTRACT["welch_scaling"]),
+        },
         "gap": _gap_summary(checks, values, expected_samples),
         "transform_padding": transform_padding.as_dict(),
+        "amplitude": {
+            "peak_uv": peak_uv,
+            "threshold_uv": threshold_uv,
+            "exceeded_uv": max(0.0, peak_uv - threshold_uv) if peak_uv is not None else None,
+            "exceeded": peak_uv is not None and peak_uv > threshold_uv,
+        },
     }
 
 
-def preprocess_offline(data: np.ndarray, sfreq: float) -> np.ndarray:
-    """Apply the declared zero-phase SOS bandpass to V-valued samples."""
+def preprocess_offline(
+    data: np.ndarray,
+    sfreq: float,
+    *,
+    low_hz: float | None = None,
+    high_hz: float | None = None,
+    notch_hz: float | None = None,
+    notch_q: float = 30.0,
+) -> np.ndarray:
+    """Apply optional zero-phase power-line notch and SOS bandpass filters."""
     values = np.asarray(data, dtype=float)
     if values.ndim != 2 or not len(values):
         raise ValueError("脑电数据必须是非空二维数组")
-    low, high = (float(value) for value in ANALYSIS_CONTRACT["bandpass_hz"])
+    default_low, default_high = (float(value) for value in ANALYSIS_CONTRACT["bandpass_hz"])
+    low = default_low if low_hz is None else float(low_hz)
+    high = default_high if high_hz is None else float(high_hz)
+    if not np.isfinite(low) or not np.isfinite(high) or low <= 0.0 or high <= low:
+        raise ValueError("PSD 预处理频率范围无效")
     if high >= float(sfreq) / 2:
         raise ValueError(f"分析高切必须低于奈奎斯特频率（{float(sfreq) / 2:g}Hz）")
+    if notch_hz is not None:
+        notch = float(notch_hz)
+        if not np.isfinite(notch) or notch <= 0.0 or notch >= float(sfreq) / 2:
+            raise ValueError("陷波频率必须位于 0 与奈奎斯特频率之间")
+        if not np.isfinite(notch_q) or notch_q <= 0.0:
+            raise ValueError("陷波质量因数必须为正数")
+        notch_b, notch_a = signal.iirnotch(notch, float(notch_q), fs=float(sfreq))
+        try:
+            values = signal.filtfilt(notch_b, notch_a, values, axis=0)
+        except ValueError as exc:
+            raise ValueError("记录太短，无法完成零相位陷波") from exc
     sos = signal.butter(
         int(ANALYSIS_CONTRACT["bandpass_prototype_order"]),
         [low, high], btype="bandpass", fs=float(sfreq), output="sos",
@@ -68,11 +109,18 @@ def preprocess_offline(data: np.ndarray, sfreq: float) -> np.ndarray:
         raise ValueError("记录太短，无法完成离线零相位滤波") from exc
 
 
-def estimate_welch_psd(data: np.ndarray, sfreq: float) -> SpectralEstimate:
+def estimate_welch_psd(
+    data: np.ndarray,
+    sfreq: float,
+    *,
+    low_hz: float | None = None,
+    high_hz: float | None = None,
+) -> SpectralEstimate:
     """Compute overlapping Welch segments and average clean segments only."""
     values = np.asarray(data, dtype=float)
     segment_samples = int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * sfreq))
     overlap = float(ANALYSIS_CONTRACT["welch_segment_overlap"])
+    overlap_samples = int(round(segment_samples * overlap))
     step = max(1, int(round(segment_samples * (1.0 - overlap))))
     bounds = range(0, max(0, len(values) - segment_samples + 1), step)
     segments = [values[start:start + segment_samples] for start in bounds]
@@ -84,26 +132,43 @@ def estimate_welch_psd(data: np.ndarray, sfreq: float) -> SpectralEstimate:
     quality = len(clean) / len(segments) if segments else 0.0
     minimum = float(ANALYSIS_CONTRACT["minimum_clean_epoch_ratio"])
     if not segments or not clean or quality < minimum:
+        evidence = _spectral_evidence(
+            checks,
+            transform_padding=TransformPaddingEvidence(),
+            values=values,
+            expected_samples=segment_samples,
+        )
+        evidence["welch"]["overlap_samples"] = overlap_samples
         return SpectralEstimate(
             np.array([]), np.empty((values.shape[1], 0)), quality,
             len(clean), len(segments), "low_quality", rejected_reasons,
-            evidence=_spectral_evidence(checks, transform_padding=TransformPaddingEvidence(), values=values, expected_samples=segment_samples),
+            evidence=evidence,
         )
     spectra = []
     freqs = np.array([])
     for item in clean:
         freqs, segment_psd = signal.welch(
             item, fs=sfreq, window=str(ANALYSIS_CONTRACT["welch_window"]),
-            nperseg=segment_samples, noverlap=0, detrend="constant",
+            nperseg=segment_samples, noverlap=overlap_samples, detrend="constant",
             scaling=str(ANALYSIS_CONTRACT["welch_scaling"]), axis=0,
         )
         spectra.append(segment_psd.T)
-    mask = (freqs >= 1.0) & (freqs <= 30.0)
+    default_low, default_high = (float(value) for value in ANALYSIS_CONTRACT["bandpass_hz"])
+    low = default_low if low_hz is None else float(low_hz)
+    high = default_high if high_hz is None else float(high_hz)
+    mask = (freqs >= low) & (freqs <= high)
     averaged = np.mean(np.stack(spectra), axis=0)[:, mask]
+    evidence = _spectral_evidence(
+        checks,
+        transform_padding=TransformPaddingEvidence(),
+        values=values,
+        expected_samples=segment_samples,
+    )
+    evidence["welch"]["overlap_samples"] = overlap_samples
     return SpectralEstimate(
         freqs[mask], np.maximum(averaged, 1e-20), quality,
         len(clean), len(segments), None, rejected_reasons,
-        evidence=_spectral_evidence(checks, transform_padding=TransformPaddingEvidence(), values=values, expected_samples=segment_samples),
+        evidence=evidence,
     )
 
 

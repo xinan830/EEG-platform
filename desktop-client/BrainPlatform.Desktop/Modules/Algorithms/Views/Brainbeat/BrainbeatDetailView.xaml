@@ -1,0 +1,1 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Brainbeat.BrainbeatDetailView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:shared="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"><shared:AlgorithmMetricDetailView /></UserControl>

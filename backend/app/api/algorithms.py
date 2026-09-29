@@ -33,7 +33,7 @@ def _official_items(request: Request) -> list[dict[str, object]]:
                 "description": official.purpose_zh,
                 "parameters": [], "modes": list(official.supported_modes),
                 "output_schema": official.output_schema,
-                "dynamic_policy": {"minimum_window_s": 4.0, "window_options_s": [5.0, 10.0, 20.0, 30.0], "default_window_s": 10.0, "refresh_step_s": 1.0, "allow_warmup": True},
+                "dynamic_policy": {"minimum_window_s": 4.0, "window_options_s": [5.0, 10.0, 20.0, 30.0], "default_window_s": 5.0, "refresh_step_s": 1.0, "allow_warmup": True},
                 "availability": official.availability, "is_runnable": False,
                 "definition_id": official.definition_id,
                 "definition_version": official.definition_version,
