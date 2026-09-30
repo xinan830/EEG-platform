@@ -102,8 +102,8 @@ class PersistentRunQueue:
             )
         except Exception as exc:
             return self.repository.update_status(run.run_id, RunStatus.FAILED, actual_range=actual_range,
-                error=StructuredRunError(code="ANALYSIS_EXECUTION_FAILED", message=str(exc), stage="analysis",
-                                         details={"exception_type": type(exc).__name__}))
+                error=StructuredRunError(code="ANALYSIS_EXECUTION_FAILED", message=str(exc) or f"分析执行抛出 {type(exc).__name__}", stage="analysis",
+                                         details={"exception_type": type(exc).__name__, "exception_message": str(exc)}))
 
     def get(self, run_id: str) -> AnalysisRun:
         run = self.repository.get(run_id)

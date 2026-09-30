@@ -12,7 +12,6 @@ public sealed partial class AlgorithmListViewModel
     private bool hasPsdPreview;
     private string psdFrequencyRangeText = "";
     private string psdValueRangeText = "";
-    private StftPreview? stftPreview;
     private StructuredPreviewResponse? psdStructuredPreview;
     private string rbpDeltaText = "不可用";
     private string rbpThetaText = "不可用";
@@ -23,8 +22,10 @@ public sealed partial class AlgorithmListViewModel
     private bool dynamicPsdIsVoltsSquaredPerHz;
 
     public sealed record PsdPreviewPoint(double Frequency, double Value);
+    public sealed record PsdBandSharePoint(string Name, string Range, double Share, string ShareText, string Color, bool IsAvailable = true);
 
     public ObservableCollection<PsdPreviewPoint?> PsdPreviewPoints { get; } = [];
+    public ObservableCollection<PsdBandSharePoint> PsdBandSharePoints { get; } = [];
     public ObservableCollection<DynamicSeriesPoint> DynamicSeriesPoints { get; } = [];
     public ObservableCollection<DynamicWindowRow> DynamicWindowRows { get; } = [];
     public bool HasDynamicSeries => DynamicSeriesPoints.Count > 0;
@@ -34,7 +35,6 @@ public sealed partial class AlgorithmListViewModel
     public bool HasPsdPreview { get => hasPsdPreview; private set => SetProperty(ref hasPsdPreview, value); }
     public string PsdFrequencyRangeText { get => psdFrequencyRangeText; private set => SetProperty(ref psdFrequencyRangeText, value); }
     public string PsdValueRangeText { get => psdValueRangeText; private set => SetProperty(ref psdValueRangeText, value); }
-    public StftPreview? StftResult { get => stftPreview; private set => SetProperty(ref stftPreview, value); }
     public StructuredPreviewResponse? PsdStructuredPreview { get => psdStructuredPreview; private set => SetProperty(ref psdStructuredPreview, value); }
     public string PsdQualityText => PsdStructuredPreview?.Quality is { } quality
         ? AlgorithmResultFormatter.FormatQualityForDisplay(quality)
@@ -44,7 +44,6 @@ public sealed partial class AlgorithmListViewModel
     public string PsdWindowStateText => PsdStructuredPreview is null || PsdStructuredPreview.WindowStateCounts.Count == 0
         ? "暂无窗口状态"
         : string.Join("、", PsdStructuredPreview.WindowStateCounts.Select(item => $"{AlgorithmResultFormatter.FormatWindowStateForDisplay(item.Key)}：{item.Value}"));
-    public bool HasStftPreview => StftResult is not null;
     public string RbpDeltaText { get => rbpDeltaText; private set => SetProperty(ref rbpDeltaText, value); }
     public string RbpThetaText { get => rbpThetaText; private set => SetProperty(ref rbpThetaText, value); }
     public string RbpAlphaText { get => rbpAlphaText; private set => SetProperty(ref rbpAlphaText, value); }
@@ -76,25 +75,31 @@ public sealed partial class AlgorithmListViewModel
         LastRun?.ActualRange?.EndSeconds ?? 0,
         DynamicWindowRows.Count > 0 ? DynamicWindowRows.Max(row => row.EndSeconds) : 0,
     }.Where(value => double.IsFinite(value) && value > 0).DefaultIfEmpty(0).Max();
-    public string StftAxisText => StftResult is null ? "时间 (s)" :
-        $"请求范围 {StftResult.RequestedRange.StartSeconds:0.###} - {StftResult.RequestedRange.EndSeconds:0.###} s  ·  时频中心 {StftResult.TimesSeconds[0]:0.###} - {StftResult.TimesSeconds[^1]:0.###} s  ·  频率 {StftResult.FrequenciesHz[0]:0.###} - {StftResult.FrequenciesHz[^1]:0.###} Hz  ·  {StftResult.PowerUnit}";
-
-    private async Task LoadStructuredPreviewAsync(string runId, string algorithmId, bool dynamic = false)
+    internal async Task LoadStructuredPreviewAsync(string runId, string algorithmId, bool dynamic = false)
     {
+        if (algorithmId == "stft")
+        {
+            await LoadStftStructuredPreviewAsync(runId, dynamic);
+            return;
+        }
         try
         {
             // Dynamic PSD contains one row per analysis window. Keep the
             // preview bounded, but do not reject a normal 60-window result.
-            var preview = await client.GetStructuredPreviewAsync(runId, algorithmId == "stft" ? 1_000_000 : 20_000, CancellationToken.None);
+            var preview = await client.GetStructuredPreviewAsync(runId, 20_000, CancellationToken.None);
             StructuredPreviewText = AlgorithmResultFormatter.BuildStructuredPreview(preview);
             if (dynamic)
             {
-                // Dynamic matrices are represented by bounded backend metadata
-                // until the final chart redesign; no science is recomputed here.
+                // Dynamic matrices are displayed one backend window at a time;
+                // no scientific values are recomputed here.
+                // The structured preview must be assigned first because
+                // SetDynamicWindows immediately releases the first complete
+                // window and builds both PSD and band-share views.
+                if (algorithmId == "psd")
+                    PsdStructuredPreview = preview;
                 SetDynamicWindows(preview, algorithmId);
                 if (algorithmId == "psd")
                 {
-                    PsdStructuredPreview = preview;
                     SetPsdMetadata(preview);
                     // Show the first complete dynamic window immediately. The
                     // timeline controls can then replace it as the cursor moves.
@@ -112,12 +117,6 @@ public sealed partial class AlgorithmListViewModel
                     RaisePropertyChanged(nameof(PsdWindowStateText));
                 }
             }
-            else if (algorithmId == "stft")
-            {
-                StftResult = StftPreview.Parse(preview);
-                RaisePropertyChanged(nameof(HasStftPreview));
-                RaisePropertyChanged(nameof(StftAxisText));
-            }
             else
             {
                 PsdStructuredPreview = preview;
@@ -125,11 +124,6 @@ public sealed partial class AlgorithmListViewModel
                 RaisePropertyChanged(nameof(PsdQualityText));
                 RaisePropertyChanged(nameof(PsdWindowStateText));
             }
-        }
-        catch (AlgorithmApiException exception) when (exception.Code == "REQUEST_INVALID" && algorithmId == "stft")
-        {
-            StructuredPreviewText = "STFT 结果已保存，但预览超过 100,000 个数值单元或无法读取；请缩短分析范围后重新运行。";
-            ClearPreviews();
         }
         catch (AlgorithmApiException exception) when (exception.Code is "REQUEST_INVALID" or "RESOURCE_NOT_FOUND")
         {
@@ -157,7 +151,7 @@ public sealed partial class AlgorithmListViewModel
         LastRun = null;
         RaisePropertyChanged(nameof(IsRunActive));
         ClearPsdPreview();
-        StftResult = null;
+        ClearStftPreview();
         PsdStructuredPreview = null;
         DynamicSeriesText = "暂无动态结果。";
         DynamicSeriesPoints.Clear();
@@ -165,8 +159,6 @@ public sealed partial class AlgorithmListViewModel
         RaisePropertyChanged(nameof(HasDynamicSeries));
         RaisePropertyChanged(nameof(HasDynamicWindows));
         RbpDeltaText = RbpThetaText = RbpAlphaText = RbpBetaText = "不可用";
-        RaisePropertyChanged(nameof(HasStftPreview));
-        RaisePropertyChanged(nameof(StftAxisText));
         RaisePropertyChanged(nameof(PsdQualityText));
         RaisePropertyChanged(nameof(PsdWindowStateText));
     }
@@ -174,6 +166,7 @@ public sealed partial class AlgorithmListViewModel
     private void ClearPsdPreview()
     {
         PsdPreviewPoints.Clear();
+        PsdBandSharePoints.Clear();
         HasPsdPreview = false;
         PsdFrequencyUnit = "Hz";
         PsdValueUnit = "";
@@ -197,7 +190,7 @@ public sealed partial class AlgorithmListViewModel
         if (algorithmId == "psd")
             SetDynamicPsdMatrix(preview);
         ResetDynamicPreview();
-        if (algorithmId == "psd")
+        if (algorithmId is "psd" or "stft")
         {
             // The result is already complete when the preview is loaded. Start
             // at the first complete window so the chart is not blank at 0 s
@@ -250,6 +243,7 @@ public sealed partial class AlgorithmListViewModel
         DynamicPreviewCursorSeconds = 0;
         DynamicPreviewRows.Clear();
         ClearPsdPreview();
+        SetStftResult(null);
         RaisePropertyChanged(nameof(PsdPreviewPoints));
         RaiseDynamicPreviewProperties();
     }
@@ -289,7 +283,9 @@ public sealed partial class AlgorithmListViewModel
             BuildDynamicPsdPreview(latestIndex);
         else
             ClearPsdPreview();
-        if (DynamicPreviewCursorSeconds >= DynamicWindowRows.Max(row => row.EndSeconds))
+        UpdateDynamicStftPreview(latestIndex,
+            latestIndex >= 0 && IsCompleteWindowState(DynamicPreviewRows[^1].State));
+        if (DynamicWindowRows.Count > 0 && DynamicPreviewCursorSeconds >= DynamicWindowRows.Max(row => row.EndSeconds))
             StopDynamicPreviewTimer();
     }
 
@@ -334,6 +330,7 @@ public sealed partial class AlgorithmListViewModel
             psdValues = latestRow.ValueKind == JsonValueKind.Array ? latestRow.EnumerateArray().ToArray() : [];
         }
         SetPsdPoints(frequencyValues, psdValues, IsVoltsSquaredPerHz(preview));
+        SetPsdBandShares(preview, -1);
     }
 
     private void SetPsdMetadata(StructuredPreviewResponse preview)
@@ -351,6 +348,63 @@ public sealed partial class AlgorithmListViewModel
         }
         SetPsdPoints(dynamicPsdFrequencies, dynamicPsdRows[rowIndex].EnumerateArray().ToArray(),
             dynamicPsdIsVoltsSquaredPerHz);
+        SetPsdBandShares(PsdStructuredPreview, rowIndex);
+    }
+
+    private void SetPsdBandShares(StructuredPreviewResponse? preview, int rowIndex)
+    {
+        PsdBandSharePoints.Clear();
+        if (preview is null)
+            return;
+        if (!preview.Arrays.TryGetValue("band_share", out var values) || values.ValueKind != JsonValueKind.Array)
+        {
+            SetLegacyPsdBandShares(preview);
+            return;
+        }
+        var row = values;
+        if (values.GetArrayLength() > 0 && values[0].ValueKind == JsonValueKind.Array)
+        {
+            var index = rowIndex >= 0 ? rowIndex : values.GetArrayLength() - 1;
+            if (index < 0 || index >= values.GetArrayLength())
+                return;
+            row = values[index];
+        }
+        var labels = new[] { ("Delta", "1–4 Hz", "#4F8EDC"), ("Theta", "4–8 Hz", "#56B88A"), ("Alpha", "8–13 Hz", "#E77B88"), ("Beta", "13–30 Hz", "#D99A38"), ("Gamma", "30–50 Hz", "#8D73D1") };
+        for (var index = 0; index < Math.Min(5, row.GetArrayLength()); index++)
+        {
+            var item = row[index];
+            var label = labels[index];
+            if (item.ValueKind != JsonValueKind.Number || !item.TryGetDouble(out var share) || !double.IsFinite(share))
+            {
+                PsdBandSharePoints.Add(new PsdBandSharePoint(label.Item1, label.Item2, 0, "不可用", label.Item3, false));
+                continue;
+            }
+            share = Math.Clamp(share, 0, 1);
+            PsdBandSharePoints.Add(new PsdBandSharePoint(label.Item1, label.Item2, share, $"{share:P1}", label.Item3));
+        }
+        RaisePropertyChanged(nameof(PsdBandSharePoints));
+    }
+
+    private void SetLegacyPsdBandShares(StructuredPreviewResponse preview)
+    {
+        if (preview.SpectralEvidence is not { } evidence || evidence.ValueKind != JsonValueKind.Object ||
+            !evidence.TryGetProperty("relative_band_power", out var relative) || relative.ValueKind != JsonValueKind.Object)
+            return;
+        var channel = preview.ChannelOrder.FirstOrDefault();
+        var values = !string.IsNullOrWhiteSpace(channel) && relative.TryGetProperty(channel, out var channelValues)
+            ? channelValues
+            : relative;
+        var labels = new[] { ("Delta", "1–4 Hz", "#4F8EDC", "delta"), ("Theta", "4–8 Hz", "#56B88A", "theta"), ("Alpha", "8–13 Hz", "#E77B88", "alpha"), ("Beta", "13–30 Hz", "#D99A38", "beta") };
+        foreach (var label in labels)
+        {
+            if (!values.TryGetProperty(label.Item4, out var item) || item.ValueKind != JsonValueKind.Number || !item.TryGetDouble(out var share) || !double.IsFinite(share))
+            {
+                PsdBandSharePoints.Add(new PsdBandSharePoint(label.Item1, label.Item2, 0, "不可用", label.Item3, false));
+                continue;
+            }
+            PsdBandSharePoints.Add(new PsdBandSharePoint(label.Item1, label.Item2, Math.Clamp(share, 0, 1), $"{share:P1}", label.Item3));
+        }
+        RaisePropertyChanged(nameof(PsdBandSharePoints));
     }
 
     private static bool IsVoltsSquaredPerHz(StructuredPreviewResponse preview) =>

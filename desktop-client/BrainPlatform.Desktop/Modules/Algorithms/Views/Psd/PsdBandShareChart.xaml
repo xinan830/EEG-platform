@@ -1,0 +1,13 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Psd.PsdBandShareChart"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:scichart="http://schemas.abtsoftware.co.uk/scichart">
+    <Grid Background="White">
+        <scichart:SciChartSurface x:Name="Surface" />
+        <TextBlock x:Name="EmptyState" Text="当前结果没有可用的频段功率占比"
+                   Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   FontSize="13" Foreground="#64748B" IsHitTestVisible="False" />
+        <TextBlock x:Name="UnavailableBands" HorizontalAlignment="Right" VerticalAlignment="Top"
+                   Margin="0,8,20,0" FontSize="12" Foreground="#64748B" IsHitTestVisible="False" />
+    </Grid>
+</UserControl>

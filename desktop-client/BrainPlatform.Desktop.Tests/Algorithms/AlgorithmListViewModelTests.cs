@@ -114,6 +114,20 @@ public sealed class AlgorithmListViewModelTests
         Assert.Equal(1, config.GetProperty("refresh_step_s").GetDouble());
     }
 
+    [Fact]
+    public void StftConfig_ContainsSharedFrequencyAndNotchControls()
+    {
+        var algorithm = new AlgorithmCatalogItem("official", "stft", "spectrogram-v2", "时频分析", "STFT", "", [], ["static", "dynamic"],
+            default, new DynamicAnalysisPolicy(4, [], 10, 1, true), "available", true, null, null, null);
+        var config = AlgorithmRunConfiguration.BuildRunConfig(
+            algorithm, "O1", new TimeRange(0, 20), "static",
+            new AlgorithmRunConfiguration.FrequencyBand(1, 50), notchHz: 50);
+
+        Assert.Equal(1, config.GetProperty("low_hz").GetDouble());
+        Assert.Equal(50, config.GetProperty("high_hz").GetDouble());
+        Assert.Equal(50, config.GetProperty("notch_hz").GetDouble());
+    }
+
     [Theory]
     [InlineData("0")]
     [InlineData("NaN")]

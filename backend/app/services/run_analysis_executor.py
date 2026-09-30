@@ -67,13 +67,16 @@ class _RecordingAlgorithmContext:
             evidence,
         )
 
-    def load_spectrogram(self, *, start_s: float, window_s: float, channels: list[str]) -> dict[str, object]:
+    def load_spectrogram(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 50.0, notch_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None) -> dict[str, object]:
         """Load the frozen spectrogram contract through the recording service boundary."""
         return self._recordings.load_spectrogram(
             self._recording,
             start_s=start_s,
             window_s=window_s,
             channels=channels,
+            low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+            output_low_hz=output_low_hz if output_low_hz is not None else low_hz,
+            output_high_hz=output_high_hz if output_high_hz is not None else high_hz,
         )
 
     def load_faa_signals(self, *, start_s: float, end_s: float, f3_channel: str, f4_channel: str) -> tuple[np.ndarray, np.ndarray, float, dict[str, Any]]:

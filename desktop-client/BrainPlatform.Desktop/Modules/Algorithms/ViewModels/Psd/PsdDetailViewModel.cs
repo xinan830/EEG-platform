@@ -4,6 +4,10 @@ using System.Windows.Input;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
 
+public enum PsdChartKind { Spectrum, BandShare }
+
+public sealed record PsdChartOption(PsdChartKind Kind, string Label);
+
 /// <summary>
 /// PSD-only detail state. Shared recording selection and execution remain in
 /// the catalog/context so other algorithms can reuse the same workflow.
@@ -12,16 +16,35 @@ public sealed class PsdDetailViewModel : ObservableObject
 {
     private readonly AlgorithmListViewModel catalog;
     private bool isFailureDetailsExpanded;
+    private PsdChartOption selectedChart;
 
     internal PsdDetailViewModel(AlgorithmListViewModel catalog)
     {
         this.catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        selectedChart = ChartOptions[0];
         catalog.PropertyChanged += OnCatalogPropertyChanged;
         if (catalog.Projects is not null)
             catalog.Projects.PropertyChanged += OnProjectsPropertyChanged;
     }
 
     public AlgorithmListViewModel Catalog => catalog;
+    public IReadOnlyList<PsdChartOption> ChartOptions { get; } =
+    [
+        new(PsdChartKind.Spectrum, "功率谱密度"),
+        new(PsdChartKind.BandShare, "频段功率占比"),
+    ];
+    public PsdChartOption SelectedChart
+    {
+        get => selectedChart;
+        set
+        {
+            if (value is null || !ChartOptions.Contains(value) || !SetProperty(ref selectedChart, value)) return;
+            RaisePropertyChanged(nameof(IsSpectrumSelected));
+            RaisePropertyChanged(nameof(IsBandShareSelected));
+        }
+    }
+    public bool IsSpectrumSelected => SelectedChart.Kind == PsdChartKind.Spectrum;
+    public bool IsBandShareSelected => SelectedChart.Kind == PsdChartKind.BandShare;
     public ProjectWorkspaceViewModel? Projects => catalog.Projects;
     public ResearchProject? SelectedProject
     {
@@ -33,6 +56,7 @@ public sealed class PsdDetailViewModel : ObservableObject
     public IReadOnlyList<AlgorithmParameter> Parameters => Algorithm?.Parameters ?? [];
     public bool HasStructuredResult => catalog.HasPsdPreview;
     public ObservableCollection<AlgorithmListViewModel.PsdPreviewPoint?> PreviewPoints => catalog.PsdPreviewPoints;
+    public ObservableCollection<AlgorithmListViewModel.PsdBandSharePoint> BandSharePoints => catalog.PsdBandSharePoints;
     public string ValueUnit => catalog.PsdValueUnit;
     public string FrequencyRange => catalog.PsdFrequencyRangeText;
     public string ValueRange => catalog.PsdValueRangeText;
@@ -184,6 +208,7 @@ public sealed class PsdDetailViewModel : ObservableObject
             RaisePropertyChanged(nameof(Parameters));
             RaisePropertyChanged(nameof(HasStructuredResult));
             RaisePropertyChanged(nameof(PreviewPoints));
+            RaisePropertyChanged(nameof(BandSharePoints));
             RaisePropertyChanged(nameof(ValueUnit));
             RaisePropertyChanged(nameof(FrequencyRange));
             RaisePropertyChanged(nameof(ValueRange));

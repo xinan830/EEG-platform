@@ -46,6 +46,8 @@ class StftAlgorithm:
         snapshot = spectral_execution_snapshot(config)
         snapshot.window.update({"segment_s": 4.0, "step_s": 1.0, "time_axis": "window_center"})
         snapshot.quality_rules["spectrogram_contract_version"] = "spectrogram-v2"
+        snapshot.quality_rules["frequency_range_hz"] = [float(config.low_hz), float(config.high_hz)]
+        snapshot.quality_rules["notch_hz"] = config.notch_hz
         return snapshot
 
     def resolve_inputs(self, recording: Any, config: StftConfig) -> AlgorithmInputs:
@@ -63,14 +65,14 @@ class StftAlgorithm:
         )
 
     @staticmethod
-    def _load(recording: Any, *, channel: str, start_s: float, window_s: float) -> dict[str, object]:
+    def _load(recording: Any, *, channel: str, start_s: float, window_s: float, low_hz: float, high_hz: float, notch_hz: float | None) -> dict[str, object]:
         loader: Callable[..., dict[str, object]] = getattr(recording, "load_spectrogram")
-        return loader(start_s=start_s, window_s=window_s, channels=[channel])
+        return loader(start_s=start_s, window_s=window_s, channels=[channel], low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, output_low_hz=low_hz, output_high_hz=high_hz)
 
     def execute_static(self, inputs: AlgorithmInputs, config: StftConfig) -> AlgorithmStructuredResult:
         payload = self._load(
             inputs.payload, channel=inputs.channel, start_s=config.start_s,
-            window_s=config.end_s - config.start_s,
+            window_s=config.end_s - config.start_s, low_hz=config.low_hz, high_hz=config.high_hz, notch_hz=config.notch_hz,
         )
         quality = dict(payload["quality"])
         windows = list(quality.get("windows", []))
@@ -86,6 +88,9 @@ class StftAlgorithm:
             "calculation_trace": {
                 "spectrogram_contract_version": payload["spectrogram_contract_version"],
                 "segment_s": payload["segment_s"], "step_s": payload["step_s"],
+                "frequency_range_hz": payload.get("frequency_range_hz", {"low_hz": config.low_hz, "high_hz": config.high_hz}),
+                "filter_frequency_range_hz": payload.get("filter_frequency_range_hz", {"low_hz": config.low_hz, "high_hz": config.high_hz}),
+                "notch_hz": payload.get("notch_hz", config.notch_hz),
                 "window_quality_rows": windows,
             },
         }
@@ -141,7 +146,7 @@ class StftAlgorithm:
             try:
                 payload = self._load(
                     inputs.payload, channel=inputs.channel,
-                    start_s=frame.window_start_s, window_s=frame.actual_window_s,
+                    start_s=frame.window_start_s, window_s=frame.actual_window_s, low_hz=config.low_hz, high_hz=config.high_hz, notch_hz=config.notch_hz,
                 )
                 current_frequencies = np.asarray(payload["frequencies_hz"], dtype=float)
                 if frequencies is None:
@@ -160,7 +165,12 @@ class StftAlgorithm:
                 evidence = {
                     "source_quality": quality_payload,
                     "spectral_evidence": dict(quality_payload.get("evidence", {})),
-                    "calculation_trace": {"inner_valid_count": valid_count},
+                    "calculation_trace": {
+                        "inner_valid_count": valid_count,
+                        "frequency_range_hz": payload.get("frequency_range_hz", {"low_hz": config.low_hz, "high_hz": config.high_hz}),
+                        "filter_frequency_range_hz": payload.get("filter_frequency_range_hz", {"low_hz": config.low_hz, "high_hz": config.high_hz}),
+                        "notch_hz": payload.get("notch_hz", config.notch_hz),
+                    },
                 }
                 if int(quality_payload.get("bad_windows", 0)):
                     quality = "gate_failed"
@@ -194,7 +204,8 @@ class StftAlgorithm:
                 state=state, quality=quality, failure=failure, evidence=evidence,
             ))
 
-        assert frequencies is not None
+        if frequencies is None:
+            raise RuntimeError("STFT 动态分析未生成任何频率轴")
         state_values = {window.state for window in windows}
         overall = "clean" if state_values == {"Complete"} else "partial"
         return AlgorithmStructuredSeriesResult(
@@ -213,4 +224,4 @@ class StftAlgorithm:
     @staticmethod
     def _frequency_axis(sfreq_hz: float) -> np.ndarray:
         full = np.fft.rfftfreq(int(round(4.0 * sfreq_hz)), 1.0 / sfreq_hz)
-        return full[(full >= 1.0) & (full <= 30.0)]
+        return full[(full >= 1.0) & (full <= 50.0)]

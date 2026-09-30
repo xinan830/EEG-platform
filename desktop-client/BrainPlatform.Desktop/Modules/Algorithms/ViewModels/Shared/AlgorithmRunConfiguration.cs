@@ -113,7 +113,7 @@ internal static class AlgorithmRunConfiguration
             ["f4_channel"] = f4Channel,
         };
 
-        if (algorithm.Id == "psd")
+        if (algorithm.Id is "psd" or "stft")
             payload["notch_hz"] = notchHz;
 
         if (windowSeconds is double window && stepSeconds is double step)

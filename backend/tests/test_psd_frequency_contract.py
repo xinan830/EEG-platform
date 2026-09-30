@@ -55,3 +55,18 @@ def test_dynamic_psd_keeps_configured_filter_and_fixed_trend_axis() -> None:
     trace = result.windows[-1].evidence["calculation_trace"]
     assert trace["filter_frequency_range_hz"] == {"low_hz": 0.5, "high_hz": 40.0}
     assert trace["output_frequency_range_hz"] == {"low_hz": 1.0, "high_hz": 50.0}
+
+
+def test_psd_band_share_array_has_five_standard_bands() -> None:
+    frequencies = np.arange(1.0, 50.25, 0.25)
+    values = np.ones_like(frequencies)
+    shares = PsdAlgorithm._band_shares(frequencies, values)
+    assert shares.shape == (5,)
+    np.testing.assert_allclose(shares.sum(), 1.0)
+    assert PsdAlgorithm._band_share_trace()["band_share_labels"] == ["delta", "theta", "alpha", "beta", "gamma"]
+
+
+def test_psd_band_share_requires_complete_standard_band_coverage() -> None:
+    frequencies = np.arange(1.0, 30.25, 0.25)
+    shares = PsdAlgorithm._band_shares(frequencies, np.ones_like(frequencies))
+    assert np.isnan(shares).all()

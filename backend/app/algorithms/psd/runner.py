@@ -27,6 +27,35 @@ class PsdAlgorithm:
     manifest = MANIFEST
     config_model = PsdConfig
     output_schema = MANIFEST.output_schema
+    BAND_SHARE_LABELS = ("delta", "theta", "alpha", "beta", "gamma")
+    BAND_SHARE_RANGES = ((1.0, 4.0), (4.0, 8.0), (8.0, 13.0), (13.0, 30.0), (30.0, 50.0))
+
+    @classmethod
+    def _band_shares(cls, frequencies: np.ndarray, values: np.ndarray) -> np.ndarray:
+        frequencies = np.asarray(frequencies, dtype=float)
+        values = np.asarray(values, dtype=float)
+        powers = np.full(5, np.nan, dtype=float)
+        full_range_available = (
+            frequencies.size >= 2
+            and frequencies[0] <= cls.BAND_SHARE_RANGES[0][0]
+            and frequencies[-1] >= cls.BAND_SHARE_RANGES[-1][1]
+        )
+        if not full_range_available:
+            return powers
+        for index, (low_hz, high_hz) in enumerate(cls.BAND_SHARE_RANGES):
+            mask = (frequencies >= low_hz) & (frequencies <= high_hz)
+            if mask.sum() < 2:
+                return np.full(5, np.nan, dtype=float)
+            powers[index] = float(np.trapezoid(values[mask], frequencies[mask]))
+        finite = np.isfinite(powers)
+        total = float(np.sum(powers[finite]))
+        if total <= 0:
+            return np.full(5, np.nan, dtype=float)
+        return powers / total
+
+    @classmethod
+    def _band_share_trace(cls) -> dict[str, Any]:
+        return {"band_share_labels": list(cls.BAND_SHARE_LABELS), "band_share_ranges_hz": [list(item) for item in cls.BAND_SHARE_RANGES]}
 
     def parameter_schema(self) -> ParameterSchema:
         return ParameterSchema(parameters=[
@@ -107,15 +136,17 @@ class PsdAlgorithm:
             return AlgorithmStructuredResult(
                 output_kind="frequency_series", channel_order=[inputs.channel],
                 axes={"frequency_hz": np.asarray([], dtype=float)}, axis_units={"frequency_hz": "Hz"},
-                arrays={"psd": np.empty((0,), dtype=float)}, array_units={"psd": "V^2/Hz"},
+                arrays={"psd": np.empty((0,), dtype=float), "band_share": np.full(5, np.nan, dtype=float)}, array_units={"psd": "V^2/Hz", "band_share": "ratio"},
                 requested_range=requested, actual_range=requested, quality="gate_failed",
                 failure=failure, evidence=evidence,
             )
         values = np.asarray(spectrum.psd[0], dtype=float)
+        band_share = self._band_shares(np.asarray(spectrum.freqs, dtype=float), values)
+        evidence["calculation_trace"] = {"algorithm": "welch_psd", **self._band_share_trace()}
         return AlgorithmStructuredResult(
             output_kind="frequency_series", channel_order=[inputs.channel],
             axes={"frequency_hz": np.asarray(spectrum.freqs, dtype=float)}, axis_units={"frequency_hz": "Hz"},
-            arrays={"psd": values}, array_units={"psd": "V^2/Hz"},
+            arrays={"psd": values, "band_share": band_share}, array_units={"psd": "V^2/Hz", "band_share": "ratio"},
             requested_range=requested, actual_range=requested, quality="clean", evidence=evidence,
         )
 
@@ -132,6 +163,7 @@ class PsdAlgorithm:
             raise ValueError("PSD 动态分析区间没有可执行窗口")
 
         rows: list[np.ndarray] = []
+        band_share_rows: list[np.ndarray] = []
         windows: list[StructuredSeriesWindow] = []
         # Welch's segment size is fixed at four seconds. Dynamic warm-up
         # windows may be rejected, but they must not decide a different matrix
@@ -161,6 +193,7 @@ class PsdAlgorithm:
                 if not np.array_equal(frequencies, current_frequencies):
                     raise ValueError("PSD 动态窗口返回的频率轴与本次 Welch 合同不一致")
                 row = np.asarray(spectrum.psd[0], dtype=float)
+                band_share_rows.append(self._band_shares(current_frequencies, row))
                 evidence = {
                     "source_quality": {
                         "clean_segments": spectrum.clean_epochs,
@@ -179,6 +212,7 @@ class PsdAlgorithm:
                     evidence["source_quality"]["amplitude"] = evidence["spectral_evidence"]["amplitude"]
             except SpectralQualityGateError as exc:
                 row = np.full(frequencies.shape, np.nan, dtype=float)
+                band_share_rows.append(np.full(5, np.nan, dtype=float))
                 quality = "gate_failed"
                 state = "Rejected"
                 evidence = {"source_quality": dict(exc.quality), "spectral_evidence": dict(exc.quality.get("evidence", {}))}
@@ -189,6 +223,7 @@ class PsdAlgorithm:
                 )
             except ValueError as exc:
                 row = np.full(frequencies.shape, np.nan, dtype=float)
+                band_share_rows.append(np.full(5, np.nan, dtype=float))
                 quality = "unavailable"
                 state = "Unavailable"
                 failure = AlgorithmFailure(code="PSD_WINDOW_UNAVAILABLE", message=str(exc))
@@ -204,7 +239,7 @@ class PsdAlgorithm:
         return AlgorithmStructuredSeriesResult(
             output_kind="frequency_series", channel_order=[inputs.channel],
             axes={"frequency_hz": frequencies}, axis_units={"frequency_hz": "Hz"},
-            arrays={"psd": np.stack(rows)}, array_units={"psd": "V^2/Hz"},
+            arrays={"psd": np.stack(rows), "band_share": np.stack(band_share_rows)}, array_units={"psd": "V^2/Hz", "band_share": "ratio"},
             windows=windows,
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
             actual_range={"start_s": windows[0].start_s, "end_s": windows[-1].end_s},
@@ -214,6 +249,7 @@ class PsdAlgorithm:
                 "calculation_trace": {
                     "algorithm": "welch_psd", "window_s": window_s, "step_s": step_s,
                     "trend_frequency_range_hz": [float(trend_low_hz), float(trend_high_hz)] if fixed_trend_axis else None,
+                    **self._band_share_trace(),
                 },
             },
         )

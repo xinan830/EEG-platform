@@ -157,7 +157,9 @@ public sealed record StructuredPreviewResponse(
     [property: JsonPropertyName("quality")] JsonElement? Quality,
     [property: JsonPropertyName("scientific_version")] string? ScientificVersion,
     [property: JsonPropertyName("implementation_version")] string? ImplementationVersion,
-    [property: JsonPropertyName("failure")] JsonElement? Failure = null);
+    [property: JsonPropertyName("failure")] JsonElement? Failure = null,
+    [property: JsonPropertyName("spectral_evidence")] JsonElement? SpectralEvidence = null,
+    [property: JsonPropertyName("calculation_trace")] JsonElement? CalculationTrace = null);
 
 public sealed class AlgorithmApiException : Exception
 {

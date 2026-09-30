@@ -4,7 +4,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from app.algorithms.catalog import ensure_official_definitions, official_algorithm_catalog
+from app.algorithms.catalog import ensure_official_definitions, official_algorithm_catalog, official_definition_identity
+from app.algorithm_runtime.contracts import DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
 from app.core.provenance import sha256_json
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
@@ -44,6 +45,8 @@ def _request(recording_id: str, algorithm_id: str, *, dynamic: bool = False) -> 
     config["channel"] = "O2" if algorithm_id == "theta_beta" else "F3" if algorithm_id == "faa" else "Fz"
     if algorithm_id == "faa":
         config["f4_channel"] = "F4"
+    if algorithm_id == "stft":
+        config.update({"low_hz": 1.0, "high_hz": 50.0, "notch_hz": None})
     if dynamic:
         config.update({"dynamic_window_s": 10, "refresh_step_s": 1})
     return RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=config)
@@ -189,7 +192,7 @@ def test_official_psd_run_returns_structured_frequency_artifact(tmp_path: Path):
 
 
 def test_official_stft_run_returns_structured_time_frequency_artifact(tmp_path: Path):
-    service, recording_id = _service(tmp_path)
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
     request = _request(recording_id, "stft")
     completed = service.create(request)
 
@@ -208,7 +211,7 @@ def test_official_stft_run_returns_structured_time_frequency_artifact(tmp_path: 
 
 
 def test_official_stft_dynamic_run_returns_window_time_frequency_matrix_artifact(tmp_path: Path):
-    service, recording_id = _service(tmp_path)
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
     request = _request(recording_id, "stft", dynamic=True)
     completed = service.create(request)
 
@@ -216,7 +219,7 @@ def test_official_stft_dynamic_run_returns_window_time_frequency_matrix_artifact
     structured = completed.result_summary["structured"]
     assert structured["output"]["mode"] == "dynamic"
     assert structured["output"]["kind"] == "time_frequency"
-    assert structured["arrays"]["power_linear"]["shape"] == [27, 7, 117]
+    assert structured["arrays"]["power_linear"]["shape"] == [27, 7, 197]
     assert structured["arrays"]["power_db"]["unit"] == "dB re 1 uV^2/Hz"
     assert structured["window_state_counts"] == {"Partial": 6, "Complete": 21}
     assert service.list_artifacts(completed.run_id)
@@ -231,13 +234,41 @@ def test_official_psd_dynamic_run_returns_window_frequency_matrix_artifact(tmp_p
     assert structured["output"]["mode"] == "dynamic"
     assert structured["output"]["kind"] == "frequency_series"
     assert structured["arrays"]["psd"]["shape"] == [27, 197]
+    assert structured["arrays"]["band_share"]["shape"] == [27, 5]
     assert structured["window_state_counts"] == {"Partial": 6, "Complete": 21}
+    artifact = service.list_artifacts(completed.run_id)[0]
+    arrays = service.artifacts.read_npz(artifact)
+    assert arrays["band_share"].shape == (27, 5)
+    np.testing.assert_allclose(np.nansum(arrays["band_share"][6]), 1.0)
     assert service.list_artifacts(completed.run_id)
+
+
+def test_psd_band_share_contract_changes_cache_identity(tmp_path: Path):
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
+    recording = service.recordings.require_recording(recording_id)
+    resolved = service._resolve_request(_request(recording_id, "psd", dynamic=True), recording)
+    manifest = service.algorithm_runtime_registry.get("psd").manifest
+    definition_id, definition_version, definition_digest = official_definition_identity(
+        service.definition_service, "psd"
+    )
+
+    assert manifest.implementation_identity == "psd-runtime-v2-band-share"
+    assert "band_share" in {field["name"] for field in manifest.output_schema["fields"]}
+    assert resolved["definition_sha256"] != sha256_json({
+        "kind": "official_algorithm",
+        "definition_id": definition_id,
+        "definition_version": definition_version,
+        "definition_digest": definition_digest,
+        "algorithm_id": "psd",
+        "scientific_version": manifest.scientific_version,
+        "implementation_identity": "psd-runtime-v1",
+        "result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
+    })
 
 
 @pytest.mark.parametrize("algorithm_id", ["psd", "stft"])
 def test_one_window_dynamic_result_matches_static_result(tmp_path: Path, algorithm_id: str):
-    service, recording_id = _service(tmp_path, sfreq_hz=200.0 if algorithm_id == "psd" else 100.0)
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
     static_request = _request(recording_id, algorithm_id)
     dynamic_request = _request(recording_id, algorithm_id, dynamic=True)
     static_request.config["time"] = {"start_s": 20, "end_s": 30}

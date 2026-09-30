@@ -189,7 +189,7 @@ def band_power(freqs: np.ndarray, psd: np.ndarray, low: float, high: float) -> n
     return float(result) if np.ndim(result) == 0 else result
 
 
-def estimate_spectrogram(data: np.ndarray, sfreq: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def estimate_spectrogram(data: np.ndarray, sfreq: float, *, low_hz: float = 1.0, high_hz: float = 30.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute a 4 s Hann spectrogram with 1 s steps; output is V²/Hz."""
     values = np.asarray(data, dtype=float)
     segment_samples = int(round(4.0 * sfreq))
@@ -206,13 +206,17 @@ def estimate_spectrogram(data: np.ndarray, sfreq: float) -> tuple[np.ndarray, np
         density = np.abs(transformed) ** 2 / (sfreq * np.sum(window ** 2))
         density[1:-1] *= 2.0
         spectra.append(density.T)
-    mask = (freqs >= 1.0) & (freqs <= 30.0)
+    if low_hz < 0.0 or high_hz <= low_hz or high_hz >= sfreq / 2.0:
+        raise ValueError("时频分析频率范围无效或超出奈奎斯特频率")
+    mask = (freqs >= low_hz) & (freqs <= high_hz)
+    if not np.any(mask):
+        raise ValueError("时频分析频率范围没有可用频率点")
     starts = np.arange(0, len(values) - segment_samples + 1, step_samples, dtype=float)
     centers = (starts + segment_samples / 2.0) / sfreq
     return centers, freqs[mask], np.stack(spectra)[:, :, mask]
 
 
-def estimate_spectrogram_with_quality(data: np.ndarray, sfreq: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, object]]]:
+def estimate_spectrogram_with_quality(data: np.ndarray, sfreq: float, *, low_hz: float = 1.0, high_hz: float = 30.0) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, object]]]:
     """Return spectrogram power and one quality record for every time window."""
     values = np.asarray(data, dtype=float)
     segment_samples = int(round(4.0 * sfreq))
@@ -222,7 +226,11 @@ def estimate_spectrogram_with_quality(data: np.ndarray, sfreq: float) -> tuple[n
     starts = np.arange(0, len(values) - segment_samples + 1, step_samples, dtype=int)
     window = signal.get_window("hann", segment_samples)
     freqs = np.fft.rfftfreq(segment_samples, 1.0 / sfreq)
-    mask = (freqs >= 1.0) & (freqs <= 30.0)
+    if low_hz < 0.0 or high_hz <= low_hz or high_hz >= sfreq / 2.0:
+        raise ValueError("时频分析频率范围无效或超出奈奎斯特频率")
+    mask = (freqs >= low_hz) & (freqs <= high_hz)
+    if not np.any(mask):
+        raise ValueError("时频分析频率范围没有可用频率点")
     spectra: list[np.ndarray] = []
     quality: list[dict[str, object]] = []
     for start in starts:

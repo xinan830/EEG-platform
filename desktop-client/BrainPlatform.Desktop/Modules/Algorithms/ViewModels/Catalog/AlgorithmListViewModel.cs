@@ -534,7 +534,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         var requestedRange = AlgorithmRunConfiguration.ParseStaticRangeOrThrow(StartSecondsText, EndSecondsText, durationSeconds);
         if (algorithm.Id == "stft" && requestedRange.EndSeconds - requestedRange.StartSeconds < 4.0)
             throw new InvalidOperationException("STFT 分析区间至少需要 4 秒。");
-        var frequencyBand = algorithm.Id is "peak_frequency" or "psd"
+        var frequencyBand = algorithm.Id is "peak_frequency" or "psd" or "stft"
             ? AlgorithmRunConfiguration.ParseFrequencyBandOrThrow(LowFrequencyText, HighFrequencyText, RegisteredRecording.SamplingRateHz)
             : null;
         var ratioBands = algorithm.Id == "band_ratio"
@@ -552,7 +552,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         ClearPreviews();
         var start = requestedRange.StartSeconds;
         var end = requestedRange.EndSeconds;
-        var notchHz = algorithm.Id == "psd" && SelectedNotchFrequency != "关闭"
+        var notchHz = algorithm.Id is "psd" or "stft" && SelectedNotchFrequency != "关闭"
             ? (SelectedNotchFrequency.StartsWith("60", StringComparison.Ordinal) ? 60.0 : 50.0)
             : (double?)0.0;
         var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, SelectedChannel, requestedRange, dynamic ? "dynamic" : "static", frequencyBand, ratioBands, algorithm.Id == "faa" ? SelectedF4Channel : null, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null, notchHz);

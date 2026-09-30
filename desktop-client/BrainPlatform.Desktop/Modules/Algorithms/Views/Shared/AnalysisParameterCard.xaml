@@ -1,0 +1,355 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Shared.AnalysisParameterCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <!-- Segmented Control Button (Static Analysis) -->
+        <Style x:Key="StaticSegmentButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="1"
+                                BorderBrush="Transparent"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E2E8F0" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsDynamicMode}" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#FFFFFF" />
+                                <Setter TargetName="border" Property="BorderBrush" Value="#CBD5E1" />
+                                <Setter TargetName="border" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Opacity="0.10" Color="#0F172A" />
+                                    </Setter.Value>
+                                </Setter>
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="#1E293B" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsDynamicMode}" Value="False">
+                    <Setter Property="Foreground" Value="#1677FF" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Segmented Control Button (Dynamic Analysis) -->
+        <Style x:Key="DynamicSegmentButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="1"
+                                BorderBrush="Transparent"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E2E8F0" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsDynamicMode}" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#FFFFFF" />
+                                <Setter TargetName="border" Property="BorderBrush" Value="#CBD5E1" />
+                                <Setter TargetName="border" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Opacity="0.10" Color="#0F172A" />
+                                    </Setter.Value>
+                                </Setter>
+                            </DataTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="#1E293B" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsDynamicMode}" Value="True">
+                    <Setter Property="Foreground" Value="#1677FF" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="#94A3B8" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+ <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="1.15*" MinWidth="340"/><ColumnDefinition Width="16"/><ColumnDefinition Width="1.85*" MinWidth="540"/></Grid.ColumnDefinitions>
+  <Border Grid.Column="0" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="20,16"><StackPanel>
+   <StackPanel Orientation="Horizontal" Margin="0,0,0,14"><Border Width="20" Height="20" CornerRadius="10" Background="#1677FF" Margin="0,0,8,0"><TextBlock Text="2" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="分析范围" FontSize="15" FontWeight="Bold"/></StackPanel>
+   <!-- Modern Segmented Control for Static / Dynamic Analysis -->
+   <Border Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="3" HorizontalAlignment="Left" Margin="0,0,0,14">
+       <StackPanel Orientation="Horizontal">
+           <Button Content="静态分析"
+                   Command="{Binding SelectStaticModeCommand}"
+                   Style="{StaticResource StaticSegmentButtonStyle}" />
+           <Button Content="动态分析"
+                   Command="{Binding SelectDynamicModeCommand}"
+                   IsEnabled="{Binding IsDynamicModeAvailable}"
+                   Style="{StaticResource DynamicSegmentButtonStyle}"
+                   Margin="3,0,0,0" />
+       </StackPanel>
+   </Border>
+   <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="开始时间" FontSize="12" Foreground="#475569"/><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding StartSeconds, UpdateSourceTrigger=LostFocus}"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="结束时间" FontSize="12" Foreground="#475569"/><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding EndSeconds, UpdateSourceTrigger=LostFocus}"/></StackPanel></Grid>
+   <Border Background="#EFF6FF" CornerRadius="6" Padding="14,10"><StackPanel><TextBlock FontSize="12" Foreground="#334155"><Run Text="实际分析范围："/><Run Text="{Binding ActualRangeText, Mode=OneWay}" FontWeight="Medium"/></TextBlock><TextBlock FontSize="12" Foreground="#334155" Margin="0,3,0,0"><Run Text="窗口状态："/><Run Text="{Binding WindowStateText, Mode=OneWay}" FontWeight="Medium"/></TextBlock></StackPanel></Border>
+   <StackPanel Margin="0,12,0,0"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsDynamicMode}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><TextBlock Text="动态参数" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6"/><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="动态窗口" FontSize="12" Foreground="#475569"/><ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding DynamicWindowOptions}" SelectedItem="{Binding SelectedDynamicWindowSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="刷新步长" FontSize="12" Foreground="#475569"/><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding DynamicStepText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></StackPanel></Grid></StackPanel>
+  </StackPanel></Border>
+   <!-- Card 3: 频谱参数 -->
+   <Border Grid.Column="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="20,18">
+       <StackPanel>
+           <!-- Header -->
+           <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,16">
+               <Border Width="22" Height="22" CornerRadius="11" Background="#1677FF" Margin="0,0,8,0">
+                   <TextBlock Text="3" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+               </Border>
+               <TextBlock Text="频谱参数" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+           </StackPanel>
+
+            <!-- Table Container with Rounded Borders & Table Header -->
+            <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+                <Border.Resources>
+                    <Style x:Key="TableParamTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource AppTextBoxStyle}">
+                        <Setter Property="Height" Value="26" />
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="Padding" Value="4,0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                        <Setter Property="TextAlignment" Value="Center" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
+                        <Setter Property="BorderBrush" Value="#CBD5E1" />
+                        <Setter Property="BorderThickness" Value="1" />
+                    </Style>
+                    <Style x:Key="TableParamComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
+                        <Setter Property="Height" Value="26" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
+                    </Style>
+                </Border.Resources>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Table Header -->
+                    <Border Grid.Row="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="50" />
+                                <ColumnDefinition Width="70" />
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="参数名称" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="设定值" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="单位" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="默认值" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="4" Text="约束条件" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="5" Text="参数说明" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Table Rows -->
+                    <StackPanel Grid.Row="1">
+                        <!-- Row 0: 高通截止频率 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="高通截止频率" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBox Grid.Column="1" Width="84" Style="{StaticResource TableParamTextBoxStyle}" Text="{Binding Catalog.LowFrequencyText, UpdateSourceTrigger=LostFocus}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="Hz" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="1" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="4" Text="> 0" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="5" Text="去除低于此频率的慢漂移成分" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 1: 低通截止频率 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="低通截止频率" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBox Grid.Column="1" Width="84" Style="{StaticResource TableParamTextBoxStyle}" Text="{Binding Catalog.HighFrequencyText, UpdateSourceTrigger=LostFocus}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="Hz" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="50" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="4" Text="&lt; 奈奎斯特频率" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="5" Text="去除高于此频率的成分" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 2: 陷波频率 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="陷波频率" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <ComboBox Grid.Column="1" Width="104" Style="{StaticResource TableParamComboBoxStyle}" ItemsSource="{Binding Catalog.NotchFrequencyOptions}" SelectedItem="{Binding Catalog.SelectedNotchFrequency, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="50" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="4" Text="关闭 / 50 / 60" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="5" Text="抑制工频干扰" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 3: Welch 窗口长度 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Welch 窗口长度" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="4" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="s" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="4" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <Border Grid.Column="4" Background="#F1F5F9" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="官方固定" FontSize="11" Foreground="#475569" HorizontalAlignment="Center" TextAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="5" Text="官方 Welch 合同" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 4: Welch 重叠比例 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Welch 重叠比例" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="50" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="%" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="50" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <Border Grid.Column="4" Background="#F1F5F9" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="官方固定" FontSize="11" Foreground="#475569" HorizontalAlignment="Center" TextAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="5" Text="官方 Welch 合同" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 5: 窗函数 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="窗函数" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="Hann" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="Hann" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <Border Grid.Column="4" Background="#F1F5F9" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="官方固定" FontSize="11" Foreground="#475569" HorizontalAlignment="Center" TextAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="5" Text="平滑截断减少频谱泄漏" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 6: 计算通道 -->
+                        <Border Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="计算通道" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <ComboBox Grid.Column="1" Width="104" Style="{StaticResource TableParamComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedChannel, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <Border Grid.Column="4" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="可用通道列表" FontSize="11" Foreground="#1D4ED8" FontWeight="Medium" HorizontalAlignment="Center" TextAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="5" Text="用于当前算法分析的原始通道" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+           <!-- STFT Specific Parameters (Collapsible) -->
+           <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="12,10" Margin="0,12,0,0">
+               <Border.Style>
+                   <Style TargetType="Border">
+                       <Setter Property="Visibility" Value="Collapsed"/>
+                       <Style.Triggers>
+                           <DataTrigger Binding="{Binding IsStft}" Value="True">
+                               <Setter Property="Visibility" Value="Visible"/>
+                           </DataTrigger>
+                       </Style.Triggers>
+                   </Style>
+               </Border.Style>
+               <StackPanel>
+                   <TextBlock Text="STFT 参数" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" />
+                   <TextBlock Text="时频窗长 4 s · 步进 1 s · Hann 窗" FontSize="11.5" Foreground="#64748B" Margin="0,4,0,0" />
+               </StackPanel>
+           </Border>
+       </StackPanel>
+   </Border>
+ </Grid>
+</UserControl>

@@ -145,9 +145,9 @@ class RunService:
                 actual_range=resolved["actual_range"],
                 error=StructuredRunError(
                     code="ANALYSIS_EXECUTION_FAILED",
-                    message=str(exc),
+                    message=str(exc) or f"分析执行抛出 {type(exc).__name__}",
                     stage="analysis",
-                    details={"exception_type": type(exc).__name__},
+                    details={"exception_type": type(exc).__name__, "exception_message": str(exc)},
                 ),
             )
 

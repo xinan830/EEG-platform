@@ -1,1 +1,72 @@
-<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Stft.StftDetailView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:shared="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"><shared:AlgorithmMetricDetailView /></UserControl>
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Stft.StftDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Stft">
+    <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="20,16">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="720" />
+            </Grid.RowDefinitions>
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock Text="时频分析（STFT）" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="dB re 1 μV²/Hz" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <ComboBox Width="168" Height="32" Style="{StaticResource AppFilterComboBoxStyle}"
+                              ItemsSource="{Binding AlgorithmWorkspace.Detail.Stft.ChartOptions}"
+                              SelectedItem="{Binding AlgorithmWorkspace.Detail.Stft.SelectedChart, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+            </Grid>
+            <Grid Grid.Row="1" Margin="0,10,0,14">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Stft.StatusText}" FontSize="12" Foreground="#475569" Margin="0,0,12,0" TextWrapping="Wrap" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Stft.RequestedRangeText}" Margin="0,0,16,0" FontSize="12" Foreground="#475569" />
+                    <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Stft.TimeRangeText}" Margin="0,0,16,0" FontSize="12" Foreground="#475569" />
+                    <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Stft.FrequencyRangeText}" FontSize="12" Foreground="#475569" />
+                </StackPanel>
+            </Grid>
+            <Grid Grid.Row="2" Margin="0,0,0,10">
+                <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Stft.IsSpectrumSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Stft.IsTrendSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Grid.Style>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Stft.IsSpectrumSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                    <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Stft.SelectedTimeText}" Width="178" VerticalAlignment="Center" Foreground="#475569" FontSize="12" />
+                    <Slider Width="270" Minimum="0" Maximum="{Binding AlgorithmWorkspace.Detail.Stft.MaximumTimeIndex}" Value="{Binding AlgorithmWorkspace.Detail.Stft.SelectedTimeIndex, Mode=TwoWay}" TickFrequency="1" IsSnapToTickEnabled="True" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Stft.IsTrendSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+                    <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Stft.SelectedFrequencyText}" Width="178" VerticalAlignment="Center" Foreground="#475569" FontSize="12" />
+                    <Slider Width="270" Minimum="0" Maximum="{Binding AlgorithmWorkspace.Detail.Stft.MaximumFrequencyIndex}" Value="{Binding AlgorithmWorkspace.Detail.Stft.SelectedFrequencyIndex, Mode=TwoWay}" TickFrequency="1" IsSnapToTickEnabled="True" />
+                </StackPanel>
+            </Grid>
+            <Grid Grid.Row="3">
+                <local:StftHeatmap Preview="{Binding AlgorithmWorkspace.Detail.Stft.Preview}">
+                    <local:StftHeatmap.Style><Style TargetType="local:StftHeatmap"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding AlgorithmWorkspace.Detail.Stft.HasPreview}" Value="True"/><Condition Binding="{Binding AlgorithmWorkspace.Detail.Stft.IsHeatmapSelected}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></local:StftHeatmap.Style>
+                </local:StftHeatmap>
+                <local:StftSliceChart Preview="{Binding AlgorithmWorkspace.Detail.Stft.Preview}" IsSpectrum="True" SelectedIndex="{Binding AlgorithmWorkspace.Detail.Stft.SelectedTimeIndex}">
+                    <local:StftSliceChart.Style><Style TargetType="local:StftSliceChart"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding AlgorithmWorkspace.Detail.Stft.HasPreview}" Value="True"/><Condition Binding="{Binding AlgorithmWorkspace.Detail.Stft.IsSpectrumSelected}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></local:StftSliceChart.Style>
+                </local:StftSliceChart>
+                <local:StftSliceChart Preview="{Binding AlgorithmWorkspace.Detail.Stft.Preview}" IsSpectrum="False" SelectedIndex="{Binding AlgorithmWorkspace.Detail.Stft.SelectedFrequencyIndex}">
+                    <local:StftSliceChart.Style><Style TargetType="local:StftSliceChart"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding AlgorithmWorkspace.Detail.Stft.HasPreview}" Value="True"/><Condition Binding="{Binding AlgorithmWorkspace.Detail.Stft.IsTrendSelected}" Value="True"/></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible"/></MultiDataTrigger></Style.Triggers></Style></local:StftSliceChart.Style>
+                </local:StftSliceChart>
+                <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Stft.StatusText}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B" FontSize="13">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Stft.HasPreview}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

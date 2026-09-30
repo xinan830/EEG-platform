@@ -53,9 +53,46 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public string StartSeconds { get => Catalog.StartSecondsText; set => Catalog.StartSecondsText = value; }
     public string EndSeconds { get => Catalog.EndSecondsText; set => Catalog.EndSecondsText = value; }
     public string RunStatus => Catalog.RunStatusText;
+    public string RunIdText => Catalog.LastRun?.RunId ?? "未运行";
+    public string RequestedRangeText => FormatRange(Catalog.LastRun?.RequestedRange);
+    public string ActualRangeText => FormatRange(Catalog.LastRun?.ActualRange);
+    public string ResultTimeText => Catalog.LastRun?.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "未运行";
+    public string OutputUnit => Catalog.SelectedAlgorithm?.Id switch
+    {
+        "psd" => Catalog.PsdValueUnit,
+        "stft" => "dB re 1 μV²/Hz",
+        "rbp" => "相对功率",
+        _ => "后端未提供"
+    };
+    public string RecordingIdText => RegisteredRecording?.Id ?? "未注册";
+    public string AlgorithmVersionText => Catalog.SelectedAlgorithm?.Version ?? "后端未提供";
+    public string ImplementationVersionText => Catalog.SelectedAlgorithm?.ImplementationIdentity ?? "后端未提供";
+    public string SelectedChannelText => SelectedChannel is { Length: > 0 } value ? value : "未选择";
+    public string ParameterSnapshotText => "由本次 Run 固化";
+    public string OutputUnitText => OutputUnit;
+    public AnalysisContextViewModel Provenance => this;
+    public string WindowStateText => Catalog.SelectedAlgorithm?.Id switch
+    {
+        "psd" => Catalog.PsdWindowStateText,
+        "stft" => Catalog.StftStructuredPreview is { } preview && preview.WindowStateCounts.Count > 0
+            ? string.Join("、", preview.WindowStateCounts.Select(item => $"{item.Key}：{item.Value}"))
+            : "尚未产生窗口结果",
+        _ => "尚未产生窗口结果"
+    };
+    public double RunProgressPercent => Catalog.LastRun?.Status == "completed" ? 100 : 0;
+    public string RunProgressText => Catalog.LastRun?.Status switch
+    {
+        "completed" => "100%",
+        "queued" => "等待中",
+        "running" => "运行中",
+        "failed" => "失败",
+        _ => "未运行",
+    };
+    public double DynamicTimeProgressPercent { get => Catalog.DynamicTimeProgressPercent; set => Catalog.DynamicTimeProgressPercent = value; }
+    public string DynamicTimeProgressText => Catalog.DynamicTimeProgressText;
+    public string DynamicCurrentWindowText => Catalog.DynamicCurrentWindowText;
     public bool IsRunning => Catalog.IsRunActive;
     public string ResultSummary => Catalog.ResultSummaryText;
-    public string Provenance => Catalog.ProvenanceText;
 
     private void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
@@ -79,6 +116,10 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.DynamicPreviewStatusText)
             or nameof(AlgorithmListViewModel.DynamicPreviewRows)
             or nameof(AlgorithmListViewModel.RunStatusText)
+            or nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.DynamicTimeProgressPercent)
+            or nameof(AlgorithmListViewModel.DynamicTimeProgressText)
+            or nameof(AlgorithmListViewModel.DynamicCurrentWindowText)
             or nameof(AlgorithmListViewModel.ResultSummaryText)
             or nameof(AlgorithmListViewModel.ProvenanceText))
         {
@@ -90,6 +131,23 @@ public sealed class AnalysisContextViewModel : ObservableObject
             RaisePropertyChanged(nameof(StartSeconds));
             RaisePropertyChanged(nameof(EndSeconds));
             RaisePropertyChanged(nameof(RunStatus));
+            RaisePropertyChanged(nameof(RunIdText));
+            RaisePropertyChanged(nameof(RequestedRangeText));
+            RaisePropertyChanged(nameof(ActualRangeText));
+            RaisePropertyChanged(nameof(ResultTimeText));
+            RaisePropertyChanged(nameof(OutputUnit));
+            RaisePropertyChanged(nameof(RecordingIdText));
+            RaisePropertyChanged(nameof(AlgorithmVersionText));
+            RaisePropertyChanged(nameof(ImplementationVersionText));
+            RaisePropertyChanged(nameof(SelectedChannelText));
+            RaisePropertyChanged(nameof(ParameterSnapshotText));
+            RaisePropertyChanged(nameof(OutputUnitText));
+            RaisePropertyChanged(nameof(WindowStateText));
+            RaisePropertyChanged(nameof(RunProgressPercent));
+            RaisePropertyChanged(nameof(RunProgressText));
+            RaisePropertyChanged(nameof(DynamicTimeProgressPercent));
+            RaisePropertyChanged(nameof(DynamicTimeProgressText));
+            RaisePropertyChanged(nameof(DynamicCurrentWindowText));
             RaisePropertyChanged(nameof(IsRunning));
             RaisePropertyChanged(nameof(ResultSummary));
             RaisePropertyChanged(nameof(Provenance));
@@ -113,6 +171,10 @@ public sealed class AnalysisContextViewModel : ObservableObject
             RaisePropertyChanged(nameof(RegisteredRecording));
         }
     }
+
+    private static string FormatRange(TimeRange? range) => range is null
+        ? "未运行"
+        : $"{range.StartSeconds:0.###}–{range.EndSeconds:0.###} s";
 
     private void OnProjectsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {

@@ -257,9 +257,15 @@ class RecordingService:
         start_s: float = 0.0,
         window_s: float = 30.0,
         channels: list[str] | None = None,
+        *,
+        low_hz: float = 1.0,
+        high_hz: float = 50.0,
+        notch_hz: float | None = None,
+        output_low_hz: float | None = None,
+        output_high_hz: float | None = None,
     ) -> dict:
         """Compatibility facade for the spectrogram-v2 analysis use case."""
-        return self._spectral_analysis.load_spectrogram(recording, start_s, window_s, channels)
+        return self._spectral_analysis.load_spectrogram(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz)
 
     def load_configured_spectrum(self, recording: RecordingSummary, config: AnalysisConfigRequest) -> dict:
         """Compatibility facade preserving configurable PSD API semantics."""

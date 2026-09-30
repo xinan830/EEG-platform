@@ -32,59 +32,35 @@
                         <Ellipse Canvas.Left="12.5" Canvas.Top="2" Width="4.5" Height="4.5" Fill="#1677FF" />
                         <Ellipse Canvas.Left="12.5" Canvas.Top="11.5" Width="4.5" Height="4.5" Fill="#1677FF" />
                     </Canvas>
-                    <TextBlock Text="功率谱密度（PSD）" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Psd.SelectedChart.Label}" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
                     <TextBlock Text="ⓘ" FontSize="13" Foreground="#94A3B8" VerticalAlignment="Center" Margin="8,0,0,0"
                                ToolTip="功率谱密度（PSD）反映脑电信号在各频段上的功率分布特征" Cursor="Help" />
                 </StackPanel>
 
-                <!-- Right: Legend, Line Chart Selector, Zoom In/Out, Fullscreen -->
+                <!-- Right: Channel and chart selector -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- Legend: — 通道: {SelectedChannel} -->
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <Line X1="0" Y1="0" X2="14" Y2="0" Stroke="#1677FF" StrokeThickness="2.5" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBlock Text="通道: " FontSize="13" Foreground="#334155" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Context.SelectedChannel, TargetNullValue=Pz, FallbackValue=Pz}"
                                    FontSize="13" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" />
                     </StackPanel>
 
-                    <!-- Chart Type Dropdown: [ 线图 ⌵ ] -->
-                    <Border Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6"
-                            Padding="10,5,8,5" Margin="0,0,10,0" Cursor="Hand">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="线图" FontSize="12.5" Foreground="#334155" VerticalAlignment="Center" />
-                            <Path Data="M 1,1 L 4.5,4.5 L 8,1" Stroke="#64748B" StrokeThickness="1.4"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Margin="6,1,0,0" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Action Button: [ 🔍+ ] Zoom In -->
-                    <Border Width="32" Height="30" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
-                            CornerRadius="6" Margin="0,0,6,0" Cursor="Hand" ToolTip="放大">
-                        <Path Data="M 10,10 L 13.5,13.5 M 2,6.5 A 4.5,4.5 0 1 1 11,6.5 A 4.5,4.5 0 1 1 2,6.5 Z M 6.5,4.5 V 8.5 M 4.5,6.5 H 8.5"
-                              Stroke="#64748B" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                              HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-
-                    <!-- Action Button: [ 🔍- ] Zoom Out -->
-                    <Border Width="32" Height="30" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
-                            CornerRadius="6" Margin="0,0,6,0" Cursor="Hand" ToolTip="缩小">
-                        <Path Data="M 10,10 L 13.5,13.5 M 2,6.5 A 4.5,4.5 0 1 1 11,6.5 A 4.5,4.5 0 1 1 2,6.5 Z M 4.5,6.5 H 8.5"
-                              Stroke="#64748B" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                              HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
-
-                    <!-- Action Button: [ ⛶ ] Fullscreen -->
-                    <Border Width="32" Height="30" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
-                            CornerRadius="6" Cursor="Hand" ToolTip="全屏显示">
-                        <Path Data="M 2,5.5 V 2 H 5.5 M 9.5,2 H 13 V 5.5 M 13,9.5 V 13 H 9.5 M 5.5,13 H 2 V 9.5"
-                              Stroke="#64748B" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                              HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    </Border>
+                    <ComboBox Width="152" Height="32"
+                              Style="{StaticResource AppFilterComboBoxStyle}"
+                              ItemsSource="{Binding AlgorithmWorkspace.Detail.Psd.ChartOptions}"
+                              SelectedItem="{Binding AlgorithmWorkspace.Detail.Psd.SelectedChart, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </StackPanel>
             </Grid>
 
             <!-- Main Chart Area (Plot + Y Axis + X Axis) -->
             <Grid Grid.Row="1" Margin="0,0,0,8">
+                <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Psd.IsSpectrumSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Grid.Style>
                 <Grid.RowDefinitions>
                     <!-- Row 0: Frequency band legend, kept outside the plot -->
                 <RowDefinition Height="16" />
@@ -224,6 +200,10 @@
                 <TextBlock Visibility="Collapsed" Grid.Row="3" Grid.Column="1" Text="频率（Hz）" FontSize="9" FontWeight="Medium" Foreground="#475569"
                            HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,4,0,0" />
             </Grid>
+            <local:PsdBandShareChart Grid.Row="1" Margin="0,0,0,8"
+                                     Points="{Binding AlgorithmWorkspace.Detail.Psd.BandSharePoints}">
+                <local:PsdBandShareChart.Style><Style TargetType="local:PsdBandShareChart"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Psd.IsBandShareSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></local:PsdBandShareChart.Style>
+            </local:PsdBandShareChart>
         </Grid>
     </Border>
 </UserControl>

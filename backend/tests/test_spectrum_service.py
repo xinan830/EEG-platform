@@ -16,7 +16,7 @@ def _service(tmp_path: Path) -> tuple[RecordingService, object]:
 
 def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
-    sfreq = 100.0
+    sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = np.column_stack([
         10e-6 * np.sin(2 * np.pi * 10 * times),
@@ -96,6 +96,20 @@ def test_spectrum_separates_filter_range_from_output_axis_and_reuses_filter_cach
     assert second["frequencies_hz"][0] == 5.0
     assert second["frequencies_hz"][-1] == 10.0
     assert first["filter_contract"]["bandpass_hz"] == second["filter_contract"]["bandpass_hz"]
+
+
+def test_spectrogram_reuses_preprocess_cache_with_explicit_notch(tmp_path, monkeypatch):
+    service, recording = _service(tmp_path)
+    sfreq = 200.0
+    times = np.arange(12 * int(sfreq)) / sfreq
+    data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz"], []))
+
+    payload = service.load_spectrogram(recording, 0.0, 12.0, ["Fz"], low_hz=1.0, high_hz=50.0, notch_hz=50.0)
+
+    assert payload["notch_hz"] == 50.0
+    assert payload["frequency_range_hz"] == {"low_hz": 1.0, "high_hz": 50.0}
+    assert payload["frequencies_hz"][-1] == 50.0
 
 
 def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch):
@@ -192,7 +206,7 @@ def test_configured_spectrogram_accepts_one_sample_rounding_error(tmp_path, monk
 
 def test_configured_spectrogram_returns_backend_custom_band_trend(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
-    sfreq = 100.0
+    sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["F3"], []))

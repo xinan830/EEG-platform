@@ -23,19 +23,49 @@ public sealed class StftPreview
     public TimeRange RequestedRange { get; }
     public string PowerUnit => "dB re 1 uV^2/Hz";
 
-    public static StftPreview Parse(StructuredPreviewResponse preview)
+    public static StftPreview Parse(StructuredPreviewResponse preview) => ParseCore(preview, null);
+
+    public static StftPreview ParseDynamic(StructuredPreviewResponse preview, int windowIndex) =>
+        ParseCore(preview, windowIndex);
+
+    private static StftPreview ParseCore(StructuredPreviewResponse preview, int? windowIndex)
     {
         if (preview.Output is not { } output || output.ValueKind != JsonValueKind.Object ||
             !output.TryGetProperty("kind", out var kind) || kind.GetString() != "time_frequency" ||
-            preview.Windows.Count != 0 || preview.ChannelOrder.Count != 1)
-            throw new InvalidOperationException("STFT 预览不是单通道静态时频结果。");
+            preview.ChannelOrder.Count != 1)
+            throw new InvalidOperationException("STFT 预览不是单通道时频结果。");
+
+        if (windowIndex is null && preview.Windows.Count != 0)
+            throw new InvalidOperationException("STFT 静态预览包含动态窗口。");
+        if (windowIndex is int index && (index < 0 || index >= preview.Windows.Count))
+            throw new InvalidOperationException("STFT 动态窗口索引超出范围。");
 
         RequireUnit(preview.AxisMetadata, "time_center_s", "s");
         RequireUnit(preview.AxisMetadata, "frequency_hz", "Hz");
         RequireUnit(preview.ArrayMetadata, "power_db", "dB re 1 uV^2/Hz");
         var times = ReadAxis(preview.Axes, "time_center_s");
         var frequencies = ReadAxis(preview.Axes, "frequency_hz");
-        if (!preview.Arrays.TryGetValue("power_db", out var matrix) || matrix.ValueKind != JsonValueKind.Array ||
+        if (!preview.Arrays.TryGetValue("power_db", out var matrix) || matrix.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("STFT 缺少功率矩阵。");
+        TimeRange requestedRange;
+        if (windowIndex is int selectedIndex)
+        {
+            if (matrix.GetArrayLength() != preview.Windows.Count ||
+                matrix[selectedIndex].ValueKind != JsonValueKind.Array)
+                throw new InvalidOperationException("STFT 动态矩阵的窗口维度不一致。");
+            var window = preview.Windows[selectedIndex];
+            if (window.ValueKind != JsonValueKind.Object ||
+                !window.TryGetProperty("state", out var state) || state.GetString() != "Complete" ||
+                !window.TryGetProperty("start_s", out var start) || !start.TryGetDouble(out var startSeconds) ||
+                !window.TryGetProperty("end_s", out var end) || !end.TryGetDouble(out var endSeconds))
+                throw new InvalidOperationException("STFT 当前动态窗口没有完整结果。");
+            matrix = matrix[selectedIndex];
+            times = times.Select(time => time + startSeconds).ToArray();
+            requestedRange = new TimeRange(startSeconds, endSeconds);
+        }
+        else
+            requestedRange = preview.RequestedRange ?? throw new InvalidOperationException("STFT 缺少请求分析范围。");
+        if (
             matrix.GetArrayLength() != times.Length)
             throw new InvalidOperationException("STFT 功率矩阵的时间维度与后端时间轴不一致。");
 
@@ -65,7 +95,6 @@ public sealed class StftPreview
         }
         if (!double.IsFinite(minimum))
             throw new InvalidOperationException("STFT 范围内没有可显示的有效功率单元。");
-        var requestedRange = preview.RequestedRange ?? throw new InvalidOperationException("STFT 缺少请求分析范围。");
         return new StftPreview(times, frequencies, rows, minimum, maximum, requestedRange);
     }
 

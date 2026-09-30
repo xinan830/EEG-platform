@@ -244,19 +244,39 @@ class SpectralAnalysisService:
         start_s: float = 0.0,
         window_s: float = 30.0,
         channels: list[str] | None = None,
+        *,
+        low_hz: float = 1.0,
+        high_hz: float = 50.0,
+        notch_hz: float | None = None,
+        output_low_hz: float | None = None,
+        output_high_hz: float | None = None,
     ) -> dict[str, object]:
         """Return spectrogram-v2 from the continuous v3-preprocessed signal."""
-        payload = self.load_spectrum(recording, start_s=start_s, window_s=window_s, channels=channels)
+        output_low = float(output_low_hz if output_low_hz is not None else low_hz)
+        output_high = float(output_high_hz if output_high_hz is not None else high_hz)
+        payload = self.load_spectrum(
+            recording, start_s=start_s, window_s=window_s, channels=channels,
+            low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+            filter_low_hz=low_hz, filter_high_hz=high_hz,
+            output_low_hz=output_low, output_high_hz=output_high,
+        )
         names = list(payload["channels"])
-        default_low, default_high = (float(value) for value in ANALYSIS_CONTRACT["bandpass_hz"])
-        cached = self.preprocess_cache.get(recording.id, _spectral_cache_identity(default_low, default_high))
-        assert cached is not None
+        default_low, default_high = float(low_hz), float(high_hz)
+        cached = self.preprocess_cache.get(recording.id, _spectral_cache_identity(default_low, default_high, notch_hz))
+        if cached is None:
+            raise RuntimeError("STFT 预处理缓存未命中：滤波范围或陷波参数与当前请求不一致")
         indexes = [list(cached.channel_names).index(name) for name in names]
         start_index = int(np.floor(float(start_s) * cached.sfreq))
         stop_index = min(len(cached.data), start_index + int(round(float(window_s) * cached.sfreq)))
         times, freqs, values, quality = self.spectral_gateway.spectrogram(
             cached.data[start_index:stop_index, :][:, indexes], cached.sfreq,
+            low_hz=output_low, high_hz=output_high,
         )
+        frequency_mask = (freqs >= output_low) & (freqs <= output_high)
+        if not np.any(frequency_mask):
+            raise ValueError("请求的 STFT 频率范围没有可用频率点")
+        freqs = freqs[frequency_mask]
+        values = values[:, :, frequency_mask]
         power_uv = values * 1e12
         power_db = 10.0 * np.log10(np.maximum(power_uv, np.finfo(float).tiny))
         linear_values = {name: power_uv[:, index, :].tolist() for index, name in enumerate(names)}
@@ -294,6 +314,9 @@ class SpectralAnalysisService:
             "analysis_algorithm_version": "offline-spectral-v3",
             "spectrogram_contract_version": "spectrogram-v2",
             "algorithm_version": "spectrogram-v2",
+            "frequency_range_hz": {"low_hz": output_low, "high_hz": output_high},
+            "filter_frequency_range_hz": {"low_hz": float(low_hz), "high_hz": float(high_hz)},
+            "notch_hz": notch_hz,
             "segment_s": 4.0,
             "step_s": 1.0,
             "quality": {

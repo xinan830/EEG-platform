@@ -12,6 +12,7 @@ public sealed class AlgorithmDetailViewModel : ObservableObject
         Context = new AnalysisContextViewModel(Catalog);
         Psd = new PsdDetailViewModel(Catalog);
         Stft = new StftDetailViewModel(Catalog);
+        Quality = new QualityStatusViewModel(Psd, Stft);
         Rbp = new RbpDetailViewModel(Catalog);
         Faa = new FaaDetailViewModel(Catalog);
         Iapf = new IapfDetailViewModel(Catalog);
@@ -25,6 +26,7 @@ public sealed class AlgorithmDetailViewModel : ObservableObject
     public AnalysisContextViewModel Context { get; }
     public PsdDetailViewModel Psd { get; }
     public StftDetailViewModel Stft { get; }
+    public QualityStatusViewModel Quality { get; }
     public RbpDetailViewModel Rbp { get; }
     public FaaDetailViewModel Faa { get; }
     public IapfDetailViewModel Iapf { get; }
