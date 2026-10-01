@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from app.scientific.primitives import SpectralEstimate
+from app.scientific.primitives import SpectralEstimate, preprocess_offline
 from app.algorithm_runtime.contracts import (
     DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
     AlgorithmEvidence,
@@ -79,7 +79,7 @@ class _RecordingAlgorithmContext:
             output_high_hz=output_high_hz if output_high_hz is not None else high_hz,
         )
 
-    def load_faa_signals(self, *, start_s: float, end_s: float, f3_channel: str, f4_channel: str) -> tuple[np.ndarray, np.ndarray, float, dict[str, Any]]:
+    def load_faa_signals(self, *, start_s: float, end_s: float, f3_channel: str, f4_channel: str, low_hz: float | None = None, high_hz: float | None = None, notch_hz: float | None = None) -> tuple[np.ndarray, np.ndarray, float, dict[str, Any]]:
         """Load the exact raw pair consumed by the frozen FAA implementation."""
         data, sfreq, names, _events = self._recordings.load_data(self._recording)
         lookup = {str(name).casefold(): (index, str(name)) for index, name in enumerate(names)}
@@ -93,6 +93,9 @@ class _RecordingAlgorithmContext:
         end_index = min(len(values), int(round(end_s * sfreq)))
         if end_index <= start_index:
             raise ValueError("FAA analysis range is outside recording duration")
+        pair = values[start_index:end_index, [f3_index, f4_index]]
+        if low_hz is not None and high_hz is not None:
+            pair = preprocess_offline(pair, float(sfreq), low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz)
         evidence = {
             "sfreq_hz": float(sfreq), "channels": [f3_name, f4_name],
             "analysis_reference": "original_recording_no_software_rereference",
@@ -106,14 +109,15 @@ class _RecordingAlgorithmContext:
                 "step_s": 1.0,
                 "window": "hann",
                 "detrend": "per_epoch_mean_removal",
-                "software_bandpass": "not_applied",
+                "software_bandpass": None if low_hz is None or high_hz is None else [float(low_hz), float(high_hz)],
+                "notch_hz": None if notch_hz is None else float(notch_hz),
                 "minimum_clean_epochs": 10,
                 "artifact_peak_uv": 150.0,
                 "alpha_band_hz": [8.0, 13.0],
                 "frequency_resolution_hz": 1.0 / 2.0,
             },
         }
-        return values[start_index:end_index, f3_index], values[start_index:end_index, f4_index], float(sfreq), evidence
+        return pair[:, 0], pair[:, 1], float(sfreq), evidence
 
 
 def _public_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
@@ -307,6 +311,7 @@ class RunAnalysisExecutor:
                      "output": {"id": config.algorithm_id, "label": label, "value": value, "unit": result.unit, "quality": {"status": quality, "reasons": [failure.code] if failure else []}},
                      "channel": result.channel, "source_quality": evidence.get("source_quality", {}),
                      "spectral_evidence": evidence.get("spectral_evidence", {}), "warmup": warmup, "analysis_state": analysis_state,
+                     "failure": failure.model_dump(mode="json") if failure else None,
                      "calculation_trace": evidence.get("calculation_trace", {}),
                      "official": {"algorithm_id": config.algorithm_id, **evidence}, "chart": {"kind": "none"}}
             if index < len(result.output_values):

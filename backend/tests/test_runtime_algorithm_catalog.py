@@ -13,6 +13,6 @@ def test_runtime_catalog_exposes_current_official_algorithms_without_definition_
     assert by_id["theta_beta"]["is_runnable"] is True
     assert by_id["rbp"]["is_runnable"] is True
     assert by_id["faa"]["is_runnable"] is True
-    assert by_id["brainbeat"]["is_runnable"] is False
-    assert by_id["brainbeat"]["availability"] == "shadow_validation"
+    assert by_id["brainbeat"]["is_runnable"] is True
+    assert by_id["brainbeat"]["availability"] == "available"
     assert all(item["availability"] == "available" for key, item in by_id.items() if key != "brainbeat")

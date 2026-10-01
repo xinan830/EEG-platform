@@ -1,1 +1,58 @@
-<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Iapf.IapfDetailView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:shared="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"><shared:AlgorithmMetricDetailView /></UserControl>
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Iapf.IapfDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Iapf">
+    <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="20,18">
+        <StackPanel>
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock Text="个体 Alpha 峰频率" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A" />
+                <TextBlock Grid.Column="1" Text="{Binding ChannelText, StringFormat=通道：{0}}"
+                           FontSize="12" Foreground="#475569" VerticalAlignment="Center" />
+            </Grid>
+
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="1.2*" /><ColumnDefinition Width="1*" /></Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="IAPF" Foreground="#64748B" FontSize="12" />
+                    <TextBlock Text="{Binding ValueText}" Foreground="#0F172A"
+                               FontSize="30" FontWeight="SemiBold" Margin="0,2,0,4" />
+                    <TextBlock Text="{Binding StatusText}" Foreground="#475569"
+                               FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+                <Grid Grid.Column="1">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <TextBlock Text="分析窗口" Foreground="#64748B" Margin="0,0,16,7" />
+                    <TextBlock Grid.Column="1" Text="{Binding WindowText}" Foreground="#0F172A" />
+                    <TextBlock Grid.Row="1" Text="选峰方式" Foreground="#64748B" Margin="0,0,16,7" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MethodText}" Foreground="#0F172A" />
+                    <TextBlock Grid.Row="2" Text="Alpha 残差峰值 / 重心" Foreground="#64748B" Margin="0,0,16,7" />
+                    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+                        <TextBlock Text="{Binding PeakText}" Foreground="#0F172A" />
+                        <TextBlock Text=" / " Foreground="#94A3B8" />
+                        <TextBlock Text="{Binding CogText}" Foreground="#0F172A" />
+                    </StackPanel>
+                    <TextBlock Grid.Row="3" Text="拟合 R²" Foreground="#64748B" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding FitText}" Foreground="#0F172A" />
+                </Grid>
+            </Grid>
+
+            <Grid Margin="0,20,0,0" Height="520" MinHeight="520">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsDynamicResult}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <local:IapfTrendChart Points="{Binding TrendPoints}"
+                                      StartSeconds="{Binding TimelineStartSeconds}"
+                                      EndSeconds="{Binding TimelineEndSeconds}" />
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

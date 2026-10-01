@@ -18,7 +18,6 @@ from app.scientific.contracts import (
 from app.scientific.primitives.spectral import band_power, estimate_spectrogram, estimate_welch_psd, preprocess_offline
 from app.algorithms.faa.official import compute_faa
 from app.algorithms.iapf.official import estimate_iapf
-from app.algorithms.rbp.official import RBP_BANDS
 from app.algorithms.theta_beta.official import metric_values
 from app.scientific.primitives.spectral import SpectralEstimate
 
@@ -183,7 +182,8 @@ def test_migrated_official_algorithms_match_frozen_synthetic_baseline():
     assert iapf.source == "peak"
     np.testing.assert_allclose(iapf.value, fixture["iapf"]["synthetic_peak_hz"], rtol=rules["default_rtol"], atol=rules["default_atol"])
 
-    powers = [float(band_power(frequencies, peak, low, high)) for _, low, high in RBP_BANDS]
+    historical_bands = (("delta", 1.0, 4.0), ("theta", 4.0, 8.0), ("alpha", 8.0, 13.0), ("beta", 13.0, 30.0))
+    powers = [float(band_power(frequencies, peak, low, high)) for _, low, high in historical_bands]
     rbp = np.asarray(powers) / sum(powers)
     np.testing.assert_allclose(rbp, fixture["rbp"]["relative_band_power"], rtol=rules["default_rtol"], atol=rules["default_atol"])
 

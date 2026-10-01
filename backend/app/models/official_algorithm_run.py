@@ -8,11 +8,12 @@ from app.models.analysis_config import AnalysisTimeRange
 
 
 class OfficialAlgorithmRunConfig(BaseModel):
-    algorithm_id: Literal["iapf", "theta_beta", "rbp", "faa", "peak_frequency", "band_ratio", "psd", "stft"]
+    algorithm_id: Literal["iapf", "theta_beta", "rbp", "faa", "brainbeat", "peak_frequency", "band_ratio", "psd", "stft"]
     scientific_version: str | None = Field(default=None, min_length=1, max_length=160)
     time: AnalysisTimeRange
     channel: str | None = Field(default=None, min_length=1, max_length=160)
     f4_channel: str | None = Field(default=None, min_length=1, max_length=160)
+    secondary_channel: str | None = Field(default=None, min_length=1, max_length=160)
     mode: Literal["static", "dynamic"] = "static"
     dynamic_window_s: float = Field(default=10, gt=0)
     refresh_step_s: float = Field(default=1, gt=0)
@@ -31,18 +32,23 @@ class OfficialAlgorithmRunConfig(BaseModel):
                 raise ValueError("FAA requires explicit F3 and F4 source channels")
             if self.channel.casefold() == self.f4_channel.casefold():
                 raise ValueError("FAA F3 and F4 source channels must be different")
+        elif self.algorithm_id == "brainbeat":
+            if not self.channel or not self.secondary_channel:
+                raise ValueError("Brainbeat requires explicit Fz and Pz source channels")
+            if self.channel.casefold() == self.secondary_channel.casefold():
+                raise ValueError("Brainbeat Fz and Pz source channels must be different")
         elif not self.channel:
             raise ValueError(f"{self.algorithm_id} requires an analysis channel")
-        if self.algorithm_id in {"peak_frequency", "psd", "stft"}:
+        if self.algorithm_id in {"peak_frequency", "psd", "stft", "faa"}:
             if self.low_hz is None or self.high_hz is None:
                 raise ValueError(f"{self.algorithm_id} requires low_hz and high_hz")
             if self.high_hz <= self.low_hz:
                 raise ValueError(f"{self.algorithm_id} frequency range must satisfy high_hz > low_hz")
-            if self.algorithm_id in {"psd", "stft"} and self.low_hz <= 0.0:
+            if self.algorithm_id in {"psd", "stft", "faa"} and self.low_hz <= 0.0:
                 raise ValueError(f"{self.algorithm_id} high-pass frequency must be greater than zero")
-        if self.algorithm_id in {"psd", "stft"} and self.notch_hz == 0:
+        if self.algorithm_id in {"psd", "stft", "faa"} and self.notch_hz == 0:
             self.notch_hz = None
-        if self.algorithm_id in {"psd", "stft"} and self.notch_hz is not None and self.notch_hz not in (50.0, 60.0):
+        if self.algorithm_id in {"psd", "stft", "faa"} and self.notch_hz is not None and self.notch_hz not in (50.0, 60.0):
             raise ValueError(f"{self.algorithm_id} notch_hz must be null, 50, or 60")
         if self.algorithm_id == "band_ratio":
             bands = (
@@ -69,9 +75,11 @@ class OfficialAlgorithmRunConfig(BaseModel):
         }
         if self.algorithm_id == "faa":
             config["f4_channel"] = str(self.f4_channel)
-        if self.algorithm_id in {"peak_frequency", "psd", "stft"}:
+        if self.algorithm_id == "brainbeat":
+            config["secondary_channel"] = str(self.secondary_channel)
+        if self.algorithm_id in {"peak_frequency", "psd", "stft", "faa"}:
             config.update({"low_hz": float(self.low_hz), "high_hz": float(self.high_hz)})
-        if self.algorithm_id in {"psd", "stft"}:
+        if self.algorithm_id in {"psd", "stft", "faa"}:
             config["notch_hz"] = None if self.notch_hz is None else float(self.notch_hz)
         if self.algorithm_id == "band_ratio":
             config.update({

@@ -132,7 +132,7 @@ def test_official_runs_do_not_reuse_results_from_the_pre_evidence_contract(tmp_p
     assert resolved["definition_sha256"] != sha256_json(legacy_definition)
 
 
-def test_catalog_marks_rbp_and_faa_runnable_but_keeps_brainbeat_shadow_only(tmp_path: Path):
+def test_catalog_marks_official_composite_algorithms_runnable(tmp_path: Path):
     service, _recording_id = _service(tmp_path)
     catalog = {item.algorithm_id: item for item in official_algorithm_catalog(service.definition_service)}
 
@@ -141,35 +141,69 @@ def test_catalog_marks_rbp_and_faa_runnable_but_keeps_brainbeat_shadow_only(tmp_
     assert catalog["theta_beta"].required_channel_roles == []
     assert catalog["rbp"].availability == "available" and catalog["rbp"].is_runnable is True
     assert catalog["faa"].availability == "available" and catalog["faa"].is_runnable is True
-    assert catalog["brainbeat"].availability == "shadow_validation" and catalog["brainbeat"].is_runnable is False
+    assert catalog["brainbeat"].availability == "available" and catalog["brainbeat"].is_runnable is True
     assert catalog["iapf"].definition_id
     assert catalog["iapf"].definition_version == "1.0.0"
     assert catalog["iapf"].output_schema["fields"][0]["unit"] == "Hz"
 
 
-def test_official_rbp_run_returns_all_four_backend_band_shares(tmp_path: Path):
-    service, recording_id = _service(tmp_path)
+def test_official_rbp_run_returns_all_five_backend_band_shares(tmp_path: Path):
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
     completed = service.create(_request(recording_id, "rbp"))
 
     metric = completed.result_summary["metric"]
     assert completed.status is RunStatus.COMPLETED
     assert metric["output"]["value"] is None
-    assert set(metric["band_values"]) == {"delta", "theta", "alpha", "beta"}
+    assert set(metric["band_values"]) == {"delta", "theta", "alpha", "beta", "gamma"}
     assert sum(metric["band_values"].values()) == pytest.approx(1.0)
     assert metric["chart"]["kind"] == "band_share"
+    assert completed.scientific_version == "official-rbp-v2"
+    assert completed.definition_version == "2.0.1"
+    assert completed.filters["bandpass_hz"] == [1.0, 50.0]
+    assert completed.filters["notch_hz"] == 50.0
 
 
-def test_official_dynamic_rbp_returns_four_band_shares_per_window(tmp_path: Path):
-    service, recording_id = _service(tmp_path)
+def test_official_dynamic_rbp_returns_five_band_shares_per_window(tmp_path: Path):
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
     completed = service.create(_request(recording_id, "rbp", dynamic=True))
 
     assert completed.status is RunStatus.COMPLETED
     series = completed.result_summary["metric"]["series"]
     assert len(series) == 27
-    assert set(series[0]["band_values"]) == {"delta", "theta", "alpha", "beta"}
+    assert set(series[0]["band_values"]) == {"delta", "theta", "alpha", "beta", "gamma"}
     assert sum(series[6]["band_values"].values()) == pytest.approx(1.0)
     assert series[0]["analysis_state"] == "Partial"
     assert series[6]["analysis_state"] == "Complete"
+
+
+def test_official_rbp_rejects_nyquist_at_50_hz(tmp_path: Path):
+    service, recording_id = _service(tmp_path, sfreq_hz=100.0)
+    run = service.create(_request(recording_id, "rbp"))
+    assert run.status is RunStatus.FAILED
+    assert run.error is not None
+    assert run.error.code == "ANALYSIS_INPUT_INVALID"
+    assert "100 Hz" in run.error.message
+
+
+def test_official_rbp_matches_psd_five_band_shares_with_identical_preprocessing(tmp_path: Path):
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
+    rbp = service.create(_request(recording_id, "rbp"))
+    psd_request = _request(recording_id, "psd")
+    psd_request.config.update({"low_hz": 1.0, "high_hz": 50.0, "notch_hz": 50.0})
+    psd = service.create(psd_request)
+
+    assert rbp.status is psd.status is RunStatus.COMPLETED
+    artifact = service.list_artifacts(psd.run_id)[0]
+    psd_shares = service.artifacts.read_npz(artifact)["band_share"]
+    actual = rbp.result_summary["metric"]["band_values"]
+    np.testing.assert_allclose(
+        [actual[band] for band in ("delta", "theta", "alpha", "beta", "gamma")],
+        psd_shares, rtol=1e-10, atol=1e-12,
+    )
+    evidence = rbp.result_summary["metric"]["spectral_evidence"]
+    assert evidence["filter_contract"]["bandpass_hz"] == [1.0, 50.0]
+    assert evidence["filter_contract"]["notch_hz"] == 50.0
+    assert evidence["rbp_denominator_uv2"] == pytest.approx(sum(evidence["band_power"].values()))
 
 
 def test_official_psd_run_returns_structured_frequency_artifact(tmp_path: Path):
@@ -331,7 +365,11 @@ def test_official_dynamic_faa_keeps_paired_quality_per_window(tmp_path: Path):
     assert series[0]["channel"] == "F3/F4"
     assert series[0]["value"] == pytest.approx(np.log(4.0), abs=0.15)
     assert series[0]["official"]["faa_evidence"]["channels"] == ["F3", "F4"]
-    assert completed.filters == {"operation": "per_epoch_mean_removal", "software_bandpass": "not_applied"}
+    assert completed.filters == {
+        "operation": "continuous_preprocess_then_per_epoch_mean_removal",
+        "software_bandpass": [1.0, 30.0],
+        "notch_hz": None,
+    }
     assert completed.window["method"] == "paired_epoch_rfft_density"
 
 

@@ -3,12 +3,27 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 using BrainPlatform.Desktop.Modules.Projects.ViewModels;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 
 public sealed partial class AlgorithmListViewModel : ObservableObject
 {
+    private static readonly IReadOnlyDictionary<string, int> OfficialDisplayOrder =
+        new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["psd"] = 0,
+            ["stft"] = 1,
+            ["rbp"] = 2,
+            ["faa"] = 3,
+            ["iapf"] = 4,
+            ["peak_frequency"] = 5,
+            ["band_ratio"] = 6,
+            ["theta_beta"] = 7,
+            ["brainbeat"] = 8,
+        };
+
     private readonly IAlgorithmClient client;
     private readonly AlgorithmRunCoordinator runCoordinator;
     private readonly OperationNotificationCenter notifications;
@@ -79,7 +94,33 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             try { await RunAsync(); }
             catch (Exception exception) { ReportRunError(exception); }
         };
+        psdPreview.PropertyChanged += (_, args) => RelayPreviewPropertyChanged(args.PropertyName, "Psd");
+        stftPreview.PropertyChanged += (_, args) => RelayPreviewPropertyChanged(args.PropertyName, "Stft");
         Projects = projects;
+    }
+
+    private void RelayPreviewPropertyChanged(string? propertyName, string kind)
+    {
+        if (kind == "Psd")
+        {
+            RaisePropertyChanged(nameof(PsdFrequencyUnit));
+            RaisePropertyChanged(nameof(PsdValueUnit));
+            RaisePropertyChanged(nameof(HasPsdPreview));
+            RaisePropertyChanged(nameof(PsdFrequencyRangeText));
+            RaisePropertyChanged(nameof(PsdValueRangeText));
+            RaisePropertyChanged(nameof(PsdStructuredPreview));
+            RaisePropertyChanged(nameof(PsdPreviewPoints));
+            RaisePropertyChanged(nameof(PsdBandSharePoints));
+            RaisePropertyChanged(nameof(PsdQualityText));
+            RaisePropertyChanged(nameof(PsdWindowStateText));
+        }
+        else
+        {
+            RaisePropertyChanged(nameof(StftResult));
+            RaisePropertyChanged(nameof(StftStructuredPreview));
+            RaisePropertyChanged(nameof(HasStftPreview));
+            RaisePropertyChanged(nameof(StftAxisText));
+        }
     }
 
     public ObservableCollection<AlgorithmCatalogItem> Items { get; } = [];
@@ -138,7 +179,15 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             ScheduleAutomaticRun();
         }
     }
-    public string SelectedF4Channel { get => selectedF4Channel; set => SetProperty(ref selectedF4Channel, value); }
+    public string SelectedF4Channel
+    {
+        get => selectedF4Channel;
+        set
+        {
+            if (!SetProperty(ref selectedF4Channel, value)) return;
+            ScheduleAutomaticRun();
+        }
+    }
     public string StartSecondsText
     {
         get => startSecondsText;
@@ -169,6 +218,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             SelectedAnalysisMode = "静态";
             SelectedDynamicWindowSeconds = value?.DynamicPolicy.DefaultWindowSeconds ?? 5.0;
             DynamicStepText = value?.DynamicPolicy.RefreshStepSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) ?? "1";
+            ApplyAlgorithmChannelDefaults();
             RaisePropertyChanged(nameof(IsPsdSelected));
             RaisePropertyChanged(nameof(IsStftSelected));
             RaisePropertyChanged(nameof(IsRbpSelected));
@@ -177,9 +227,12 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             RaisePropertyChanged(nameof(IsFaaSelected));
             RaisePropertyChanged(nameof(IsIapfSelected));
             RaisePropertyChanged(nameof(IsThetaBetaSelected));
+            RaisePropertyChanged(nameof(IsBrainbeatSelected));
             RaisePropertyChanged(nameof(ChannelLabel));
             RaisePropertyChanged(nameof(IsDynamicModeAvailable));
             RaisePropertyChanged(nameof(DynamicWindowOptions));
+            ApplyAlgorithmChannelDefaults();
+            ApplyAlgorithmParameterDefaults();
             ScheduleAutomaticRun();
         }
     }
@@ -191,15 +244,16 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     public bool IsFaaSelected => SelectedAlgorithm?.Id == "faa";
     public bool IsIapfSelected => SelectedAlgorithm?.Id == "iapf";
     public bool IsThetaBetaSelected => SelectedAlgorithm?.Id == "theta_beta";
-    public string ChannelLabel => IsFaaSelected ? "FAA F3 通道" : IsStftSelected ? "STFT 通道" : IsRbpSelected ? "RBP 通道" : IsPeakFrequencySelected ? "峰频率通道" : IsBandRatioSelected ? "频段比通道" : IsIapfSelected ? "IAPF 通道" : IsThetaBetaSelected ? "Theta/Beta 通道" : "PSD 通道";
+    public bool IsBrainbeatSelected => SelectedAlgorithm?.Id == "brainbeat";
+    public string ChannelLabel => IsFaaSelected ? "FAA F3 通道" : IsBrainbeatSelected ? "Brainbeat Fz 通道" : IsStftSelected ? "STFT 通道" : IsRbpSelected ? "RBP 通道" : IsPeakFrequencySelected ? "峰频率通道" : IsBandRatioSelected ? "频段比通道" : IsIapfSelected ? "IAPF 通道" : IsThetaBetaSelected ? "Theta/Beta 通道" : "PSD 通道";
     public string LowFrequencyText { get => lowFrequencyText; set { if (!SetProperty(ref lowFrequencyText, value)) return; if (!applyingBandPreset) SelectedPeakBandPreset = "自定义"; ScheduleAutomaticRun(); } }
     public string HighFrequencyText { get => highFrequencyText; set { if (!SetProperty(ref highFrequencyText, value)) return; if (!applyingBandPreset) SelectedPeakBandPreset = "自定义"; ScheduleAutomaticRun(); } }
     public string SelectedNotchFrequency { get => selectedNotchFrequency; set { if (SetProperty(ref selectedNotchFrequency, value)) ScheduleAutomaticRun(); } }
     public IReadOnlyList<string> NotchFrequencyOptions { get; } = ["关闭", "50 Hz", "60 Hz"];
-    public string NumeratorLowFrequencyText { get => numeratorLowFrequencyText; set { if (SetProperty(ref numeratorLowFrequencyText, value) && !applyingBandPreset) SelectedRatioPreset = "自定义"; } }
-    public string NumeratorHighFrequencyText { get => numeratorHighFrequencyText; set { if (SetProperty(ref numeratorHighFrequencyText, value) && !applyingBandPreset) SelectedRatioPreset = "自定义"; } }
-    public string DenominatorLowFrequencyText { get => denominatorLowFrequencyText; set { if (SetProperty(ref denominatorLowFrequencyText, value) && !applyingBandPreset) SelectedRatioPreset = "自定义"; } }
-    public string DenominatorHighFrequencyText { get => denominatorHighFrequencyText; set { if (SetProperty(ref denominatorHighFrequencyText, value) && !applyingBandPreset) SelectedRatioPreset = "自定义"; } }
+    public string NumeratorLowFrequencyText { get => numeratorLowFrequencyText; set { if (SetProperty(ref numeratorLowFrequencyText, value)) { if (!applyingBandPreset) SelectedRatioPreset = "自定义"; ScheduleAutomaticRun(); } } }
+    public string NumeratorHighFrequencyText { get => numeratorHighFrequencyText; set { if (SetProperty(ref numeratorHighFrequencyText, value)) { if (!applyingBandPreset) SelectedRatioPreset = "自定义"; ScheduleAutomaticRun(); } } }
+    public string DenominatorLowFrequencyText { get => denominatorLowFrequencyText; set { if (SetProperty(ref denominatorLowFrequencyText, value)) { if (!applyingBandPreset) SelectedRatioPreset = "自定义"; ScheduleAutomaticRun(); } } }
+    public string DenominatorHighFrequencyText { get => denominatorHighFrequencyText; set { if (SetProperty(ref denominatorHighFrequencyText, value)) { if (!applyingBandPreset) SelectedRatioPreset = "自定义"; ScheduleAutomaticRun(); } } }
     public string SelectedPeakBandPreset
     {
         get => selectedPeakBandPreset;
@@ -257,7 +311,6 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             if (!SetProperty(ref selectedAnalysisMode, value)) return;
             ClearPreviews();
             RaisePropertyChanged(nameof(IsDynamicMode));
-            RaisePropertyChanged(nameof(RbpCardTitle));
             ScheduleAutomaticRun();
         }
     }
@@ -270,7 +323,6 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         ? "尚未生成动态窗口结果"
         : IsDynamicPreviewPlaying ? "时间同步预览进行中" : DynamicPreviewCursorSeconds >= DynamicWindowRows.Max(row => row.EndSeconds) ? "时间同步预览已结束" : "时间同步预览已暂停";
     public ObservableCollection<DynamicWindowRow> DynamicPreviewRows { get; } = [];
-    public string RbpCardTitle => IsDynamicMode ? "相对频段功率（最近有效窗口）" : "相对频段功率";
     public bool IsDynamicModeAvailable => SelectedAlgorithm?.Modes.Contains("dynamic") == true;
     public IReadOnlyList<double> DynamicWindowOptions => SelectedAlgorithm?.DynamicPolicy.WindowOptionsSeconds ?? [];
     public double SelectedDynamicWindowSeconds
@@ -348,7 +400,12 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         IsLoadFailed = false;
         try
         {
-            var items = await client.ListAlgorithmsAsync(CancellationToken.None);
+            var items = (await client.ListAlgorithmsAsync(CancellationToken.None))
+                .OrderBy(item => IsOfficial(item) ? 0 : 1)
+                .ThenBy(item => OfficialDisplayOrder.TryGetValue(item.Id, out var rank) ? rank : int.MaxValue)
+                .ThenBy(item => item.DisplayNameZh, StringComparer.CurrentCulture)
+                .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             // Synchronize in place. Clearing the collection causes WPF to emit a
             // transient SelectedItem=null and rebuild the whole ListView. That
             // is visible as a selection flash when refresh overlaps a click.
@@ -362,7 +419,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
                     Items.RemoveAt(index);
             }
 
-            for (var index = 0; index < items.Count; index++)
+            for (var index = 0; index < items.Length; index++)
             {
                 var incoming = items[index];
                 var existingIndex = -1;
@@ -429,6 +486,9 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             SelectedAlgorithm = null;
         RaisePropertyChanged(nameof(VisibleItems));
     }
+
+    private static bool IsOfficial(AlgorithmCatalogItem item) =>
+        string.Equals(item.Source, "official", StringComparison.OrdinalIgnoreCase);
 
     private void ReportCatalogError(Exception exception)
     {
@@ -503,8 +563,56 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         RaisePropertyChanged(nameof(HasRegisteredChannels));
         SelectedChannel = RegisteredChannels[0];
         SelectedF4Channel = RegisteredChannels.Count > 1 ? RegisteredChannels[1] : string.Empty;
+        ApplyAlgorithmChannelDefaults();
         EndSecondsText = RegisteredRecording.DurationSeconds.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
         StatusText = $"已注册记录：{RegisteredRecording.OriginalName}，{RegisteredRecording.DurationSeconds.Value:0.###} 秒。请选择分析通道和范围。";
+    }
+
+    private void ApplyAlgorithmChannelDefaults()
+    {
+        if (RegisteredChannels.Count == 0)
+            return;
+
+        if (IsFaaSelected)
+        {
+            var f3 = RegisteredChannels.FirstOrDefault(channel => string.Equals(channel, "F3", StringComparison.OrdinalIgnoreCase));
+            var f4 = RegisteredChannels.FirstOrDefault(channel => string.Equals(channel, "F4", StringComparison.OrdinalIgnoreCase));
+            if (f3 is not null)
+                SelectedChannel = f3;
+            if (f4 is not null)
+                SelectedF4Channel = f4;
+        }
+
+        // Brainbeat has a fixed scientific montage: use the recording's exact
+        // Fz/Pz labels when present, while retaining manual fallback for older
+        // recordings that do not expose both channels.
+        if (IsBrainbeatSelected)
+        {
+            var fz = RegisteredChannels.FirstOrDefault(channel => string.Equals(channel, "Fz", StringComparison.OrdinalIgnoreCase));
+            var pz = RegisteredChannels.FirstOrDefault(channel => string.Equals(channel, "Pz", StringComparison.OrdinalIgnoreCase));
+            if (fz is not null)
+                SelectedChannel = fz;
+            if (pz is not null)
+                SelectedF4Channel = pz;
+        }
+    }
+
+    private void ApplyAlgorithmParameterDefaults()
+    {
+        if (!IsPeakFrequencySelected)
+            return;
+
+        // Individual alpha peak frequency is an alpha-band search by default.
+        // The values remain editable through the dedicated peak-frequency card.
+        applyingBandPreset = true;
+        try
+        {
+            SelectedPeakBandPreset = "Alpha（8–13 Hz）";
+        }
+        finally
+        {
+            applyingBandPreset = false;
+        }
     }
 
     private async Task RunAsync()
@@ -516,6 +624,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         {
             throw new InvalidOperationException("当前算法不可运行，或未声明可用的分析模式。");
         }
+        var resultHandler = AlgorithmRunResultHandlerRegistry.For(algorithm.Id);
         var dynamic = IsDynamicMode;
         if (dynamic && !IsDynamicModeAvailable)
             throw new InvalidOperationException("当前算法未声明动态分析模式。");
@@ -525,24 +634,13 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         }
         if (string.IsNullOrWhiteSpace(SelectedChannel) || !RegisteredChannels.Contains(SelectedChannel))
             throw new InvalidOperationException("请选择注册记录返回的有效分析通道。");
-        if (algorithm.Id == "faa" &&
-            (string.IsNullOrWhiteSpace(SelectedF4Channel) || !RegisteredChannels.Contains(SelectedF4Channel)))
-            throw new InvalidOperationException("请选择注册记录返回的有效 FAA F4 来源通道。");
-        if (algorithm.Id == "faa" && string.Equals(SelectedChannel, SelectedF4Channel, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("FAA 的 F3 与 F4 来源通道必须不同。");
         var durationSeconds = RegisteredRecording.DurationSeconds ?? throw new InvalidOperationException("注册记录没有可用的时长。");
         var requestedRange = AlgorithmRunConfiguration.ParseStaticRangeOrThrow(StartSecondsText, EndSecondsText, durationSeconds);
-        if (algorithm.Id == "stft" && requestedRange.EndSeconds - requestedRange.StartSeconds < 4.0)
-            throw new InvalidOperationException("STFT 分析区间至少需要 4 秒。");
-        var frequencyBand = algorithm.Id is "peak_frequency" or "psd" or "stft"
-            ? AlgorithmRunConfiguration.ParseFrequencyBandOrThrow(LowFrequencyText, HighFrequencyText, RegisteredRecording.SamplingRateHz)
-            : null;
-        var ratioBands = algorithm.Id == "band_ratio"
-            ? AlgorithmRunConfiguration.ParseBandRatioBandsOrThrow(
-                NumeratorLowFrequencyText, NumeratorHighFrequencyText,
-                DenominatorLowFrequencyText, DenominatorHighFrequencyText,
-                RegisteredRecording.SamplingRateHz)
-             : null;
+        var runInputs = new AlgorithmRunInputs(requestedRange, SelectedChannel, SelectedF4Channel,
+            RegisteredChannels, RegisteredRecording.SamplingRateHz, LowFrequencyText, HighFrequencyText,
+            NumeratorLowFrequencyText, NumeratorHighFrequencyText, DenominatorLowFrequencyText,
+            DenominatorHighFrequencyText, SelectedNotchFrequency);
+        var runParameters = resultHandler.ParseParameters(runInputs);
         var stepSeconds = dynamic ? AlgorithmRunConfiguration.ParsePositiveSecondsOrThrow(DynamicStepText, "刷新步长") : 0;
         if (dynamic && SelectedDynamicWindowSeconds < algorithm.DynamicPolicy.MinimumWindowSeconds)
             throw new InvalidOperationException($"动态窗口不能小于 {algorithm.DynamicPolicy.MinimumWindowSeconds:0.###} 秒。");
@@ -550,12 +648,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             ? DynamicPreviewCursorSeconds
             : (double?)null;
         ClearPreviews();
-        var start = requestedRange.StartSeconds;
-        var end = requestedRange.EndSeconds;
-        var notchHz = algorithm.Id is "psd" or "stft" && SelectedNotchFrequency != "关闭"
-            ? (SelectedNotchFrequency.StartsWith("60", StringComparison.Ordinal) ? 60.0 : 50.0)
-            : (double?)0.0;
-        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, SelectedChannel, requestedRange, dynamic ? "dynamic" : "static", frequencyBand, ratioBands, algorithm.Id == "faa" ? SelectedF4Channel : null, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null, notchHz);
+        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, SelectedChannel, requestedRange, dynamic ? "dynamic" : "static", runParameters.FrequencyBand, runParameters.RatioBands, runParameters.F4Channel, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0);
         var request = new AnalysisRunRequest(RegisteredRecording.Id, "official_algorithm", config);
         var run = await runCoordinator.CreateRunAndWaitAsync(
             request,
@@ -574,45 +667,9 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             ResultSummaryText = AlgorithmResultFormatter.BuildResultSummary(run);
             ProvenanceText = AlgorithmResultFormatter.BuildProvenance(run);
             DynamicSeriesText = dynamic ? AlgorithmResultFormatter.BuildDynamicSeriesSummary(run) : "暂无动态结果。";
-            if (dynamic && algorithm.Id is not "psd" and not "stft")
+            if (dynamic && resultHandler.UsesDynamicScalarSeries)
                 SetDynamicSeries(run);
-            if (algorithm.Id == "rbp" && !dynamic)
-            {
-                UpdateRbpValues(run);
-                StructuredPreviewText = "RBP 为四频段标量结果，数值由后端直接返回，未在客户端重算。";
-            }
-            else if (algorithm.Id == "rbp" && dynamic)
-            {
-                SetDynamicSeries(run);
-                UpdateDynamicRbpValues(run);
-                StructuredPreviewText = "动态 RBP 每个窗口返回 Delta、Theta、Alpha、Beta 相对功率，数值由后端直接返回，未在客户端重算。";
-            }
-            else if (algorithm.Id == "peak_frequency")
-            {
-                StructuredPreviewText = "频段峰频率为后端标量结果，数值由后端直接返回，未在客户端重算。";
-            }
-            else if (algorithm.Id == "band_ratio")
-            {
-                StructuredPreviewText = "频段功率比为后端标量结果，数值由后端直接返回，未在客户端重算。";
-            }
-            else if (algorithm.Id == "faa")
-            {
-                StructuredPreviewText = "额叶 Alpha 不对称性为后端标量结果，数值由后端直接返回，未在客户端重算。";
-            }
-            else if (algorithm.Id == "iapf")
-            {
-                StructuredPreviewText = "个体 Alpha 峰频率为后端标量结果，数值由后端直接返回，未在客户端重算。";
-            }
-            else if (algorithm.Id == "theta_beta")
-            {
-                StructuredPreviewText = "Theta/Beta 比值为后端标量结果，数值由后端直接返回，未在客户端重算。";
-            }
-            else
-            {
-                await LoadStructuredPreviewAsync(run.RunId, algorithm.Id, dynamic);
-                if (dynamic && preservedDynamicCursorSeconds is double cursorSeconds)
-                    SeekDynamicPreviewSeconds(cursorSeconds);
-            }
+            await resultHandler.ApplyAsync(this, run, dynamic, preservedDynamicCursorSeconds);
         }
         else if (run.Error is not null)
         {
@@ -628,6 +685,9 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             StructuredPreviewText = "结果未完成，无法加载结构化预览。";
         }
     }
+
+    internal void SetStructuredPreviewTextForModule(string text) => StructuredPreviewText = text;
+    internal void SeekDynamicPreviewSecondsForModule(double seconds) => SeekDynamicPreviewSeconds(seconds);
 
     public sealed record FrequencyBandPreset(string Name, double? LowHz, double? HighHz);
     public sealed record BandRatioPreset(string Name, double? NumeratorLowHz, double? NumeratorHighHz, double? DenominatorLowHz, double? DenominatorHighHz);

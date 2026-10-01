@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from app.algorithms.faa.official import compute_faa
+from app.algorithms.rbp.official import five_band_shares
 from app.algorithms.iapf.official import estimate_iapf
 from app.algorithms.theta_beta.official import metric_values
 from app.scientific.primitives.spectral import SpectralEstimate
@@ -22,6 +23,24 @@ def _reference_band_power(frequencies: np.ndarray, values: np.ndarray, low: floa
     interpolated = np.vstack([np.interp(axis, frequencies, row) for row in rows])
     result = np.trapezoid(interpolated, axis, axis=-1)
     return result.reshape(np.asarray(values).shape[:-1]) if np.asarray(values).ndim > 1 else result
+
+
+def test_current_rbp_five_bands_match_independent_constant_density_reference():
+    frequencies = np.arange(1.0, 50.25, 0.25)
+    spectrum = SpectralEstimate(frequencies, np.full((1, len(frequencies)), 2e-12), 1.0, 4, 4, None)
+    powers, shares = five_band_shares(spectrum)
+    widths = {"delta": 3.0, "theta": 4.0, "alpha": 5.0, "beta": 17.0, "gamma": 20.0}
+    for name, width in widths.items():
+        np.testing.assert_allclose(powers[name], 2.0 * width, rtol=1e-12)
+        np.testing.assert_allclose(shares[name], width / 49.0, rtol=1e-12)
+    np.testing.assert_allclose(sum(shares.values()), 1.0, rtol=1e-12)
+
+
+def test_current_rbp_rejects_missing_gamma_frequency_coverage():
+    frequencies = np.arange(1.0, 30.25, 0.25)
+    spectrum = SpectralEstimate(frequencies, np.full((1, len(frequencies)), 1e-12), 1.0, 4, 4, None)
+    with np.testing.assert_raises_regex(ValueError, "1–50 Hz"):
+        five_band_shares(spectrum)
 
 
 def _reference_iapf(frequencies: np.ndarray, psd: np.ndarray) -> float:

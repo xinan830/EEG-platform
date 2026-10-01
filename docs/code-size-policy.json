@@ -103,6 +103,12 @@
       "max_lines": 450,
       "reason": "Run 配置、注册/轮询协调、结果格式化，以及 PSD/STFT/动态预览状态已分别归入专责文件；主 ViewModel 只协调页面输入与业务流程。",
       "follow_up": "继续保持 Run 配置、执行协调、结果格式化和预览状态分离；新增算法前补充对应行为测试。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Catalog/AlgorithmListViewModel.cs": {
+      "decision": "split",
+      "max_lines": 660,
+      "reason": "算法专属参数检查、完成结果分发和标量窗口解析已移入算法目录的运行适配器；主类保留目录选择、自动执行、共享请求协调与状态通知，继续按职责拆分。",
+      "follow_up": "继续抽离自动执行协调；PSD/STFT 预览状态与公共参数面板的算法接入仍需独立评估。运行适配器登记见 refactor-wpf-algorithm-run-adapters。"
     }
   }
 }

@@ -3,12 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <UserControl.Style>
         <Style TargetType="UserControl">
-            <Setter Property="Visibility" Value="Collapsed" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsAvailable}" Value="True">
-                    <Setter Property="Visibility" Value="Visible" />
-                </DataTrigger>
-            </Style.Triggers>
+            <!-- The quality card is part of the common detail contract and must
+                 remain visible before and after a run; its ViewModel supplies
+                 the appropriate "not run" state. -->
+            <Setter Property="Visibility" Value="Visible" />
         </Style>
     </UserControl.Style>
 

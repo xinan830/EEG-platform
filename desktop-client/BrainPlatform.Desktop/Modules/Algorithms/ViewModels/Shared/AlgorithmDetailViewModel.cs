@@ -3,6 +3,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 public sealed class AlgorithmDetailViewModel : ObservableObject
 {
     private AlgorithmCatalogItem? algorithm;
+    private object? currentModule;
 
     internal AlgorithmDetailViewModel(AlgorithmListViewModel catalog)
     {
@@ -12,14 +13,15 @@ public sealed class AlgorithmDetailViewModel : ObservableObject
         Context = new AnalysisContextViewModel(Catalog);
         Psd = new PsdDetailViewModel(Catalog);
         Stft = new StftDetailViewModel(Catalog);
-        Quality = new QualityStatusViewModel(Psd, Stft);
         Rbp = new RbpDetailViewModel(Catalog);
         Faa = new FaaDetailViewModel(Catalog);
         Iapf = new IapfDetailViewModel(Catalog);
         PeakFrequency = new PeakFrequencyDetailViewModel(Catalog);
-        BandRatio = new BandRatioDetailViewModel(Catalog);
         ThetaBeta = new ThetaBetaDetailViewModel(Catalog);
         Brainbeat = new BrainbeatDetailViewModel(Catalog);
+        Quality = new QualityStatusViewModel(Catalog, [Psd, Stft, Rbp, Iapf, PeakFrequency, BandRatio, Faa, ThetaBeta, Brainbeat]);
+        BandRatio = new BandRatioDetailViewModel(Catalog);
+        currentModule = Scalar;
     }
 
     public AlgorithmListViewModel Catalog { get; }
@@ -34,6 +36,13 @@ public sealed class AlgorithmDetailViewModel : ObservableObject
     public BandRatioDetailViewModel BandRatio { get; }
     public ThetaBetaDetailViewModel ThetaBeta { get; }
     public BrainbeatDetailViewModel Brainbeat { get; }
+    public object? CurrentModule
+    {
+        get => currentModule;
+        private set => SetProperty(ref currentModule, value);
+    }
+
+    private object Scalar => Brainbeat;
 
     public AlgorithmCatalogItem? Algorithm
     {
@@ -56,6 +65,19 @@ public sealed class AlgorithmDetailViewModel : ObservableObject
             RaisePropertyChanged(nameof(IsBandRatio));
             RaisePropertyChanged(nameof(IsThetaBeta));
             RaisePropertyChanged(nameof(IsBrainbeat));
+            CurrentModule = DetailKind switch
+            {
+                AlgorithmDetailKind.FrequencySpectrum => Psd,
+                AlgorithmDetailKind.TimeFrequency => Stft,
+                AlgorithmDetailKind.RelativeBandPower => Rbp,
+                AlgorithmDetailKind.Faa => Faa,
+                AlgorithmDetailKind.Iapf => Iapf,
+                AlgorithmDetailKind.PeakFrequency => PeakFrequency,
+                AlgorithmDetailKind.BandRatio => BandRatio,
+                AlgorithmDetailKind.ThetaBeta => ThetaBeta,
+                AlgorithmDetailKind.Brainbeat => Brainbeat,
+                _ => Brainbeat,
+            };
         }
     }
 

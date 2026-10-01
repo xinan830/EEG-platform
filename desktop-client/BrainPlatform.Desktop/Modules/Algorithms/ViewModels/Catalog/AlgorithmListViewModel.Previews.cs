@@ -2,40 +2,31 @@ using System.Collections.ObjectModel;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 
 public sealed partial class AlgorithmListViewModel
 {
-    private string psdFrequencyUnit = "Hz";
-    private string psdValueUnit = "";
-    private bool hasPsdPreview;
-    private string psdFrequencyRangeText = "";
-    private string psdValueRangeText = "";
-    private StructuredPreviewResponse? psdStructuredPreview;
-    private string rbpDeltaText = "不可用";
-    private string rbpThetaText = "不可用";
-    private string rbpAlphaText = "不可用";
-    private string rbpBetaText = "不可用";
-    private JsonElement[] dynamicPsdFrequencies = [];
-    private JsonElement[] dynamicPsdRows = [];
-    private bool dynamicPsdIsVoltsSquaredPerHz;
+    private readonly PsdPreviewState psdPreview = new();
 
     public sealed record PsdPreviewPoint(double Frequency, double Value);
     public sealed record PsdBandSharePoint(string Name, string Range, double Share, string ShareText, string Color, bool IsAvailable = true);
 
-    public ObservableCollection<PsdPreviewPoint?> PsdPreviewPoints { get; } = [];
-    public ObservableCollection<PsdBandSharePoint> PsdBandSharePoints { get; } = [];
+    internal PsdPreviewState PsdPreviewState => psdPreview;
+    public ObservableCollection<PsdPreviewPoint?> PsdPreviewPoints => psdPreview.Points;
+    public ObservableCollection<PsdBandSharePoint> PsdBandSharePoints => psdPreview.BandShares;
     public ObservableCollection<DynamicSeriesPoint> DynamicSeriesPoints { get; } = [];
     public ObservableCollection<DynamicWindowRow> DynamicWindowRows { get; } = [];
     public bool HasDynamicSeries => DynamicSeriesPoints.Count > 0;
     public bool HasDynamicWindows => DynamicWindowRows.Count > 0;
-    public string PsdFrequencyUnit { get => psdFrequencyUnit; private set => SetProperty(ref psdFrequencyUnit, value); }
-    public string PsdValueUnit { get => psdValueUnit; private set => SetProperty(ref psdValueUnit, value); }
-    public bool HasPsdPreview { get => hasPsdPreview; private set => SetProperty(ref hasPsdPreview, value); }
-    public string PsdFrequencyRangeText { get => psdFrequencyRangeText; private set => SetProperty(ref psdFrequencyRangeText, value); }
-    public string PsdValueRangeText { get => psdValueRangeText; private set => SetProperty(ref psdValueRangeText, value); }
-    public StructuredPreviewResponse? PsdStructuredPreview { get => psdStructuredPreview; private set => SetProperty(ref psdStructuredPreview, value); }
+    public string PsdFrequencyUnit { get => psdPreview.FrequencyUnit; private set => psdPreview.FrequencyUnit = value; }
+    public string PsdValueUnit { get => psdPreview.ValueUnit; private set => psdPreview.ValueUnit = value; }
+    public bool HasPsdPreview { get => psdPreview.HasPreview; private set => psdPreview.HasPreview = value; }
+    public string PsdFrequencyRangeText { get => psdPreview.FrequencyRangeText; private set => psdPreview.FrequencyRangeText = value; }
+    public string PsdValueRangeText { get => psdPreview.ValueRangeText; private set => psdPreview.ValueRangeText = value; }
+    public StructuredPreviewResponse? PsdStructuredPreview { get => psdPreview.StructuredPreview; private set => psdPreview.StructuredPreview = value; }
     public string PsdQualityText => PsdStructuredPreview?.Quality is { } quality
         ? AlgorithmResultFormatter.FormatQualityForDisplay(quality)
         : LastRun?.Error is { } error
@@ -44,10 +35,6 @@ public sealed partial class AlgorithmListViewModel
     public string PsdWindowStateText => PsdStructuredPreview is null || PsdStructuredPreview.WindowStateCounts.Count == 0
         ? "暂无窗口状态"
         : string.Join("、", PsdStructuredPreview.WindowStateCounts.Select(item => $"{AlgorithmResultFormatter.FormatWindowStateForDisplay(item.Key)}：{item.Value}"));
-    public string RbpDeltaText { get => rbpDeltaText; private set => SetProperty(ref rbpDeltaText, value); }
-    public string RbpThetaText { get => rbpThetaText; private set => SetProperty(ref rbpThetaText, value); }
-    public string RbpAlphaText { get => rbpAlphaText; private set => SetProperty(ref rbpAlphaText, value); }
-    public string RbpBetaText { get => rbpBetaText; private set => SetProperty(ref rbpBetaText, value); }
     public double DynamicTimeProgressPercent
     {
         get => DynamicPreviewDurationSeconds <= 0
@@ -109,7 +96,7 @@ public sealed partial class AlgorithmListViewModel
                             || string.Equals(item.row.State, "Complete", StringComparison.OrdinalIgnoreCase))
                         .Select(item => item.index)
                         .FirstOrDefault(-1);
-                    if (firstCompleteIndex >= 0 && firstCompleteIndex < dynamicPsdRows.Length)
+                    if (firstCompleteIndex >= 0 && firstCompleteIndex < psdPreview.DynamicRows.Length)
                         BuildDynamicPsdPreview(firstCompleteIndex);
                     else
                         ClearPsdPreview();
@@ -142,8 +129,8 @@ public sealed partial class AlgorithmListViewModel
         StopDynamicPreviewTimer();
         DynamicPreviewCursorSeconds = 0;
         DynamicPreviewRows.Clear();
-        dynamicPsdFrequencies = [];
-        dynamicPsdRows = [];
+        psdPreview.DynamicFrequencies = [];
+        psdPreview.DynamicRows = [];
         RaiseDynamicPreviewProperties();
         // A preview belongs to the exact algorithm/mode/configuration that
         // produced its Run. Do not leave a previous dynamic Run visible after
@@ -158,7 +145,6 @@ public sealed partial class AlgorithmListViewModel
         DynamicWindowRows.Clear();
         RaisePropertyChanged(nameof(HasDynamicSeries));
         RaisePropertyChanged(nameof(HasDynamicWindows));
-        RbpDeltaText = RbpThetaText = RbpAlphaText = RbpBetaText = "不可用";
         RaisePropertyChanged(nameof(PsdQualityText));
         RaisePropertyChanged(nameof(PsdWindowStateText));
     }
@@ -204,13 +190,13 @@ public sealed partial class AlgorithmListViewModel
 
     private void SetDynamicPsdMatrix(StructuredPreviewResponse preview)
     {
-        dynamicPsdFrequencies = preview.Axes.TryGetValue("frequency_hz", out var frequencies) && frequencies.ValueKind == JsonValueKind.Array
+        psdPreview.DynamicFrequencies = preview.Axes.TryGetValue("frequency_hz", out var frequencies) && frequencies.ValueKind == JsonValueKind.Array
             ? frequencies.EnumerateArray().ToArray()
             : [];
-        dynamicPsdRows = preview.Arrays.TryGetValue("psd", out var values) && values.ValueKind == JsonValueKind.Array
+        psdPreview.DynamicRows = preview.Arrays.TryGetValue("psd", out var values) && values.ValueKind == JsonValueKind.Array
             ? values.EnumerateArray().ToArray()
             : [];
-        dynamicPsdIsVoltsSquaredPerHz = IsVoltsSquaredPerHz(preview);
+        psdPreview.DynamicIsVoltsSquaredPerHz = IsVoltsSquaredPerHz(preview);
     }
 
     private void StartDynamicPreview()
@@ -255,7 +241,7 @@ public sealed partial class AlgorithmListViewModel
         SeekDynamicPreviewSeconds(seconds);
     }
 
-    private void SeekDynamicPreviewSeconds(double seconds)
+    internal void SeekDynamicPreviewSeconds(double seconds)
     {
         if (DynamicWindowRows.Count == 0)
             return;
@@ -279,7 +265,7 @@ public sealed partial class AlgorithmListViewModel
         var latestIndex = DynamicWindowRows.Count == 0 || DynamicPreviewRows.Count == 0
             ? -1
             : DynamicWindowRows.IndexOf(DynamicPreviewRows[^1]);
-        if (latestIndex >= 0 && latestIndex < dynamicPsdRows.Length && IsCompleteWindowState(DynamicPreviewRows[^1].State))
+        if (latestIndex >= 0 && latestIndex < psdPreview.DynamicRows.Length && IsCompleteWindowState(DynamicPreviewRows[^1].State))
             BuildDynamicPsdPreview(latestIndex);
         else
             ClearPsdPreview();
@@ -341,13 +327,13 @@ public sealed partial class AlgorithmListViewModel
 
     private void BuildDynamicPsdPreview(int rowIndex)
     {
-        if (dynamicPsdRows[rowIndex].ValueKind != JsonValueKind.Array)
+        if (psdPreview.DynamicRows[rowIndex].ValueKind != JsonValueKind.Array)
         {
             ClearPsdPreview();
             return;
         }
-        SetPsdPoints(dynamicPsdFrequencies, dynamicPsdRows[rowIndex].EnumerateArray().ToArray(),
-            dynamicPsdIsVoltsSquaredPerHz);
+        SetPsdPoints(psdPreview.DynamicFrequencies, psdPreview.DynamicRows[rowIndex].EnumerateArray().ToArray(),
+            psdPreview.DynamicIsVoltsSquaredPerHz);
         SetPsdBandShares(PsdStructuredPreview, rowIndex);
     }
 
@@ -445,31 +431,4 @@ public sealed partial class AlgorithmListViewModel
         }
     }
 
-    private void UpdateRbpValues(AnalysisRunResponse run)
-    {
-        if (run.ResultSummary is not { } summary || !summary.TryGetProperty("metric", out var metric) ||
-            !metric.TryGetProperty("band_values", out var values) || values.ValueKind != JsonValueKind.Object)
-            return;
-        RbpDeltaText = AlgorithmResultFormatter.FormatBandValue(values, "delta");
-        RbpThetaText = AlgorithmResultFormatter.FormatBandValue(values, "theta");
-        RbpAlphaText = AlgorithmResultFormatter.FormatBandValue(values, "alpha");
-        RbpBetaText = AlgorithmResultFormatter.FormatBandValue(values, "beta");
-    }
-
-    private void UpdateDynamicRbpValues(AnalysisRunResponse run)
-    {
-        if (run.ResultSummary is not { } summary || !summary.TryGetProperty("metric", out var metric) ||
-            !metric.TryGetProperty("series", out var series) || series.ValueKind != JsonValueKind.Array)
-            return;
-        var point = series.EnumerateArray()
-            .LastOrDefault(item => item.TryGetProperty("band_values", out var bands) &&
-                                   bands.ValueKind == JsonValueKind.Object &&
-                                   bands.EnumerateObject().Any(entry => entry.Value.ValueKind == JsonValueKind.Number));
-        if (point.ValueKind != JsonValueKind.Object || !point.TryGetProperty("band_values", out var values))
-            return;
-        RbpDeltaText = AlgorithmResultFormatter.FormatBandValue(values, "delta");
-        RbpThetaText = AlgorithmResultFormatter.FormatBandValue(values, "theta");
-        RbpAlphaText = AlgorithmResultFormatter.FormatBandValue(values, "alpha");
-        RbpBetaText = AlgorithmResultFormatter.FormatBandValue(values, "beta");
-    }
 }

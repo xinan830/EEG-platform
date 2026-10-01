@@ -10,8 +10,28 @@
              xmlns:ratio="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.BandRatio"
              xmlns:theta="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.ThetaBeta"
              xmlns:brainbeat="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Brainbeat"
+             xmlns:psdvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd"
+             xmlns:stftvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft"
+             xmlns:rbpvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp"
+             xmlns:faavm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Faa"
+             xmlns:iapfvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Iapf"
+             xmlns:peakvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.PeakFrequency"
+             xmlns:ratiovm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.BandRatio"
+             xmlns:thetavm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.ThetaBeta"
+             xmlns:brainbeatvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Brainbeat"
              xmlns:shared="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"
              Background="#F8FAFC">
+    <UserControl.Resources>
+        <DataTemplate DataType="{x:Type psdvm:PsdDetailViewModel}"><psd:PsdDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type stftvm:StftDetailViewModel}"><stft:StftDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type rbpvm:RbpDetailViewModel}"><rbp:RbpDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type faavm:FaaDetailViewModel}"><faa:FaaDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type iapfvm:IapfDetailViewModel}"><iapf:IapfDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type peakvm:PeakFrequencyDetailViewModel}"><peak:PeakFrequencyDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type ratiovm:BandRatioDetailViewModel}"><ratio:BandRatioDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type thetavm:ThetaBetaDetailViewModel}"><theta:ThetaBetaDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type brainbeatvm:BrainbeatDetailViewModel}"><brainbeat:BrainbeatDetailView /></DataTemplate>
+    </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid Margin="16,12,16,20">
             <Grid.RowDefinitions>
@@ -69,24 +89,7 @@
             <!-- Row 4: PSD 结果和结果溯源分成两个完整宽度区块 -->
             <StackPanel Grid.Row="4">
                 <!-- Left: Card 6 PSD 结果 View -->
-                <Grid>
-                    <psd:PsdDetailView>
-                        <psd:PsdDetailView.Style>
-                            <Style TargetType="psd:PsdDetailView">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.IsPsd}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                            </Style>
-                        </psd:PsdDetailView.Style>
-                    </psd:PsdDetailView>
-                    <stft:StftDetailView><stft:StftDetailView.Style><Style TargetType="stft:StftDetailView"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.IsStft}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></stft:StftDetailView.Style></stft:StftDetailView>
-                    <rbp:RbpDetailView><rbp:RbpDetailView.Style><Style TargetType="rbp:RbpDetailView"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.IsRbp}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></rbp:RbpDetailView.Style></rbp:RbpDetailView>
-                    <faa:FaaDetailView><faa:FaaDetailView.Style><Style TargetType="faa:FaaDetailView"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.IsFaa}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></faa:FaaDetailView.Style></faa:FaaDetailView>
-                    <iapf:IapfDetailView><iapf:IapfDetailView.Style><Style TargetType="iapf:IapfDetailView"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.IsIapf}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></iapf:IapfDetailView.Style></iapf:IapfDetailView>
-                    <peak:PeakFrequencyDetailView><peak:PeakFrequencyDetailView.Style><Style TargetType="peak:PeakFrequencyDetailView"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.IsPeakFrequency}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></peak:PeakFrequencyDetailView.Style></peak:PeakFrequencyDetailView>
-                    <ratio:BandRatioDetailView><ratio:BandRatioDetailView.Style><Style TargetType="ratio:BandRatioDetailView"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.IsBandRatio}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></ratio:BandRatioDetailView.Style></ratio:BandRatioDetailView>
-                    <theta:ThetaBetaDetailView><theta:ThetaBetaDetailView.Style><Style TargetType="theta:ThetaBetaDetailView"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.IsThetaBeta}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></theta:ThetaBetaDetailView.Style></theta:ThetaBetaDetailView>
-                    <brainbeat:BrainbeatDetailView><brainbeat:BrainbeatDetailView.Style><Style TargetType="brainbeat:BrainbeatDetailView"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.IsBrainbeat}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></brainbeat:BrainbeatDetailView.Style></brainbeat:BrainbeatDetailView>
-                </Grid>
+                <ContentControl Content="{Binding AlgorithmWorkspace.Detail.CurrentModule}" />
 
                 <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="1.05*" MinWidth="430"/><ColumnDefinition Width="14"/><ColumnDefinition Width="1.45*" MinWidth="620"/></Grid.ColumnDefinitions><shared:ResultProvenanceCard Grid.Column="0" DataContext="{Binding AlgorithmWorkspace.Detail.Context.Provenance}"/><shared:DynamicResultCard Grid.Column="2" DataContext="{Binding AlgorithmWorkspace.Detail.Context}" /></Grid>
             </StackPanel>

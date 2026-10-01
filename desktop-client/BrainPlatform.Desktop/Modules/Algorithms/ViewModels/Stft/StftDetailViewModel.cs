@@ -7,15 +7,19 @@ public enum StftChartKind { Heatmap, Spectrum, FrequencyTrend }
 
 public sealed record StftChartOption(StftChartKind Kind, string Label);
 
-public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel
+public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgorithmQualitySource
 {
     private bool isFailureDetailsExpanded;
     private StftChartOption selectedChart;
     private double selectedTimeIndex;
     private double selectedFrequencyIndex;
-    internal StftDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "stft") => selectedChart = ChartOptions[0];
+    internal StftDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "stft")
+    {
+        selectedChart = ChartOptions[0];
+        catalog.StftPreviewState.PropertyChanged += OnStftPreviewStateChanged;
+    }
 
-    public StftPreview? Preview => Catalog.StftResult;
+    public StftPreview? Preview => Catalog.StftPreviewState.Result;
     public IReadOnlyList<StftChartOption> ChartOptions { get; } =
     [
         new(StftChartKind.Heatmap, "时频热图"),
@@ -72,22 +76,22 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel
             : "暂无可显示的时频结果";
     public string FailureReasonText => Catalog.LastRun?.Error is { } error
         ? $"{AlgorithmResultFormatter.FormatFailureCodeForDisplay(error.Code)}：{(string.IsNullOrWhiteSpace(error.Message) ? "后端未返回具体原因，请检查后端日志" : error.Message)}"
-        : QualityFailureReason(Catalog.StftStructuredPreview?.Quality) ??
+        : QualityFailureReason(Catalog.StftPreviewState.StructuredPreview?.Quality) ??
           (Catalog.DynamicPreviewRows.FirstOrDefault(row => !string.IsNullOrWhiteSpace(row.Failure)) is { } row
               ? row.Failure
               : "暂无失败原因");
     public bool HasFailureDetails => Catalog.LastRun?.Error is not null ||
-        HasQualityFailure(Catalog.StftStructuredPreview?.Quality) ||
+        HasQualityFailure(Catalog.StftPreviewState.StructuredPreview?.Quality) ||
         Catalog.DynamicPreviewRows.Any(row => !string.IsNullOrWhiteSpace(row.Failure));
     public string FailureDetailsText => Catalog.LastRun?.Error is { } error
         ? BuildFailureDetails(error)
-        : BuildQualityFailureDetails(Catalog.StftStructuredPreview?.Quality) ??
+        : BuildQualityFailureDetails(Catalog.StftPreviewState.StructuredPreview?.Quality) ??
           string.Join(Environment.NewLine, Catalog.DynamicPreviewRows
               .Where(row => !string.IsNullOrWhiteSpace(row.Failure))
               .Select(row => $"{row.StartSeconds:0.###}–{row.EndSeconds:0.###} s：{row.Failure}"));
-    public int UnavailableWindowCount => Catalog.StftStructuredPreview?.WindowStateCounts.TryGetValue("Unavailable", out var unavailable) == true ? unavailable : 0;
-    public int RejectedWindowCount => Catalog.StftStructuredPreview?.WindowStateCounts.TryGetValue("Rejected", out var rejected) == true ? rejected : 0;
-    public string WindowStateSummary => Catalog.StftStructuredPreview is null ? "未产生窗口结果" : WindowStateText;
+    public int UnavailableWindowCount => Catalog.StftPreviewState.StructuredPreview?.WindowStateCounts.TryGetValue("Unavailable", out var unavailable) == true ? unavailable : 0;
+    public int RejectedWindowCount => Catalog.StftPreviewState.StructuredPreview?.WindowStateCounts.TryGetValue("Rejected", out var rejected) == true ? rejected : 0;
+    public string WindowStateSummary => Catalog.StftPreviewState.StructuredPreview is null ? "未产生窗口结果" : WindowStateText;
     public bool IsFailureDetailsExpanded
     {
         get => isFailureDetailsExpanded;
@@ -103,11 +107,11 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel
     public string FrequencyRangeText => Preview is { } preview
         ? $"频率：{preview.FrequenciesHz[0]:0.###}–{preview.FrequenciesHz[^1]:0.###} Hz"
         : "--";
-    public string QualityText => Catalog.StftStructuredPreview?.Quality is { } quality &&
+    public string QualityText => Catalog.StftPreviewState.StructuredPreview?.Quality is { } quality &&
         quality.ValueKind == System.Text.Json.JsonValueKind.Object && quality.TryGetProperty("status", out var status)
         ? AlgorithmResultFormatter.FormatQualityForDisplay(quality)
         : Catalog.LastRun?.Error?.Message ?? "尚未生成结果";
-    public string WindowStateText => Catalog.StftStructuredPreview is { } preview && preview.WindowStateCounts.Count > 0
+    public string WindowStateText => Catalog.StftPreviewState.StructuredPreview is { } preview && preview.WindowStateCounts.Count > 0
         ? string.Join("、", preview.WindowStateCounts.Select(item => $"{AlgorithmResultFormatter.FormatWindowStateForDisplay(item.Key)}：{item.Value}"))
         : "无动态窗口";
     public string RunIdText => Catalog.LastRun?.RunId ?? "未运行";
@@ -155,6 +159,19 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel
             RaisePropertyChanged(nameof(ScientificVersionText));
             RaisePropertyChanged(nameof(DynamicWindowRows));
         }
+    }
+
+    private void OnStftPreviewStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        RaisePropertyChanged(nameof(Preview));
+        RaisePropertyChanged(nameof(HasPreview));
+        RaisePropertyChanged(nameof(StatusText));
+        RaisePropertyChanged(nameof(TimeRangeText));
+        RaisePropertyChanged(nameof(FrequencyRangeText));
+        RaisePropertyChanged(nameof(MaximumTimeIndex));
+        RaisePropertyChanged(nameof(MaximumFrequencyIndex));
+        RaisePropertyChanged(nameof(SelectedTimeText));
+        RaisePropertyChanged(nameof(SelectedFrequencyText));
     }
 
     private static string BuildFailureDetails(StructuredRunError error)

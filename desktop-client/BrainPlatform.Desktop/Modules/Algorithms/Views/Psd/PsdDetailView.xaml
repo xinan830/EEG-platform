@@ -32,7 +32,7 @@
                         <Ellipse Canvas.Left="12.5" Canvas.Top="2" Width="4.5" Height="4.5" Fill="#1677FF" />
                         <Ellipse Canvas.Left="12.5" Canvas.Top="11.5" Width="4.5" Height="4.5" Fill="#1677FF" />
                     </Canvas>
-                    <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Psd.SelectedChart.Label}" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding SelectedChart.Label}" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
                     <TextBlock Text="ⓘ" FontSize="13" Foreground="#94A3B8" VerticalAlignment="Center" Margin="8,0,0,0"
                                ToolTip="功率谱密度（PSD）反映脑电信号在各频段上的功率分布特征" Cursor="Help" />
                 </StackPanel>
@@ -41,14 +41,14 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
                         <TextBlock Text="通道: " FontSize="13" Foreground="#334155" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Context.SelectedChannel, TargetNullValue=Pz, FallbackValue=Pz}"
+                        <TextBlock Text="{Binding SelectedChannel, TargetNullValue=Pz, FallbackValue=Pz}"
                                    FontSize="13" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <ComboBox Width="152" Height="32"
                               Style="{StaticResource AppFilterComboBoxStyle}"
-                              ItemsSource="{Binding AlgorithmWorkspace.Detail.Psd.ChartOptions}"
-                              SelectedItem="{Binding AlgorithmWorkspace.Detail.Psd.SelectedChart, Mode=TwoWay}">
+                              ItemsSource="{Binding ChartOptions}"
+                              SelectedItem="{Binding SelectedChart, Mode=TwoWay}">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Label}" />
@@ -60,7 +60,7 @@
 
             <!-- Main Chart Area (Plot + Y Axis + X Axis) -->
             <Grid Grid.Row="1" Margin="0,0,0,8">
-                <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Psd.IsSpectrumSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Grid.Style>
+                <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsSpectrumSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Grid.Style>
                 <Grid.RowDefinitions>
                     <!-- Row 0: Frequency band legend, kept outside the plot -->
                 <RowDefinition Height="16" />
@@ -81,7 +81,7 @@
 
                 <!-- Col 0, Row 1: Y-axis Title Rotated -90 degrees -->
                 <TextBlock Visibility="Collapsed" Grid.Row="1" Grid.Column="0"
-                           Text="{Binding AlgorithmWorkspace.Detail.Psd.ValueUnit, StringFormat='功率谱密度（{0}）', TargetNullValue='功率谱密度（μV²/Hz）', FallbackValue='功率谱密度（μV²/Hz）'}"
+                           Text="{Binding ValueUnit, StringFormat='功率谱密度（{0}）', TargetNullValue='功率谱密度（μV²/Hz）', FallbackValue='功率谱密度（μV²/Hz）'}"
                            FontSize="9" FontWeight="Medium" Foreground="#475569"
                            HorizontalAlignment="Center" VerticalAlignment="Center">
                     <TextBlock.LayoutTransform>
@@ -155,8 +155,8 @@
                 <Border Grid.Row="1" Grid.Column="1" BorderBrush="Transparent" BorderThickness="0" ClipToBounds="True">
                     <Grid>
                         <local:PsdLiveChart Grid.ColumnSpan="5"
-                                            Points="{Binding AlgorithmWorkspace.Detail.Psd.PreviewPoints}"
-                                            Unit="{Binding AlgorithmWorkspace.Detail.Psd.ValueUnit, TargetNullValue='μV²/Hz', FallbackValue='μV²/Hz'}"
+                                            Points="{Binding PreviewPoints}"
+                                            Unit="{Binding ValueUnit, TargetNullValue='μV²/Hz', FallbackValue='μV²/Hz'}"
                                             ClipToBounds="True" Panel.ZIndex="1" />
                     </Grid>
                 </Border>
@@ -201,8 +201,8 @@
                            HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,4,0,0" />
             </Grid>
             <local:PsdBandShareChart Grid.Row="1" Margin="0,0,0,8"
-                                     Points="{Binding AlgorithmWorkspace.Detail.Psd.BandSharePoints}">
-                <local:PsdBandShareChart.Style><Style TargetType="local:PsdBandShareChart"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Psd.IsBandShareSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></local:PsdBandShareChart.Style>
+                                     Points="{Binding BandSharePoints}">
+                <local:PsdBandShareChart.Style><Style TargetType="local:PsdBandShareChart"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsBandShareSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></local:PsdBandShareChart.Style>
             </local:PsdBandShareChart>
         </Grid>
     </Border>

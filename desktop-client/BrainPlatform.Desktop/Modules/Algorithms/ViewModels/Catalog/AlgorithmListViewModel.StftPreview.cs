@@ -5,16 +5,16 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 
 public sealed partial class AlgorithmListViewModel
 {
-    private StftPreview? stftPreview;
-    private StructuredPreviewResponse? stftStructuredPreview;
+    private readonly StftPreviewState stftPreview = new();
 
-    public StftPreview? StftResult { get => stftPreview; private set => SetProperty(ref stftPreview, value); }
-    public StructuredPreviewResponse? StftStructuredPreview { get => stftStructuredPreview; private set => SetProperty(ref stftStructuredPreview, value); }
+    internal StftPreviewState StftPreviewState => stftPreview;
+    public StftPreview? StftResult { get => stftPreview.Result; private set => stftPreview.Result = value; }
+    public StructuredPreviewResponse? StftStructuredPreview { get => stftPreview.StructuredPreview; private set => stftPreview.StructuredPreview = value; }
     public bool HasStftPreview => StftResult is not null;
     public string StftAxisText => StftResult is null ? "时间 (s)" :
         $"请求范围 {StftResult.RequestedRange.StartSeconds:0.###} - {StftResult.RequestedRange.EndSeconds:0.###} s  ·  时频中心 {StftResult.TimesSeconds[0]:0.###} - {StftResult.TimesSeconds[^1]:0.###} s  ·  频率 {StftResult.FrequenciesHz[0]:0.###} - {StftResult.FrequenciesHz[^1]:0.###} Hz  ·  {StftResult.PowerUnit}";
 
-    private async Task LoadStftStructuredPreviewAsync(string runId, bool dynamic)
+    internal async Task LoadStftStructuredPreviewAsync(string runId, bool dynamic)
     {
         try
         {
@@ -58,13 +58,13 @@ public sealed partial class AlgorithmListViewModel
 
     private void UpdateDynamicStftPreview(int latestIndex, bool complete)
     {
-        if (stftStructuredPreview is null) return;
+        if (stftPreview.StructuredPreview is null) return;
         if (latestIndex >= 0 && complete)
         {
             try
             {
-                SetStftResult(StftPreview.ParseDynamic(stftStructuredPreview, latestIndex));
-                StructuredPreviewText = AlgorithmResultFormatter.BuildStructuredPreview(stftStructuredPreview);
+                SetStftResult(StftPreview.ParseDynamic(stftPreview.StructuredPreview, latestIndex));
+                StructuredPreviewText = AlgorithmResultFormatter.BuildStructuredPreview(stftPreview.StructuredPreview);
                 return;
             }
             catch (InvalidOperationException exception)

@@ -105,6 +105,19 @@
 
                 <!-- 5. 分析通道 -->
                 <StackPanel Grid.Column="8">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsFaaSelected}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsBrainbeatSelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <TextBlock Text="分析通道" FontSize="12" Foreground="#64748B" Margin="0,0,0,6" />
                     <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="140" Height="32"
                               ItemsSource="{Binding RegisteredChannels}"

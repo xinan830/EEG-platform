@@ -16,7 +16,7 @@ def test_official_algorithm_modules_keep_declared_constants():
     from app.eeg_core.realtime_spectral import segment_brainbeat as legacy_brainbeat
 
     assert segment_brainbeat is legacy_brainbeat
-    assert RBP_BANDS == (("delta", 1.0, 4.0), ("theta", 4.0, 8.0), ("alpha", 8.0, 13.0), ("beta", 13.0, 30.0))
+    assert RBP_BANDS == (("delta", 1.0, 4.0), ("theta", 4.0, 8.0), ("alpha", 8.0, 13.0), ("beta", 13.0, 30.0), ("gamma", 30.0, 50.0))
     assert FAA_DISCARD_S == LEGACY_FAA_INITIAL_DISCARD_S == 12.0
 
 

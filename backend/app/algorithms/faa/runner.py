@@ -19,6 +19,9 @@ class FaaAlgorithm:
         return ParameterSchema(parameters=[
             AlgorithmParameter(key="channel", label_zh="F3 来源通道", value_type="string", description_zh="选择用于 FAA 左侧 Alpha 功率的原始通道。"),
             AlgorithmParameter(key="f4_channel", label_zh="F4 来源通道", value_type="string", description_zh="选择用于 FAA 右侧 Alpha 功率的原始通道。"),
+            AlgorithmParameter(key="low_hz", label_zh="高通频率", value_type="number", unit="Hz", default=1.0, description_zh="连续预处理高通截止频率。"),
+            AlgorithmParameter(key="high_hz", label_zh="低通频率", value_type="number", unit="Hz", default=50.0, description_zh="连续预处理低通截止频率。"),
+            AlgorithmParameter(key="notch_hz", label_zh="陷波频率", value_type="enum", options=[ParameterOption(value=0.0, label_zh="关闭"), ParameterOption(value=50.0, label_zh="50 Hz"), ParameterOption(value=60.0, label_zh="60 Hz")], default=50.0, description_zh="连续预处理工频陷波。"),
             AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
@@ -35,7 +38,7 @@ class FaaAlgorithm:
                 "epoch_s": 2.0, "epoch_overlap": 0.5, "epoch_step_s": 1.0,
                 "window": "hann", "alignment": "window_end" if config.mode == "dynamic" else "range",
             },
-            filters={"operation": "per_epoch_mean_removal", "software_bandpass": "not_applied"},
+            filters={"operation": "continuous_preprocess_then_per_epoch_mean_removal", "software_bandpass": [config.low_hz, config.high_hz], "notch_hz": config.notch_hz},
             quality_rules={
                 "paired_epoch": True, "minimum_clean_epochs": 10,
                 "artifact_peak_uv": 150.0, "reasons": ["non_finite", "amplitude_threshold"],
@@ -50,7 +53,7 @@ class FaaAlgorithm:
         return AlgorithmInputs(recording_id=str(getattr(recording, "id", "unknown")), channel=lookup[config.channel.casefold()], sfreq_hz=float(getattr(recording, "sfreq_hz", 1.0)), duration_s=float(getattr(recording, "duration_s", config.end_s)), payload=recording)
 
     def execute_static(self, inputs: AlgorithmInputs, config: FaaConfig) -> AlgorithmResult:
-        f3, f4, sfreq, source = inputs.payload.load_faa_signals(start_s=config.start_s, end_s=config.end_s, f3_channel=inputs.channel, f4_channel=config.f4_channel)
+        f3, f4, sfreq, source = inputs.payload.load_faa_signals(start_s=config.start_s, end_s=config.end_s, f3_channel=inputs.channel, f4_channel=config.f4_channel, low_hz=config.low_hz, high_hz=config.high_hz, notch_hz=config.notch_hz)
         report = compute_faa(f3, f4, sfreq)
         quality = {"clean_segments": report["clean_epochs"], "total_segments": report["total_epochs"], "clean_ratio": report["clean_ratio"], "gate_failed": report["reason"] or None, "rejected_reasons": [report["reason"]] if report["reason"] else []}
         left_channel, right_channel = source["channels"]

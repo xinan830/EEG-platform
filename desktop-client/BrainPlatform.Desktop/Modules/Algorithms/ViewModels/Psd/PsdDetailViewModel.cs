@@ -12,7 +12,7 @@ public sealed record PsdChartOption(PsdChartKind Kind, string Label);
 /// PSD-only detail state. Shared recording selection and execution remain in
 /// the catalog/context so other algorithms can reuse the same workflow.
 /// </summary>
-public sealed class PsdDetailViewModel : ObservableObject
+public sealed class PsdDetailViewModel : ObservableObject, IAlgorithmQualitySource
 {
     private readonly AlgorithmListViewModel catalog;
     private bool isFailureDetailsExpanded;
@@ -23,11 +23,13 @@ public sealed class PsdDetailViewModel : ObservableObject
         this.catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         selectedChart = ChartOptions[0];
         catalog.PropertyChanged += OnCatalogPropertyChanged;
+        catalog.PsdPreviewState.PropertyChanged += OnPsdPreviewStateChanged;
         if (catalog.Projects is not null)
             catalog.Projects.PropertyChanged += OnProjectsPropertyChanged;
     }
 
     public AlgorithmListViewModel Catalog => catalog;
+    public string AlgorithmId => "psd";
     public IReadOnlyList<PsdChartOption> ChartOptions { get; } =
     [
         new(PsdChartKind.Spectrum, "功率谱密度"),
@@ -54,12 +56,12 @@ public sealed class PsdDetailViewModel : ObservableObject
     public AlgorithmCatalogItem? Algorithm => catalog.SelectedAlgorithm;
     public bool IsAvailable => string.Equals(Algorithm?.Id, "psd", StringComparison.OrdinalIgnoreCase);
     public IReadOnlyList<AlgorithmParameter> Parameters => Algorithm?.Parameters ?? [];
-    public bool HasStructuredResult => catalog.HasPsdPreview;
-    public ObservableCollection<AlgorithmListViewModel.PsdPreviewPoint?> PreviewPoints => catalog.PsdPreviewPoints;
-    public ObservableCollection<AlgorithmListViewModel.PsdBandSharePoint> BandSharePoints => catalog.PsdBandSharePoints;
-    public string ValueUnit => catalog.PsdValueUnit;
-    public string FrequencyRange => catalog.PsdFrequencyRangeText;
-    public string ValueRange => catalog.PsdValueRangeText;
+    public bool HasStructuredResult => catalog.PsdPreviewState.HasPreview;
+    public ObservableCollection<AlgorithmListViewModel.PsdPreviewPoint?> PreviewPoints => catalog.PsdPreviewState.Points;
+    public ObservableCollection<AlgorithmListViewModel.PsdBandSharePoint> BandSharePoints => catalog.PsdPreviewState.BandShares;
+    public string ValueUnit => catalog.PsdPreviewState.ValueUnit;
+    public string FrequencyRange => catalog.PsdPreviewState.FrequencyRangeText;
+    public string ValueRange => catalog.PsdPreviewState.ValueRangeText;
     public IReadOnlyList<string> RegisteredChannels => catalog.RegisteredChannels;
     public IReadOnlyList<string> AnalysisModes => catalog.AnalysisModes;
     public IReadOnlyList<double> DynamicWindowOptions => catalog.DynamicWindowOptions;
@@ -104,9 +106,13 @@ public sealed class PsdDetailViewModel : ObservableObject
     public string Provenance => catalog.ProvenanceText;
     public string StructuredPreview => catalog.StructuredPreviewText;
     public ObservableCollection<DynamicWindowRow> DynamicWindowRows => catalog.DynamicWindowRows;
-    public StructuredPreviewResponse? StructuredPreviewResult => catalog.PsdStructuredPreview;
-    public string QualityText => catalog.PsdQualityText;
-    public string WindowStateText => catalog.PsdWindowStateText;
+    public StructuredPreviewResponse? StructuredPreviewResult => catalog.PsdPreviewState.StructuredPreview;
+    public string QualityText => catalog.PsdPreviewState.StructuredPreview?.Quality is { } quality
+        ? AlgorithmResultFormatter.FormatQualityForDisplay(quality)
+        : catalog.LastRun?.Error is { } error ? $"运行失败：{AlgorithmResultFormatter.FormatFailureCodeForDisplay(error.Code)}" : "尚未运行分析";
+    public string WindowStateText => catalog.PsdPreviewState.StructuredPreview is not { } preview || preview.WindowStateCounts.Count == 0
+        ? "暂无窗口状态"
+        : string.Join("、", preview.WindowStateCounts.Select(item => $"{AlgorithmResultFormatter.FormatWindowStateForDisplay(item.Key)}：{item.Value}"));
     public AnalysisRunResponse? LastRun => catalog.LastRun;
     public bool IsRunActive => catalog.IsRunActive;
     public string RunIdText => catalog.LastRun?.RunId ?? "未运行";
@@ -136,19 +142,19 @@ public sealed class PsdDetailViewModel : ObservableObject
     };
     public string FailureReasonText => catalog.LastRun?.Error is { } error
         ? $"{AlgorithmResultFormatter.FormatFailureCodeForDisplay(error.Code)}：{error.Message}"
-        : StructuredFailureSummary(catalog.PsdStructuredPreview?.Failure) ?? GetWindowReasonSummary(catalog.PsdStructuredPreview);
+        : StructuredFailureSummary(catalog.PsdPreviewState.StructuredPreview?.Failure) ?? GetWindowReasonSummary(catalog.PsdPreviewState.StructuredPreview);
     public bool IsFailureDetailsExpanded
     {
         get => isFailureDetailsExpanded;
         private set => SetProperty(ref isFailureDetailsExpanded, value);
     }
     public bool HasFailureDetails => catalog.LastRun?.Error is not null
-        || IsFailureObject(catalog.PsdStructuredPreview?.Failure)
-        || catalog.PsdStructuredPreview?.Windows.Any(window => WindowState(window) is not "Complete") == true;
-    public string FailureDetailsText => BuildFailureDetails(catalog.PsdStructuredPreview, catalog.LastRun?.Error);
-    public int UnavailableWindowCount => catalog.PsdStructuredPreview?.WindowStateCounts.TryGetValue("Unavailable", out var count) == true ? count : 0;
-    public int RejectedWindowCount => catalog.PsdStructuredPreview?.WindowStateCounts.TryGetValue("Rejected", out var count) == true ? count : 0;
-    public string WindowStateSummary => catalog.PsdStructuredPreview is null ? "未产生窗口结果" : WindowStateText;
+        || IsFailureObject(catalog.PsdPreviewState.StructuredPreview?.Failure)
+        || catalog.PsdPreviewState.StructuredPreview?.Windows.Any(window => WindowState(window) is not "Complete") == true;
+    public string FailureDetailsText => BuildFailureDetails(catalog.PsdPreviewState.StructuredPreview, catalog.LastRun?.Error);
+    public int UnavailableWindowCount => catalog.PsdPreviewState.StructuredPreview?.WindowStateCounts.TryGetValue("Unavailable", out var count) == true ? count : 0;
+    public int RejectedWindowCount => catalog.PsdPreviewState.StructuredPreview?.WindowStateCounts.TryGetValue("Rejected", out var count) == true ? count : 0;
+    public string WindowStateSummary => catalog.PsdPreviewState.StructuredPreview is null ? "未产生窗口结果" : WindowStateText;
     public ICommand RegisterCommand => catalog.RegisterCommand;
     public ICommand RunCommand => catalog.RunCommand;
     public ICommand SelectStaticModeCommand => catalog.SelectStaticModeCommand;
@@ -253,6 +259,25 @@ public sealed class PsdDetailViewModel : ObservableObject
             RaisePropertyChanged(nameof(RejectedWindowCount));
             RaisePropertyChanged(nameof(WindowStateSummary));
         }
+    }
+
+    private void OnPsdPreviewStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        RaisePropertyChanged(nameof(HasStructuredResult));
+        RaisePropertyChanged(nameof(PreviewPoints));
+        RaisePropertyChanged(nameof(BandSharePoints));
+        RaisePropertyChanged(nameof(ValueUnit));
+        RaisePropertyChanged(nameof(FrequencyRange));
+        RaisePropertyChanged(nameof(ValueRange));
+        RaisePropertyChanged(nameof(StructuredPreviewResult));
+        RaisePropertyChanged(nameof(QualityText));
+        RaisePropertyChanged(nameof(WindowStateText));
+        RaisePropertyChanged(nameof(FailureReasonText));
+        RaisePropertyChanged(nameof(HasFailureDetails));
+        RaisePropertyChanged(nameof(FailureDetailsText));
+        RaisePropertyChanged(nameof(UnavailableWindowCount));
+        RaisePropertyChanged(nameof(RejectedWindowCount));
+        RaisePropertyChanged(nameof(WindowStateSummary));
     }
 
     private void OnProjectsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)

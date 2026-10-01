@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using System.Windows.Input;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
@@ -12,12 +13,14 @@ public sealed class AnalysisContextViewModel : ObservableObject
     internal AnalysisContextViewModel(AlgorithmListViewModel catalog)
     {
         Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        Parameters = new AlgorithmParameterContext(Catalog);
         Catalog.PropertyChanged += OnCatalogPropertyChanged;
         if (Catalog.Projects is not null)
             Catalog.Projects.PropertyChanged += OnProjectsPropertyChanged;
     }
 
     public AlgorithmListViewModel Catalog { get; }
+    public AlgorithmParameterContext Parameters { get; }
     public ProjectWorkspaceViewModel? Projects => Catalog.Projects;
     public ResearchProject? SelectedProject { get => Catalog.Projects?.SelectedProject; set { if (Catalog.Projects is not null) Catalog.Projects.SelectedProject = value; } }
     public ProjectRecordingRow? SelectedProjectRecording { get => Catalog.SelectedProjectRecording; set => Catalog.SelectedProjectRecording = value; }
@@ -50,6 +53,12 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public bool HasRegisteredRecording => Catalog.RegisteredRecording is not null;
     public bool HasChannel => Catalog.HasRegisteredChannels;
     public string SelectedChannel { get => Catalog.SelectedChannel; set => Catalog.SelectedChannel = value; }
+    public string SelectedF4Channel { get => Catalog.SelectedF4Channel; set => Catalog.SelectedF4Channel = value; }
+    public string ChannelLabel => Catalog.ChannelLabel;
+    public bool IsFaaSelected => Catalog.IsFaaSelected;
+    public bool IsBrainbeatSelected => Catalog.IsBrainbeatSelected;
+    public bool IsBandRatioSelected => Catalog.IsBandRatioSelected;
+    public bool IsPeakFrequencySelected => Catalog.IsPeakFrequencySelected;
     public string StartSeconds { get => Catalog.StartSecondsText; set => Catalog.StartSecondsText = value; }
     public string EndSeconds { get => Catalog.EndSecondsText; set => Catalog.EndSecondsText = value; }
     public string RunStatus => Catalog.RunStatusText;
@@ -62,7 +71,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
         "psd" => Catalog.PsdValueUnit,
         "stft" => "dB re 1 μV²/Hz",
         "rbp" => "相对功率",
-        _ => "后端未提供"
+        _ => MetricOutputUnit(Catalog.LastRun?.ResultSummary) ?? "后端未提供"
     };
     public string RecordingIdText => RegisteredRecording?.Id ?? "未注册";
     public string AlgorithmVersionText => Catalog.SelectedAlgorithm?.Version ?? "后端未提供";
@@ -77,6 +86,8 @@ public sealed class AnalysisContextViewModel : ObservableObject
         "stft" => Catalog.StftStructuredPreview is { } preview && preview.WindowStateCounts.Count > 0
             ? string.Join("、", preview.WindowStateCounts.Select(item => $"{item.Key}：{item.Value}"))
             : "尚未产生窗口结果",
+        _ when Catalog.DynamicWindowRows.Count > 0 => string.Join("、", Catalog.DynamicWindowRows
+            .GroupBy(row => row.State).Select(group => $"{group.Key}：{group.Count()}")),
         _ => "尚未产生窗口结果"
     };
     public double RunProgressPercent => Catalog.LastRun?.Status == "completed" ? 100 : 0;
@@ -101,6 +112,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.RegisteredChannels)
             or nameof(AlgorithmListViewModel.RegisteredRecording)
             or nameof(AlgorithmListViewModel.SelectedChannel)
+            or nameof(AlgorithmListViewModel.SelectedF4Channel)
             or nameof(AlgorithmListViewModel.StartSecondsText)
             or nameof(AlgorithmListViewModel.EndSecondsText)
             or nameof(AlgorithmListViewModel.SelectedAnalysisMode)
@@ -115,6 +127,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.HasDynamicPreview)
             or nameof(AlgorithmListViewModel.DynamicPreviewStatusText)
             or nameof(AlgorithmListViewModel.DynamicPreviewRows)
+            or nameof(AlgorithmListViewModel.DynamicWindowRows)
             or nameof(AlgorithmListViewModel.RunStatusText)
             or nameof(AlgorithmListViewModel.LastRun)
             or nameof(AlgorithmListViewModel.DynamicTimeProgressPercent)
@@ -128,6 +141,12 @@ public sealed class AnalysisContextViewModel : ObservableObject
             RaisePropertyChanged(nameof(HasRegisteredRecording));
             RaisePropertyChanged(nameof(HasChannel));
             RaisePropertyChanged(nameof(SelectedChannel));
+            RaisePropertyChanged(nameof(SelectedF4Channel));
+            RaisePropertyChanged(nameof(ChannelLabel));
+            RaisePropertyChanged(nameof(IsFaaSelected));
+            RaisePropertyChanged(nameof(IsBrainbeatSelected));
+            RaisePropertyChanged(nameof(IsBandRatioSelected));
+            RaisePropertyChanged(nameof(IsPeakFrequencySelected));
             RaisePropertyChanged(nameof(StartSeconds));
             RaisePropertyChanged(nameof(EndSeconds));
             RaisePropertyChanged(nameof(RunStatus));
@@ -175,6 +194,13 @@ public sealed class AnalysisContextViewModel : ObservableObject
     private static string FormatRange(TimeRange? range) => range is null
         ? "未运行"
         : $"{range.StartSeconds:0.###}–{range.EndSeconds:0.###} s";
+
+    private static string? MetricOutputUnit(JsonElement? summary) =>
+        summary is { ValueKind: JsonValueKind.Object } root &&
+        root.TryGetProperty("metric", out var metric) && metric.ValueKind == JsonValueKind.Object &&
+        metric.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Object &&
+        output.TryGetProperty("unit", out var unit) && unit.ValueKind == JsonValueKind.String
+            ? unit.GetString() : null;
 
     private void OnProjectsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {

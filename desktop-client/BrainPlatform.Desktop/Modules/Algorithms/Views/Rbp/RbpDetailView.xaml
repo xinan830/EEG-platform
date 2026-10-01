@@ -1,1 +1,36 @@
-<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp.RbpDetailView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:shared="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"><shared:AlgorithmMetricDetailView /></UserControl>
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp.RbpDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp">
+    <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="20,16">
+        <StackPanel>
+            <Grid Margin="0,0,0,12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock Text="相对频段功率" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A" />
+                <TextBlock Grid.Column="1" Text="{Binding WindowText}"
+                           FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
+            </Grid>
+            <local:RbpChart Height="340" Bands="{Binding Bands}" />
+            <ItemsControl ItemsSource="{Binding Bands}" Margin="0,12,0,0">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="5" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Border Width="9" Height="9" CornerRadius="2" Background="{Binding Color}" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="{Binding Label}" Foreground="#475569" FontSize="12" Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding ShareText}" Foreground="#0F172A" FontSize="12" FontWeight="SemiBold" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Grid Margin="0,20,0,0">
+                <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsDynamic}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Grid.Style>
+                <StackPanel>
+                    <TextBlock Text="频段占比趋势" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,10" />
+                    <local:RbpChart Height="360" IsTrend="True" Bands="{Binding Bands}"
+                                    Windows="{Binding Trend}" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

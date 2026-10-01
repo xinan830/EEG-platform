@@ -122,12 +122,6 @@ internal static class AlgorithmResultFormatter
         return $"类型：{outputKind}；通道：{string.Join("、", preview.ChannelOrder)}；轴：{axes}；数组：{arrays}{states}。数值与单位由后端返回，未在客户端重算。";
     }
 
-    internal static string FormatBandValue(JsonElement values, string key) =>
-        values.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number &&
-        value.TryGetDouble(out var number) && double.IsFinite(number)
-            ? number.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)
-            : "不可用";
-
     internal static string MetadataUnit(IReadOnlyDictionary<string, JsonElement> metadata, string key)
     {
         if (metadata.TryGetValue(key, out var value) && value.ValueKind == JsonValueKind.Object && value.TryGetProperty("unit", out var unit))
@@ -160,6 +154,9 @@ internal static class AlgorithmResultFormatter
         "STFT_WINDOW_QUALITY_GATE_FAILED" => "未通过 STFT 质量门",
         "STFT_WINDOW_UNAVAILABLE" => "STFT 窗口不可用",
         "STFT_QUALITY_GATE_FAILED" => "未通过 STFT 质量门",
+        "RBP_WINDOW_QUALITY_GATE_FAILED" => "未通过 RBP 质量门",
+        "RBP_WINDOW_UNAVAILABLE" => "RBP 窗口不可用",
+        "RBP_DENOMINATOR_INVALID" => "频段总功率无效",
         "QUALITY_GATE_FAILED" => "质量门失败",
         "ANALYSIS_INPUT_INVALID" => "分析输入无效",
         "ANALYSIS_EXECUTION_FAILED" => "分析执行失败",
@@ -179,6 +176,8 @@ internal static class AlgorithmResultFormatter
         "STFT_WINDOW_QUALITY_GATE_FAILED" => "未通过 STFT 质量门",
         "STFT_WINDOW_UNAVAILABLE" => "STFT 窗口不可用",
         "STFT_QUALITY_GATE_FAILED" => "未通过 STFT 质量门",
+        "RBP_WINDOW_QUALITY_GATE_FAILED" => "未通过 RBP 质量门",
+        "RBP_WINDOW_UNAVAILABLE" => "RBP 窗口不可用",
         "QUALITY_GATE_FAILED" => "质量门失败",
         _ => string.IsNullOrWhiteSpace(reason) ? "未提供" : reason,
     };
@@ -189,6 +188,7 @@ internal static class AlgorithmResultFormatter
         "theta" => "Theta",
         "alpha" => "Alpha",
         "beta" => "Beta",
+        "gamma" => "Gamma",
         _ => name,
     };
 
@@ -220,7 +220,7 @@ internal static class AlgorithmResultFormatter
             : $"{FormatQualityStatus(status)}：{reasons}";
     }
 
-    private static string FormatQualityStatus(string? status) => status switch
+    internal static string FormatQualityStatus(string? status) => status switch
     {
         "clean" => "良好",
         "partial" => "部分完成",

@@ -6,6 +6,7 @@ from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithms.band_ratio.runner import BandRatioAlgorithm
 from app.algorithms.faa.runner import FaaAlgorithm
 from app.algorithms.iapf.runner import IapfAlgorithm
+from app.algorithms.brainbeat.runner import BrainbeatAlgorithm
 from app.algorithms.peak_frequency.runner import PeakFrequencyAlgorithm
 from app.algorithms.psd.runner import PsdAlgorithm
 from app.algorithms.stft.runner import StftAlgorithm
@@ -18,6 +19,7 @@ def build_builtin_registry() -> AlgorithmRegistry:
 
     registry = AlgorithmRegistry()
     registry.register(BandRatioAlgorithm())
+    registry.register(BrainbeatAlgorithm())
     registry.register(FaaAlgorithm())
     registry.register(IapfAlgorithm())
     registry.register(PeakFrequencyAlgorithm())

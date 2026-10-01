@@ -71,7 +71,7 @@ internal static class AlgorithmRunConfiguration
 
     internal static bool IsSupportedAlgorithm(AlgorithmCatalogItem? algorithm) =>
         algorithm is { IsRunnable: true } &&
-        (algorithm.Id is "psd" or "stft" or "rbp" or "peak_frequency" or "band_ratio" or "faa" or "iapf" or "theta_beta") &&
+        AlgorithmRunResultHandlerRegistry.Contains(algorithm.Id) &&
         algorithm.Modes.Any();
 
     internal static bool IsSupportedStaticAlgorithm(AlgorithmCatalogItem? algorithm) =>
@@ -84,6 +84,13 @@ internal static class AlgorithmRunConfiguration
             throw new InvalidOperationException($"请输入有效的{label}，必须大于 0。 ");
         return value;
     }
+
+    internal static double ParseNotchFrequency(string text) =>
+        string.Equals(text, "关闭", StringComparison.OrdinalIgnoreCase)
+            ? 0.0
+            : text.StartsWith("60", StringComparison.Ordinal)
+                ? 60.0
+                : 50.0;
 
     private static Dictionary<string, object?> BuildRunConfigPayload(
         AlgorithmCatalogItem algorithm,
@@ -110,10 +117,14 @@ internal static class AlgorithmRunConfiguration
             ["numerator_high_hz"] = ratioBands?.Numerator.HighHz,
             ["denominator_low_hz"] = ratioBands?.Denominator.LowHz,
             ["denominator_high_hz"] = ratioBands?.Denominator.HighHz,
-            ["f4_channel"] = f4Channel,
+            ["f4_channel"] = algorithm.Id == "faa" ? f4Channel : null,
         };
 
-        if (algorithm.Id is "psd" or "stft")
+        if (algorithm.Id == "brainbeat")
+            payload["secondary_channel"] = f4Channel;
+
+        if (AlgorithmRunResultHandlerRegistry.Contains(algorithm.Id) &&
+            AlgorithmRunResultHandlerRegistry.For(algorithm.Id).SupportsNotch)
             payload["notch_hz"] = notchHz;
 
         if (windowSeconds is double window && stepSeconds is double step)

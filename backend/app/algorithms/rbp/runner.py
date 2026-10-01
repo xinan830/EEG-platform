@@ -5,8 +5,7 @@ from typing import Any
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmFailure, AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
-from .official import RBP_BANDS
-from app.scientific.primitives.spectral import band_power
+from .official import RBP_BANDS, RBP_FILTER_LOW_HZ, RBP_FILTER_HIGH_HZ, RBP_NOTCH_HZ, five_band_shares
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
 from app.scientific.contracts.types import SampleRange
 from app.scientific.quality import SpectralQualityGateError
@@ -31,32 +30,47 @@ class RbpAlgorithm:
         return [config.channel]
 
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
-        return spectral_execution_snapshot(config)
+        snapshot = spectral_execution_snapshot(config)
+        return snapshot.model_copy(update={"filters": snapshot.filters | {
+            "bandpass_hz": [RBP_FILTER_LOW_HZ, RBP_FILTER_HIGH_HZ],
+            "notch_hz": RBP_NOTCH_HZ, "notch_quality_factor": 30.0,
+        }})
 
     def resolve_inputs(self, recording: Any, config: RbpConfig) -> AlgorithmInputs:
         labels = list(getattr(recording, "channel_names", getattr(recording, "channels", [])))
         channel = next((str(item) for item in labels if str(item).casefold() == config.channel.casefold()), None)
         if channel is None:
             raise ValueError(f"未知原始通道: {config.channel}")
+        if float(getattr(recording, "sfreq_hz", 0.0)) / 2.0 <= RBP_FILTER_HIGH_HZ:
+            raise ValueError("RBP 需要采样率高于 100 Hz，才能完整分析 1–50 Hz")
         return AlgorithmInputs(recording_id=str(getattr(recording, "id", "unknown")), channel=channel, sfreq_hz=float(getattr(recording, "sfreq_hz", 1.0)), duration_s=float(getattr(recording, "duration_s", config.end_s)), payload=recording)
+
+    @staticmethod
+    def _load_spectrum(payload: Any, *, start_s: float, window_s: float, channel: str) -> Any:
+        return payload.load_spectrum(
+            start_s=start_s, window_s=window_s, channels=[channel],
+            filter_low_hz=RBP_FILTER_LOW_HZ, filter_high_hz=RBP_FILTER_HIGH_HZ,
+            output_low_hz=RBP_FILTER_LOW_HZ, output_high_hz=RBP_FILTER_HIGH_HZ,
+            notch_hz=RBP_NOTCH_HZ,
+        )
 
     def execute_static(self, inputs: AlgorithmInputs, config: RbpConfig) -> AlgorithmResult:
         duration = config.end_s - config.start_s
-        spectrum = inputs.payload.load_spectrum(start_s=config.start_s, window_s=duration, channels=[inputs.channel])
+        spectrum = self._load_spectrum(inputs.payload, start_s=config.start_s, window_s=duration, channel=inputs.channel)
         source_quality = {"clean_segments": spectrum.clean_epochs, "total_segments": spectrum.total_epochs, "clean_ratio": spectrum.signal_quality, "gate_failed": spectrum.gate_failed, "rejected_reasons": list(spectrum.rejected_reasons)}
         if spectrum.gate_failed:
             failure = AlgorithmFailure(code="PSD_QUALITY_GATE_FAILED", message="当前窗口未通过 PSD 质量门", detail={"reason": spectrum.gate_failed})
             return AlgorithmResult(value=None, unit="ratio", channel=inputs.channel, requested_range={"start_s": config.start_s, "end_s": config.end_s}, actual_range={"start_s": config.start_s, "end_s": config.end_s}, quality="gate_failed", failure=failure, output_values={name: None for name, *_ in RBP_BANDS}, evidence={"source_quality": source_quality, "spectral_evidence": dict(spectrum.evidence)})
-        powers = {name: float(band_power(spectrum.freqs, spectrum.psd[0], low, high) * 1e12) for name, low, high in RBP_BANDS}
-        total = sum(powers.values())
-        if total <= 0:
-            failure = AlgorithmFailure(code="RBP_DENOMINATOR_INVALID", message="1–30 Hz 总功率不是正数", detail={"total_power_uv2": total})
-            return AlgorithmResult(value=None, unit="ratio", channel=inputs.channel, requested_range={"start_s": config.start_s, "end_s": config.end_s}, actual_range={"start_s": config.start_s, "end_s": config.end_s}, quality="gate_failed", failure=failure, output_values={name: None for name in powers}, evidence={"source_quality": source_quality, "spectral_evidence": dict(spectrum.evidence)})
-        values = {name: power / total for name, power in powers.items()}
+        try:
+            powers, values = five_band_shares(spectrum)
+        except ValueError as exc:
+            failure = AlgorithmFailure(code="RBP_DENOMINATOR_INVALID", message=str(exc))
+            return AlgorithmResult(value=None, unit="ratio", channel=inputs.channel, requested_range={"start_s": config.start_s, "end_s": config.end_s}, actual_range={"start_s": config.start_s, "end_s": config.end_s}, quality="gate_failed", failure=failure, output_values={name: None for name, *_ in RBP_BANDS}, evidence={"source_quality": source_quality, "spectral_evidence": dict(spectrum.evidence)})
         spectral_evidence = dict(spectrum.evidence)
         spectral_evidence["band_power"] = powers
         spectral_evidence["relative_band_power"] = values
-        return AlgorithmResult(value=None, unit="ratio", channel=inputs.channel, requested_range={"start_s": config.start_s, "end_s": config.end_s}, actual_range={"start_s": config.start_s, "end_s": config.end_s}, quality="clean", output_values=values, evidence={"source_quality": source_quality, "spectral_evidence": spectral_evidence, "calculation_trace": {"formula": "各频段功率 ÷ Delta、Theta、Alpha、Beta 四频段功率之和", "inputs": [{"label": name.title() + " 功率", "value": power, "unit": "uV^2"} for name, power in powers.items()]}})
+        spectral_evidence["rbp_denominator_uv2"] = sum(powers.values())
+        return AlgorithmResult(value=None, unit="ratio", channel=inputs.channel, requested_range={"start_s": config.start_s, "end_s": config.end_s}, actual_range={"start_s": config.start_s, "end_s": config.end_s}, quality="clean", output_values=values, evidence={"source_quality": source_quality, "spectral_evidence": spectral_evidence, "calculation_trace": {"formula": "各频段功率 ÷ Delta、Theta、Alpha、Beta、Gamma 五频段功率之和", "denominator_uv2": sum(powers.values()), "bands_hz": {name: [low, high] for name, low, high in RBP_BANDS}, "inputs": [{"label": name.title() + " 功率", "value": power, "unit": "uV^2"} for name, power in powers.items()]}})
 
     def execute_dynamic(self, inputs: AlgorithmInputs, config: RbpConfig) -> AlgorithmSeriesResult:
         window_s = config.window_s or self.manifest.dynamic_policy.default_window_s
@@ -87,18 +101,15 @@ class RbpAlgorithm:
             source_quality: dict[str, Any] = {}
             spectral_evidence: dict[str, Any] = {}
             try:
-                spectrum = inputs.payload.load_spectrum(start_s=frame.window_start_s, window_s=frame.actual_window_s, channels=[inputs.channel])
+                spectrum = self._load_spectrum(inputs.payload, start_s=frame.window_start_s, window_s=frame.actual_window_s, channel=inputs.channel)
                 source_quality = {"clean_segments": spectrum.clean_epochs, "total_segments": spectrum.total_epochs, "clean_ratio": spectrum.signal_quality, "gate_failed": spectrum.gate_failed, "rejected_reasons": list(spectrum.rejected_reasons)}
                 spectral_evidence = dict(spectrum.evidence)
                 if spectrum.gate_failed:
                     raise SpectralQualityGateError(source_quality)
-                powers = {name: float(band_power(spectrum.freqs, spectrum.psd[0], low, high) * 1e12) for name, low, high in RBP_BANDS}
-                total = sum(powers.values())
-                if total <= 0:
-                    raise ValueError("1–30 Hz 总功率不是正数")
-                bands = {name: power / total for name, power in powers.items()}
+                powers, bands = five_band_shares(spectrum)
                 spectral_evidence["band_power"] = powers
                 spectral_evidence["relative_band_power"] = bands
+                spectral_evidence["rbp_denominator_uv2"] = sum(powers.values())
             except SpectralQualityGateError as exc:
                 quality = "gate_failed"
                 failure = AlgorithmFailure(code="RBP_WINDOW_QUALITY_GATE_FAILED", message="当前动态窗口未通过 RBP 质量门", detail=dict(exc.quality))
