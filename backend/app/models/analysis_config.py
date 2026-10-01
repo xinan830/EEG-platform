@@ -15,8 +15,6 @@ class AnalysisTimeRange(BaseModel):
             raise ValueError("分析结束时间必须大于开始时间")
         if self.end_s - self.start_s < 4.0:
             raise ValueError("频谱分析区间至少需要 4 秒")
-        if self.end_s - self.start_s > 120.0:
-            raise ValueError("频谱分析区间不能超过 120 秒")
         return self
 
 

@@ -22,11 +22,17 @@ def test_analysis_config_accepts_spectrogram_mode():
 @pytest.mark.parametrize("time", [
     {"start_s": 4, "end_s": 4},
     {"start_s": 4, "end_s": 7},
-    {"start_s": 0, "end_s": 121},
 ])
 def test_analysis_config_rejects_invalid_ranges(time):
     with pytest.raises(ValidationError):
         AnalysisConfigRequest(channels=["F3"], time=time)
+
+
+def test_analysis_config_accepts_recordings_longer_than_120_seconds():
+    config = AnalysisConfigRequest(
+        channels=["F3"], time={"start_s": 0, "end_s": 149.982},
+    )
+    assert config.time.end_s == 149.982
 
 
 def test_analysis_config_rejects_duplicate_channels_case_insensitive():
