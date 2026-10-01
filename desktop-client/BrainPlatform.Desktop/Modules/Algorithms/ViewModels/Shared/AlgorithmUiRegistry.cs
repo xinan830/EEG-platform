@@ -16,6 +16,7 @@ internal sealed record AlgorithmUiDescriptor(
     AlgorithmDetailKind DetailKind,
     string ChannelLabel,
     Func<AlgorithmListViewModel, object> CreateModule,
+    int DisplayOrder = int.MaxValue,
     string? PreferredPrimaryChannel = null,
     string? PreferredSecondaryChannel = null,
     string? DefaultPeakBandPreset = null,
@@ -32,15 +33,15 @@ internal static class AlgorithmUiRegistry
     private static readonly IReadOnlyDictionary<string, AlgorithmUiDescriptor> Descriptors =
         new Dictionary<string, AlgorithmUiDescriptor>(StringComparer.OrdinalIgnoreCase)
         {
-            ["psd"] = new("psd", AlgorithmDetailKind.FrequencySpectrum, "PSD 通道", catalog => new PsdDetailViewModel(catalog)),
-            ["stft"] = new("stft", AlgorithmDetailKind.TimeFrequency, "STFT 通道", catalog => new StftDetailViewModel(catalog)),
-            ["rbp"] = new("rbp", AlgorithmDetailKind.RelativeBandPower, "RBP 通道", catalog => new RbpDetailViewModel(catalog)),
-            ["faa"] = new("faa", AlgorithmDetailKind.Faa, "FAA F3 通道", catalog => new FaaDetailViewModel(catalog), "F3", "F4"),
-            ["iapf"] = new("iapf", AlgorithmDetailKind.Iapf, "IAPF 通道", catalog => new IapfDetailViewModel(catalog)),
-            ["peak_frequency"] = new("peak_frequency", AlgorithmDetailKind.PeakFrequency, "峰频率通道", catalog => new PeakFrequencyDetailViewModel(catalog), DefaultPeakBandPreset: "Alpha（8–13 Hz）", HasPeakFrequencyParameters: true),
-            ["band_ratio"] = new("band_ratio", AlgorithmDetailKind.BandRatio, "频段比通道", catalog => new BandRatioDetailViewModel(catalog), HasBandRatioParameters: true),
-            ["theta_beta"] = new("theta_beta", AlgorithmDetailKind.ThetaBeta, "Theta/Beta 通道", catalog => new ThetaBetaDetailViewModel(catalog)),
-            ["brainbeat"] = new("brainbeat", AlgorithmDetailKind.Brainbeat, "Brainbeat Fz 通道", catalog => new BrainbeatDetailViewModel(catalog), "Fz", "Pz"),
+            ["psd"] = new("psd", AlgorithmDetailKind.FrequencySpectrum, "PSD 通道", catalog => new PsdDetailViewModel(catalog), 0),
+            ["stft"] = new("stft", AlgorithmDetailKind.TimeFrequency, "STFT 通道", catalog => new StftDetailViewModel(catalog), 1),
+            ["rbp"] = new("rbp", AlgorithmDetailKind.RelativeBandPower, "RBP 通道", catalog => new RbpDetailViewModel(catalog), 2),
+            ["faa"] = new("faa", AlgorithmDetailKind.Faa, "FAA F3 通道", catalog => new FaaDetailViewModel(catalog), 3, "F3", "F4"),
+            ["iapf"] = new("iapf", AlgorithmDetailKind.Iapf, "IAPF 通道", catalog => new IapfDetailViewModel(catalog), 4),
+            ["peak_frequency"] = new("peak_frequency", AlgorithmDetailKind.PeakFrequency, "峰频率通道", catalog => new PeakFrequencyDetailViewModel(catalog), 5, DefaultPeakBandPreset: "Alpha（8–13 Hz）", HasPeakFrequencyParameters: true),
+            ["band_ratio"] = new("band_ratio", AlgorithmDetailKind.BandRatio, "频段比通道", catalog => new BandRatioDetailViewModel(catalog), 6, HasBandRatioParameters: true),
+            ["theta_beta"] = new("theta_beta", AlgorithmDetailKind.ThetaBeta, "Theta/Beta 通道", catalog => new ThetaBetaDetailViewModel(catalog), 7),
+            ["brainbeat"] = new("brainbeat", AlgorithmDetailKind.Brainbeat, "Brainbeat Fz 通道", catalog => new BrainbeatDetailViewModel(catalog), 8, "Fz", "Pz"),
         };
 
     internal static bool TryGet(string? algorithmId, out AlgorithmUiDescriptor descriptor)

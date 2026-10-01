@@ -10,20 +10,6 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 
 public sealed partial class AlgorithmListViewModel : ObservableObject
 {
-    private static readonly IReadOnlyDictionary<string, int> OfficialDisplayOrder =
-        new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["psd"] = 0,
-            ["stft"] = 1,
-            ["rbp"] = 2,
-            ["faa"] = 3,
-            ["iapf"] = 4,
-            ["peak_frequency"] = 5,
-            ["band_ratio"] = 6,
-            ["theta_beta"] = 7,
-            ["brainbeat"] = 8,
-        };
-
     private readonly IAlgorithmClient client;
     private readonly AlgorithmRunCoordinator runCoordinator;
     private readonly OperationNotificationCenter notifications;
@@ -403,7 +389,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         {
             var items = (await client.ListAlgorithmsAsync(CancellationToken.None))
                 .OrderBy(item => IsOfficial(item) ? 0 : 1)
-                .ThenBy(item => OfficialDisplayOrder.TryGetValue(item.Id, out var rank) ? rank : int.MaxValue)
+                .ThenBy(item => AlgorithmUiRegistry.For(item.Id).DisplayOrder)
                 .ThenBy(item => item.DisplayNameZh, StringComparer.CurrentCulture)
                 .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
