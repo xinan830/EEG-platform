@@ -18,7 +18,9 @@ internal sealed record AlgorithmUiDescriptor(
     Func<AlgorithmListViewModel, object> CreateModule,
     string? PreferredPrimaryChannel = null,
     string? PreferredSecondaryChannel = null,
-    string? DefaultPeakBandPreset = null);
+    string? DefaultPeakBandPreset = null,
+    bool HasBandRatioParameters = false,
+    bool HasPeakFrequencyParameters = false);
 
 /// <summary>
 /// Desktop composition metadata.  Algorithm modules own their behavior; this
@@ -35,8 +37,8 @@ internal static class AlgorithmUiRegistry
             ["rbp"] = new("rbp", AlgorithmDetailKind.RelativeBandPower, "RBP 通道", catalog => new RbpDetailViewModel(catalog)),
             ["faa"] = new("faa", AlgorithmDetailKind.Faa, "FAA F3 通道", catalog => new FaaDetailViewModel(catalog), "F3", "F4"),
             ["iapf"] = new("iapf", AlgorithmDetailKind.Iapf, "IAPF 通道", catalog => new IapfDetailViewModel(catalog)),
-            ["peak_frequency"] = new("peak_frequency", AlgorithmDetailKind.PeakFrequency, "峰频率通道", catalog => new PeakFrequencyDetailViewModel(catalog), DefaultPeakBandPreset: "Alpha（8–13 Hz）"),
-            ["band_ratio"] = new("band_ratio", AlgorithmDetailKind.BandRatio, "频段比通道", catalog => new BandRatioDetailViewModel(catalog)),
+            ["peak_frequency"] = new("peak_frequency", AlgorithmDetailKind.PeakFrequency, "峰频率通道", catalog => new PeakFrequencyDetailViewModel(catalog), DefaultPeakBandPreset: "Alpha（8–13 Hz）", HasPeakFrequencyParameters: true),
+            ["band_ratio"] = new("band_ratio", AlgorithmDetailKind.BandRatio, "频段比通道", catalog => new BandRatioDetailViewModel(catalog), HasBandRatioParameters: true),
             ["theta_beta"] = new("theta_beta", AlgorithmDetailKind.ThetaBeta, "Theta/Beta 通道", catalog => new ThetaBetaDetailViewModel(catalog)),
             ["brainbeat"] = new("brainbeat", AlgorithmDetailKind.Brainbeat, "Brainbeat Fz 通道", catalog => new BrainbeatDetailViewModel(catalog), "Fz", "Pz"),
         };
@@ -57,6 +59,9 @@ internal static class AlgorithmUiRegistry
         TryGet(algorithmId, out var descriptor)
             ? descriptor
             : new AlgorithmUiDescriptor(algorithmId, AlgorithmDetailKind.Scalar, "分析通道", _ => new object());
+
+    internal static bool IsSelected(string? algorithmId, string expectedId) =>
+        string.Equals(algorithmId, expectedId, StringComparison.OrdinalIgnoreCase);
 
     internal static IReadOnlyDictionary<string, object> CreateModules(AlgorithmListViewModel catalog) =>
         Descriptors.Values.ToDictionary(item => item.Id, item => item.CreateModule(catalog), StringComparer.OrdinalIgnoreCase);

@@ -26,8 +26,8 @@ public sealed class AlgorithmParameterContext : ObservableObject
     public string NumeratorHighFrequencyText { get => catalog.NumeratorHighFrequencyText; set => catalog.NumeratorHighFrequencyText = value; }
     public string DenominatorLowFrequencyText { get => catalog.DenominatorLowFrequencyText; set => catalog.DenominatorLowFrequencyText = value; }
     public string DenominatorHighFrequencyText { get => catalog.DenominatorHighFrequencyText; set => catalog.DenominatorHighFrequencyText = value; }
-    public bool IsBandRatioSelected => catalog.IsBandRatioSelected;
-    public bool IsPeakFrequencySelected => catalog.IsPeakFrequencySelected;
+    public bool IsBandRatioSelected => AlgorithmUiRegistry.For(catalog.SelectedAlgorithm?.Id ?? string.Empty).HasBandRatioParameters;
+    public bool IsPeakFrequencySelected => AlgorithmUiRegistry.For(catalog.SelectedAlgorithm?.Id ?? string.Empty).HasPeakFrequencyParameters;
     public IReadOnlyList<string> PeakBandPresetNames => catalog.FrequencyBandPresets.Select(item => item.Name).ToArray();
     public string SelectedPeakBandPreset { get => catalog.SelectedPeakBandPreset; set => catalog.SelectedPeakBandPreset = value; }
     public IReadOnlyList<string> BandRatioPresetNames => catalog.BandRatioPresets.Select(item => item.Name).ToArray();
