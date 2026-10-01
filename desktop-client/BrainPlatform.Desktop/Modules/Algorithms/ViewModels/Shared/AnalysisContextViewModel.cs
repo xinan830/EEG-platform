@@ -66,13 +66,21 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public string RequestedRangeText => FormatRange(Catalog.LastRun?.RequestedRange);
     public string ActualRangeText => FormatRange(Catalog.LastRun?.ActualRange);
     public string ResultTimeText => Catalog.LastRun?.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "未运行";
-    public string OutputUnit => Catalog.SelectedAlgorithm?.Id switch
+    public string OutputUnit
     {
-        "psd" => Catalog.PsdValueUnit,
-        "stft" => "dB re 1 μV²/Hz",
-        "rbp" => "相对功率",
-        _ => MetricOutputUnit(Catalog.LastRun?.ResultSummary) ?? "后端未提供"
-    };
+        get
+        {
+            var detailKind = Catalog.SelectedAlgorithm is { } algorithm
+                ? AlgorithmUiRegistry.For(algorithm.Id).DetailKind
+                : AlgorithmDetailKind.Scalar;
+            return detailKind switch
+            {
+                AlgorithmDetailKind.FrequencySpectrum => Catalog.PsdValueUnit,
+                AlgorithmDetailKind.TimeFrequency => Catalog.StftResult?.PowerUnit ?? "后端未提供",
+                _ => MetricOutputUnit(Catalog.LastRun?.ResultSummary) ?? "后端未提供",
+            };
+        }
+    }
     public string RecordingIdText => RegisteredRecording?.Id ?? "未注册";
     public string AlgorithmVersionText => Catalog.SelectedAlgorithm?.Version ?? "后端未提供";
     public string ImplementationVersionText => Catalog.SelectedAlgorithm?.ImplementationIdentity ?? "后端未提供";
@@ -80,16 +88,27 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public string ParameterSnapshotText => "由本次 Run 固化";
     public string OutputUnitText => OutputUnit;
     public AnalysisContextViewModel Provenance => this;
-    public string WindowStateText => Catalog.SelectedAlgorithm?.Id switch
+    public string WindowStateText
     {
-        "psd" => Catalog.PsdWindowStateText,
-        "stft" => Catalog.StftStructuredPreview is { } preview && preview.WindowStateCounts.Count > 0
-            ? string.Join("、", preview.WindowStateCounts.Select(item => $"{item.Key}：{item.Value}"))
-            : "尚未产生窗口结果",
-        _ when Catalog.DynamicWindowRows.Count > 0 => string.Join("、", Catalog.DynamicWindowRows
-            .GroupBy(row => row.State).Select(group => $"{group.Key}：{group.Count()}")),
-        _ => "尚未产生窗口结果"
-    };
+        get
+        {
+            var detailKind = Catalog.SelectedAlgorithm is { } algorithm
+                ? AlgorithmUiRegistry.For(algorithm.Id).DetailKind
+                : AlgorithmDetailKind.Scalar;
+            if (detailKind == AlgorithmDetailKind.FrequencySpectrum)
+                return Catalog.PsdWindowStateText;
+            if (detailKind == AlgorithmDetailKind.TimeFrequency)
+            {
+                return Catalog.StftStructuredPreview is { } preview && preview.WindowStateCounts.Count > 0
+                    ? string.Join("、", preview.WindowStateCounts.Select(item => $"{item.Key}：{item.Value}"))
+                    : "尚未产生窗口结果";
+            }
+            return Catalog.DynamicWindowRows.Count > 0
+                ? string.Join("、", Catalog.DynamicWindowRows.GroupBy(row => row.State)
+                    .Select(group => $"{group.Key}：{group.Count()}"))
+                : "尚未产生窗口结果";
+        }
+    }
     public double RunProgressPercent => Catalog.LastRun?.Status == "completed" ? 100 : 0;
     public string RunProgressText => Catalog.LastRun?.Status switch
     {
