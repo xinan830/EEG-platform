@@ -236,16 +236,17 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             ScheduleAutomaticRun();
         }
     }
-    public bool IsPsdSelected => SelectedAlgorithm?.Id == "psd";
-    public bool IsStftSelected => SelectedAlgorithm?.Id == "stft";
-    public bool IsRbpSelected => SelectedAlgorithm?.Id == "rbp";
-    public bool IsPeakFrequencySelected => SelectedAlgorithm?.Id == "peak_frequency";
-    public bool IsBandRatioSelected => SelectedAlgorithm?.Id == "band_ratio";
-    public bool IsFaaSelected => SelectedAlgorithm?.Id == "faa";
-    public bool IsIapfSelected => SelectedAlgorithm?.Id == "iapf";
-    public bool IsThetaBetaSelected => SelectedAlgorithm?.Id == "theta_beta";
-    public bool IsBrainbeatSelected => SelectedAlgorithm?.Id == "brainbeat";
-    public string ChannelLabel => IsFaaSelected ? "FAA F3 通道" : IsBrainbeatSelected ? "Brainbeat Fz 通道" : IsStftSelected ? "STFT 通道" : IsRbpSelected ? "RBP 通道" : IsPeakFrequencySelected ? "峰频率通道" : IsBandRatioSelected ? "频段比通道" : IsIapfSelected ? "IAPF 通道" : IsThetaBetaSelected ? "Theta/Beta 通道" : "PSD 通道";
+    private bool IsSelected(string id) => string.Equals(SelectedAlgorithm?.Id, id, StringComparison.OrdinalIgnoreCase);
+    public bool IsPsdSelected => IsSelected("psd");
+    public bool IsStftSelected => IsSelected("stft");
+    public bool IsRbpSelected => IsSelected("rbp");
+    public bool IsPeakFrequencySelected => IsSelected("peak_frequency");
+    public bool IsBandRatioSelected => IsSelected("band_ratio");
+    public bool IsFaaSelected => IsSelected("faa");
+    public bool IsIapfSelected => IsSelected("iapf");
+    public bool IsThetaBetaSelected => IsSelected("theta_beta");
+    public bool IsBrainbeatSelected => IsSelected("brainbeat");
+    public string ChannelLabel => AlgorithmUiRegistry.For(SelectedAlgorithm?.Id ?? string.Empty).ChannelLabel;
     public string LowFrequencyText { get => lowFrequencyText; set { if (!SetProperty(ref lowFrequencyText, value)) return; if (!applyingBandPreset) SelectedPeakBandPreset = "自定义"; ScheduleAutomaticRun(); } }
     public string HighFrequencyText { get => highFrequencyText; set { if (!SetProperty(ref highFrequencyText, value)) return; if (!applyingBandPreset) SelectedPeakBandPreset = "自定义"; ScheduleAutomaticRun(); } }
     public string SelectedNotchFrequency { get => selectedNotchFrequency; set { if (SetProperty(ref selectedNotchFrequency, value)) ScheduleAutomaticRun(); } }

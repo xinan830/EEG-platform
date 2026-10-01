@@ -19,8 +19,8 @@ public sealed class AlgorithmDetailViewModel : ObservableObject
         PeakFrequency = new PeakFrequencyDetailViewModel(Catalog);
         ThetaBeta = new ThetaBetaDetailViewModel(Catalog);
         Brainbeat = new BrainbeatDetailViewModel(Catalog);
-        Quality = new QualityStatusViewModel(Catalog, [Psd, Stft, Rbp, Iapf, PeakFrequency, BandRatio, Faa, ThetaBeta, Brainbeat]);
         BandRatio = new BandRatioDetailViewModel(Catalog);
+        Quality = new QualityStatusViewModel(Catalog, [Psd, Stft, Rbp, Iapf, PeakFrequency, BandRatio, Faa, ThetaBeta, Brainbeat]);
         currentModule = Scalar;
     }
 

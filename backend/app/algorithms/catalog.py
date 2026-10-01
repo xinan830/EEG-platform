@@ -4,16 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.algorithms.faa.manifest import MANIFEST as FAA_MANIFEST
-from app.algorithms.band_ratio.manifest import MANIFEST as BAND_RATIO_MANIFEST
-from app.algorithms.brainbeat.manifest import MANIFEST as BRAINBEAT_MANIFEST
-from app.algorithms.iapf.manifest import MANIFEST as IAPF_MANIFEST
-from app.algorithms.peak_frequency.manifest import MANIFEST as PEAK_FREQUENCY_MANIFEST
-from app.algorithms.psd.manifest import MANIFEST as PSD_MANIFEST
-from app.algorithms.stft.manifest import MANIFEST as STFT_MANIFEST
-from app.algorithms.rbp.manifest import MANIFEST as RBP_MANIFEST
 from app.algorithms.rbp.official import RBP_BANDS
-from app.algorithms.theta_beta.manifest import MANIFEST as THETA_BETA_MANIFEST
+from app.algorithms.builtin_modules import BUILTIN_ALGORITHM_MANIFESTS
 from app.algorithm_runtime.contracts import AlgorithmManifest
 from app.core.provenance import sha256_json
 from app.eeg_core.official_algorithms.contracts import OfficialAlgorithmCatalogItem
@@ -21,17 +13,7 @@ from app.models.algorithm_definition import DefinitionVersionDraft
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 
-OFFICIAL_ALGORITHM_MANIFESTS: tuple[AlgorithmManifest, ...] = (
-    RBP_MANIFEST,
-    BAND_RATIO_MANIFEST,
-    PEAK_FREQUENCY_MANIFEST,
-    PSD_MANIFEST,
-    STFT_MANIFEST,
-    THETA_BETA_MANIFEST,
-    FAA_MANIFEST,
-    BRAINBEAT_MANIFEST,
-    IAPF_MANIFEST,
-)
+OFFICIAL_ALGORITHM_MANIFESTS: tuple[AlgorithmManifest, ...] = BUILTIN_ALGORITHM_MANIFESTS
 
 
 def _definition_version(algorithm_id: str) -> str:
