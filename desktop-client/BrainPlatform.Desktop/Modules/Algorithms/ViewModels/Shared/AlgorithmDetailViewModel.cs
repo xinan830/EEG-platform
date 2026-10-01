@@ -4,6 +4,7 @@ public sealed class AlgorithmDetailViewModel : ObservableObject
 {
     private AlgorithmCatalogItem? algorithm;
     private object? currentModule;
+    private readonly IReadOnlyDictionary<string, object> modules;
 
     internal AlgorithmDetailViewModel(AlgorithmListViewModel catalog)
     {
@@ -11,16 +12,17 @@ public sealed class AlgorithmDetailViewModel : ObservableObject
         Catalog.PropertyChanged += OnCatalogPropertyChanged;
         algorithm = Catalog.SelectedAlgorithm;
         Context = new AnalysisContextViewModel(Catalog);
-        Psd = new PsdDetailViewModel(Catalog);
-        Stft = new StftDetailViewModel(Catalog);
-        Rbp = new RbpDetailViewModel(Catalog);
-        Faa = new FaaDetailViewModel(Catalog);
-        Iapf = new IapfDetailViewModel(Catalog);
-        PeakFrequency = new PeakFrequencyDetailViewModel(Catalog);
-        ThetaBeta = new ThetaBetaDetailViewModel(Catalog);
-        Brainbeat = new BrainbeatDetailViewModel(Catalog);
-        BandRatio = new BandRatioDetailViewModel(Catalog);
-        Quality = new QualityStatusViewModel(Catalog, [Psd, Stft, Rbp, Iapf, PeakFrequency, BandRatio, Faa, ThetaBeta, Brainbeat]);
+        modules = AlgorithmUiRegistry.CreateModules(Catalog);
+        Psd = (PsdDetailViewModel)modules["psd"];
+        Stft = (StftDetailViewModel)modules["stft"];
+        Rbp = (RbpDetailViewModel)modules["rbp"];
+        Faa = (FaaDetailViewModel)modules["faa"];
+        Iapf = (IapfDetailViewModel)modules["iapf"];
+        PeakFrequency = (PeakFrequencyDetailViewModel)modules["peak_frequency"];
+        BandRatio = (BandRatioDetailViewModel)modules["band_ratio"];
+        ThetaBeta = (ThetaBetaDetailViewModel)modules["theta_beta"];
+        Brainbeat = (BrainbeatDetailViewModel)modules["brainbeat"];
+        Quality = new QualityStatusViewModel(Catalog, modules.Values.OfType<IAlgorithmQualitySource>().ToArray());
         currentModule = Scalar;
     }
 
@@ -65,19 +67,9 @@ public sealed class AlgorithmDetailViewModel : ObservableObject
             RaisePropertyChanged(nameof(IsBandRatio));
             RaisePropertyChanged(nameof(IsThetaBeta));
             RaisePropertyChanged(nameof(IsBrainbeat));
-            CurrentModule = DetailKind switch
-            {
-                AlgorithmDetailKind.FrequencySpectrum => Psd,
-                AlgorithmDetailKind.TimeFrequency => Stft,
-                AlgorithmDetailKind.RelativeBandPower => Rbp,
-                AlgorithmDetailKind.Faa => Faa,
-                AlgorithmDetailKind.Iapf => Iapf,
-                AlgorithmDetailKind.PeakFrequency => PeakFrequency,
-                AlgorithmDetailKind.BandRatio => BandRatio,
-                AlgorithmDetailKind.ThetaBeta => ThetaBeta,
-                AlgorithmDetailKind.Brainbeat => Brainbeat,
-                _ => Brainbeat,
-            };
+            CurrentModule = Algorithm is not null && modules.TryGetValue(Algorithm.Id, out var module)
+                ? module
+                : Scalar;
         }
     }
 
