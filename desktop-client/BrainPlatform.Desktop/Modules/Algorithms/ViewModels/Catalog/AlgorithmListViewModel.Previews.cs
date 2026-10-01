@@ -62,13 +62,8 @@ public sealed partial class AlgorithmListViewModel
         LastRun?.ActualRange?.EndSeconds ?? 0,
         DynamicWindowRows.Count > 0 ? DynamicWindowRows.Max(row => row.EndSeconds) : 0,
     }.Where(value => double.IsFinite(value) && value > 0).DefaultIfEmpty(0).Max();
-    internal async Task LoadStructuredPreviewAsync(string runId, string algorithmId, bool dynamic = false)
+    internal async Task LoadStructuredPreviewAsync(string runId, bool dynamic = false)
     {
-        if (algorithmId == "stft")
-        {
-            await LoadStftStructuredPreviewAsync(runId, dynamic);
-            return;
-        }
         try
         {
             // Dynamic PSD contains one row per analysis window. Keep the
@@ -82,27 +77,23 @@ public sealed partial class AlgorithmListViewModel
                 // The structured preview must be assigned first because
                 // SetDynamicWindows immediately releases the first complete
                 // window and builds both PSD and band-share views.
-                if (algorithmId == "psd")
-                    PsdStructuredPreview = preview;
-                SetDynamicWindows(preview, algorithmId);
-                if (algorithmId == "psd")
-                {
-                    SetPsdMetadata(preview);
-                    // Show the first complete dynamic window immediately. The
-                    // timeline controls can then replace it as the cursor moves.
-                    var firstCompleteIndex = DynamicWindowRows
-                        .Select((row, index) => (row, index))
-                        .Where(item => string.Equals(item.row.State, "完整", StringComparison.OrdinalIgnoreCase)
-                            || string.Equals(item.row.State, "Complete", StringComparison.OrdinalIgnoreCase))
-                        .Select(item => item.index)
-                        .FirstOrDefault(-1);
-                    if (firstCompleteIndex >= 0 && firstCompleteIndex < psdPreview.DynamicRows.Length)
-                        BuildDynamicPsdPreview(firstCompleteIndex);
-                    else
-                        ClearPsdPreview();
-                    RaisePropertyChanged(nameof(PsdQualityText));
-                    RaisePropertyChanged(nameof(PsdWindowStateText));
-                }
+                PsdStructuredPreview = preview;
+                SetDynamicWindows(preview, StructuredPreviewKind.Psd);
+                SetPsdMetadata(preview);
+                // Show the first complete dynamic window immediately. The
+                // timeline controls can then replace it as the cursor moves.
+                var firstCompleteIndex = DynamicWindowRows
+                    .Select((row, index) => (row, index))
+                    .Where(item => string.Equals(item.row.State, "完整", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(item.row.State, "Complete", StringComparison.OrdinalIgnoreCase))
+                    .Select(item => item.index)
+                    .FirstOrDefault(-1);
+                if (firstCompleteIndex >= 0 && firstCompleteIndex < psdPreview.DynamicRows.Length)
+                    BuildDynamicPsdPreview(firstCompleteIndex);
+                else
+                    ClearPsdPreview();
+                RaisePropertyChanged(nameof(PsdQualityText));
+                RaisePropertyChanged(nameof(PsdWindowStateText));
             }
             else
             {
@@ -168,15 +159,15 @@ public sealed partial class AlgorithmListViewModel
         RaisePropertyChanged(nameof(HasDynamicSeries));
     }
 
-    private void SetDynamicWindows(StructuredPreviewResponse preview, string algorithmId)
+    internal void SetDynamicWindows(StructuredPreviewResponse preview, StructuredPreviewKind kind)
     {
         DynamicWindowRows.Clear();
         foreach (var window in DynamicResultPreview.ParseStructured(preview))
             DynamicWindowRows.Add(window);
-        if (algorithmId == "psd")
+        if (kind == StructuredPreviewKind.Psd)
             SetDynamicPsdMatrix(preview);
         ResetDynamicPreview();
-        if (algorithmId is "psd" or "stft")
+        if (kind is StructuredPreviewKind.Psd or StructuredPreviewKind.Stft)
         {
             // The result is already complete when the preview is loaded. Start
             // at the first complete window so the chart is not blank at 0 s

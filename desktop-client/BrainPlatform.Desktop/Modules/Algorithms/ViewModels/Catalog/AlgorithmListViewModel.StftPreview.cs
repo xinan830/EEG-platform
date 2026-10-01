@@ -22,7 +22,7 @@ public sealed partial class AlgorithmListViewModel
             StructuredPreviewText = AlgorithmResultFormatter.BuildStructuredPreview(preview);
             StftStructuredPreview = preview;
             if (dynamic)
-                SetDynamicWindows(preview, "stft");
+                SetDynamicWindows(preview, StructuredPreviewKind.Stft);
             else
                 SetStftResult(StftPreview.Parse(preview));
         }

@@ -18,7 +18,7 @@ internal sealed class PsdRunResultHandler : IAlgorithmRunResultHandler
     public async Task ApplyAsync(AlgorithmListViewModel catalog, AnalysisRunResponse run, bool dynamic,
         double? preservedDynamicCursorSeconds)
     {
-        await catalog.LoadStructuredPreviewAsync(run.RunId, AlgorithmId, dynamic);
+        await catalog.LoadStructuredPreviewAsync(run.RunId, dynamic);
         if (dynamic && preservedDynamicCursorSeconds is double cursorSeconds)
             catalog.SeekDynamicPreviewSecondsForModule(cursorSeconds);
     }
