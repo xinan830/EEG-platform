@@ -574,33 +574,19 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         if (RegisteredChannels.Count == 0)
             return;
 
-        if (IsFaaSelected)
-        {
-            var f3 = RegisteredChannels.FirstOrDefault(channel => string.Equals(channel, "F3", StringComparison.OrdinalIgnoreCase));
-            var f4 = RegisteredChannels.FirstOrDefault(channel => string.Equals(channel, "F4", StringComparison.OrdinalIgnoreCase));
-            if (f3 is not null)
-                SelectedChannel = f3;
-            if (f4 is not null)
-                SelectedF4Channel = f4;
-        }
-
-        // Brainbeat has a fixed scientific montage: use the recording's exact
-        // Fz/Pz labels when present, while retaining manual fallback for older
-        // recordings that do not expose both channels.
-        if (IsBrainbeatSelected)
-        {
-            var fz = RegisteredChannels.FirstOrDefault(channel => string.Equals(channel, "Fz", StringComparison.OrdinalIgnoreCase));
-            var pz = RegisteredChannels.FirstOrDefault(channel => string.Equals(channel, "Pz", StringComparison.OrdinalIgnoreCase));
-            if (fz is not null)
-                SelectedChannel = fz;
-            if (pz is not null)
-                SelectedF4Channel = pz;
-        }
+        var descriptor = AlgorithmUiRegistry.For(SelectedAlgorithm?.Id ?? string.Empty);
+        var primary = FindRegisteredChannel(descriptor.PreferredPrimaryChannel);
+        var secondary = FindRegisteredChannel(descriptor.PreferredSecondaryChannel);
+        if (primary is not null)
+            SelectedChannel = primary;
+        if (secondary is not null)
+            SelectedF4Channel = secondary;
     }
 
     private void ApplyAlgorithmParameterDefaults()
     {
-        if (!IsPeakFrequencySelected)
+        var presetName = AlgorithmUiRegistry.For(SelectedAlgorithm?.Id ?? string.Empty).DefaultPeakBandPreset;
+        if (presetName is null)
             return;
 
         // Individual alpha peak frequency is an alpha-band search by default.
@@ -608,12 +594,20 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         applyingBandPreset = true;
         try
         {
-            SelectedPeakBandPreset = "Alpha（8–13 Hz）";
+            SelectedPeakBandPreset = presetName;
         }
         finally
         {
             applyingBandPreset = false;
         }
+    }
+
+    private string? FindRegisteredChannel(string? preferred)
+    {
+        if (string.IsNullOrWhiteSpace(preferred))
+            return null;
+        return RegisteredChannels.FirstOrDefault(channel =>
+            string.Equals(channel, preferred, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task RunAsync()
