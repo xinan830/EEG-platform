@@ -117,11 +117,11 @@ internal static class AlgorithmRunConfiguration
             ["numerator_high_hz"] = ratioBands?.Numerator.HighHz,
             ["denominator_low_hz"] = ratioBands?.Denominator.LowHz,
             ["denominator_high_hz"] = ratioBands?.Denominator.HighHz,
-            ["f4_channel"] = algorithm.Id == "faa" ? f4Channel : null,
+            ["f4_channel"] = null,
         };
 
-        if (algorithm.Id == "brainbeat")
-            payload["secondary_channel"] = f4Channel;
+        AlgorithmRunResultHandlerRegistry.For(algorithm.Id)
+            .ApplyConfigFields(payload, channel, f4Channel);
 
         if (AlgorithmRunResultHandlerRegistry.Contains(algorithm.Id) &&
             AlgorithmRunResultHandlerRegistry.For(algorithm.Id).SupportsNotch)

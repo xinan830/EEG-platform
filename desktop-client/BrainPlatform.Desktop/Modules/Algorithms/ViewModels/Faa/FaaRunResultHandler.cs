@@ -9,6 +9,9 @@ internal sealed class FaaRunResultHandler : IAlgorithmRunResultHandler
     public string AlgorithmId => "faa";
     public bool SupportsNotch => true;
 
+    public void ApplyConfigFields(IDictionary<string, object?> payload, string channel, string? secondaryChannel) =>
+        payload["f4_channel"] = secondaryChannel;
+
     public AlgorithmRunParameters ParseParameters(AlgorithmRunInputs inputs)
     {
         if (string.IsNullOrWhiteSpace(inputs.F4Channel) || !inputs.Channels.Contains(inputs.F4Channel))

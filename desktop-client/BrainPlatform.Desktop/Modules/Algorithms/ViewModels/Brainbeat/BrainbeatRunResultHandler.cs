@@ -8,6 +8,9 @@ internal sealed class BrainbeatRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "brainbeat";
 
+    public void ApplyConfigFields(IDictionary<string, object?> payload, string channel, string? secondaryChannel) =>
+        payload["secondary_channel"] = secondaryChannel;
+
     public AlgorithmRunParameters ParseParameters(AlgorithmRunInputs inputs)
     {
         if (string.IsNullOrWhiteSpace(inputs.F4Channel) || !inputs.Channels.Contains(inputs.F4Channel))
