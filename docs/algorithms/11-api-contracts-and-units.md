@@ -14,7 +14,7 @@
 }
 ```
 
-`mode` 可为 `static`、`dynamic`、`spectrogram`；通道非空、去首尾空格后不得重复；区间为 4–120 s。动态窗口只允许 5/10/20/30 s，刷新步长只允许 1/2/5 s。`custom_frequency_range` 仅用于 spectrogram，且必须在 1–30 Hz 内、上限大于下限。
+`mode` 可为 `static`、`dynamic`、`spectrogram`；通道非空、去首尾空格后不得重复；分析区间至少为 4 s，且不得超过录音实际时长，没有固定最大秒数。动态窗口和刷新步长由所选算法的 `dynamic_policy` 决定，不继承分析区间上限。`custom_frequency_range` 仅用于 spectrogram，且必须在 1–30 Hz 内、上限大于下限。
 
 ## 版本字段
 

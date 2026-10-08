@@ -36,6 +36,54 @@ def test_spectrum_api_rejects_window_shorter_than_contract():
     assert response.json()["code"] == "INVALID_REQUEST"
 
 
+def test_spectrum_api_accepts_a_window_longer_than_120_seconds(monkeypatch):
+    calls = []
+
+    class Service:
+        def require_recording(self, recording_id):
+            return SimpleNamespace(id=recording_id, channels=("Fz",))
+
+        def load_spectrum(self, recording, start_s, window_s, channels):
+            calls.append((recording.id, start_s, window_s, channels))
+            return {"recording_id": recording.id, "channels": channels, "algorithm_version": "offline-spectral-v3"}
+
+    class Audit:
+        def record(self, *args, **kwargs):
+            return None
+
+    monkeypatch.setattr(app.state, "recording_service", Service())
+    monkeypatch.setattr(app.state, "audit_service", Audit())
+
+    response = TestClient(app).get("/api/recordings/r1/spectrum?start_s=3.5&window_s=149.982&channels=Fz")
+
+    assert response.status_code == 200
+    assert calls == [("r1", 3.5, 149.982, ["Fz"])]
+
+
+def test_spectrogram_api_accepts_a_window_longer_than_120_seconds(monkeypatch):
+    calls = []
+
+    class Service:
+        def require_recording(self, recording_id):
+            return SimpleNamespace(id=recording_id, channels=("Fz",))
+
+        def load_spectrogram(self, recording, start_s, window_s, channels):
+            calls.append((recording.id, start_s, window_s, channels))
+            return {"recording_id": recording.id, "channels": channels}
+
+    class Audit:
+        def record(self, *args, **kwargs):
+            return None
+
+    monkeypatch.setattr(app.state, "recording_service", Service())
+    monkeypatch.setattr(app.state, "audit_service", Audit())
+
+    response = TestClient(app).get("/api/recordings/r1/spectrogram?start_s=3.5&window_s=149.982&channels=Fz")
+
+    assert response.status_code == 200
+    assert calls == [("r1", 3.5, 149.982, ["Fz"])]
+
+
 def test_configured_spectrum_api_passes_validated_config(monkeypatch):
     class Service:
         def require_recording(self, recording_id):

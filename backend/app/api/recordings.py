@@ -165,7 +165,7 @@ def get_spectrum(
     recording_id: str,
     request: Request,
     start_s: float = Query(0.0, ge=0.0),
-    window_s: float = Query(30.0, ge=4.0, le=120.0),
+    window_s: float = Query(30.0, ge=4.0),
     channels: Optional[str] = Query(None),
 ) -> dict:
     """Return the frozen offline-spectral-v3 PSD and band-power contract."""
@@ -182,7 +182,7 @@ def get_spectrum(
 
 
 @router.get("/{recording_id}/spectrogram")
-def get_spectrogram(recording_id: str, request: Request, start_s: float = Query(0.0, ge=0.0), window_s: float = Query(30.0, ge=4.0, le=120.0), channels: Optional[str] = Query(None)) -> dict:
+def get_spectrogram(recording_id: str, request: Request, start_s: float = Query(0.0, ge=0.0), window_s: float = Query(30.0, ge=4.0), channels: Optional[str] = Query(None)) -> dict:
     try:
         recording = _service(request).require_recording(recording_id)
         requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None

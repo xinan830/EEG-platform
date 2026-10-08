@@ -37,10 +37,26 @@ def test_builtin_registration_is_owned_by_the_composition_root() -> None:
     bootstrap = ROOT / "app" / "bootstrap" / "builtin_registry.py"
     imported = _imported_modules(bootstrap)
     assert "app.algorithm_runtime.registry" in imported
-    assert "app.algorithms.faa.runner" in imported
-    assert "app.algorithms.iapf.runner" in imported
-    assert "app.algorithms.rbp.runner" in imported
-    assert "app.algorithms.theta_beta.runner" in imported
+    assert "app.algorithms.builtin_modules" in imported
+
+    module_list = ROOT / "app" / "algorithms" / "builtin_modules.py"
+    module_imports = _imported_modules(module_list)
+    assert "app.algorithms.faa.runner" in module_imports
+    assert "app.algorithms.iapf.runner" in module_imports
+    assert "app.algorithms.rbp.runner" in module_imports
+    assert "app.algorithms.theta_beta.runner" in module_imports
+
+
+def test_builtin_dynamic_window_metadata_has_no_legacy_global_maximum() -> None:
+    from app.algorithms.builtin_modules import build_builtin_modules
+
+    for module in build_builtin_modules():
+        parameter = next(
+            (item for item in module.parameter_schema().parameters if item.key == "window_s"),
+            None,
+        )
+        if parameter is not None:
+            assert parameter.maximum is None, module.manifest.algorithm_id
 
 
 def test_scientific_authority_manifest_has_one_executable_authority_per_capability() -> None:

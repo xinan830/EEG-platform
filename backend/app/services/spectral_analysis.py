@@ -155,10 +155,19 @@ class SpectralAnalysisService:
         indexes = [names.index(item) for item in requested_names]
         filtered = filtered_all[:, indexes]
         duration_s = len(filtered) / sfreq
-        actual_start = max(0.0, min(float(start_s), duration_s))
         if filter_high_hz >= sfreq / 2.0 or output_high_hz >= sfreq / 2.0:
             raise ValueError(f"PSD 最高频率必须低于奈奎斯特频率（{sfreq / 2:g}Hz）")
-        validate_recording_analysis_input(duration_s, sfreq, names, actual_start, duration_s, requested_names)
+        requested_start = float(start_s)
+        requested_end = requested_start + float(window_s)
+        validate_recording_analysis_input(
+            duration_s,
+            sfreq,
+            names,
+            requested_start,
+            requested_end,
+            requested_names,
+        )
+        actual_start = requested_start
         start_index = int(np.floor(actual_start * sfreq))
         stop_index = min(len(filtered), start_index + int(round(float(window_s) * sfreq)))
         window = filtered[start_index:stop_index]

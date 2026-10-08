@@ -53,7 +53,18 @@ function labelsFor(key: string) {
 function session(enabled: boolean): DynamicSession { return { enabled, definitions: keys.value.filter((key) => config(key).mode === 'dynamic').map((id) => { const value = config(id); const policy = metricPolicy(id); return { id, label: title(id), unit: unit(id), channel: value.channel, windowS: value.windowS, stepS: value.stepS, minimumWindowS: policy.minimumWindowS, allowWarmup: policy.allowWarmup, displayRangeS: value.displayRangeS } }) } }
 function resultOf(run: AnalysisRunResponse): DefinitionMetricResult | DynamicMetric | null { const metric = run.result_summary?.metric; return metric && typeof metric === 'object' ? metric as DefinitionMetricResult | DynamicMetric : null }
 async function load() { loading.value = true; try { await props.catalog.refresh() } catch (error) { message.value = error instanceof Error ? error.message : '无法读取算法目录' } finally { loading.value = false } }
-async function poll(runId: string, key: string, append: boolean) { for (let attempt = 0; attempt < 120; attempt += 1) { const next = await getRun(runId); const result = resultOf(next); const previous = runs.value[key]?.result ?? null; runs.value[key] = { status: next.status, result: append && isDynamic(previous) ? appendOrRetainDynamicMetric(previous, isDynamic(result) ? result : null) : result, error: next.error?.message, run: next, definitionName: title(key) }; if (['completed', 'gate_failed', 'failed', 'cancelled'].includes(next.status)) return; await new Promise<void>((resolve) => window.setTimeout(resolve, 250)) } }
+async function poll(runId: string, key: string, append: boolean) {
+  // A run has no client-side duration cap. The backend owns execution and
+  // terminal state; polling must continue for long recordings or busy queues.
+  while (true) {
+    const next = await getRun(runId)
+    const result = resultOf(next)
+    const previous = runs.value[key]?.result ?? null
+    runs.value[key] = { status: next.status, result: append && isDynamic(previous) ? appendOrRetainDynamicMetric(previous, isDynamic(result) ? result : null) : result, error: next.error?.message, run: next, definitionName: title(key) }
+    if (['completed', 'gate_failed', 'failed', 'cancelled'].includes(next.status)) return
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 250))
+  }
+}
 async function submit(key: string, startS: number, endS: number, dynamic: boolean, append = false) {
   const value = config(key); if (!value.channel || isRunning(key)) return
   if (!dynamic && endS - startS < 4) { message.value = `${title(key)} 的静态分析区间至少需要 4 秒。`; return }

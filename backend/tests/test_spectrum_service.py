@@ -49,6 +49,30 @@ def test_spectrum_exposes_backend_declared_welch_step(tmp_path, monkeypatch):
     assert payload["welch_contract"]["welch_step_s"] == 2.0
 
 
+def test_spectrum_accepts_a_long_recording_range_without_a_fixed_cap(tmp_path, monkeypatch):
+    service, recording = _service(tmp_path)
+    sfreq = 100.0
+    times = np.arange(150 * int(sfreq)) / sfreq
+    data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["F3"], []))
+
+    payload = service.load_spectrum(recording, 0.0, 149.982, ["F3"])
+
+    assert payload["window_start_s"] == 0.0
+    assert payload["window_duration_s"] == pytest.approx(149.98)
+
+
+def test_spectrum_rejects_a_range_past_the_recording_end_instead_of_truncating(tmp_path, monkeypatch):
+    service, recording = _service(tmp_path)
+    sfreq = 100.0
+    times = np.arange(150 * int(sfreq)) / sfreq
+    data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["F3"], []))
+
+    with pytest.raises(ValueError, match="超出文件范围"):
+        service.load_spectrum(recording, 1.0, 149.982, ["F3"])
+
+
 def test_spectrum_uses_the_requested_frequency_range_for_filter_cache_and_output(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
     sfreq = 200.0

@@ -27,7 +27,7 @@ class PeakFrequencyAlgorithm:
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="low_hz", label_zh="频段下限", value_type="number", unit="Hz", minimum=0, step=0.001),
             AlgorithmParameter(key="high_hz", label_zh="频段上限", value_type="number", unit="Hz", minimum=0, step=0.001),
-            AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=4, maximum=120, step=1, required=False),
+            AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=4, step=1, required=False),
             AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", minimum=0.1, maximum=10, step=0.1, required=False),
         ])
 

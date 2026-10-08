@@ -27,7 +27,7 @@ class BandRatioAlgorithm:
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
             number("numerator_low_hz", "分子频段下限"), number("numerator_high_hz", "分子频段上限"), number("denominator_low_hz", "分母频段下限"), number("denominator_high_hz", "分母频段上限"),
-            AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=4, maximum=120, step=1, required=False),
+            AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=4, step=1, required=False),
             AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", minimum=0.1, maximum=10, step=0.1, required=False),
         ])
 
