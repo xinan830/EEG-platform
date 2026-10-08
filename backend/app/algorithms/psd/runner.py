@@ -15,7 +15,7 @@ from app.algorithm_runtime.contracts import (
 )
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.scientific.contracts.types import SampleRange
 from app.scientific.quality import SpectralQualityGateError
 
@@ -74,7 +74,8 @@ class PsdAlgorithm:
         return [config.channel]
 
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
-        return spectral_execution_snapshot(config)
+        return spectral_execution_snapshot(config, low_hz=config.low_hz,
+                                           high_hz=config.high_hz, notch_hz=config.notch_hz)
 
     def resolve_inputs(self, recording: Any, config: PsdConfig) -> AlgorithmInputs:
         labels = list(getattr(recording, "channel_names", getattr(recording, "channels", [])))
@@ -175,7 +176,7 @@ class PsdAlgorithm:
         if trend_high_hz >= inputs.sfreq_hz / 2.0:
             raise ValueError("动态 PSD 的固定趋势范围 1–50 Hz 超出奈奎斯特频率")
         frequencies = self._frequency_axis(inputs.sfreq_hz, trend_low_hz, trend_high_hz)
-        for frame in frames:
+        for frame in controlled_frames(frames, inputs.execution_context):
             sample_range = SampleRange.from_seconds(frame.window_start_s, frame.window_end_s, inputs.sfreq_hz)
             failure = None
             quality = "clean"

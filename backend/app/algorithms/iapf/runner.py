@@ -5,7 +5,7 @@ from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.scientific.quality import SpectralQualityGateError
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
@@ -76,7 +76,7 @@ class IapfAlgorithm:
             allow_warmup=policy.allow_warmup,
         )
         results: list[AlgorithmResult] = []
-        for frame in frames:
+        for frame in controlled_frames(frames, inputs.execution_context):
             requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
             try:
                 spectrum = self._load(

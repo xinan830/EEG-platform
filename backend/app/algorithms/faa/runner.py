@@ -4,7 +4,7 @@ from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmFailure, AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from .official import compute_faa
 
 from .config import FaaConfig
@@ -38,7 +38,7 @@ class FaaAlgorithm:
                 "epoch_s": 2.0, "epoch_overlap": 0.5, "epoch_step_s": 1.0,
                 "window": "hann", "alignment": "window_end" if config.mode == "dynamic" else "range",
             },
-            filters={"operation": "continuous_preprocess_then_per_epoch_mean_removal", "software_bandpass": [config.low_hz, config.high_hz], "notch_hz": config.notch_hz},
+            filters={"operation": "continuous_preprocess_then_per_epoch_mean_removal", "scope": "whole_recording_before_window_slice", "software_bandpass": [config.low_hz, config.high_hz], "notch_hz": config.notch_hz},
             quality_rules={
                 "paired_epoch": True, "minimum_clean_epochs": 10,
                 "artifact_peak_uv": 150.0, "reasons": ["non_finite", "amplitude_threshold"],
@@ -90,7 +90,7 @@ class FaaAlgorithm:
         if not frames:
             raise ValueError("FAA 动态分析区间没有可执行窗口")
         results = []
-        for frame in frames:
+        for frame in controlled_frames(frames, inputs.execution_context):
             frame_config = config.model_copy(update={"start_s": frame.window_start_s, "end_s": frame.window_end_s})
             results.append(self.execute_static(inputs, frame_config))
         return AlgorithmSeriesResult(

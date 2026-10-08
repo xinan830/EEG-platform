@@ -5,11 +5,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 from typing import Literal
+from collections.abc import Iterator, Sequence
 
 from .errors import InvalidAnalysisWindowError
+from .execution_control import ExecutionControl
 
 
 WindowState = Literal["Partial", "Complete"]
+
+
+def controlled_frames(frames: Sequence[DynamicAnalysisFrame], execution_context: ExecutionControl | None = None) -> Iterator[DynamicAnalysisFrame]:
+    """Count actual completed windows, including rejected scientific results."""
+    for frame in frames:
+        if execution_context is not None:
+            execution_context.window_started()
+        yield frame
+        if execution_context is not None:
+            execution_context.window_completed()
 
 
 @dataclass(frozen=True)

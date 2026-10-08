@@ -52,6 +52,10 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
         SendAsync<AnalysisRunResponse>(
             HttpMethod.Get, $"api/runs/{Uri.EscapeDataString(RequireId(runId))}", null, cancellationToken);
 
+    public Task<AnalysisRunResponse> CancelRunAsync(string runId, CancellationToken cancellationToken) =>
+        SendAsync<AnalysisRunResponse>(HttpMethod.Post,
+            $"api/runs/{Uri.EscapeDataString(RequireId(runId))}/cancel", null, cancellationToken);
+
     public async Task<IReadOnlyList<RunArtifact>> ListArtifactsAsync(
         string runId,
         CancellationToken cancellationToken)
@@ -111,21 +115,28 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
             HttpStatusCode.Conflict => "REQUEST_CONFLICT",
             _ => "ALGORITHM_API_ERROR",
         };
-        var message = response.ReasonPhrase ?? "算法服务请求失败。";
+        var message = $"算法服务请求失败（HTTP {(int)response.StatusCode}）。";
         try
         {
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-            if (document.RootElement.TryGetProperty("code", out var errorCode))
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                return new AlgorithmApiException(response.StatusCode, code, message);
+            if (document.RootElement.TryGetProperty("code", out var errorCode) && errorCode.ValueKind == JsonValueKind.String)
             {
                 code = errorCode.GetString() ?? code;
             }
-            if (document.RootElement.TryGetProperty("message", out var errorMessage))
+            if (document.RootElement.TryGetProperty("message", out var errorMessage) && errorMessage.ValueKind == JsonValueKind.String)
             {
                 message = errorMessage.GetString() ?? message;
             }
             else if (document.RootElement.TryGetProperty("detail", out var detail))
             {
-                message = detail.GetString() ?? message;
+                message = detail.ValueKind switch
+                {
+                    JsonValueKind.String => detail.GetString() ?? message,
+                    JsonValueKind.Object or JsonValueKind.Array => $"请求校验失败：{detail.GetRawText()}",
+                    _ => message,
+                };
             }
         }
         catch (JsonException)

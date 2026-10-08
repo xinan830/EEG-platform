@@ -78,6 +78,16 @@ class ArtifactStore:
         with np.load(path, allow_pickle=False) as loaded:
             return {name: np.asarray(loaded[name]) for name in loaded.files}
 
+    def discard_cancelled_write(self, artifact: RunArtifact) -> None:
+        """Remove only a new, unpublished artifact from a cancelled execution."""
+        run = self.repository.get(artifact.run_id)
+        if run is None or run.status.value != "cancelled":
+            raise ValueError("only cancelled execution writes can be discarded")
+        path = (self.root / artifact.relative_path).resolve()
+        self._require_confined(path)
+        path.unlink(missing_ok=True)
+        self.repository.remove_artifact(artifact.artifact_id, artifact.run_id)
+
     def _require_confined(self, path: Path) -> None:
         if path != self.root and self.root not in path.parents:
             raise ValueError("artifact path escapes configured root")

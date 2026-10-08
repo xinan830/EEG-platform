@@ -103,6 +103,25 @@ class SpectralAnalysisService:
         self.preprocess_cache = preprocess_cache
         self.spectral_gateway = spectral_gateway or _ServiceSpectralGateway()
 
+    def _preprocessed_recording(self, recording, low_hz, high_hz, notch_hz, execution_context):
+        from app.services.recordings import RecordingService
+        from app.services.mapped_preprocessing import mapped_preprocess
+
+        identity = _spectral_cache_identity(low_hz, high_hz, notch_hz)
+        cached = self.preprocess_cache.get(recording.id, identity)
+        if cached is None:
+            if getattr(self.recordings.load_data, "__func__", None) is RecordingService.load_data:
+                cached = mapped_preprocess(self.recordings, recording, low_hz=low_hz,
+                    high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
+                    execution_context=execution_context)
+            else:
+                data, sfreq, names, _events = self.recordings.load_data(recording)
+                filtered = self.spectral_gateway.preprocess(np.asarray(data, dtype=float), sfreq,
+                    low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q)
+                cached = PreprocessedRecording(filtered, sfreq, tuple(names))
+            self.preprocess_cache.put(recording.id, identity, cached)
+        return cached
+
     def load_spectrum(
         self,
         recording: RecordingSummary,
@@ -117,6 +136,8 @@ class SpectralAnalysisService:
         filter_high_hz: float | None = None,
         output_low_hz: float | None = None,
         output_high_hz: float | None = None,
+        execution_context: Any = None,
+        _preprocessed: PreprocessedRecording | None = None,
     ) -> dict[str, object]:
         """Return frozen v3 PSD, absolute band power, and relative power."""
         filter_low_hz = float(low_hz if filter_low_hz is None else filter_low_hz)
@@ -134,16 +155,8 @@ class SpectralAnalysisService:
             notch_hz = _notch_for_requested_range(filter_high_hz)
         elif notch_hz is not None and float(notch_hz) not in (50.0, 60.0):
             raise ValueError("陷波仅支持关闭、50Hz 或 60Hz")
-        cache_identity = _spectral_cache_identity(filter_low_hz, filter_high_hz, notch_hz)
-        cached = self.preprocess_cache.get(recording.id, cache_identity)
-        if cached is None:
-            data, sfreq, names, _events = self.recordings.load_data(recording)
-            filtered_all = self.spectral_gateway.preprocess(
-                np.asarray(data, dtype=float), sfreq, low_hz=filter_low_hz, high_hz=filter_high_hz,
-                notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
-            )
-            cached = PreprocessedRecording(filtered_all, sfreq, tuple(names))
-            self.preprocess_cache.put(recording.id, cache_identity, cached)
+        cached = _preprocessed or self._preprocessed_recording(
+            recording, filter_low_hz, filter_high_hz, notch_hz, execution_context)
         filtered_all, sfreq, names = cached.data, cached.sfreq, list(cached.channel_names)
         available = {name.casefold(): name for name in names}
         requested = names if channels is None else [available.get(item.casefold()) for item in channels]
@@ -153,8 +166,7 @@ class SpectralAnalysisService:
         if not requested_names:
             raise ValueError("频谱分析至少需要一个通道")
         indexes = [names.index(item) for item in requested_names]
-        filtered = filtered_all[:, indexes]
-        duration_s = len(filtered) / sfreq
+        duration_s = len(filtered_all) / sfreq
         if filter_high_hz >= sfreq / 2.0 or output_high_hz >= sfreq / 2.0:
             raise ValueError(f"PSD 最高频率必须低于奈奎斯特频率（{sfreq / 2:g}Hz）")
         requested_start = float(start_s)
@@ -169,8 +181,8 @@ class SpectralAnalysisService:
         )
         actual_start = requested_start
         start_index = int(np.floor(actual_start * sfreq))
-        stop_index = min(len(filtered), start_index + int(round(float(window_s) * sfreq)))
-        window = filtered[start_index:stop_index]
+        stop_index = min(len(filtered_all), start_index + int(round(float(window_s) * sfreq)))
+        window = filtered_all[start_index:stop_index, :][:, indexes]
         if len(window) < int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * sfreq)):
             raise ValueError("频谱分析窗口至少需要 4 秒")
         # Keep the standard 1-30 Hz bands available as evidence even when the
@@ -259,41 +271,45 @@ class SpectralAnalysisService:
         notch_hz: float | None = None,
         output_low_hz: float | None = None,
         output_high_hz: float | None = None,
+        execution_context: Any = None,
     ) -> dict[str, object]:
         """Return spectrogram-v2 from the continuous v3-preprocessed signal."""
         output_low = float(output_low_hz if output_low_hz is not None else low_hz)
         output_high = float(output_high_hz if output_high_hz is not None else high_hz)
+        # Keep a lease throughout both estimates; another worker may evict the LRU entry.
+        cached = self._preprocessed_recording(recording, low_hz, high_hz, notch_hz, execution_context)
         payload = self.load_spectrum(
             recording, start_s=start_s, window_s=window_s, channels=channels,
             low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
             filter_low_hz=low_hz, filter_high_hz=high_hz,
             output_low_hz=output_low, output_high_hz=output_high,
+            execution_context=execution_context,
+            _preprocessed=cached,
         )
         names = list(payload["channels"])
-        default_low, default_high = float(low_hz), float(high_hz)
-        cached = self.preprocess_cache.get(recording.id, _spectral_cache_identity(default_low, default_high, notch_hz))
-        if cached is None:
-            raise RuntimeError("STFT 预处理缓存未命中：滤波范围或陷波参数与当前请求不一致")
         indexes = [list(cached.channel_names).index(name) for name in names]
         start_index = int(np.floor(float(start_s) * cached.sfreq))
         stop_index = min(len(cached.data), start_index + int(round(float(window_s) * cached.sfreq)))
+        # Integrate standard bands before cropping the returned frequency axis.
         times, freqs, values, quality = self.spectral_gateway.spectrogram(
             cached.data[start_index:stop_index, :][:, indexes], cached.sfreq,
-            low_hz=output_low, high_hz=output_high,
+            low_hz=min(output_low, min(edges[0] for edges in FREQUENCY_BANDS.values())),
+            high_hz=min(max(output_high, max(edges[1] for edges in FREQUENCY_BANDS.values())),
+                        np.nextafter(cached.sfreq / 2.0, 0.0)),
         )
         frequency_mask = (freqs >= output_low) & (freqs <= output_high)
         if not np.any(frequency_mask):
             raise ValueError("请求的 STFT 频率范围没有可用频率点")
-        freqs = freqs[frequency_mask]
-        values = values[:, :, frequency_mask]
-        power_uv = values * 1e12
+        power_uv = values[:, :, frequency_mask] * 1e12
         power_db = 10.0 * np.log10(np.maximum(power_uv, np.finfo(float).tiny))
         linear_values = {name: power_uv[:, index, :].tolist() for index, name in enumerate(names)}
         db_values = {name: power_db[:, index, :].tolist() for index, name in enumerate(names)}
         band_series = {
             name: {
                 band: [
-                    float(self.spectral_gateway.integrate_band(freqs, row, low, high) * 1e12) if np.isfinite(row).all() else float("nan")
+                    (float(self.spectral_gateway.integrate_band(freqs, row, low, high) * 1e12)
+                     if np.isfinite(row).all() else float("nan"))
+                    if low >= freqs[0] and high <= freqs[-1] else None
                     for row in values[:, index, :]
                 ]
                 for band, (low, high) in FREQUENCY_BANDS.items()
@@ -311,7 +327,7 @@ class SpectralAnalysisService:
             "sfreq_hz": float(cached.sfreq),
             "channels": names,
             "times_s": (times + float(start_s)).tolist(),
-            "frequencies_hz": freqs.tolist(),
+            "frequencies_hz": freqs[frequency_mask].tolist(),
             "power": linear_values,
             "power_linear": linear_values,
             "power_db": db_values,

@@ -7,6 +7,30 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 public sealed class PsdPreviewLoadingTests
 {
     [Fact]
+    public async Task PlaybackAndSlider_OnlyProjectLoadedResultsWithoutSubmittingRuns()
+    {
+        var client = new PreviewClient(Preview(dynamic: true));
+        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter());
+        catalog.SelectedAnalysisMode = "动态";
+        await catalog.LoadStructuredPreviewAsync("run", dynamic: true);
+        // Without a registered recording, duration is the last returned window (149 s).
+        catalog.DynamicTimeProgressPercent = 17 / 149.0 * 100;
+        Assert.Equal(17, catalog.DynamicPreviewCursorSeconds, precision: 8);
+        Assert.Equal(14e12, catalog.PsdPreviewPoints[0]!.Value);
+        catalog.StartDynamicPreviewCommand.Execute(null);
+        Assert.True(catalog.IsDynamicPreviewPlaying);
+        catalog.PauseDynamicPreviewCommand.Execute(null);
+        Assert.False(catalog.IsDynamicPreviewPlaying);
+        Assert.Equal(17, catalog.DynamicPreviewCursorSeconds, precision: 8);
+        catalog.StepDynamicPreviewCommand.Execute(null);
+        Assert.Equal(18, catalog.DynamicPreviewCursorSeconds, precision: 8);
+        Assert.False(catalog.HasPsdPreview);
+        catalog.DynamicTimeProgressPercent = 19 / 149.0 * 100;
+        Assert.True(catalog.HasPsdPreview);
+        // PreviewClient throws if any create/poll API is called.
+    }
+
+    [Fact]
     public async Task StaticPreview_ExposesBackendBandShares()
     {
         var client = new PreviewClient(Preview(dynamic: false));

@@ -5,9 +5,10 @@ from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 from app.scientific.quality import SpectralQualityGateError
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 from .compute import compute_peak_frequency
 from .config import PeakFrequencyConfig
@@ -25,8 +26,8 @@ class PeakFrequencyAlgorithm:
             AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
-            AlgorithmParameter(key="low_hz", label_zh="频段下限", value_type="number", unit="Hz", minimum=0, step=0.001),
-            AlgorithmParameter(key="high_hz", label_zh="频段上限", value_type="number", unit="Hz", minimum=0, step=0.001),
+            AlgorithmParameter(key="low_hz", label_zh="频段下限", value_type="number", unit="Hz", minimum=ANALYSIS_CONTRACT["bandpass_hz"][0], maximum=ANALYSIS_CONTRACT["bandpass_hz"][1], step=0.001),
+            AlgorithmParameter(key="high_hz", label_zh="频段上限", value_type="number", unit="Hz", minimum=ANALYSIS_CONTRACT["bandpass_hz"][0], maximum=ANALYSIS_CONTRACT["bandpass_hz"][1], step=0.001),
             AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=4, step=1, required=False),
             AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", minimum=0.1, maximum=10, step=0.1, required=False),
         ])
@@ -66,7 +67,7 @@ class PeakFrequencyAlgorithm:
         frames = build_dynamic_analysis_frames(config.start_s, config.end_s, duration_s=inputs.duration_s, window_s=window_s, step_s=step_s,
                                                minimum_window_s=self.manifest.dynamic_policy.minimum_window_s, allow_warmup=self.manifest.dynamic_policy.allow_warmup)
         results: list[AlgorithmResult] = []
-        for frame in frames:
+        for frame in controlled_frames(frames, inputs.execution_context):
             requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
             try:
                 results.append(compute_peak_frequency(

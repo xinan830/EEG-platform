@@ -74,16 +74,20 @@ def _faa_provenance_fields(faa: dict[str, Any]) -> dict[str, object]:
             raise ValueError("invalid Alpha band")
     except (KeyError, TypeError, ValueError):
         return {}
+    preprocessing = {"kind": "per_epoch_demean", "label_zh": "每个成对 Epoch 独立去均值；未做软件带通"}
+    if contract.get("software_bandpass"):
+        scope = faa.get("preprocessing_scope")
+        preprocessing = {
+            "kind": "continuous_recording_then_epoch_demean" if scope == "whole_recording_before_window_slice" else "window_filter_then_epoch_demean",
+            "label_zh": "整条记录连续滤波后截取分析窗口，再逐 Epoch 去均值" if scope == "whole_recording_before_window_slice" else "分析窗口独立滤波，再逐 Epoch 去均值",
+        }
     return {
         "method": {
             "kind": "faa_paired_epoch_fft",
             "label_zh": "成对 Epoch FFT 密度谱",
             "detail_zh": f"{epoch_s:g} s Hann，{overlap * 100:g}% Epoch overlap（{step_s:g} s 步进）",
         },
-        "preprocessing": {
-            "kind": "per_epoch_demean",
-            "label_zh": "每个成对 Epoch 独立去均值；未做软件带通",
-        },
+        "preprocessing": preprocessing,
         "frequency": {
             "label_zh": "Alpha 积分频段",
             "low_hz": band[0],

@@ -8,6 +8,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .parameter_schema import AlgorithmParameter, ParameterSchema
+from .execution_control import ExecutionControl
 
 
 AlgorithmMode = Literal["static", "dynamic"]
@@ -98,6 +99,7 @@ class AlgorithmManifest(BaseModel):
     # Official lifecycle data belongs to the executable module manifest.  User
     # definition modules leave these fields at their generic defaults.
     definition_name: str | None = None
+    definition_version: str = "1.0.0"
     execution_kind: str = "runtime_algorithm"
     availability: Literal["shadow_validation", "available", "deprecated"] = "available"
     is_runnable: bool = True
@@ -105,11 +107,14 @@ class AlgorithmManifest(BaseModel):
 
 
 class AlgorithmInputs(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     recording_id: str = Field(min_length=1)
     channel: str = Field(min_length=1)
     sfreq_hz: float = Field(gt=0)
     duration_s: float = Field(gt=0)
     payload: Any
+    execution_context: ExecutionControl | None = Field(default=None, exclude=True)
 
 
 class AlgorithmResult(BaseModel):

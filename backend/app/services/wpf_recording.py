@@ -96,7 +96,9 @@ def inspect_wpf_recording(source_directory: str | Path) -> WpfRecordingFacts:
     unique_paths = list(dict.fromkeys(path for path in source_paths if path.is_file()))
     for path in unique_paths:
         digest.update(path.name.encode())
-        digest.update(path.read_bytes())
+        with path.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
     return WpfRecordingFacts(root, session_id, start_utc, sfreq, tuple(channels), eeg, (last - first) / sfreq, last - first, digest.hexdigest())
 
 

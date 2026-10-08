@@ -101,7 +101,8 @@ public sealed record DynamicAnalysisPolicy(
 public sealed record AnalysisRunRequest(
     [property: JsonPropertyName("recording_id")] string RecordingId,
     [property: JsonPropertyName("analysis_type")] string AnalysisType,
-    [property: JsonPropertyName("config")] JsonElement Config);
+    [property: JsonPropertyName("config")] JsonElement Config,
+    [property: JsonPropertyName("idempotency_key")] string? IdempotencyKey = null);
 
 public sealed record AnalysisRunResponse(
     [property: JsonPropertyName("run_id")] string RunId,
@@ -115,7 +116,27 @@ public sealed record AnalysisRunResponse(
     [property: JsonPropertyName("analysis_provenance")] JsonElement? AnalysisProvenance,
     [property: JsonPropertyName("error")] StructuredRunError? Error,
     [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt,
-    [property: JsonPropertyName("updated_at")] DateTimeOffset UpdatedAt);
+    [property: JsonPropertyName("updated_at")] DateTimeOffset UpdatedAt,
+    [property: JsonPropertyName("progress_completed")] int ProgressCompleted = 0,
+    [property: JsonPropertyName("progress_total")] int? ProgressTotal = null,
+    [property: JsonPropertyName("progress_stage")] string? ProgressStage = null,
+    [property: JsonPropertyName("progress_message")] string? ProgressMessage = null)
+{
+    public double ProgressPercent => Status == "completed" ? 100 :
+        ProgressTotal is > 0 ? Math.Clamp(100.0 * ProgressCompleted / ProgressTotal.Value, 0, Status == "running" ? 99 : 100) : 0;
+
+    public string ProgressText => Status switch
+    {
+        "completed" => "100%",
+        "queued" => "等待中",
+        "running" when ProgressTotal is > 0 => $"{ProgressPercent:0}%（{ProgressCompleted}/{ProgressTotal}）",
+        "running" => "运行中",
+        "cancelled" => $"已取消（{ProgressCompleted}/{ProgressTotal?.ToString() ?? "未知"}）",
+        "failed" or "gate_failed" => "失败",
+        "interrupted" => "已中断",
+        _ => "未运行",
+    };
+}
 
 public sealed record TimeRange(
     [property: JsonPropertyName("start_s")] double StartSeconds,

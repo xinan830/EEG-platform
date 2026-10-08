@@ -48,6 +48,13 @@ def compute_peak_frequency(spectrum: Any, *, channel: str, low_hz: float, high_h
         failure = AlgorithmFailure(code="PEAK_FREQUENCY_NO_BIN", message="指定频段不包含有效 PSD 频率点", detail={"band_hz": [low_hz, high_hz]})
         return AlgorithmResult(value=None, unit="Hz", channel=channel, requested_range=requested_range, actual_range=actual_range,
                                quality="unavailable", failure=failure, evidence=base_evidence)
+    if (not np.isfinite(frequencies).all() or not np.all(np.diff(frequencies) > 0)
+            or low_hz < frequencies[0] or high_hz > frequencies[-1]):
+        failure = AlgorithmFailure(code="PEAK_FREQUENCY_BAND_NOT_COVERED",
+                                   message="PSD 频率轴未完整覆盖请求频段，不能计算部分频段峰值",
+                                   detail={"band_hz": [low_hz, high_hz]})
+        return AlgorithmResult(value=None, unit="Hz", channel=channel, requested_range=requested_range,
+                               actual_range=actual_range, quality="unavailable", failure=failure, evidence=base_evidence)
     mean_psd = np.nanmean(psd, axis=0)
     band_values = mean_psd[mask]
     if not np.all(np.isfinite(band_values)):

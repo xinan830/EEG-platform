@@ -1,0 +1,3217 @@
+{
+  "checks": [
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 2.220446049250313e-16,
+        "max_rel": 1.9222173140131146e-16
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 234,
+        "failed": 0,
+        "max_abs": 5.329070518200751e-15,
+        "max_rel": 8.569581142509033e-16
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": 1.1551482931004144,
+      "algorithm": "band_ratio",
+      "mode": "static",
+      "channel": "F3",
+      "scientific_version": "official-band-ratio-v1",
+      "implementation": "band-ratio-runtime-v2-frequency-contract",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range",
+          "numerator_band_hz": [
+            4.0,
+            8.0
+          ],
+          "denominator_band_hz": [
+            13.0,
+            30.0
+          ],
+          "ratio_policy": "numerator_power_divided_by_positive_denominator_power"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          30.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "numerator_low_hz": 4.0,
+        "numerator_high_hz": 8.0,
+        "denominator_low_hz": 13.0,
+        "denominator_high_hz": 30.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 8.881784197001252e-16,
+        "max_rel": 6.130947710456307e-16
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 34164,
+        "failed": 0,
+        "max_abs": 2.5579538487363607e-13,
+        "max_rel": 3.675990776146001e-14
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "band_ratio",
+      "mode": "dynamic",
+      "channel": "F3",
+      "scientific_version": "official-band-ratio-v1",
+      "implementation": "band-ratio-runtime-v2-frequency-contract",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end",
+          "numerator_band_hz": [
+            4.0,
+            8.0
+          ],
+          "denominator_band_hz": [
+            13.0,
+            30.0
+          ],
+          "ratio_policy": "numerator_power_divided_by_positive_denominator_power"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "numerator_low_hz": 4.0,
+        "numerator_high_hz": 8.0,
+        "denominator_low_hz": 13.0,
+        "denominator_high_hz": 30.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 234,
+        "failed": 0,
+        "max_abs": 2.1316282072803006e-14,
+        "max_rel": 1.307818942961278e-15
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": 0.43972973874320326,
+      "algorithm": "band_ratio",
+      "mode": "static",
+      "channel": "O1",
+      "scientific_version": "official-band-ratio-v1",
+      "implementation": "band-ratio-runtime-v2-frequency-contract",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range",
+          "numerator_band_hz": [
+            4.0,
+            8.0
+          ],
+          "denominator_band_hz": [
+            13.0,
+            30.0
+          ],
+          "ratio_policy": "numerator_power_divided_by_positive_denominator_power"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          30.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "config": {
+        "channel": "O1",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "numerator_low_hz": 4.0,
+        "numerator_high_hz": 8.0,
+        "denominator_low_hz": 13.0,
+        "denominator_high_hz": 30.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 4.440892098500626e-16,
+        "max_rel": 6.303141537008163e-16
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 34164,
+        "failed": 0,
+        "max_abs": 1.7053025658242404e-13,
+        "max_rel": 7.88015063790032e-14
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "band_ratio",
+      "mode": "dynamic",
+      "channel": "O1",
+      "scientific_version": "official-band-ratio-v1",
+      "implementation": "band-ratio-runtime-v2-frequency-contract",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end",
+          "numerator_band_hz": [
+            4.0,
+            8.0
+          ],
+          "denominator_band_hz": [
+            13.0,
+            30.0
+          ],
+          "ratio_policy": "numerator_power_divided_by_positive_denominator_power"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "O1",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "numerator_low_hz": 4.0,
+        "numerator_high_hz": 8.0,
+        "denominator_low_hz": 13.0,
+        "denominator_high_hz": 30.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 6.661338147750939e-16,
+        "max_rel": 6.685394587073585e-16
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 351,
+        "failed": 0,
+        "max_abs": 1.4210854715202004e-14,
+        "max_rel": 9.87960898039902e-16
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 6.661338147750939e-16,
+        "max_rel": 6.685394587073585e-16
+      },
+      "static_value": 0.9964016425643499,
+      "algorithm": "brainbeat",
+      "mode": "static",
+      "channel": "Fz",
+      "scientific_version": "official-brainbeat-v1",
+      "implementation": "brainbeat-runtime-v1",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range",
+          "brainbeat_windows_are_independent": true,
+          "cross_window_ema": false
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ],
+          "required_channels": [
+            "Fz",
+            "Pz"
+          ],
+          "iapf_required": true
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          30.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "config": {
+        "channel": "Fz",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "pz_channel": "Pz"
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 2,
+      "result": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 8.881784197001252e-15,
+        "max_rel": 6.465375096752375e-16
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 50544,
+        "failed": 0,
+        "max_abs": 6.821210263296962e-13,
+        "max_rel": 7.34539341736562e-14
+      },
+      "quality": {
+        "points": 294,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 144,
+        "failed": 0,
+        "max_abs": 8.881784197001252e-15,
+        "max_rel": 6.465375096752375e-16
+      },
+      "algorithm": "brainbeat",
+      "mode": "dynamic",
+      "channel": "Fz",
+      "scientific_version": "official-brainbeat-v1",
+      "implementation": "brainbeat-runtime-v1",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end",
+          "brainbeat_windows_are_independent": true,
+          "cross_window_ema": false
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ],
+          "required_channels": [
+            "Fz",
+            "Pz"
+          ],
+          "iapf_required": true
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "Fz",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "pz_channel": "Pz"
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "quality": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": -0.019937294840175923,
+      "algorithm": "faa",
+      "mode": "static",
+      "channel": "F3",
+      "scientific_version": "official-faa-v2",
+      "implementation": "faa-runtime-v2",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "method": "paired_epoch_rfft_density",
+          "epoch_s": 2.0,
+          "epoch_overlap": 0.5,
+          "epoch_step_s": 1.0,
+          "window": "hann",
+          "alignment": "range"
+        },
+        "filters": {
+          "operation": "continuous_preprocess_then_per_epoch_mean_removal",
+          "scope": "whole_recording_before_window_slice",
+          "software_bandpass": [
+            1.0,
+            50.0
+          ],
+          "notch_hz": 50.0
+        },
+        "quality_rules": {
+          "paired_epoch": true,
+          "minimum_clean_epochs": 10,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 20.0,
+        "step_s": 1.0,
+        "f4_channel": "F4",
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 130,
+      "unavailable": 0,
+      "result": {
+        "points": 130,
+        "failed": 0,
+        "max_abs": 3.552713678800501e-15,
+        "max_rel": 2.0332890787092394e-12
+      },
+      "timing": {
+        "points": 390,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "quality": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "faa",
+      "mode": "dynamic",
+      "channel": "F3",
+      "scientific_version": "official-faa-v2",
+      "implementation": "faa-runtime-v2",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "method": "paired_epoch_rfft_density",
+          "epoch_s": 2.0,
+          "epoch_overlap": 0.5,
+          "epoch_step_s": 1.0,
+          "window": "hann",
+          "alignment": "window_end"
+        },
+        "filters": {
+          "operation": "continuous_preprocess_then_per_epoch_mean_removal",
+          "scope": "whole_recording_before_window_slice",
+          "software_bandpass": [
+            1.0,
+            50.0
+          ],
+          "notch_hz": 50.0
+        },
+        "quality_rules": {
+          "paired_epoch": true,
+          "minimum_clean_epochs": 10,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 20.0,
+        "step_s": 1.0,
+        "f4_channel": "F4",
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 234,
+        "failed": 0,
+        "max_abs": 5.329070518200751e-15,
+        "max_rel": 8.569581142509033e-16
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": 9.75,
+      "algorithm": "iapf",
+      "mode": "static",
+      "channel": "F3",
+      "scientific_version": "official-iapf-v2",
+      "implementation": "iapf-runtime-v3",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          30.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 34164,
+        "failed": 0,
+        "max_abs": 2.5579538487363607e-13,
+        "max_rel": 3.675990776146001e-14
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "iapf",
+      "mode": "dynamic",
+      "channel": "F3",
+      "scientific_version": "official-iapf-v2",
+      "implementation": "iapf-runtime-v3",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 234,
+        "failed": 0,
+        "max_abs": 2.1316282072803006e-14,
+        "max_rel": 1.307818942961278e-15
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": 9.75,
+      "algorithm": "iapf",
+      "mode": "static",
+      "channel": "O1",
+      "scientific_version": "official-iapf-v2",
+      "implementation": "iapf-runtime-v3",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          30.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "config": {
+        "channel": "O1",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 34164,
+        "failed": 0,
+        "max_abs": 1.7053025658242404e-13,
+        "max_rel": 7.88015063790032e-14
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "iapf",
+      "mode": "dynamic",
+      "channel": "O1",
+      "scientific_version": "official-iapf-v2",
+      "implementation": "iapf-runtime-v3",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "O1",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 234,
+        "failed": 0,
+        "max_abs": 5.329070518200751e-15,
+        "max_rel": 8.569581142509033e-16
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": 9.75,
+      "algorithm": "peak_frequency",
+      "mode": "static",
+      "channel": "F3",
+      "scientific_version": "official-peak-frequency-v1",
+      "implementation": "peak-frequency-runtime-v2-frequency-contract",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range",
+          "frequency_band_hz": [
+            8.0,
+            13.0
+          ],
+          "peak_policy": "inclusive_grid_max_lowest_tie_no_interpolation"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          30.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 8.0,
+        "high_hz": 13.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 34164,
+        "failed": 0,
+        "max_abs": 2.5579538487363607e-13,
+        "max_rel": 3.675990776146001e-14
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "peak_frequency",
+      "mode": "dynamic",
+      "channel": "F3",
+      "scientific_version": "official-peak-frequency-v1",
+      "implementation": "peak-frequency-runtime-v2-frequency-contract",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end",
+          "frequency_band_hz": [
+            8.0,
+            13.0
+          ],
+          "peak_policy": "inclusive_grid_max_lowest_tie_no_interpolation"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 8.0,
+        "high_hz": 13.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 234,
+        "failed": 0,
+        "max_abs": 2.1316282072803006e-14,
+        "max_rel": 1.307818942961278e-15
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": 9.75,
+      "algorithm": "peak_frequency",
+      "mode": "static",
+      "channel": "O1",
+      "scientific_version": "official-peak-frequency-v1",
+      "implementation": "peak-frequency-runtime-v2-frequency-contract",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range",
+          "frequency_band_hz": [
+            8.0,
+            13.0
+          ],
+          "peak_policy": "inclusive_grid_max_lowest_tie_no_interpolation"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          30.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "config": {
+        "channel": "O1",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 8.0,
+        "high_hz": 13.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 34164,
+        "failed": 0,
+        "max_abs": 1.7053025658242404e-13,
+        "max_rel": 7.88015063790032e-14
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "peak_frequency",
+      "mode": "dynamic",
+      "channel": "O1",
+      "scientific_version": "official-peak-frequency-v1",
+      "implementation": "peak-frequency-runtime-v2-frequency-contract",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end",
+          "frequency_band_hz": [
+            8.0,
+            13.0
+          ],
+          "peak_policy": "inclusive_grid_max_lowest_tie_no_interpolation"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "O1",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 8.0,
+        "high_hz": 13.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 202,
+        "failed": 0,
+        "max_abs": 1.4210854715202004e-14,
+        "max_rel": 1.0911036066160623e-15
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 394,
+        "failed": 0,
+        "max_abs": 1.4210854715202004e-14,
+        "max_rel": 1.0911036066160623e-15
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": null,
+      "algorithm": "psd",
+      "mode": "static",
+      "channel": "F3",
+      "scientific_version": "offline-spectral-v3",
+      "implementation": "psd-runtime-v3-explicit-filters",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          50.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": 50.0,
+        "notch_quality_factor": 30.0
+      },
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 29492,
+        "failed": 0,
+        "max_abs": 1.7053025658242404e-13,
+        "max_rel": 3.181874170124036e-13
+      },
+      "timing": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 57524,
+        "failed": 0,
+        "max_abs": 1.7053025658242404e-13,
+        "max_rel": 3.181874170124036e-13
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "psd",
+      "mode": "dynamic",
+      "channel": "F3",
+      "scientific_version": "offline-spectral-v3",
+      "implementation": "psd-runtime-v3-explicit-filters",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 202,
+        "failed": 0,
+        "max_abs": 1.7763568394002505e-14,
+        "max_rel": 8.981239591666696e-16
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 394,
+        "failed": 0,
+        "max_abs": 1.7763568394002505e-14,
+        "max_rel": 8.981239591666696e-16
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": null,
+      "algorithm": "psd",
+      "mode": "static",
+      "channel": "O1",
+      "scientific_version": "offline-spectral-v3",
+      "implementation": "psd-runtime-v3-explicit-filters",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          50.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": 50.0,
+        "notch_quality_factor": 30.0
+      },
+      "config": {
+        "channel": "O1",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 29492,
+        "failed": 0,
+        "max_abs": 1.4210854715202004e-13,
+        "max_rel": 4.573018024996868e-13
+      },
+      "timing": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 57524,
+        "failed": 0,
+        "max_abs": 1.4210854715202004e-13,
+        "max_rel": 4.573018024996868e-13
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "psd",
+      "mode": "dynamic",
+      "channel": "O1",
+      "scientific_version": "offline-spectral-v3",
+      "implementation": "psd-runtime-v3-explicit-filters",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "O1",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 5,
+        "failed": 0,
+        "max_abs": 5.551115123125783e-17,
+        "max_rel": 4.454873099596389e-16
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 394,
+        "failed": 0,
+        "max_abs": 1.4210854715202004e-14,
+        "max_rel": 1.0911036066160623e-15
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": null,
+      "algorithm": "rbp",
+      "mode": "static",
+      "channel": "F3",
+      "scientific_version": "official-rbp-v2",
+      "implementation": "rbp-runtime-v2-five-band",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          50.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": 50.0,
+        "notch_quality_factor": 30.0
+      },
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 730,
+        "failed": 0,
+        "max_abs": 2.220446049250313e-16,
+        "max_rel": 6.552179233171099e-16
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 57524,
+        "failed": 0,
+        "max_abs": 1.7053025658242404e-13,
+        "max_rel": 3.181874170124036e-13
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "rbp",
+      "mode": "dynamic",
+      "channel": "F3",
+      "scientific_version": "official-rbp-v2",
+      "implementation": "rbp-runtime-v2-five-band",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 5,
+        "failed": 0,
+        "max_abs": 1.1102230246251565e-16,
+        "max_rel": 4.139402848347603e-16
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 394,
+        "failed": 0,
+        "max_abs": 1.7763568394002505e-14,
+        "max_rel": 8.981239591666696e-16
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": null,
+      "algorithm": "rbp",
+      "mode": "static",
+      "channel": "O1",
+      "scientific_version": "official-rbp-v2",
+      "implementation": "rbp-runtime-v2-five-band",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          50.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": 50.0,
+        "notch_quality_factor": 30.0
+      },
+      "config": {
+        "channel": "O1",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 730,
+        "failed": 0,
+        "max_abs": 2.220446049250313e-16,
+        "max_rel": 7.883636104006651e-16
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 57524,
+        "failed": 0,
+        "max_abs": 1.4210854715202004e-13,
+        "max_rel": 4.573018024996868e-13
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "rbp",
+      "mode": "dynamic",
+      "channel": "O1",
+      "scientific_version": "official-rbp-v2",
+      "implementation": "rbp-runtime-v2-five-band",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "O1",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 57524,
+        "failed": 0,
+        "max_abs": 1.7763568394002505e-13,
+        "max_rel": 5.786221852433446e-12
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 28908,
+        "failed": 0,
+        "max_abs": 5.684341886080802e-14,
+        "max_rel": 4.2367679945368866e-14
+      },
+      "quality": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": null,
+      "algorithm": "stft",
+      "mode": "static",
+      "channel": "F3",
+      "scientific_version": "spectrogram-v2",
+      "implementation": "stft-runtime-v3-explicit-filters",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range",
+          "segment_s": 4.0,
+          "step_s": 1.0,
+          "time_axis": "window_center"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ],
+          "spectrogram_contract_version": "spectrogram-v2",
+          "frequency_range_hz": [
+            1.0,
+            50.0
+          ],
+          "notch_hz": 50.0
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 115048,
+        "failed": 0,
+        "max_abs": 1.7763568394002505e-13,
+        "max_rel": 5.786221852433446e-12
+      },
+      "timing": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 57618,
+        "failed": 0,
+        "max_abs": 5.684341886080802e-14,
+        "max_rel": 4.2367679945368866e-14
+      },
+      "quality": {
+        "points": 291,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "stft",
+      "mode": "dynamic",
+      "channel": "F3",
+      "scientific_version": "spectrogram-v2",
+      "implementation": "stft-runtime-v3-explicit-filters",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end",
+          "segment_s": 4.0,
+          "step_s": 1.0,
+          "time_axis": "window_center"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ],
+          "spectrogram_contract_version": "spectrogram-v2",
+          "frequency_range_hz": [
+            1.0,
+            50.0
+          ],
+          "notch_hz": 50.0
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 57524,
+        "failed": 0,
+        "max_abs": 9.521272659185342e-13,
+        "max_rel": 3.78028486823799e-11
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 28908,
+        "failed": 0,
+        "max_abs": 5.684341886080802e-14,
+        "max_rel": 2.2173594789993951e-13
+      },
+      "quality": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": null,
+      "algorithm": "stft",
+      "mode": "static",
+      "channel": "O1",
+      "scientific_version": "spectrogram-v2",
+      "implementation": "stft-runtime-v3-explicit-filters",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range",
+          "segment_s": 4.0,
+          "step_s": 1.0,
+          "time_axis": "window_center"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ],
+          "spectrogram_contract_version": "spectrogram-v2",
+          "frequency_range_hz": [
+            1.0,
+            50.0
+          ],
+          "notch_hz": 50.0
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "O1",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 115048,
+        "failed": 0,
+        "max_abs": 9.521272659185342e-13,
+        "max_rel": 3.78028486823799e-11
+      },
+      "timing": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 57618,
+        "failed": 0,
+        "max_abs": 5.684341886080802e-14,
+        "max_rel": 2.2173594789993951e-13
+      },
+      "quality": {
+        "points": 291,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "stft",
+      "mode": "dynamic",
+      "channel": "O1",
+      "scientific_version": "spectrogram-v2",
+      "implementation": "stft-runtime-v3-explicit-filters",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end",
+          "segment_s": 4.0,
+          "step_s": 1.0,
+          "time_axis": "window_center"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 50.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ],
+          "spectrogram_contract_version": "spectrogram-v2",
+          "frequency_range_hz": [
+            1.0,
+            50.0
+          ],
+          "notch_hz": 50.0
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "O1",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 50.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 234,
+        "failed": 0,
+        "max_abs": 5.329070518200751e-15,
+        "max_rel": 8.569581142509033e-16
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": 0.6578567684146155,
+      "algorithm": "theta_beta",
+      "mode": "static",
+      "channel": "F3",
+      "scientific_version": "official-theta-beta-v2",
+      "implementation": "theta-beta-runtime-v1",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          30.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 1.7763568394002505e-15,
+        "max_rel": 6.154937159284838e-16
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 34164,
+        "failed": 0,
+        "max_abs": 2.5579538487363607e-13,
+        "max_rel": 3.675990776146001e-14
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "theta_beta",
+      "mode": "dynamic",
+      "channel": "F3",
+      "scientific_version": "official-theta-beta-v2",
+      "implementation": "theta-beta-runtime-v1",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "F3",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 1,
+      "unavailable": 0,
+      "result": {
+        "points": 1,
+        "failed": 0,
+        "max_abs": 5.551115123125783e-17,
+        "max_rel": 2.6606862364801414e-16
+      },
+      "timing": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 234,
+        "failed": 0,
+        "max_abs": 2.1316282072803006e-14,
+        "max_rel": 1.307818942961278e-15
+      },
+      "quality": {
+        "points": 2,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "static_value": 0.2086347141205733,
+      "algorithm": "theta_beta",
+      "mode": "static",
+      "channel": "O1",
+      "scientific_version": "official-theta-beta-v2",
+      "implementation": "theta-beta-runtime-v1",
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          30.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "config": {
+        "channel": "O1",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    },
+    {
+      "windows": 146,
+      "unavailable": 0,
+      "result": {
+        "points": 146,
+        "failed": 0,
+        "max_abs": 1.7763568394002505e-15,
+        "max_rel": 7.100478813362588e-16
+      },
+      "timing": {
+        "points": 438,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "spectrum": {
+        "points": 34164,
+        "failed": 0,
+        "max_abs": 1.7053025658242404e-13,
+        "max_rel": 7.88015063790032e-14
+      },
+      "quality": {
+        "points": 292,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "brainbeat_interpolated_boundary_comparison": {
+        "points": 0,
+        "failed": 0,
+        "max_abs": 0.0,
+        "max_rel": 0.0
+      },
+      "algorithm": "theta_beta",
+      "mode": "dynamic",
+      "channel": "O1",
+      "scientific_version": "official-theta-beta-v2",
+      "implementation": "theta-beta-runtime-v1",
+      "snapshot": {
+        "window": {
+          "mode": "dynamic",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": 5.0,
+          "refresh_step_s": 1.0,
+          "alignment": "window_end"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            30.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_spectral_filter": null,
+      "config": {
+        "channel": "O1",
+        "mode": "dynamic",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0
+      }
+    }
+  ],
+  "probes": [
+    {
+      "algorithm": "peak_frequency",
+      "requested_bands": {
+        "low_hz": 35,
+        "high_hz": 40
+      },
+      "rejected_before_loading": true,
+      "errors": [
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "low_hz"
+          ],
+          "msg": "Input should be less than or equal to 30",
+          "input": 35
+        },
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "high_hz"
+          ],
+          "msg": "Input should be less than or equal to 30",
+          "input": 40
+        }
+      ]
+    },
+    {
+      "algorithm": "peak_frequency",
+      "requested_bands": {
+        "low_hz": 25,
+        "high_hz": 40
+      },
+      "rejected_before_loading": true,
+      "errors": [
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "high_hz"
+          ],
+          "msg": "Input should be less than or equal to 30",
+          "input": 40
+        }
+      ]
+    },
+    {
+      "algorithm": "band_ratio",
+      "requested_bands": {
+        "numerator_low_hz": 4,
+        "numerator_high_hz": 8,
+        "denominator_low_hz": 30,
+        "denominator_high_hz": 50
+      },
+      "rejected_before_loading": true,
+      "errors": [
+        {
+          "type": "less_than_equal",
+          "loc": [
+            "denominator_high_hz"
+          ],
+          "msg": "Input should be less than or equal to 30",
+          "input": 50
+        }
+      ]
+    },
+    {
+      "algorithm": "psd",
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": null
+      },
+      "value": null,
+      "quality": "clean",
+      "failure": null,
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": null,
+          "notch_quality_factor": null
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          50.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": null,
+        "notch_quality_factor": null
+      },
+      "actual_axis": {
+        "low_hz": 1.0,
+        "high_hz": 50.0
+      },
+      "comparison": {
+        "windows": 1,
+        "unavailable": 0,
+        "result": {
+          "points": 202,
+          "failed": 0,
+          "max_abs": 2.842170943040401e-14,
+          "max_rel": 1.0423529104508351e-15
+        },
+        "timing": {
+          "points": 0,
+          "failed": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0
+        },
+        "spectrum": {
+          "points": 394,
+          "failed": 0,
+          "max_abs": 2.842170943040401e-14,
+          "max_rel": 1.0423529104508351e-15
+        },
+        "quality": {
+          "points": 2,
+          "failed": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0
+        },
+        "brainbeat_interpolated_boundary_comparison": {
+          "points": 0,
+          "failed": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0
+        }
+      }
+    },
+    {
+      "algorithm": "psd",
+      "config": {
+        "channel": "F3",
+        "mode": "static",
+        "start_s": 0.0,
+        "end_s": 149.982,
+        "window_s": 5.0,
+        "step_s": 1.0,
+        "low_hz": 1.0,
+        "high_hz": 50.0,
+        "notch_hz": 60.0
+      },
+      "value": null,
+      "quality": "clean",
+      "failure": null,
+      "snapshot": {
+        "window": {
+          "mode": "static",
+          "welch_segment_s": 4.0,
+          "welch_overlap": 0.5,
+          "dynamic_window_s": null,
+          "refresh_step_s": null,
+          "alignment": "range"
+        },
+        "filters": {
+          "bandpass_type": "butterworth",
+          "bandpass_prototype_order": 4,
+          "bandpass_hz": [
+            1.0,
+            50.0
+          ],
+          "preprocessing_phase": "zero_phase",
+          "filter_form": "second_order_sections",
+          "notch_hz": 60.0,
+          "notch_quality_factor": 30.0
+        },
+        "quality_rules": {
+          "minimum_clean_ratio": 0.75,
+          "artifact_peak_uv": 150.0,
+          "reasons": [
+            "non_finite",
+            "amplitude_threshold",
+            "flatline",
+            "clipping",
+            "missing_samples"
+          ]
+        }
+      },
+      "actual_filter": {
+        "bandpass_type": "butterworth",
+        "bandpass_prototype_order": 4,
+        "bandpass_hz": [
+          1.0,
+          50.0
+        ],
+        "preprocessing_phase": "zero_phase",
+        "filter_form": "second_order_sections",
+        "notch_hz": 60.0,
+        "notch_quality_factor": 30.0
+      },
+      "actual_axis": {
+        "low_hz": 1.0,
+        "high_hz": 50.0
+      },
+      "comparison": {
+        "windows": 1,
+        "unavailable": 0,
+        "result": {
+          "points": 202,
+          "failed": 0,
+          "max_abs": 2.842170943040401e-14,
+          "max_rel": 9.091609353884114e-16
+        },
+        "timing": {
+          "points": 0,
+          "failed": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0
+        },
+        "spectrum": {
+          "points": 394,
+          "failed": 0,
+          "max_abs": 2.842170943040401e-14,
+          "max_rel": 9.091609353884114e-16
+        },
+        "quality": {
+          "points": 2,
+          "failed": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0
+        },
+        "brainbeat_interpolated_boundary_comparison": {
+          "points": 0,
+          "failed": 0,
+          "max_abs": 0.0,
+          "max_rel": 0.0
+        }
+      }
+    }
+  ],
+  "environment": {
+    "python": "3.13.3",
+    "numpy": "2.5.3",
+    "scipy": "1.18.1"
+  },
+  "tolerances": {
+    "rtol": 1e-09,
+    "scalar_atol": 1e-12,
+    "density_uv2_atol": 1e-10,
+    "db_atol": 1e-08
+  },
+  "source": {
+    "sha256": "1c3a9ef23771d6b768ec31bd9f072d9504d32d4149fe799dbd8e976f27465983",
+    "duration_s": 149.982,
+    "sfreq_hz": 1000.0,
+    "channels": 28,
+    "samples": 149982,
+    "nonfinite": 0,
+    "gap_samples": 0,
+    "independent_raw_reader_exact_match": true
+  },
+  "totals": {
+    "result": {
+      "points": 407456,
+      "failed": 0
+    },
+    "spectrum": {
+      "points": 730803,
+      "failed": 0
+    },
+    "quality": {
+      "points": 4698,
+      "failed": 0
+    },
+    "timing": {
+      "points": 6376,
+      "failed": 0
+    }
+  },
+  "fixed_contract_checks_passed": true
+}

@@ -5,8 +5,18 @@
   "reviews": {
     "backend/app/services/recordings.py": {
       "decision": "keep",
+      "max_lines": 490,
+      "reason": "频谱和时频编排已迁至 spectral_analysis.py；分块读取器和映射预处理分别归入独立服务，本文件保留 Recording 导入、身份、文件读取与兼容入口。当前 483 行，没有新增科学公式；进一步拆分兼容入口应单独处理，避免此次执行控制改动扩大迁移范围。"
+    },
+    "backend/app/persistence/migrations.py": {
+      "decision": "keep",
       "max_lines": 420,
-      "reason": "频谱和时频编排已迁至 spectral_analysis.py；剩余代码仅保留 Recording 导入、身份、文件读取、预览和兼容阅图窗口，略高于 400 行但仍是单一文件访问边界。"
+      "reason": "顺序迁移是单一、可审计的历史数据库升级入口。此次增加进度、队列分区和幂等键迁移，当前 410 行；每项迁移保持独立函数，已有 v10/v11 升级验证，暂不打散历史顺序。"
+    },
+    "backend/app/services/spectral_analysis.py": {
+      "decision": "keep",
+      "max_lines": 500,
+      "reason": "该服务统一编排已有 PSD/STFT 兼容结果和 provenance，不持有滤波数学。缓存、分块滤波、映射所有权和记录访问已有独立边界；当前 481 行，STFT 保留一次计算的数据租约防止并发缓存淘汰。此次不重构已有兼容响应封装。"
     },
     "backend/app/services/runs.py": {
       "decision": "keep",

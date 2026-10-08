@@ -109,19 +109,14 @@ public sealed class AnalysisContextViewModel : ObservableObject
                 : "尚未产生窗口结果";
         }
     }
-    public double RunProgressPercent => Catalog.LastRun?.Status == "completed" ? 100 : 0;
-    public string RunProgressText => Catalog.LastRun?.Status switch
-    {
-        "completed" => "100%",
-        "queued" => "等待中",
-        "running" => "运行中",
-        "failed" => "失败",
-        _ => "未运行",
-    };
+    public double RunProgressPercent => Catalog.LastRun?.ProgressPercent ?? 0;
+    public string RunProgressText => Catalog.LastRun?.ProgressText ?? "未运行";
+    public ICommand CancelRunCommand => Catalog.CancelRunCommand;
     public double DynamicTimeProgressPercent { get => Catalog.DynamicTimeProgressPercent; set => Catalog.DynamicTimeProgressPercent = value; }
     public string DynamicTimeProgressText => Catalog.DynamicTimeProgressText;
     public string DynamicCurrentWindowText => Catalog.DynamicCurrentWindowText;
     public bool IsRunning => Catalog.IsRunActive;
+    public bool CanCancelRun => Catalog.LastRun?.Status is "queued" or "running";
     public string ResultSummary => Catalog.ResultSummaryText;
 
     private void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
@@ -187,6 +182,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
             RaisePropertyChanged(nameof(DynamicTimeProgressText));
             RaisePropertyChanged(nameof(DynamicCurrentWindowText));
             RaisePropertyChanged(nameof(IsRunning));
+            RaisePropertyChanged(nameof(CanCancelRun));
             RaisePropertyChanged(nameof(ResultSummary));
             RaisePropertyChanged(nameof(Provenance));
             RaisePropertyChanged(nameof(Projects));

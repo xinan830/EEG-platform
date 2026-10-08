@@ -5,7 +5,7 @@ from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.scientific.quality import SpectralQualityGateError
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
@@ -66,7 +66,7 @@ class ThetaBetaAlgorithm:
         step_s = config.step_s or 1.0
         frames = build_dynamic_analysis_frames(config.start_s, config.end_s, duration_s=inputs.duration_s, window_s=window_s, step_s=step_s)
         results: list[AlgorithmResult] = []
-        for frame in frames:
+        for frame in controlled_frames(frames, inputs.execution_context):
             requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
             try:
                 spectrum = self._load(

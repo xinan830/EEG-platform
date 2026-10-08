@@ -177,6 +177,17 @@ class RecordingService:
         ]
         return raw, float(raw.info["sfreq"]), list(raw.ch_names), events
 
+    def open_sample_reader(self, recording: RecordingSummary):
+        """Caller owns a sample-block reader and must close it after use."""
+        from app.services.recording_samples import ArraySampleReader, EdfSampleReader, WpfSampleReader
+        if getattr(self.load_data, "__func__", None) is not RecordingService.load_data:
+            data, sfreq, names, _events = self.load_data(recording)
+            return ArraySampleReader(data, sfreq, names)
+        if recording.extension == ".wpf":
+            return WpfSampleReader(recording.stored_name.removeprefix("wpf:"))
+        raw, _sfreq, _names, _events = self.open_data_reader(recording)
+        return EdfSampleReader(raw)
+
     def load_preview_data(
         self,
         recording: RecordingSummary,
@@ -247,9 +258,10 @@ class RecordingService:
         filter_high_hz: float | None = None,
         output_low_hz: float | None = None,
         output_high_hz: float | None = None,
+        execution_context=None,
     ) -> dict:
         """Compatibility facade for the offline spectral analysis use case."""
-        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz)
+        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, execution_context=execution_context)
 
     def load_spectrogram(
         self,
@@ -263,9 +275,10 @@ class RecordingService:
         notch_hz: float | None = None,
         output_low_hz: float | None = None,
         output_high_hz: float | None = None,
+        execution_context=None,
     ) -> dict:
         """Compatibility facade for the spectrogram-v2 analysis use case."""
-        return self._spectral_analysis.load_spectrogram(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz)
+        return self._spectral_analysis.load_spectrogram(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, execution_context=execution_context)
 
     def load_configured_spectrum(self, recording: RecordingSummary, config: AnalysisConfigRequest) -> dict:
         """Compatibility facade preserving configurable PSD API semantics."""

@@ -8,7 +8,7 @@ from app.algorithm_runtime.contracts import (
     AlgorithmInputs, AlgorithmResult, AlgorithmSeriesResult,
 )
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.scientific.quality import SpectralQualityGateError
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
@@ -77,7 +77,7 @@ class BrainbeatAlgorithm:
             window_s=window_s, step_s=step_s, minimum_window_s=self.manifest.dynamic_policy.minimum_window_s,
             allow_warmup=self.manifest.dynamic_policy.allow_warmup)
         results: list[AlgorithmResult] = []
-        for frame in frames:
+        for frame in controlled_frames(frames, inputs.execution_context):
             requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
             try:
                 spectrum = self._load(inputs.payload, fz_channel=inputs.channel, pz_channel=config.pz_channel,

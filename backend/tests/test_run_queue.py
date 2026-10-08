@@ -66,6 +66,24 @@ def test_queue_persists_resolved_official_definition_identity(tmp_path: Path):
     assert completed.definition_id == queued.definition_id
 
 
+def test_dynamic_official_run_persists_window_progress(tmp_path: Path):
+    queue, recording_id = _queue(tmp_path)
+    queued = queue.enqueue(RunCreateRequest(
+        recording_id=recording_id,
+        analysis_type="official_algorithm",
+        config={
+            "algorithm_id": "peak_frequency", "channel": "F3", "mode": "dynamic",
+            "time": {"start_s": 5, "end_s": 10},
+            "dynamic_window_s": 5, "refresh_step_s": 1,
+            "low_hz": 1.0, "high_hz": 30.0,
+        },
+    ))
+    assert queued.progress_completed == 0
+    completed = queue.process_next()
+    assert completed is not None and completed.status is RunStatus.COMPLETED
+    assert completed.progress_completed == completed.progress_total == 1
+
+
 def test_queue_cancel_recovery_and_retry_keep_provenance(tmp_path: Path):
     queue, recording_id = _queue(tmp_path)
     cancelled = queue.enqueue(_request(recording_id))
@@ -99,7 +117,11 @@ def test_run_api_enqueues_with_202_then_exposes_worker_result(tmp_path: Path):
 
 def test_queue_recovers_one_hundred_persisted_jobs_without_duplicate_ids(tmp_path: Path):
     queue, recording_id = _queue(tmp_path)
-    run_ids = {queue.enqueue(_request(recording_id, f"bulk-{index}")).run_id for index in range(100)}
+    run_ids = set()
+    for index in range(100):
+        request = _request(recording_id, f"bulk-{index}")
+        request.config["time"]["start_s"] = index / 1000.0
+        run_ids.add(queue.enqueue(request).run_id)
     assert len(run_ids) == 100
     assert queue.repository.claim_next_queued() is not None
 

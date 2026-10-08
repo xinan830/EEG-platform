@@ -77,6 +77,11 @@ class AnalysisRun(BaseModel):
     idempotency_key: str | None = None
     parent_run_id: str | None = None
     cancel_requested: bool = False
+    progress_completed: int = 0
+    progress_total: int | None = None
+    progress_stage: str | None = None
+    progress_message: str | None = None
+    execution_lane: Literal["interactive", "batch"] = "interactive"
     created_at: str
     updated_at: str
     started_at: str | None = None

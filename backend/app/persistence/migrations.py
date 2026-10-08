@@ -309,6 +309,30 @@ def _migration_010_remove_retired_user_algorithm_data(connection: sqlite3.Connec
     connection.execute("DROP TABLE IF EXISTS analyses")
 
 
+def _migration_011_run_progress(connection: sqlite3.Connection) -> None:
+    """Persist bounded execution progress without changing scientific output."""
+    for declaration in (
+        "progress_completed INTEGER NOT NULL DEFAULT 0",
+        "progress_total INTEGER",
+        "progress_stage TEXT",
+        "progress_message TEXT",
+    ):
+        _add_column(connection, "analysis_runs", declaration)
+
+
+def _migration_012_run_lanes(connection: sqlite3.Connection) -> None:
+    # Kept separate so databases already migrated to progress v11 get lanes.
+    _add_column(connection, "analysis_runs", "execution_lane TEXT NOT NULL DEFAULT 'interactive'")
+    connection.execute("UPDATE analysis_runs SET execution_lane = 'batch' WHERE batch_run_id IS NOT NULL OR json_extract(config_json, '$.mode') = 'dynamic'")
+
+
+def _migration_013_run_request_keys(connection: sqlite3.Connection) -> None:
+    connection.execute("""CREATE TABLE IF NOT EXISTS run_request_keys (
+        request_key TEXT PRIMARY KEY, run_id TEXT NOT NULL,
+        FOREIGN KEY(run_id) REFERENCES analysis_runs(run_id))""")
+    connection.execute("INSERT OR IGNORE INTO run_request_keys SELECT idempotency_key, run_id FROM analysis_runs WHERE idempotency_key IS NOT NULL")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "legacy-tables", _migration_001_legacy_tables),
     Migration(2, "recording-identity", _migration_002_recording_identity),
@@ -320,6 +344,9 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(8, "retire-active-recording-mapping", _migration_008_retire_active_recording_mapping),
     Migration(9, "algorithm-parameter-presets", _migration_009_algorithm_parameter_presets),
     Migration(10, "remove-retired-user-algorithm-data", _migration_010_remove_retired_user_algorithm_data),
+    Migration(11, "run-progress", _migration_011_run_progress),
+    Migration(12, "run-lanes", _migration_012_run_lanes),
+    Migration(13, "run-request-keys", _migration_013_run_request_keys),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

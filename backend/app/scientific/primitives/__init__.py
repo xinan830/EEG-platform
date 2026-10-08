@@ -10,6 +10,7 @@ from .spectral import (
 )
 from .gateway import DEFAULT_SPECTRAL_GATEWAY, ScientificSpectralGateway
 from .fourier import RealFourierTransform, real_fft
+from .block_filter import preprocess_blocks
 
 __all__ = [
     "SpectralEstimate",
@@ -22,4 +23,5 @@ __all__ = [
     "ScientificSpectralGateway",
     "RealFourierTransform",
     "real_fft",
+    "preprocess_blocks",
 ]

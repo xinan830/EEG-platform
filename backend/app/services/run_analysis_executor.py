@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 
-from app.scientific.primitives import SpectralEstimate, preprocess_offline
+from app.services.algorithm_recording_context import _RecordingAlgorithmContext
 from app.algorithm_runtime.contracts import (
     DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
     AlgorithmEvidence,
@@ -25,99 +25,6 @@ from app.models.analysis_config import AnalysisConfigRequest
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 
 
-class _RecordingAlgorithmContext:
-    """Bounded signal access passed to a canonical algorithm module."""
-
-    def __init__(self, recordings: Any, recording: Any) -> None:
-        self._recordings = recordings
-        self._recording = recording
-        self.id = recording.id
-        self.channel_names = list(recording.channels)
-        self.sfreq_hz = float(getattr(recording, "sfreq_hz", None) or getattr(recording, "sfreq", None) or 0.0)
-        self.duration_s = float(recording.duration_s or 0.0)
-
-    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 30.0, notch_hz: float | None = None, filter_low_hz: float | None = None, filter_high_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None) -> SpectralEstimate:
-        payload = self._recordings.load_spectrum(self._recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz)
-        ordered = list(payload["channels"])
-        selected = ordered[0]
-        evidence = {
-            "sfreq_hz": float(payload["sfreq_hz"]),
-            "analysis_reference": payload["analysis_reference"],
-            "algorithm_version": payload["algorithm_version"],
-            "welch_contract": payload["welch_contract"],
-            "filter_contract": dict(payload["filter_contract"]),
-            "filter_frequency_range_hz": dict(payload["filter_frequency_range_hz"]),
-            "output_frequency_range_hz": dict(payload["frequency_range_hz"]),
-            "units": payload["units"],
-            "frequencies_hz": list(payload["frequencies_hz"]),
-            "channels": ordered,
-            "psd_uV2_per_hz": list(payload["psd"][selected]),
-            "band_power": dict(payload["band_power"][selected]),
-            "relative_band_power": dict(payload["relative_band_power"][selected]),
-            "quality": dict(payload["quality"]),
-        }
-        return SpectralEstimate(
-            np.asarray(payload["frequencies_hz"], dtype=float),
-            np.asarray([payload["psd"][name] for name in ordered], dtype=float) * 1e-12,
-            float(payload["quality"]["clean_ratio"]),
-            int(payload["quality"]["clean_segments"]),
-            int(payload["quality"]["total_segments"]),
-            payload["quality"]["gate_failed"],
-            tuple(payload["quality"].get("rejected_reasons", [])),
-            evidence,
-        )
-
-    def load_spectrogram(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 50.0, notch_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None) -> dict[str, object]:
-        """Load the frozen spectrogram contract through the recording service boundary."""
-        return self._recordings.load_spectrogram(
-            self._recording,
-            start_s=start_s,
-            window_s=window_s,
-            channels=channels,
-            low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-            output_low_hz=output_low_hz if output_low_hz is not None else low_hz,
-            output_high_hz=output_high_hz if output_high_hz is not None else high_hz,
-        )
-
-    def load_faa_signals(self, *, start_s: float, end_s: float, f3_channel: str, f4_channel: str, low_hz: float | None = None, high_hz: float | None = None, notch_hz: float | None = None) -> tuple[np.ndarray, np.ndarray, float, dict[str, Any]]:
-        """Load the exact raw pair consumed by the frozen FAA implementation."""
-        data, sfreq, names, _events = self._recordings.load_data(self._recording)
-        lookup = {str(name).casefold(): (index, str(name)) for index, name in enumerate(names)}
-        try:
-            f3_index, f3_name = lookup[f3_channel.casefold()]
-            f4_index, f4_name = lookup[f4_channel.casefold()]
-        except KeyError as exc:
-            raise ValueError(f"FAA source channel does not exist: {exc.args[0]}") from exc
-        values = np.asarray(data, dtype=float)
-        start_index = max(0, int(np.floor(start_s * sfreq)))
-        end_index = min(len(values), int(round(end_s * sfreq)))
-        if end_index <= start_index:
-            raise ValueError("FAA analysis range is outside recording duration")
-        pair = values[start_index:end_index, [f3_index, f4_index]]
-        if low_hz is not None and high_hz is not None:
-            pair = preprocess_offline(pair, float(sfreq), low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz)
-        evidence = {
-            "sfreq_hz": float(sfreq), "channels": [f3_name, f4_name],
-            "analysis_reference": "original_recording_no_software_rereference",
-            "time_scope": "exact_requested_absolute_range",
-            "requested_range_s": {"start_s": float(start_s), "end_s": float(end_s)},
-            "actual_range_s": {"start_s": float(start_index / sfreq), "end_s": float(end_index / sfreq)},
-            "faa_contract": {
-                "method": "paired_epoch_rfft_density",
-                "epoch_s": 2.0,
-                "overlap_fraction": 0.5,
-                "step_s": 1.0,
-                "window": "hann",
-                "detrend": "per_epoch_mean_removal",
-                "software_bandpass": None if low_hz is None or high_hz is None else [float(low_hz), float(high_hz)],
-                "notch_hz": None if notch_hz is None else float(notch_hz),
-                "minimum_clean_epochs": 10,
-                "artifact_peak_uv": 150.0,
-                "alpha_band_hz": [8.0, 13.0],
-                "frequency_resolution_hz": 1.0 / 2.0,
-            },
-        }
-        return pair[:, 0], pair[:, 1], float(sfreq), evidence
 
 
 def _public_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
@@ -273,14 +180,18 @@ class RunAnalysisExecutor:
         config = OfficialAlgorithmRunConfig.model_validate(resolved["config"])
         if self.algorithm_runtime is None:
             raise ValueError("algorithm runtime is not configured")
-        context = _RecordingAlgorithmContext(self.recordings, recording)
+        context = _RecordingAlgorithmContext(self.recordings, recording, resolved.get("execution_context"))
         runtime_config = config.runtime_config()
-        result = self.algorithm_runtime.execute(
-            algorithm_id=config.algorithm_id,
-            scientific_version=resolved["scientific_version"],
-            recording=context,
-            config=runtime_config,
-        )
+        try:
+            result = self.algorithm_runtime.execute(
+                algorithm_id=config.algorithm_id,
+                scientific_version=resolved["scientific_version"],
+                recording=context,
+                config=runtime_config,
+                execution_context=resolved.get("execution_context"),
+            )
+        finally:
+            context.close()
         module = self.algorithm_runtime.registry.get(config.algorithm_id, resolved["scientific_version"])
         label = module.manifest.display_name_zh
         if isinstance(result, AlgorithmStructuredSeriesResult):

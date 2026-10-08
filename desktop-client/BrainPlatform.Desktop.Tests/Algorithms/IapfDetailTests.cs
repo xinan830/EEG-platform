@@ -99,7 +99,7 @@ public sealed class IapfDetailTests
     }
 
     [Fact]
-    public void SharedQualityCard_IsVisibleForIapfAndHiddenForUnsupportedAlgorithm()
+    public void SharedQualityCard_RemainsVisibleAndShowsNotRunForUnsupportedAlgorithm()
     {
         Exception? failure = null;
         var thread = new Thread(() =>
@@ -126,7 +126,8 @@ public sealed class IapfDetailTests
                     Assert.False(detail.Quality.IsAvailable);
                     window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ContextIdle);
                     card.UpdateLayout();
-                    Assert.Equal(Visibility.Collapsed, card.Visibility);
+                    Assert.Equal(Visibility.Visible, card.Visibility);
+                    Assert.Equal("尚未运行分析", detail.Quality.QualityText);
                 }
                 finally { window.Close(); }
             }

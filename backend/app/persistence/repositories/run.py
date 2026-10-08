@@ -29,9 +29,33 @@ class RunRepository:
     def _connect(self) -> sqlite3.Connection:
         return connect_database(self.database_path, foreign_keys=True)
 
-    def create(self, run: AnalysisRun) -> None:
+    def create(self, run: AnalysisRun, *, deduplicate: bool = False) -> AnalysisRun:
         values = run.model_dump(mode="json")
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if deduplicate:
+                if run.idempotency_key:
+                    row = connection.execute("SELECT r.* FROM analysis_runs r JOIN run_request_keys k ON k.run_id = r.run_id WHERE k.request_key = ?",
+                                             (run.idempotency_key,)).fetchone()
+                    if row is not None:
+                        existing = self._run(row)
+                        if (existing.recording_id, existing.analysis_type, existing.config_sha256,
+                            existing.project_id, existing.batch_run_id) != (
+                            run.recording_id, run.analysis_type, run.config_sha256,
+                            run.project_id, run.batch_run_id):
+                            raise ValueError("幂等键已用于不同的分析配置，请使用新的请求键。")
+                        return existing
+                row = connection.execute(
+                    """SELECT * FROM analysis_runs WHERE recording_id = ? AND analysis_type = ?
+                       AND cache_key = ? AND project_id IS ? AND batch_run_id IS ?
+                       AND status IN ('queued', 'running') ORDER BY created_at LIMIT 1""",
+                    (run.recording_id, run.analysis_type, run.cache_key, run.project_id, run.batch_run_id),
+                ).fetchone()
+                if row is not None:
+                    if run.idempotency_key:
+                        connection.execute("INSERT INTO run_request_keys (request_key, run_id) VALUES (?, ?)",
+                                           (run.idempotency_key, row["run_id"]))
+                    return self._run(row)
             connection.execute(
                 """INSERT INTO analysis_runs (
                     run_id, recording_id, analysis_type, status, definition_id, definition_version,
@@ -39,8 +63,9 @@ class RunRepository:
                     requested_range_json, actual_range_json, channel_mapping_json, reference_json,
                     filter_json, window_json, quality_rules_json, environment_json, result_summary_json,
                     error_json, is_preview, reused_from_run_id, created_at, updated_at, started_at, completed_at
-                    , project_id, batch_run_id, idempotency_key, parent_run_id, cancel_requested
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    , project_id, batch_run_id, idempotency_key, parent_run_id, cancel_requested,
+                    progress_completed, progress_total, progress_stage, progress_message, execution_lane
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     run.run_id, run.recording_id, run.analysis_type, run.status.value,
                     run.definition_id, run.definition_version, run.scientific_version,
@@ -55,8 +80,14 @@ class RunRepository:
                     int(run.is_preview), run.reused_from_run_id, run.created_at, run.updated_at,
                     run.started_at, run.completed_at, run.project_id, run.batch_run_id,
                     run.idempotency_key, run.parent_run_id, int(run.cancel_requested),
+                    run.progress_completed, run.progress_total, run.progress_stage, run.progress_message,
+                    run.execution_lane,
                 ),
             )
+            if run.idempotency_key:
+                connection.execute("INSERT INTO run_request_keys (request_key, run_id) VALUES (?, ?)",
+                                   (run.idempotency_key, run.run_id))
+        return run
 
     def get(self, run_id: str) -> AnalysisRun | None:
         with self._connect() as connection:
@@ -83,13 +114,16 @@ class RunRepository:
 
     def find_idempotency_key(self, idempotency_key: str) -> AnalysisRun | None:
         with self._connect() as connection:
-            row = connection.execute("SELECT * FROM analysis_runs WHERE idempotency_key = ?", (idempotency_key,)).fetchone()
+            row = connection.execute("SELECT r.* FROM analysis_runs r JOIN run_request_keys k ON k.run_id = r.run_id WHERE k.request_key = ?", (idempotency_key,)).fetchone()
         return self._run(row) if row else None
 
-    def claim_next_queued(self) -> AnalysisRun | None:
+    def claim_next_queued(self, lane: str | None = None) -> AnalysisRun | None:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            row = connection.execute("SELECT run_id FROM analysis_runs WHERE status = 'queued' ORDER BY created_at LIMIT 1").fetchone()
+            if lane is not None and lane not in {"interactive", "batch"}:
+                raise ValueError("unknown execution lane")
+            lane_filter = "" if lane is None else " AND execution_lane = ?"
+            row = connection.execute("SELECT run_id FROM analysis_runs WHERE status = 'queued'" + lane_filter + " ORDER BY created_at, run_id LIMIT 1", () if lane is None else (lane,)).fetchone()
             if row is None:
                 connection.execute("COMMIT")
                 return None
@@ -102,15 +136,39 @@ class RunRepository:
         return self.get(str(row["run_id"])) if updated else None
 
     def request_cancel(self, run_id: str) -> AnalysisRun:
-        run = self.get(run_id)
-        if run is None:
-            raise KeyError("run not found")
-        if run.status is RunStatus.QUEUED:
-            return self.update_status(run_id, RunStatus.CANCELLED)
-        if run.status is not RunStatus.RUNNING:
-            raise ValueError(f"run in {run.status.value} state cannot be cancelled")
         with self._connect() as connection:
-            connection.execute("UPDATE analysis_runs SET cancel_requested = 1, updated_at = ? WHERE run_id = ?", (utc_now(), run_id))
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute("SELECT status FROM analysis_runs WHERE run_id = ?", (run_id,)).fetchone()
+            if row is None:
+                raise KeyError("run not found")
+            if row["status"] not in {"queued", "running"}:
+                raise ValueError(f"run in {row['status']} state cannot be cancelled")
+            now = utc_now()
+            connection.execute(
+                """UPDATE analysis_runs SET cancel_requested = 1, updated_at = ?,
+                   status = CASE WHEN status = 'queued' THEN 'cancelled' ELSE status END,
+                   completed_at = CASE WHEN status = 'queued' THEN ? ELSE completed_at END
+                   WHERE run_id = ?""", (now, now, run_id))
+        updated = self.get(run_id)
+        assert updated is not None
+        return updated
+
+    def update_progress(self, run_id: str, completed: int, total: int | None = None, *,
+                        stage: str | None = None, message: str | None = None) -> AnalysisRun:
+        current = self.get(run_id)
+        if current is None:
+            raise KeyError("run not found")
+        bounded_total = None if total is None else max(0, int(total))
+        bounded_completed = max(0, int(completed))
+        if bounded_total is not None:
+            bounded_completed = min(bounded_completed, bounded_total)
+        with self._connect() as connection:
+            connection.execute(
+                """UPDATE analysis_runs SET progress_completed = ?, progress_total = COALESCE(?, progress_total),
+                   progress_stage = COALESCE(?, progress_stage), progress_message = COALESCE(?, progress_message),
+                   updated_at = ? WHERE run_id = ? AND status IN ('queued', 'running')""",
+                (bounded_completed, bounded_total, stage, message, utc_now(), run_id),
+            )
         updated = self.get(run_id)
         assert updated is not None
         return updated
@@ -127,20 +185,25 @@ class RunRepository:
     def update_status(self, run_id: str, status: RunStatus, *, actual_range: dict[str, float] | None = None,
                       result_summary: dict[str, Any] | None = None, error: StructuredRunError | None = None,
                       reused_from_run_id: str | None = None) -> AnalysisRun:
-        current = self.get(run_id)
-        if current is None:
-            raise KeyError("run not found")
         allowed = {
             RunStatus.QUEUED: {RunStatus.RUNNING, RunStatus.CANCELLED, RunStatus.FAILED},
             RunStatus.RUNNING: {RunStatus.COMPLETED, RunStatus.GATE_FAILED, RunStatus.FAILED, RunStatus.CANCELLED, RunStatus.INTERRUPTED},
             RunStatus.INTERRUPTED: {RunStatus.QUEUED, RunStatus.CANCELLED},
         }
-        if status not in allowed.get(current.status, set()):
-            raise ValueError(f"invalid run transition: {current.status.value} -> {status.value}")
-        now = utc_now()
-        started_at = now if status is RunStatus.RUNNING else current.started_at
-        completed_at = now if status not in {RunStatus.QUEUED, RunStatus.RUNNING} else None
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute("SELECT * FROM analysis_runs WHERE run_id = ?", (run_id,)).fetchone()
+            if row is None:
+                raise KeyError("run not found")
+            current = self._run(row)
+            if status not in allowed.get(current.status, set()):
+                raise ValueError(f"invalid run transition: {current.status.value} -> {status.value}")
+            # Cancellation accepted before this transaction wins over completion.
+            if current.cancel_requested and status in {RunStatus.COMPLETED, RunStatus.GATE_FAILED, RunStatus.FAILED}:
+                status, result_summary, error, reused_from_run_id = RunStatus.CANCELLED, None, None, None
+            now = utc_now()
+            started_at = now if status is RunStatus.RUNNING else current.started_at
+            completed_at = now if status not in {RunStatus.QUEUED, RunStatus.RUNNING} else None
             connection.execute(
                 """UPDATE analysis_runs SET status = ?, updated_at = ?, started_at = ?, completed_at = ?,
                    actual_range_json = COALESCE(?, actual_range_json), result_summary_json = COALESCE(?, result_summary_json),
@@ -171,6 +234,11 @@ class RunRepository:
                             sha256=row["sha256"], unit=row["unit"], shape=_loads(row["shape_json"], {}), created_at=row["created_at"])
                 for row in rows]
 
+    def remove_artifact(self, artifact_id: str, run_id: str) -> None:
+        with self._connect() as connection:
+            connection.execute("DELETE FROM run_artifacts WHERE artifact_id = ? AND run_id = ?",
+                               (artifact_id, run_id))
+
     @staticmethod
     def _run(row: sqlite3.Row) -> AnalysisRun:
         return AnalysisRun(
@@ -185,6 +253,9 @@ class RunRepository:
             batch_run_id=row["batch_run_id"], idempotency_key=row["idempotency_key"], parent_run_id=row["parent_run_id"],
             cancel_requested=bool(row["cancel_requested"]), created_at=row["created_at"], updated_at=row["updated_at"],
             started_at=row["started_at"], completed_at=row["completed_at"],
+            progress_completed=int(row["progress_completed"] or 0), progress_total=row["progress_total"],
+            progress_stage=row["progress_stage"], progress_message=row["progress_message"],
+            execution_lane=row["execution_lane"],
         )
 
 

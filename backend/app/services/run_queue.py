@@ -1,8 +1,7 @@
-"""Single-worker SQLite queue for ordinary AnalysisRuns."""
+"""Persistent queue and execution lifecycle for ordinary AnalysisRuns."""
 
 from __future__ import annotations
 
-import threading
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -15,6 +14,10 @@ from app.services.recordings import RecordingService
 from app.persistence.clock import utc_now
 from app.persistence.repositories.run import RunRepository
 from app.services.runs import RunService
+from app.services.run_execution_context import RunCancelledError, RunExecutionContext
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
+from app.services.run_worker import RunWorker
 
 
 class PersistentRunQueue:
@@ -38,10 +41,6 @@ class PersistentRunQueue:
     def enqueue(self, request: RunCreateRequest, *, parent_run_id: str | None = None) -> AnalysisRun:
         if request.preview:
             raise ValueError("definition previews use their dedicated endpoint")
-        if request.idempotency_key:
-            existing = self.repository.find_idempotency_key(request.idempotency_key)
-            if existing is not None:
-                return existing
         recording = self.recordings.require_recording(request.recording_id)
         if not recording.source_sha256:
             raise ValueError("recording source identity is unavailable")
@@ -65,11 +64,13 @@ class PersistentRunQueue:
             project_id=request.project_id, batch_run_id=request.batch_run_id, idempotency_key=request.idempotency_key,
             parent_run_id=parent_run_id, created_at=now, updated_at=now,
         )
-        self.repository.create(run)
-        return run
+        run.progress_total = self._progress_total(run, recording)
+        run.progress_stage = "queued"
+        run.execution_lane = "batch" if request.batch_run_id or run.config.get("mode") == "dynamic" else "interactive"
+        return self.repository.create(run, deduplicate=True)
 
-    def process_next(self) -> AnalysisRun | None:
-        run = self.repository.claim_next_queued()
+    def process_next(self, lane: str | None = None) -> AnalysisRun | None:
+        run = self.repository.claim_next_queued(lane)
         if run is None:
             return None
         actual_range = run.actual_range
@@ -81,17 +82,35 @@ class PersistentRunQueue:
                                        definition_id=run.definition_id, definition_version=run.definition_version)
             resolved = self.base._resolve_request(request, recording)
             actual_range = resolved["actual_range"]
+            total = self._progress_total(run, recording)
+            self.repository.update_progress(run.run_id, 0, total, stage="analysis", message="准备分析")
+            execution_context = RunExecutionContext(
+                lambda: self._is_cancelled(run.run_id),
+                lambda completed: self.repository.update_progress(run.run_id, completed, total, stage="analysis", message=f"已完成 {completed}/{total}" if total else "分析中"),
+                total,
+            )
+            resolved["execution_context"] = execution_context
             cached = self.repository.find_completed_cache(run.cache_key)
             if cached is not None and cached.run_id != run.run_id:
                 artifact_source_run_id = self.base.resolve_artifact_source_run_id(cached.run_id)
+                execution_context.check_cancelled()
+                self.repository.update_progress(run.run_id, total or 0, total, stage="completed", message="已复用相同配置的结果")
                 return self.repository.update_status(run.run_id, RunStatus.COMPLETED, actual_range=cached.actual_range,
                                                      result_summary=cached.result_summary, reused_from_run_id=artifact_source_run_id)
             result, arrays, unit = self.base.executor.execute(run.analysis_type, recording, resolved)
+            execution_context.check_cancelled()
+            if total is not None:
+                self.repository.update_progress(run.run_id, total, total, stage="persisting", message="正在保存结果")
             if self._is_cancelled(run.run_id):
                 return self.repository.update_status(run.run_id, RunStatus.CANCELLED, actual_range=resolved["actual_range"])
             artifact = self.base.artifacts.write_npz(run.run_id, run.analysis_type, arrays, unit)
-            return self.repository.update_status(run.run_id, RunStatus.COMPLETED, actual_range=resolved["actual_range"],
+            final = self.repository.update_status(run.run_id, RunStatus.COMPLETED, actual_range=resolved["actual_range"],
                                                  result_summary={**result, "artifacts": [artifact.model_dump(mode="json")]})
+            if final.status is RunStatus.CANCELLED:
+                self.base.artifacts.discard_cancelled_write(artifact)
+            return final
+        except RunCancelledError:
+            return self.repository.update_status(run.run_id, RunStatus.CANCELLED, actual_range=actual_range)
         except ValueError as exc:
             is_gate = isinstance(exc, SpectralQualityGateError)
             return self.repository.update_status(
@@ -133,35 +152,15 @@ class PersistentRunQueue:
         current = self.get(run_id)
         return current.cancel_requested or current.status is RunStatus.CANCELLED
 
-
-class RunWorker:
-    """One daemon worker; queue ownership never leaks into Viewer state."""
-
-    def __init__(self, queue: PersistentRunQueue):
-        self.queue = queue
-        self._wake = threading.Event()
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
-
-    def start(self) -> None:
-        if self._thread and self._thread.is_alive():
-            return
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._loop, name="analysis-run-worker", daemon=True)
-        self._thread.start()
-
-    def wake(self) -> None:
-        self._wake.set()
-
-    def stop(self) -> None:
-        self._stop.set()
-        self._wake.set()
-        if self._thread:
-            self._thread.join(timeout=2.0)
-
-    def _loop(self) -> None:
-        while not self._stop.is_set():
-            while not self._stop.is_set() and self.queue.process_next() is not None:
-                pass
-            self._wake.wait(0.25)
-            self._wake.clear()
+    def _progress_total(self, run: AnalysisRun, recording: Any) -> int | None:
+        if run.analysis_type != "official_algorithm":
+            return 1
+        config = OfficialAlgorithmRunConfig.model_validate(run.config)
+        if config.mode != "dynamic":
+            return 1
+        module = self.base.algorithm_runtime_registry.get(config.algorithm_id, run.scientific_version)
+        policy = module.manifest.dynamic_policy
+        frames = build_dynamic_analysis_frames(config.time.start_s, config.time.end_s,
+            duration_s=float(recording.duration_s), window_s=config.dynamic_window_s, step_s=config.refresh_step_s,
+            minimum_window_s=policy.minimum_window_s, allow_warmup=policy.allow_warmup)
+        return len(frames) or None

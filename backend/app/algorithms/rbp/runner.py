@@ -6,7 +6,7 @@ from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecut
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 from .official import RBP_BANDS, RBP_FILTER_LOW_HZ, RBP_FILTER_HIGH_HZ, RBP_NOTCH_HZ, five_band_shares
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.scientific.contracts.types import SampleRange
 from app.scientific.quality import SpectralQualityGateError
 
@@ -91,7 +91,7 @@ class RbpAlgorithm:
         windows: list[dict[str, float]] = []
         warmups: list[bool] = []
         evidence: list[dict[str, Any]] = []
-        for frame in frames:
+        for frame in controlled_frames(frames, inputs.execution_context):
             sample_range = SampleRange.from_seconds(frame.window_start_s, frame.window_end_s, inputs.sfreq_hz)
             windows.append({"start_s": frame.window_start_s, "end_s": frame.window_end_s})
             warmups.append(frame.warmup)

@@ -19,7 +19,12 @@ from fastapi.testclient import TestClient
 class OfficialSyntheticRecordingService(RecordingService):
     synthetic_sfreq_hz = 100.0
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.load_data_calls = 0
+
     def load_data(self, _recording):
+        self.load_data_calls += 1
         sfreq = self.synthetic_sfreq_hz
         time_s = np.arange(int(30 * sfreq)) / sfreq
         alpha = 12e-6 * np.sin(2 * np.pi * 10 * time_s)
@@ -286,7 +291,7 @@ def test_psd_band_share_contract_changes_cache_identity(tmp_path: Path):
         service.definition_service, "psd"
     )
 
-    assert manifest.implementation_identity == "psd-runtime-v2-band-share"
+    assert manifest.implementation_identity == "psd-runtime-v3-explicit-filters"
     assert "band_share" in {field["name"] for field in manifest.output_schema["fields"]}
     assert resolved["definition_sha256"] != sha256_json({
         "kind": "official_algorithm",
@@ -367,6 +372,7 @@ def test_official_dynamic_faa_keeps_paired_quality_per_window(tmp_path: Path):
     assert series[0]["official"]["faa_evidence"]["channels"] == ["F3", "F4"]
     assert completed.filters == {
         "operation": "continuous_preprocess_then_per_epoch_mean_removal",
+        "scope": "whole_recording_before_window_slice",
         "software_bandpass": [1.0, 30.0],
         "notch_hz": None,
     }
@@ -395,6 +401,25 @@ def test_static_faa_loader_uses_the_exact_requested_absolute_range(tmp_path: Pat
     assert evidence["time_scope"] == "exact_requested_absolute_range"
     assert evidence["requested_range_s"] == {"start_s": 2.0, "end_s": 5.0}
     assert evidence["actual_range_s"] == {"start_s": 2.0, "end_s": 5.0}
+
+
+def test_dynamic_faa_reuses_the_run_scoped_raw_recording(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    recording = service.recordings.require_recording(recording_id)
+    context = _RecordingAlgorithmContext(
+        service.recordings,
+        SimpleNamespace(
+            id=recording.id,
+            channels=recording.channels,
+            sfreq=recording.sfreq,
+            duration_s=recording.duration_s,
+        ),
+    )
+
+    context.load_faa_signals(start_s=0.0, end_s=20.0, f3_channel="F3", f4_channel="F4")
+    context.load_faa_signals(start_s=1.0, end_s=21.0, f3_channel="F3", f4_channel="F4")
+
+    assert service.recordings.load_data_calls == 1
 
 
 def test_official_faa_rejects_missing_or_duplicate_pair_sources(tmp_path: Path):

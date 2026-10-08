@@ -13,6 +13,7 @@ from .contracts import (
     AlgorithmStructuredSeriesResult,
 )
 from .errors import UnsupportedAlgorithmModeError
+from .execution_control import ExecutionControl
 from app.scientific.contracts import SampleRange
 
 
@@ -27,9 +28,10 @@ class AlgorithmRuntime:
         recording: Any,
         config: dict[str, Any],
         scientific_version: str | None = None,
+        execution_context: ExecutionControl | None = None,
     ) -> AlgorithmResult | AlgorithmSeriesResult | AlgorithmStructuredResult | AlgorithmStructuredSeriesResult:
         module: AlgorithmModule = self.registry.get(algorithm_id, scientific_version)
-        return self.execute_module(module=module, recording=recording, config=config)
+        return self.execute_module(module=module, recording=recording, config=config, execution_context=execution_context)
 
     def execute_module(
         self,
@@ -37,11 +39,13 @@ class AlgorithmRuntime:
         module: AlgorithmModule,
         recording: Any,
         config: dict[str, Any],
+        execution_context: ExecutionControl | None = None,
     ) -> AlgorithmResult | AlgorithmSeriesResult | AlgorithmStructuredResult | AlgorithmStructuredSeriesResult:
         """Execute a concrete module selected by a trusted catalog boundary."""
         typed_config = self.validate_config(module=module, config=config)
         self.validate_parameter_schema(module=module, config=typed_config)
         inputs = module.resolve_inputs(recording, typed_config)
+        inputs.execution_context = execution_context
         if typed_config.mode == "static":
             result = module.execute_static(inputs, typed_config)
             result.evidence = self._with_sample_coordinate(

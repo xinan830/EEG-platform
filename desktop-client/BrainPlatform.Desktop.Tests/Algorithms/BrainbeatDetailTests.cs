@@ -13,19 +13,23 @@ public sealed class BrainbeatDetailTests
             new DynamicAnalysisPolicy(4, [5], 5, 1, true), "available", true, null, null, null);
         catalog.SelectedAnalysisMode = "动态";
 
-        BrainbeatRunResultHandler.ApplyDynamicWindows(catalog, Run(JsonDocument.Parse("""
+        var run = Run(JsonDocument.Parse("""
             {"metric":{"output":{"unit":"ratio"},"channel":"Fz/Pz","series":[
               {"time_s":5,"window_start_s":0,"window_end_s":5,"value":0.4,"analysis_state":"Complete","quality":{"status":"clean"}},
               {"time_s":6,"window_start_s":1,"window_end_s":6,"value":null,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"message":"当前窗口未通过 PSD 质量门"}}
             ]}}
-            """).RootElement.Clone()));
+            """).RootElement.Clone());
+        // Run orchestration publishes LastRun before delegating the timeline projection.
+        typeof(AlgorithmListViewModel).GetProperty(nameof(AlgorithmListViewModel.LastRun))!.SetValue(catalog, run);
+        BrainbeatRunResultHandler.ApplyDynamicWindows(catalog, run);
 
         Assert.True(catalog.StartDynamicPreviewCommand.CanExecute(null));
         Assert.Equal(5, catalog.DynamicPreviewCursorSeconds);
-        Assert.Equal(1, detail.Quality.RejectedWindowCount);
+        Assert.Equal(0, detail.Quality.RejectedWindowCount);
         detail.Quality.ToggleFailureDetailsCommand.Execute(null);
         Assert.True(detail.Quality.IsFailureDetailsExpanded);
         catalog.DynamicPreviewCursorSecondsForTest(6);
+        Assert.Equal(1, detail.Quality.RejectedWindowCount);
         Assert.Equal(2, catalog.DynamicPreviewRows.Count);
     }
 

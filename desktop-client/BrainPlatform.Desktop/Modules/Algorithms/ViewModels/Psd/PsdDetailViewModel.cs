@@ -126,20 +126,10 @@ public sealed class PsdDetailViewModel : ObservableObject, IAlgorithmQualitySour
     public string RunDurationText => catalog.LastRun is null
         ? "未运行"
         : $"{Math.Max(0, (catalog.LastRun.UpdatedAt - catalog.LastRun.CreatedAt).TotalSeconds):0.###} s";
-    public double RunProgressPercent => catalog.LastRun?.Status switch
-    {
-        "completed" => 100.0,
-        "queued" or "running" => 0.0,
-        _ => 0.0,
-    };
-    public string RunProgressText => catalog.LastRun?.Status switch
-    {
-        "completed" => "100%",
-        "queued" => "等待中",
-        "running" => "运行中",
-        "failed" => "失败",
-        _ => "未运行",
-    };
+    public double RunProgressPercent => catalog.LastRun?.ProgressPercent ?? 0;
+    public string RunProgressText => catalog.LastRun?.ProgressText ?? "未运行";
+    public ICommand CancelRunCommand => catalog.CancelRunCommand;
+    public bool CanCancelRun => catalog.LastRun?.Status is "queued" or "running";
     public string FailureReasonText => catalog.LastRun?.Error is { } error
         ? $"{AlgorithmResultFormatter.FormatFailureCodeForDisplay(error.Code)}：{error.Message}"
         : StructuredFailureSummary(catalog.PsdPreviewState.StructuredPreview?.Failure) ?? GetWindowReasonSummary(catalog.PsdPreviewState.StructuredPreview);
@@ -243,6 +233,7 @@ public sealed class PsdDetailViewModel : ObservableObject, IAlgorithmQualitySour
             RaisePropertyChanged(nameof(WindowStateText));
             RaisePropertyChanged(nameof(LastRun));
             RaisePropertyChanged(nameof(IsRunActive));
+            RaisePropertyChanged(nameof(CanCancelRun));
             RaisePropertyChanged(nameof(RunIdText));
             RaisePropertyChanged(nameof(RequestedRangeText));
             RaisePropertyChanged(nameof(ActualRangeText));

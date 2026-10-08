@@ -5,6 +5,27 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 
 public sealed class HttpAlgorithmClientTests
 {
+    [Theory]
+    [InlineData("{\"detail\":\"分析范围无效\"}", "分析范围无效")]
+    [InlineData("{\"detail\":[{\"loc\":[\"config\",\"high_hz\"],\"msg\":\"maximum 30\"}]}", "high_hz")]
+    [InlineData("{\"detail\":{\"message\":\"invalid band\"}}", "invalid band")]
+    [InlineData("{\"detail\":null}", "HTTP 422")]
+    [InlineData("{\"code\":42,\"message\":[]}", "HTTP 422")]
+    [InlineData("[]", "HTTP 422")]
+    [InlineData("<html>proxy error</html>", "HTTP 422")]
+    public async Task ErrorShapes_DoNotMaskOriginalHttpFailure(string body, string expected)
+    {
+        using var client = new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
+        {
+            Content = new StringContent(body),
+        })) { BaseAddress = new Uri("http://localhost/") };
+        var error = await Assert.ThrowsAsync<AlgorithmApiException>(() =>
+            new HttpAlgorithmClient(client).GetRunAsync("run-1", CancellationToken.None));
+        Assert.Equal("REQUEST_INVALID", error.Code);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, error.StatusCode);
+        Assert.Contains(expected, error.Message);
+    }
+
     [Fact]
     public async Task ListAlgorithms_UsesBackendCatalogWithoutClientSideDefaults()
     {

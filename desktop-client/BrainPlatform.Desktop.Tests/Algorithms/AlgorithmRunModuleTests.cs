@@ -8,7 +8,7 @@ public sealed class AlgorithmRunModuleTests
     [InlineData("peak_frequency", false, true)]
     [InlineData("rbp", false, true)]
     [InlineData("iapf", false, true)]
-    [InlineData("faa", false, true)]
+    [InlineData("faa", true, true)]
     [InlineData("band_ratio", false, true)]
     [InlineData("theta_beta", false, true)]
     [InlineData("brainbeat", false, true)]

@@ -16,7 +16,7 @@ from app.algorithm_runtime.contracts import (
 )
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.scientific.contracts.types import SampleRange
 from app.scientific.quality import SpectralQualityGateError
 
@@ -43,7 +43,8 @@ class StftAlgorithm:
         return [config.channel]
 
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
-        snapshot = spectral_execution_snapshot(config)
+        snapshot = spectral_execution_snapshot(config, low_hz=config.low_hz,
+                                               high_hz=config.high_hz, notch_hz=config.notch_hz)
         snapshot.window.update({"segment_s": 4.0, "step_s": 1.0, "time_axis": "window_center"})
         snapshot.quality_rules["spectrogram_contract_version"] = "spectrogram-v2"
         snapshot.quality_rules["frequency_range_hz"] = [float(config.low_hz), float(config.high_hz)]
@@ -137,7 +138,7 @@ class StftAlgorithm:
         rows_db: list[np.ndarray] = []
         windows: list[StructuredSeriesWindow] = []
         frequencies: np.ndarray | None = None
-        for frame in frames:
+        for frame in controlled_frames(frames, inputs.execution_context):
             sample_range = SampleRange.from_seconds(frame.window_start_s, frame.window_end_s, inputs.sfreq_hz)
             failure = None
             quality = "clean"
@@ -181,7 +182,7 @@ class StftAlgorithm:
                         detail={"bad_windows": int(quality_payload["bad_windows"]), "total_windows": int(quality_payload["total_windows"])},
                     )
             except SpectralQualityGateError as exc:
-                frequencies = frequencies if frequencies is not None else self._frequency_axis(inputs.sfreq_hz)
+                frequencies = frequencies if frequencies is not None else self._frequency_axis(inputs.sfreq_hz, config.low_hz, config.high_hz)
                 linear = np.full((inner_count, len(frequencies)), np.nan, dtype=float)
                 db = np.full((inner_count, len(frequencies)), np.nan, dtype=float)
                 quality = "gate_failed"
@@ -189,7 +190,7 @@ class StftAlgorithm:
                 evidence = {"source_quality": dict(exc.quality), "spectral_evidence": dict(exc.quality.get("evidence", {})), "calculation_trace": {"inner_valid_count": 0}}
                 failure = AlgorithmFailure(code="STFT_WINDOW_QUALITY_GATE_FAILED", message="当前动态窗口未通过 STFT 质量门", detail=dict(exc.quality))
             except ValueError as exc:
-                frequencies = frequencies if frequencies is not None else self._frequency_axis(inputs.sfreq_hz)
+                frequencies = frequencies if frequencies is not None else self._frequency_axis(inputs.sfreq_hz, config.low_hz, config.high_hz)
                 linear = np.full((inner_count, len(frequencies)), np.nan, dtype=float)
                 db = np.full((inner_count, len(frequencies)), np.nan, dtype=float)
                 quality = "unavailable"
@@ -222,6 +223,6 @@ class StftAlgorithm:
         )
 
     @staticmethod
-    def _frequency_axis(sfreq_hz: float) -> np.ndarray:
+    def _frequency_axis(sfreq_hz: float, low_hz: float, high_hz: float) -> np.ndarray:
         full = np.fft.rfftfreq(int(round(4.0 * sfreq_hz)), 1.0 / sfreq_hz)
-        return full[(full >= 1.0) & (full <= 50.0)]
+        return full[(full >= low_hz) & (full <= high_hz)]

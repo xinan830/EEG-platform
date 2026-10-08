@@ -17,7 +17,7 @@ OFFICIAL_ALGORITHM_MANIFESTS: tuple[AlgorithmManifest, ...] = BUILTIN_ALGORITHM_
 
 
 def _definition_version(algorithm_id: str) -> str:
-    return "2.0.1" if algorithm_id == "rbp" else "1.0.0"
+    return _manifest(algorithm_id).definition_version
 
 
 def _manifest(algorithm_id: str) -> AlgorithmManifest:
@@ -45,6 +45,7 @@ def official_definition(algorithm_id: str) -> dict[str, object]:
         })
     elif algorithm_id == "faa":
         values.update({"inputs": ["F3", "F4"], "formula": "ln(alpha_power_F4) - ln(alpha_power_F3)", "epoch_s": 2.0, "overlap": 0.5, "paired_quality": True, "minimum_clean_epochs": 10})
+        values["preprocessing_scope"] = "whole_recording_before_window_slice"
     elif algorithm_id == "brainbeat":
         values.update({"inputs": ["Fz", "Pz", "IAPF"], "formula": "relative_theta_Fz / relative_alpha_Pz", "welch_segment_s": 2.0, "overlap": 0.5, "independent_windows": True, "cross_window_ema": False})
     elif algorithm_id == "theta_beta":

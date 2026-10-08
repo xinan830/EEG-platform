@@ -62,6 +62,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, ReportCatalogError);
         RegisterCommand = new AsyncRelayCommand(RegisterAsync, ReportRunError);
         RunCommand = new AsyncRelayCommand(RunAsync, ReportRunError);
+        CancelRunCommand = new AsyncRelayCommand(CancelRunAsync, ReportRunError);
         SelectStaticModeCommand = new RelayCommand(() => SelectedAnalysisMode = "静态");
         SelectDynamicModeCommand = new RelayCommand(() => SelectedAnalysisMode = "动态");
         StartDynamicPreviewCommand = new RelayCommand(StartDynamicPreview, CanStartDynamicPreview);
@@ -114,6 +115,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     public ICommand RefreshCommand { get; }
     public ICommand RegisterCommand { get; }
     public ICommand RunCommand { get; }
+    public ICommand CancelRunCommand { get; }
     public ICommand SelectStaticModeCommand { get; }
     public ICommand SelectDynamicModeCommand { get; }
     public ICommand StartDynamicPreviewCommand { get; }
@@ -283,12 +285,15 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         }
     }
     public string RunStatusText { get => runStatusText; private set => SetProperty(ref runStatusText, value); }
+    public string RunProgressText => LastRun?.ProgressTotal is int total
+        ? $"{LastRun.ProgressCompleted}/{total} 窗口"
+        : (LastRun?.Status == "running" ? "分析中" : "");
     public string ResultSummaryText { get => resultSummaryText; private set => SetProperty(ref resultSummaryText, value); }
     public string ProvenanceText { get => provenanceText; private set => SetProperty(ref provenanceText, value); }
     public string StructuredPreviewText { get => structuredPreviewText; private set => SetProperty(ref structuredPreviewText, value); }
     public string DynamicSeriesText { get => dynamicSeriesText; private set => SetProperty(ref dynamicSeriesText, value); }
     public AnalysisRunResponse? LastRun { get => lastRun; private set => SetProperty(ref lastRun, value); }
-    public bool IsRunActive => LastRun?.Status is "queued" or "running";
+    public bool IsRunActive => isSubmittingRun || LastRun?.Status is "queued" or "running";
     public IReadOnlyList<string> AnalysisModes { get; } = ["静态", "动态"];
     public string SelectedAnalysisMode
     {
@@ -508,6 +513,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
 
     private void ScheduleAutomaticRun()
     {
+        configurationRevision++;
         if (SelectedProjectRecording is not { Status: "已完成" } ||
             RegisteredRecording is null ||
             SelectedAlgorithm is null ||
@@ -596,76 +602,6 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             string.Equals(channel, preferred, StringComparison.OrdinalIgnoreCase));
     }
 
-    private async Task RunAsync()
-    {
-        automaticRunPending = false;
-        automaticRunDebounceTimer.Stop();
-        var algorithm = SelectedAlgorithm ?? throw new InvalidOperationException("请选择一个官方算法。");
-        if (!AlgorithmRunConfiguration.IsSupportedAlgorithm(algorithm))
-        {
-            throw new InvalidOperationException("当前算法不可运行，或未声明可用的分析模式。");
-        }
-        var resultHandler = AlgorithmRunResultHandlerRegistry.For(algorithm.Id);
-        var dynamic = IsDynamicMode;
-        if (dynamic && !IsDynamicModeAvailable)
-            throw new InvalidOperationException("当前算法未声明动态分析模式。");
-        if (RegisteredRecording is null)
-        {
-            throw new InvalidOperationException("请先注册一条已完成的 WPF 记录。");
-        }
-        if (string.IsNullOrWhiteSpace(SelectedChannel) || !RegisteredChannels.Contains(SelectedChannel))
-            throw new InvalidOperationException("请选择注册记录返回的有效分析通道。");
-        var durationSeconds = RegisteredRecording.DurationSeconds ?? throw new InvalidOperationException("注册记录没有可用的时长。");
-        var requestedRange = AlgorithmRunConfiguration.ParseStaticRangeOrThrow(StartSecondsText, EndSecondsText, durationSeconds);
-        var runInputs = new AlgorithmRunInputs(requestedRange, SelectedChannel, SelectedF4Channel,
-            RegisteredChannels, RegisteredRecording.SamplingRateHz, LowFrequencyText, HighFrequencyText,
-            NumeratorLowFrequencyText, NumeratorHighFrequencyText, DenominatorLowFrequencyText,
-            DenominatorHighFrequencyText, SelectedNotchFrequency);
-        var runParameters = resultHandler.ParseParameters(runInputs);
-        var stepSeconds = dynamic ? AlgorithmRunConfiguration.ParsePositiveSecondsOrThrow(DynamicStepText, "刷新步长") : 0;
-        if (dynamic && SelectedDynamicWindowSeconds < algorithm.DynamicPolicy.MinimumWindowSeconds)
-            throw new InvalidOperationException($"动态窗口不能小于 {algorithm.DynamicPolicy.MinimumWindowSeconds:0.###} 秒。");
-        var preservedDynamicCursorSeconds = dynamic && HasDynamicPreview
-            ? DynamicPreviewCursorSeconds
-            : (double?)null;
-        ClearPreviews();
-        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, SelectedChannel, requestedRange, dynamic ? "dynamic" : "static", runParameters.FrequencyBand, runParameters.RatioBands, runParameters.F4Channel, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0);
-        var request = new AnalysisRunRequest(RegisteredRecording.Id, "official_algorithm", config);
-        var run = await runCoordinator.CreateRunAndWaitAsync(
-            request,
-            updatedRun =>
-            {
-                LastRun = updatedRun;
-                RunStatusText = $"{algorithm.DisplayNameZh}：{updatedRun.Status}（{updatedRun.RunId}）";
-                RaisePropertyChanged(nameof(IsRunActive));
-            },
-            CancellationToken.None);
-        LastRun = run;
-        RaisePropertyChanged(nameof(IsRunActive));
-        if (run.Status == "completed")
-        {
-            RunStatusText += "，结果已由后端保存。";
-            ResultSummaryText = AlgorithmResultFormatter.BuildResultSummary(run);
-            ProvenanceText = AlgorithmResultFormatter.BuildProvenance(run);
-            DynamicSeriesText = dynamic ? AlgorithmResultFormatter.BuildDynamicSeriesSummary(run) : "暂无动态结果。";
-            if (dynamic && resultHandler.UsesDynamicScalarSeries)
-                SetDynamicSeries(run);
-            await resultHandler.ApplyAsync(this, run, dynamic, preservedDynamicCursorSeconds);
-        }
-        else if (run.Error is not null)
-        {
-            RunStatusText += $"，{run.Error.Code}：{run.Error.Message}";
-            ResultSummaryText = $"结果不可用：{run.Error.Code}。{run.Error.Message}";
-            ProvenanceText = AlgorithmResultFormatter.BuildProvenance(run);
-            StructuredPreviewText = "结果未完成，无法加载结构化预览。";
-        }
-        else
-        {
-            ResultSummaryText = $"结果不可用：运行状态为 {run.Status}。";
-            ProvenanceText = AlgorithmResultFormatter.BuildProvenance(run);
-            StructuredPreviewText = "结果未完成，无法加载结构化预览。";
-        }
-    }
 
     internal void SetStructuredPreviewTextForModule(string text) => StructuredPreviewText = text;
     internal void SeekDynamicPreviewSecondsForModule(double seconds) => SeekDynamicPreviewSeconds(seconds);

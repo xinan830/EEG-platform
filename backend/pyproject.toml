@@ -14,6 +14,7 @@ dependencies = [
     "mne>=1.8",
     "numpy>=1.24",
     "scipy>=1.10",
+    "threadpoolctl>=3.5",
     "specparam>=2.0.0rc6",
 ]
 
@@ -22,6 +23,9 @@ dev = [
     "httpx>=0.27",
     "pytest>=8.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["app", "app.*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

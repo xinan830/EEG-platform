@@ -12,6 +12,9 @@ public interface IAlgorithmClient
 
     Task<AnalysisRunResponse> GetRunAsync(string runId, CancellationToken cancellationToken);
 
+    Task<AnalysisRunResponse> CancelRunAsync(string runId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持取消分析。");
+
     Task<IReadOnlyList<RunArtifact>> ListArtifactsAsync(string runId, CancellationToken cancellationToken);
 
     Task<StructuredPreviewResponse> GetStructuredPreviewAsync(

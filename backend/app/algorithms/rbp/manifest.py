@@ -17,5 +17,6 @@ MANIFEST = AlgorithmManifest(
         {"name": "gamma", "unit": "ratio", "meaning": "Gamma 相对功率"},
     ]},
     definition_name="Official RBP",
+    definition_version="2.0.1",
     execution_kind="generic_research_primitives",
 )

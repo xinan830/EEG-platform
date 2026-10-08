@@ -6,9 +6,13 @@ from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecut
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 
-def spectral_execution_snapshot(config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
-    high_hz = float(getattr(config, "high_hz", ANALYSIS_CONTRACT["bandpass_hz"][1]))
-    notch_hz = 50.0 if high_hz >= 45.0 else None
+def spectral_execution_snapshot(
+    config: AlgorithmConfigBase, *,
+    low_hz: float = float(ANALYSIS_CONTRACT["bandpass_hz"][0]),
+    high_hz: float = float(ANALYSIS_CONTRACT["bandpass_hz"][1]),
+    notch_hz: float | None = None,
+) -> AlgorithmExecutionSnapshot:
+    """Use actual module filters; search-band field names carry no filter meaning."""
     return AlgorithmExecutionSnapshot(
         window={
             "mode": config.mode,
@@ -28,10 +32,7 @@ def spectral_execution_snapshot(config: AlgorithmConfigBase) -> AlgorithmExecuti
                 "filter_form",
             )
         } | {
-            "bandpass_hz": [
-                float(getattr(config, "low_hz", ANALYSIS_CONTRACT["bandpass_hz"][0])),
-                high_hz,
-            ],
+            "bandpass_hz": [float(low_hz), float(high_hz)],
             "notch_hz": notch_hz,
             "notch_quality_factor": 30.0 if notch_hz is not None else None,
         },
