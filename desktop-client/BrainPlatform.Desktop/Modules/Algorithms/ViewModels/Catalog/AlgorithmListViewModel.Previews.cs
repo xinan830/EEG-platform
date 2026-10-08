@@ -66,9 +66,9 @@ public sealed partial class AlgorithmListViewModel
     {
         try
         {
-            // Dynamic PSD contains one row per analysis window. Keep the
-            // preview bounded, but do not reject a normal 60-window result.
-            var preview = await client.GetStructuredPreviewAsync(runId, 20_000, CancellationToken.None);
+            // Match the bounded STFT budget: long recordings include spectrum
+            // and band-share rows for every dynamic window.
+            var preview = await client.GetStructuredPreviewAsync(runId, 1_000_000, CancellationToken.None);
             StructuredPreviewText = AlgorithmResultFormatter.BuildStructuredPreview(preview);
             if (dynamic)
             {

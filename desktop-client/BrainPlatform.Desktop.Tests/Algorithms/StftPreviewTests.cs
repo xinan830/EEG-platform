@@ -82,7 +82,7 @@ public sealed class StftPreviewTests
     {
         var catalog = new AlgorithmListViewModel(new PreviewClient(Preview("[[1,null],[3,4]]")), new OperationNotificationCenter());
 
-        await catalog.LoadStructuredPreviewAsync("run-1", "stft");
+        await catalog.LoadStftStructuredPreviewAsync("run-1", dynamic: false);
 
         Assert.True(catalog.HasStftPreview);
         Assert.Equal(3, catalog.StftResult?.PowerDb[1][0]);
@@ -113,7 +113,7 @@ public sealed class StftPreviewTests
             new DynamicAnalysisPolicy(4, [4], 4, 1, true), "available", true, null, null, null);
         catalog.SelectedAnalysisMode = "动态";
 
-        await catalog.LoadStructuredPreviewAsync("run-1", "stft", dynamic: true);
+        await catalog.LoadStftStructuredPreviewAsync("run-1", dynamic: true);
         Assert.Equal(6, catalog.DynamicPreviewCursorSeconds);
         Assert.Equal(1, catalog.StftResult?.PowerDb[0][0]);
 
@@ -129,7 +129,7 @@ public sealed class StftPreviewTests
     {
         var catalog = new AlgorithmListViewModel(new PreviewClient(Preview("[]")), new OperationNotificationCenter());
 
-        await catalog.LoadStructuredPreviewAsync("run-1", "stft", dynamic: true);
+        await catalog.LoadStftStructuredPreviewAsync("run-1", dynamic: true);
 
         Assert.Empty(catalog.DynamicWindowRows);
         Assert.Null(catalog.StftResult);
