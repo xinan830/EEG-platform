@@ -31,7 +31,8 @@ public sealed class IapfDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
     public string CogText => FormatHz(CurrentPoint?.CogHz);
     public string FitText => CurrentPoint?.ModelR2 is double value ? value.ToString("0.###") : "未提供";
     public string WindowText => CurrentPoint is { } point && double.IsFinite(point.StartSeconds) && double.IsFinite(point.EndSeconds)
-        ? $"{point.StartSeconds:0.###}–{point.EndSeconds:0.###} s" : "尚未到达分析窗口";
+        ? Catalog.TimeDisplay.FormatRange(point.StartSeconds, point.EndSeconds) : "尚未到达分析窗口";
+    protected override void OnTimeDisplayChanged() => RaisePropertyChanged(nameof(WindowText));
     public string StatusText => CurrentPoint is not { } point
         ? Catalog.LastRun?.Error?.Message ?? "尚无结果"
         : point.ValueHz is null

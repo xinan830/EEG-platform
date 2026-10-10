@@ -71,6 +71,7 @@ public partial class StftSliceChart : UserControl
 
     private void UpdateSeries()
     {
+        RecordingTimeAxisPresentation.SetAxis(this, null);
         points.Clear();
         if (Preview is not { } preview) return;
 
@@ -89,6 +90,7 @@ public partial class StftSliceChart : UserControl
             points.SeriesName = $"{preview.FrequenciesHz[frequency]:0.###} Hz 的功率谱密度";
             points.Append(preview.TimesSeconds, preview.PowerDb.Select(row => row[frequency] ?? double.NaN));
             SetXRange(preview.TimesSeconds);
+            RecordingTimeAxisPresentation.SetAxis(this, xAxis);
         }
     }
 

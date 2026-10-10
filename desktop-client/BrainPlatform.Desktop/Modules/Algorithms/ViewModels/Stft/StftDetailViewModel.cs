@@ -61,7 +61,7 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
         }
     }
     public string SelectedTimeText => Preview is { } preview
-        ? $"时频中心：{preview.TimesSeconds[(int)SelectedTimeIndex]:0.###} s" : "时频中心：--";
+        ? $"时频中心：{Catalog.TimeDisplay.FormatPoint(preview.TimesSeconds[(int)SelectedTimeIndex])}" : "时频中心：--";
     public string SelectedFrequencyText => Preview is { } preview
         ? $"频率：{preview.FrequenciesHz[(int)SelectedFrequencyIndex]:0.###} Hz" : "频率：--";
     public bool HasPreview => Preview is not null;
@@ -99,10 +99,10 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
     }
     public ICommand ToggleFailureDetailsCommand => new RelayCommand(() => IsFailureDetailsExpanded = !IsFailureDetailsExpanded);
     public string TimeRangeText => Preview is { } preview
-        ? $"时频中心：{preview.TimesSeconds[0]:0.###}–{preview.TimesSeconds[^1]:0.###} s"
+        ? $"时频中心：{Catalog.TimeDisplay.FormatRange(preview.TimesSeconds[0], preview.TimesSeconds[^1])}"
         : "--";
     public string RequestedRangeText => Catalog.LastRun?.RequestedRange is { } range
-        ? $"请求范围：{range.StartSeconds:0.###}–{range.EndSeconds:0.###} s"
+        ? $"请求范围：{Catalog.TimeDisplay.FormatRange(range.StartSeconds, range.EndSeconds)}"
         : "请求范围：--";
     public string FrequencyRangeText => Preview is { } preview
         ? $"频率：{preview.FrequenciesHz[0]:0.###}–{preview.FrequenciesHz[^1]:0.###} Hz"
@@ -116,14 +116,15 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
         : "无动态窗口";
     public string RunIdText => Catalog.LastRun?.RunId ?? "未运行";
     public string ActualRangeText => Catalog.LastRun?.ActualRange is { } range
-        ? $"{range.StartSeconds:0.###}–{range.EndSeconds:0.###} s" : "--";
+        ? Catalog.TimeDisplay.FormatRange(range.StartSeconds, range.EndSeconds) : "--";
     public string ScientificVersionText => Catalog.LastRun?.ScientificVersion ?? "--";
     public IReadOnlyList<DynamicWindowRow> DynamicWindowRows => Catalog.DynamicWindowRows;
 
     protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
         base.OnCatalogPropertyChanged(sender, args);
-        if (args.PropertyName is nameof(AlgorithmListViewModel.StftResult)
+        if (args.PropertyName is nameof(AlgorithmListViewModel.TimeDisplay)
+            or nameof(AlgorithmListViewModel.StftResult)
             or nameof(AlgorithmListViewModel.SelectedAnalysisMode)
             or nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)
             or nameof(AlgorithmListViewModel.DynamicPreviewRows)
@@ -131,6 +132,7 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
             or nameof(AlgorithmListViewModel.StructuredPreviewText)
             or nameof(AlgorithmListViewModel.LastRun))
         {
+            RaisePropertyChanged(nameof(SelectedTimeText));
             if (args.PropertyName == nameof(AlgorithmListViewModel.StftResult))
             {
                 SelectedTimeIndex = Math.Min(SelectedTimeIndex, MaximumTimeIndex);

@@ -54,8 +54,10 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     private bool isDynamicPreviewPlaying;
     private bool automaticRunPending;
 
-    public AlgorithmListViewModel(IAlgorithmClient client, OperationNotificationCenter notifications, ProjectWorkspaceViewModel? projects = null)
+    public AlgorithmListViewModel(IAlgorithmClient client, OperationNotificationCenter notifications, ProjectWorkspaceViewModel? projects = null,
+        RecordingTimeDisplaySettings? timeDisplaySettings = null)
     {
+        InitializeTimeDisplay(timeDisplaySettings ?? new RecordingTimeDisplaySettings());
         this.client = client ?? throw new ArgumentNullException(nameof(client));
         runCoordinator = new AlgorithmRunCoordinator(client);
         this.notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
@@ -147,6 +149,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         set
         {
             if (!SetProperty(ref selectedProjectRecording, value)) return;
+            TimeDisplay.RecordingStartUtc = value?.RecordingStartUtc;
             SourceDirectory = value?.RecordingDirectory ?? string.Empty;
             RegisteredRecording = null;
             RegisteredChannels.Clear();
@@ -309,7 +312,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     public bool IsDynamicMode => SelectedAnalysisMode == "动态";
     public bool IsDynamicPreviewPlaying { get => isDynamicPreviewPlaying; private set => SetProperty(ref isDynamicPreviewPlaying, value); }
     public double DynamicPreviewCursorSeconds { get => dynamicPreviewCursorSeconds; private set => SetProperty(ref dynamicPreviewCursorSeconds, value); }
-    public string DynamicPreviewCursorText => $"{DynamicPreviewCursorSeconds:0.###} s";
+    public string DynamicPreviewCursorText => TimeDisplay.FormatCursor(DynamicPreviewCursorSeconds);
     public bool HasDynamicPreview => DynamicWindowRows.Count > 0;
     public string DynamicPreviewStatusText => !HasDynamicPreview
         ? "尚未生成动态窗口结果"

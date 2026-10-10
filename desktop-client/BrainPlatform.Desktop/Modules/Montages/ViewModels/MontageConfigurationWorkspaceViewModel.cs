@@ -496,7 +496,9 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
                 selectedPair.ElementAtOrDefault(0),
                 selectedPair.ElementAtOrDefault(1),
                 AverageReferenceSummary,
-                SpecifiedPairSummary));
+                SpecifiedPairSummary,
+                source.Channels,
+                averageLabels));
         }
     }
 
@@ -551,7 +553,9 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
                 channel.NegativeKind == MontageNegativeKind.SpecifiedPair ? negativeLabels.ElementAtOrDefault(0) : null,
                 channel.NegativeKind == MontageNegativeKind.SpecifiedPair ? negativeLabels.ElementAtOrDefault(1) : null,
                 AverageReferenceSummary,
-                SpecifiedPairSummary));
+                SpecifiedPairSummary,
+                profile.ChannelConfigurationSnapshot.Channels,
+                averageLabels));
         }
     }
 
@@ -585,7 +589,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         RaisePropertyChanged(nameof(CanApplySpecifiedPair));
         foreach (var row in DraftRows)
         {
-            row.UpdateReferenceSummaries(AverageReferenceSummary, SpecifiedPairSummary);
+            row.UpdateReferenceSummaries(AverageReferenceSummary, SpecifiedPairSummary, GetAverageReferenceLabels());
         }
     }
 

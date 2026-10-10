@@ -17,6 +17,7 @@ public abstract class AlgorithmSpecificDetailViewModel : ObservableObject
 
     protected virtual void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
+        if (args.PropertyName == nameof(AlgorithmListViewModel.TimeDisplay)) OnTimeDisplayChanged();
         if (args.PropertyName == nameof(AlgorithmListViewModel.SelectedAlgorithm))
         {
             RaisePropertyChanged(nameof(Algorithm));
@@ -24,4 +25,6 @@ public abstract class AlgorithmSpecificDetailViewModel : ObservableObject
             RaisePropertyChanged(nameof(Parameters));
         }
     }
+
+    protected virtual void OnTimeDisplayChanged() { }
 }

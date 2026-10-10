@@ -32,6 +32,7 @@ public partial class ThetaBetaTrendChart : UserControl
         surface.Background = Brushes.White;
         surface.ShowLicensingWarnings = false;
         surface.XAxes.Add(xAxis);
+        RecordingTimeAxisPresentation.SetAxis(this, xAxis);
         surface.YAxes.Add(yAxis);
         surface.RenderableSeries.Add(new FastLineRenderableSeries { DataSeries = values, Stroke = Color.FromRgb(22, 119, 155), StrokeThickness = 2, DrawNaNAs = LineDrawMode.Gaps });
         surface.ChartModifier = new RolloverModifier { IsEnabled = true, DrawVerticalLine = true, ShowTooltipOn = ShowTooltipOptions.MouseOver };

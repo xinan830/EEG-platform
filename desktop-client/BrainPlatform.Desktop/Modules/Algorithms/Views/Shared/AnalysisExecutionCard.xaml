@@ -252,23 +252,28 @@
                     </StackPanel>
 
                     <!-- Status indicators: 游标, 已释放窗口, 状态 -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                         <TextBlock Text="游标" FontSize="11.5" Foreground="#64748B" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding DynamicPreviewCursorText, Mode=OneWay}" FontSize="12" FontWeight="Bold" Foreground="#0F172A" Margin="5,0,14,0" VerticalAlignment="Center" />
-                        <TextBlock Text="已释放窗口" FontSize="11.5" Foreground="#64748B" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding DynamicPreviewRows.Count, Mode=OneWay}" FontSize="12" FontWeight="Bold" Foreground="#0F172A" Margin="5,0,14,0" VerticalAlignment="Center" />
-                        <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding DynamicPreviewStatusText, Mode=OneWay}" FontSize="11" Foreground="#059669" FontWeight="Medium" />
+                        <TextBlock Grid.Column="1" Text="{Binding DynamicPreviewCursorText, Mode=OneWay}" FontSize="12"
+                                   FontWeight="Bold" Foreground="#0F172A" Margin="5,0,0,0" TextWrapping="Wrap" />
+                    </Grid>
+                    <WrapPanel Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,14,4">
+                            <TextBlock Text="已释放窗口" FontSize="11.5" Foreground="#64748B" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DynamicPreviewRows.Count, Mode=OneWay}" FontSize="12" FontWeight="Bold"
+                                       Foreground="#0F172A" Margin="5,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="6" Padding="8,2" Margin="0,0,0,4">
+                            <TextBlock Text="{Binding DynamicPreviewStatusText, Mode=OneWay}" FontSize="11" Foreground="#059669"
+                                       FontWeight="Medium" TextWrapping="Wrap" MaxWidth="240" />
                         </Border>
-                    </StackPanel>
+                    </WrapPanel>
 
                     <!-- Slider Progress -->
                     <Grid Margin="0,4,0,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Slider Grid.Column="0"
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Slider Grid.Row="0"
                                 Value="{Binding DynamicTimeProgressPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 Minimum="0"
                                 Maximum="100"
@@ -294,16 +299,17 @@
                                 </ControlTemplate>
                             </Slider.Template>
                         </Slider>
-                        <TextBlock Grid.Column="1"
+                        <TextBlock Grid.Row="1"
                                    Text="{Binding DynamicTimeProgressText, Mode=OneWay}"
                                    FontSize="12"
                                    FontWeight="Medium"
                                    Foreground="#334155"
-                                   Margin="12,0,0,0"
+                                   Margin="0,4,0,0" TextWrapping="Wrap" HorizontalAlignment="Right"
                                    VerticalAlignment="Center" />
                     </Grid>
 
                     <TextBlock Text="{Binding DynamicCurrentWindowText, Mode=OneWay}"
+                               TextWrapping="Wrap"
                                FontSize="11.5"
                                Foreground="#64748B"
                                Margin="0,4,0,0" />

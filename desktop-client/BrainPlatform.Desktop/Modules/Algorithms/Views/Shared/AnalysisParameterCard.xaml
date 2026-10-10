@@ -133,7 +133,7 @@
                    Margin="3,0,0,0" />
        </StackPanel>
    </Border>
-   <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="开始时间" FontSize="12" Foreground="#475569"/><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding StartSeconds, UpdateSourceTrigger=LostFocus}"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="结束时间" FontSize="12" Foreground="#475569"/><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding EndSeconds, UpdateSourceTrigger=LostFocus}"/></StackPanel></Grid>
+   <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="开始时间（记录秒数）" FontSize="12" Foreground="#475569"/><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding StartSeconds, UpdateSourceTrigger=LostFocus}"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="结束时间（记录秒数）" FontSize="12" Foreground="#475569"/><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding EndSeconds, UpdateSourceTrigger=LostFocus}"/></StackPanel></Grid>
    <Grid Margin="0,0,0,14">
        <Grid.Style>
            <Style TargetType="Grid">

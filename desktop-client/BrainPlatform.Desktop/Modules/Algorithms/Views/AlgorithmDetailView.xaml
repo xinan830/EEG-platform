@@ -20,6 +20,9 @@
              xmlns:thetavm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.ThetaBeta"
              xmlns:brainbeatvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Brainbeat"
              xmlns:shared="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"
+             xmlns:controls="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
+             xmlns:time="clr-namespace:BrainPlatform.Desktop.Shared.Waveform"
+             time:RecordingTimeAxisPresentation.Context="{Binding AlgorithmWorkspace.Detail.Context.TimeDisplay}"
              Background="#F8FAFC">
     <UserControl.Resources>
         <DataTemplate DataType="{x:Type psdvm:PsdDetailViewModel}"><psd:PsdDetailView /></DataTemplate>
@@ -80,7 +83,12 @@
                     </StackPanel>
                 </Grid>
                 <!-- Subtitle below the title row -->
-                <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.Description}" Margin="0,6,0,0" Foreground="#64748B" FontSize="12.5" />
+                <DockPanel Margin="0,6,0,0">
+                    <controls:RecordingTimeSelector DockPanel.Dock="Right" HorizontalAlignment="Right"
+                        DataContext="{Binding AlgorithmWorkspace.Detail.Context.TimeDisplay}" />
+                    <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.Description}" Foreground="#64748B"
+                               FontSize="12.5" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+                </DockPanel>
             </StackPanel>
 
             <shared:AnalysisTargetCard Grid.Row="1" DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />

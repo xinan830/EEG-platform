@@ -26,20 +26,19 @@
                     </ComboBox>
                 </StackPanel>
             </Grid>
-            <Grid Grid.Row="1" Margin="0,10,0,14">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel Grid.Row="1" Margin="0,10,0,14">
                 <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="#475569" Margin="0,0,12,0" TextWrapping="Wrap" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <TextBlock Text="{Binding RequestedRangeText}" Margin="0,0,16,0" FontSize="12" Foreground="#475569" />
-                    <TextBlock Text="{Binding TimeRangeText}" Margin="0,0,16,0" FontSize="12" Foreground="#475569" />
+                <WrapPanel Margin="0,4,0,0">
+                    <TextBlock Text="{Binding RequestedRangeText}" Margin="0,0,16,4" FontSize="12" Foreground="#475569" TextWrapping="Wrap" MaxWidth="420" />
+                    <TextBlock Text="{Binding TimeRangeText}" Margin="0,0,16,4" FontSize="12" Foreground="#475569" TextWrapping="Wrap" MaxWidth="420" />
                     <TextBlock Text="{Binding FrequencyRangeText}" FontSize="12" Foreground="#475569" />
-                </StackPanel>
-            </Grid>
+                </WrapPanel>
+            </StackPanel>
             <Grid Grid.Row="2" Margin="0,0,0,10">
                 <Grid.Style><Style TargetType="Grid"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsSpectrumSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger><DataTrigger Binding="{Binding IsTrendSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Grid.Style>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsSpectrumSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
-                    <TextBlock Text="{Binding SelectedTimeText}" Width="178" VerticalAlignment="Center" Foreground="#475569" FontSize="12" />
+                    <TextBlock Text="{Binding SelectedTimeText}" Width="220" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="#475569" FontSize="12" />
                     <Slider Width="270" Minimum="0" Maximum="{Binding MaximumTimeIndex}" Value="{Binding SelectedTimeIndex, Mode=TwoWay}" TickFrequency="1" IsSnapToTickEnabled="True" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

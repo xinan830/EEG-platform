@@ -43,8 +43,10 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     public ICommand ToggleFailureDetailsCommand => new RelayCommand(() => IsFailureDetailsExpanded = !IsFailureDetailsExpanded);
     public string WindowText => !IsDynamic ? "选定分析区间" :
         preview.Windows.LastOrDefault(window => window.EndSeconds <= Catalog.DynamicPreviewCursorSeconds + 1e-9) is { } current
-            ? $"{current.StartSeconds:0.###}–{current.EndSeconds:0.###} s · {AlgorithmResultFormatter.FormatWindowStateForDisplay(current.State)}"
+            ? $"{Catalog.TimeDisplay.FormatRange(current.StartSeconds, current.EndSeconds)} · {AlgorithmResultFormatter.FormatWindowStateForDisplay(current.State)}"
             : "尚未到达分析窗口";
+
+    protected override void OnTimeDisplayChanged() => RaisePropertyChanged(nameof(WindowText));
 
     protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {

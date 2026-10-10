@@ -301,7 +301,8 @@ public partial class MainWindow : Window
             recordingDirectory: recording.RecordingDirectory,
             eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
             notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications,
-            analysisCoordinator: analysisCoordinator);
+            analysisCoordinator: analysisCoordinator,
+            timeDisplaySettings: (DataContext as DesktopWorkspaceViewModel)?.TimeDisplaySettings);
         try
         {
             await viewModel.InitializeAsync();

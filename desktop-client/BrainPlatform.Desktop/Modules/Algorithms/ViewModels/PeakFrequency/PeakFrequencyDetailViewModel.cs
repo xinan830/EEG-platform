@@ -17,7 +17,8 @@ public sealed class PeakFrequencyDetailViewModel : AlgorithmSpecificDetailViewMo
     public string ValueText => CurrentPoint?.ValueHz is double value ? $"{value:0.##} Hz" : "不可用";
     public string ChannelText => preview?.Channel is { Length: > 0 } channel ? channel : "未提供";
     public string WindowText => CurrentPoint is { } point && double.IsFinite(point.StartSeconds) && double.IsFinite(point.EndSeconds)
-        ? $"{point.StartSeconds:0.###}–{point.EndSeconds:0.###} s" : "尚未到达分析窗口";
+        ? Catalog.TimeDisplay.FormatRange(point.StartSeconds, point.EndSeconds) : "尚未到达分析窗口";
+    protected override void OnTimeDisplayChanged() => RaisePropertyChanged(nameof(WindowText));
     public string PeakPowerText => CurrentPoint?.PeakPowerV2PerHz is double power
         ? $"{power * 1e12:0.###} μV²/Hz" : "未提供";
     public string StatusText => CurrentPoint is not { } point

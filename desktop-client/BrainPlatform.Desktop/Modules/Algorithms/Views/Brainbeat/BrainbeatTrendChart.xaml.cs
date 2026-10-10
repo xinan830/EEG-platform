@@ -32,6 +32,7 @@ public partial class BrainbeatTrendChart : UserControl
         surface.Background = Brushes.White;
         surface.ShowLicensingWarnings = false;
         surface.XAxes.Add(xAxis); surface.YAxes.Add(yAxis);
+        RecordingTimeAxisPresentation.SetAxis(this, xAxis);
         surface.RenderableSeries.Add(new FastLineRenderableSeries { DataSeries = values, Stroke = Color.FromRgb(37, 99, 235), StrokeThickness = 2, DrawNaNAs = LineDrawMode.Gaps });
         surface.ChartModifier = new RolloverModifier { IsEnabled = true, DrawVerticalLine = true, ShowTooltipOn = ShowTooltipOptions.MouseOver };
         ((Grid)Content).Children.Insert(0, surface);

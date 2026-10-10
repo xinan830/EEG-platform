@@ -14,7 +14,8 @@ public sealed class ThetaBetaDetailViewModel : AlgorithmSpecificDetailViewModel,
     public double TimelineEndSeconds => preview?.DynamicPoints.LastOrDefault()?.EndSeconds ?? 1;
     public string ValueText => CurrentPoint?.Value is double value ? value.ToString("0.###") : "不可用";
     public string ChannelText => preview?.Channel is { Length: > 0 } channel ? channel : "未提供";
-    public string WindowText => CurrentPoint is { } point && double.IsFinite(point.StartSeconds) && double.IsFinite(point.EndSeconds) ? $"{point.StartSeconds:0.###}–{point.EndSeconds:0.###} s" : "尚未到达分析窗口";
+    public string WindowText => CurrentPoint is { } point && double.IsFinite(point.StartSeconds) && double.IsFinite(point.EndSeconds) ? Catalog.TimeDisplay.FormatRange(point.StartSeconds, point.EndSeconds) : "尚未到达分析窗口";
+    protected override void OnTimeDisplayChanged() => RaisePropertyChanged(nameof(WindowText));
     public string IapfText => FormatHz(CurrentPoint?.Evidence.IapfHz);
     public string ThetaRangeText => FormatRange(CurrentPoint?.Evidence.ThetaLowHz, CurrentPoint?.Evidence.ThetaHighHz);
     public string BetaRangeText => FormatRange(CurrentPoint?.Evidence.BetaLowHz, CurrentPoint?.Evidence.BetaHighHz);

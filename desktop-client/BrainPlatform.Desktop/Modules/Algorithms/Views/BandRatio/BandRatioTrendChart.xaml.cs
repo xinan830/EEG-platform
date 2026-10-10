@@ -26,7 +26,7 @@ public partial class BandRatioTrendChart : UserControl
     public double EndSeconds { get => (double)GetValue(EndSecondsProperty); set => SetValue(EndSecondsProperty, value); }
     public BandRatioTrendChart()
     {
-        InitializeComponent(); surface.Background = Brushes.White; surface.ShowLicensingWarnings = false; surface.XAxes.Add(xAxis); surface.YAxes.Add(yAxis); surface.RenderableSeries.Add(new FastLineRenderableSeries { DataSeries = values, Stroke = Color.FromRgb(37, 99, 235), StrokeThickness = 2, DrawNaNAs = LineDrawMode.Gaps }); surface.ChartModifier = new RolloverModifier { IsEnabled = true, DrawVerticalLine = true, ShowTooltipOn = ShowTooltipOptions.MouseOver }; ((Grid)Content).Children.Insert(0, surface); UpdateSeries();
+        InitializeComponent(); surface.Background = Brushes.White; surface.ShowLicensingWarnings = false; surface.XAxes.Add(xAxis); surface.YAxes.Add(yAxis); surface.RenderableSeries.Add(new FastLineRenderableSeries { DataSeries = values, Stroke = Color.FromRgb(37, 99, 235), StrokeThickness = 2, DrawNaNAs = LineDrawMode.Gaps }); surface.ChartModifier = new RolloverModifier { IsEnabled = true, DrawVerticalLine = true, ShowTooltipOn = ShowTooltipOptions.MouseOver }; ((Grid)Content).Children.Insert(0, surface); RecordingTimeAxisPresentation.SetAxis(this, xAxis); UpdateSeries();
     }
     private static void OnDataChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((BandRatioTrendChart)sender).UpdateSeries();
     private void UpdateSeries()

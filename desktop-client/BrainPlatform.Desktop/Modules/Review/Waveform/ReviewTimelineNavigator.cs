@@ -20,6 +20,14 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         DependencyProperty.Register(nameof(DurationSeconds), typeof(double), typeof(ReviewTimelineNavigator),
             new FrameworkPropertyMetadata(1d, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty TimeDisplayModeProperty =
+        DependencyProperty.Register(nameof(TimeDisplayMode), typeof(RecordingTimeDisplayMode), typeof(ReviewTimelineNavigator),
+            new FrameworkPropertyMetadata(RecordingTimeDisplayMode.Relative, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty TimeDisplayProperty =
+        DependencyProperty.Register(nameof(TimeDisplay), typeof(RecordingTimeDisplayContext), typeof(ReviewTimelineNavigator),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty ViewportStartSecondsProperty =
         DependencyProperty.Register(nameof(ViewportStartSeconds), typeof(double), typeof(ReviewTimelineNavigator),
             new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -46,6 +54,18 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
     {
         get => (double)GetValue(DurationSecondsProperty);
         set => SetValue(DurationSecondsProperty, value);
+    }
+
+    public RecordingTimeDisplayMode TimeDisplayMode
+    {
+        get => (RecordingTimeDisplayMode)GetValue(TimeDisplayModeProperty);
+        set => SetValue(TimeDisplayModeProperty, value);
+    }
+
+    public RecordingTimeDisplayContext? TimeDisplay
+    {
+        get => (RecordingTimeDisplayContext?)GetValue(TimeDisplayProperty);
+        set => SetValue(TimeDisplayProperty, value);
     }
 
     public DateTimeOffset RecordingStartUtc
@@ -91,23 +111,31 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
             null,
             thumb);
 
-        if (RecordingStartUtc != default && height >= 28)
+        if (height >= 28)
         {
-            DrawClockLabels(drawingContext, width);
+            DrawTimeLabels(drawingContext, width);
         }
     }
 
-    private void DrawClockLabels(DrawingContext drawingContext, double width)
+    private void DrawTimeLabels(DrawingContext drawingContext, double width)
     {
-        var positions = width >= 230 ? new[] { 0d, 0.5d, 1d } : new[] { 0d, 1d };
+        var positions = width >= 400 ? new[] { 0d, 0.5d, 1d } : new[] { 0d, 1d };
+        var previousRight = double.NegativeInfinity;
         foreach (var fraction in positions)
         {
-            var label = RecordingClockLabelFormatter.Format(RecordingStartUtc, fraction * DurationSeconds);
+            var seconds = fraction * DurationSeconds;
+            var label = TimeDisplay is { } context
+                ? context.IsClockTime ? context.FormatAxis(seconds) : context.FormatPoint(seconds)
+                : TimeDisplayMode == RecordingTimeDisplayMode.Clock && RecordingStartUtc != default
+                    ? RecordingClockLabelFormatter.Format(RecordingStartUtc, seconds)
+                    : seconds.ToString("0.###", CultureInfo.InvariantCulture) + " s";
             var text = new FormattedText(
                 label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
                 new Typeface("Segoe UI"), 10, Brushes.DimGray, VisualTreeHelper.GetDpi(this).PixelsPerDip);
             var x = Math.Clamp(width * fraction - text.Width / 2, 0, Math.Max(0, width - text.Width));
+            if (text.Width > width || x < previousRight + 8) continue;
             drawingContext.DrawText(text, new Point(x, 0));
+            previousRight = x + text.Width;
         }
     }
 

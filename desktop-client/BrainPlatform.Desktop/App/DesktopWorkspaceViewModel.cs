@@ -25,7 +25,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         Acquisition = acquisition;
         Algorithms = algorithmClient ?? throw new ArgumentNullException(nameof(algorithmClient));
         Projects = new ProjectWorkspaceViewModel(Notifications, store: projectStore);
-        AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects);
+        AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects, TimeDisplaySettings);
         AlgorithmWorkspace = new AlgorithmWorkspaceViewModel(AlgorithmCatalog);
         Overview = new DeviceOverviewViewModel(acquisition.DeviceSession, acquisition);
         ChannelConfigurations = new ChannelConfigurationWorkspaceViewModel(
@@ -54,6 +54,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     }
 
     public AcquisitionWorkspaceViewModel Acquisition { get; }
+
+    public RecordingTimeDisplaySettings TimeDisplaySettings { get; } = new();
 
     public IAlgorithmClient Algorithms { get; }
 

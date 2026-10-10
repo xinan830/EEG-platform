@@ -20,6 +20,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
     }
 
     public AlgorithmListViewModel Catalog { get; }
+    public RecordingTimeDisplayContext TimeDisplay => Catalog.TimeDisplay;
     public AlgorithmParameterContext Parameters { get; }
     public ProjectWorkspaceViewModel? Projects => Catalog.Projects;
     public ResearchProject? SelectedProject { get => Catalog.Projects?.SelectedProject; set { if (Catalog.Projects is not null) Catalog.Projects.SelectedProject = value; } }
@@ -121,7 +122,8 @@ public sealed class AnalysisContextViewModel : ObservableObject
 
     private void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is nameof(AlgorithmListViewModel.SelectedProjectRecording)
+        if (args.PropertyName is nameof(AlgorithmListViewModel.TimeDisplay)
+            or nameof(AlgorithmListViewModel.SelectedProjectRecording)
             or nameof(AlgorithmListViewModel.SelectedAlgorithm)
             or nameof(AlgorithmListViewModel.RegisteredChannels)
             or nameof(AlgorithmListViewModel.RegisteredRecording)
@@ -150,6 +152,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.ResultSummaryText)
             or nameof(AlgorithmListViewModel.ProvenanceText))
         {
+            RaisePropertyChanged(nameof(TimeDisplay));
             RaisePropertyChanged(nameof(HasProject));
             RaisePropertyChanged(nameof(HasCompletedRecording));
             RaisePropertyChanged(nameof(HasRegisteredRecording));
@@ -206,9 +209,9 @@ public sealed class AnalysisContextViewModel : ObservableObject
         }
     }
 
-    private static string FormatRange(TimeRange? range) => range is null
+    private string FormatRange(TimeRange? range) => range is null
         ? "未运行"
-        : $"{range.StartSeconds:0.###}–{range.EndSeconds:0.###} s";
+        : TimeDisplay.FormatRange(range.StartSeconds, range.EndSeconds);
 
     private static string? MetricOutputUnit(JsonElement? summary) =>
         summary is { ValueKind: JsonValueKind.Object } root &&

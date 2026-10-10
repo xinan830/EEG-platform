@@ -49,9 +49,9 @@ public sealed partial class AlgorithmListViewModel
             RaiseDynamicPreviewProperties();
         }
     }
-    public string DynamicTimeProgressText => $"{DynamicPreviewCursorSeconds:0.###} / {DynamicPreviewDurationSeconds:0.###} s";
+    public string DynamicTimeProgressText => $"{TimeDisplay.FormatPoint(DynamicPreviewCursorSeconds)} / {TimeDisplay.FormatPoint(DynamicPreviewDurationSeconds)}";
     public string DynamicCurrentWindowText => DynamicPreviewRows.LastOrDefault() is { } row
-        ? $"当前窗口：{row.StartSeconds:0.###}–{row.EndSeconds:0.###} s（{row.State}）"
+        ? $"当前窗口：{TimeDisplay.FormatRange(row.StartSeconds, row.EndSeconds)}（{row.State}）"
         : "当前窗口：尚未释放";
     private double DynamicPreviewDurationSeconds => new[]
     {

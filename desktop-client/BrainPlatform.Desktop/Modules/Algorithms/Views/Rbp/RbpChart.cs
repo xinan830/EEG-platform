@@ -59,6 +59,7 @@ public sealed class RbpChart : UserControl
 
     private void Rebuild()
     {
+        RecordingTimeAxisPresentation.SetAxis(this, null);
         surface.RenderableSeries.Clear();
         if (IsTrend)
         {
@@ -102,6 +103,7 @@ public sealed class RbpChart : UserControl
         xAxis.VisibleRange = windows.Count > 0
             ? new DoubleRange(Math.Max(0, windows[0].StartSeconds), Math.Max(windows[0].StartSeconds + 1, windows[^1].EndSeconds + 0.5))
             : new DoubleRange(0, 10);
+        RecordingTimeAxisPresentation.SetAxis(this, xAxis);
         for (var index = 0; index < bands.Count; index++)
         {
             var points = new XyDataSeries<double, double> { SeriesName = bands[index].Label };

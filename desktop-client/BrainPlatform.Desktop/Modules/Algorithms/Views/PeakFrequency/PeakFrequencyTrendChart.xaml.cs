@@ -46,6 +46,7 @@ public partial class PeakFrequencyTrendChart : UserControl
         surface.Background = Brushes.White;
         surface.ShowLicensingWarnings = false;
         surface.XAxes.Add(xAxis);
+        RecordingTimeAxisPresentation.SetAxis(this, xAxis);
         surface.YAxes.Add(yAxis);
         surface.RenderableSeries.Add(new FastLineRenderableSeries
         {

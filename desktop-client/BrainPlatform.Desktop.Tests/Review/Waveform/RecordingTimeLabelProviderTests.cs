@@ -1,10 +1,25 @@
 using BrainPlatform.Desktop.Modules.Review.Waveform;
+using BrainPlatform.Desktop.Shared.Time;
 using BrainPlatform.Desktop.Shared.Waveform;
 
 namespace BrainPlatform.Desktop.Tests.Views;
 
 public sealed class RecordingTimeLabelProviderTests
 {
+    [Fact]
+    public void Display_context_switches_labels_without_changing_the_tick_coordinate()
+    {
+        var start = new DateTimeOffset(2026, 9, 24, 13, 21, 30, 387, TimeSpan.Zero);
+        var context = new RecordingTimeDisplayContext(new RecordingTimeDisplaySettings(), start);
+        var labels = new RecordingTimeLabelProvider { RecordingStartUtc = start, Context = context };
+        Assert.Equal("17", labels.FormatLabel(17d));
+        context.IsClockTime = true;
+        Assert.Equal($"{start.AddSeconds(17).ToLocalTime():HH:mm:ss.fff}", labels.FormatLabel(17d));
+        Assert.Contains("17 s", labels.FormatCursorLabel(17d));
+        context.IsRecordTime = true;
+        Assert.Equal("17", labels.FormatLabel(17d));
+    }
+
     [Fact]
     public void FormatLabel_UsesRecordingStartAndRelativeSeconds()
     {

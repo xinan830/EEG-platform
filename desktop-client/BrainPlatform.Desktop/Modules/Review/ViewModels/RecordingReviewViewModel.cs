@@ -53,7 +53,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         string? recordingDirectory = null,
         EventDefinitionService? eventDefinitionService = null,
         OperationNotificationCenter? notifications = null,
-        ReviewAnalysisCoordinator? analysisCoordinator = null)
+        ReviewAnalysisCoordinator? analysisCoordinator = null,
+        RecordingTimeDisplaySettings? timeDisplaySettings = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -64,6 +65,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         playback = new RecordingPlaybackController(reader.DurationSeconds, playbackClockSeconds);
         samplingRateHz = reader.Manifest.SamplingRateHz;
         recordingStartUtc = reader.Manifest.RecordingStartUtc;
+        InitializeTimeDisplay(timeDisplaySettings ?? new RecordingTimeDisplaySettings());
         sourceChannelCount = reader.Manifest.Channels.Count(channel =>
             channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar);
         this.projectName = string.IsNullOrWhiteSpace(projectName)
@@ -242,25 +244,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public double? PreparationProgress => PreparationState.Progress;
 
-    public string RecordingStartText => FormatElapsedTime(0);
-
-    public string RecordingEndText => FormatElapsedTime(DurationSeconds);
-
-    public string RecordingClockRangeText =>
-        $"约 {recordingStartUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss} - " +
-        $"{recordingStartUtc.AddSeconds(DurationSeconds).ToLocalTime():yyyy-MM-dd HH:mm:ss}；点击空白轨道跳转，拖动灰色窗口浏览记录。";
-
-    public string PositionTimeText => FormatElapsedTime(PositionSeconds);
-
-    public string WindowTimeText
-    {
-        get
-        {
-            var end = Math.Min(DurationSeconds, ViewportStartSeconds + VisibleDurationSeconds);
-            return $"{FormatElapsedTime(ViewportStartSeconds)} - {FormatElapsedTime(end)}";
-        }
-    }
-
     public double HighPassHz
     {
         get => highPassHz;
@@ -407,7 +390,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
             RecordingEvents.Add(item);
             RecordingEventOptions.Add(new RecordingEventOption(
                 item,
-                $"{RecordingEventDisplayTime.FormatClockTime(recordingStartUtc, item.StartSample, samplingRateHz)} {item.DefinitionSnapshot.Name}",
+                $"{TimeDisplay.FormatPoint(item.StartSample / (double)samplingRateHz)} {item.DefinitionSnapshot.Name}",
                 RecordingEventDisplayTime.FormatMarker(item, recordingStartUtc, samplingRateHz)));
         }
         SelectedRecordingEvent = RecordingEvents.FirstOrDefault(item => item.Id == selectedId);
@@ -632,6 +615,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         analysisLifetime.Cancel();
         PsdParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
         AnalysisSettings.PropertyChanged -= OnAnalysisConfigurationChanged;
+        TimeDisplay.PropertyChanged -= OnTimeDisplayChanged;
         viewportLoader.Dispose();
         filterUpdater.Dispose();
         displaySettings.PropertyChanged -= OnDisplaySettingsChanged;
@@ -808,9 +792,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         }
     }
 
-    private string FormatElapsedTime(double seconds) =>
-        $"{Math.Clamp(seconds, 0, DurationSeconds):0.0} s";
-
     private void OnDisplaySettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         RaisePropertyChanged(e.PropertyName);
@@ -833,5 +814,3 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         RaisePropertyChanged(nameof(DerivedPaperSpeedMillimetersPerSecond));
     }
 }
-
-public sealed record RecordingEventOption(RecordingEvent Event, string DisplayText, string DetailText);

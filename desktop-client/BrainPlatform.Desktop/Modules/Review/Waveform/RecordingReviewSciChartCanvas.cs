@@ -11,7 +11,7 @@ using SciChart.Data.Model;
 
 namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
-public sealed class RecordingReviewSciChartCanvas : UserControl
+public sealed partial class RecordingReviewSciChartCanvas : UserControl
 {
     private const int MaximumPointsPerTrace = 2_000;
     private static readonly Color[] TraceColors =
@@ -166,6 +166,12 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
         {
             ApplyFrame((sender as RecordingReviewViewModel)?.CurrentFrame, sender as RecordingReviewViewModel);
         }
+        else if (e.PropertyName == nameof(RecordingReviewViewModel.TimeDisplay))
+        {
+            UpdateTimePresentation(sender as RecordingReviewViewModel);
+            UpdateEventMarkers(sender as RecordingReviewViewModel);
+            UpdateLifecycleBoundaries(sender as RecordingReviewViewModel);
+        }
         else if (e.PropertyName is nameof(RecordingReviewViewModel.PositionSeconds)
                  or nameof(RecordingReviewViewModel.ViewportStartSeconds))
         {
@@ -178,8 +184,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
 
     private void ApplyFrame(RecordingReviewFrame? frame, RecordingReviewViewModel? viewModel)
     {
-        recordingTimeLabels.RecordingStartUtc = viewModel?.RecordingStartUtc;
-        wallClockTicks.OriginUtc = viewModel?.RecordingStartUtc;
+        UpdateTimePresentation(viewModel);
         if (frame is null)
         {
             emptyMessage.Text = viewModel?.StatusText ?? "等待加载回溯数据";
@@ -397,8 +402,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
                 eventMarkers,
                 left,
                 3,
-                RecordingClockLabelFormatter.FormatSampleMilliseconds(
-                    viewModel.RecordingStartUtc, item.StartSample, viewModel.SamplingRateHz),
+                viewModel.TimeDisplay.FormatPoint(itemStart),
                 color,
                 RecordingEventDisplayTime.FormatMarker(item, viewModel.RecordingStartUtc, viewModel.SamplingRateHz));
         }
@@ -442,8 +446,7 @@ public sealed class RecordingReviewSciChartCanvas : UserControl
                 eventMarkers,
                 x,
                 plotArea.Top + 3,
-                RecordingClockLabelFormatter.FormatSampleMilliseconds(
-                    viewModel.RecordingStartUtc, relativeSample, viewModel.SamplingRateHz),
+                viewModel.TimeDisplay.FormatPoint(seconds),
                 Color.FromRgb(51, 65, 85),
                 BoundaryText(boundary.Kind));
         }

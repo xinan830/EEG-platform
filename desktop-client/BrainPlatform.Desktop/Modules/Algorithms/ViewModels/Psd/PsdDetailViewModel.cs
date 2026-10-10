@@ -164,6 +164,12 @@ public sealed class PsdDetailViewModel : ObservableObject, IAlgorithmQualitySour
 
     private void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
+        if (args.PropertyName == nameof(AlgorithmListViewModel.TimeDisplay))
+        {
+            RaisePropertyChanged(nameof(RequestedRangeText));
+            RaisePropertyChanged(nameof(ActualRangeText));
+            return;
+        }
         if (args.PropertyName is nameof(AlgorithmListViewModel.SelectedAlgorithm)
             or nameof(AlgorithmListViewModel.SelectedProjectRecording)
             or nameof(ProjectWorkspaceViewModel.SelectedProject)
@@ -282,9 +288,9 @@ public sealed class PsdDetailViewModel : ObservableObject, IAlgorithmQualitySour
         }
     }
 
-    private static string FormatRange(TimeRange? range) => range is null
+    private string FormatRange(TimeRange? range) => range is null
         ? "未运行"
-        : $"{range.StartSeconds:0.###}–{range.EndSeconds:0.###} s";
+        : catalog.TimeDisplay.FormatRange(range.StartSeconds, range.EndSeconds);
 
     private static string BuildFailureDetails(StructuredPreviewResponse? preview, StructuredRunError? runError)
     {

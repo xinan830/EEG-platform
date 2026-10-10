@@ -183,6 +183,35 @@ Review time remains sample-counter based. Preserve explicit recording gaps.
 The operating-system clock may label recording wall time and diagnose latency,
 but it is not a replacement for EEG sample time.
 
+### Shared time display
+
+Review and algorithm details share the workspace's in-memory
+`RecordingTimeDisplaySettings`, defaulting to recording-relative seconds.
+`RecordingTimeDisplayContext` combines that preference with one recording's
+explicit UTC origin. Review gets its origin from the immutable manifest;
+algorithm pages get the same typed timestamp through `ProjectRecordingRow`.
+Never parse `StartedAtText` or substitute a registration/file creation time.
+
+`RecordingTimeSelector` is the common segmented control. SciChart time charts
+opt into `RecordingTimeAxisPresentation.SetAxis(this, xAxis)` and inherit the
+detail page's presentation context. Mixed charts detach the time axis before
+restoring frequency/category labels. New time charts reuse this adapter rather
+than formatting timestamps independently. Review uses recording-aligned second
+ticks in both modes; switching changes labels, not grid coordinates. Acquisition
+clock axis labels include milliseconds (`HH:mm:ss.fff`), preserving the origin's
+fractional second at every recording-second tick. Live acquisition's wall-clock
+tick policy is unchanged.
+
+Switching labels never seeks, stops playback, changes Run identity, filters,
+cache keys, raw data or request `time.start_s/end_s`. Analysis inputs explicitly
+remain recording seconds. Cursors show both bases when the origin is known;
+clock labels include the date after midnight. Missing origins disable clock
+selection. Durations and scientific diagnostic evidence retain explicit seconds.
+The session preference is not persisted across application restarts.
+
+[Time display validation and acceptance](../validation/2026-10-10-recording-time-display-report.md)
+records automated coverage and the separate manual GPU/window checks.
+
 ## 8. Compatibility and provenance
 
 Channel configuration describes available source channels. A montage describes

@@ -13,6 +13,8 @@ public sealed class MontageDraftRow : ObservableObject
     private string selectedPairFirstLabel;
     private string selectedPairSecondLabel;
     private string averageReferenceSummary;
+    private readonly ChannelConfigurationEntry[] sourceChannels;
+    private string[] averageReferenceLabels;
 
     public MontageDraftRow(
         string positiveLabel,
@@ -23,7 +25,9 @@ public sealed class MontageDraftRow : ObservableObject
         string? selectedPairFirstLabel,
         string? selectedPairSecondLabel,
         string averageReferenceSummary,
-        string specifiedPairSummary)
+        string specifiedPairSummary,
+        IReadOnlyList<ChannelConfigurationEntry>? sourceChannels = null,
+        IReadOnlyList<string>? averageReferenceLabels = null)
     {
         PositiveLabel = positiveLabel;
         DisplayOrder = displayOrder;
@@ -33,11 +37,42 @@ public sealed class MontageDraftRow : ObservableObject
         this.selectedPairFirstLabel = selectedPairFirstLabel ?? string.Empty;
         this.selectedPairSecondLabel = selectedPairSecondLabel ?? string.Empty;
         this.averageReferenceSummary = averageReferenceSummary;
+        this.sourceChannels = sourceChannels?.ToArray() ?? [];
+        this.averageReferenceLabels = averageReferenceLabels?.ToArray() ?? [];
     }
 
     public string PositiveLabel { get; }
 
     public int DisplayOrder { get; }
+
+    public string DeviceInputNumber => ResolveInputNumber(PositiveLabel);
+
+    public string ReferenceInputNumbers => NegativeKind switch
+    {
+        MontageNegativeKind.OriginalHardwareReference => "—",
+        MontageNegativeKind.Channel => ResolveInputNumber(SelectedNegativeLabel),
+        MontageNegativeKind.SpecifiedPair => FormatInputNumbers(SelectedPairLabels),
+        MontageNegativeKind.Mean => FormatInputNumbers(averageReferenceLabels),
+        _ => "未知",
+    };
+
+    private string FormatInputNumbers(IReadOnlyList<string> labels) => labels.Count == 0
+        ? "未知"
+        : string.Join("、", labels.Select(ResolveInputNumber));
+
+    private string ResolveInputNumber(string? label)
+    {
+        if (string.IsNullOrWhiteSpace(label))
+        {
+            return "未知";
+        }
+        var matches = sourceChannels.Where(channel => string.Equals(
+            channel.ElectrodeLabel?.Trim(), label.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
+        return matches.Length == 1 && matches[0].NativeChannelIndex >= 0
+            && sourceChannels.Count(channel => channel.NativeChannelIndex == matches[0].NativeChannelIndex) == 1
+            ? matches[0].NativeChannelIndex.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : "未知";
+    }
 
     public string Name => MontageDisplay.CreateName(PositiveLabel, NegativeKind, SelectedNegativeLabel);
 
@@ -79,6 +114,7 @@ public sealed class MontageDraftRow : ObservableObject
                 RaisePropertyChanged(nameof(Name));
                 RaisePropertyChanged(nameof(ReferenceDisplay));
                 RaisePropertyChanged(nameof(ReferenceSelection));
+                RaisePropertyChanged(nameof(ReferenceInputNumbers));
             }
         }
     }
@@ -128,14 +164,20 @@ public sealed class MontageDraftRow : ObservableObject
         _ => string.Empty,
     };
 
-    public void UpdateReferenceSummaries(string averageValue, string pairValue)
+    public void UpdateReferenceSummaries(string averageValue, string pairValue,
+        IReadOnlyList<string>? averageLabels = null)
     {
         averageReferenceSummary = averageValue;
+        if (averageLabels is not null)
+        {
+            averageReferenceLabels = averageLabels.ToArray();
+        }
         if (NegativeKind == MontageNegativeKind.Mean)
         {
             RaisePropertyChanged(nameof(ReferenceDisplay));
             RaisePropertyChanged(nameof(ReferenceSelection));
             RaisePropertyChanged(nameof(ReferenceOptions));
+            RaisePropertyChanged(nameof(ReferenceInputNumbers));
         }
     }
 
@@ -180,6 +222,7 @@ public sealed class MontageDraftRow : ObservableObject
 
     private void RaisePairPropertiesChanged(string? optionsProperty = null)
     {
+        RaisePropertyChanged(nameof(ReferenceInputNumbers));
         if (optionsProperty is not null)
         {
             RaisePropertyChanged(optionsProperty);
@@ -190,6 +233,7 @@ public sealed class MontageDraftRow : ObservableObject
 
     private void RaiseReferencePropertiesChanged()
     {
+        RaisePropertyChanged(nameof(ReferenceInputNumbers));
         RaisePropertyChanged(nameof(Name));
         RaisePropertyChanged(nameof(IsChannelReference));
         RaisePropertyChanged(nameof(IsSpecifiedPairReference));

@@ -70,6 +70,7 @@ public partial class StftHeatmap : UserControl
         Surface.Background = Brushes.White;
         Surface.ShowLicensingWarnings = false;
         Surface.XAxes.Add(xAxis);
+        RecordingTimeAxisPresentation.SetAxis(this, xAxis);
         Surface.YAxes.Add(yAxis);
         Surface.RenderableSeries.Add(heatmapSeries);
         Surface.ChartModifier = cursor;

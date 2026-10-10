@@ -12,6 +12,28 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 public sealed class AnalysisExecutionCardViewTests
 {
     [Theory]
+    [InlineData(440)]
+    [InlineData(620)]
+    public void Dynamic_clock_labels_wrap_without_crowding_the_slider(double width) => OnSta(() =>
+    {
+        var context = new DynamicClockContext();
+        var card = new AnalysisExecutionCard { DataContext = context };
+        card.Measure(new Size(width, 1200));
+        card.Arrange(new Rect(0, 0, width, card.DesiredSize.Height));
+        card.UpdateLayout();
+        foreach (var text in VisualChildren<TextBlock>(card).Where(text =>
+                     text.Text == context.DynamicPreviewCursorText || text.Text == context.DynamicTimeProgressText ||
+                     text.Text == context.DynamicCurrentWindowText))
+        {
+            Assert.Equal(TextWrapping.Wrap, text.TextWrapping);
+            Assert.True(text.TranslatePoint(new Point(), card).X + text.ActualWidth <= width);
+        }
+        var slider = Assert.Single(VisualChildren<Slider>(card));
+        Assert.True(slider.ActualWidth > width - 120);
+        Assert.Equal(17, slider.Value);
+    });
+
+    [Theory]
     [InlineData(280, false)]
     [InlineData(280, true)]
     [InlineData(420, false)]
@@ -101,6 +123,35 @@ public sealed class AnalysisExecutionCardViewTests
         public bool IsDynamicMode => false;
         public double RunProgressPercent => running ? 37.5 : 0;
         public string RunProgressText => running ? "3/8 (37.5%)" : "未运行";
+    }
+
+    private sealed class DynamicClockContext
+    {
+        public bool IsDynamicMode => true;
+        public bool IsDynamicPreviewPlaying => false;
+        public bool CanCancelRun => false;
+        public ICommand RunCommand { get; } = new TestCommand(true);
+        public ICommand CancelRunCommand { get; } = new TestCommand(false);
+        public ICommand StartDynamicPreviewCommand { get; } = new TestCommand(true);
+        public ICommand PauseDynamicPreviewCommand { get; } = new TestCommand(true);
+        public ICommand StepDynamicPreviewCommand { get; } = new TestCommand(true);
+        public ICommand ResetDynamicPreviewCommand { get; } = new TestCommand(true);
+        public IReadOnlyList<object> DynamicPreviewRows { get; } = [];
+        public string DynamicPreviewStatusText => "已完成记录的动态结果";
+        public string DynamicPreviewCursorText => "2026-10-11 00:00:01.479（90000.479 s）";
+        public string DynamicTimeProgressText => "2026-10-11 00:00:01.479 / 2026-10-12 01:23:45.479";
+        public string DynamicCurrentWindowText => "当前窗口：2026-10-11 00:00:01.479 – 2026-10-11 00:00:06.479（完整）";
+        public double DynamicTimeProgressPercent { get; set; } = 17;
+    }
+
+    private static IEnumerable<T> VisualChildren<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T value) yield return value;
+            foreach (var nested in VisualChildren<T>(child)) yield return nested;
+        }
     }
 
     private sealed class TestCommand(bool enabled) : ICommand

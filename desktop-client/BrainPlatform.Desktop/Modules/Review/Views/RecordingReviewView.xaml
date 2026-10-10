@@ -5,6 +5,7 @@
              xmlns:review="clr-namespace:BrainPlatform.Desktop.Modules.Review.Waveform"
              xmlns:analysis="clr-namespace:BrainPlatform.Desktop.Modules.Review.Views"
              xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
+             xmlns:controls="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
              Background="#F3F5F8" Focusable="True" PreviewKeyDown="OnPreviewKeyDown">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -232,7 +233,7 @@
                         <TextBlock Text="起始时间（秒）" Foreground="#475569" />
                         <TextBox Text="{Binding EditEventStartSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,4" />
                         <TextBlock Foreground="#64748B" FontSize="12" Margin="0,0,0,10">
-                            <Run Text="记录时间：" /><Run Text="{Binding EditEventClockText, Mode=OneWay}" />
+                            <Run Text="采集时间：" /><Run Text="{Binding EditEventClockText, Mode=OneWay}" />
                         </TextBlock>
                         <TextBlock Text="持续时间（秒，0 为点事件）" Foreground="#475569" />
                         <TextBox Text="{Binding EditEventDurationSeconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,10" />
@@ -251,6 +252,7 @@
         <views:EegWorkspaceShell.BottomBar>
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
@@ -291,7 +293,14 @@
                     </Button>
                 </StackPanel>
 
-                <review:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="1" Height="30"
+                <StackPanel Grid.Column="1" Width="220" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <controls:RecordingTimeSelector DataContext="{Binding TimeDisplay}" HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding PositionTimeText}" FontSize="11" Foreground="#475569"
+                               TextWrapping="Wrap" Margin="0,3,0,0" />
+                </StackPanel>
+                <review:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="2" Height="30"
+                    TimeDisplay="{Binding TimeDisplay, Mode=OneWay}"
+                    TimeDisplayMode="{Binding TimeDisplay.EffectiveMode, Mode=OneWay}"
                     RecordingStartUtc="{Binding RecordingStartUtc, Mode=OneWay}"
                     DurationSeconds="{Binding DurationSeconds, Mode=OneWay}"
                     ViewportStartSeconds="{Binding ViewportStartSeconds, Mode=OneWay}"

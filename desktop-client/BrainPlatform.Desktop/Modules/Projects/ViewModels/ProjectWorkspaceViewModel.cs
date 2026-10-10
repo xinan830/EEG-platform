@@ -12,7 +12,8 @@ public sealed record ProjectRecordingRow(
     string SamplingRateText,
     string ChannelCountText,
     string Status,
-    string RecordingDirectory)
+    string RecordingDirectory,
+    DateTimeOffset? RecordingStartUtc = null)
 {
     public bool CanReview => Directory.Exists(RecordingDirectory) &&
                              Status is "已完成" or "已中止";
@@ -292,7 +293,8 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
                 $"{recording.SamplingRateHz} Hz",
                 $"{recording.SignalChannelCount} 信号通道",
                 recording.Status,
-                recording.RecordingDirectory));
+                recording.RecordingDirectory,
+                recording.RecordingStartUtc));
             if (Recordings[^1].Status == "已完成")
             {
                 CompletedRecordings.Add(Recordings[^1]);
