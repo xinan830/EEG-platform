@@ -35,7 +35,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
       "max_lines": 515,
-      "reason": "Time display updates only labels/ticks and existing marker text. Axis presentation is separated in a TimeDisplay partial; the existing waveform rendering pipeline is unchanged.",
+      "reason": "Time presentation is separated in a TimeDisplay partial. The playhead's visual style is owned by the focused ReviewPlaybackCursor overlay; the canvas only passes real plot geometry and accepted position. Waveform series, filtering and event/lifecycle rendering are unchanged, and this change does not grow the main canvas.",
       "follow_up": "Extract event/lifecycle marker rendering into a focused overlay owner before adding further waveform annotation features."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/Views/MontageDetailView.xaml": {

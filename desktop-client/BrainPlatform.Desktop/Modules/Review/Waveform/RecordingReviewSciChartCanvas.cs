@@ -27,13 +27,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     private readonly Grid labels = new();
     private readonly Grid chartHost = new();
     private readonly Canvas eventMarkers = new();
-    private readonly Border playbackCursor = new()
-    {
-        Width = 1,
-        Background = new SolidColorBrush(Color.FromRgb(220, 38, 38)),
-        HorizontalAlignment = HorizontalAlignment.Left,
-        IsHitTestVisible = false,
-    };
+    private readonly ReviewPlaybackCursor playbackCursor = new();
     private readonly TextBlock emptyMessage = new()
     {
         Text = "等待加载回溯数据",
@@ -74,7 +68,11 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         Loaded += OnLoaded;
         DataContextChanged += OnDataContextChanged;
         Unloaded += OnUnloaded;
-        surface.LayoutUpdated += (_, _) => SyncLabelPlotArea();
+        surface.LayoutUpdated += (_, _) =>
+        {
+            SyncLabelPlotArea();
+            UpdatePlaybackCursor(DataContext as RecordingReviewViewModel);
+        };
     }
 
     private void ConfigureSurface()
@@ -344,7 +342,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
     private void UpdatePlaybackCursor(RecordingReviewViewModel? viewModel)
     {
-        if (viewModel?.CurrentFrame is not { } frame || chartHost.ActualWidth <= 0)
+        if (viewModel?.CurrentFrame is null || chartHost.ActualWidth <= 0)
         {
             playbackCursor.Visibility = Visibility.Collapsed;
             return;
@@ -354,7 +352,9 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         var visibleEnd = Math.Min(viewModel.DurationSeconds, visibleStart + viewModel.VisibleDurationSeconds);
         var duration = Math.Max(0.001, visibleEnd - visibleStart);
         var fraction = Math.Clamp((viewModel.PositionSeconds - visibleStart) / duration, 0, 1);
-        playbackCursor.Margin = new Thickness(fraction * Math.Max(0, chartHost.ActualWidth - 1), 0, 0, 0);
+        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
+        var plotOrigin = surface.TranslatePoint(plotArea.TopLeft, chartHost);
+        playbackCursor.SetPosition(new Rect(plotOrigin, plotArea.Size), fraction);
         playbackCursor.Visibility = viewModel.PositionSeconds >= visibleStart &&
                                     viewModel.PositionSeconds <= visibleEnd
             ? Visibility.Visible

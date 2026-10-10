@@ -28,8 +28,8 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         DependencyProperty.Register(nameof(TimeDisplay), typeof(RecordingTimeDisplayContext), typeof(ReviewTimelineNavigator),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    public static readonly DependencyProperty ViewportStartSecondsProperty =
-        DependencyProperty.Register(nameof(ViewportStartSeconds), typeof(double), typeof(ReviewTimelineNavigator),
+    public static readonly DependencyProperty PositionSecondsProperty =
+        DependencyProperty.Register(nameof(PositionSeconds), typeof(double), typeof(ReviewTimelineNavigator),
             new FrameworkPropertyMetadata(0d, FrameworkPropertyMetadataOptions.AffectsRender));
 
     public static readonly DependencyProperty VisibleDurationSecondsProperty =
@@ -39,6 +39,7 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
     private const double DragPagesPerSecond = 2d;
     private const double DragStartThresholdDips = 3d;
     private const double ThumbHeight = 12d;
+    private const double ThumbWidth = 18d;
     private bool dragging;
     private bool hasDragged;
     private Point pointerDownPoint;
@@ -74,10 +75,10 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         set => SetValue(RecordingStartUtcProperty, value);
     }
 
-    public double ViewportStartSeconds
+    public double PositionSeconds
     {
-        get => (double)GetValue(ViewportStartSecondsProperty);
-        set => SetValue(ViewportStartSecondsProperty, value);
+        get => (double)GetValue(PositionSecondsProperty);
+        set => SetValue(PositionSecondsProperty, value);
     }
 
     public double VisibleDurationSeconds
@@ -163,15 +164,20 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
             return;
         }
 
+        BeginDrag(point, thumb);
+        CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void BeginDrag(Point point, Rect thumb)
+    {
         dragging = true;
         hasDragged = false;
         pointerDownPoint = point;
         dragOffset = point.X - thumb.X;
         thumbGrabRatio = thumb.Width <= 0 ? 0.5 : Math.Clamp(dragOffset / thumb.Width, 0, 1);
-        lastAcceptedPosition = GetPlayheadPosition(ViewportStartSeconds);
+        lastAcceptedPosition = Math.Clamp(PositionSeconds, 0, Math.Max(0, DurationSeconds));
         lastDragTimeUtc = DateTime.UtcNow;
-        CaptureMouse();
-        e.Handled = true;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -232,11 +238,8 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
     private Rect GetThumbRect()
     {
         var duration = Math.Max(0.001, DurationSeconds);
-        var visible = GetVisibleDuration();
-        var width = Math.Clamp(Math.Max(18, ActualWidth * visible / duration), 0, ActualWidth);
-        var maxStart = Math.Max(0, duration - visible);
-        var start = Math.Clamp(ViewportStartSeconds, 0, maxStart);
-        var x = maxStart <= 0 ? 0 : (ActualWidth - width) * start / maxStart;
+        var width = GetThumbWidth();
+        var x = Math.Max(0, ActualWidth - width) * Math.Clamp(PositionSeconds / duration, 0, 1);
         var y = Math.Max(0, ActualHeight - ThumbHeight - 3d);
         return new Rect(x, y, width, Math.Min(ThumbHeight, ActualHeight));
     }
@@ -244,21 +247,15 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
     private double GetPositionForThumbX(double thumbX)
     {
         var duration = Math.Max(0.001, DurationSeconds);
-        var visible = GetVisibleDuration();
-        var thumbWidth = Math.Clamp(Math.Max(18, ActualWidth * visible / duration), 0, ActualWidth);
+        var thumbWidth = GetThumbWidth();
         var maxX = Math.Max(0, ActualWidth - thumbWidth);
         var fraction = maxX <= 0 ? 0 : Math.Clamp(thumbX / maxX, 0, 1);
-        var maxStart = Math.Max(0, duration - visible);
-        var viewportStart = fraction * maxStart;
-        return GetPlayheadPosition(viewportStart);
+        return fraction * duration;
     }
 
     private double GetPositionForTrackX(double trackX)
     {
-        var visible = GetVisibleDuration();
-        var maxStart = Math.Max(0, DurationSeconds - visible);
-        var fraction = ActualWidth <= 0 ? 0 : Math.Clamp(trackX / ActualWidth, 0, 1);
-        return GetPlayheadPosition(fraction * maxStart);
+        return GetPositionForThumbX(trackX - GetThumbWidth() / 2);
     }
 
     // The blue indicator is rendered at height - 3 with a 2px pen. Keep its
@@ -267,9 +264,7 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
     private bool IsBlueTrackHit(Point point) =>
         Math.Abs(point.Y - Math.Max(1, ActualHeight - 3)) <= 1d;
 
-    private double GetPlayheadPosition(double viewportStart) => Math.Min(
-        Math.Max(0, DurationSeconds),
-        viewportStart + GetVisibleDuration() * 0.25);
+    private double GetThumbWidth() => Math.Clamp(ThumbWidth, 0, Math.Max(0, ActualWidth));
 
     private double GetVisibleDuration() => Math.Clamp(
         VisibleDurationSeconds,
@@ -278,12 +273,9 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
 
     private void MoveCursorToAcceptedThumb(double acceptedPosition)
     {
-        var visible = GetVisibleDuration();
-        var maxStart = Math.Max(0, DurationSeconds - visible);
-        var viewportStart = Math.Clamp(acceptedPosition - visible * 0.25, 0, maxStart);
         var duration = Math.Max(0.001, DurationSeconds);
-        var thumbWidth = Math.Clamp(Math.Max(18, ActualWidth * visible / duration), 0, ActualWidth);
-        var thumbX = maxStart <= 0 ? 0 : (ActualWidth - thumbWidth) * viewportStart / maxStart;
+        var thumbWidth = GetThumbWidth();
+        var thumbX = Math.Max(0, ActualWidth - thumbWidth) * Math.Clamp(acceptedPosition / duration, 0, 1);
         var point = PointToScreen(new Point(thumbX + thumbWidth * thumbGrabRatio, ActualHeight / 2));
         SetCursorPos((int)Math.Round(point.X), (int)Math.Round(point.Y));
     }

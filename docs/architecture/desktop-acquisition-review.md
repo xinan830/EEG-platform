@@ -169,6 +169,18 @@ more than the accepted target, synchronize the OS pointer back to the accepted
 thumb location. Do not add an autonomous slow animation that chases the
 pointer; it creates pointer/thumb divergence and stale waveform ranges.
 
+The navigator thumb selects the actual `PositionSeconds` over the full
+recording range, including both endpoints. It is not a viewport-start scrollbar.
+The waveform follows with `start = clamp(position - visible/2, 0, duration-visible)`:
+the playhead moves left-to-center at the start, stays centered while the window
+pans, then moves center-to-right as the window reaches the end. Short recordings
+stay wholly in view. Reverse navigation uses the same policy.
+
+`ReviewPlaybackCursor` owns only the neutral dashed line and top triangle.
+Its geometry comes from SciChart's real plot area, not the surrounding host or
+axis label area. No animation clock or extra scientific state is introduced.
+See [centered playhead acceptance](../validation/2026-10-10-review-playhead-report.md).
+
 ### Track click
 
 Intercept the click before changing the visible range. Load the target frame,

@@ -734,7 +734,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private double GetFollowViewportStart(double positionSeconds)
     {
         var maximum = Math.Max(0, DurationSeconds - VisibleDurationSeconds);
-        return Math.Clamp(positionSeconds - VisibleDurationSeconds * 0.25, 0, maximum);
+        return Math.Clamp(positionSeconds - VisibleDurationSeconds * 0.5, 0, maximum);
     }
     private void UpdateViewportStart(double value)
     {

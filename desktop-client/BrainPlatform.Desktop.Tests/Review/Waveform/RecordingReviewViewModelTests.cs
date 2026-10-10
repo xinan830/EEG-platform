@@ -129,7 +129,7 @@ public sealed partial class RecordingReviewViewModelTests
         // newest target at the next cadence; it must not wait for mouse-up.
         Assert.InRange(reader.ReadCount, 2, 3);
         Assert.Equal(55, viewModel.PositionSeconds);
-        Assert.True(viewModel.ViewportStartSeconds > 50);
+        Assert.Equal(55 - viewModel.VisibleDurationSeconds / 2, viewModel.ViewportStartSeconds, 6);
     }
 
     [Fact]

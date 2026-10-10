@@ -303,7 +303,7 @@
                     TimeDisplayMode="{Binding TimeDisplay.EffectiveMode, Mode=OneWay}"
                     RecordingStartUtc="{Binding RecordingStartUtc, Mode=OneWay}"
                     DurationSeconds="{Binding DurationSeconds, Mode=OneWay}"
-                    ViewportStartSeconds="{Binding ViewportStartSeconds, Mode=OneWay}"
+                    PositionSeconds="{Binding PositionSeconds, Mode=OneWay}"
                     VisibleDurationSeconds="{Binding VisibleDurationSeconds, Mode=OneWay}"
                     PreviewPositionChanged="OnTimelinePreviewPositionChanged"
                     PositionCommitted="OnTimelinePositionCommitted"
