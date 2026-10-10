@@ -37,7 +37,7 @@ public sealed class PsdBandShareChartTests
         {
             try
             {
-                var points = new ObservableCollection<AlgorithmListViewModel.PsdBandSharePoint>
+                var points = new ObservableCollection<PsdBandSharePoint>
                 {
                     new("δ", "0.5–4 Hz", 0.25, "25%", "#2563EB"),
                     new("θ", "4–8 Hz", double.NaN, "不可用", "#059669", false),

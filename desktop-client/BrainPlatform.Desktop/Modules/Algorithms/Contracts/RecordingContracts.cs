@@ -3,7 +3,8 @@ using System.Text.Json.Serialization;
 namespace BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
 public sealed record WpfRecordingRegistrationRequest(
-    [property: JsonPropertyName("source_directory")] string SourceDirectory);
+    [property: JsonPropertyName("source_directory")] string SourceDirectory,
+    [property: JsonPropertyName("signal_mode")] string SignalMode = "acquisition_montage");
 
 public sealed record RegisteredRecording(
     [property: JsonPropertyName("id")] string Id,

@@ -1,0 +1,14 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.PsdReviewAnalysisChart"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:scichart="http://schemas.abtsoftware.co.uk/scichart">
+    <Border Background="#FFFFFF" BorderBrush="#D7DEE8" BorderThickness="1" CornerRadius="6" Padding="8">
+        <Grid>
+            <scichart:SciChartSurface x:Name="Surface" />
+            <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock x:Name="StatusText" Text="未绑定 PSD 结果" FontSize="13" Foreground="#64748B"
+                           HorizontalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

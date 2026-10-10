@@ -35,4 +35,22 @@ internal sealed class AlgorithmRunCoordinator(IAlgorithmClient client)
 
         return run;
     }
+
+    internal async Task<AnalysisRunResponse> EnsureRunAndWaitAsync(
+        AnalysisRunRequest request,
+        Action<AnalysisRunResponse> onStatusChanged,
+        CancellationToken cancellationToken)
+    {
+        var run = await client.EnsureRunAsync(request, cancellationToken);
+        onStatusChanged(run);
+
+        while (run.Status is "queued" or "running")
+        {
+            await Task.Delay(PollInterval, cancellationToken);
+            run = await client.GetRunAsync(run.RunId, cancellationToken);
+            onStatusChanged(run);
+        }
+
+        return run;
+    }
 }

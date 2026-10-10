@@ -36,6 +36,28 @@ def create_run(payload: RunCreateRequest, request: Request):
     return serialize_analysis_run(run)
 
 
+@router.post("/ensure", status_code=status.HTTP_202_ACCEPTED)
+def ensure_run(payload: RunCreateRequest, request: Request):
+    """Return a matching completed/in-flight Run or enqueue exactly one new Run."""
+    try:
+        service = _service(request)
+        if hasattr(service, "enqueue"):
+            run = service.enqueue(payload, reuse_completed=True)
+        elif hasattr(service, "create"):
+            # Synchronous legacy service keeps its existing cache-alias behavior.
+            run = service.create(payload)
+        else:
+            return error_response(request, 409, "RUN_ENSURE_UNAVAILABLE", "当前运行服务不支持结果复用")
+        worker = getattr(request.app.state, "run_worker", None)
+        if worker is not None and run.status.value == "queued":
+            worker.wake()
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "RUN_REQUEST_INVALID", str(exc))
+    return serialize_analysis_run(run)
+
+
 @router.get("")
 def list_runs(request: Request, recording_id: str | None = None, limit: int = Query(100, ge=1, le=1000)):
     return [serialize_analysis_run(item) for item in _service(request).list(recording_id, limit)]

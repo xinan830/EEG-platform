@@ -11,8 +11,8 @@
     },
     "backend/app/services/recordings.py": {
       "decision": "keep",
-      "max_lines": 490,
-      "reason": "频谱和时频编排已迁至 spectral_analysis.py；分块读取器和映射预处理分别归入独立服务，本文件保留 Recording 导入、身份、文件读取与兼容入口。当前 483 行，没有新增科学公式；进一步拆分兼容入口应单独处理，避免此次执行控制改动扩大迁移范围。"
+      "max_lines": 520,
+      "reason": "频谱和时频编排已迁至 spectral_analysis.py；分块读取器和映射预处理分别归入独立服务，本文件保留 Recording 导入、身份、文件读取与兼容入口。采集导联快照校验和数值投影归入 acquisition_analysis_signals.py，本文件仅登记两种来源身份及选择读取器，当前 512 行。进一步拆分兼容入口应单独处理，避免此次信号来源契约改动扩大迁移范围。"
     },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",
@@ -72,6 +72,12 @@
       "max_lines": 530,
       "reason": "The view model coordinates one review session, playback target, display settings, and latest-only viewport requests; raw reading, caching, and playback clock remain separate owners.",
       "follow_up": "Extract review toolbar command bindings from the view model before adding further review workflows."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Review/ViewModels/RecordingReviewViewModel.cs": {
+      "decision": "split",
+      "max_lines": 831,
+      "reason": "Existing review composition owns playback, waveform scheduling, events and analysis binding. Analysis preparation/configuration revision methods were moved to the cohesive Analysis partial in this change, reducing the main file; no scientific computation was added. The remaining event workflow and waveform scheduling are still separate extraction candidates.",
+      "follow_up": "Before adding further review workflows, move event editing/commands into a dedicated review event controller and waveform viewport scheduling into its own owner. Keep the existing playback cursor unique; target a main composition file below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Views/LiveSciChartCanvas.cs": {
       "decision": "keep",

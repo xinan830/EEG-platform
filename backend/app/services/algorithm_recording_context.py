@@ -35,6 +35,7 @@ class _RecordingAlgorithmContext:
         evidence = {
             "sfreq_hz": float(payload["sfreq_hz"]),
             "analysis_reference": payload["analysis_reference"],
+            "signal_source": payload.get("signal_source"),
             "algorithm_version": payload["algorithm_version"],
             "welch_contract": payload["welch_contract"],
             "filter_contract": dict(payload["filter_contract"]),
@@ -99,7 +100,8 @@ class _RecordingAlgorithmContext:
             pair = self._reader.read(start_index, end_index, [f3_index, f4_index])
         evidence = {
             "sfreq_hz": float(sfreq), "channels": [f3_name, f4_name],
-            "analysis_reference": "original_recording_no_software_rereference",
+            "analysis_reference": self._recordings.analysis_signal_provenance(self._recording)["analysis_reference"],
+            "signal_source": self._recordings.analysis_signal_provenance(self._recording),
             "time_scope": "exact_requested_absolute_range",
             "preprocessing_scope": "whole_recording_before_window_slice" if low_hz is not None and high_hz is not None else "none",
             "preprocessing_range_s": {"start_s": 0.0, "end_s": self.duration_s},

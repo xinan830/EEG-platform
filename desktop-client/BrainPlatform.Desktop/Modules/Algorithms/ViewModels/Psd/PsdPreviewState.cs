@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
-using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
 
@@ -15,8 +14,8 @@ public sealed class PsdPreviewState : ObservableObject
     private string valueRangeText = string.Empty;
     private StructuredPreviewResponse? structuredPreview;
 
-    public ObservableCollection<AlgorithmListViewModel.PsdPreviewPoint?> Points { get; } = [];
-    public ObservableCollection<AlgorithmListViewModel.PsdBandSharePoint> BandShares { get; } = [];
+    public ObservableCollection<PsdPreviewPoint?> Points { get; } = [];
+    public ObservableCollection<PsdBandSharePoint> BandShares { get; } = [];
     public JsonElement[] DynamicFrequencies { get; set; } = [];
     public JsonElement[] DynamicRows { get; set; } = [];
     public bool DynamicIsVoltsSquaredPerHz { get; set; }

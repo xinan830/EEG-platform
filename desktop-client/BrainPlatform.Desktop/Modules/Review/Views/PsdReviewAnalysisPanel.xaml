@@ -1,0 +1,25 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.PsdReviewAnalysisPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
+             xmlns:analysis="clr-namespace:BrainPlatform.Desktop.Modules.Review.Views">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <shared:AnalysisPanelShell Title="PSD 分析" StatusText="{Binding PsdPreparationText}"
+                               ApplyCommand="{Binding PreparePsdCommand}" CloseCommand="{Binding ClosePsdAnalysisCommand}">
+        <shared:AnalysisPanelShell.Parameters>
+            <StackPanel>
+                <TextBlock Text="分析导联" Style="{StaticResource AnalysisFieldLabelStyle}" />
+                <ComboBox ItemsSource="{Binding PsdParameters.Channels}" SelectedItem="{Binding PsdParameters.Channel, Mode=TwoWay}"
+                          Style="{DynamicResource AppFilterComboBoxStyle}" />
+            </StackPanel>
+        </shared:AnalysisPanelShell.Parameters>
+        <analysis:PsdReviewAnalysisChart Window="{Binding CurrentAnalysisWindow}" />
+    </shared:AnalysisPanelShell>
+</UserControl>

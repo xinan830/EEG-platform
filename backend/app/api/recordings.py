@@ -72,7 +72,7 @@ def list_recordings(request: Request) -> list[dict]:
 @router.post("/register-wpf", status_code=status.HTTP_201_CREATED)
 def register_wpf_recording(payload: WpfRecordingRegistrationRequest, request: Request) -> dict:
     try:
-        recording = _service(request).register_wpf_recording(payload.source_directory)
+        recording = _service(request).register_wpf_recording(payload.source_directory, signal_mode=payload.signal_mode)
     except ValueError as exc:
         code = getattr(exc, "code", "WPF_RECORDING_INVALID")
         return error_response(request, 422, code, str(exc))

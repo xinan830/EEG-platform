@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BrainPlatform.Desktop\BrainPlatform.Desktop.csproj" />
+    <None Include="..\..\tests\fixtures\review_cursor_samples.json"
+          Link="Fixtures\review_cursor_samples.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

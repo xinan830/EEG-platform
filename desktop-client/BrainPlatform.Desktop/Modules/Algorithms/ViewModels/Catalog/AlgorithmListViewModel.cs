@@ -558,7 +558,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         SelectedF4Channel = RegisteredChannels.Count > 1 ? RegisteredChannels[1] : string.Empty;
         ApplyAlgorithmChannelDefaults();
         EndSecondsText = RegisteredRecording.DurationSeconds.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
-        StatusText = $"已注册记录：{RegisteredRecording.OriginalName}，{RegisteredRecording.DurationSeconds.Value:0.###} 秒。请选择分析通道和范围。";
+        StatusText = $"已注册记录：{RegisteredRecording.OriginalName}，{RegisteredRecording.DurationSeconds.Value:0.###} 秒。请选择分析导联和范围。";
     }
 
     private void ApplyAlgorithmChannelDefaults()
@@ -599,7 +599,9 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(preferred))
             return null;
         return RegisteredChannels.FirstOrDefault(channel =>
-            string.Equals(channel, preferred, StringComparison.OrdinalIgnoreCase));
+            string.Equals(channel, preferred, StringComparison.OrdinalIgnoreCase))
+            ?? RegisteredChannels.FirstOrDefault(channel =>
+                string.Equals(channel, preferred + "-REF", StringComparison.OrdinalIgnoreCase));
     }
 
 

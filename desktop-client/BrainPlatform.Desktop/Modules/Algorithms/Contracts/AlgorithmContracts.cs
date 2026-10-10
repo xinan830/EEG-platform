@@ -182,6 +182,33 @@ public sealed record StructuredPreviewResponse(
     [property: JsonPropertyName("spectral_evidence")] JsonElement? SpectralEvidence = null,
     [property: JsonPropertyName("calculation_trace")] JsonElement? CalculationTrace = null);
 
+public sealed record WindowPreviewWindow(
+    [property: JsonPropertyName("window_id")] string WindowId,
+    [property: JsonPropertyName("window_index")] int WindowIndex,
+    [property: JsonPropertyName("start_sample")] long StartSample,
+    [property: JsonPropertyName("end_sample")] long EndSample,
+    [property: JsonPropertyName("window_state")] string WindowState,
+    [property: JsonPropertyName("quality_status")] string QualityStatus,
+    [property: JsonPropertyName("reason_codes")] IReadOnlyList<string> ReasonCodes);
+
+public sealed record WindowPreviewResponse(
+    [property: JsonPropertyName("run_id")] string RunId,
+    [property: JsonPropertyName("recording_id")] string RecordingId,
+    [property: JsonPropertyName("cursor_sample")] long CursorSample,
+    [property: JsonPropertyName("cursor_s")] double CursorSeconds,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("reason_codes")] IReadOnlyList<string> ReasonCodes,
+    [property: JsonPropertyName("window")] WindowPreviewWindow? Window,
+    [property: JsonPropertyName("has_uncovered_tail")] bool HasUncoveredTail,
+    [property: JsonPropertyName("output")] JsonElement? Output,
+    [property: JsonPropertyName("quality")] JsonElement? Quality,
+    [property: JsonPropertyName("axes")] IReadOnlyDictionary<string, JsonElement>? Axes,
+    [property: JsonPropertyName("axis_metadata")] IReadOnlyDictionary<string, JsonElement>? AxisMetadata,
+    [property: JsonPropertyName("arrays")] IReadOnlyDictionary<string, JsonElement>? Arrays,
+    [property: JsonPropertyName("array_metadata")] IReadOnlyDictionary<string, JsonElement>? ArrayMetadata,
+    [property: JsonPropertyName("scientific_version")] string? ScientificVersion,
+    [property: JsonPropertyName("implementation_version")] string? ImplementationVersion);
+
 public sealed class AlgorithmApiException : Exception
 {
     public AlgorithmApiException(HttpStatusCode statusCode, string code, string message)

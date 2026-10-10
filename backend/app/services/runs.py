@@ -109,7 +109,12 @@ class RunService:
 
         try:
             result, arrays, unit = self.executor.execute(request.analysis_type, recording, resolved)
-            artifact = self.artifacts.write_npz(run.run_id, request.analysis_type, arrays, unit)
+            structured = result.get("structured") if isinstance(result, dict) else None
+            window_ranges = structured.get("windows") if isinstance(structured, dict) else None
+            artifact = self.artifacts.write_npz(
+                run.run_id, request.analysis_type, arrays, unit,
+                window_ranges=window_ranges if isinstance(window_ranges, list) else None,
+            )
             summary = {**result, "artifacts": [artifact.model_dump(mode="json")]}
             return self.repository.update_status(
                 run.run_id,
@@ -275,14 +280,17 @@ class RunService:
         if request.analysis_type == "official_algorithm":
             filters = execution_snapshot.filters
             quality_rules = execution_snapshot.quality_rules
+        signal_source = self.recordings.analysis_signal_provenance(recording)
+        if signal_source["signal_mode"] == "acquisition_montage":
+            definition = {**definition, "signal_source": signal_source}
         return {
             "config": config,
             "definition_id": run_definition_id,
             "definition_version": run_definition_version,
             "requested_range": requested_range,
             "actual_range": actual_range,
-            "channel_mapping": {"channels": channels},
-            "reference": {"mode": ANALYSIS_CONTRACT["reference"]},
+            "channel_mapping": {"channels": channels, "signal_source": signal_source},
+            "reference": {"mode": signal_source["analysis_reference"]},
             "filters": filters,
             "window": window,
             "quality_rules": quality_rules,

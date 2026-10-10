@@ -29,3 +29,14 @@ desktop-client/**/bin/
 desktop-client/**/obj/
 desktop-client/.vs/
 ANT-Amplify/
+
+# Local release packages and generated PyInstaller specification
+/dist/
+/backend/brain_backend.spec
+
+# Keep reusable verification sources, not local results or build artifacts
+/_verify/*
+!/_verify/*.py
+!/_verify/acquisition-mapping-probe/
+/_verify/**/bin/
+/_verify/**/obj/

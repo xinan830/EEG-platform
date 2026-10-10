@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
@@ -90,7 +91,7 @@ public sealed class HttpAlgorithmClientTests
                 {
                     id = "rec-1", original_name = "recording", extension = ".wpf",
                     created_at = "2026-09-26T00:00:00Z", sfreq = 2000.0,
-                    duration_s = 2.0, channels = new[] { "Fz" }, source_sha256 = "abc",
+                    duration_s = 2.0, channels = new[] { "F7-REF", "F3-REF" }, source_sha256 = "abc",
                 }),
             };
         })) { BaseAddress = new Uri("http://localhost/") };
@@ -102,6 +103,9 @@ public sealed class HttpAlgorithmClientTests
         Assert.NotNull(captured);
         Assert.Equal("/api/recordings/register-wpf", captured!.RequestUri!.AbsolutePath);
         Assert.Contains("rec-1", capturedBody);
+        using var requestJson = JsonDocument.Parse(capturedBody!);
+        Assert.Equal("acquisition_montage", requestJson.RootElement.GetProperty("signal_mode").GetString());
+        Assert.Equal(new[] { "F7-REF", "F3-REF" }, recording.Channels);
     }
 
     [Fact]

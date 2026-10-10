@@ -207,6 +207,28 @@ F3-REF reads CH5; labels are not resolved through an earlier device template.
 The synthetic regression and hardware acceptance instructions are recorded in
 [the live mapping validation report](../validation/2026-10-10-live-acquisition-channel-mapping-report.md).
 
+### Analysis source selection
+
+For completed WPF recordings, the desktop registers an analysis view with
+`POST /api/recordings/register-wpf` and `signal_mode=acquisition_montage`.
+Its channel choices are the acquisition montage's saved outputs, in saved
+display order, not every raw EEG input. For example, a recording acquired with
+`F7-REF` and `F3-REF` exposes exactly those two analysis choices even when the
+device wrote more raw channels.
+
+`acquisition_analysis_signals.py` verifies the immutable channel/montage
+snapshots against actual native inputs, labels, kinds, V units and hardware
+reference metadata. Its bounded reader projects REF, bipolar, average and
+specified-pair signals before continuous preprocessing. NaN gaps survive;
+missing or conflicting metadata returns `ACQUISITION_MONTAGE_UNVERIFIABLE`
+instead of guessing or silently exposing raw inputs.
+
+Review display-montage changes do not alter this analysis view. Runs persist
+source formulas, mapping, snapshot digest and reference mode; the source view
+also participates in cache identity. Raw files and historical raw-mode Runs
+remain unchanged. API callers omitting `signal_mode` retain legacy raw mode;
+the desktop does not currently expose an advanced raw-mode selector.
+
 ## 9. Verification checklist
 
 For desktop acquisition changes:

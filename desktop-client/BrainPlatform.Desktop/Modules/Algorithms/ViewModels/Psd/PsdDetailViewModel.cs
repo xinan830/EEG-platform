@@ -57,8 +57,8 @@ public sealed class PsdDetailViewModel : ObservableObject, IAlgorithmQualitySour
     public bool IsAvailable => string.Equals(Algorithm?.Id, "psd", StringComparison.OrdinalIgnoreCase);
     public IReadOnlyList<AlgorithmParameter> Parameters => Algorithm?.Parameters ?? [];
     public bool HasStructuredResult => catalog.PsdPreviewState.HasPreview;
-    public ObservableCollection<AlgorithmListViewModel.PsdPreviewPoint?> PreviewPoints => catalog.PsdPreviewState.Points;
-    public ObservableCollection<AlgorithmListViewModel.PsdBandSharePoint> BandSharePoints => catalog.PsdPreviewState.BandShares;
+    public ObservableCollection<PsdPreviewPoint?> PreviewPoints => catalog.PsdPreviewState.Points;
+    public ObservableCollection<PsdBandSharePoint> BandSharePoints => catalog.PsdPreviewState.BandShares;
     public string ValueUnit => catalog.PsdPreviewState.ValueUnit;
     public string FrequencyRange => catalog.PsdPreviewState.FrequencyRangeText;
     public string ValueRange => catalog.PsdPreviewState.ValueRangeText;

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import Response
 
 from app.core.api_contract import error_response
-from app.services.artifacts import ArtifactIntegrityError
+from app.services.artifacts import ArtifactIntegrityError, WindowIndexUnavailable
 
 
 router = APIRouter(prefix="/api/runs", tags=["results"])
@@ -28,6 +28,27 @@ def structured_preview(run_id: str, request: Request, max_cells: int = Query(def
         return error_response(request, 409, "ARTIFACT_INTEGRITY_FAILED", "结果文件校验失败")
     except ValueError as exc:
         return error_response(request, 409, "STRUCTURED_PREVIEW_UNAVAILABLE", str(exc))
+
+
+@router.get("/{run_id}/window-preview")
+def window_preview(
+    run_id: str,
+    request: Request,
+    cursor_sample: int | None = Query(default=None, ge=0),
+    cursor_s: float | None = Query(default=None, ge=0),
+):
+    try:
+        return request.app.state.result_service.window_preview(
+            run_id, cursor_sample=cursor_sample, cursor_s=cursor_s,
+        )
+    except KeyError:
+        return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
+    except ArtifactIntegrityError:
+        return error_response(request, 409, "ARTIFACT_INTEGRITY_FAILED", "结果窗口文件校验失败")
+    except WindowIndexUnavailable as exc:
+        return error_response(request, 409, "RESULT_WINDOW_INDEX_UNAVAILABLE", str(exc))
+    except (IndexError, ValueError) as exc:
+        return error_response(request, 409, "RESULT_WINDOW_UNAVAILABLE", str(exc))
 
 
 @router.get("/{run_id}/export")

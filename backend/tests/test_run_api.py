@@ -89,6 +89,22 @@ def test_nested_cache_reuse_resolves_original_artifact_for_preview(tmp_path: Pat
     assert client.get(f"/api/runs/{third['run_id']}/artifacts").status_code == 200
 
 
+def test_ensure_run_returns_completed_cache_without_creating_alias(tmp_path: Path):
+    client, recording = _configure_services(tmp_path)
+    request = {
+        "recording_id": recording.id,
+        "analysis_type": "spectrum",
+        "config": {"mode": "static", "channels": ["F3"], "time": {"start_s": 0.0, "end_s": 10.0}},
+    }
+
+    first = client.post("/api/runs", json=request).json()
+    ensured = client.post("/api/runs/ensure", json=request)
+
+    assert ensured.status_code == 202
+    assert ensured.json()["cache_key"] == first["cache_key"]
+    assert ensured.json()["reused_from_run_id"] == first["run_id"]
+
+
 def test_run_resource_adds_backend_authored_analysis_provenance(tmp_path: Path):
     client, recording = _configure_services(tmp_path)
 

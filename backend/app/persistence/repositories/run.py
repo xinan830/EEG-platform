@@ -107,9 +107,13 @@ class RunRepository:
             rows = connection.execute(query, values).fetchall()
         return [self._run(row) for row in rows]
 
-    def find_completed_cache(self, cache_key: str) -> AnalysisRun | None:
+    def find_completed_cache(self, cache_key: str, project_id: str | None = None) -> AnalysisRun | None:
         with self._connect() as connection:
-            row = connection.execute("SELECT * FROM analysis_runs WHERE cache_key = ? AND status = 'completed' ORDER BY completed_at DESC LIMIT 1", (cache_key,)).fetchone()
+            row = connection.execute(
+                "SELECT * FROM analysis_runs WHERE cache_key = ? AND status = 'completed' "
+                "AND project_id IS ? ORDER BY completed_at DESC LIMIT 1",
+                (cache_key, project_id),
+            ).fetchone()
         return self._run(row) if row else None
 
     def find_idempotency_key(self, idempotency_key: str) -> AnalysisRun | None:

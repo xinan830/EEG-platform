@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Review.Analysis;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
-public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposable
+public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly RecordingReviewSession session;
     private readonly IRecordingReviewReader reviewReader;
@@ -16,6 +18,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     private readonly RecordingEventStore? eventStore;
     private readonly string recordingId;
     private readonly OperationNotificationCenter? notifications;
+    private readonly ReviewAnalysisCoordinator? analysisCoordinator;
+    private ReviewAnalysisBinding? analysisBinding;
     private Task? prefetchTask;
     private Task? playbackLoadTask;
     private readonly LatestThrottledTask viewportLoader = new(TimeSpan.FromMilliseconds(50));
@@ -28,6 +32,15 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     private bool viewportDurationUpdatePending;
     private double viewportStartSeconds;
     private RecordingReviewFrame? publishedFrame;
+    private string psdPreparationText = "PSD 未准备。";
+    private bool isPsdAnalysisPanelOpen;
+    private readonly string? analysisRecordingDirectory;
+    private RegisteredRecording? analysisRecording;
+    private readonly CancellationTokenSource analysisLifetime = new();
+    public ReviewPsdParameters PsdParameters { get; } = new();
+    public ReviewAnalysisSettings AnalysisSettings { get; } = new();
+    private long analysisConfigurationRevision;
+    private bool isAnalysisStale;
 
     public RecordingReviewViewModel(
         IRecordingReviewReader reader,
@@ -39,7 +52,8 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         Func<double>? playbackClockSeconds = null,
         string? recordingDirectory = null,
         EventDefinitionService? eventDefinitionService = null,
-        OperationNotificationCenter? notifications = null)
+        OperationNotificationCenter? notifications = null,
+        ReviewAnalysisCoordinator? analysisCoordinator = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -61,9 +75,17 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         eventStore = recordingDirectory is null ? null : new RecordingEventStore(recordingDirectory);
         EventDefinitionService = eventDefinitionService;
         this.notifications = notifications;
+        this.analysisCoordinator = analysisCoordinator;
+        analysisRecordingDirectory = recordingDirectory;
         MarkSelectedEventCommand = new AsyncRelayCommand(MarkSelectedEventAsync, ReportCommandError);
         DeleteSelectedEventCommand = new AsyncRelayCommand(DeleteSelectedEventWithNotificationAsync, ReportCommandError);
         SaveEditedEventCommand = new AsyncRelayCommand(SaveEditedEventAsync, ReportCommandError);
+        PreparePsdCommand = new AsyncRelayCommand(PrepareDefaultPsdAsync, ReportCommandError);
+        OpenPsdAnalysisCommand = new AsyncRelayCommand(OpenPsdAnalysisAsync, ReportCommandError);
+        ClosePsdAnalysisCommand = new RelayCommand(() => IsPsdAnalysisPanelOpen = false);
+        LoadAnalysisSettingsCommand = new AsyncRelayCommand(EnsurePsdParametersLoadedAsync, ReportCommandError);
+        PsdParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        AnalysisSettings.PropertyChanged += OnAnalysisConfigurationChanged;
         OpenEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = true, () => CanEditSelectedEvent);
         CloseEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = false);
         displaySettings.PropertyChanged += OnDisplaySettingsChanged;
@@ -75,6 +97,12 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     }
 
     public ObservableCollection<MontageProfile> CompatibleViewingMontages { get; } = [];
+
+    public bool HasCompatibleViewingMontages => CompatibleViewingMontages.Count > 0;
+
+    public string MontageSelectionHint => HasCompatibleViewingMontages
+        ? "只显示与历史记录科学映射兼容的导联；切换不修改原始记录。"
+        : catalog.Incompatible.FirstOrDefault()?.Reason ?? "当前记录没有可用的兼容导联，显示原始通道。";
 
     public ObservableCollection<RecordingEvent> RecordingEvents { get; } = [];
     public ObservableCollection<RecordingEventOption> RecordingEventOptions { get; } = [];
@@ -139,6 +167,25 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     public System.Windows.Input.ICommand CloseEventEditorCommand { get; }
 
+    public System.Windows.Input.ICommand PreparePsdCommand { get; }
+
+    public System.Windows.Input.ICommand OpenPsdAnalysisCommand { get; }
+
+    public System.Windows.Input.ICommand ClosePsdAnalysisCommand { get; }
+    public System.Windows.Input.ICommand LoadAnalysisSettingsCommand { get; }
+
+    public bool IsPsdAnalysisPanelOpen
+    {
+        get => isPsdAnalysisPanelOpen;
+        private set => SetProperty(ref isPsdAnalysisPanelOpen, value);
+    }
+
+    public string PsdPreparationText
+    {
+        get => psdPreparationText;
+        private set => SetProperty(ref psdPreparationText, value);
+    }
+
     public bool CanEditSelectedEvent => SelectedRecordingEvent is { Source: EventSource.ManualButton or EventSource.KeyboardShortcut };
 
     public WaveformDisplaySettings DisplaySettings => displaySettings;
@@ -182,6 +229,14 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
     public string PlaybackSpeedText => $"{playback.PlaybackRate:0.0#}X";
 
     public string StatusText => session.StatusText;
+
+    public WindowPreviewResponse? CurrentAnalysisWindow => isAnalysisStale ? null : analysisBinding?.CurrentWindow;
+
+    public bool IsAnalysisLoading => analysisBinding?.IsLoading ?? false;
+
+    public string AnalysisStatusText => isAnalysisStale ? "参数已改变，请应用并分析。" : analysisBinding?.StatusText ?? "未绑定分析结果。";
+
+    public bool IsAnalysisAttached => analysisBinding?.RunId is not null;
 
     public ReviewPreparationState PreparationState => session.PreparationState;
 
@@ -303,6 +358,41 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         await LoadEnabledDefinitionsAsync();
         UpdateViewportStart(session.ViewportStartSeconds);
     }
+
+    /// <summary>
+    /// Attaches an existing completed Run. Review follows the playback clock;
+    /// it does not create Runs or calculate scientific values.
+    /// </summary>
+    public void AttachAnalysis(string runId)
+    {
+        if (analysisCoordinator is null)
+            throw new InvalidOperationException("当前回溯页未配置分析 provider。");
+
+        analysisBinding?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        analysisBinding = new ReviewAnalysisBinding(
+            analysisCoordinator,
+            analysisRecording?.Id ?? recordingId,
+            samplingRateHz,
+            checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)));
+        analysisBinding.PropertyChanged += OnAnalysisBindingChanged;
+        analysisBinding.AttachRun(runId);
+        isAnalysisStale = false;
+        RaiseAnalysisPropertiesChanged();
+        analysisBinding.PreviewAtSeconds(PositionSeconds);
+    }
+
+    public async ValueTask DetachAnalysisAsync()
+    {
+        if (analysisBinding is null) return;
+        analysisBinding.PropertyChanged -= OnAnalysisBindingChanged;
+        await analysisBinding.DisposeAsync();
+        analysisBinding = null;
+        RaiseAnalysisPropertiesChanged();
+    }
+
+    public Task LoadAnalysisAtCurrentPositionAsync() =>
+        analysisBinding?.LoadAtSecondsAsync(PositionSeconds) ?? Task.CompletedTask;
+
 
     public async Task LoadEventsAsync()
     {
@@ -452,6 +542,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         RaisePlaybackPropertiesChanged();
+        analysisBinding?.PreviewAtSeconds(PositionSeconds);
     }
 
     public Task SeekPageAsync(int direction) => SeekRelativeAsync(direction * VisibleDurationSeconds);
@@ -524,6 +615,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         RaisePlaybackPropertiesChanged();
+        analysisBinding?.PreviewAtSeconds(PositionSeconds);
         var desiredViewportStart = GetFollowViewportStart(playback.PositionSeconds);
         UpdateViewportStart(desiredViewportStart);
         if (!session.ContainsViewport(desiredViewportStart) &&
@@ -537,11 +629,15 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     public async ValueTask DisposeAsync()
     {
+        analysisLifetime.Cancel();
+        PsdParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
+        AnalysisSettings.PropertyChanged -= OnAnalysisConfigurationChanged;
         viewportLoader.Dispose();
         filterUpdater.Dispose();
         displaySettings.PropertyChanged -= OnDisplaySettingsChanged;
         session.Changed -= OnSessionChanged;
         await session.DisposeAsync();
+        await DetachAnalysisAsync();
     }
 
     private void OnSessionChanged(object? sender, EventArgs e)
@@ -564,6 +660,19 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         RaisePlaybackPropertiesChanged();
     }
 
+    private void OnAnalysisBindingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        RaiseAnalysisPropertiesChanged();
+    }
+
+    private void RaiseAnalysisPropertiesChanged()
+    {
+        RaisePropertyChanged(nameof(CurrentAnalysisWindow));
+        RaisePropertyChanged(nameof(IsAnalysisLoading));
+        RaisePropertyChanged(nameof(AnalysisStatusText));
+        RaisePropertyChanged(nameof(IsAnalysisAttached));
+    }
+
     private void RaisePlaybackPropertiesChanged()
     {
         RaisePropertyChanged(nameof(IsPlaying));
@@ -572,6 +681,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
 
     private void ScheduleFilterUpdate()
     {
+        InvalidateAnalysisConfiguration();
         filterUpdater.Schedule(TimeSpan.FromMilliseconds(220), async cancellationToken =>
         {
             try
@@ -586,6 +696,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
             }
         });
     }
+
 
     private void ScheduleViewportLoad()
     {
@@ -634,6 +745,7 @@ public sealed class RecordingReviewViewModel : ObservableObject, IAsyncDisposabl
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         RaisePlaybackPropertiesChanged();
+        analysisBinding?.PreviewAtSeconds(PositionSeconds);
     }
     private double GetFollowViewportStart(double positionSeconds)
     {

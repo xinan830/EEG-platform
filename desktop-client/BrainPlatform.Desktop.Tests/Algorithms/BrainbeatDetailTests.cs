@@ -4,6 +4,18 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 
 public sealed class BrainbeatDetailTests
 {
+    [Theory]
+    [InlineData("Fz", "Pz")]
+    [InlineData("Fz-REF", "Pz-REF")]
+    public void Source_roles_accept_raw_or_verified_hardware_reference_outputs(string primary, string secondary)
+    {
+        var inputs = new BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared.AlgorithmRunInputs(
+            new TimeRange(0, 10), primary, secondary, [primary, secondary], 500,
+            "1", "50", "4", "8", "13", "30", "50 Hz");
+        var parameters = new BrainbeatRunResultHandler().ParseParameters(inputs);
+        Assert.Equal(secondary, parameters.F4Channel);
+    }
+
     [Fact]
     public void DynamicHandler_PopulatesSharedTimelineAndQualitySource()
     {

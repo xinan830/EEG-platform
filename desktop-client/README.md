@@ -60,6 +60,21 @@ Start the existing Python backend first with `start_brain_platform.bat` or the
 backend development command. The startup script and current web client use port
 `8000`; earlier README text naming ports `8001` or `5174` was obsolete.
 
+## Windows Release Package
+
+Build a portable desktop release from the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build_release.ps1
+```
+
+The output contains `BrainPlatform.Desktop.exe` and
+`backend\brain_backend.exe`. Launch the WPF executable; it starts the backend,
+waits for `/api/health`, and stops only the backend it started. Scientific data
+is stored in `%LOCALAPPDATA%\BrainPlatform\storage`, so installation does not
+require write access beside the executable. The package is portable for now;
+an installer can be added after manual acceptance.
+
 ## Acquisition Core Boundaries
 
 - The hardware adapter must return the actual opened-stream channel list,

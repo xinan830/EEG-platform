@@ -4,6 +4,21 @@ namespace BrainPlatform.Desktop.Tests.Review;
 public sealed class RecordingReviewSessionTests
 {
     [Fact]
+    public async Task SameIdDoesNotAllowUnverifiedProfileObjectToBeApplied()
+    {
+        var configuration = Configuration(2);
+        var verified = Profile("采集导联", configuration, 2);
+        var reader = new FakeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(verified, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]), [new CompatibleRecordingMontage(verified)], []);
+        await using var session = new RecordingReviewSession(reader, catalog, visibleDurationSeconds: 10);
+        var unverified = verified with { Name = "同 ID 未验证对象" };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => session.SelectViewingMontageAsync(unverified));
+        Assert.Same(verified, session.SelectedViewingMontage);
+    }
+
+    [Fact]
     public async Task SwitchingFromTwentyToThirteenOutputsPreservesPositionAndWindow()
     {
         var configuration = Configuration(2);

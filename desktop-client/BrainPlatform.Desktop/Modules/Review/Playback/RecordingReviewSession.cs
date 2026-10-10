@@ -173,7 +173,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     {
         ThrowIfDisposed();
         if (montage is not null && catalog.CompatibleViewingMontages.All(
-                item => !string.Equals(item.Profile.Id, montage.Id, StringComparison.Ordinal)))
+                item => !ReferenceEquals(item.Profile, montage)))
             throw new InvalidOperationException("所选导联与此记录的原始通道不兼容。");
 
         SelectedViewingMontage = montage;

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Channels.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Review.Montages;
 
@@ -64,10 +65,12 @@ public static class RecordingMontageCatalog
         var compatible = new List<CompatibleRecordingMontage>();
         var incompatible = new List<IncompatibleRecordingMontage>();
         var acquisitionMontage = ReadAcquisitionMontage(manifest, out var acquisitionStatus);
+        var recordingSnapshot = ReadChannelConfigurationSnapshot(manifest);
         var acquisitionMontageAdded = false;
         if (acquisitionMontage is not null)
         {
-            var acquisitionError = GetCompatibilityError(acquisitionMontage, labelMap);
+            var acquisitionError = RecordingMontageCompatibility.GetError(
+                acquisitionMontage, labelMap, recordingSnapshot);
             if (acquisitionError is not null)
             {
                 acquisitionMontage = null;
@@ -93,7 +96,7 @@ public static class RecordingMontageCatalog
                 continue;
             }
 
-            var error = GetCompatibilityError(profile, labelMap);
+            var error = RecordingMontageCompatibility.GetError(profile, labelMap, recordingSnapshot);
             if (error is null)
             {
                 compatible.Add(new CompatibleRecordingMontage(profile));
@@ -115,6 +118,27 @@ public static class RecordingMontageCatalog
             rawSignalView,
             compatible,
             incompatible);
+    }
+
+    private static ChannelConfigurationProfile? ReadChannelConfigurationSnapshot(
+        LocalRawRecordingManifest manifest)
+    {
+        if (!manifest.HardwareConfiguration.TryGetValue(
+                "channel_configuration_snapshot_json",
+                out var snapshotJson) ||
+            string.IsNullOrWhiteSpace(snapshotJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<ChannelConfigurationProfile>(snapshotJson, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static MontageProfile? ReadAcquisitionMontage(
@@ -147,45 +171,6 @@ public static class RecordingMontageCatalog
             status = AcquisitionMontageStatus.InvalidSnapshot;
             return null;
         }
-    }
-
-    private static string? GetCompatibilityError(
-        MontageProfile profile,
-        IReadOnlyDictionary<string, AcquisitionChannel[]> labelMap)
-    {
-        try
-        {
-            MontageValidation.Validate(
-                profile.ChannelConfigurationSnapshot,
-                profile.DerivedChannels,
-                profile.AverageReferenceLabels);
-        }
-        catch (InvalidOperationException exception)
-        {
-            return exception.Message;
-        }
-
-        foreach (var source in profile.DerivedChannels
-                     .SelectMany(channel => new[] { channel.PositiveLabel }.Concat(channel.NegativeLabels))
-                     .Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            if (!labelMap.TryGetValue(source.Trim(), out var matches))
-            {
-                return $"记录中缺少导联源通道“{source}”。";
-            }
-
-            if (matches.Length != 1)
-            {
-                return $"记录中的导联源通道“{source}”存在重复，无法唯一映射。";
-            }
-
-            if (!string.Equals(matches[0].Unit, "V", StringComparison.OrdinalIgnoreCase))
-            {
-                return $"导联源通道“{source}”单位不是 V。";
-            }
-        }
-
-        return null;
     }
 
     private static bool IsSignalChannel(AcquisitionChannel channel) =>

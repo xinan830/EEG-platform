@@ -11,9 +11,6 @@ public sealed partial class AlgorithmListViewModel
 {
     private readonly PsdPreviewState psdPreview = new();
 
-    public sealed record PsdPreviewPoint(double Frequency, double Value);
-    public sealed record PsdBandSharePoint(string Name, string Range, double Share, string ShareText, string Color, bool IsAvailable = true);
-
     internal PsdPreviewState PsdPreviewState => psdPreview;
     public ObservableCollection<PsdPreviewPoint?> PsdPreviewPoints => psdPreview.Points;
     public ObservableCollection<PsdBandSharePoint> PsdBandSharePoints => psdPreview.BandShares;
@@ -353,7 +350,7 @@ public sealed partial class AlgorithmListViewModel
             var label = labels[index];
             if (item.ValueKind != JsonValueKind.Number || !item.TryGetDouble(out var share) || !double.IsFinite(share))
             {
-                PsdBandSharePoints.Add(new PsdBandSharePoint(label.Item1, label.Item2, 0, "不可用", label.Item3, false));
+            PsdBandSharePoints.Add(new PsdBandSharePoint(label.Item1, label.Item2, 0, "不可用", label.Item3, false));
                 continue;
             }
             share = Math.Clamp(share, 0, 1);

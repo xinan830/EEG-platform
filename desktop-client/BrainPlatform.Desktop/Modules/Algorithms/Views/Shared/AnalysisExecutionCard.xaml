@@ -5,6 +5,7 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         <!-- Modern Slider Styles -->
         <Style x:Key="ModernSliderTrackRepeatButtonStyle" TargetType="RepeatButton">
@@ -64,14 +65,14 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="20,18">
+    <Border Style="{StaticResource AnalysisCardBorderStyle}">
         <StackPanel>
             <!-- Header -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
                 <Border Width="22" Height="22" CornerRadius="11" Background="#1677FF" Margin="0,0,8,0">
                     <TextBlock Text="4" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
-                <TextBlock Text="执行分析" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                <TextBlock Text="执行分析" Style="{StaticResource AnalysisCardTitleStyle}" />
             </StackPanel>
 
             <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1"

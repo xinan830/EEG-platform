@@ -449,9 +449,9 @@
                                 <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
                                 <TextBlock Grid.Column="3" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
                                 <Border Grid.Column="4" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="可用通道列表" FontSize="11" Foreground="#1D4ED8" FontWeight="Medium" HorizontalAlignment="Center" TextAlignment="Center" />
+                                    <TextBlock Text="可分析导联列表" FontSize="11" Foreground="#1D4ED8" FontWeight="Medium" HorizontalAlignment="Center" TextAlignment="Center" />
                                 </Border>
-                                <TextBlock Grid.Column="5" Text="用于当前算法分析的原始通道" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="5" Text="用于当前算法分析的信号导联" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
                             </Grid>
                         </Border>
 

@@ -26,6 +26,12 @@ public partial class RecordingReviewView : UserControl
 
     private RecordingReviewViewModel? ViewModel => DataContext as RecordingReviewViewModel;
 
+    private void OnAnalysisMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (ReferenceEquals(sender, e.OriginalSource) && ViewModel?.LoadAnalysisSettingsCommand is { } command && command.CanExecute(null))
+            command.Execute(null);
+    }
+
     private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (ViewModel is not { } viewModel) return;
@@ -217,5 +223,6 @@ public partial class RecordingReviewView : UserControl
             updatingControls = false;
         }
     }
+
 
 }

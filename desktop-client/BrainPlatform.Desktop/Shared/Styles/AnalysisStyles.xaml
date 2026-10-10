@@ -1,0 +1,89 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:analysis="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis">
+    <SolidColorBrush x:Key="AnalysisSurfaceBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="AnalysisHeadingBrush" Color="#17242A" />
+    <SolidColorBrush x:Key="AnalysisMutedBrush" Color="#617178" />
+    <SolidColorBrush x:Key="AnalysisDividerBrush" Color="#E2E8F0" />
+    <Thickness x:Key="AnalysisPanelPadding">14</Thickness>
+    <Thickness x:Key="AnalysisSectionSpacing">0,0,0,12</Thickness>
+
+    <Style x:Key="AnalysisCardBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource AnalysisSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AnalysisDividerBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="20,18" />
+    </Style>
+    <Style x:Key="AnalysisCardTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{DynamicResource AnalysisHeadingBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="AnalysisFieldLabelStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource AnalysisMutedBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+    <Style x:Key="AnalysisStatusTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource AnalysisMutedBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style x:Key="AnalysisWorkspaceMenuStyle" TargetType="Menu">
+        <Setter Property="Background" Value="{DynamicResource AnalysisSurfaceBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AnalysisHeadingBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Padding" Value="8,3" />
+    </Style>
+    <Style TargetType="{x:Type analysis:AnalysisPanelShell}">
+        <Setter Property="Background" Value="{DynamicResource AnalysisSurfaceBrush}" />
+        <Setter Property="Padding" Value="{DynamicResource AnalysisPanelPadding}" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type analysis:AnalysisPanelShell}">
+                    <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid Margin="{DynamicResource AnalysisSectionSpacing}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock Text="{TemplateBinding Title}" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource AnalysisHeadingBrush}" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button x:Name="PART_DockButton" Style="{DynamicResource ToolbarGearButtonStyle}"
+                                            ToolTip="停靠 / 分离" AutomationProperties.Name="停靠 / 分离" Margin="0,0,6,0">
+                                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" FontSize="14" />
+                                    </Button>
+                                    <Button Style="{DynamicResource ModernCloseCrossButtonStyle}" Command="{TemplateBinding CloseCommand}"
+                                            ToolTip="关闭分析面板" AutomationProperties.Name="关闭分析面板" />
+                                </StackPanel>
+                            </Grid>
+                            <ContentPresenter Grid.Row="1" Content="{TemplateBinding Parameters}"
+                                              Margin="{DynamicResource AnalysisSectionSpacing}" />
+                            <Grid Grid.Row="2" Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="PART_StatusText" Text="{TemplateBinding StatusText}" Style="{StaticResource AnalysisStatusTextStyle}"
+                                           Margin="0,0,10,0" />
+                                <Button x:Name="PART_ApplyButton" Grid.Column="1" Content="应用并分析"
+                                        Command="{TemplateBinding ApplyCommand}" Style="{DynamicResource ModernDialogPrimaryButtonStyle}"
+                                        Height="32" Padding="12,0" FontSize="12" />
+                            </Grid>
+                            <ContentPresenter Grid.Row="3" Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

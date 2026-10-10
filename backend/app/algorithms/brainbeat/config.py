@@ -12,6 +12,6 @@ class BrainbeatConfig(AlgorithmConfigBase):
     def validate_pair(self) -> "BrainbeatConfig":
         if self.channel.casefold() == self.pz_channel.casefold():
             raise ValueError("Brainbeat Fz and Pz source channels must be different")
-        if self.channel.casefold() != "fz" or self.pz_channel.casefold() != "pz":
+        if self.channel.casefold() not in {"fz", "fz-ref"} or self.pz_channel.casefold() not in {"pz", "pz-ref"}:
             raise ValueError("Brainbeat requires Fz as the primary channel and Pz as the secondary channel")
         return self

@@ -8,6 +8,7 @@ using BrainPlatform.Desktop.Modules.Montages.Views;
 using EventListView = BrainPlatform.Desktop.Modules.Events.Views.EventListView;
 using EventDefinitionEditorView = BrainPlatform.Desktop.Modules.Events.Views.EventDefinitionEditorView;
 using RecordingReviewView = BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView;
+using BrainPlatform.Desktop.Modules.Review.Analysis;
 
 namespace BrainPlatform.Desktop;
 
@@ -288,6 +289,9 @@ public partial class MainWindow : Window
             recording.RecordingDirectory,
             CancellationToken.None);
         var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
+        var analysisCoordinator = (DataContext as DesktopWorkspaceViewModel) is { } workspace
+            ? new ReviewAnalysisCoordinator(new PsdReviewAnalysisProvider(workspace.Algorithms))
+            : null;
         var viewModel = new RecordingReviewViewModel(
             loadedRecording.Reader,
             catalog,
@@ -296,7 +300,8 @@ public partial class MainWindow : Window
             filter: recordingReviewFilter,
             recordingDirectory: recording.RecordingDirectory,
             eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
-            notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications);
+            notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications,
+            analysisCoordinator: analysisCoordinator);
         try
         {
             await viewModel.InitializeAsync();

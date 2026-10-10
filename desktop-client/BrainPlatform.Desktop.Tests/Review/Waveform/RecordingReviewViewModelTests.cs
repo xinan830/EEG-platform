@@ -1,7 +1,7 @@
 
 namespace BrainPlatform.Desktop.Tests.Review;
 
-public sealed class RecordingReviewViewModelTests
+public sealed partial class RecordingReviewViewModelTests
 {
     [Fact]
     public async Task ViewModelExposesAcquisitionAndCurrentViewingMontageSeparately()

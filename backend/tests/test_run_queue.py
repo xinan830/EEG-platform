@@ -42,6 +42,36 @@ def test_queue_idempotency_claim_and_completion(tmp_path: Path):
     assert queue.list_artifacts(first.run_id)
 
 
+def test_ensure_reuses_only_within_project_scope(tmp_path: Path):
+    queue, recording_id = _queue(tmp_path)
+    first_request = _request(recording_id)
+    first_request.project_id = "project-a"
+    first = queue.enqueue(first_request)
+    queue.process_next()
+
+    same_project = queue.enqueue(first_request, reuse_completed=True)
+    other_request = _request(recording_id)
+    other_request.project_id = "project-b"
+    other_project = queue.enqueue(other_request, reuse_completed=True)
+
+    assert same_project.run_id == first.run_id
+    assert other_project.run_id != first.run_id
+    assert other_project.status is RunStatus.QUEUED
+
+
+def test_ensure_does_not_reuse_completed_run_when_artifact_is_missing(tmp_path: Path):
+    queue, recording_id = _queue(tmp_path)
+    first = queue.enqueue(_request(recording_id))
+    queue.process_next()
+    artifact = queue.list_artifacts(first.run_id)[0]
+    (queue.base.artifacts.root / artifact.relative_path).unlink()
+
+    replacement = queue.enqueue(_request(recording_id), reuse_completed=True)
+
+    assert replacement.run_id != first.run_id
+    assert replacement.status is RunStatus.QUEUED
+
+
 def test_queue_persists_resolved_official_definition_identity(tmp_path: Path):
     queue, recording_id = _queue(tmp_path)
     request = RunCreateRequest(

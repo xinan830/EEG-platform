@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -20,7 +21,15 @@ class ArtifactIntegrityError(RuntimeError):
     pass
 
 
+class WindowIndexUnavailable(RuntimeError):
+    pass
+
+
 class ArtifactStore:
+    MAX_WINDOW_CHUNK_BYTES = 64 * 1024 * 1024
+    MAX_AXIS_BYTES = 16 * 1024 * 1024
+    MAX_INDEX_BYTES = 4 * 1024 * 1024
+
     def __init__(self, repository: RunRepository, root: Path = ARTIFACTS_DIR):
         self.repository = repository
         self.root = Path(root).resolve()
@@ -32,6 +41,7 @@ class ArtifactStore:
         kind: str,
         arrays: dict[str, np.ndarray],
         unit: str | None = None,
+        window_ranges: list[dict[str, object]] | None = None,
     ) -> RunArtifact:
         if not arrays:
             raise ValueError("artifact requires at least one array")
@@ -63,6 +73,8 @@ class ArtifactStore:
                 created_at=utc_now(),
             )
             self.repository.add_artifact(artifact)
+            if window_ranges:
+                self._write_window_index(artifact, arrays, window_ranges)
             return artifact
         except Exception:
             if temp_path is not None:
@@ -78,6 +90,129 @@ class ArtifactStore:
         with np.load(path, allow_pickle=False) as loaded:
             return {name: np.asarray(loaded[name]) for name in loaded.files}
 
+    def verify(self, artifact: RunArtifact) -> None:
+        """Verify the immutable artifact without loading numerical arrays."""
+        path = (self.root / artifact.relative_path).resolve()
+        self._require_confined(path)
+        if not path.is_file() or self._sha256_file(path) != artifact.sha256:
+            raise ArtifactIntegrityError("artifact SHA-256 verification failed")
+
+    def read_window(self, artifact: RunArtifact, window_index: int) -> dict[str, np.ndarray]:
+        """Read one derived window without loading the canonical NPZ matrix."""
+        index_path = self._window_index_path(artifact)
+        if not index_path.is_file():
+            raise WindowIndexUnavailable("window index has not been prepared for this artifact")
+        if index_path.stat().st_size > self.MAX_INDEX_BYTES:
+            raise WindowIndexUnavailable("window index exceeds the resource limit")
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+            if index.get("format") != "result-window-index-v1" or index.get("artifact_sha256") != artifact.sha256:
+                raise WindowIndexUnavailable("window index is stale or incompatible")
+            windows = index.get("windows") or []
+            if type(window_index) is not int or not 0 <= window_index < len(windows):
+                raise IndexError("result window index is outside the artifact")
+            entry = windows[window_index]
+            chunk_path = (self.root / entry["path"]).resolve()
+            self._require_confined(chunk_path)
+            if chunk_path.stat().st_size > self.MAX_WINDOW_CHUNK_BYTES:
+                raise WindowIndexUnavailable("result window exceeds the resource limit")
+            if not chunk_path.is_file() or self._sha256_file(chunk_path) != entry["sha256"]:
+                raise ArtifactIntegrityError("result window chunk integrity verification failed")
+            with np.load(chunk_path, allow_pickle=False) as loaded:
+                return {name: np.asarray(loaded[name]) for name in loaded.files}
+        except (KeyError, TypeError, json.JSONDecodeError) as exc:
+            raise WindowIndexUnavailable("window index is malformed") from exc
+
+    def read_window_axes(self, artifact: RunArtifact) -> dict[str, np.ndarray]:
+        index_path = self._window_index_path(artifact)
+        if not index_path.is_file():
+            raise WindowIndexUnavailable("window index has not been prepared for this artifact")
+        if index_path.stat().st_size > self.MAX_INDEX_BYTES:
+            raise WindowIndexUnavailable("window index exceeds the resource limit")
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        static_path = (self.root / index["static_path"]).resolve()
+        self._require_confined(static_path)
+        if static_path.stat().st_size > self.MAX_AXIS_BYTES:
+            raise WindowIndexUnavailable("result axes exceed the resource limit")
+        if not static_path.is_file() or self._sha256_file(static_path) != index["static_sha256"]:
+            raise ArtifactIntegrityError("result axis file integrity verification failed")
+        with np.load(static_path, allow_pickle=False) as loaded:
+            return {name: np.asarray(loaded[name]) for name in loaded.files}
+
+    def prepare_window_index(
+        self,
+        artifact: RunArtifact,
+        window_ranges: list[dict[str, object]],
+    ) -> None:
+        """Build a disposable index for a legacy artifact in a bounded job.
+
+        The preparation may read the canonical artifact once. It is never called
+        by the cursor request path, and the immutable artifact is not replaced.
+        """
+        arrays = self.read_npz(artifact)
+        self._write_window_index(artifact, arrays, window_ranges)
+
+    def _write_window_index(
+        self,
+        artifact: RunArtifact,
+        arrays: dict[str, np.ndarray],
+        window_ranges: list[dict[str, object]],
+    ) -> None:
+        window_count = len(window_ranges)
+        matrix_names = [name for name, value in arrays.items()
+                        if not name.startswith("axis_")
+                        if np.asarray(value).ndim >= 1 and np.asarray(value).shape[0] == window_count]
+        if not matrix_names:
+            return
+        static_names = [name for name in arrays if name not in matrix_names]
+        artifact_dir = (self.root / artifact.relative_path).resolve().parent
+        sidecar_dir = artifact_dir / f"{artifact.artifact_id}.windows"
+        sidecar_dir.mkdir(parents=True, exist_ok=True)
+        static_path = sidecar_dir / "axes.npz"
+        self._atomic_npz(static_path, {name: np.asarray(arrays[name]) for name in static_names})
+        entries: list[dict[str, object]] = []
+        for index, window in enumerate(window_ranges):
+            chunk_path = sidecar_dir / f"{index:08d}.npz"
+            self._atomic_npz(chunk_path, {name: np.asarray(arrays[name])[index] for name in matrix_names})
+            entries.append({
+                "window_index": index,
+                "start_sample": window.get("start_sample"),
+                "end_sample": window.get("end_sample"),
+                "path": chunk_path.relative_to(self.root).as_posix(),
+                "sha256": self._sha256_file(chunk_path),
+            })
+        index = {
+            "format": "result-window-index-v1",
+            "artifact_sha256": artifact.sha256,
+            "static_path": static_path.relative_to(self.root).as_posix(),
+            "static_sha256": self._sha256_file(static_path),
+            "matrix_names": matrix_names,
+            "windows": entries,
+        }
+        index_path = self._window_index_path(artifact)
+        temp_path = index_path.with_suffix(".tmp")
+        temp_path.write_text(json.dumps(index, ensure_ascii=True, sort_keys=True), encoding="utf-8")
+        os.replace(temp_path, index_path)
+
+    @staticmethod
+    def _atomic_npz(path: Path, arrays: dict[str, np.ndarray]) -> None:
+        temp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=path.parent, suffix=".tmp", delete=False) as handle:
+                temp_path = Path(handle.name)
+                np.savez_compressed(handle, **arrays)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_path, path)
+        finally:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+
+    def _window_index_path(self, artifact: RunArtifact) -> Path:
+        path = (self.root / artifact.relative_path).resolve()
+        self._require_confined(path)
+        return path.with_suffix(path.suffix + ".windows.json")
+
     def discard_cancelled_write(self, artifact: RunArtifact) -> None:
         """Remove only a new, unpublished artifact from a cancelled execution."""
         run = self.repository.get(artifact.run_id)
@@ -86,6 +221,12 @@ class ArtifactStore:
         path = (self.root / artifact.relative_path).resolve()
         self._require_confined(path)
         path.unlink(missing_ok=True)
+        sidecar_dir = path.parent / f"{artifact.artifact_id}.windows"
+        if sidecar_dir.is_dir():
+            for child in sidecar_dir.iterdir():
+                child.unlink(missing_ok=True)
+            sidecar_dir.rmdir()
+        self._window_index_path(artifact).unlink(missing_ok=True)
         self.repository.remove_artifact(artifact.artifact_id, artifact.run_id)
 
     def _require_confined(self, path: Path) -> None:

@@ -11,7 +11,10 @@ from pathlib import Path
 import numpy as np
 
 from app.models.run import AnalysisRun
-from app.services.artifacts import ArtifactIntegrityError
+from app.services.artifacts import ArtifactIntegrityError, WindowIndexUnavailable
+from app.core.recording_time import cursor_sample_from_seconds
+from app.models.result_window import SavedResultWindow, WindowSelection
+from app.services.result_window_index import SavedWindowIndex
 from app.services.analysis_provenance import serialize_analysis_run
 from app.services.run_queue import PersistentRunQueue
 from app.services.validations import ValidationService
@@ -88,6 +91,93 @@ class ResultService:
             "scientific_version": run.scientific_version,
             "implementation_version": run.implementation_version,
         }
+
+    def window_preview(
+        self,
+        run_id: str,
+        *,
+        cursor_sample: int | None = None,
+        cursor_s: float | None = None,
+    ) -> dict[str, object]:
+        """Return one saved dynamic result window; never recompute or read EEG."""
+        if (cursor_sample is None) == (cursor_s is None):
+            raise ValueError("provide exactly one cursor coordinate")
+        run = self.runs.get(run_id)
+        structured = (run.result_summary or {}).get("structured")
+        if not isinstance(structured, dict) or not isinstance(structured.get("windows"), list):
+            raise ValueError("run does not contain saved dynamic windows")
+        recording = self.runs.recordings.require_recording(run.recording_id)
+        duration_samples = int(round(float(recording.duration_s) * float(recording.sfreq)))
+        resolved_sample = cursor_sample
+        if resolved_sample is None:
+            resolved_sample = cursor_sample_from_seconds(float(cursor_s), int(round(recording.sfreq)), duration_samples)
+        windows = [self._saved_window(item, index) for index, item in enumerate(structured["windows"])]
+        selection = SavedWindowIndex(duration_samples, windows).select(resolved_sample)
+        response = self._window_selection_response(run, selection, structured, float(recording.sfreq))
+        if selection.window is None:
+            return response
+        artifacts = self.runs.list_artifacts(run_id)
+        if not artifacts:
+            raise KeyError(run_id)
+        artifact = artifacts[0]
+        arrays = self.runs.base.artifacts.read_window(artifact, selection.window.window_index)
+        axes = self.runs.base.artifacts.read_window_axes(artifact)
+        response["artifact"] = artifact.model_dump(mode="json")
+        response["axes"] = {name: self._json_values(value) for name, value in axes.items()}
+        response["arrays"] = {name: self._json_values(value) for name, value in arrays.items()}
+        response["array_metadata"] = structured.get("arrays", {})
+        response["axis_metadata"] = structured.get("axes", {})
+        return response
+
+    @staticmethod
+    def _saved_window(raw: object, index: int) -> SavedResultWindow:
+        if not isinstance(raw, dict):
+            raise ValueError("saved dynamic window metadata is malformed")
+        failure = raw.get("failure") or {}
+        state = str(raw.get("state", "Unavailable"))
+        quality = str(raw.get("quality", "unavailable")).lower()
+        usable = state not in {"Rejected", "Unavailable"} and quality not in {"rejected", "unavailable", "failed"}
+        reason = str(failure.get("code") or quality or "WINDOW_UNAVAILABLE")
+        return SavedResultWindow(
+            window_id=str(raw.get("window_id") or f"window-{index}"),
+            window_index=index,
+            start_sample=int(raw["start_sample"]),
+            end_sample=int(raw["end_sample"]),
+            window_state="Partial" if state == "Partial" else "Complete",
+            quality_status="valid" if usable else ("rejected" if state == "Rejected" else "unavailable"),
+            reason_codes=() if usable else (reason,),
+        )
+
+    @staticmethod
+    def _window_selection_response(
+        run: AnalysisRun,
+        selection: WindowSelection,
+        structured: dict[str, object],
+        sampling_rate_hz: float,
+    ) -> dict[str, object]:
+        window = selection.window
+        return {
+            "run_id": run.run_id,
+            "recording_id": run.recording_id,
+            "cursor_sample": selection.cursor_sample,
+            "cursor_s": selection.cursor_sample / sampling_rate_hz,
+            "status": selection.status,
+            "reason_codes": list(selection.reason_codes),
+            "window": window.model_dump(mode="json") if window else None,
+            "has_uncovered_tail": selection.has_uncovered_tail,
+            "output": structured.get("output"),
+            "quality": structured.get("quality"),
+            "scientific_version": run.scientific_version,
+            "implementation_version": run.implementation_version,
+        }
+
+    @staticmethod
+    def _json_values(value: np.ndarray) -> object:
+        array = np.asarray(value)
+        if array.ndim == 0:
+            scalar = array.item()
+            return float(scalar) if np.isfinite(scalar) else None
+        return [ResultService._json_values(item) for item in array]
 
     def export(self, run_id: str, validation_id: str | None = None) -> bytes:
         run = self.runs.get(run_id)

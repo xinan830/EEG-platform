@@ -1,7 +1,14 @@
 <UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Shared.DynamicResultCard"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="20,18">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Border Style="{StaticResource AnalysisCardBorderStyle}">
         <StackPanel>
             <!-- Card Header -->
             <Grid Margin="0,0,0,14">
@@ -13,7 +20,7 @@
                     <Border Width="22" Height="22" CornerRadius="11" Background="#1677FF" Margin="0,0,8,0">
                         <TextBlock Text="8" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock Text="动态结果（按时间）" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                    <TextBlock Text="动态结果（按时间）" Style="{StaticResource AnalysisCardTitleStyle}" />
                 </StackPanel>
 
                 <!-- Record Count Pill Badge -->

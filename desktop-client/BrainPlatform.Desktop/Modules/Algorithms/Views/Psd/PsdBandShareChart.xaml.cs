@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
 using SciChart.Charting.ChartModifiers;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals.Axes;
@@ -80,7 +81,7 @@ public partial class PsdBandShareChart : UserControl
 
     private void RebuildSeries()
     {
-        var points = Points?.Cast<AlgorithmListViewModel.PsdBandSharePoint>().ToArray() ?? [];
+        var points = Points?.Cast<PsdBandSharePoint>().ToArray() ?? [];
         Surface.RenderableSeries.Clear();
         Surface.Annotations.Clear();
         xAxis.LabelProvider = new BandLabelProvider(points.Select(point => point.Name).ToArray());

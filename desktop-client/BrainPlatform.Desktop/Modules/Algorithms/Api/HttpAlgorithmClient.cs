@@ -32,6 +32,11 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
         CancellationToken cancellationToken) =>
         SendAsync<AnalysisRunResponse>(HttpMethod.Post, "api/runs", request, cancellationToken);
 
+    public Task<AnalysisRunResponse> EnsureRunAsync(
+        AnalysisRunRequest request,
+        CancellationToken cancellationToken) =>
+        SendAsync<AnalysisRunResponse>(HttpMethod.Post, "api/runs/ensure", request, cancellationToken);
+
     public Task<RegisteredRecording> RegisterWpfRecordingAsync(
         string sourceDirectory,
         CancellationToken cancellationToken)
@@ -77,6 +82,24 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
         return SendAsync<StructuredPreviewResponse>(
             HttpMethod.Get,
             $"api/runs/{Uri.EscapeDataString(RequireId(runId))}/structured-preview?max_cells={maxCells}",
+            null,
+            cancellationToken);
+    }
+
+    public Task<WindowPreviewResponse> GetWindowPreviewAsync(
+        string runId,
+        long? cursorSample,
+        double? cursorSeconds,
+        CancellationToken cancellationToken)
+    {
+        if ((cursorSample is null) == (cursorSeconds is null))
+            throw new ArgumentException("结果窗口读取必须且只能提供一种游标坐标。");
+        var query = cursorSample is long sample
+            ? $"cursor_sample={sample}"
+            : $"cursor_s={Uri.EscapeDataString(cursorSeconds!.Value.ToString("R", System.Globalization.CultureInfo.InvariantCulture))}";
+        return SendAsync<WindowPreviewResponse>(
+            HttpMethod.Get,
+            $"api/runs/{Uri.EscapeDataString(RequireId(runId))}/window-preview?{query}",
             null,
             cancellationToken);
     }

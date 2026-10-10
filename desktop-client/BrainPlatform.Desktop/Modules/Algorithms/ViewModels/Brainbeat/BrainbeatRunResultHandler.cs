@@ -15,8 +15,10 @@ internal sealed class BrainbeatRunResultHandler : IAlgorithmRunResultHandler
     {
         if (string.IsNullOrWhiteSpace(inputs.F4Channel) || !inputs.Channels.Contains(inputs.F4Channel))
             throw new InvalidOperationException("请选择有效的 Brainbeat Pz 来源通道。");
-        if (!string.Equals(inputs.Channel, "Fz", StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(inputs.F4Channel, "Pz", StringComparison.OrdinalIgnoreCase))
+        if (!(string.Equals(inputs.Channel, "Fz", StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(inputs.Channel, "Fz-REF", StringComparison.OrdinalIgnoreCase)) ||
+            !(string.Equals(inputs.F4Channel, "Pz", StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(inputs.F4Channel, "Pz-REF", StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException("Brainbeat 必须选择 Fz 作为主通道、Pz 作为副通道。");
         if (string.Equals(inputs.Channel, inputs.F4Channel, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Brainbeat 的 Fz 与 Pz 来源通道必须不同。");

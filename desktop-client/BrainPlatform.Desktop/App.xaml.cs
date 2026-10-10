@@ -1,15 +1,17 @@
 using System.Net.Http;
 using System.Windows;
+using BrainPlatform.Desktop.Infrastructure.Backend;
 using SciChart.Charting.Visuals;
 
 namespace BrainPlatform.Desktop;
 
 public partial class App : Application
 {
+    private BackendProcessManager? _backendProcess;
     private DesktopWorkspaceViewModel? workspace;
     private Modules.Acquisition.Session.DeviceSessionAvailabilityMonitor? deviceAvailabilityMonitor;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -17,8 +19,29 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         SciChartSurface.SetRuntimeLicenseKey("7iF0IO0u4YmElZ5QNwdqPsiu+0CxVVDJ+A1X/bvIMPf6kI3qYb+a+o+6YaEnIfCPZkWuSAw3xMdQkm7oe8Tczb1mdOlyuTXW6bCVl+KtayjQnwyGl1Mts2tPlKk9CF0eVFsYF42hUGlSRvy3vplCDTEQsUxyHkpq8bVns2PdH8GzoTqZwCrhVpgVceNa3+mmxeRKEqOBGmfR0hHi0ynOAfqAiBUn9rb6dACEEXpiNT6JLyc8Vpx1eBDOYakPa3Gra4fJ2Wh34PjLcxDjfXhFM5CaO3wLMBgpH9MFjcXC3Ko330GpNOBcUhd7tWWHPg0yX+5AlA1SqNhuopnnUMmdVzZZZlTzudvtx+f6pVgDJlnY2gQhTDzRwaH3jkSnvERuYVKdTqoi0eraFEn7dNYGfjgC8q+dR9DjB12V1fP8l6Quq9h5AdD9i9t8Nyf+1DXnmohZke0vNOjSNUGAndnSlJVKAbeFTSNJcC4DADNzx02JSGKy08X7Gtl7eZuBYhTeG+O8JVF+8ZTTLm3EDluHDgPXStCRNvmidEFUjfIwUXKuJ1O2byl9aiw=");
 
+        // ── 第一步：启动打包后端（开发模式下后端不存在则跳过）──
+        _backendProcess = new BackendProcessManager();
+        var started = await _backendProcess.StartAndWaitAsync();
+
+        if (!started)
+        {
+            // 打包后后端在 20s 内仍未就绪，提示用户
+            var exePath = System.IO.Path.Combine(
+                AppContext.BaseDirectory, @"backend\brain_backend.exe");
+            if (System.IO.File.Exists(exePath))
+            {
+                MessageBox.Show(
+                    "科学引擎启动超时（20 秒），请检查 backend\\brain_backend.exe 是否可以运行。",
+                    "脑科研平台",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+            // 开发模式（无打包后端）：正常继续，假设已手动启动
+        }
+
+        // ── 第二步：构建客户端 ──
         var backendEndpoint = new Uri("http://127.0.0.1:8000/");
-        var healthClient = new Infrastructure.Backend.BackendHealthClient(new HttpClient
+        var healthClient = new BackendHealthClient(new HttpClient
         {
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(3),
@@ -69,6 +92,8 @@ public partial class App : Application
         }
         finally
         {
+            // 关闭后端进程（打包模式下）
+            _backendProcess?.Dispose();
             base.OnExit(e);
         }
     }

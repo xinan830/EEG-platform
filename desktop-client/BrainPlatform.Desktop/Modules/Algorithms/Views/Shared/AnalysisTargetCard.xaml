@@ -96,7 +96,7 @@
 
                         <!-- 可用通道 -->
                         <StackPanel Grid.Column="4" VerticalAlignment="Center">
-                            <TextBlock Text="可用通道" FontSize="11.5" Foreground="#64748B" Margin="0,0,0,2" />
+                            <TextBlock Text="可分析导联" FontSize="11.5" Foreground="#64748B" Margin="0,0,0,2" />
                             <TextBlock Text="{Binding RegisteredChannels.Count, FallbackValue='0', TargetNullValue='0'}"
                                        FontSize="14" FontWeight="Bold" Foreground="#0F172A" />
                         </StackPanel>
@@ -118,7 +118,7 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <TextBlock Text="分析通道" FontSize="12" Foreground="#64748B" Margin="0,0,0,6" />
+                    <TextBlock Text="分析导联" FontSize="12" Foreground="#64748B" Margin="0,0,0,6" />
                     <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="140" Height="32"
                               ItemsSource="{Binding RegisteredChannels}"
                               SelectedItem="{Binding SelectedChannel, Mode=TwoWay}" />

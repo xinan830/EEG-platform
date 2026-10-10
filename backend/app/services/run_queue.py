@@ -38,7 +38,13 @@ class PersistentRunQueue:
         self.repository: RunRepository = self.base.repository
         self.repository.recover_interrupted()
 
-    def enqueue(self, request: RunCreateRequest, *, parent_run_id: str | None = None) -> AnalysisRun:
+    def enqueue(
+        self,
+        request: RunCreateRequest,
+        *,
+        parent_run_id: str | None = None,
+        reuse_completed: bool = False,
+    ) -> AnalysisRun:
         if request.preview:
             raise ValueError("definition previews use their dedicated endpoint")
         recording = self.recordings.require_recording(request.recording_id)
@@ -51,6 +57,10 @@ class PersistentRunQueue:
             source_sha256=recording.source_sha256, definition_sha256=resolved["definition_sha256"],
             config_sha256=config_sha256, implementation_build=build, actual_range=resolved["actual_range"],
         )
+        if reuse_completed:
+            cached = self.repository.find_completed_cache(cache_key, request.project_id)
+            if cached is not None and self._cache_artifacts_are_valid(cached):
+                return cached
         now = utc_now()
         run = AnalysisRun(
             run_id=uuid4().hex, recording_id=recording.id, analysis_type=request.analysis_type,
@@ -90,7 +100,7 @@ class PersistentRunQueue:
                 total,
             )
             resolved["execution_context"] = execution_context
-            cached = self.repository.find_completed_cache(run.cache_key)
+            cached = self.repository.find_completed_cache(run.cache_key, run.project_id)
             if cached is not None and cached.run_id != run.run_id:
                 artifact_source_run_id = self.base.resolve_artifact_source_run_id(cached.run_id)
                 execution_context.check_cancelled()
@@ -103,7 +113,12 @@ class PersistentRunQueue:
                 self.repository.update_progress(run.run_id, total, total, stage="persisting", message="正在保存结果")
             if self._is_cancelled(run.run_id):
                 return self.repository.update_status(run.run_id, RunStatus.CANCELLED, actual_range=resolved["actual_range"])
-            artifact = self.base.artifacts.write_npz(run.run_id, run.analysis_type, arrays, unit)
+            structured = result.get("structured") if isinstance(result, dict) else None
+            window_ranges = structured.get("windows") if isinstance(structured, dict) else None
+            artifact = self.base.artifacts.write_npz(
+                run.run_id, run.analysis_type, arrays, unit,
+                window_ranges=window_ranges if isinstance(window_ranges, list) else None,
+            )
             final = self.repository.update_status(run.run_id, RunStatus.COMPLETED, actual_range=resolved["actual_range"],
                                                  result_summary={**result, "artifacts": [artifact.model_dump(mode="json")]})
             if final.status is RunStatus.CANCELLED:
@@ -151,6 +166,17 @@ class PersistentRunQueue:
     def _is_cancelled(self, run_id: str) -> bool:
         current = self.get(run_id)
         return current.cancel_requested or current.status is RunStatus.CANCELLED
+
+    def _cache_artifacts_are_valid(self, run: AnalysisRun) -> bool:
+        artifacts = self.repository.list_artifacts(self.base.resolve_artifact_source_run_id(run.run_id))
+        if not artifacts:
+            return False
+        try:
+            for artifact in artifacts:
+                self.base.artifacts.verify(artifact)
+        except (OSError, ValueError, RuntimeError):
+            return False
+        return True
 
     def _progress_total(self, run: AnalysisRun, recording: Any) -> int | None:
         if run.analysis_type != "official_algorithm":

@@ -42,6 +42,8 @@ def source_context(pair, sfreq):
     class Source:
         def open_sample_reader(self, _recording):
             return ArraySampleReader(pair, sfreq, ["F3", "F4"])
+        def analysis_signal_provenance(self, _recording):
+            return {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}
     recording = SimpleNamespace(id="synthetic", channels=["F3", "F4"],
                                 sfreq=sfreq, duration_s=len(pair) / sfreq)
     return _RecordingAlgorithmContext(Source(), recording)

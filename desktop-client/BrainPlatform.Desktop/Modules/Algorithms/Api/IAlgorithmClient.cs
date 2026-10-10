@@ -10,6 +10,11 @@ public interface IAlgorithmClient
         AnalysisRunRequest request,
         CancellationToken cancellationToken);
 
+    Task<AnalysisRunResponse> EnsureRunAsync(
+        AnalysisRunRequest request,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持结果复用入口。");
+
     Task<AnalysisRunResponse> GetRunAsync(string runId, CancellationToken cancellationToken);
 
     Task<AnalysisRunResponse> CancelRunAsync(string runId, CancellationToken cancellationToken) =>
@@ -21,4 +26,11 @@ public interface IAlgorithmClient
         string runId,
         int maxCells,
         CancellationToken cancellationToken);
+
+    Task<WindowPreviewResponse> GetWindowPreviewAsync(
+        string runId,
+        long? cursorSample,
+        double? cursorSeconds,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持结果窗口读取。");
 }

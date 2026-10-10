@@ -93,16 +93,26 @@ class RecordingService:
         )
         return self.require_recording(recording.id)
 
-    def register_wpf_recording(self, source_directory: str) -> RecordingSummary:
+    def register_wpf_recording(self, source_directory: str, *, signal_mode: str = "raw") -> RecordingSummary:
         facts = inspect_wpf_recording(source_directory)
-        stored_name = f"wpf:{facts.root}"
-        recording_id = f"wpf-{facts.session_id}-{facts.source_sha256[:12]}"
+        if signal_mode not in {"raw", "acquisition_montage"}:
+            raise ValueError("unknown analysis signal mode")
+        derived = signal_mode == "acquisition_montage"
+        view = None
+        if derived:
+            from app.services.acquisition_analysis_signals import read_acquisition_signal_view
+            view = read_acquisition_signal_view(facts.root)
+        stored_name = f"{'wpf-montage' if derived else 'wpf'}:{facts.root}"
+        recording_id = f"{'wpf-montage' if derived else 'wpf'}-{facts.session_id}-{facts.source_sha256[:12]}"
+        import_version = "wpf-acquisition-montage-v1" if derived else "wpf-raw-v1"
+        raw_channels = [item for item in facts.channels if item.stream_index in facts.eeg_indexes]
+        labels = [signal.name for signal in view.signals] if view else [item.label for item in raw_channels]
         with self._connect() as connection:
             # Path identity keeps registration idempotent across hash-version
             # repairs, while the content hash still deduplicates moved copies.
             existing = connection.execute(
-                "SELECT id FROM recordings WHERE source_sha256 = ? OR stored_name = ?",
-                (facts.source_sha256, stored_name),
+                "SELECT id FROM recordings WHERE (source_sha256 = ? AND import_version = ?) OR stored_name = ?",
+                (facts.source_sha256, import_version, stored_name),
             ).fetchone()
             if existing is not None:
                 return self.require_recording(str(existing["id"]))
@@ -115,19 +125,19 @@ class RecordingService:
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (recording_id, facts.root.name, stored_name, ".wpf", facts.recording_start_utc,
                      facts.sampling_rate_hz, facts.duration_s,
-                     json.dumps([item.label for item in facts.channels if item.stream_index in facts.eeg_indexes], ensure_ascii=False),
+                     json.dumps(labels, ensure_ascii=False),
                      facts.source_sha256, sum(path.stat().st_size for path in facts.root.glob("samples-*.bin")),
-                     json.dumps([item.label for item in facts.channels if item.stream_index in facts.eeg_indexes], ensure_ascii=False),
-                     json.dumps([item.label for item in facts.channels if item.stream_index in facts.eeg_indexes], ensure_ascii=False),
-                     json.dumps([item.kind for item in facts.channels if item.stream_index in facts.eeg_indexes]),
-                     json.dumps([item.unit for item in facts.channels if item.stream_index in facts.eeg_indexes]),
-                     "wpf-raw-v1"),
+                     json.dumps([item.label for item in raw_channels], ensure_ascii=False),
+                     json.dumps(labels, ensure_ascii=False),
+                     json.dumps(["eeg"] * len(labels) if derived else [item.kind for item in raw_channels]),
+                     json.dumps(["V"] * len(labels)),
+                     import_version),
                 )
             except sqlite3.IntegrityError:
                 # A concurrent request may win between the SELECT and INSERT.
                 existing = connection.execute(
-                    "SELECT id FROM recordings WHERE source_sha256 = ? OR stored_name = ?",
-                    (facts.source_sha256, stored_name),
+                    "SELECT id FROM recordings WHERE (source_sha256 = ? AND import_version = ?) OR stored_name = ?",
+                    (facts.source_sha256, import_version, stored_name),
                 ).fetchone()
                 if existing is None:
                     raise
@@ -149,6 +159,12 @@ class RecordingService:
 
     def load_data(self, recording: RecordingSummary) -> tuple[object, float, list[str], list[dict[str, object]]]:
         if recording.extension == ".wpf":
+            if recording.stored_name.startswith("wpf-montage:"):
+                reader = self.open_sample_reader(recording)
+                try:
+                    return reader.read(0, reader.sample_count), reader.sfreq, list(reader.names), []
+                finally:
+                    reader.close()
             return load_wpf_data(inspect_wpf_recording(recording.stored_name.removeprefix("wpf:")))
         import mne
 
@@ -184,9 +200,22 @@ class RecordingService:
             data, sfreq, names, _events = self.load_data(recording)
             return ArraySampleReader(data, sfreq, names)
         if recording.extension == ".wpf":
+            if recording.stored_name.startswith("wpf-montage:"):
+                from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader, read_acquisition_signal_view
+                directory = recording.stored_name.removeprefix("wpf-montage:")
+                view = read_acquisition_signal_view(directory)
+                return AcquisitionMontageSampleReader(WpfSampleReader(directory), view)
             return WpfSampleReader(recording.stored_name.removeprefix("wpf:"))
         raw, _sfreq, _names, _events = self.open_data_reader(recording)
         return EdfSampleReader(raw)
+
+    def analysis_signal_provenance(self, recording: RecordingSummary) -> dict:
+        if not hasattr(recording, "stored_name"):
+            recording = self.require_recording(recording.id)
+        if recording.stored_name.startswith("wpf-montage:"):
+            from app.services.acquisition_analysis_signals import read_acquisition_signal_view
+            return read_acquisition_signal_view(recording.stored_name.removeprefix("wpf-montage:")).provenance
+        return {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}
 
     def load_preview_data(
         self,
