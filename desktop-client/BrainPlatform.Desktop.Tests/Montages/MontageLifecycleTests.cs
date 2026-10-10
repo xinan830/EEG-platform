@@ -153,6 +153,23 @@ public sealed class MontageLifecycleTests
     }
 
     [Fact]
+    public async Task PresentBlankSnapshotIsRejectedDuringStrictAcquisitionValidation()
+    {
+        var store = Store();
+        var original = Profile();
+        await store.SaveAsync(original, Token);
+        var metadata = new Dictionary<string, string>
+        {
+            ["montage_configuration_id"] = original.Id,
+            ["montage_configuration_snapshot_json"] = "  ",
+        };
+
+        await Assert.ThrowsAsync<JsonException>(() =>
+            store.RegisterRecordingReferenceAsync(metadata, Token, validateCurrentPreset: true));
+        Assert.Empty(await store.GetReferencedIdsAsync(Token));
+    }
+
+    [Fact]
     public async Task ArchiveKeepsReferencedSnapshotFieldsAndAllowsCopy()
     {
         var store = Store();

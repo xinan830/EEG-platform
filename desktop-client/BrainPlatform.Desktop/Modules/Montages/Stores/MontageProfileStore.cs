@@ -130,13 +130,13 @@ public sealed class MontageProfileStore
         string? recordingDirectory, IReadOnlyList<string>? referenceRoots,
         bool validateCurrentPreset, CancellationToken cancellationToken)
     {
-        var recordingIds = MontageRecordingReferences.ReadIds(metadata);
+        var referenceMetadata = MontageReferenceMetadata.From(metadata);
+        var recordingIds = referenceMetadata.ReadIds();
         if (recordingIds.Count == 0) return;
         var index = await references.LoadAsync(cancellationToken);
-        if (validateCurrentPreset && metadata.TryGetValue("montage_configuration_snapshot_json", out var json))
+        if (validateCurrentPreset && referenceMetadata.HasSnapshot)
         {
-            var snapshot = JsonSerializer.Deserialize<MontageProfile>(json)
-                ?? throw new InvalidOperationException("采集导联快照为空。");
+            var snapshot = referenceMetadata.ReadSnapshot();
             var current = (await ReadProfilesAsync(cancellationToken)).FirstOrDefault(profile => profile.Id == snapshot.Id);
             if (snapshot.Source == MontageProfileSource.User && current is null)
                 throw new InvalidOperationException("采集准备时的导联已删除，请重新选择导联并开始预览。");

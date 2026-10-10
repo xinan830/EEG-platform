@@ -266,6 +266,13 @@ new build and do not delete the index to bypass protection.
 
 See [reference-release acceptance](../validation/2026-10-10-montage-reference-release-report.md).
 
+`MontageReferenceMetadata` owns interpretation of the two montage fields at
+the existing hardware-metadata dictionary boundary. Both the scanner and store
+reuse it; it does not own lifecycle policy or rewrite manifests. Snapshot key
+presence remains separate from its value: blank snapshots are ignored during
+historical ID discovery but rejected during strict acquisition validation when
+a montage ID is present. Nonblank IDs remain exact and case-sensitive.
+
 Device-session status notifications do not represent a new physical device.
 The acquisition workspace compares selected device facts with the last facts
 applied to setup using `DeviceSessionDiscoveryComparer`. An equivalent device

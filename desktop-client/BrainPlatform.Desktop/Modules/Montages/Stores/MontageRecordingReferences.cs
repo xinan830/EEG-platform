@@ -73,7 +73,7 @@ internal sealed class MontageRecordingReferences(string path, ResearchProjectSto
             var metadata = document.RootElement.TryGetProperty("HardwareConfiguration", out var hardware)
                 ? hardware.Deserialize<Dictionary<string, string>>() ?? throw new JsonException("HardwareConfiguration is null.")
                 : new Dictionary<string, string>();
-            var ids = ReadIds(metadata);
+            var ids = MontageReferenceMetadata.From(metadata).ReadIds();
             if (index.Recordings.TryGetValue(directory, out var expected) && !expected.SetEquals(ids))
                 throw new InvalidOperationException("记录导联引用与已登记信息不一致。");
             index.Register(ids, directory);
@@ -105,24 +105,6 @@ internal sealed class MontageRecordingReferences(string path, ResearchProjectSto
 
     private static InvalidOperationException VerificationError(string location, Exception cause) =>
         new($"无法验证历史导联引用：{location}。请检查记录、回收目录或磁盘；暂不允许修改或删除。", cause);
-
-    public static IReadOnlyList<string> ReadIds(IReadOnlyDictionary<string, string> metadata)
-    {
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        if (metadata.TryGetValue("montage_configuration_id", out var id) && !string.IsNullOrWhiteSpace(id)) ids.Add(id);
-        if (metadata.TryGetValue("montage_configuration_snapshot_json", out var json) && !string.IsNullOrWhiteSpace(json))
-        {
-            using var snapshot = JsonDocument.Parse(json);
-            if (!snapshot.RootElement.TryGetProperty("Id", out var identity) ||
-                string.IsNullOrWhiteSpace(identity.GetString()))
-                throw new InvalidOperationException("历史导联快照缺少配置 ID，无法验证引用关系。");
-            var snapshotId = identity.GetString()!;
-            if (ids.Count > 0 && !ids.Contains(snapshotId))
-                throw new InvalidOperationException("导联配置 ID 与历史快照 ID 不一致，无法验证引用关系。");
-            ids.Add(snapshotId);
-        }
-        return ids.ToArray();
-    }
 
     public Task SaveAsync(MontageReferenceIndex index, CancellationToken token) => index.SaveAsync(path, token);
 }
