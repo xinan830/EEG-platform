@@ -3,6 +3,12 @@
   "strong_review_lines": 600,
   "critical_lines": 1000,
   "reviews": {
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/AcquisitionWorkspaceViewModel.cs": {
+      "decision": "split",
+      "max_lines": 1110,
+      "reason": "Existing acquisition composition exceeds 1000 lines. This mapping repair adds only the last-applied device descriptor and an equivalent-device guard, reusing DeviceSessionDiscoveryComparer. Moving lifecycle ownership during this signal-identity fix would increase risk; no DSP or new state machine is added.",
+      "follow_up": "Extract device-backed setup/range selection into a dedicated owner, then move recording-event commands into the existing event workflow boundary in a separate maintenance change. Keep the unique runtime and device session; target a composition file below 400 lines."
+    },
     "backend/app/services/recordings.py": {
       "decision": "keep",
       "max_lines": 490,

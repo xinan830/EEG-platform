@@ -22,6 +22,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     private readonly OperationNotificationCenter? notifications;
     private readonly EventDefinitionService eventDefinitionService;
     private readonly IRecordingRegistrationClient? recordingRegistrationClient;
+    private AcquisitionDeviceDescriptor? appliedSetupDevice;
     private string sdkLibraryPath;
     private string recordingDirectory;
     private int? savedSamplingRateHz;
@@ -853,6 +854,14 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
 
     private void ApplySelectedDevice(AcquisitionDeviceDescriptor? device)
     {
+        // Runtime status notifications must not reload the selected montage's mapping.
+        if (DeviceSessionDiscoveryComparer.AreEquivalent(
+                appliedSetupDevice is null ? [] : [appliedSetupDevice],
+                device is null ? [] : [device]))
+        {
+            return;
+        }
+
         Replace(SamplingRatesHz, device?.SupportedSamplingRatesHz.Order() ?? Enumerable.Empty<int>());
         Replace(ReferenceRangesVolts, device?.ReferenceRangesVolts?.Order() ?? Enumerable.Empty<double>());
         availableBipolarRanges = device?.BipolarRangesVolts?.Order().ToArray() ?? [];
@@ -874,6 +883,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         {
             channelMapping.LoadDevice(device);
             SyncLiveDisplayChannels();
+            appliedSetupDevice = device;
         }
         catch (InvalidDataException exception)
         {

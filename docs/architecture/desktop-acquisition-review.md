@@ -195,6 +195,18 @@ rate, and selected montage. At review time, only show montages compatible with
 the recorded source schema. Switching from a 20-output montage to a 13-output
 montage changes display projection, not the raw channel count.
 
+Device-session status notifications do not represent a new physical device.
+The acquisition workspace compares selected device facts with the last facts
+applied to setup using `DeviceSessionDiscoveryComparer`. An equivalent device
+must not reload legacy/default labels or discard the selected montage's channel
+snapshot during stream setup, preview, recording, pause, resume or stop. A
+confirmed disconnection or actual device/capability change still reloads setup.
+For a snapshot declaring CH3=F88 and CH5=F3, live F88-REF reads CH3 and live
+F3-REF reads CH5; labels are not resolved through an earlier device template.
+
+The synthetic regression and hardware acceptance instructions are recorded in
+[the live mapping validation report](../validation/2026-10-10-live-acquisition-channel-mapping-report.md).
+
 ## 9. Verification checklist
 
 For desktop acquisition changes:

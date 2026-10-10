@@ -15,22 +15,28 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         AcquisitionWorkspaceViewModel acquisition,
         OperationNotificationCenter? notifications = null,
         EventDefinitionService? eventDefinitionService = null,
-        IAlgorithmClient? algorithmClient = null)
+        IAlgorithmClient? algorithmClient = null,
+        ResearchProjectStore? projectStore = null,
+        ChannelConfigurationProfileStore? channelConfigurationStore = null,
+        MontageProfileStore? montageStore = null)
     {
         this.backendHealthClient = backendHealthClient;
         Notifications = notifications ?? new OperationNotificationCenter();
         Acquisition = acquisition;
         Algorithms = algorithmClient ?? throw new ArgumentNullException(nameof(algorithmClient));
-        Projects = new ProjectWorkspaceViewModel(Notifications);
+        Projects = new ProjectWorkspaceViewModel(Notifications, store: projectStore);
         AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects);
         AlgorithmWorkspace = new AlgorithmWorkspaceViewModel(AlgorithmCatalog);
         Overview = new DeviceOverviewViewModel(acquisition.DeviceSession, acquisition);
         ChannelConfigurations = new ChannelConfigurationWorkspaceViewModel(
             acquisition.ChannelMapping,
+            store: channelConfigurationStore,
             deviceSession: acquisition.DeviceSession,
+            montageStore: montageStore,
             notifications: Notifications);
         MontageConfigurations = new MontageConfigurationWorkspaceViewModel(
             ChannelConfigurations,
+            store: montageStore,
             notifications: Notifications);
         EventDefinitions = new EventDefinitionWorkspaceViewModel(
             eventDefinitionService ?? acquisition.EventDefinitionService,
