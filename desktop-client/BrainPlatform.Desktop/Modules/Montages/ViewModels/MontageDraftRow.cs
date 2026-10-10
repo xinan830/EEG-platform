@@ -2,8 +2,7 @@
 namespace BrainPlatform.Desktop.Modules.Montages.ViewModels;
 
 /// <summary>
-/// One fixed source-channel row in a montage editor. Its positive source and
-/// display order belong to the channel configuration and cannot be edited here.
+/// One montage output with a fixed positive source and editable presentation.
 /// </summary>
 public sealed class MontageDraftRow : ObservableObject
 {
@@ -15,6 +14,8 @@ public sealed class MontageDraftRow : ObservableObject
     private string averageReferenceSummary;
     private readonly ChannelConfigurationEntry[] sourceChannels;
     private string[] averageReferenceLabels;
+    private int displayOrder;
+    private string color;
 
     public MontageDraftRow(
         string positiveLabel,
@@ -27,10 +28,12 @@ public sealed class MontageDraftRow : ObservableObject
         string averageReferenceSummary,
         string specifiedPairSummary,
         IReadOnlyList<ChannelConfigurationEntry>? sourceChannels = null,
-        IReadOnlyList<string>? averageReferenceLabels = null)
+        IReadOnlyList<string>? averageReferenceLabels = null,
+        string? color = null)
     {
         PositiveLabel = positiveLabel;
-        DisplayOrder = displayOrder;
+        this.displayOrder = displayOrder;
+        this.color = WaveformTraceColors.Resolve(color, displayOrder);
         availableReferenceLabels = availableNegativeLabels;
         this.negativeKind = negativeKind;
         this.selectedNegativeLabel = selectedNegativeLabel ?? string.Empty;
@@ -43,7 +46,18 @@ public sealed class MontageDraftRow : ObservableObject
 
     public string PositiveLabel { get; }
 
-    public int DisplayOrder { get; }
+    public int DisplayOrder
+    {
+        get => displayOrder;
+        internal set
+        {
+            if (SetProperty(ref displayOrder, value)) RaisePropertyChanged(nameof(DisplayPosition));
+        }
+    }
+
+    public int DisplayPosition => DisplayOrder + 1;
+
+    public string Color { get => color; set => SetProperty(ref color, value); }
 
     public string DeviceInputNumber => ResolveInputNumber(PositiveLabel);
 
@@ -208,7 +222,8 @@ public sealed class MontageDraftRow : ObservableObject
             MontageNegativeKind.SpecifiedPair => SelectedPairLabels,
             _ => [],
         },
-        DisplayOrder);
+        DisplayOrder,
+        RgbColor.Normalize(Color));
 
     private IReadOnlyList<string> SelectedPairLabels =>
         new[] { selectedPairFirstLabel, selectedPairSecondLabel }

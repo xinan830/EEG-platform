@@ -87,6 +87,14 @@ public partial class MontageListView : UserControl
         }
     }
 
+    private async void OnArchiveMontageProfileClick(object sender, RoutedEventArgs e)
+    {
+        SelectMontageProfile(sender);
+        if (DataContext is not DesktopWorkspaceViewModel viewModel) return;
+        try { await viewModel.MontageConfigurations.ArchiveSelectedAsync(); }
+        catch (Exception exception) { viewModel.Notifications.PublishError(exception.Message); }
+    }
+
     private void SelectMontageProfile(object sender)
     {
         if (sender is FrameworkElement element &&

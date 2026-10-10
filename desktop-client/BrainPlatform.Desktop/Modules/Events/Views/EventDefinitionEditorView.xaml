@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:events="clr-namespace:BrainPlatform.Desktop.Modules.Events.Domain"
-             Loaded="OnEditorLoaded" Unloaded="OnEditorUnloaded"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
              Background="#F8FAFC">
 
     <UserControl.Resources>
@@ -125,25 +125,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Color Swatch Button Style -->
-        <Style x:Key="ColorSwatchButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="30" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Margin" Value="0,0,10,0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="BorderThickness" Value="2" />
-            <Setter Property="BorderBrush" Value="#FFFFFF" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="OuterBorder" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="7" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </UserControl.Resources>
 
     <Grid Margin="44,30,44,34">
@@ -339,112 +320,8 @@
                         <!-- Row 4: 颜色 (DraftColor) -->
                         <TextBlock Grid.Row="4" Grid.Column="0" Text="颜色" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,20" />
-                        <WrapPanel Grid.Row="4" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,20">
-                            <!-- Swatches Panel (Named ColorSwatchPanel for code-behind) -->
-                            <StackPanel x:Name="ColorSwatchPanel" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Tag="#DC2626" Background="#DC2626" Click="OnColorClick" Style="{StaticResource ColorSwatchButtonStyle}" ToolTip="红色" />
-                                <Button Tag="#16A34A" Background="#16A34A" Click="OnColorClick" Style="{StaticResource ColorSwatchButtonStyle}" ToolTip="绿色" />
-                                <Button Tag="#2563EB" Background="#2563EB" Click="OnColorClick" Style="{StaticResource ColorSwatchButtonStyle}" ToolTip="蓝色" />
-                                <Button Tag="#EA580C" Background="#EA580C" Click="OnColorClick" Style="{StaticResource ColorSwatchButtonStyle}" ToolTip="橙色" />
-                                <Button Tag="#7C3AED" Background="#7C3AED" Click="OnColorClick" Style="{StaticResource ColorSwatchButtonStyle}" ToolTip="紫色" />
-                                <Button Tag="#06B6D4" Background="#06B6D4" Click="OnColorClick" Style="{StaticResource ColorSwatchButtonStyle}" ToolTip="青色" />
-                                <Button Tag="#EC4899" Background="#EC4899" Click="OnColorClick" Style="{StaticResource ColorSwatchButtonStyle}" ToolTip="粉色" />
-                                <Button Tag="#F59E0B" Background="#F59E0B" Click="OnColorClick" Style="{StaticResource ColorSwatchButtonStyle}" ToolTip="黄色" />
-                                <Button Tag="#0D9488" Background="#0D9488" Click="OnColorClick" Style="{StaticResource ColorSwatchButtonStyle}" ToolTip="墨绿" />
-                            </StackPanel>
-
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <!-- Divider Line -->
-                            <Border Width="1" Height="20" Background="#E2E8F0" Margin="6,0,16,0" VerticalAlignment="Center" />
-
-                            <!-- Preview Label + Swatch -->
-                            <TextBlock Text="预览" Foreground="#64748B" FontSize="15" VerticalAlignment="Center" Margin="0,0,12,0" />
-                            <Border Width="30" Height="30" CornerRadius="8" Background="{Binding DraftColorPreviewBrush}"
-                                    BorderBrush="#E2E8F0" BorderThickness="1" VerticalAlignment="Center" ToolTip="当前颜色预览" />
-
-                            <!-- Custom HEX Input -->
-                            <TextBox Style="{StaticResource FormTextBoxStyle}" Height="40" Width="104"
-                                     Text="{Binding DraftColor, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="14,0,0,0" Padding="10,0" FontSize="13" ToolTip="可输入 #RRGGBB 自定义颜色" />
-                            <Button x:Name="CustomColorButton" Content="更多颜色" Click="OnPickColorClick"
-                                    Height="40" Padding="14,0" Margin="12,0,0,0"
-                                    Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1"
-                                    Foreground="#2563EB" FontSize="13" Cursor="Hand" ToolTip="打开颜色选择器">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}"
-                                                BorderBrush="{TemplateBinding BorderBrush}"
-                                                BorderThickness="{TemplateBinding BorderThickness}"
-                                                CornerRadius="7" Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        </Border>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                            <Popup x:Name="CustomColorPopup" PlacementTarget="{Binding ElementName=CustomColorButton}"
-                                   Placement="Bottom" VerticalOffset="6" StaysOpen="False" AllowsTransparency="True">
-                                <Border Width="292" Background="#FFFFFF" BorderBrush="#CBD5E1"
-                                        BorderThickness="1" CornerRadius="8" Padding="16">
-                                    <Border.Effect>
-                                        <DropShadowEffect Color="#000000" BlurRadius="14" ShadowDepth="3" Opacity="0.15" />
-                                    </Border.Effect>
-                                    <StackPanel>
-                                        <Grid Margin="0,0,0,12">
-                                            <TextBlock Text="自定义颜色" FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="#0F172A" VerticalAlignment="Center" />
-                                            <Border x:Name="PickerColorPreview" Width="34" Height="34"
-                                                    HorizontalAlignment="Right" CornerRadius="6"
-                                                    BorderBrush="#CBD5E1" BorderThickness="1" />
-                                        </Grid>
-                                        <Grid Margin="0,0,0,10">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="22" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="32" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="R" Foreground="#DC2626" VerticalAlignment="Center" />
-                                            <Slider x:Name="RedColorSlider" Grid.Column="1" Minimum="0" Maximum="255"
-                                                    ValueChanged="OnPickerValueChanged" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Value, ElementName=RedColorSlider, StringFormat=F0}"
-                                                       TextAlignment="Right" Foreground="#475569" VerticalAlignment="Center" />
-                                        </Grid>
-                                        <Grid Margin="0,0,0,10">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="22" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="32" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="G" Foreground="#16A34A" VerticalAlignment="Center" />
-                                            <Slider x:Name="GreenColorSlider" Grid.Column="1" Minimum="0" Maximum="255"
-                                                    ValueChanged="OnPickerValueChanged" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Value, ElementName=GreenColorSlider, StringFormat=F0}"
-                                                       TextAlignment="Right" Foreground="#475569" VerticalAlignment="Center" />
-                                        </Grid>
-                                        <Grid Margin="0,0,0,14">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="22" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="32" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="B" Foreground="#2563EB" VerticalAlignment="Center" />
-                                            <Slider x:Name="BlueColorSlider" Grid.Column="1" Minimum="0" Maximum="255"
-                                                    ValueChanged="OnPickerValueChanged" VerticalAlignment="Center" />
-                                            <TextBlock Grid.Column="2" Text="{Binding Value, ElementName=BlueColorSlider, StringFormat=F0}"
-                                                       TextAlignment="Right" Foreground="#475569" VerticalAlignment="Center" />
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                            <Button Content="取消" Click="OnCancelPickerColorClick" Padding="12,5"
-                                                    Margin="0,0,8,0" Background="#FFFFFF" BorderBrush="#CBD5E1"
-                                                    BorderThickness="1" Cursor="Hand" />
-                                            <Button Content="应用颜色" Click="OnApplyPickerColorClick" Padding="12,5"
-                                                    Background="#2563EB" Foreground="#FFFFFF" BorderThickness="0"
-                                                    Cursor="Hand" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Border>
-                            </Popup>
-                            </StackPanel>
-                        </WrapPanel>
+                        <shared:ColorPicker Grid.Row="4" Grid.Column="2" Margin="0,0,0,20"
+                                            SelectedColor="{Binding DraftColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                         <!-- Row 5: 快捷键 (DraftShortcut) -->
                         <TextBlock Grid.Row="5" Grid.Column="0" Text="快捷键" Foreground="#334155" FontSize="15"

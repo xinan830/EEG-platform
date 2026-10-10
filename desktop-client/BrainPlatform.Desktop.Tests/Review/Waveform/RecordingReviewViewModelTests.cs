@@ -28,6 +28,17 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.Equal("测试项目", viewModel.ProjectName);
         Assert.Equal("测试记录", viewModel.RecordingName);
         Assert.Contains(alternate, viewModel.CompatibleViewingMontages);
+        await viewModel.SeekAsync(5);
+        var segments = viewModel.CurrentFrame!.Segments;
+        await viewModel.SelectViewingMontageAsync(alternate);
+        Assert.Same(acquisition, viewModel.AcquisitionMontage);
+        Assert.Same(alternate, viewModel.CurrentViewingMontage);
+        Assert.Equal(5, viewModel.PositionSeconds);
+        Assert.Equal(alternate.Name, viewModel.CurrentFrame?.ViewingMontageName);
+        Assert.Same(segments, viewModel.CurrentFrame!.Segments);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => viewModel.SelectViewingMontageAsync(Profile("不在目录中", configuration)));
+        await viewModel.SelectViewingMontageAsync(acquisition);
+        Assert.Same(acquisition, viewModel.CurrentViewingMontage);
     }
 
     [Fact]
@@ -70,6 +81,7 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.Null(viewModel.CurrentViewingMontage);
         Assert.Equal(1, viewModel.OutputChannelCount);
         Assert.Contains("未记录", viewModel.AcquisitionMontageText);
+        Assert.Contains(currentProfile, viewModel.CompatibleViewingMontages);
     }
 
     [Fact]

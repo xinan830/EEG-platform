@@ -13,9 +13,12 @@ namespace BrainPlatform.Desktop.Modules.Acquisition.Storage;
 public sealed class LocalAcquisitionRawWriterFactory : IAcquisitionRawWriterFactory
 {
     private readonly long maxChunkBytes;
+    private readonly MontageProfileStore montageStore;
 
-    public LocalAcquisitionRawWriterFactory(long maxChunkBytes = 64L * 1024L * 1024L)
+    public LocalAcquisitionRawWriterFactory(long maxChunkBytes = 64L * 1024L * 1024L,
+        MontageProfileStore? montageStore = null)
     {
+        this.montageStore = montageStore ?? new MontageProfileStore();
         this.maxChunkBytes = maxChunkBytes > 0
             ? maxChunkBytes
             : throw new ArgumentOutOfRangeException(nameof(maxChunkBytes));
@@ -35,6 +38,14 @@ public sealed class LocalAcquisitionRawWriterFactory : IAcquisitionRawWriterFact
         var directory = Path.Combine(
             rootDirectory,
             $"{stream.RecordingStartUtc:yyyyMMdd-HHmmss}_{sessionId:N}");
+        return await montageStore.PublishRecordingAsync(stream.HardwareConfiguration, directory,
+            [rootDirectory, Path.Combine(project.DirectoryPath, ".trash", "recordings")],
+            () => PublishAsync(sessionId, stream, project, directory, cancellationToken), cancellationToken);
+    }
+
+    private async Task<IAcquisitionRawWriter> PublishAsync(Guid sessionId, AcquisitionStreamMetadata stream,
+        AcquisitionProjectContext project, string directory, CancellationToken cancellationToken)
+    {
         Directory.CreateDirectory(directory);
 
         var manifestPath = Path.Combine(directory, "manifest.json");

@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
-using System.Windows.Media;
 
 namespace BrainPlatform.Desktop.Modules.Events.ViewModels;
 
@@ -167,20 +166,6 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
 
     public string DraftEnabledText => DraftIsEnabled ? "已启用" : "已停用";
 
-    public Brush DraftColorPreviewBrush
-    {
-        get
-        {
-            try
-            {
-                return new SolidColorBrush((Color)ColorConverter.ConvertFromString(DraftColor)!);
-            }
-            catch (FormatException)
-            {
-                return Brushes.Transparent;
-            }
-        }
-    }
 
     public string DraftSourceText => IsDraftSystemDefinition ? "系统预设" : "用户创建";
 
@@ -207,7 +192,7 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         get => draftColor;
         set
         {
-            if (SetProperty(ref draftColor, value)) RaisePropertyChanged(nameof(DraftColorPreviewBrush));
+            SetProperty(ref draftColor, value);
         }
     }
     public string DraftShortcut { get => draftShortcut; set => SetProperty(ref draftShortcut, value); }
@@ -424,10 +409,6 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         RaisePropertyChanged(nameof(CanDeleteSelected));
     }
 
-    public void SetDraftColor(string color)
-    {
-        if (!string.IsNullOrWhiteSpace(color)) DraftColor = color.Trim();
-    }
 
     private async Task RefreshSelectedDeleteRestrictionAsync(EventDefinition? definition)
     {

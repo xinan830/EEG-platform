@@ -113,9 +113,10 @@ public static class WaveformDisplayFrameBuilder
         }
 
         var resolvedChannels = new List<ResolvedMontageChannel>();
-        foreach (var montageChannel in source.MontageProfile.DerivedChannels
-                     .Where(channel => source.VisibleMontageChannelNames is null || source.VisibleMontageChannelNames.Contains(channel.Name))
-                     .OrderBy(channel => channel.DisplayOrder))
+        foreach (var (montageChannel, outputIndex) in source.MontageProfile.DerivedChannels
+                     .OrderBy(channel => channel.DisplayOrder)
+                     .Select((channel, index) => (channel, index))
+                     .Where(item => source.VisibleMontageChannelNames is null || source.VisibleMontageChannelNames.Contains(item.channel.Name)))
         {
             if (!channelsByLabel.TryGetValue(montageChannel.PositiveLabel, out var positiveIndex))
             {
@@ -135,7 +136,7 @@ public static class WaveformDisplayFrameBuilder
                 ? string.Join(',', negativeIndexes.OrderBy(index => index))
                 : null;
             resolvedChannels.Add(new ResolvedMontageChannel(
-                montageChannel,
+                montageChannel with { Color = WaveformTraceColors.Resolve(montageChannel.Color, outputIndex) },
                 positiveIndex,
                 negativeIndexes,
                 referenceKey));
@@ -152,7 +153,8 @@ public static class WaveformDisplayFrameBuilder
                     spans,
                     bucketSize,
                     filterBoundaries,
-                    CreateMontageValueSelector(channel, referenceCache))))
+                    CreateMontageValueSelector(channel, referenceCache)),
+                channel.Definition.Color))
             .ToArray();
     }
 
@@ -530,7 +532,7 @@ public sealed record WaveformDisplayFrame(
     double PageStartElapsedSeconds,
     IReadOnlyList<WaveformDisplayTrace> Traces);
 
-public sealed record WaveformDisplayTrace(string Label, IReadOnlyList<WaveformDisplayPoint> Points);
+public sealed record WaveformDisplayTrace(string Label, IReadOnlyList<WaveformDisplayPoint> Points, string? Color = null);
 
 public sealed record WaveformDisplayPoint(
     long SampleCounter,

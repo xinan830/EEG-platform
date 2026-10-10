@@ -12,8 +12,9 @@ raw EEG display points; the C# acquisition runtime remains the owner of device
 I/O, raw persistence, counter-gap auditing, and the display ring buffer.
 
 It does not produce mock EEG. Its default adapter cannot discover or open a
-device. An optional ANT/eego adapter can load a locally installed vendor DLL
-from an explicit x64 path; it is never bundled or selected by default. The
+device. The portable release includes the licensed x64 ANT/eego SDK under
+`sdk\eego-SDK.dll`; the adapter uses it automatically when no valid local SDK
+path is saved. A manually selected valid x64 path still takes precedence. The
 client includes serialized lifecycle coordination, sample-counter gap auditing,
 bounded display history, raw chunk persistence, and a bounded analysis bridge.
 It never writes the backend SQLite database directly. After a completed raw
@@ -79,7 +80,17 @@ an installer can be added after manual acceptance.
 
 - The hardware adapter must return the actual opened-stream channel list,
   sampling rate, and sample-counter channel. None are guessed from channel
-  order or a default montage.
+  order or a default montage. Referenced montage profiles are immutable versions;
+  after a recording references one, the editor is read-only and “复制为新配置”
+  creates the next version. Review defaults to the acquisition snapshot and
+  permits only same-channel-ID, scientifically compatible display montages.
+  Preset deletion is blocked by existing recordings, including recoverable
+  `.trash/recordings`. Permanent removal of the last discoverable reference allows
+  deleting the preset (even archived); the historical ID remains non-editable and
+  cannot be reused. There is no automatic recording purge. Reopen the montage list
+  to refresh permissions. Reference-index migration requires the new build;
+  unreadable metadata or unavailable recording disks block verification. See
+  [reference-release acceptance](../docs/validation/2026-10-10-montage-reference-release-report.md).
 - Incoming batches are sample-major `float64` values. Each channel declares
   its unit: EEG is `V`, sample counter is `count`, and trigger is `code`. The
   raw writer persists batches before display buffering or analysis dispatch. It
@@ -94,10 +105,9 @@ an installer can be added after manual acceptance.
 
 ## ANT/eego Installation And Hardware Acceptance
 
-The ANT adapter uses the vendor-published C ABI in a user-installed x64
-`eego-SDK.dll`. Obtain the DLL, driver, and device manual from ANT under the
-applicable license. Do not copy any vendor DLL, SDK header, driver, or example
-project into this repository or the desktop build output.
+The portable release carries the licensed vendor-published x64
+`sdk\eego-SDK.dll`. The USB device driver is separate and still must be
+installed on the target machine according to ANT instructions.
 
 Configure all of the following before selecting the adapter:
 

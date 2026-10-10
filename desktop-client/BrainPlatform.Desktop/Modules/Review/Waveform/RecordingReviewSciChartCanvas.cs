@@ -14,11 +14,6 @@ namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 public sealed partial class RecordingReviewSciChartCanvas : UserControl
 {
     private const int MaximumPointsPerTrace = 2_000;
-    private static readonly Color[] TraceColors =
-    [
-        Color.FromRgb(37, 99, 235), Color.FromRgb(2, 132, 199), Color.FromRgb(22, 163, 74),
-        Color.FromRgb(245, 158, 11), Color.FromRgb(239, 68, 68), Color.FromRgb(147, 51, 234),
-    ];
     private readonly SciChartSurface surface = new();
     private readonly NumericAxis xAxis = new();
     private readonly RecordingTimeLabelProvider recordingTimeLabels = new();
@@ -194,7 +189,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         }
 
         var names = frame.OutputChannelNames.ToArray();
-        EnsureTraceSeries(names);
+        EnsureTraceSeries(names, frame.OutputChannelColors);
         UpdateVisibleRange(viewModel);
         xAxis.InvalidateElement();
         yAxis.VisibleRange = new DoubleRange(0, Math.Max(1, names.Length));
@@ -215,10 +210,14 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         UpdateLifecycleBoundaries(viewModel);
     }
 
-    private void EnsureTraceSeries(IReadOnlyList<string> names)
+    private void EnsureTraceSeries(IReadOnlyList<string> names, IReadOnlyList<string>? colors)
     {
         if (activeLabels.SequenceEqual(names))
         {
+            for (var index = 0; index < names.Count; index++)
+            {
+                surface.RenderableSeries[index].Stroke = WaveformTraceColors.ToColor(colors?.ElementAtOrDefault(index), index);
+            }
             return;
         }
 
@@ -233,7 +232,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             surface.RenderableSeries.Add(new FastLineRenderableSeries
             {
                 DataSeries = data,
-                Stroke = TraceColors[index % TraceColors.Length],
+                Stroke = WaveformTraceColors.ToColor(colors?.ElementAtOrDefault(index), index),
                 StrokeThickness = 1,
             });
             traceSeries.Add(new TraceSeries(data));

@@ -103,7 +103,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public bool HasCompatibleViewingMontages => CompatibleViewingMontages.Count > 0;
 
     public string MontageSelectionHint => HasCompatibleViewingMontages
-        ? "只显示与历史记录科学映射兼容的导联；切换不修改原始记录。"
+        ? "默认使用采集时导联快照；仅可切换同一通道配置且映射兼容的导联，不修改原始记录。"
         : catalog.Incompatible.FirstOrDefault()?.Reason ?? "当前记录没有可用的兼容导联，显示原始通道。";
 
     public ObservableCollection<RecordingEvent> RecordingEvents { get; } = [];
@@ -561,6 +561,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public Task SelectViewingMontageAsync(MontageProfile? montage) =>
         session.SelectViewingMontageAsync(montage, playback.PositionSeconds);
+
+    public void ReportMontageSelectionError(Exception exception) => ReportCommandError(exception);
 
     public void TogglePlayback()
     {

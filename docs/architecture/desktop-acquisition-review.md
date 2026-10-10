@@ -99,8 +99,9 @@ recording contains, at minimum:
 - acquisition channel/montage snapshots used at recording time.
 
 Display filtering, sensitivity, paper speed, and review montage changes must
-never rewrite this raw source. A recorded montage is a provenance snapshot, not
-a promise that later review cannot select another compatible display montage.
+never rewrite this raw source. A recorded montage is an immutable provenance
+snapshot. WPF review defaults to that snapshot; switching a compatible display
+montage never replaces historical provenance or the analysis source.
 
 ## 5. Python boundary
 
@@ -232,9 +233,38 @@ recording stores snapshots and versions, so later edits cannot silently change
 the meaning of an existing recording.
 
 Before acquisition, resolve the actual device stream, channel table, sampling
-rate, and selected montage. At review time, only show montages compatible with
-the recorded source schema. Switching from a 20-output montage to a 13-output
-montage changes display projection, not the raw channel count.
+rate, and selected montage. Persist the complete selected montage snapshot in
+the manifest and mark its profile ID as historically referenced. Persisted
+montage profiles become immutable once referenced: subsequent edits use
+“复制为新配置”, and stale drafts cannot overwrite a referenced ID. Unused user
+profiles remain editable. Deleted, archived or modified preview presets cannot
+start a recording with stale metadata. The review page defaults to the validated
+acquisition snapshot; if it is missing or invalid, it explicitly falls back to
+raw channels. Alternate display montages still require the same channel-profile
+ID and valid source/reference mappings. Locking a preset is not a replacement
+for scientific compatibility checks and does not remove review rereferencing.
+
+Historical edit locks and current deletion locks have different lifetimes.
+`MontageRecordingReferences` verifies project recordings, recoverable
+`.trash/recordings`, retained project roots and registered external locations.
+Existing references prohibit deletion; after the last discoverable reference is
+permanently removed and verification succeeds, the user preset can be deleted,
+even when archived. Its historical ID cannot subsequently be overwritten or
+reused. Normal project deletion moves recordings to trash and therefore does not
+release this protection. No automatic purge or preset deletion is performed.
+
+The adjacent version-2 reference index persists historical IDs, unlocated IDs,
+roots and recording directories. Unknown/no-path registrations remain protected.
+Malformed indices/manifests, inaccessible disks or raw files without their
+registered manifest fail verification rather than silently unlocking. Publication
+and preset mutations share one in-process gate, covering the pre-manifest gap.
+Migration of legacy ID arrays scans known projects/trash; it cannot discover old
+unregistered external copies. Moving a recording outside known roots requires
+opening/registering its new location. Independent concurrent desktop processes
+are not supported; older builds cannot read the version-2 index. Restart into the
+new build and do not delete the index to bypass protection.
+
+See [reference-release acceptance](../validation/2026-10-10-montage-reference-release-report.md).
 
 Device-session status notifications do not represent a new physical device.
 The acquisition workspace compares selected device facts with the last facts
@@ -247,6 +277,36 @@ F3-REF reads CH5; labels are not resolved through an earlier device template.
 
 The synthetic regression and hardware acceptance instructions are recorded in
 [the live mapping validation report](../validation/2026-10-10-live-acquisition-channel-mapping-report.md).
+
+### Montage output appearance
+
+Montage outputs own optional opaque RGB `Color` and `DisplayOrder`. These are
+presentation fields, not native source indexes. `MontageOutputOrder` moves draft
+outputs and renumbers their display positions without changing labels, reference
+dependencies or the bound channel snapshot. Full montage fingerprints include
+explicit colors; legacy no-color fingerprints and strict channel-profile-ID
+compatibility remain unchanged.
+
+`Shared/Controls/ColorPicker` owns preset swatches, HEX entry and local RGB
+preview/apply/cancel. Event and montage editors bind to its `SelectedColor`
+property; business modules do not implement their own picker. The montage editor
+uses compact mode in `MontageOutputTable`, retaining reference selectors while
+omitting the redundant negative-input-number column. System presets remain
+read-only until copied.
+
+Acquisition persists these fields in the existing immutable montage snapshot.
+Live traces and review frames carry the selected snapshot's colors to SciChart;
+the renderer refreshes Stroke even when output names remain unchanged. Review
+defaults to the acquisition snapshot, not the current preset. Outputs without
+explicit colors use the shared eight-color `WaveformTraceColors` palette; hidden
+montage outputs do not renumber that palette. Editing/saving a legacy preset
+materializes its fallback colors so subsequent reordering preserves them.
+
+The raw writer, physical channel mapping, reference formulas, filtering and
+scientific analysis are unchanged. Analysis choices continue to use saved output
+order; a color is never an input to the EEG calculation. Acceptance evidence and
+manual device checks are in
+[the montage appearance report](../validation/2026-10-10-montage-appearance-report.md).
 
 ### Analysis source selection
 

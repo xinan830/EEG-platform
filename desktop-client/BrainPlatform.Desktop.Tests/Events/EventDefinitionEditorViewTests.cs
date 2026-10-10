@@ -1,56 +1,33 @@
-using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using BrainPlatform.Desktop.Shared.Controls;
+using BrainPlatform.Desktop.Tests.Shared;
 
 namespace BrainPlatform.Desktop.Tests.Events;
 
-public sealed class EventDefinitionEditorViewTests
+[Collection("WPF application resources")]
+public sealed class EventDefinitionEditorViewTests(WpfApplicationFixture application)
 {
     [Fact]
-    public void Shortcut_scope_items_can_instantiate_their_data_triggers()
+    public void Shortcut_scope_items_can_instantiate_their_data_triggers() => application.Run(() =>
     {
-        Exception? failure = null;
-        var thread = new Thread(() =>
+        var view = new EventDefinitionEditorView();
+        view.Measure(new Size(1_000, 800));
+        Assert.NotNull(FindVisualChild<ColorPicker>(view));
+        var codeInput = Assert.IsType<TextBox>(view.FindName("EventCodeTextBox"));
+        Assert.True(codeInput.IsReadOnly);
+        var scopeSelector = FindVisualChild<ComboBox>(view);
+        Assert.NotNull(scopeSelector);
+        Assert.NotNull(scopeSelector.ItemTemplate);
+
+        foreach (var scope in new[] { ShortcutScope.Review, ShortcutScope.Global })
         {
-            try
-            {
-                var application = new Application();
-                application.Resources.MergedDictionaries.Add(new ResourceDictionary
-                {
-                    Source = new Uri(
-                        "/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml",
-                        UriKind.RelativeOrAbsolute),
-                });
-
-                var view = new EventDefinitionEditorView();
-                view.Measure(new Size(1_000, 800));
-                var codeInput = Assert.IsType<TextBox>(view.FindName("EventCodeTextBox"));
-                Assert.True(codeInput.IsReadOnly);
-                var scopeSelector = FindVisualChild<ComboBox>(view);
-                Assert.NotNull(scopeSelector);
-                Assert.NotNull(scopeSelector.ItemTemplate);
-
-                foreach (var scope in new[] { ShortcutScope.Review, ShortcutScope.Global })
-                {
-                    var item = Assert.IsType<TextBlock>(scopeSelector.ItemTemplate.LoadContent());
-                    item.DataContext = scope;
-                    item.Measure(new Size(200, 40));
-                }
-
-                application.Shutdown();
-            }
-            catch (Exception exception)
-            {
-                failure = exception;
-            }
-        });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
-
-        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
-    }
+            var item = Assert.IsType<TextBlock>(scopeSelector.ItemTemplate.LoadContent());
+            item.DataContext = scope;
+            item.Measure(new Size(200, 40));
+        }
+    });
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
     {

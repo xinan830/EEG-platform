@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:cfg="clr-namespace:BrainPlatform.Desktop.Modules.Montages.Domain"
+             xmlns:montages="clr-namespace:BrainPlatform.Desktop.Modules.Montages.Views"
              mc:Ignorable="d"
              Background="#F8FAFC">
 
@@ -249,12 +250,12 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
-                                        <TextBlock FontSize="12" FontWeight="Medium">
+                                        <TextBlock Text="{Binding MontageConfigurations.DraftPermissionText}" FontSize="12" FontWeight="Medium">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="可编辑" /><Setter Property="Foreground" Value="#16A34A" />
+                                                    <Setter Property="Foreground" Value="#16A34A" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding MontageConfigurations.CanEditDraft}" Value="False"><Setter Property="Text" Value="系统预设（只读）" /><Setter Property="Foreground" Value="#2563EB" /></DataTrigger>
+                                                        <DataTrigger Binding="{Binding MontageConfigurations.CanEditDraft}" Value="False"><Setter Property="Foreground" Value="#2563EB" /></DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
@@ -327,120 +328,7 @@
 
                         <!-- 表格主体 (表头与每一行使用完全一致的自适应列定义) -->
                         <Border Grid.Row="1" BorderBrush="#E2E8F0" BorderThickness="0,1,0,1">
-                            <Grid>
-                                <Grid.RowDefinitions><RowDefinition Height="40" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-
-                                <!-- 表头 (浅蓝底色 #F4F8FD) -->
-                                <Border Grid.Row="0" Background="#F4F8FD" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
-                                    <Grid Margin="16,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="1.2*" MinWidth="100" />
-                                            <ColumnDefinition Width="0.8*" MinWidth="70" />
-                                            <ColumnDefinition Width="104" />
-                                            <ColumnDefinition Width="1.3*" MinWidth="120" />
-                                            <ColumnDefinition Width="1.8*" MinWidth="170" />
-                                            <ColumnDefinition Width="1.0*" MinWidth="100" />
-                                            <ColumnDefinition Width="64" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="导联名称" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="1" Text="正极输入" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="2" Text="设备输入编号" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                        <TextBlock Grid.Column="3" Text="重参考方式" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="4" Text="负极 / 参考组" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="5" Text="负极输入编号" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                        <TextBlock Grid.Column="6" Text="显示顺序" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                    </Grid>
-                                </Border>
-
-                                <!-- 数据行列表 -->
-                                <ListBox Grid.Row="1" BorderThickness="0" Background="#FFFFFF" ItemsSource="{Binding MontageConfigurations.DraftRows}" IsEnabled="{Binding MontageConfigurations.CanEditDraft}" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                    <ListBox.ItemContainerStyle>
-                                        <Style TargetType="ListBoxItem">
-                                            <Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="BorderThickness" Value="0" /><Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="ListBoxItem">
-                                                        <Border x:Name="RowBd" Background="#FFFFFF" BorderBrush="#F1F5F9" BorderThickness="0,0,0,1"><ContentPresenter /></Border>
-                                                        <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="RowBd" Property="Background" Value="#F8FAFC" /></Trigger></ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Style>
-                                    </ListBox.ItemContainerStyle>
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid Height="48" Margin="16,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="1.2*" MinWidth="100" />
-                                                    <ColumnDefinition Width="0.8*" MinWidth="70" />
-                                                    <ColumnDefinition Width="104" />
-                                                    <ColumnDefinition Width="1.3*" MinWidth="120" />
-                                                    <ColumnDefinition Width="1.8*" MinWidth="170" />
-                                                    <ColumnDefinition Width="1.0*" MinWidth="100" />
-                                                    <ColumnDefinition Width="64" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <!-- 0. 导联名称 -->
-                                                <TextBlock Grid.Column="0" Text="{Binding Name}" ToolTip="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" FontWeight="Bold" FontSize="13" Foreground="#0F172A" VerticalAlignment="Center" />
-
-                                                <!-- 1. 正极输入 (来自通道配置) -->
-                                                <Border Grid.Column="1" Background="#F1F5F9" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding PositiveLabel}" FontSize="12.5" FontWeight="Medium" Foreground="#334155" />
-                                                </Border>
-
-                                                <TextBlock Grid.Column="2" Text="{Binding DeviceInputNumber}" FontSize="13" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" ToolTip="导联绑定快照中的设备输入编号（与通道配置编号一致）" />
-
-                                                <!-- 重参考方式选择框 -->
-                                                <ComboBox Grid.Column="3" Style="{StaticResource AppFilterComboBoxStyle}" Height="32" Margin="0,0,14,0"
-                                                          ItemsSource="{Binding DataContext.MontageConfigurations.NegativeKinds, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                          SelectedValuePath="Kind" SelectedValue="{Binding NegativeKind, Mode=TwoWay}"
-                                                          IsEnabled="{Binding DataContext.MontageConfigurations.CanEditReferenceMode, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                                                    <ComboBox.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding Label}" />
-                                                        </DataTemplate>
-                                                    </ComboBox.ItemTemplate>
-                                                </ComboBox>
-
-                                                <!-- 负极 / 参考组选择 -->
-                                                <!-- 单参考/平均参考/硬件参考模式 -->
-                                                <ComboBox Grid.Column="4" Height="32" Margin="0,0,14,0"
-                                                          ItemsSource="{Binding ReferenceOptions}" SelectedItem="{Binding ReferenceSelection, Mode=TwoWay}" IsEnabled="{Binding IsChannelReference}">
-                                                    <ComboBox.Style>
-                                                        <Style TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                            <Style.Triggers><DataTrigger Binding="{Binding IsSpecifiedPairReference}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
-                                                        </Style>
-                                                    </ComboBox.Style>
-                                                </ComboBox>
-
-                                                <!-- 指定双参考模式 (两个下拉框) -->
-                                                <Grid Grid.Column="4" Margin="0,0,14,0">
-                                                    <Grid.Style>
-                                                        <Style TargetType="Grid">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers><DataTrigger Binding="{Binding IsSpecifiedPairReference}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                                                        </Style>
-                                                    </Grid.Style>
-                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                                    <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Height="32" ItemsSource="{Binding PairFirstOptions}" SelectedItem="{Binding SelectedPairFirstLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="第一参考通道" />
-                                                    <TextBlock Grid.Column="1" Text="+" Margin="6,0" VerticalAlignment="Center" FontWeight="Bold" Foreground="#64748B" />
-                                                    <ComboBox Grid.Column="2" Style="{StaticResource AppFilterComboBoxStyle}" Height="32" ItemsSource="{Binding PairSecondOptions}" SelectedItem="{Binding SelectedPairSecondLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="第二参考通道" />
-                                                </Grid>
-
-                                                <TextBlock Grid.Column="5" Text="{Binding ReferenceInputNumbers}" ToolTip="{Binding ReferenceInputNumbers}" TextTrimming="CharacterEllipsis" TextAlignment="Center" Margin="6,0" FontSize="13" Foreground="#334155" VerticalAlignment="Center" />
-
-                                                <!-- 显示顺序 -->
-                                                <TextBlock Grid.Column="6" Text="{Binding DisplayOrder}" FontSize="12.5" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-
-                                <TextBlock Grid.Row="1" Text="请选择有效的通道配置以加载导联。" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B" FontSize="13">
-                                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding MontageConfigurations.DraftRows.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
-                                </TextBlock>
-                            </Grid>
+                            <montages:MontageOutputTable DataContext="{Binding MontageConfigurations}" />
                         </Border>
 
                         <!-- 底部统计 -->

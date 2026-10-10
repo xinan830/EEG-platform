@@ -26,9 +26,6 @@ public static class MontageValidation
         }
 
         var available = labels.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var expectedOrders = snapshot.Channels
-            .Where(channel => channel.IsSelectedForDisplay && !string.IsNullOrWhiteSpace(channel.ElectrodeLabel))
-            .ToDictionary(channel => channel.ElectrodeLabel.Trim(), channel => channel.DisplayOrder, StringComparer.OrdinalIgnoreCase);
         var allSpecifiedChannels = channels.All(channel => channel.NegativeKind == MontageNegativeKind.Channel);
         var distinctSpecifiedReferences = allSpecifiedChannels
             ? channels.SelectMany(channel => channel.NegativeLabels)
@@ -44,9 +41,9 @@ public static class MontageValidation
         if (!isSparseChannelDerivation)
         {
             var expectedPositiveLabels = isCommonChannelReference
-                ? expectedOrders.Keys.Where(label => !string.Equals(label, commonReference, StringComparison.OrdinalIgnoreCase))
+                ? available.Where(label => !string.Equals(label, commonReference, StringComparison.OrdinalIgnoreCase))
                     .ToHashSet(StringComparer.OrdinalIgnoreCase)
-                : expectedOrders.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                : available;
             var actualPositiveLabels = channels.Select(channel => channel.PositiveLabel.Trim())
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             if (channels.Count != expectedPositiveLabels.Count || !actualPositiveLabels.SetEquals(expectedPositiveLabels))
@@ -69,15 +66,14 @@ public static class MontageValidation
             {
                 throw new InvalidOperationException("每条导联必须有唯一名称。");
             }
-            if (!orders.Add(channel.DisplayOrder))
+            if (channel.DisplayOrder < 0 || !orders.Add(channel.DisplayOrder))
             {
-                throw new InvalidOperationException("导联显示顺序不能重复。");
+                throw new InvalidOperationException("导联显示顺序必须为非负数且不能重复。");
             }
             RequireAvailable(positive, available, "正极");
-            if (!expectedOrders.TryGetValue(positive, out var expectedOrder) ||
-                (!isSparseChannelDerivation && expectedOrder != channel.DisplayOrder))
+            if (!string.IsNullOrWhiteSpace(channel.Color) && !RgbColor.TryParse(channel.Color, out _))
             {
-                throw new InvalidOperationException($"导联“{name}”的源通道或显示顺序与通道配置不一致。");
+                throw new InvalidOperationException($"导联“{name}”的颜色必须为 #RRGGBB 格式。");
             }
 
             var negatives = channel.NegativeLabels.Select(label => label.Trim()).ToArray();

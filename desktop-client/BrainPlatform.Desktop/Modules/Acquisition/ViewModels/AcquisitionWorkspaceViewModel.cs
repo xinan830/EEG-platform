@@ -65,7 +65,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         this.eventDefinitionService = eventDefinitionService ?? new EventDefinitionService(new EventDefinitionStore());
         this.recordingRegistrationClient = recordingRegistrationClient;
         var settings = LoadSettings();
-        sdkLibraryPath = settings.SdkLibraryPath;
+        sdkLibraryPath = AntEegoSdkPathResolver.Resolve(settings.SdkLibraryPath, AppContext.BaseDirectory);
         recordingDirectory = settings.RecordingDirectory;
         savedSamplingRateHz = settings.SamplingRateHz;
         savedReferenceRangeText = settings.ReferenceRangeText;

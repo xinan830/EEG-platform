@@ -274,6 +274,9 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     public bool HasSelectedMontage => montageProfile is not null;
 
+    public IReadOnlyList<string> VisibleChannelColors =>
+        MontageOutputAppearance.ResolveColors(montageProfile, VisibleChannelLabels);
+
     public string CurrentMontageName => montageProfile?.Name ?? "未选择导联配置";
 
     public int MontageOutputChannelCount => MontageChannels.Count;

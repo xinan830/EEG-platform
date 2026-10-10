@@ -1,0 +1,7 @@
+- [x] Inspect existing stores, reference policies, snapshots and pending changes.
+- [x] Record the approved contract, migration and verification plan.
+- [x] Implement referenced-profile immutability and read-only/copy permissions.
+- [x] Keep acquisition snapshot persistence and catalogue deletion semantics explicit.
+- [x] Preserve snapshot-default review and existing compatible montage switching.
+- [x] Add regression tests and update current documentation.
+- [x] Re-run targeted tests, Release build, OpenSpec, size and diff checks after scope correction; retain the full-suite WPF failure limitation.

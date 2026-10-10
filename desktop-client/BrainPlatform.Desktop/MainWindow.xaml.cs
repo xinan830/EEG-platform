@@ -80,12 +80,17 @@ public partial class MainWindow : Window
         SelectNavigation(NavSettingsBtn);
     }
 
-    public void ShowMontageListView()
+    public async void ShowMontageListView()
     {
         SetImmersiveChrome(false);
         montageListView ??= new MontageListView();
         MainContentHost.Content = montageListView;
         SelectNavigation(NavSettingsBtn);
+        if (DataContext is DesktopWorkspaceViewModel workspace)
+        {
+            try { await workspace.MontageConfigurations.RefreshReferencesAsync(); }
+            catch (Exception exception) { workspace.Notifications.PublishError(exception.Message); }
+        }
     }
 
     public void ShowMontageDetailView(bool newProfile = false, bool preserveDraft = false)
@@ -288,6 +293,17 @@ public partial class MainWindow : Window
         var loadedRecording = await LocalRawRecordingReader.OpenAsync(
             recording.RecordingDirectory,
             CancellationToken.None);
+        try
+        {
+            if (DataContext is DesktopWorkspaceViewModel referenceWorkspace)
+                await referenceWorkspace.MontageConfigurations.RegisterRecordingReferenceAsync(
+                    loadedRecording.Manifest.HardwareConfiguration, recording.RecordingDirectory);
+        }
+        catch (Exception exception)
+        {
+            (DataContext as DesktopWorkspaceViewModel)?.Notifications.PublishWarning(
+                $"历史导联引用无法登记，记录仍可查看：{exception.Message}");
+        }
         var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
         var analysisCoordinator = (DataContext as DesktopWorkspaceViewModel) is { } workspace
             ? new ReviewAnalysisCoordinator(new PsdReviewAnalysisProvider(workspace.Algorithms))

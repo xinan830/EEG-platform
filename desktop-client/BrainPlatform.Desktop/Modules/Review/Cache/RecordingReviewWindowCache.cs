@@ -68,7 +68,11 @@ internal sealed class RecordingReviewWindowCache
             }
 
             Touch(frameEntries, entry);
-            frame = entry.Frame;
+            // Equivalent signal projections may belong to differently named presets.
+            var montageName = montage?.Name ?? "原始设备通道";
+            frame = entry.Frame.ViewingMontageName == montageName
+                ? entry.Frame
+                : entry.Frame with { ViewingMontageName = montageName };
             filterUnavailable = entry.FilterUnavailable;
             return true;
         }

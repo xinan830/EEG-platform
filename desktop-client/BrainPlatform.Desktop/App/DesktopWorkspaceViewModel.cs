@@ -23,6 +23,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         this.backendHealthClient = backendHealthClient;
         Notifications = notifications ?? new OperationNotificationCenter();
         Acquisition = acquisition;
+        montageStore ??= new MontageProfileStore(projectStore: projectStore);
         Algorithms = algorithmClient ?? throw new ArgumentNullException(nameof(algorithmClient));
         Projects = new ProjectWorkspaceViewModel(Notifications, store: projectStore);
         AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects, TimeDisplaySettings);

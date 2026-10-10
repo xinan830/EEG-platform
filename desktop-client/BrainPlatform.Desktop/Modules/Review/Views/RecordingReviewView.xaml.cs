@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -10,7 +9,6 @@ namespace BrainPlatform.Desktop.Modules.Review.Views;
 public partial class RecordingReviewView : UserControl
 {
     private readonly DispatcherTimer playbackTimer;
-    private bool updatingControls;
 
     public RecordingReviewView()
     {
@@ -21,7 +19,6 @@ public partial class RecordingReviewView : UserControl
         };
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
-        DataContextChanged += OnDataContextChanged;
     }
 
     private RecordingReviewViewModel? ViewModel => DataContext as RecordingReviewViewModel;
@@ -52,52 +49,14 @@ public partial class RecordingReviewView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (ViewModel is not null)
-        {
-            ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
-            ViewModel.PropertyChanged += OnViewModelPropertyChanged;
-        }
         playbackTimer.Tick += OnPlaybackTimerTick;
         playbackTimer.Start();
-        UpdateControls();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         playbackTimer.Stop();
         playbackTimer.Tick -= OnPlaybackTimerTick;
-        if (ViewModel is not null)
-        {
-            ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        }
-    }
-
-    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (e.OldValue is RecordingReviewViewModel oldViewModel)
-        {
-            oldViewModel.PropertyChanged -= OnViewModelPropertyChanged;
-        }
-
-        if (e.NewValue is RecordingReviewViewModel newViewModel)
-        {
-            newViewModel.PropertyChanged += OnViewModelPropertyChanged;
-        }
-
-        UpdateControls();
-    }
-
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(RecordingReviewViewModel.PositionSeconds)
-            or nameof(RecordingReviewViewModel.DurationSeconds)
-            or nameof(RecordingReviewViewModel.VisibleDurationSeconds)
-            or nameof(RecordingReviewViewModel.ViewportStartSeconds)
-            or nameof(RecordingReviewViewModel.IsPlaying)
-            or nameof(RecordingReviewViewModel.IsCompleted))
-        {
-            UpdateControls();
-        }
     }
 
     private void OnPlaybackTimerTick(object? sender, EventArgs e)
@@ -113,7 +72,6 @@ public partial class RecordingReviewView : UserControl
     private void OnPlayClick(object sender, RoutedEventArgs e)
     {
         ViewModel?.TogglePlayback();
-        UpdateControls();
     }
 
     private void OnPlaybackSpeedClick(object sender, RoutedEventArgs e) => ViewModel?.CyclePlaybackSpeed();
@@ -159,23 +117,21 @@ public partial class RecordingReviewView : UserControl
         }
     }
 
-    private async void OnMontageSelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (updatingControls || ViewModel is null || sender is not ComboBox selector ||
-            selector.SelectedItem is not MontageProfile profile)
-        {
-            return;
-        }
-
-        await ViewModel.SelectViewingMontageAsync(profile);
-    }
-
     private async void OnSeekToEventClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel?.SelectedRecordingEvent is { } item)
         {
             await ViewModel.SeekToEventAsync(item);
         }
+    }
+
+    private async void OnMontageSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel || sender is not ComboBox { SelectedItem: MontageProfile profile } ||
+            ReferenceEquals(profile, viewModel.CurrentViewingMontage)) return;
+
+        try { await viewModel.SelectViewingMontageAsync(profile); }
+        catch (Exception exception) { viewModel.ReportMontageSelectionError(exception); }
     }
 
     private void OnPaperSpeedSelectionChanged(object sender, SelectionChangedEventArgs e) =>
@@ -205,24 +161,5 @@ public partial class RecordingReviewView : UserControl
     {
         (Window.GetWindow(this) as EegSessionWindow)?.Close();
     }
-
-    private void UpdateControls()
-    {
-        if (ViewModel is null || !IsLoaded)
-        {
-            return;
-        }
-
-        updatingControls = true;
-        try
-        {
-            MontageSelector.SelectedItem = ViewModel.CurrentViewingMontage;
-        }
-        finally
-        {
-            updatingControls = false;
-        }
-    }
-
 
 }

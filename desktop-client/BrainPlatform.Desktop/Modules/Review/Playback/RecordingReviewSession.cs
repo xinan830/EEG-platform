@@ -14,7 +14,8 @@ public interface IRecordingReviewReader
 public sealed record RecordingReviewFrame(
     Guid RecordingSessionId, long Revision, int SamplingRateHz, long WindowStartSampleCounter,
     double WindowStartSeconds, double WindowEndSeconds, string ViewingMontageName,
-    IReadOnlyList<ProjectedMontageSegment> Segments, IReadOnlyList<string> OutputChannelNames);
+    IReadOnlyList<ProjectedMontageSegment> Segments, IReadOnlyList<string> OutputChannelNames,
+    IReadOnlyList<string>? OutputChannelColors = null);
 
 /// <summary>
 /// Owns bounded review-window loading. A frame is a cache block; the viewport
@@ -316,7 +317,8 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         return new FrameBuildResult(new RecordingReviewFrame(reader.Manifest.SessionId, 0,
             reader.Manifest.SamplingRateHz, projected.FirstOrDefault()?.FirstSampleCounter ?? 0,
             displayWindow.ActualStartSeconds, displayWindow.ActualEndSeconds,
-            montage?.Name ?? "原始设备通道", projected, outputNames), sourceResult.FilterUnavailable);
+            montage?.Name ?? "原始设备通道", projected, outputNames,
+            MontageOutputAppearance.ResolveColors(montage, outputNames)), sourceResult.FilterUnavailable);
     }
 
     private async Task<SourceBuildResult> LoadDisplaySourceAsync(

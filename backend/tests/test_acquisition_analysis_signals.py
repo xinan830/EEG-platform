@@ -87,6 +87,23 @@ def test_registration_exposes_only_saved_outputs_and_preserves_raw(tmp_path):
     np.testing.assert_array_equal(data, values[:, [1, 0]])
 
 
+def test_output_colors_and_custom_order_do_not_remap_physical_sources(tmp_path):
+    root = tmp_path / "recording"
+    rows = [dict(row("F3", order=1), Color="#112233"),
+            dict(row("F7", order=0), Color="#445566")]
+    values, _ = fixture_recording(root, rows)
+    original = (root / "samples-000001.bin").read_bytes()
+    service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
+    derived = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
+    assert list(derived.channels) == ["F7-REF", "F3-REF"]
+    reader = service.open_sample_reader(derived)
+    try:
+        np.testing.assert_array_equal(reader.read(0, 200), values[:200, [1, 0]])
+    finally:
+        reader.close()
+    assert (root / "samples-000001.bin").read_bytes() == original
+
+
 @pytest.mark.parametrize("kind,negatives", [(1, ("F7",)), (2, ("F3", "F7", "Cz")), (3, ("F7", "Cz"))])
 def test_formula_projects_all_reference_dependencies(tmp_path, kind, negatives):
     root = tmp_path / "recording"

@@ -5,8 +5,8 @@
   "reviews": {
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
-      "max_lines": 430,
-      "reason": "Existing window/session composition; this display change only injects the workspace-owned time preference into review. No additional state machine or numerical work is added."
+      "max_lines": 445,
+      "reason": "Existing window/session composition is 438 lines. It refreshes montage reference permissions on opening settings and registers externally opened historical snapshots before review. Persistence and locking remain in MontageProfileStore; no additional state machine or numerical work is added."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Catalog/AlgorithmListViewModel.Previews.cs": {
       "decision": "split",
@@ -35,19 +35,53 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
       "max_lines": 515,
-      "reason": "Time presentation is separated in a TimeDisplay partial. The playhead's visual style is owned by the focused ReviewPlaybackCursor overlay; the canvas only passes real plot geometry and accepted position. Waveform series, filtering and event/lifecycle rendering are unchanged, and this change does not grow the main canvas.",
+      "reason": "Time and playhead presentation have focused owners. Montage colors arrive with the complete review frame and use the shared RGB/palette policy; the canvas only refreshes Stroke even for unchanged labels. This scoped change preserves sampling, filtering and lifecycle rendering; 506 lines.",
       "follow_up": "Extract event/lifecycle marker rendering into a focused overlay owner before adding further waveform annotation features."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/Views/MontageDetailView.xaml": {
       "decision": "keep",
-      "max_lines": 490,
-      "reason": "This scoped presentation change adds two read-only source-number columns to the existing montage editor, preserving its commands and bindings. No new business responsibility is introduced; table and control-style extraction should be a separate visual maintenance change."
+      "max_lines": 400,
+      "reason": "Output table and color/order presentation are extracted into MontageOutputTable and shared ColorPicker. The remaining 358-line view composes metadata, reference-group controls and save actions."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/ViewModels/MontageConfigurationWorkspaceViewModel.cs": {
       "decision": "split",
-      "max_lines": 900,
-      "reason": "Existing montage catalogue/editor lifecycle is oversized. This display-only change passes the already-owned snapshot and average group to row presentation, without introducing another state owner or altering persistence. Extracting lifecycle behavior during source-identity presentation would broaden regression risk.",
+      "max_lines": 830,
+      "reason": "Existing montage catalogue/editor lifecycle remains oversized at 822 lines. Draft construction is extracted into MontageDraftRowFactory and ordering into MontageOutputOrder; colors live on draft/domain outputs. No raw acquisition, reference math or compatibility ownership is introduced here. Further lifecycle extraction would broaden this presentation change.",
       "follow_up": "Extract catalogue synchronization and draft persistence workflows into dedicated collaborators in a separate maintenance change; preserve the single draft owner and target a composition file below 400 lines."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Waveform/LiveSciChartCanvas.cs": {
+      "decision": "split",
+      "max_lines": 715,
+      "reason": "Existing live renderer remains 707 lines. The change removes its private palette and consumes complete-frame appearance, including same-label Stroke refresh. Shared color policy owns RGB parsing; erase timing and device state remain unchanged.",
+      "follow_up": "Extract live annotation and erase-band visual owners separately before adding more live rendering workflows."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/LiveMonitoringViewModel.cs": {
+      "decision": "split",
+      "max_lines": 645,
+      "reason": "Existing live display selection is 639 lines. A derived color list delegates to MontageOutputAppearance for preview without introducing a second montage owner.",
+      "follow_up": "Extract live source/visibility projection from monitor status coordination in separate acquisition maintenance."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Waveform/WaveformDisplayFrameBuilder.cs": {
+      "decision": "keep",
+      "max_lines": 545,
+      "reason": "One pure bounded display-frame transformation remains 542 lines. Color travels with each already-resolved output; the reference formulas, native source indexes, counter gaps and extrema algorithm are unchanged."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Review/Playback/RecordingReviewSession.cs": {
+      "decision": "split",
+      "max_lines": 565,
+      "reason": "Existing review session remains 557 lines. It attaches appearance to its complete frame from the selected immutable snapshot, including empty windows. Color does not create another loader or state machine.",
+      "follow_up": "Extract bounded frame loading separately from playback target coordination while preserving one revision owner."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventDefinitionEditorView.xaml": {
+      "decision": "split",
+      "max_lines": 520,
+      "reason": "Shared ColorPicker removes the event-specific color template and popup, reducing the view to 516 lines. Remaining event metadata fields and local form styles are unchanged to avoid unrelated visual regressions.",
+      "follow_up": "Extract remaining event form styles into scoped resources during separate event-editor visual maintenance."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Events/ViewModels/EventDefinitionWorkspaceViewModel.cs": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "Event draft/service coordination remains 444 lines; the obsolete WPF brush and color-click wrapper are removed. Color interaction belongs entirely to the shared control, while event save validation remains service-owned."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/AcquisitionWorkspaceViewModel.cs": {
       "decision": "split",

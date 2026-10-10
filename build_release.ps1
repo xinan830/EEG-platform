@@ -8,7 +8,8 @@
 #   storage\            (legacy portable data location; normal install uses %LOCALAPPDATA%)
 
 param(
-    [string]$OutputDirectory = ""
+    [string]$OutputDirectory = "",
+    [string]$SdkSourcePath = ""
 )
 
 Set-StrictMode -Version Latest
@@ -26,11 +27,14 @@ $OutDir        = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     [System.IO.Path]::GetFullPath($OutputDirectory)
 }
 $BackendOutDir = Join-Path $OutDir "backend"
+$SdkOutDir     = Join-Path $OutDir "sdk"
 $StorageOutDir = Join-Path $OutDir "storage"
 
 $VenvPython    = Join-Path $BackendDir ".venv\Scripts\python.exe"
 $EntryScript   = Join-Path $BackendDir "app\server_entry.py"
 $CsprojPath    = Join-Path $DesktopDir "BrainPlatform.Desktop\BrainPlatform.Desktop.csproj"
+$DefaultSdk    = Join-Path $Root "..\ANT-Amplify\Ant SDK\windows\64bit\eego-SDK.dll"
+$SdkPath       = if ([string]::IsNullOrWhiteSpace($SdkSourcePath)) { $DefaultSdk } else { [System.IO.Path]::GetFullPath($SdkSourcePath) }
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -58,6 +62,7 @@ Step "Pre-flight checks"
 Require $VenvPython  "Create venv first: python -m venv backend\.venv then install deps"
 Require $EntryScript "backend\app\server_entry.py is missing"
 Require $CsprojPath  "desktop-client project file not found"
+Require $SdkPath     "Provide -SdkSourcePath with the licensed x64 eego-SDK.dll"
 
 # Check / install PyInstaller into venv
 & $VenvPython -m PyInstaller --version 2>&1 | Out-Null
@@ -76,10 +81,15 @@ Write-Host "Output : $OutDir"     -ForegroundColor Green
 Step "Cleaning previous output"
 if (Test-Path $OutDir) { Remove-Item -Recurse -Force $OutDir }
 New-Item -ItemType Directory -Force -Path $OutDir        | Out-Null
+New-Item -ItemType Directory -Force -Path $SdkOutDir    | Out-Null
 New-Item -ItemType Directory -Force -Path $StorageOutDir | Out-Null
 New-Item -ItemType Directory -Force -Path "$StorageOutDir\recordings" | Out-Null
 New-Item -ItemType Directory -Force -Path "$StorageOutDir\artifacts"  | Out-Null
 Write-Host "Done" -ForegroundColor Green
+
+Step "Copy licensed ANT/eego SDK"
+Copy-Item -LiteralPath $SdkPath -Destination (Join-Path $SdkOutDir "eego-SDK.dll") -Force
+Write-Host "SDK packaged -> $SdkOutDir\eego-SDK.dll" -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
 # Step 1: PyInstaller - package Python backend

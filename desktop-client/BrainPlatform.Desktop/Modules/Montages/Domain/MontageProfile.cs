@@ -38,14 +38,30 @@ public sealed record MontageProfile(
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
     string Fingerprint = "",
-    IReadOnlyList<string>? AverageReferenceLabels = null)
+    IReadOnlyList<string>? AverageReferenceLabels = null,
+    bool IsArchived = false)
 {
     public string SourceLabel => Source == MontageProfileSource.System ? "系统默认" : "我的配置";
 
-    public bool CanDelete => Source == MontageProfileSource.User;
+    [JsonIgnore]
+    public bool IsRecordingReferenced { get; init; }
 
     [JsonIgnore]
-    public bool CanEdit => Source == MontageProfileSource.User;
+    public bool HasRecordingReferences { get; init; }
+
+    [JsonIgnore]
+    public bool CanDelete => Source == MontageProfileSource.User && !HasRecordingReferences;
+
+    [JsonIgnore]
+    public bool CanArchive => Source == MontageProfileSource.User && !IsArchived;
+
+    [JsonIgnore]
+    public bool CanEdit => Source == MontageProfileSource.User && !IsRecordingReferenced && !IsArchived;
+
+    [JsonIgnore]
+    public string EditPermissionText => Source == MontageProfileSource.System ? "系统预设（只读）"
+        : IsRecordingReferenced ? HasRecordingReferences ? "历史记录已引用（只读）" : "历史版本（只读，可删除）"
+        : IsArchived ? "已归档（只读）" : "可编辑";
 
     [JsonIgnore]
     public string OpenActionLabel => CanEdit ? "编辑" : "查看";
@@ -77,9 +93,9 @@ public sealed record MontageProfile(
 
     /// <summary>Short status shown and filtered by the montage list page.</summary>
     [JsonIgnore]
-    public string ListStatusLabel => ChannelSnapshotStatusLabel == "已同步"
-        ? "可用"
-        : ChannelSnapshotStatusLabel;
+    public string ListStatusLabel => IsArchived ? "已归档"
+        : ChannelSnapshotStatusLabel != "已同步" ? ChannelSnapshotStatusLabel
+        : IsRecordingReferenced ? "被引用" : "可用";
 
     [JsonIgnore]
     public string ReferenceSummary => string.Join("、", DerivedChannels
@@ -102,7 +118,8 @@ public sealed record DerivedMontageChannel(
     string PositiveLabel,
     MontageNegativeKind NegativeKind,
     IReadOnlyList<string> NegativeLabels,
-    int DisplayOrder)
+    int DisplayOrder,
+    string? Color = null)
 {
     [JsonIgnore]
     public string FormulaText => MontageDisplay.FormatFormula(PositiveLabel, NegativeKind, NegativeLabels);
@@ -180,6 +197,11 @@ public static class MontageProfileFingerprint
                 .Append(channel.PositiveLabel.Trim().ToUpperInvariant()).Append(':')
                 .Append(channel.NegativeKind).Append(':')
                 .Append(string.Join(',', channel.NegativeLabels.Select(label => label.Trim().ToUpperInvariant())));
+            // Preserve legacy digests when no explicit appearance was saved.
+            if (!string.IsNullOrWhiteSpace(channel.Color))
+            {
+                canonical.Append(":RGB:").Append(RgbColor.Normalize(channel.Color));
+            }
         }
         canonical.Append("|AVG:")
             .Append(string.Join(',', (averageReferenceLabels ?? [])

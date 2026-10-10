@@ -21,11 +21,6 @@ public sealed class LiveSciChartCanvas : UserControl
 {
     private const int MaximumRenderBuckets = 1_000;
     private const double EraseBandDurationSeconds = 0.3d;
-    private static readonly Color[] TraceColors =
-    [
-        Color.FromRgb(37, 99, 235), Color.FromRgb(2, 132, 199), Color.FromRgb(22, 163, 74), Color.FromRgb(245, 158, 11),
-        Color.FromRgb(239, 68, 68), Color.FromRgb(147, 51, 234), Color.FromRgb(71, 85, 105), Color.FromRgb(8, 145, 178),
-    ];
 
     private readonly SciChartSurface surface = new();
     private readonly NumericAxis xAxis = new();
@@ -348,7 +343,8 @@ public sealed class LiveSciChartCanvas : UserControl
             return;
         }
 
-        EnsureTraceSeries(labels.Select(label => new WaveformDisplayTrace(label, [])).ToArray());
+        var colors = monitor!.VisibleChannelColors;
+        EnsureTraceSeries(labels.Select((label, index) => new WaveformDisplayTrace(label, [], colors[index])).ToArray());
         var viewportWidthDips = Math.Max(1d, surface.ActualWidth);
         monitor!.UpdateViewportWidth(viewportWidthDips);
         var windowSeconds = monitor.GetDisplayWindowSeconds(viewportWidthDips);
@@ -571,6 +567,10 @@ public sealed class LiveSciChartCanvas : UserControl
         var labels = traces.Select(trace => trace.Label).ToArray();
         if (activeLabels.SequenceEqual(labels))
         {
+            for (var index = 0; index < traces.Count; index++)
+            {
+                traceSeries[index].Renderable.Stroke = WaveformTraceColors.ToColor(traces[index].Color, index);
+            }
             return;
         }
 
@@ -583,7 +583,7 @@ public sealed class LiveSciChartCanvas : UserControl
             var renderable = new FastLineRenderableSeries
             {
                 DataSeries = data,
-                Stroke = TraceColors[index % TraceColors.Length],
+                Stroke = WaveformTraceColors.ToColor(traces[index].Color, index),
                 StrokeThickness = 1,
             };
             surface.RenderableSeries.Add(renderable);

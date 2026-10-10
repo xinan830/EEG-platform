@@ -21,6 +21,8 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     private string? draftProfileId;
     private DateTimeOffset? draftCreatedAtUtc;
     private bool isReadOnlyDraft;
+    private string draftPermissionText = "可编辑";
+    private IReadOnlySet<string> referencedIds = new HashSet<string>(StringComparer.Ordinal);
     private bool hasSparseOutputTopology;
     private bool isRefreshingChannelConfigurations;
     private readonly SemaphoreSlim refreshGate = new(1, 1);
@@ -40,10 +42,12 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         this.channelConfigurations = channelConfigurations;
         this.store = store ?? new MontageProfileStore();
         this.notifications = notifications ?? new OperationNotificationCenter();
+        OutputOrder = new MontageOutputOrder(DraftRows, () => CanEditDraft);
         this.channelConfigurations.ProfilesChanged += OnChannelConfigurationProfilesChanged;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, ReportCommandError);
         SaveDraftCommand = new AsyncRelayCommand(SaveDraftAsync, ReportCommandError);
         DeleteSelectedCommand = new AsyncRelayCommand(DeleteSelectedAsync, ReportCommandError);
+        ArchiveSelectedCommand = new AsyncRelayCommand(ArchiveSelectedAsync, ReportCommandError);
         ApplyAverageReferenceToAllCommand = new AsyncRelayCommand(
             () => { ApplyAverageReferenceToAll(); return Task.CompletedTask; },
             ReportCommandError);
@@ -68,6 +72,8 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
     public ObservableCollection<MontageDraftRow> DraftRows { get; } = [];
 
+    public MontageOutputOrder OutputOrder { get; }
+
     public ObservableCollection<AverageReferenceChannelOption> AverageReferenceChannels { get; } = [];
 
     public IReadOnlyList<MontageNegativeKindOption> NegativeKinds { get; } =
@@ -81,7 +87,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     public IReadOnlyList<string> SourceFilterOptions { get; } = ["全部来源", "系统默认", "用户创建"];
 
     public IReadOnlyList<string> StatusFilterOptions { get; } =
-        ["全部状态", "可用", "设备不匹配", "来源已修改", "来源已删除", "配置无效"];
+        ["全部状态", "可用", "被引用", "已归档", "设备不匹配", "来源已修改", "来源已删除", "配置无效"];
 
     public IReadOnlyList<string> MontageMethodFilterOptions { get; } =
         ["全部方式", "原始硬件参考", "指定通道", "平均参考", "指定双参考"];
@@ -99,6 +105,8 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     public ICommand SaveDraftCommand { get; }
 
     public ICommand DeleteSelectedCommand { get; }
+
+    public ICommand ArchiveSelectedCommand { get; }
 
     public ICommand ApplyAverageReferenceToAllCommand { get; }
 
@@ -185,6 +193,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
             {
                 RaisePropertyChanged(nameof(CanDeleteSelected));
                 RaisePropertyChanged(nameof(CanCopySelected));
+                RaisePropertyChanged(nameof(CanArchiveSelected));
                 RaisePageCommandStateChanged();
             }
         }
@@ -195,6 +204,8 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     public bool IsEditingExisting => draftProfileId is not null;
 
     public bool CanEditDraft => !isReadOnlyDraft;
+
+    public string DraftPermissionText => draftPermissionText;
 
     public string DraftTitle => CanEditDraft
         ? IsEditingExisting ? "编辑导联配置" : "新建导联配置"
@@ -208,6 +219,8 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     public bool CanDeleteSelected => SelectedProfile?.CanDelete == true;
 
     public bool CanCopySelected => SelectedProfile?.CanCopy == true;
+
+    public bool CanArchiveSelected => SelectedProfile?.CanArchive == true;
 
     public string DraftName { get => draftName; set => SetProperty(ref draftName, value); }
 
@@ -274,6 +287,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     public void BeginNewProfile()
     {
         isReadOnlyDraft = false;
+        draftPermissionText = "可编辑";
         hasSparseOutputTopology = false;
         RefreshAvailableChannelConfigurations();
         SelectedProfile = null;
@@ -299,7 +313,8 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         }
 
         var profile = SelectedProfile;
-        isReadOnlyDraft = profile.Source == MontageProfileSource.System;
+        isReadOnlyDraft = !profile.CanEdit;
+        draftPermissionText = profile.EditPermissionText;
         hasSparseOutputTopology = !HasOneOutputPerConfiguredSource(profile);
         draftProfileId = profile.Source == MontageProfileSource.User ? profile.Id : null;
         draftCreatedAtUtc = profile.Source == MontageProfileSource.User ? profile.CreatedAtUtc : null;
@@ -314,12 +329,12 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         if (isReadOnlyDraft)
         {
             BuildRowsFromExistingProfile(profile);
-            StatusText = "系统默认导联配置仅供查看；如需修改，请使用“复制”。";
+            StatusText = $"{DraftPermissionText}；如需修改，请复制为新配置。";
         }
         else
         {
             BuildEditableRows(profile);
-            StatusText = "源通道和顺序由通道配置固定；本页只编辑重参考规则。";
+            StatusText = "源通道由通道配置固定；可编辑参考规则、颜色和显示顺序。";
         }
         RaiseDraftModePropertiesChanged();
     }
@@ -333,6 +348,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
         var profile = SelectedProfile;
         isReadOnlyDraft = false;
+        draftPermissionText = "可编辑";
         hasSparseOutputTopology = !HasOneOutputPerConfiguredSource(profile);
         draftProfileId = null;
         draftCreatedAtUtc = null;
@@ -380,7 +396,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     {
         if (!CanEditDraft)
         {
-            throw new InvalidOperationException("系统默认导联配置只能查看，不能修改。");
+            throw new InvalidOperationException("此导联配置只读，不能修改；请复制为新配置。");
         }
         var snapshot = DraftChannelConfiguration ?? throw new InvalidOperationException("请选择适用的通道配置。");
         var name = DraftName.Trim();
@@ -472,34 +488,10 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
             ? savedAverageLabels
             : fixedChannels.Select(channel => channel.Item1).ToArray();
         BuildAverageReferenceOptions(fixedChannels.Select(channel => channel.Item1), averageLabels);
-        var previousByPositive = existing?.DerivedChannels
-            .GroupBy(channel => channel.PositiveLabel, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
-            ?? [];
-        DraftRows.Clear();
-        foreach (var (label, order) in fixedChannels)
-        {
-            previousByPositive.TryGetValue(label, out var prior);
-            var kind = prior?.NegativeKind ?? MontageNegativeKind.OriginalHardwareReference;
-            var selectedNegative = kind == MontageNegativeKind.Channel
-                ? prior?.NegativeLabels.SingleOrDefault()
-                : null;
-            var selectedPair = kind == MontageNegativeKind.SpecifiedPair
-                ? prior?.NegativeLabels.Take(2).ToArray() ?? []
-                : [];
-            DraftRows.Add(new MontageDraftRow(
-                label,
-                order,
-                fixedChannels.Select(channel => channel.Item1).ToArray(),
-                kind,
-                selectedNegative,
-                selectedPair.ElementAtOrDefault(0),
-                selectedPair.ElementAtOrDefault(1),
-                AverageReferenceSummary,
-                SpecifiedPairSummary,
-                source.Channels,
-                averageLabels));
-        }
+        var outputs = existing?.DerivedChannels ?? fixedChannels.Select(channel => new DerivedMontageChannel(
+            MontageDisplay.CreateName(channel.Item1, MontageNegativeKind.OriginalHardwareReference, null),
+            channel.Item1, MontageNegativeKind.OriginalHardwareReference, [], channel.DisplayOrder)).ToArray();
+        ReplaceDraftRows(source, outputs, averageLabels);
     }
 
     /// <summary>
@@ -540,23 +532,15 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
             .ToArray();
         var averageLabels = profile.AverageReferenceLabels ?? [];
         BuildAverageReferenceOptions(sourceLabels, averageLabels);
+        ReplaceDraftRows(profile.ChannelConfigurationSnapshot, profile.DerivedChannels, averageLabels);
+    }
+
+    private void ReplaceDraftRows(ChannelConfigurationProfile source,
+        IReadOnlyList<DerivedMontageChannel> outputs, IReadOnlyList<string> averageLabels)
+    {
         DraftRows.Clear();
-        foreach (var channel in profile.DerivedChannels.OrderBy(channel => channel.DisplayOrder))
-        {
-            var negativeLabels = channel.NegativeLabels.Take(2).ToArray();
-            DraftRows.Add(new MontageDraftRow(
-                channel.PositiveLabel,
-                channel.DisplayOrder,
-                sourceLabels,
-                channel.NegativeKind,
-                channel.NegativeKind == MontageNegativeKind.Channel ? negativeLabels.SingleOrDefault() : null,
-                channel.NegativeKind == MontageNegativeKind.SpecifiedPair ? negativeLabels.ElementAtOrDefault(0) : null,
-                channel.NegativeKind == MontageNegativeKind.SpecifiedPair ? negativeLabels.ElementAtOrDefault(1) : null,
-                AverageReferenceSummary,
-                SpecifiedPairSummary,
-                profile.ChannelConfigurationSnapshot.Channels,
-                averageLabels));
-        }
+        foreach (var row in MontageDraftRowFactory.Create(source, outputs, averageLabels,
+                     AverageReferenceSummary, SpecifiedPairSummary)) DraftRows.Add(row);
     }
 
     private void BuildAverageReferenceOptions(IEnumerable<string> sourceLabels, IReadOnlyList<string> selectedLabels)
@@ -621,58 +605,9 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         AvailableChannelConfigurations.Add(snapshot);
     }
 
-    private MontageProfile PrepareSourceStatus(MontageProfile profile)
-    {
-        var snapshotFingerprint = ChannelConfigurationFingerprint.Create(profile.ChannelConfigurationSnapshot);
-        var montageFingerprint = MontageProfileFingerprint.Create(
-            snapshotFingerprint,
-            profile.DerivedChannels,
-            profile.AverageReferenceLabels);
-        if (!string.Equals(snapshotFingerprint, profile.ChannelConfigurationFingerprint, StringComparison.Ordinal) ||
-            !string.Equals(montageFingerprint, profile.Fingerprint, StringComparison.Ordinal))
-        {
-            return profile with
-            {
-                ChannelSnapshotStatusLabel = "配置无效",
-                ChannelSnapshotStatusDetail = "保存的通道快照或导联内容与其指纹不一致，不能作为可信配置使用。",
-            };
-        }
-
-        var currentDeviceSignature = channelConfigurations.CurrentDeviceSignature;
-        if (currentDeviceSignature is not null &&
-            !string.Equals(profile.DeviceSignature, currentDeviceSignature, StringComparison.Ordinal))
-        {
-            return profile with
-            {
-                ChannelSnapshotStatusLabel = "设备不匹配",
-                ChannelSnapshotStatusDetail = "此导联配置绑定的物理通道能力与当前设备不同。",
-            };
-        }
-
-        var source = channelConfigurations.Profiles.FirstOrDefault(candidate =>
-            string.Equals(candidate.Id, profile.ChannelConfigurationSnapshot.Id, StringComparison.Ordinal));
-        if (source is null)
-        {
-            return profile with
-            {
-                ChannelSnapshotStatusLabel = "来源已删除",
-                ChannelSnapshotStatusDetail = "原通道配置已删除；导联仍保留创建时的完整通道快照。",
-            };
-        }
-
-        var currentFingerprint = ChannelConfigurationFingerprint.Create(source);
-        var isCurrent = string.Equals(
-            currentFingerprint,
-            profile.ChannelConfigurationFingerprint,
-            StringComparison.Ordinal);
-        return profile with
-        {
-            ChannelSnapshotStatusLabel = isCurrent ? "已同步" : "来源已修改",
-            ChannelSnapshotStatusDetail = isCurrent
-                ? "导联绑定的通道快照与当前通道配置一致。"
-                : "原通道配置已有未同步修改；此导联继续使用创建时保存的旧快照。",
-        };
-    }
+    private MontageProfile PrepareSourceStatus(MontageProfile profile) => MontageProfileAvailability.Evaluate(
+        profile with { IsRecordingReferenced = referencedIds.Contains(profile.Id) },
+        channelConfigurations.Profiles, channelConfigurations.CurrentDeviceSignature);
 
     private IEnumerable<MontageProfile> CreateSystemProfiles()
     {
@@ -711,6 +646,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         try
         {
             var selectedId = SelectedProfile?.Id;
+            referencedIds = await store.GetReferencedIdsAsync(CancellationToken.None);
             RefreshAvailableChannelConfigurations();
             Profiles.Clear();
             foreach (var profile in CreateSystemProfiles())
@@ -722,13 +658,20 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
                 Profiles.Add(PrepareSourceStatus(profile));
             }
             AvailableForAcquisition.Clear();
-            foreach (var profile in Profiles.Where(profile => profile.ChannelSnapshotStatusLabel == "已同步"))
+            foreach (var profile in Profiles.Where(profile => profile.ChannelSnapshotStatusLabel == "已同步" && !profile.IsArchived))
             {
                 AvailableForAcquisition.Add(profile);
             }
             SelectedProfile = selectedId is null
                 ? Profiles.FirstOrDefault()
                 : Profiles.FirstOrDefault(profile => profile.Id == selectedId);
+            var draftProfile = Profiles.FirstOrDefault(profile => profile.Id == draftProfileId);
+            if (draftProfile is { CanEdit: false })
+            {
+                isReadOnlyDraft = true;
+                draftPermissionText = draftProfile.EditPermissionText;
+                RaiseDraftModePropertiesChanged();
+            }
             RaisePropertyChanged(nameof(ChannelConfigurationFilterOptions));
             if (!ChannelConfigurationFilterOptions.Contains(ChannelConfigurationFilter, StringComparer.OrdinalIgnoreCase))
             {
@@ -747,15 +690,29 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
     public async Task DeleteSelectedAsync()
     {
-        if (SelectedProfile is not { CanDelete: true } profile)
+        if (SelectedProfile is not { Source: MontageProfileSource.User } profile)
         {
-            throw new InvalidOperationException("系统预设导联配置不能删除。");
+            throw new InvalidOperationException("请选择用户创建的导联配置；系统预设不能删除。");
         }
         await store.DeleteAsync(profile.Id, CancellationToken.None);
         SelectedProfile = null;
         await RefreshAsync();
         StatusText = $"已删除导联配置“{profile.Name}”。";
         notifications.PublishSuccess($"已删除导联配置“{profile.Name}”。");
+    }
+
+    public Task RefreshReferencesAsync() => ReloadProfilesAsync();
+
+    public Task RegisterRecordingReferenceAsync(IReadOnlyDictionary<string, string> metadata, string recordingDirectory) =>
+        store.RegisterRecordingReferenceAsync(metadata, CancellationToken.None, recordingDirectory: recordingDirectory);
+
+    public async Task ArchiveSelectedAsync()
+    {
+        var profile = SelectedProfile ?? throw new InvalidOperationException("请先选择导联配置。");
+        await store.ArchiveAsync(profile.Id, CancellationToken.None);
+        await ReloadProfilesAsync();
+        StatusText = $"已归档导联配置“{profile.Name}”，历史快照保持不变。";
+        notifications.PublishSuccess(StatusText);
     }
 
     private void ApplyFilters(bool resetToFirstPage = false)
@@ -831,8 +788,10 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
     private void RaiseDraftModePropertiesChanged()
     {
+        OutputOrder.Refresh();
         RaisePropertyChanged(nameof(IsEditingExisting));
         RaisePropertyChanged(nameof(CanEditDraft));
+        RaisePropertyChanged(nameof(DraftPermissionText));
         RaisePropertyChanged(nameof(CanEditReferenceMode));
         RaisePropertyChanged(nameof(CanApplyOriginalReference));
         RaisePropertyChanged(nameof(CanApplyAverageReference));
