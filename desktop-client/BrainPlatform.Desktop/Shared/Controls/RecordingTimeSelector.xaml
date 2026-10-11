@@ -3,23 +3,29 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <UserControl.Resources>
         <Style x:Key="TimeSegmentStyle" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="#475569" />
-            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="FontSize" Value="11.5" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Segment" Background="Transparent" CornerRadius="3" Padding="10,5">
+                        <Border x:Name="Segment" Background="Transparent" CornerRadius="4" Padding="9,3.5">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Segment" Property="Background" Value="White" />
-                                <Setter Property="Foreground" Value="#0369A1" />
+                                <Setter TargetName="Segment" Property="Background" Value="#FFFFFF" />
+                                <Setter TargetName="Segment" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.08" Color="#000000" />
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="Foreground" Value="#0284C7" />
                                 <Setter Property="FontWeight" Value="SemiBold" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Segment" Property="Background" Value="#E0F2FE" />
+                                <Setter TargetName="Segment" Property="Background" Value="#F8FAFC" />
+                                <Setter Property="Foreground" Value="#0F172A" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
@@ -30,7 +36,7 @@
             </Setter>
         </Style>
     </UserControl.Resources>
-    <Border Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="4" Padding="2">
+    <Border Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="5" Padding="2">
         <StackPanel Orientation="Horizontal">
             <RadioButton Content="记录时间" Style="{StaticResource TimeSegmentStyle}"
                          IsChecked="{Binding IsRecordTime, Mode=TwoWay}" ToolTip="从记录起点开始的秒数" />

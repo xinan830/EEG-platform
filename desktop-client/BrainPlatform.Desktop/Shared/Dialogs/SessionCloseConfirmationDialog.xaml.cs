@@ -29,7 +29,7 @@ public sealed record SessionCloseRequest(string TitleText, string MessageText, s
         "关闭采集");
 
     public static SessionCloseRequest Review { get; } = new(
-        "关闭数据回溯？",
-        "关闭后将停止当前回溯播放并释放已加载的回溯数据。原始记录和派生缓存不会被删除。",
-        "关闭回溯");
+        "当前记录存在未保存的标注内容，是否仍要退出回顾页面？",
+        "退出后未保存的数据将无法恢复。",
+        "确认退出");
 }

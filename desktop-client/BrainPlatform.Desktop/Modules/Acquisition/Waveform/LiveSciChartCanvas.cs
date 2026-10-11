@@ -92,7 +92,8 @@ public sealed class LiveSciChartCanvas : UserControl
 
         WaveformAxisPolicy.ConfigureHorizontalAxis(xAxis, sweepTimeLabels);
         xAxis.TickProvider = wallClockTicks;
-        xAxis.TickTextBrush = new SolidColorBrush(Color.FromRgb(49, 77, 126));
+        xAxis.TickTextBrush = new SolidColorBrush(Color.FromRgb(71, 85, 105));
+        xAxis.FontSize = 11;
         xAxis.MajorGridLineStyle = new Style(typeof(Line))
         {
             Setters = { new Setter(Shape.StrokeProperty, new SolidColorBrush(Color.FromRgb(226, 232, 240))) },
@@ -112,15 +113,21 @@ public sealed class LiveSciChartCanvas : UserControl
 
     private Grid CreateLayout()
     {
-        var layout = new Grid();
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+        var layout = new Grid
+        {
+            Margin = new Thickness(12, 4, 12, 6),
+        };
+        // Compact column with symmetric spacing on both sides of montage labels
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
+        channelLabels.HorizontalAlignment = HorizontalAlignment.Center;
         Grid.SetColumn(channelLabels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
         chartHost.Children.Add(eventMarkers);
         Grid.SetColumn(chartHost, 1);
+        chartHost.Margin = new Thickness(0);
         layout.Children.Add(channelLabels);
         layout.Children.Add(chartHost);
         return layout;
@@ -250,6 +257,11 @@ public sealed class LiveSciChartCanvas : UserControl
     {
         if (result.Failure is not null)
         {
+            if (!result.IsLatest && currentFrame is not null)
+            {
+                return;
+            }
+
             emptyMessage.Text = $"波形显示失败：{result.Failure.Message}";
             emptyMessage.Visibility = Visibility.Visible;
             return;
@@ -257,8 +269,20 @@ public sealed class LiveSciChartCanvas : UserControl
 
         if (result.Frame is not { } frame)
         {
-            currentFrame = null;
-            ShowEmptyState(DataContext as LiveMonitoringViewModel);
+            // A source snapshot can be empty while the device/filter pipeline
+            // is transitioning. Keep the last complete frame visible; the raw
+            // recording remains the source of truth and real gaps are still
+            // represented by NaN segment breaks in a committed frame.
+            if (currentFrame is null)
+            {
+                ShowEmptyState(DataContext as LiveMonitoringViewModel);
+            }
+            return;
+        }
+
+        if (!result.IsLatest && currentFrame is not null &&
+            ShouldRejectOlderFrame(currentFrame, frame))
+        {
             return;
         }
 
@@ -317,6 +341,26 @@ public sealed class LiveSciChartCanvas : UserControl
         {
             UpdateLifecycleBoundaries(frame, DataContext as LiveMonitoringViewModel);
         }
+    }
+
+    private static bool ShouldRejectOlderFrame(
+        WaveformDisplayFrame current,
+        WaveformDisplayFrame candidate)
+    {
+        var currentLabels = current.Traces.Select(trace => trace.Label);
+        var candidateLabels = candidate.Traces.Select(trace => trace.Label);
+        if (!currentLabels.SequenceEqual(candidateLabels, StringComparer.Ordinal))
+        {
+            return false;
+        }
+
+        if (candidate.WindowStartSampleCounter < current.WindowStartSampleCounter)
+        {
+            return true;
+        }
+
+        return candidate.WindowStartSampleCounter == current.WindowStartSampleCounter &&
+            candidate.CursorSeconds + 0.000001d < current.CursorSeconds;
     }
 
     private void ShowEmptyState(LiveMonitoringViewModel? monitor)
@@ -590,7 +634,7 @@ public sealed class LiveSciChartCanvas : UserControl
             traceSeries.Add(new TraceSeries(renderable, data));
         }
 
-        RebuildLabels(labels);
+        RebuildLabels(traces);
     }
 
     private static void UpdateSeries(
@@ -653,21 +697,23 @@ public sealed class LiveSciChartCanvas : UserControl
         series.LastYValues.AddRange(yValues);
     }
 
-    private void RebuildLabels(IReadOnlyList<string> labels)
+    private void RebuildLabels(IReadOnlyList<WaveformDisplayTrace> traces)
     {
         channelLabels.Children.Clear();
         channelLabels.RowDefinitions.Clear();
-        for (var index = 0; index < labels.Count; index++)
+        for (var index = 0; index < traces.Count; index++)
         {
             channelLabels.RowDefinitions.Add(new RowDefinition());
+            var traceColor = WaveformTraceColors.ToColor(traces[index].Color, index);
             var channelLabel = new TextBlock
             {
-                Text = labels[index],
-                Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42)),
-                FontSize = 12,
+                Text = traces[index].Label,
+                Foreground = new SolidColorBrush(traceColor),
+                FontSize = 11.5,
+                FontWeight = FontWeights.Medium,
                 VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(2, 0, 4, 0),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0),
             };
             Grid.SetRow(channelLabel, index);
             channelLabels.Children.Add(channelLabel);

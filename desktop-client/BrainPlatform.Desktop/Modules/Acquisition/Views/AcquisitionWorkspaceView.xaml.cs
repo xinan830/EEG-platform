@@ -12,6 +12,9 @@ public partial class AcquisitionWorkspaceView : UserControl
         InitializeComponent();
     }
 
+    private void OnBackClick(object sender, RoutedEventArgs e) =>
+        (Window.GetWindow(this) as EegSessionWindow)?.Close();
+
     private async void OnFinishRecordingClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not DesktopWorkspaceViewModel workspace)

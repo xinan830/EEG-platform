@@ -108,15 +108,21 @@ internal sealed class LatestWaveformFrameWorker : IDisposable
 
             await dispatcher.InvokeAsync(() =>
             {
+                bool isLatest;
                 lock (gate)
                 {
-                    if (disposed || request.Sequence != latestSequence)
+                    if (disposed)
                     {
                         return;
                     }
+
+                    // A completed frame is still useful when construction is
+                    // slower than the refresh timer. The canvas rejects only
+                    // frames that would move the visible timeline backward.
+                    isLatest = request.Sequence == latestSequence;
                 }
 
-                completed(new WaveformFrameBuildResult(request, frame, preparedSeries, failure));
+                completed(new WaveformFrameBuildResult(request, frame, preparedSeries, failure, isLatest));
             }, DispatcherPriority.Render);
         }
     }
@@ -136,7 +142,8 @@ internal sealed record WaveformFrameBuildResult(
     WaveformFrameBuildRequest Request,
     WaveformDisplayFrame? Frame,
     IReadOnlyList<PreparedWaveformTrace>? PreparedSeries,
-    Exception? Failure);
+    Exception? Failure,
+    bool IsLatest = true);
 
 internal sealed record PreparedWaveformTrace(
     XyDataSeries<double, double> Data,

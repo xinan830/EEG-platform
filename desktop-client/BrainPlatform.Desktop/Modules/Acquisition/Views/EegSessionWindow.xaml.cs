@@ -1,5 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using BrainPlatform.Desktop.Shared.Behaviors;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Views;
 
@@ -40,8 +43,27 @@ public partial class EegSessionWindow : Window
         // bindings. The window overlay uses the shared owner workspace state.
         DataContext = owner.DataContext ?? (content as FrameworkElement)?.DataContext;
         SessionContentHost.Content = content;
+        if (content is FrameworkElement page && EegSessionPresentation.GetMenu(page) is { } menu)
+        {
+            // The caption inherits the owner workspace, but menu commands belong to the page.
+            if (menu.Parent is Panel panel) panel.Children.Remove(menu);
+            else if (menu.Parent is ContentControl contentControl) contentControl.Content = null;
+            else if (menu.Parent is ItemsControl itemsControl) itemsControl.Items.Remove(menu);
+            menu.Visibility = Visibility.Visible;
+            menu.SetBinding(FrameworkElement.DataContextProperty,
+                new Binding(nameof(FrameworkElement.DataContext)) { Source = page });
+            CaptionMenuHost.Content = menu;
+        }
         Closed += OnSessionClosed;
     }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+    private void OnMaximizeClick(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this);
+        else SystemCommands.MaximizeWindow(this);
+    }
+    private void OnCaptionCloseClick(object sender, RoutedEventArgs e) => Close();
 
     /// <summary>For an explicit in-page completion after the runtime has already stopped.</summary>
     public void CloseCompletedSession()

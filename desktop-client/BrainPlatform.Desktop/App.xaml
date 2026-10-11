@@ -12,6 +12,7 @@
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/DialogStyles.xaml" />
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/PaginationStyles.xaml" />
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/ScrollBarStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/InstrumentWorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Application-level fallback keeps ComboBoxItem independent of Popup ancestors. -->

@@ -1,4 +1,5 @@
 <UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView"
+             x:Name="RootReviewView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Views"
@@ -6,7 +7,9 @@
              xmlns:analysis="clr-namespace:BrainPlatform.Desktop.Modules.Review.Views"
              xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
              xmlns:controls="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
-             Background="#F3F5F8" Focusable="True" PreviewKeyDown="OnPreviewKeyDown">
+             xmlns:presentation="clr-namespace:BrainPlatform.Desktop.Shared.Behaviors"
+             Background="#F3F5F8" Focusable="True" PreviewKeyDown="OnPreviewKeyDown"
+             presentation:EegSessionPresentation.Menu="{Binding ElementName=PageMenu}">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -14,26 +17,12 @@
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-            <Style x:Key="ReviewPaperSpeedValueStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsPaperSpeedMode}" Value="False">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
-            <Style x:Key="ReviewTimebaseValueStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsTimebaseMode}" Value="False">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                    </DataTrigger>
-                </Style.Triggers>
-            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-        <Menu Style="{StaticResource AnalysisWorkspaceMenuStyle}">
+        <Menu x:Name="PageMenu" Style="{StaticResource AnalysisWorkspaceMenuStyle}" Visibility="Collapsed">
             <MenuItem Header="项目">
                 <MenuItem Header="返回项目" Click="OnBackClick" />
             </MenuItem>
@@ -55,149 +44,190 @@
             <MenuItem Header="报告" IsEnabled="False" />
             <MenuItem Header="设置" IsEnabled="False" />
         </Menu>
-    <views:EegWorkspaceShell Grid.Row="1" WaveformDataContext="{Binding}"
+    <views:EegWorkspaceShell Grid.Row="1" Style="{StaticResource EegInstrumentShellStyle}" WaveformDataContext="{Binding}"
                              IsImmersiveWaveform="True" IsEdgeToEdgeTopBar="True">
         <views:EegWorkspaceShell.TopBar>
-            <DockPanel LastChildFill="False">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="高通" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <ComboBox Width="82" Style="{StaticResource AppFilterComboBoxStyle}"
-                              SelectedValuePath="Tag" SelectedValue="{Binding HighPassHz, Mode=TwoWay}">
-                        <ComboBoxItem Content="0.01 Hz" Tag="0.01" /><ComboBoxItem Content="0.05 Hz" Tag="0.05" />
-                        <ComboBoxItem Content="0.1 Hz" Tag="0.1" /><ComboBoxItem Content="0.2 Hz" Tag="0.2" />
-                        <ComboBoxItem Content="0.3 Hz" Tag="0.3" /><ComboBoxItem Content="0.4 Hz" Tag="0.4" />
-                        <ComboBoxItem Content="0.5 Hz" Tag="0.5" /><ComboBoxItem Content="0.6 Hz" Tag="0.6" />
-                        <ComboBoxItem Content="0.7 Hz" Tag="0.7" /><ComboBoxItem Content="0.8 Hz" Tag="0.8" />
-                        <ComboBoxItem Content="0.9 Hz" Tag="0.9" />
-                        <ComboBoxItem Content="1 Hz" Tag="1" /><ComboBoxItem Content="1.5 Hz" Tag="1.5" />
-                        <ComboBoxItem Content="2 Hz" Tag="2" /><ComboBoxItem Content="3 Hz" Tag="3" />
-                        <ComboBoxItem Content="5 Hz" Tag="5" /><ComboBoxItem Content="10 Hz" Tag="10" />
-                    </ComboBox>
-                    <TextBlock Text="低通" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
-                    <ComboBox Width="82" Style="{StaticResource AppFilterComboBoxStyle}"
-                              SelectedValuePath="Tag" SelectedValue="{Binding LowPassHz, Mode=TwoWay}">
-                        <ComboBoxItem Content="10 Hz" Tag="10" /><ComboBoxItem Content="20 Hz" Tag="20" />
-                        <ComboBoxItem Content="30 Hz" Tag="30" /><ComboBoxItem Content="40 Hz" Tag="40" />
-                        <ComboBoxItem Content="50 Hz" Tag="50" /><ComboBoxItem Content="60 Hz" Tag="60" />
-                        <ComboBoxItem Content="70 Hz" Tag="70" /><ComboBoxItem Content="80 Hz" Tag="80" />
-                        <ComboBoxItem Content="90 Hz" Tag="90" /><ComboBoxItem Content="100 Hz" Tag="100" />
-                    </ComboBox>
-                    <TextBlock Text="陷波" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
-                    <ComboBox Width="72" Style="{StaticResource AppFilterComboBoxStyle}"
-                              SelectedValuePath="Tag" SelectedValue="{Binding NotchHz, Mode=TwoWay}">
-                        <ComboBoxItem Content="关闭" Tag="0" /><ComboBoxItem Content="50 Hz" Tag="50" /><ComboBoxItem Content="60 Hz" Tag="60" />
-                    </ComboBox>
-                    <TextBlock Text="灵敏度" Foreground="#334155" FontSize="12" VerticalAlignment="Center" Margin="10,0,6,0" />
-                    <ComboBox Width="88" Style="{StaticResource AppFilterComboBoxStyle}"
-                              SelectedValuePath="Tag" SelectedValue="{Binding SensitivityMicrovoltsPerMillimeter, Mode=TwoWay}">
-                        <ComboBoxItem Content="1 µV/mm" Tag="1" /><ComboBoxItem Content="2 µV/mm" Tag="2" />
-                        <ComboBoxItem Content="5 µV/mm" Tag="5" /><ComboBoxItem Content="7 µV/mm" Tag="7" />
-                        <ComboBoxItem Content="10 µV/mm" Tag="10" /><ComboBoxItem Content="15 µV/mm" Tag="15" />
-                        <ComboBoxItem Content="20 µV/mm" Tag="20" /><ComboBoxItem Content="50 µV/mm" Tag="50" />
-                        <ComboBoxItem Content="70 µV/mm" Tag="70" />
-                        <ComboBoxItem Content="100 µV/mm" Tag="100" />
-                    </ComboBox>
-                    <Separator Width="1" Height="30" Background="#E2E8F0" Margin="12,0" />
-                    <TextBlock Text="当前查看导联" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" />
-                    <ComboBox x:Name="MontageSelector" Width="220"
-                              Style="{StaticResource AppFilterComboBoxStyle}"
-                              ItemsSource="{Binding CompatibleViewingMontages}"
-                              SelectedItem="{Binding CurrentViewingMontage, Mode=OneWay}"
-                              IsEnabled="{Binding HasCompatibleViewingMontages}"
-                              ToolTipService.ShowOnDisabled="True"
-                              SelectionChanged="OnMontageSelectionChanged"
-                              ToolTip="{Binding MontageSelectionHint}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /></DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <TextBlock Text="无兼容导联（显示原始通道）" FontSize="12" Foreground="#64748B"
-                               VerticalAlignment="Center" Margin="6,0,0,0" ToolTip="{Binding MontageSelectionHint}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasCompatibleViewingMontages}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <RadioButton Content="走纸速度" GroupName="ReviewHorizontalScale" Foreground="#334155" FontSize="12"
-                                 VerticalAlignment="Center" Margin="10,0,5,0" IsChecked="{Binding IsPaperSpeedMode, Mode=TwoWay}"
-                                 ToolTip="名义纸速输入；真实物理毫米需要工作站校准。" />
-                    <ComboBox Width="82" Style="{StaticResource ReviewPaperSpeedValueStyle}"
-                              IsEnabled="{Binding IsPaperSpeedMode}" SelectedValuePath="Tag"
-                              SelectionChanged="OnPaperSpeedSelectionChanged"
-                              SelectedValue="{Binding PaperSpeedMillimetersPerSecond, Mode=TwoWay}">
-                        <ComboBoxItem Content="5 mm/s" Tag="5" /><ComboBoxItem Content="10 mm/s" Tag="10" />
-                        <ComboBoxItem Content="15 mm/s" Tag="15" /><ComboBoxItem Content="30 mm/s" Tag="30" />
-                        <ComboBoxItem Content="60 mm/s" Tag="60" />
-                    </ComboBox>
-                    <RadioButton Content="时间基" GroupName="ReviewHorizontalScale" Foreground="#334155" FontSize="12"
-                                 VerticalAlignment="Center" Margin="10,0,5,0" IsChecked="{Binding IsTimebaseMode, Mode=TwoWay}"
-                                 ToolTip="秒/屏输入，直接控制当前回溯窗口长度。" />
-                    <ComboBox Width="74" Style="{StaticResource ReviewTimebaseValueStyle}"
-                              IsEnabled="{Binding IsTimebaseMode}" SelectedValuePath="Tag"
-                              SelectionChanged="OnTimebaseSelectionChanged"
-                              SelectedValue="{Binding TimebaseSecondsPerScreen, Mode=TwoWay}">
-                        <ComboBoxItem Content="5 s/屏" Tag="5" /><ComboBoxItem Content="10 s/屏" Tag="10" />
-                        <ComboBoxItem Content="15 s/屏" Tag="15" /><ComboBoxItem Content="20 s/屏" Tag="20" />
-                        <ComboBoxItem Content="30 s/屏" Tag="30" />
-                    </ComboBox>
-                    <TextBlock Text="采样率" Foreground="#334155" FontSize="13" VerticalAlignment="Center" Margin="14,0,8,0" />
-                    <TextBlock Text="{Binding SamplingRateHz, Mode=OneWay, StringFormat={}{0} Hz}"
-                               FontSize="12" FontWeight="SemiBold" Foreground="#334155" VerticalAlignment="Center" />
-                    <ComboBox Width="150" Margin="14,0,0,0" Style="{StaticResource AppFilterComboBoxStyle}"
-                              ItemsSource="{Binding RecordingEventOptions}"
-                              SelectedValuePath="Event"
-                              SelectedValue="{Binding SelectedRecordingEvent, Mode=TwoWay}"
-                              ToolTip="选择历史事件并跳转；钟表时间根据记录起始时间估算">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding DisplayText}" ToolTip="{Binding DetailText}"
-                                           TextTrimming="CharacterEllipsis" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <Button Content="跳转事件" Click="OnSeekToEventClick" Margin="6,0,0,0" Padding="9,4"
-                            ToolTip="跳转到选中的历史事件" />
-                    <ComboBox Width="112" Margin="8,0,0,0" Style="{StaticResource AppFilterComboBoxStyle}"
-                              ItemsSource="{Binding EnabledEventDefinitions}"
-                              SelectedValuePath="Id"
-                              SelectedValue="{Binding SelectedEventDefinitionId, Mode=TwoWay}"
-                              ToolTip="选择要在当前位置标记的事件类型">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <Button Content="标记" Command="{Binding MarkSelectedEventCommand}" Margin="6,0,0,0" Padding="9,4"
-                            ToolTip="在当前回溯位置添加人工事件标记" />
-                    <Button Content="删除事件" Command="{Binding DeleteSelectedEventCommand}" Margin="6,0,0,0" Padding="9,4"
-                            IsEnabled="{Binding CanEditSelectedEvent}"
-                            ToolTip="仅可删除人工创建的事件标记" />
-                    <Button Content="编辑事件" Command="{Binding OpenEventEditorCommand}" Margin="6,0,0,0" Padding="9,4"
-                            ToolTip="编辑人工事件的时间范围和备注" />
-                </StackPanel>
+            <Grid Background="#FFFFFF">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                <Border DockPanel.Dock="Right" Margin="12,0,0,0" Padding="10,6" Background="#EFF6FF"
-                        BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="5"
-                        ToolTip="当前回溯记录所属项目与记录名称">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="项目：" FontSize="12" Foreground="#64748B" />
-                        <TextBlock Text="{Binding ProjectName, Mode=OneWay}"
-                                   MaxWidth="130" FontSize="12" FontWeight="SemiBold" Foreground="#1D4ED8"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text=" / " FontSize="12" Foreground="#94A3B8" />
-                        <TextBlock Text="{Binding RecordingName, Mode=OneWay}"
-                                   MaxWidth="150" FontSize="12" FontWeight="SemiBold" Foreground="#1D4ED8"
-                                   TextTrimming="CharacterEllipsis" />
+                <!-- 1. 功能按钮 Ribbon 栏 (白色背景，底部分割线，上图下字按钮) -->
+                <Border Grid.Row="0" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="12,6" Background="#FFFFFF">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <controls:EegToolButton Content="波形浏览" Glyph="&#xE9D9;" ToolTip="浏览连续脑电波形" />
+                        <controls:EegToolButton Content="标注" Glyph="&#xE70F;" Style="{StaticResource EegActiveToolButtonStyle}"
+                                                Command="{Binding MarkSelectedEventCommand}"
+                                                IsEnabled="{Binding CanEditSelectedEvent}"
+                                                ToolTip="在当前位置添加人工事件标记" />
+                        <controls:EegToolButton Content="测量" Glyph="&#xED5E;" ToolTip="测量波幅与周期" />
+                        <controls:EegToolButton Content="频谱分析" Glyph="&#xE7C4;" Command="{Binding OpenPsdAnalysisCommand}"
+                                                ToolTip="打开功率谱密度（PSD）分析面板" />
+                        <controls:EegToolButton Content="时频分析" Glyph="&#xF0E2;" ToolTip="时频联合分析 (TF)" />
+                        <controls:EegToolButton Content="事件列表" Glyph="&#xE8FD;" Click="OnSeekToEventClick" ToolTip="跳转或查看事件" />
+                        <controls:EegToolButton Content="数据信息" Glyph="&#xE946;" Click="OnToggleDataInfoClick" ToolTip="查看记录与数据信息" />
+                        <controls:EegToolButton Content="导出" Glyph="&#xE896;" ToolTip="导出当前段数据/EDF" />
+                        <controls:EegToolButton Content="报告" Glyph="&#xE8A5;" ToolTip="生成脑电检测报告" />
                     </StackPanel>
                 </Border>
-            </DockPanel>
+                <!-- 2. 参数控制栏 (浅底边框凹槽参数框 + 右侧记录状态与项目标签) -->
+                <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="12,6">
+                    <DockPanel LastChildFill="False">
+                        <!-- 左侧：参数字段群组 -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- 高通 -->
+                            <controls:EegParameterField Header="高通" MinWidth="86">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding HighPassHz, Mode=TwoWay}">
+                                    <ComboBoxItem Content="0.01 Hz" Tag="0.01" /><ComboBoxItem Content="0.05 Hz" Tag="0.05" />
+                                    <ComboBoxItem Content="0.1 Hz" Tag="0.1" /><ComboBoxItem Content="0.2 Hz" Tag="0.2" />
+                                    <ComboBoxItem Content="0.3 Hz" Tag="0.3" /><ComboBoxItem Content="0.4 Hz" Tag="0.4" />
+                                    <ComboBoxItem Content="0.5 Hz" Tag="0.5" /><ComboBoxItem Content="0.6 Hz" Tag="0.6" />
+                                    <ComboBoxItem Content="0.7 Hz" Tag="0.7" /><ComboBoxItem Content="0.8 Hz" Tag="0.8" />
+                                    <ComboBoxItem Content="0.9 Hz" Tag="0.9" />
+                                    <ComboBoxItem Content="1 Hz" Tag="1" /><ComboBoxItem Content="1.5 Hz" Tag="1.5" />
+                                    <ComboBoxItem Content="2 Hz" Tag="2" /><ComboBoxItem Content="3 Hz" Tag="3" />
+                                    <ComboBoxItem Content="5 Hz" Tag="5" /><ComboBoxItem Content="10 Hz" Tag="10" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 低通 -->
+                            <controls:EegParameterField Header="低通" MinWidth="86">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding LowPassHz, Mode=TwoWay}">
+                                    <ComboBoxItem Content="10 Hz" Tag="10" /><ComboBoxItem Content="20 Hz" Tag="20" />
+                                    <ComboBoxItem Content="30 Hz" Tag="30" /><ComboBoxItem Content="40 Hz" Tag="40" />
+                                    <ComboBoxItem Content="50 Hz" Tag="50" /><ComboBoxItem Content="60 Hz" Tag="60" />
+                                    <ComboBoxItem Content="70 Hz" Tag="70" /><ComboBoxItem Content="80 Hz" Tag="80" />
+                                    <ComboBoxItem Content="90 Hz" Tag="90" /><ComboBoxItem Content="100 Hz" Tag="100" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 陷波 -->
+                            <controls:EegParameterField Header="陷波" MinWidth="78">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding NotchHz, Mode=TwoWay}">
+                                    <ComboBoxItem Content="关闭" Tag="0" /><ComboBoxItem Content="50 Hz" Tag="50" /><ComboBoxItem Content="60 Hz" Tag="60" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 灵敏度 -->
+                            <controls:EegParameterField Header="灵敏度" MinWidth="94">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding SensitivityMicrovoltsPerMillimeter, Mode=TwoWay}">
+                                    <ComboBoxItem Content="1 µV/mm" Tag="1" /><ComboBoxItem Content="2 µV/mm" Tag="2" />
+                                    <ComboBoxItem Content="5 µV/mm" Tag="5" /><ComboBoxItem Content="7 µV/mm" Tag="7" />
+                                    <ComboBoxItem Content="10 µV/mm" Tag="10" /><ComboBoxItem Content="15 µV/mm" Tag="15" />
+                                    <ComboBoxItem Content="20 µV/mm" Tag="20" /><ComboBoxItem Content="50 µV/mm" Tag="50" />
+                                    <ComboBoxItem Content="70 µV/mm" Tag="70" />
+                                    <ComboBoxItem Content="100 µV/mm" Tag="100" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 走纸速度 -->
+                            <controls:EegParameterField MinWidth="92">
+                                <controls:EegParameterField.Header>
+                                    <RadioButton Content="走纸速度" GroupName="ReviewHorizontalScale"
+                                                 IsChecked="{Binding IsPaperSpeedMode, Mode=TwoWay}"
+                                                 Style="{StaticResource EegParameterFieldRadioHeaderStyle}"
+                                                 ToolTip="名义纸速输入；真实物理毫米需要工作站校准。" />
+                                </controls:EegParameterField.Header>
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          IsEnabled="{Binding IsPaperSpeedMode}" SelectedValuePath="Tag"
+                                          SelectionChanged="OnPaperSpeedSelectionChanged"
+                                          SelectedValue="{Binding PaperSpeedMillimetersPerSecond, Mode=TwoWay}">
+                                    <ComboBoxItem Content="5 mm/s" Tag="5" /><ComboBoxItem Content="10 mm/s" Tag="10" />
+                                    <ComboBoxItem Content="15 mm/s" Tag="15" /><ComboBoxItem Content="30 mm/s" Tag="30" />
+                                    <ComboBoxItem Content="60 mm/s" Tag="60" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 时间基 -->
+                            <controls:EegParameterField MinWidth="86">
+                                <controls:EegParameterField.Header>
+                                    <RadioButton Content="时间基" GroupName="ReviewHorizontalScale"
+                                                 IsChecked="{Binding IsTimebaseMode, Mode=TwoWay}"
+                                                 Style="{StaticResource EegParameterFieldRadioHeaderStyle}"
+                                                 ToolTip="秒/屏输入，直接控制当前回溯窗口长度。" />
+                                </controls:EegParameterField.Header>
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          IsEnabled="{Binding IsTimebaseMode}" SelectedValuePath="Tag"
+                                          SelectionChanged="OnTimebaseSelectionChanged"
+                                          SelectedValue="{Binding TimebaseSecondsPerScreen, Mode=TwoWay}">
+                                    <ComboBoxItem Content="5 s/屏" Tag="5" /><ComboBoxItem Content="10 s/屏" Tag="10" />
+                                    <ComboBoxItem Content="15 s/屏" Tag="15" /><ComboBoxItem Content="20 s/屏" Tag="20" />
+                                    <ComboBoxItem Content="30 s/屏" Tag="30" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 查看导联 -->
+                            <controls:EegParameterField Header="导联配置" MinWidth="170">
+                                <ComboBox x:Name="MontageSelector"
+                                          Style="{StaticResource EegParameterComboBoxStyle}"
+                                          ItemsSource="{Binding CompatibleViewingMontages}"
+                                          SelectedItem="{Binding CurrentViewingMontage, Mode=OneWay}"
+                                          IsEnabled="{Binding HasCompatibleViewingMontages}"
+                                          ToolTipService.ShowOnDisabled="True"
+                                          SelectionChanged="OnMontageSelectionChanged"
+                                          ToolTip="{Binding MontageSelectionHint}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /></DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <TextBlock Text="无兼容导联" FontSize="11" Foreground="#94A3B8"
+                                       VerticalAlignment="Center" Margin="2,0,8,0" ToolTip="{Binding MontageSelectionHint}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasCompatibleViewingMontages}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <!-- 事件操作辅助组 -->
+                            <ComboBox Width="130" Margin="4,0,4,0" Style="{StaticResource AppFilterComboBoxStyle}"
+                                      ItemsSource="{Binding RecordingEventOptions}"
+                                      SelectedValuePath="Event"
+                                      SelectedValue="{Binding SelectedRecordingEvent, Mode=TwoWay}"
+                                      ToolTip="选择历史事件并跳转">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayText}" ToolTip="{Binding DetailText}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Content="跳转" Click="OnSeekToEventClick" Margin="2,0,4,0" Padding="8,4"
+                                    Style="{StaticResource EegInstrumentButtonStyle}" ToolTip="跳转到选中的历史事件" />
+
+                            <ComboBox Width="100" Margin="4,0,4,0" Style="{StaticResource AppFilterComboBoxStyle}"
+                                      ItemsSource="{Binding EnabledEventDefinitions}"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding SelectedEventDefinitionId, Mode=TwoWay}"
+                                      ToolTip="选择要在当前位置标记的事件类型">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Content="标记" Command="{Binding MarkSelectedEventCommand}" Margin="2,0,4,0" Padding="8,4"
+                                    Style="{StaticResource EegInstrumentPrimaryButtonStyle}" ToolTip="在当前回溯位置添加人工事件标记" />
+                            <Button Content="删除" Command="{Binding DeleteSelectedEventCommand}" Margin="2,0,4,0" Padding="8,4"
+                                    Style="{StaticResource EegInstrumentButtonStyle}" IsEnabled="{Binding CanEditSelectedEvent}" ToolTip="仅可删除人工事件标记" />
+                            <Button Content="编辑" Command="{Binding OpenEventEditorCommand}" Margin="2,0,4,0" Padding="8,4"
+                                    Style="{StaticResource EegInstrumentButtonStyle}" ToolTip="编辑人工事件的时间范围和备注" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </Grid>
         </views:EegWorkspaceShell.TopBar>
 
         <views:EegWorkspaceShell.Waveform>
@@ -235,59 +265,180 @@
                     </StackPanel>
                 </Border>
             </Popup>
+
+            <!-- 数据信息弹窗 -->
+            <Popup IsOpen="{Binding IsDataInfoOpen, ElementName=RootReviewView}"
+                   Placement="Center" StaysOpen="True" AllowsTransparency="True">
+                <Border Width="460" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="24,20,24,22">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.14" Color="#000000" />
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Header Bar -->
+                        <Grid Grid.Row="0" Margin="0,0,0,16">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="16" Foreground="#2563EB" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="数据信息" FontSize="17" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button Style="{StaticResource ModernCloseCrossButtonStyle}"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    ToolTip="关闭"
+                                    Click="OnCloseDataInfoClick" />
+                        </Grid>
+
+                        <!-- Content Grid -->
+                        <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16,14">
+                            <Grid Grid.IsSharedSizeScope="True">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="10" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="ReviewInfoLabelCol" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 所属项目 -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="所属项目" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ProjectName}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                                <!-- 记录名称 -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="记录名称" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding RecordingName}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                                <!-- 采样率 -->
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="采样率" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding SamplingRateHz, StringFormat={}{0} Hz}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" />
+
+                                <!-- 通道数量 -->
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="通道数" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <StackPanel Grid.Row="6" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="原始 " Foreground="#64748B" FontSize="13" />
+                                    <TextBlock Text="{Binding SourceChannelCount}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13" />
+                                    <TextBlock Text=" 通道 / 当前显示 " Foreground="#64748B" FontSize="13" />
+                                    <TextBlock Text="{Binding OutputChannelCount}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13" />
+                                    <TextBlock Text=" 通道" Foreground="#64748B" FontSize="13" />
+                                </StackPanel>
+
+                                <!-- 当前导联 -->
+                                <TextBlock Grid.Row="8" Grid.Column="0" Text="当前导联" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="8" Grid.Column="2" Text="{Binding CurrentViewingMontage.Name, TargetNullValue=原始导联}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                                <!-- 采集时间 -->
+                                <TextBlock Grid.Row="10" Grid.Column="0" Text="采集时间" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="10" Grid.Column="2" Text="{Binding RecordingStartUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Foreground="#0F172A" FontSize="13" VerticalAlignment="Center" />
+
+                                <!-- 时间范围 -->
+                                <TextBlock Grid.Row="12" Grid.Column="0" Text="时间范围" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="12" Grid.Column="2" Text="{Binding RecordingClockRangeText}" Foreground="#334155" FontSize="12.5" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Footer -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                            <Button Content="关闭" Style="{StaticResource EegInstrumentPrimaryButtonStyle}" Padding="20,6" Click="OnCloseDataInfoClick" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Popup>
             </Grid>
         </views:EegWorkspaceShell.Overlay>
 
         <views:EegWorkspaceShell.BottomBar>
-            <Grid>
+            <Grid Height="34">
                 <Grid.ColumnDefinitions>
+                    <!-- 左侧：播控按钮 -->
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
+                    <!-- 当前时间：固定列宽，避免毫秒位数变化挤动时间轴 -->
+                    <ColumnDefinition Width="220" />
+                    <!-- 中间：完整时间轴 -->
                     <ColumnDefinition Width="*" />
+                    <!-- 右侧：倍速与记录时间/采集时间分段药丸 -->
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
-                    <Button Tag="-1000000" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="跳到记录开始">
-                        <Path Data="M 3,4 V 20 M 6,12 L 17,4 V 20 Z" Fill="#334155" Width="18" Height="18" Stretch="Uniform" />
+
+                <!-- 左侧：播放控制组 (|◀ 起点 | ≪ 翻屏退 | ‹ 步进退 | [▷] 播放 | › 步进进 | ≫ 翻屏进 | ▶| 终点) -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,8,0">
+                    <!-- 1. 跳转起始 |< -->
+                    <Button Tag="-1000000" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="跳到记录开始" Margin="0,0,8,0">
+                        <Canvas Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Line X1="2" Y1="1.5" X2="2" Y2="12.5" Stroke="#1E293B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                            <Path Data="M 12,2 L 4.5,7 L 12,12 Z" Stroke="#1E293B" StrokeThickness="1.5" StrokeLineJoin="Round" Fill="Transparent" />
+                        </Canvas>
                     </Button>
-                    <Button Tag="page-back" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="后退一屏">
-                        <Path Data="M 4,12 L 14,4 V 20 Z M 15,4 V 20" Fill="#334155" Width="18" Height="18" Stretch="Uniform" />
+
+                    <!-- 2. 后退一整屏 << (大块翻页) -->
+                    <Button Tag="page-back" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="后退一整屏" Margin="0,0,8,0">
+                        <Path Data="M 7,2 L 2,7 L 7,12 M 12,2 L 7,7 L 12,12"
+                              Stroke="#1E293B" StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Fill="Transparent" Width="13" Height="13" Stretch="Uniform" />
                     </Button>
-                    <Button Tag="-1" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="后退一秒">
-                        <Path Data="M 5,12 L 16,4 V 20 Z" Fill="#334155" Width="16" Height="16" Stretch="Uniform" />
+
+                    <!-- 3. 后退一小块 < (小块微移 1秒) -->
+                    <Button Tag="-1" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="后退一小步 (1 秒)" Margin="0,0,10,0">
+                        <Path Data="M 8,2 L 3,7 L 8,12"
+                              Stroke="#1E293B" StrokeThickness="1.6"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Fill="Transparent" Width="9" Height="13" Stretch="Uniform" />
                     </Button>
-                    <Button Click="OnPlayClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="播放或暂停回溯">
-                        <Grid Width="20" Height="20">
-                            <Path Data="M 6,4 L 18,12 L 6,20 Z" Fill="#0F172A" Stretch="Uniform">
-                                <Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding IsPlaying}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Path.Style>
-                            </Path>
-                            <Path Data="M 5,4 H 9 V 20 H 5 Z M 14,4 H 18 V 20 H 14 Z" Fill="#0F172A" Stretch="Uniform">
-                                <Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsPlaying}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Path.Style>
-                            </Path>
-                        </Grid>
+
+                    <!-- 4. 核心播放/暂停按钮 [▷] (浅蓝柔和卡片，空心蓝三角，尺寸 32x32) -->
+                    <Button Click="OnPlayClick" Style="{StaticResource EegPlayButtonStyle}" Margin="0,0,10,0" ToolTip="播放或暂停回溯" />
+
+                    <!-- 5. 前进一小块 > (小块微移 1秒) -->
+                    <Button Tag="1" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="前进一小步 (1 秒)" Margin="0,0,8,0">
+                        <Path Data="M 3,2 L 8,7 L 3,12"
+                              Stroke="#1E293B" StrokeThickness="1.6"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Fill="Transparent" Width="9" Height="13" Stretch="Uniform" />
                     </Button>
-                    <Button Tag="1" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="前进一秒">
-                        <Path Data="M 15,12 L 4,4 V 20 Z" Fill="#334155" Width="16" Height="16" Stretch="Uniform" />
+
+                    <!-- 6. 前进一整屏 >> (大块翻页) -->
+                    <Button Tag="page-forward" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="前进一整屏" Margin="0,0,8,0">
+                        <Path Data="M 2,2 L 7,7 L 2,12 M 7,2 L 12,7 L 7,12"
+                              Stroke="#1E293B" StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Fill="Transparent" Width="13" Height="13" Stretch="Uniform" />
                     </Button>
-                    <Button Tag="page-forward" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="前进一屏">
-                        <Path Data="M 14,12 L 4,4 V 20 Z M 3,4 V 20" Fill="#334155" Width="18" Height="18" Stretch="Uniform" />
+
+                    <!-- 7. 跳转结束 >| -->
+                    <Button Tag="1000000" Click="OnNavigateClick" Style="{StaticResource EegTransportNavButtonStyle}" ToolTip="跳到记录结束" Margin="0,0,10,0">
+                        <Canvas Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Path Data="M 2,2 L 9.5,7 L 2,12 Z" Stroke="#1E293B" StrokeThickness="1.5" StrokeLineJoin="Round" Fill="Transparent" />
+                            <Line X1="12" Y1="1.5" X2="12" Y2="12.5" Stroke="#1E293B" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                        </Canvas>
                     </Button>
-                    <Button Tag="1000000" Click="OnNavigateClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="跳到记录结束">
-                        <Path Data="M 17,4 V 20 M 14,12 L 3,4 V 20 Z" Fill="#334155" Width="18" Height="18" Stretch="Uniform" />
-                    </Button>
-                    <Button Click="OnPlaybackSpeedClick" Style="{StaticResource FlatIconButtonStyle}" ToolTip="切换回放速度">
-                        <TextBlock Text="{Binding PlaybackSpeedText, Mode=OneWay}" Margin="8,0" FontWeight="SemiBold" Foreground="#334155" />
-                    </Button>
-                    <Button Style="{StaticResource FlatIconButtonStyle}" ToolTip="更多回溯操作">
-                        <TextBlock Text="⋮" FontSize="20" FontWeight="SemiBold" Foreground="#334155" />
-                    </Button>
+
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Width="220" Margin="0,0,12,0" VerticalAlignment="Center">
-                    <controls:RecordingTimeSelector DataContext="{Binding TimeDisplay}" HorizontalAlignment="Left" />
-                    <TextBlock Text="{Binding PositionTimeText}" FontSize="11" Foreground="#475569"
-                               TextWrapping="Wrap" Margin="0,3,0,0" />
-                </StackPanel>
-                <review:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="2" Height="30"
+                <!-- 时间文本 (如 00:53.750 / 02:30) -->
+                <TextBlock Grid.Column="1" Text="{Binding PositionTimeText}" FontSize="12.5" FontWeight="SemiBold"
+                           FontFamily="Consolas, Segoe UI, sans-serif" Foreground="#0F172A"
+                           VerticalAlignment="Center" HorizontalAlignment="Stretch" TextAlignment="Right"
+                           Padding="0,0,8,0" />
+
+                <!-- 中间：时间轴拖动滑轨 -->
+                <review:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="2" Height="26" VerticalAlignment="Center"
                     TimeDisplay="{Binding TimeDisplay, Mode=OneWay}"
                     TimeDisplayMode="{Binding TimeDisplay.EffectiveMode, Mode=OneWay}"
                     RecordingStartUtc="{Binding RecordingStartUtc, Mode=OneWay}"
@@ -297,6 +448,21 @@
                     PreviewPositionChanged="OnTimelinePreviewPositionChanged"
                     PositionCommitted="OnTimelinePositionCommitted"
                     ToolTip="{Binding RecordingClockRangeText, Mode=OneWay}" />
+
+                <!-- 右侧：倍速下拉 + 记录时间/采集时间药丸切换 -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <!-- 倍速按钮 (如 1x ˅) -->
+                    <Button Click="OnPlaybackSpeedClick" Style="{StaticResource EegInstrumentButtonStyle}" Height="28" Padding="8,0"
+                            Margin="0,0,10,0" ToolTip="切换回放速度">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding PlaybackSpeedText, Mode=OneWay}" FontWeight="SemiBold" FontSize="12" Foreground="#334155" />
+                            <Path Data="M 0,0 L 3,3 L 6,0" Stroke="#64748B" StrokeThickness="1.2" Margin="5,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- 记录时间 / 采集时间 分段胶囊 -->
+                    <controls:RecordingTimeSelector DataContext="{Binding TimeDisplay}" VerticalAlignment="Center" />
+                </StackPanel>
             </Grid>
         </views:EegWorkspaceShell.BottomBar>
     </views:EegWorkspaceShell>

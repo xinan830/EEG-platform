@@ -2,10 +2,63 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
-        Title="EEG 会话" WindowStyle="SingleBorderWindow" ResizeMode="CanResize" WindowState="Maximized"
-        Background="#F3F5F8" Closing="OnClosing">
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="EEG 会话" WindowStyle="None" ResizeMode="CanResize" WindowState="Maximized"
+        MinWidth="1000" MinHeight="640" Background="White" Closing="OnClosing">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="38" ResizeBorderThickness="6" CornerRadius="0" GlassFrameThickness="0" UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
     <Grid>
-        <ContentPresenter x:Name="SessionContentHost" />
-        <shared:OperationNotificationHost DataContext="{Binding}" Panel.ZIndex="20" />
+        <Grid.RowDefinitions>
+            <RowDefinition Height="38" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 顶部通栏标题栏 (白色背景 + 1px 细线) -->
+        <Border Background="#FFFFFF" BorderBrush="{StaticResource EegInstrumentLineBrush}" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 左侧区域：Logo + 返回按钮 + 菜单 + 路径面包屑 -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                    <!-- 脑电平台 Logo 图标 -->
+                    <Path Data="M 12,3 C 7,3 3,7 3,12 C 3,16 6,19.5 10,20.7 L 10,18 C 7.5,17 5.5,14.5 5.5,12 C 5.5,8.4 8.4,5.5 12,5.5 C 15.6,5.5 18.5,8.4 18.5,12 C 18.5,14.5 16.5,17 14,18 L 14,20.7 C 18,19.5 21,16 21,12 C 21,7 17,3 12,3 Z M 11,8 L 11,13 L 13,13 L 13,8 Z M 8.5,10.5 C 7.7,10.5 7,11.2 7,12 C 7,12.8 7.7,13.5 8.5,13.5 C 9.3,13.5 10,12.8 10,12 C 10,11.2 9.3,10.5 8.5,10.5 Z M 15.5,10.5 C 14.7,10.5 14,11.2 14,12 C 14,12.8 14.7,13.5 15.5,13.5 C 16.3,13.5 17,12.8 17,12 C 17,11.2 16.3,10.5 15.5,10.5 Z"
+                          Fill="#1677FF" Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center" Margin="2,0,8,0" />
+
+                    <!-- 返回图标按钮 (点击触发 CaptionMenuHost 中“返回项目”或预置动作) -->
+                    <Button Style="{StaticResource EegCaptionButtonStyle}" Width="28" Height="28"
+                            Content="&#xE72B;" ToolTip="返回" shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                            VerticalAlignment="Center" Margin="0,0,6,0" Click="OnCaptionCloseClick" />
+
+                    <!-- 顶部动态菜单宿主 (项目、分析、报告、设置) -->
+                    <ContentPresenter x:Name="CaptionMenuHost" VerticalAlignment="Center" Margin="0,0,16,0"
+                                      shell:WindowChrome.IsHitTestVisibleInChrome="True" />
+
+                    <!-- 分隔线与面包屑标题 -->
+                    <Border Width="1" Height="14" Background="#E2E8F0" VerticalAlignment="Center" Margin="0,0,14,0" />
+                    <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
+                               FontSize="12.5" FontWeight="Normal" Foreground="#475569"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <!-- 右侧区域：模板标识 + 窗口控制按钮 -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <TextBlock Text="介质精造 V1 · 示波模板" FontSize="11.5" Foreground="#94A3B8"
+                               VerticalAlignment="Center" Margin="0,0,16,0" />
+                    <Button Content="&#xE921;" Style="{StaticResource EegCaptionButtonStyle}" ToolTip="最小化" Click="OnMinimizeClick" />
+                    <Button Content="&#xE922;" Style="{StaticResource EegCaptionButtonStyle}" ToolTip="最大化或还原" Click="OnMaximizeClick" />
+                    <Button Content="&#xE8BB;" Style="{StaticResource EegCaptionCloseButtonStyle}" ToolTip="关闭会话" Click="OnCaptionCloseClick" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 会话主内容区域 -->
+        <ContentPresenter x:Name="SessionContentHost" Grid.Row="1" />
+        <shared:OperationNotificationHost Grid.Row="1" DataContext="{Binding}" Panel.ZIndex="20" />
     </Grid>
 </Window>

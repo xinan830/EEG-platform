@@ -21,7 +21,30 @@ public partial class RecordingReviewView : UserControl
         Unloaded += OnUnloaded;
     }
 
+    public static readonly DependencyProperty IsDataInfoOpenProperty =
+        DependencyProperty.Register(
+            nameof(IsDataInfoOpen),
+            typeof(bool),
+            typeof(RecordingReviewView),
+            new PropertyMetadata(false));
+
+    public bool IsDataInfoOpen
+    {
+        get => (bool)GetValue(IsDataInfoOpenProperty);
+        set => SetValue(IsDataInfoOpenProperty, value);
+    }
+
     private RecordingReviewViewModel? ViewModel => DataContext as RecordingReviewViewModel;
+
+    private void OnToggleDataInfoClick(object sender, RoutedEventArgs e)
+    {
+        IsDataInfoOpen = !IsDataInfoOpen;
+    }
+
+    private void OnCloseDataInfoClick(object sender, RoutedEventArgs e)
+    {
+        IsDataInfoOpen = false;
+    }
 
     private void OnAnalysisMenuOpened(object sender, RoutedEventArgs e)
     {

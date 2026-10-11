@@ -3,280 +3,127 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Views"
              xmlns:waveform="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Waveform"
+             xmlns:controls="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Behaviors"
              Background="#F3F5F8"
              Focusable="True"
-             PreviewKeyDown="OnPreviewKeyDown">
+             PreviewKeyDown="OnPreviewKeyDown"
+             shared:EegSessionPresentation.Menu="{Binding ElementName=PageMenu}">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/InstrumentWorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
-
-            <!-- 实时操作主要按钮（开始/恢复记录） -->
-            <Style x:Key="LiveActionPrimaryButtonStyle" TargetType="Button">
-                <Setter Property="Height" Value="34" />
-                <Setter Property="Padding" Value="14,0" />
-                <Setter Property="Background" Value="#1677FF" />
-                <Setter Property="Foreground" Value="#FFFFFF" />
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="FontWeight" Value="Medium" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#4096FF" />
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#0958D9" />
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="Bd" Property="Background" Value="#BFDBFE" />
-                                    <Setter Property="Foreground" Value="#EFF6FF" />
-                                    <Setter Property="Cursor" Value="No" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!-- 实时操作警告按钮（暂停记录） -->
-            <Style x:Key="LiveActionWarningButtonStyle" TargetType="Button">
-                <Setter Property="Height" Value="34" />
-                <Setter Property="Padding" Value="14,0" />
-                <Setter Property="Background" Value="#F59E0B" />
-                <Setter Property="Foreground" Value="#FFFFFF" />
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="FontWeight" Value="Medium" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#D97706" />
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#B45309" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
-
-            <!-- 实时操作次要按钮（完成记录、参数设置等） -->
-            <Style x:Key="LiveActionSecondaryButtonStyle" TargetType="Button">
-                <Setter Property="Height" Value="34" />
-                <Setter Property="Padding" Value="10,0" />
-                <Setter Property="Background" Value="#FFFFFF" />
-                <Setter Property="BorderBrush" Value="#CBD5E1" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="#334155" />
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="FontWeight" Value="Medium" />
-                <Setter Property="Cursor" Value="Hand" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
-                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#94A3B8" />
-                                    <Setter Property="Foreground" Value="#0F172A" />
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#F1F5F9" />
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
-                                    <Setter Property="Cursor" Value="No" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <views:EegWorkspaceShell WaveformDataContext="{Binding Acquisition.LiveMonitor}"
+    <Grid>
+    <Menu x:Name="PageMenu" Visibility="Collapsed" Style="{StaticResource EegCaptionMenuStyle}">
+        <MenuItem Header="项目"><MenuItem Header="返回项目" Click="OnBackClick" /></MenuItem>
+        <MenuItem Header="分析" IsEnabled="False" />
+        <MenuItem Header="报告" IsEnabled="False" />
+        <MenuItem Header="设置"><MenuItem Header="采集参数" Command="{Binding Acquisition.LiveMonitor.ToggleSettingsCommand}" /></MenuItem>
+    </Menu>
+
+    <views:EegWorkspaceShell Style="{StaticResource EegInstrumentShellStyle}" WaveformDataContext="{Binding Acquisition.LiveMonitor}"
                              IsImmersiveWaveform="True"
                              IsEdgeToEdgeTopBar="True"
                              ShowBottomBar="False">
         <views:EegWorkspaceShell.TopBar>
-            <Grid>
+            <Grid Background="#FFFFFF">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" /> <!-- 0. 显示滤波与标尺参数栏 -->
-                    <RowDefinition Height="Auto" /> <!-- 1. 分割线 -->
-                    <RowDefinition Height="Auto" /> <!-- 2. 采集会话与记录控制栏 -->
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- 0. 滤波与标尺参数栏 -->
-                <DockPanel Grid.Row="0" LastChildFill="False">
-                    <!-- 左侧滤波与标尺控制组 -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- 高通 -->
-                        <TextBlock Text="高通" Foreground="#64748B" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="88" Height="32"
-                                  IsEnabled="{Binding Acquisition.DisplayPreferences.CanConfigureFilters}"
-                                  SelectedValuePath="Tag" SelectedValue="{Binding Acquisition.DisplayPreferences.LiveHighPassHz, Mode=TwoWay}"
-                                  ToolTip="由本地 Python 科学引擎执行的实时显示高通。原始记录保持未滤波。">
-                            <ComboBoxItem Content="0.01 Hz" Tag="0.01" />
-                            <ComboBoxItem Content="0.05 Hz" Tag="0.05" />
-                            <ComboBoxItem Content="0.1 Hz" Tag="0.1" />
-                            <ComboBoxItem Content="0.2 Hz" Tag="0.2" />
-                            <ComboBoxItem Content="0.3 Hz" Tag="0.3" />
-                            <ComboBoxItem Content="0.4 Hz" Tag="0.4" />
-                            <ComboBoxItem Content="0.5 Hz" Tag="0.5" />
-                            <ComboBoxItem Content="0.6 Hz" Tag="0.6" />
-                            <ComboBoxItem Content="0.7 Hz" Tag="0.7" />
-                            <ComboBoxItem Content="0.8 Hz" Tag="0.8" />
-                            <ComboBoxItem Content="0.9 Hz" Tag="0.9" />
-                            <ComboBoxItem Content="1 Hz" Tag="1" />
-                            <ComboBoxItem Content="1.5 Hz" Tag="1.5" />
-                            <ComboBoxItem Content="2 Hz" Tag="2" />
-                            <ComboBoxItem Content="3 Hz" Tag="3" />
-                            <ComboBoxItem Content="5 Hz" Tag="5" />
-                            <ComboBoxItem Content="10 Hz" Tag="10" />
-                        </ComboBox>
-
-                        <!-- 低通 -->
-                        <TextBlock Text="低通" Foreground="#64748B" FontSize="12.5" VerticalAlignment="Center" Margin="12,0,6,0" />
-                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="88" Height="32"
-                                  IsEnabled="{Binding Acquisition.DisplayPreferences.CanConfigureFilters}"
-                                  SelectedValuePath="Tag" SelectedValue="{Binding Acquisition.DisplayPreferences.LiveLowPassHz, Mode=TwoWay}"
-                                  ToolTip="由本地 Python 科学引擎执行的实时显示低通。原始记录保持未滤波。">
-                            <ComboBoxItem Content="10 Hz" Tag="10" />
-                            <ComboBoxItem Content="20 Hz" Tag="20" />
-                            <ComboBoxItem Content="30 Hz" Tag="30" />
-                            <ComboBoxItem Content="40 Hz" Tag="40" />
-                            <ComboBoxItem Content="50 Hz" Tag="50" />
-                            <ComboBoxItem Content="60 Hz" Tag="60" />
-                            <ComboBoxItem Content="70 Hz" Tag="70" />
-                            <ComboBoxItem Content="80 Hz" Tag="80" />
-                            <ComboBoxItem Content="90 Hz" Tag="90" />
-                            <ComboBoxItem Content="100 Hz" Tag="100" />
-                        </ComboBox>
-
-                        <!-- 陷波 -->
-                        <TextBlock Text="陷波" Foreground="#64748B" FontSize="12.5" VerticalAlignment="Center" Margin="12,0,6,0" />
-                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="80" Height="32"
-                                  IsEnabled="{Binding Acquisition.DisplayPreferences.CanConfigureFilters}"
-                                  SelectedValuePath="Tag" SelectedValue="{Binding Acquisition.DisplayPreferences.LiveNotchHz, Mode=TwoWay}"
-                                  ToolTip="由本地 Python 科学引擎执行的实时显示陷波。原始记录保持未滤波。">
-                            <ComboBoxItem Content="关闭" Tag="0" />
-                            <ComboBoxItem Content="50 Hz" Tag="50" />
-                            <ComboBoxItem Content="60 Hz" Tag="60" />
-                        </ComboBox>
-
-                        <!-- 细竖分割线 -->
-                        <Border Width="1" Height="18" Background="#E2E8F0" Margin="14,0" VerticalAlignment="Center" />
-
-                        <!-- 灵敏度 -->
-                        <TextBlock Text="灵敏度" Foreground="#64748B" FontSize="12.5" VerticalAlignment="Center" Margin="0,0,6,0" />
-                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="96" Height="32"
-                                  SelectedValuePath="Tag"
-                                  SelectedValue="{Binding Acquisition.LiveMonitor.SensitivityMicrovoltsPerMillimeter, Mode=TwoWay}">
-                            <ComboBoxItem Content="1 µV/mm" Tag="1" />
-                            <ComboBoxItem Content="2 µV/mm" Tag="2" />
-                            <ComboBoxItem Content="5 µV/mm" Tag="5" />
-                            <ComboBoxItem Content="7 µV/mm" Tag="7" />
-                            <ComboBoxItem Content="10 µV/mm" Tag="10" />
-                            <ComboBoxItem Content="15 µV/mm" Tag="15" />
-                            <ComboBoxItem Content="20 µV/mm" Tag="20" />
-                            <ComboBoxItem Content="50 µV/mm" Tag="50" />
-                            <ComboBoxItem Content="70 µV/mm" Tag="70" />
-                            <ComboBoxItem Content="100 µV/mm" Tag="100" />
-                        </ComboBox>
-
-                        <!-- 细竖分割线 -->
-                        <Border Width="1" Height="18" Background="#E2E8F0" Margin="14,0" VerticalAlignment="Center" />
-
-                        <!-- 走纸速度 / 时间基 水平尺度组 -->
+                <!-- 1. 功能 Ribbon 栏 -->
+                <Border Grid.Row="0" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="12,6" Background="#FFFFFF">
+                    <DockPanel LastChildFill="False">
+                        <!-- 左侧：主要采集控制工具按钮组 -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <RadioButton Content="走纸速度" GroupName="LiveHorizontalScale" FontSize="12.5" Foreground="#334155"
-                                         VerticalAlignment="Center" Margin="0,0,6,0"
-                                         IsChecked="{Binding Acquisition.LiveMonitor.IsPaperSpeedMode, Mode=TwoWay}"
-                                         ToolTip="名义纸速输入。未校准显示器的物理毫米仅作工作站显示参考。" />
-                            <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="86" Height="32"
-                                      IsEnabled="{Binding Acquisition.LiveMonitor.IsPaperSpeedMode}"
-                                      SelectedValuePath="Tag"
-                                      SelectedValue="{Binding Acquisition.LiveMonitor.PaperSpeedMillimetersPerSecond, Mode=TwoWay}">
-                                <ComboBoxItem Content="5 mm/s" Tag="5" />
-                                <ComboBoxItem Content="10 mm/s" Tag="10" />
-                                <ComboBoxItem Content="15 mm/s" Tag="15" />
-                                <ComboBoxItem Content="30 mm/s" Tag="30" />
-                                <ComboBoxItem Content="60 mm/s" Tag="60" />
+                            <!-- 开始记录按钮 (预览中显示) -->
+                            <controls:EegToolButton Content="开始记录" Glyph="&#xE768;"
+                                                    Command="{Binding Acquisition.StartRecordingCommand}"
+                                                    IsEnabled="{Binding Acquisition.CanStartRecording}"
+                                                    ToolTip="开始记录原始脑电数据">
+                                <controls:EegToolButton.Style>
+                                    <Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPaused}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </controls:EegToolButton.Style>
+                            </controls:EegToolButton>
+
+                            <!-- 恢复记录按钮 (暂停时显示) -->
+                            <controls:EegToolButton Content="恢复记录" Glyph="&#xE768;"
+                                                    Command="{Binding Acquisition.ResumeRecordingCommand}"
+                                                    IsEnabled="{Binding Acquisition.CanResume}"
+                                                    ToolTip="恢复脑电记录">
+                                <controls:EegToolButton.Style>
+                                    <Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPaused}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </controls:EegToolButton.Style>
+                            </controls:EegToolButton>
+
+                            <!-- 暂停记录按钮 -->
+                            <controls:EegToolButton Content="暂停记录" Glyph="&#xE769;"
+                                                    Command="{Binding Acquisition.PauseRecordingCommand}"
+                                                    IsEnabled="{Binding Acquisition.CanPause}"
+                                                    ToolTip="暂停记录（实时波形继续更新）" />
+
+                            <!-- 完成记录 / 停止采集按钮 -->
+                            <controls:EegToolButton Content="完成记录" Glyph="&#xE71A;"
+                                                    Click="OnFinishRecordingClick"
+                                                    IsEnabled="{Binding Acquisition.CanStop}"
+                                                    ToolTip="完成记录并保存会话" />
+
+                            <Border Width="1" Height="28" Background="#E2E8F0" Margin="6,0,6,0" VerticalAlignment="Center" />
+
+                            <!-- 事件类型选择下拉框与事件标记工具按钮 -->
+                            <ComboBox Style="{StaticResource AppFilterComboBoxStyle}"
+                                      ItemsSource="{Binding Acquisition.EnabledEventDefinitions}"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding Acquisition.SelectedEventDefinitionId, Mode=TwoWay}"
+                                      Width="120" Height="32" Margin="2,0,4,0"
+                                      VerticalAlignment="Center"
+                                      ToolTip="选择要标记的事件类型">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
                             </ComboBox>
 
-                            <RadioButton Content="时间基" GroupName="LiveHorizontalScale" FontSize="12.5" Foreground="#334155"
-                                         VerticalAlignment="Center" Margin="14,0,6,0"
-                                         IsChecked="{Binding Acquisition.LiveMonitor.IsTimebaseMode, Mode=TwoWay}"
-                                         ToolTip="秒/屏输入，直接控制当前显示窗口的 EEG 时间范围。" />
-                        <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="86" Height="32"
-                                      IsEnabled="{Binding Acquisition.LiveMonitor.IsTimebaseMode}"
-                                      SelectedValuePath="Tag"
-                                      SelectedValue="{Binding Acquisition.LiveMonitor.TimebaseSecondsPerScreen, Mode=TwoWay}">
-                                <ComboBoxItem Content="5 s/屏" Tag="5" />
-                                <ComboBoxItem Content="10 s/屏" Tag="10" />
-                                <ComboBoxItem Content="15 s/屏" Tag="15" />
-                                <ComboBoxItem Content="20 s/屏" Tag="20" />
-                                <ComboBoxItem Content="30 s/屏" Tag="30" />
-                            </ComboBox>
+                            <controls:EegToolButton Content="事件标记" Glyph="&#xE70F;"
+                                                    Command="{Binding Acquisition.MarkSelectedEventCommand}"
+                                                    IsEnabled="{Binding Acquisition.CanPause}"
+                                                    ToolTip="在当前采样坐标添加标记" />
+
+                            <Border Width="1" Height="28" Background="#E2E8F0" Margin="6,0,6,0" VerticalAlignment="Center" />
+
+                            <!-- 数据信息与设置按钮 -->
+                            <controls:EegToolButton Content="数据信息" Glyph="&#xE946;"
+                                                    Command="{Binding Acquisition.LiveMonitor.ToggleSettingsCommand}"
+                                                    ToolTip="查看项目与采集数据信息" />
                         </StackPanel>
-                    </StackPanel>
 
-                    <!-- 右侧：当前导联、采样率与参数设置。项目仍由采集会话持有，不在实时工作区重复展示。 -->
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Height="34" Padding="12,0" Margin="0,0,8,0">
+                        <!-- 右侧：会话运行状态与计时器胶囊 -->
+                        <Border DockPanel.Dock="Right" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1"
+                                CornerRadius="6" Height="34" Padding="12,0" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="导联" Foreground="#64748B" FontSize="12" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding Acquisition.SelectedMontageProfile.Name, TargetNullValue=未选择}" MaxWidth="160" FontSize="12.5" FontWeight="SemiBold" Foreground="#0F172A" Margin="6,0,0,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                <Border Width="1" Height="14" Background="#CBD5E1" Margin="10,0" VerticalAlignment="Center" />
-                                <TextBlock Text="采样率" Foreground="#64748B" FontSize="12" VerticalAlignment="Center" />
-                                <TextBlock Text="{Binding Acquisition.SelectedSamplingRateHz, StringFormat={}{0} Hz}" FontSize="12.5" FontWeight="SemiBold" Foreground="#0F172A" Margin="6,0,0,0" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Border>
-
-                        <Button Command="{Binding Acquisition.LiveMonitor.ToggleSettingsCommand}"
-                                Height="34" Padding="10,0" ToolTip="采集、通道与导联参数设置"
-                                Style="{StaticResource LiveActionSecondaryButtonStyle}">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Path Data="M 12,15 A 3,3 0 1 0 12,9 A 3,3 0 1 0 12,15 Z M 19.4,13 A 7.7,7.7 0 0 0 19.5,12 A 7.7,7.7 0 0 0 19.4,11 L 21.5,9.4 C 21.7,9.2 21.8,8.9 21.6,8.7 L 19.6,5.3 C 19.5,5.1 19.2,5 19,5.1 L 16.5,6.1 A 8,8 0 0 0 14.8,5.1 L 14.4,2.5 C 14.4,2.2 14.2,2 13.9,2 L 10.1,2 C 9.8,2 9.6,2.2 9.6,2.5 L 9.2,5.1 A 8,8 0 0 0 7.5,6.1 L 5,5.1 C 4.8,5 4.5,5.1 4.4,5.3 L 2.4,8.7 C 2.2,8.9 2.3,9.2 2.5,9.4 L 4.6,11 A 7.7,7.7 0 0 0 4.5,12 A 7.7,7.7 0 0 0 4.6,13 L 2.5,14.6 C 2.3,14.8 2.2,15.1 2.4,15.3 L 4.4,18.7 C 4.5,18.9 4.8,19 5,18.9 L 7.5,17.9 A 8,8 0 0 0 9.2,18.9 L 9.6,21.5 C 9.6,21.8 9.8,22 10.1,22 L 13.9,22 C 14.2,22 14.4,21.8 14.4,21.5 L 14.8,18.9 A 8,8 0 0 0 16.5,17.9 L 19,18.9 C 19.2,19 19.5,18.9 19.6,18.7 L 21.6,15.3 C 21.8,15.1 21.7,14.8 21.5,14.6 Z"
-                                      Stroke="#475569" StrokeThickness="1.3" Fill="Transparent" Width="14" Height="14" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                <TextBlock Text="设置" FontSize="13" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
-
-                        <TextBlock Text="实时显示滤波 · 原始记录未滤波" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" Margin="12,0,0,0" />
-                    </StackPanel>
-                </DockPanel>
-
-                <!-- 1. 柔和分割线 -->
-                <Border Grid.Row="1" Height="1" Background="#F1F5F9" Margin="0,10,0,10" />
-
-                <!-- 2. 采集控制与会话状态栏 -->
-                <DockPanel Grid.Row="2" LastChildFill="False">
-                    <!-- 左侧：录制状态、计时器与操作按钮组 -->
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- 状态与计时器胶囊 -->
-                        <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Height="34" Padding="10,0" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <!-- 状态圆点与文字 -->
-                                <Ellipse Width="7" Height="7" VerticalAlignment="Center" Margin="0,0,6,0">
+                                <!-- 状态指示灯与状态文字 -->
+                                <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,6,0">
                                     <Ellipse.Style>
                                         <Style TargetType="Ellipse">
                                             <Setter Property="Fill" Value="#94A3B8" />
@@ -294,7 +141,7 @@
                                         </Style>
                                     </Ellipse.Style>
                                 </Ellipse>
-                                <TextBlock FontSize="12" FontWeight="Medium" VerticalAlignment="Center">
+                                <TextBlock FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Text" Value="就绪" />
@@ -317,116 +164,140 @@
                                     </TextBlock.Style>
                                 </TextBlock>
 
-                                <!-- 垂直细分割线 -->
-                                <Border Width="1" Height="14" Background="#CBD5E1" Margin="8,0" VerticalAlignment="Center" />
+                                <!-- 分割竖线 -->
+                                <Border Width="1" Height="14" Background="#CBD5E1" Margin="10,0" VerticalAlignment="Center" />
 
                                 <!-- 计时器 -->
                                 <TextBlock Text="{Binding Acquisition.LiveMonitor.RecordingElapsedText}"
                                            FontFamily="Consolas, monospace" FontWeight="SemiBold"
-                                           FontSize="14" Foreground="#0F172A" VerticalAlignment="Center" />
+                                           FontSize="13.5" Foreground="#0F172A" VerticalAlignment="Center" />
                             </StackPanel>
                         </Border>
+                    </DockPanel>
+                </Border>
 
-                        <!-- 操作按钮组 -->
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-                            <!-- 开始/暂停/恢复 核心操作按钮 -->
-                            <Grid>
-                                <!-- 开始记录按钮 (预览状态显示) -->
-                                <Button Command="{Binding Acquisition.StartRecordingCommand}"
-                                        IsEnabled="{Binding Acquisition.CanStartRecording}"
-                                        ToolTip="开始记录原始脑电数据">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource LiveActionPrimaryButtonStyle}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPreviewing}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M 9,6 L 9,18 L 19,12 Z" Fill="White" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="开始记录" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
+                <!-- 2. 显示滤波与标尺参数栏 -->
+                <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="12,6">
+                    <DockPanel LastChildFill="False">
+                        <!-- 左侧滤波与标尺控制组 -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- 高通 -->
+                            <controls:EegParameterField Header="高通" MinWidth="86">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          IsEnabled="{Binding Acquisition.DisplayPreferences.CanConfigureFilters}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding Acquisition.DisplayPreferences.LiveHighPassHz, Mode=TwoWay}"
+                                          ToolTip="由本地 Python 科学引擎执行的实时显示高通。原始记录保持未滤波。">
+                                    <ComboBoxItem Content="0.01 Hz" Tag="0.01" />
+                                    <ComboBoxItem Content="0.05 Hz" Tag="0.05" />
+                                    <ComboBoxItem Content="0.1 Hz" Tag="0.1" />
+                                    <ComboBoxItem Content="0.2 Hz" Tag="0.2" />
+                                    <ComboBoxItem Content="0.3 Hz" Tag="0.3" />
+                                    <ComboBoxItem Content="0.4 Hz" Tag="0.4" />
+                                    <ComboBoxItem Content="0.5 Hz" Tag="0.5" />
+                                    <ComboBoxItem Content="0.6 Hz" Tag="0.6" />
+                                    <ComboBoxItem Content="0.7 Hz" Tag="0.7" />
+                                    <ComboBoxItem Content="0.8 Hz" Tag="0.8" />
+                                    <ComboBoxItem Content="0.9 Hz" Tag="0.9" />
+                                    <ComboBoxItem Content="1 Hz" Tag="1" />
+                                    <ComboBoxItem Content="1.5 Hz" Tag="1.5" />
+                                    <ComboBoxItem Content="2 Hz" Tag="2" />
+                                    <ComboBoxItem Content="3 Hz" Tag="3" />
+                                    <ComboBoxItem Content="5 Hz" Tag="5" />
+                                    <ComboBoxItem Content="10 Hz" Tag="10" />
+                                </ComboBox>
+                            </controls:EegParameterField>
 
-                                <!-- 暂停记录按钮 (录制状态显示) -->
-                                <Button Command="{Binding Acquisition.PauseRecordingCommand}"
-                                        IsEnabled="{Binding Acquisition.CanPause}"
-                                        ToolTip="暂停记录（实时预览继续）">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource LiveActionWarningButtonStyle}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsRecording}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M 7,5 H 10 V 19 H 7 Z M 14,5 H 17 V 19 H 14 Z" Fill="White" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="暂停记录" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
+                            <!-- 低通 -->
+                            <controls:EegParameterField Header="低通" MinWidth="86">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          IsEnabled="{Binding Acquisition.DisplayPreferences.CanConfigureFilters}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding Acquisition.DisplayPreferences.LiveLowPassHz, Mode=TwoWay}"
+                                          ToolTip="由本地 Python 科学引擎执行的实时显示低通。原始记录保持未滤波。">
+                                    <ComboBoxItem Content="10 Hz" Tag="10" />
+                                    <ComboBoxItem Content="20 Hz" Tag="20" />
+                                    <ComboBoxItem Content="30 Hz" Tag="30" />
+                                    <ComboBoxItem Content="40 Hz" Tag="40" />
+                                    <ComboBoxItem Content="50 Hz" Tag="50" />
+                                    <ComboBoxItem Content="60 Hz" Tag="60" />
+                                    <ComboBoxItem Content="70 Hz" Tag="70" />
+                                    <ComboBoxItem Content="80 Hz" Tag="80" />
+                                    <ComboBoxItem Content="90 Hz" Tag="90" />
+                                    <ComboBoxItem Content="100 Hz" Tag="100" />
+                                </ComboBox>
+                            </controls:EegParameterField>
 
-                                <!-- 恢复记录按钮 (暂停状态显示) -->
-                                <Button Command="{Binding Acquisition.ResumeRecordingCommand}"
-                                        IsEnabled="{Binding Acquisition.CanResume}"
-                                        ToolTip="恢复记录">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource LiveActionPrimaryButtonStyle}">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPaused}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Path Data="M 9,6 L 9,18 L 19,12 Z" Fill="White" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="恢复记录" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                            </Grid>
+                            <!-- 陷波 -->
+                            <controls:EegParameterField Header="陷波" MinWidth="78">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          IsEnabled="{Binding Acquisition.DisplayPreferences.CanConfigureFilters}"
+                                          SelectedValuePath="Tag" SelectedValue="{Binding Acquisition.DisplayPreferences.LiveNotchHz, Mode=TwoWay}"
+                                          ToolTip="由本地 Python 科学引擎执行的实时显示陷波。原始记录保持未滤波。">
+                                    <ComboBoxItem Content="关闭" Tag="0" />
+                                    <ComboBoxItem Content="50 Hz" Tag="50" />
+                                    <ComboBoxItem Content="60 Hz" Tag="60" />
+                                </ComboBox>
+                            </controls:EegParameterField>
 
-                            <!-- 完成记录 / 停止采集按钮 -->
-                            <Button Click="OnFinishRecordingClick" IsEnabled="{Binding Acquisition.CanStop}"
-                                    Style="{StaticResource LiveActionSecondaryButtonStyle}"
-                                    Margin="8,0,0,0" ToolTip="记录完毕并停止实时采集">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Path Data="M 7,7 H 17 V 17 H 7 Z" Fill="#EF4444" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="完成记录" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
+                            <!-- 灵敏度 -->
+                            <controls:EegParameterField Header="灵敏度" MinWidth="94">
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          SelectedValuePath="Tag"
+                                          SelectedValue="{Binding Acquisition.LiveMonitor.SensitivityMicrovoltsPerMillimeter, Mode=TwoWay}">
+                                    <ComboBoxItem Content="1 µV/mm" Tag="1" />
+                                    <ComboBoxItem Content="2 µV/mm" Tag="2" />
+                                    <ComboBoxItem Content="5 µV/mm" Tag="5" />
+                                    <ComboBoxItem Content="7 µV/mm" Tag="7" />
+                                    <ComboBoxItem Content="10 µV/mm" Tag="10" />
+                                    <ComboBoxItem Content="15 µV/mm" Tag="15" />
+                                    <ComboBoxItem Content="20 µV/mm" Tag="20" />
+                                    <ComboBoxItem Content="50 µV/mm" Tag="50" />
+                                    <ComboBoxItem Content="70 µV/mm" Tag="70" />
+                                    <ComboBoxItem Content="100 µV/mm" Tag="100" />
+                                </ComboBox>
+                            </controls:EegParameterField>
 
-                            <ComboBox Style="{StaticResource AppFilterComboBoxStyle}"
-                                      ItemsSource="{Binding Acquisition.EnabledEventDefinitions}"
-                                      SelectedValuePath="Id"
-                                      SelectedValue="{Binding Acquisition.SelectedEventDefinitionId, Mode=TwoWay}"
-                                      Width="116" Margin="8,0,0,0"
-                                      ToolTip="选择要标记的事件类型">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <Button Command="{Binding Acquisition.MarkSelectedEventCommand}"
-                                    IsEnabled="{Binding Acquisition.CanPause}"
-                                    Style="{StaticResource LiveActionSecondaryButtonStyle}"
-                                    Margin="6,0,0,0" ToolTip="在当前采样坐标标记事件">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Path Data="M 6,4 V 20 M 7,5 H 18 L 15,10 L 18,15 H 7" Stroke="#2563EB" StrokeThickness="1.4" Fill="Transparent" Width="11" Height="11" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="标记" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </Button>
+                            <!-- 走纸速度 -->
+                            <controls:EegParameterField MinWidth="92">
+                                <controls:EegParameterField.Header>
+                                    <RadioButton Content="走纸速度" GroupName="LiveHorizontalScale"
+                                                 IsChecked="{Binding Acquisition.LiveMonitor.IsPaperSpeedMode, Mode=TwoWay}"
+                                                 Style="{StaticResource EegParameterFieldRadioHeaderStyle}"
+                                                 ToolTip="名义纸速输入。未校准显示器的物理毫米仅作工作站显示参考。" />
+                                </controls:EegParameterField.Header>
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          IsEnabled="{Binding Acquisition.LiveMonitor.IsPaperSpeedMode}"
+                                          SelectedValuePath="Tag"
+                                          SelectedValue="{Binding Acquisition.LiveMonitor.PaperSpeedMillimetersPerSecond, Mode=TwoWay}">
+                                    <ComboBoxItem Content="5 mm/s" Tag="5" />
+                                    <ComboBoxItem Content="10 mm/s" Tag="10" />
+                                    <ComboBoxItem Content="15 mm/s" Tag="15" />
+                                    <ComboBoxItem Content="30 mm/s" Tag="30" />
+                                    <ComboBoxItem Content="60 mm/s" Tag="60" />
+                                </ComboBox>
+                            </controls:EegParameterField>
+
+                            <!-- 时间基 -->
+                            <controls:EegParameterField MinWidth="86">
+                                <controls:EegParameterField.Header>
+                                    <RadioButton Content="时间基" GroupName="LiveHorizontalScale"
+                                                 IsChecked="{Binding Acquisition.LiveMonitor.IsTimebaseMode, Mode=TwoWay}"
+                                                 Style="{StaticResource EegParameterFieldRadioHeaderStyle}"
+                                                 ToolTip="秒/屏输入，直接控制当前显示窗口的 EEG 时间范围。" />
+                                </controls:EegParameterField.Header>
+                                <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
+                                          IsEnabled="{Binding Acquisition.LiveMonitor.IsTimebaseMode}"
+                                          SelectedValuePath="Tag"
+                                          SelectedValue="{Binding Acquisition.LiveMonitor.TimebaseSecondsPerScreen, Mode=TwoWay}">
+                                    <ComboBoxItem Content="5 s/屏" Tag="5" />
+                                    <ComboBoxItem Content="10 s/屏" Tag="10" />
+                                    <ComboBoxItem Content="15 s/屏" Tag="15" />
+                                    <ComboBoxItem Content="20 s/屏" Tag="20" />
+                                    <ComboBoxItem Content="30 s/屏" Tag="30" />
+                                </ComboBox>
+                            </controls:EegParameterField>
                         </StackPanel>
-                    </StackPanel>
-
-                </DockPanel>
+                    </DockPanel>
+                </Border>
             </Grid>
         </views:EegWorkspaceShell.TopBar>
 
@@ -448,7 +319,7 @@
 
                         <!-- Header Bar -->
                         <Grid Grid.Row="0" Margin="0,0,0,10">
-                            <TextBlock Text="参数设置" FontSize="18" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
+                            <TextBlock Text="数据与采集信息" FontSize="18" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
                             <Button Style="{StaticResource ModernCloseCrossButtonStyle}"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Center"
@@ -458,6 +329,64 @@
 
                         <!-- Tabs Container -->
                         <TabControl Grid.Row="1" Style="{StaticResource ModernDialogTabControlStyle}">
+                            <TabItem Header="数据信息">
+                                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16,14" Margin="0,16,0,0">
+                                    <Grid Grid.IsSharedSizeScope="True">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="12" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="12" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="12" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="12" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="12" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="AcqInfoLabelCol" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- 所属项目 -->
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="所属项目" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding Acquisition.ProjectNameText}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                                        <!-- 项目编号 -->
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="项目编号" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding Acquisition.ProjectNumberText}" Foreground="#0F172A" FontSize="13" VerticalAlignment="Center" />
+
+                                        <!-- 采样率 -->
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="采样率" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding Acquisition.SelectedSamplingRateHz, StringFormat={}{0} Hz}" Foreground="#0F172A" FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" />
+
+                                        <!-- 当前导联 -->
+                                        <TextBlock Grid.Row="6" Grid.Column="0" Text="当前导联" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                        <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding Acquisition.LiveMonitor.CurrentMontageName, TargetNullValue=未选择}" Foreground="#0F172A" FontWeight="Medium" FontSize="13.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+
+                                        <!-- 导联通道数 -->
+                                        <TextBlock Grid.Row="8" Grid.Column="0" Text="导联通道数" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Row="8" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Acquisition.LiveMonitor.MontageOutputChannelCount}" Foreground="#1E293B" FontSize="13" FontWeight="SemiBold" />
+                                            <TextBlock Text=" 个输出通道；当前显示 " Foreground="#64748B" FontSize="13" />
+                                            <TextBlock Text="{Binding Acquisition.LiveMonitor.SelectedMontageDisplayChannelCount}" Foreground="#1E293B" FontSize="13" FontWeight="SemiBold" />
+                                            <TextBlock Text=" 个" Foreground="#64748B" FontSize="13" />
+                                        </StackPanel>
+
+                                        <!-- 采集设备 -->
+                                        <TextBlock Grid.Row="10" Grid.Column="0" Text="设备状态" Foreground="#64748B" FontSize="13" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Row="10" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Acquisition.DeviceModelText, TargetNullValue=未知设备}" Foreground="#0F172A" FontWeight="Medium" FontSize="13" />
+                                            <TextBlock Text="（" Foreground="#64748B" FontSize="13" />
+                                            <TextBlock Text="{Binding Acquisition.DeviceConnectionStatusText}" Foreground="#10B981" FontWeight="Medium" FontSize="13" />
+                                            <TextBlock Text="）" Foreground="#64748B" FontSize="13" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </TabItem>
                             <TabItem Header="通道设置">
                                 <Grid Margin="0,16,0,0" Grid.IsSharedSizeScope="True">
                                     <Grid.RowDefinitions>
@@ -594,4 +523,5 @@
             </Popup>
         </views:EegWorkspaceShell.Overlay>
     </views:EegWorkspaceShell>
+    </Grid>
 </UserControl>

@@ -40,11 +40,14 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     public RecordingReviewSciChartCanvas()
     {
         ConfigureSurface();
-        var layout = new Grid();
-        // Match the live canvas: channel names occupy only the width they need,
-        // rather than leaving a wider review-only gutter before the waveform.
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(50) });
+        var layout = new Grid
+        {
+            Margin = new Thickness(12, 4, 12, 6),
+        };
+        // Compact column with symmetric spacing on both sides of montage labels
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        labels.HorizontalAlignment = HorizontalAlignment.Center;
         Grid.SetColumn(labels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
@@ -76,9 +79,11 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         VisualXcceleratorEngine.SetIsEnabled(surface, true);
         WaveformAxisPolicy.ConfigureHorizontalAxis(xAxis, recordingTimeLabels);
         xAxis.TickProvider = wallClockTicks;
+        xAxis.TickTextBrush = new SolidColorBrush(Color.FromRgb(71, 85, 105));
+        xAxis.FontSize = 11;
         xAxis.MajorGridLineStyle = new Style(typeof(Line))
         {
-            Setters = { new Setter(Shape.StrokeProperty, new SolidColorBrush(Color.FromRgb(148, 163, 184))) },
+            Setters = { new Setter(Shape.StrokeProperty, new SolidColorBrush(Color.FromRgb(226, 232, 240))) },
         };
         // Keep the invisible Y-axis layout area away from the channel-label
         // column so review uses the same compact waveform start as live view.
@@ -229,10 +234,11 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         for (var index = 0; index < names.Count; index++)
         {
             var data = new XyDataSeries<double, double>();
+            var traceColor = WaveformTraceColors.ToColor(colors?.ElementAtOrDefault(index), index);
             surface.RenderableSeries.Add(new FastLineRenderableSeries
             {
                 DataSeries = data,
-                Stroke = WaveformTraceColors.ToColor(colors?.ElementAtOrDefault(index), index),
+                Stroke = traceColor,
                 StrokeThickness = 1,
             });
             traceSeries.Add(new TraceSeries(data));
@@ -240,10 +246,12 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             var label = new TextBlock
             {
                 Text = names[index],
-                FontSize = 11,
-                Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42)),
+                FontSize = 11.5,
+                FontWeight = FontWeights.Medium,
+                Foreground = new SolidColorBrush(traceColor),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(2, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0),
             };
             Grid.SetRow(label, index);
             labels.Children.Add(label);
@@ -369,6 +377,8 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         var start = viewModel.ViewportStartSeconds;
         var end = Math.Min(viewModel.DurationSeconds, start + viewModel.VisibleDurationSeconds);
         var duration = Math.Max(0.001, end - start);
+        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
+        var plotOrigin = surface.TranslatePoint(plotArea.TopLeft, chartHost);
         foreach (var item in viewModel.RecordingEvents)
         {
             if (!item.IsDisplayable)
@@ -381,26 +391,26 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
                 ? RecordingTimeMapper.ToElapsedSeconds(item.EndSampleExclusive, viewModel.SamplingRateHz)
                 : itemStart;
             if (itemEnd < start || itemStart > end) continue;
-            var left = Math.Clamp((itemStart - start) / duration, 0, 1) * chartHost.ActualWidth;
-            var right = Math.Clamp((itemEnd - start) / duration, 0, 1) * chartHost.ActualWidth;
+            var left = plotOrigin.X + Math.Clamp((itemStart - start) / duration, 0, 1) * plotArea.Width;
+            var right = plotOrigin.X + Math.Clamp((itemEnd - start) / duration, 0, 1) * plotArea.Width;
             var color = ParseColor(item.DefinitionSnapshot.Color);
             eventMarkers.Children.Add(new Border
             {
                 ToolTip = RecordingEventDisplayTime.FormatMarker(item, viewModel.RecordingStartUtc, viewModel.SamplingRateHz),
                 IsHitTestVisible = !item.IsInterval,
                 Width = item.IsInterval ? Math.Max(2, right - left) : 2,
-                Height = chartHost.ActualHeight,
+                Height = plotArea.Height,
                 Background = item.IsInterval
                     ? new SolidColorBrush(Color.FromArgb(32, color.R, color.G, color.B))
                     : new SolidColorBrush(color),
                 BorderBrush = item.IsInterval ? new SolidColorBrush(Color.FromArgb(150, color.R, color.G, color.B)) : null,
                 BorderThickness = item.IsInterval ? new Thickness(1, 0, 1, 0) : new Thickness(0),
-                Margin = new Thickness(left, 0, 0, 0),
+                Margin = new Thickness(left, plotOrigin.Y, 0, 0),
             });
             WaveformEventTimeLabel.Add(
                 eventMarkers,
                 left,
-                3,
+                plotOrigin.Y + 3,
                 viewModel.TimeDisplay.FormatPoint(itemStart),
                 color,
                 RecordingEventDisplayTime.FormatMarker(item, viewModel.RecordingStartUtc, viewModel.SamplingRateHz));
