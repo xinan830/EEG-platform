@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Buffers;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
@@ -153,7 +154,21 @@ public sealed class LocalAcquisitionRawWriter : IAcquisitionRawWriter
         // second and can make the device SDK backlog faster than we drain it.
         // Keep the sample-major float64 payload byte-identical, but write the
         // whole contiguous array in one stream operation.
-        sampleStream.Write(MemoryMarshal.AsBytes(batch.SampleMajorValues.AsSpan()));
+        // Keep the capture loop off synchronous file I/O. The SDK read loop is
+        // the only consumer that can observe the vendor stream, so a blocking
+        // write here can turn normal storage latency into an acquisition gap.
+        var payloadBytes = checked(batch.SampleMajorValues.Length * sizeof(double));
+        var payloadBuffer = ArrayPool<byte>.Shared.Rent(payloadBytes);
+        try
+        {
+            MemoryMarshal.AsBytes<double>(batch.SampleMajorValues.AsSpan())
+                .CopyTo(payloadBuffer.AsSpan(0, payloadBytes));
+            await sampleStream.WriteAsync(payloadBuffer.AsMemory(0, payloadBytes), cancellationToken);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(payloadBuffer);
+        }
 
         unflushedBytes = checked(unflushedBytes + recordBytes);
         writtenSampleCount = checked(writtenSampleCount + batch.SampleCount);

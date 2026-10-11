@@ -170,12 +170,13 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             if (startRecordingImmediately)
             {
                 publishedMetadata = openedStream.Metadata with { RecordingStartUtc = DateTimeOffset.UtcNow };
-                openedWriter = await rawWriterFactory.CreateAsync(
+                var writer = await rawWriterFactory.CreateAsync(
                     openedSessionId,
                     publishedMetadata,
                     request.Project,
                     request.RecordingDirectory,
                     cancellationToken);
+                openedWriter = new QueuedAcquisitionRawWriter(writer);
             }
 
             Volatile.Write(ref rawWriter, openedWriter);
@@ -229,12 +230,13 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             var streamSessionId = sessionId ?? throw new InvalidOperationException("The stream session is unavailable.");
             var recordingSessionId = Guid.NewGuid();
             var recordingMetadata = metadata with { RecordingStartUtc = DateTimeOffset.UtcNow };
-            pendingWriter = await rawWriterFactory.CreateAsync(
+            var createdWriter = await rawWriterFactory.CreateAsync(
                 recordingSessionId,
                 recordingMetadata,
                 request.Project,
                 request.RecordingDirectory,
                 cancellationToken);
+            pendingWriter = new QueuedAcquisitionRawWriter(createdWriter);
 
             await batchBoundary.WaitAsync(cancellationToken);
             try
@@ -444,6 +446,11 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             }
             else if (activeWriter is not null)
             {
+                if (activeWriter is IAcquisitionRawWriterHealth { Failure: { } failure })
+                {
+                    throw new InvalidOperationException("Raw persistence failed.", failure);
+                }
+
                 if (continuity.Gap is not null)
                 {
                     await activeWriter.AppendGapAsync(continuity.Gap, cancellationToken);
@@ -456,7 +463,9 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
                     AddRecordingGap(pausedGap);
                 }
 
-                await activeWriter.AppendBatchAsync(batch, cancellationToken);
+                // The queued writer returns after the batch is accepted. The
+                // completion path drains the queue before closing the file.
+                _ = activeWriter.AppendBatchAsync(batch, cancellationToken);
                 Interlocked.CompareExchange(ref recordingFirstSampleCounter, batch.FirstSampleCounter, -1);
                 Volatile.Write(ref recordingLastPersistedSampleCounter, batch.LastSampleCounter);
                 if (!lifecycleStartedWritten)
