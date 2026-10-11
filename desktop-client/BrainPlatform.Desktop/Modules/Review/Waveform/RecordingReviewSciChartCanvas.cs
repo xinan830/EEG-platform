@@ -21,6 +21,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     private readonly NumericAxis yAxis = new();
     private readonly Grid labels = new();
     private readonly Grid chartHost = new();
+    private readonly Grid rootLayout = WaveformPlotLayout.CreateRootGrid();
     private readonly Canvas eventMarkers = new();
     private readonly ReviewPlaybackCursor playbackCursor = new();
     private readonly TextBlock emptyMessage = new()
@@ -40,14 +41,8 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     public RecordingReviewSciChartCanvas()
     {
         ConfigureSurface();
-        var layout = new Grid
-        {
-            Margin = new Thickness(12, 4, 12, 6),
-        };
-        // Compact column with symmetric spacing on both sides of montage labels
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        labels.HorizontalAlignment = HorizontalAlignment.Center;
+        var layout = rootLayout;
+        labels.HorizontalAlignment = HorizontalAlignment.Stretch;
         Grid.SetColumn(labels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
@@ -59,7 +54,8 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             viewModel?.UpdateViewportWidth(chartHost.ActualWidth);
             ApplyFrame(viewModel?.CurrentFrame, viewModel);
         };
-        Grid.SetColumn(chartHost, 1);
+        Grid.SetColumn(chartHost, 2);
+        chartHost.Margin = new Thickness(0);
         layout.Children.Add(labels);
         layout.Children.Add(chartHost);
         Content = layout;
@@ -250,7 +246,8 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
                 FontWeight = FontWeights.Medium,
                 Foreground = new SolidColorBrush(traceColor),
                 VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(0),
             };
             Grid.SetRow(label, index);

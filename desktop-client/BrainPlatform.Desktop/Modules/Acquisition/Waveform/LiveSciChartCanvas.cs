@@ -46,6 +46,7 @@ public sealed class LiveSciChartCanvas : UserControl
     };
     private readonly Grid channelLabels = new();
     private readonly Grid chartHost = new();
+    private readonly Grid rootLayout = WaveformPlotLayout.CreateRootGrid();
     private readonly Canvas eventMarkers = new();
     private readonly TextBlock emptyMessage = new()
     {
@@ -113,20 +114,14 @@ public sealed class LiveSciChartCanvas : UserControl
 
     private Grid CreateLayout()
     {
-        var layout = new Grid
-        {
-            Margin = new Thickness(12, 4, 12, 6),
-        };
-        // Compact column with symmetric spacing on both sides of montage labels
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var layout = rootLayout;
 
-        channelLabels.HorizontalAlignment = HorizontalAlignment.Center;
+        channelLabels.HorizontalAlignment = HorizontalAlignment.Stretch;
         Grid.SetColumn(channelLabels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
         chartHost.Children.Add(eventMarkers);
-        Grid.SetColumn(chartHost, 1);
+        Grid.SetColumn(chartHost, 2);
         chartHost.Margin = new Thickness(0);
         layout.Children.Add(channelLabels);
         layout.Children.Add(chartHost);
@@ -712,7 +707,8 @@ public sealed class LiveSciChartCanvas : UserControl
                 FontSize = 11.5,
                 FontWeight = FontWeights.Medium,
                 VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                TextAlignment = TextAlignment.Center,
                 Margin = new Thickness(0),
             };
             Grid.SetRow(channelLabel, index);

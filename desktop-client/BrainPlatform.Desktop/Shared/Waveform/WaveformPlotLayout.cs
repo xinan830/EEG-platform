@@ -10,6 +10,21 @@ namespace BrainPlatform.Desktop.Shared.Waveform;
 /// </summary>
 internal static class WaveformPlotLayout
 {
+    public const double WaveformHorizontalInset = 2d;
+    public const double LabelColumnWidth = 68d;
+    public const double LabelToPlotGap = 0d;
+
+    public static Grid CreateRootGrid()
+    {
+        // Full-screen workspaces start at screen x=0. Keep the measured layout
+        // inside the viewport so its boundary is not clipped on the left.
+        var grid = new Grid { Margin = new Thickness(WaveformHorizontalInset, 4, WaveformHorizontalInset, 6) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LabelColumnWidth) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LabelToPlotGap) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        return grid;
+    }
+
     public static Rect GetPlotArea(SciChartSurface surface)
     {
         if (surface.GridLinesPanel is not FrameworkElement gridLines ||

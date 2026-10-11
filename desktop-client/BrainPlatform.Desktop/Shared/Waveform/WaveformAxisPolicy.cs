@@ -30,6 +30,14 @@ internal static class WaveformAxisPolicy
 
     public static void ConfigureStackedTraceAxis(NumericAxis axis)
     {
+        // This axis owns the stacked Y coordinates but has no visible labels.
+        // Its layout slot must be empty, otherwise SciChart adds a right gutter
+        // that makes the external label column look horizontally off-center.
+        axis.Width = 0;
+        axis.MinWidth = 0;
+        axis.MaxWidth = 0;
+        axis.Margin = new System.Windows.Thickness(0);
+        axis.Padding = new System.Windows.Thickness(0);
         axis.AutoRange = AutoRange.Never;
         axis.VisibleRange = new DoubleRange(0, 1);
         axis.AxisAlignment = AxisAlignment.Right;
