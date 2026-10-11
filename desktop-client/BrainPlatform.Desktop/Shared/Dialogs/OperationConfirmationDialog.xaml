@@ -104,17 +104,18 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <!-- 居中浮层卡片外框（外边距为阴影预留空间） -->
+    <!-- 居中浮层卡片外框（外边距为阴影预留充足空间） -->
     <Border Width="470" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12"
-            Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+            Margin="28" HorizontalAlignment="Center" VerticalAlignment="Center">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="24" ShadowDepth="4" Direction="270" Color="#0F172A" Opacity="0.12" />
+            <DropShadowEffect BlurRadius="22" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.18" />
         </Border.Effect>
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" /> <!-- 0. 顶部标题栏 -->
                 <RowDefinition Height="Auto" /> <!-- 1. 主体内容区（左侧圆标+右侧说明） -->
-                <RowDefinition Height="Auto" /> <!-- 2. 底部操作栏 -->
+                <RowDefinition Height="1" />    <!-- 2. 全宽下划分割线 -->
+                <RowDefinition Height="Auto" /> <!-- 3. 底部操作栏 -->
             </Grid.RowDefinitions>
 
             <!-- 0. 顶部标题与右上角关闭 X 按钮 -->
@@ -128,7 +129,7 @@
             </Grid>
 
             <!-- 1. 主体内容区：左侧蓝色 i 柔光圆形徽标 + 右侧问题标题与说明文本 -->
-            <Grid Grid.Row="1" Margin="24,20,24,24">
+            <Grid Grid.Row="1" Margin="24,18,24,20">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -157,8 +158,11 @@
                 </StackPanel>
             </Grid>
 
-            <!-- 2. 底部操作栏（取消 + 确认按钮） -->
-            <Border Grid.Row="2" Margin="0,0,24,20">
+            <!-- 2. 全宽下划分割线 -->
+            <Border Grid.Row="2" Height="1" Background="#F1F5F9" />
+
+            <!-- 3. 底部操作栏（取消 + 确认按钮） -->
+            <Border Grid.Row="3" Padding="24,14,24,16" Background="#FFFFFF" CornerRadius="0,0,12,12">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <!-- 取消按钮 -->
                     <Button Style="{StaticResource DialogCancelButton}"
