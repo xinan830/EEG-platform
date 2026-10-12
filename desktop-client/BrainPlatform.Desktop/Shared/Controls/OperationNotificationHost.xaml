@@ -1,14 +1,14 @@
 <UserControl x:Class="BrainPlatform.Desktop.Shared.Controls.OperationNotificationHost"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Width="440"
              HorizontalAlignment="Center"
              VerticalAlignment="Top"
              IsHitTestVisible="True">
-    <Border Width="440" MinHeight="76" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,18,0,0"
-            Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
+    <Border MinWidth="320" MaxWidth="600" Height="44" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,18,0,0"
+            Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8"
+            Padding="12,0,12,0">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="16" ShadowDepth="3" Direction="270" Color="#0F172A" Opacity="0.10" />
+            <DropShadowEffect BlurRadius="18" ShadowDepth="3" Direction="270" Color="#0F172A" Opacity="0.08" />
         </Border.Effect>
         <Border.Style>
             <Style TargetType="Border">
@@ -20,29 +20,9 @@
                 </Style.Triggers>
             </Style>
         </Border.Style>
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="5" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <!-- 状态左侧色彩色条 -->
-            <Border Grid.Column="0" Background="#22C55E" CornerRadius="8,0,0,8">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Background" Value="#22C55E" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Notifications.Kind}" Value="Information"><Setter Property="Background" Value="#3B82F6" /></DataTrigger>
-                            <DataTrigger Binding="{Binding Notifications.Kind}" Value="Warning"><Setter Property="Background" Value="#F59E0B" /></DataTrigger>
-                            <DataTrigger Binding="{Binding Notifications.Kind}" Value="Error"><Setter Property="Background" Value="#EF4444" /></DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-            </Border>
-
-            <!-- 状态圆圈图标 -->
-            <Border Grid.Column="1" Width="38" Height="38" CornerRadius="19" Margin="16,0,14,0" VerticalAlignment="Center">
+        <DockPanel LastChildFill="True">
+            <!-- 1. 左侧状态圆圈图标 (26x26) -->
+            <Border DockPanel.Dock="Left" Width="26" Height="26" CornerRadius="13" Margin="0,0,12,0" VerticalAlignment="Center">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Background" Value="#DCFCE7" />
@@ -53,39 +33,99 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <TextBlock FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Text" Value="✓" /><Setter Property="Foreground" Value="#16A34A" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Notifications.Kind}" Value="Information"><Setter Property="Text" Value="i" /><Setter Property="Foreground" Value="#2563EB" /></DataTrigger>
-                                <DataTrigger Binding="{Binding Notifications.Kind}" Value="Warning"><Setter Property="Text" Value="!" /><Setter Property="Foreground" Value="#D97706" /></DataTrigger>
-                                <DataTrigger Binding="{Binding Notifications.Kind}" Value="Error"><Setter Property="Text" Value="×" /><Setter Property="Foreground" Value="#DC2626" /></DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <!-- 成功勾选 (圆角笔画平滑矢量勾) -->
+                    <Path Data="M 1.5,5.5 L 4.8,9 L 11.5,2.2"
+                          Stroke="#10B981" StrokeThickness="2.2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          Width="12" Height="9" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Path.Style>
+                            <Style TargetType="Path">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Notifications.Kind}" Value="Information"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding Notifications.Kind}" Value="Warning"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding Notifications.Kind}" Value="Error"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+
+                    <!-- 信息提示 -->
+                    <TextBlock Text="i" FontFamily="Georgia, serif" FontStyle="Italic" FontWeight="Bold"
+                               FontSize="15" Foreground="#2563EB" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Margin="0,-1,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Notifications.Kind}" Value="Information"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- 警告注意 -->
+                    <TextBlock Text="!" FontFamily="Segoe UI, sans-serif" FontWeight="Bold"
+                               FontSize="15" Foreground="#D97706" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Margin="0,-1,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Notifications.Kind}" Value="Warning"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- 错误失败 -->
+                    <Path Data="M 2,2 L 8.5,8.5 M 8.5,2 L 2,8.5"
+                          Stroke="#DC2626" StrokeThickness="2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                          Width="8.5" Height="8.5" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Path.Style>
+                            <Style TargetType="Path">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Notifications.Kind}" Value="Error"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
+                </Grid>
             </Border>
 
-            <!-- 标题与消息文本，右侧留足 32px 避让右上角关闭按钮 -->
-            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,14,32,14">
-                <TextBlock Text="{Binding Notifications.KindLabel}" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A" />
-                <TextBlock Text="{Binding Notifications.Message}" Margin="0,3,0,0" FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" />
-            </StackPanel>
-
-            <!-- 绝对对齐右上角的关闭操作；不用 Button，避免主题按钮悬停背景介入。 -->
-            <Border Grid.Column="0" Grid.ColumnSpan="3" Width="24" Height="24"
-                    Background="Transparent" HorizontalAlignment="Right" VerticalAlignment="Top"
-                    Margin="0,8,8,0" ToolTip="关闭提示" Cursor="Hand">
+            <!-- 2. 右侧关闭按钮 (22x22) -->
+            <Border DockPanel.Dock="Right" Width="22" Height="22"
+                    Background="Transparent" CornerRadius="4"
+                    VerticalAlignment="Center" Margin="14,0,0,0" ToolTip="关闭提示" Cursor="Hand">
                 <Border.InputBindings>
                     <MouseBinding Command="{Binding DismissNotificationCommand}" MouseAction="LeftClick" />
                 </Border.InputBindings>
-                <Path Data="M 0,0 L 10,10 M 10,0 L 0,10"
-                      Width="10" Height="10" Stretch="None"
-                      Stroke="#64748B" StrokeThickness="1.8"
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#F1F5F9" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Path Data="M 1,1 L 9,9 M 9,1 L 1,9"
+                      Width="9" Height="9" Stretch="Uniform"
+                      Stroke="#94A3B8" StrokeThickness="1.5"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                       HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
-        </Grid>
+
+            <!-- 3. 中间单行文字（状态标签 + 空格 + 详细消息） -->
+            <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding Notifications.KindLabel, Mode=OneWay}" FontWeight="Medium" Foreground="#1E293B" FontSize="13.5" />
+                <Run Text=" " />
+                <Run Text="{Binding Notifications.Message, Mode=OneWay}" Foreground="#1E293B" FontSize="13.5" />
+            </TextBlock>
+        </DockPanel>
     </Border>
 </UserControl>

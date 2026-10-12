@@ -82,7 +82,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         MarkSelectedEventCommand = new AsyncRelayCommand(MarkSelectedEventAsync, ReportCommandError);
         DeleteSelectedEventCommand = new AsyncRelayCommand(DeleteSelectedEventWithNotificationAsync, ReportCommandError);
         SaveEditedEventCommand = new AsyncRelayCommand(SaveEditedEventAsync, ReportCommandError);
-        PreparePsdCommand = new AsyncRelayCommand(PrepareDefaultPsdAsync, ReportCommandError);
         OpenPsdAnalysisCommand = new AsyncRelayCommand(OpenPsdAnalysisAsync, ReportCommandError);
         ClosePsdAnalysisCommand = new RelayCommand(() => IsPsdAnalysisPanelOpen = false);
         LoadAnalysisSettingsCommand = new AsyncRelayCommand(EnsurePsdParametersLoadedAsync, ReportCommandError);
@@ -169,8 +168,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public System.Windows.Input.ICommand CloseEventEditorCommand { get; }
 
-    public System.Windows.Input.ICommand PreparePsdCommand { get; }
-
     public System.Windows.Input.ICommand OpenPsdAnalysisCommand { get; }
 
     public System.Windows.Input.ICommand ClosePsdAnalysisCommand { get; }
@@ -236,7 +233,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public bool IsAnalysisLoading => analysisBinding?.IsLoading ?? false;
 
-    public string AnalysisStatusText => isAnalysisStale ? "参数已改变，请应用并分析。" : analysisBinding?.StatusText ?? "未绑定分析结果。";
+    public string AnalysisStatusText => isAnalysisStale ? "参数已改变，等待自动分析。" : analysisBinding?.StatusText ?? "未绑定分析结果。";
 
     public bool IsAnalysisAttached => analysisBinding?.RunId is not null;
 
@@ -346,7 +343,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     /// Attaches an existing completed Run. Review follows the playback clock;
     /// it does not create Runs or calculate scientific values.
     /// </summary>
-    public void AttachAnalysis(string runId)
+    public async Task AttachAnalysisAsync(string runId, CancellationToken cancellationToken = default)
     {
         if (analysisCoordinator is null)
             throw new InvalidOperationException("当前回溯页未配置分析 provider。");
@@ -361,7 +358,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         analysisBinding.AttachRun(runId);
         isAnalysisStale = false;
         RaiseAnalysisPropertiesChanged();
-        analysisBinding.PreviewAtSeconds(PositionSeconds);
+        await analysisBinding.LoadAtSecondsAsync(PositionSeconds, cancellationToken);
+        RaiseAnalysisPropertiesChanged();
     }
 
     public async ValueTask DetachAnalysisAsync()
@@ -615,6 +613,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public async ValueTask DisposeAsync()
     {
         analysisLifetime.Cancel();
+        analysisUpdater.Dispose();
         PsdParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
         AnalysisSettings.PropertyChanged -= OnAnalysisConfigurationChanged;
         TimeDisplay.PropertyChanged -= OnTimeDisplayChanged;

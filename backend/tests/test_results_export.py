@@ -123,6 +123,73 @@ def test_window_preview_selects_saved_window_and_returns_derived_chunk(tmp_path)
     assert preview["artifact"]["artifact_id"] == artifact.artifact_id
 
 
+def test_window_preview_serializes_object_dtype_numeric_axes(tmp_path, monkeypatch):
+    queue, recording_id = _queue(tmp_path)
+    run = queue.enqueue(_request(recording_id))
+    artifact = queue.base.artifacts.write_npz(
+        run.run_id,
+        "official_algorithm",
+        {"axis_frequency_hz": np.array([1.0, 2.0]), "psd": np.array([[1.0, np.nan]])},
+        "V^2/Hz",
+        window_ranges=[{"start_sample": 0, "end_sample": 400}],
+    )
+    queue.repository.update_status(run.run_id, RunStatus.RUNNING)
+    queue.repository.update_status(run.run_id, RunStatus.COMPLETED, result_summary={
+        "structured": {
+            "output": {"id": "psd", "kind": "frequency_series"},
+            "windows": [{"start_sample": 0, "end_sample": 400, "state": "Complete", "quality": "clean"}],
+            "axes": {"frequency_hz": {"array_key": "axis_frequency_hz", "unit": "Hz"}},
+            "arrays": {"psd": {"unit": "V^2/Hz"}},
+        },
+    })
+
+    monkeypatch.setattr(
+        queue.base.artifacts,
+        "read_window",
+        lambda _artifact, _index: {"psd": np.array([1.0, np.nan], dtype=object)},
+    )
+    monkeypatch.setattr(
+        queue.base.artifacts,
+        "read_window_axes",
+        lambda _artifact: {"axis_frequency_hz": np.array([1.0, 2.0], dtype=object)},
+    )
+
+    preview = ResultService(queue, ValidationService(queue.repository.database_path)).window_preview(run.run_id, cursor_sample=400)
+
+    assert preview["axes"]["axis_frequency_hz"] == [1.0, 2.0]
+    assert preview["arrays"]["psd"] == [1.0, None]
+
+
+def test_window_preview_excludes_static_json_evidence(tmp_path):
+    queue, recording_id = _queue(tmp_path)
+    run = queue.enqueue(_request(recording_id))
+    queue.base.artifacts.write_npz(
+        run.run_id, "official_algorithm",
+        {
+            "axis_frequency_hz": np.array([1.0, 2.0]),
+            "psd": np.array([[1.0, 2.0]]),
+            "window_evidence_json": np.asarray('[{"quality": "clean"}]'),
+        },
+        "V^2/Hz", window_ranges=[{"start_sample": 0, "end_sample": 400}],
+    )
+    queue.repository.update_status(run.run_id, RunStatus.RUNNING)
+    queue.repository.update_status(run.run_id, RunStatus.COMPLETED, result_summary={
+        "structured": {
+            "output": {"id": "psd", "kind": "frequency_series"},
+            "windows": [{"start_sample": 0, "end_sample": 400, "state": "Complete", "quality": "clean"}],
+            "axes": {"frequency_hz": {"array_key": "axis_frequency_hz", "unit": "Hz"}},
+            "arrays": {"psd": {"unit": "V^2/Hz"}, "window_evidence_json": {"unit": "json"}},
+        },
+    })
+
+    preview = ResultService(queue, ValidationService(queue.repository.database_path)).window_preview(
+        run.run_id, cursor_sample=400,
+    )
+
+    assert preview["axes"] == {"axis_frequency_hz": [1.0, 2.0]}
+    assert preview["arrays"]["psd"] == [1.0, 2.0]
+
+
 def test_result_export_includes_persisted_independent_reference_evidence(tmp_path):
     queue, recording_id = _queue(tmp_path)
     run = queue.enqueue(_request(recording_id))

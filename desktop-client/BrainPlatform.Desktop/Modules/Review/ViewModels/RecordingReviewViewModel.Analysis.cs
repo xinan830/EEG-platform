@@ -1,4 +1,5 @@
 using BrainPlatform.Desktop.Modules.Review.Analysis;
+using BrainPlatform.Desktop.Modules.Review.Scheduling;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
@@ -6,7 +7,10 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 public sealed partial class RecordingReviewViewModel
 {
     private Task? analysisParameterLoadTask;
-    public async Task PrepareDefaultPsdAsync()
+    private readonly LatestDelayedTask analysisUpdater = new();
+    public Task PrepareDefaultPsdAsync() => PreparePsdAsync(analysisLifetime.Token);
+
+    private async Task PreparePsdAsync(CancellationToken cancellationToken)
     {
         if (analysisCoordinator is null || analysisRecordingDirectory is null)
             throw new InvalidOperationException("当前回溯记录不支持算法注册。");
@@ -15,6 +19,7 @@ public sealed partial class RecordingReviewViewModel
         try
         {
             await EnsurePsdParametersLoadedAsync();
+            cancellationToken.ThrowIfCancellationRequested();
             var registered = analysisRecording ?? throw new InvalidOperationException("PSD 记录注册未完成。");
             var request = new AnalysisRunRequest(registered.Id, "official_algorithm",
                 PsdParameters.BuildConfig(registered.DurationSeconds ?? DurationSeconds,
@@ -32,13 +37,17 @@ public sealed partial class RecordingReviewViewModel
                     "running" => "PSD 分析中…",
                     _ => PsdPreparationText,
                 };
-            }, analysisLifetime.Token, revision);
-            if (revision != analysisConfigurationRevision) return;
-            PsdPreparationText = run.Status == "gate_failed" ? "PSD 质量门未通过，已显示失败原因。" : "PSD 已准备，正在跟随回溯游标。";
+            }, cancellationToken, revision);
+            if (cancellationToken.IsCancellationRequested || revision != analysisConfigurationRevision) return;
+            PsdPreparationText = run.Status == "gate_failed"
+                ? "PSD 质量门未通过，已显示失败原因。"
+                : CurrentAnalysisWindow is null
+                    ? analysisBinding?.StatusText ?? "当前游标暂无可用 PSD 窗口。"
+                    : "PSD 已准备，正在跟随回溯游标。";
         }
         catch (Exception exception)
         {
-            if (analysisLifetime.IsCancellationRequested || (revision is not null && revision != analysisConfigurationRevision)) return;
+            if (cancellationToken.IsCancellationRequested || analysisLifetime.IsCancellationRequested || (revision is not null && revision != analysisConfigurationRevision)) return;
             PsdPreparationText = $"PSD 准备失败：{exception.Message}";
             throw;
         }
@@ -48,6 +57,7 @@ public sealed partial class RecordingReviewViewModel
     {
         await EnsurePsdParametersLoadedAsync();
         IsPsdAnalysisPanelOpen = true;
+        await PrepareDefaultPsdAsync();
     }
 
     private Task EnsurePsdParametersLoadedAsync()
@@ -92,7 +102,7 @@ public sealed partial class RecordingReviewViewModel
             throw new InvalidOperationException($"PSD 分析未完成：{run.Status}。");
         if (!analysisLifetime.IsCancellationRequested &&
             revision == analysisConfigurationRevision)
-            AttachAnalysis(run.RunId);
+            await AttachAnalysisAsync(run.RunId, cancellationToken);
         return run;
     }
 
@@ -106,7 +116,15 @@ public sealed partial class RecordingReviewViewModel
     {
         analysisConfigurationRevision++;
         isAnalysisStale = true;
-        PsdPreparationText = "参数已改变，请应用并分析。";
+        PsdPreparationText = "参数已改变，等待自动分析。";
         RaiseAnalysisPropertiesChanged();
+        if (!IsPsdAnalysisPanelOpen || analysisLifetime.IsCancellationRequested) return;
+        analysisUpdater.Schedule(TimeSpan.FromMilliseconds(300), async token =>
+        {
+            if (!IsPsdAnalysisPanelOpen || analysisLifetime.IsCancellationRequested) return;
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, analysisLifetime.Token);
+            try { await PreparePsdAsync(linked.Token); }
+            catch (Exception exception) when (!linked.IsCancellationRequested) { ReportCommandError(exception); }
+        });
     }
 }

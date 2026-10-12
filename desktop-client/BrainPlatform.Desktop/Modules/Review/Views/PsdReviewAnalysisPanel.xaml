@@ -1,4 +1,5 @@
 <UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.PsdReviewAnalysisPanel"
+             x:Name="PsdPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
@@ -12,7 +13,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <shared:AnalysisPanelShell Title="PSD 分析" StatusText="{Binding PsdPreparationText}"
-                               ApplyCommand="{Binding PreparePsdCommand}" CloseCommand="{Binding ClosePsdAnalysisCommand}">
+                               CloseCommand="{Binding ClosePsdAnalysisCommand}">
         <shared:AnalysisPanelShell.Parameters>
             <StackPanel>
                 <TextBlock Text="分析导联" Style="{StaticResource AnalysisFieldLabelStyle}" />
@@ -20,6 +21,7 @@
                           Style="{DynamicResource AppFilterComboBoxStyle}" />
             </StackPanel>
         </shared:AnalysisPanelShell.Parameters>
-        <analysis:PsdReviewAnalysisChart Window="{Binding CurrentAnalysisWindow}" />
+        <analysis:PsdReviewAnalysisChart x:Name="PsdChart"
+                                         Window="{Binding DataContext.CurrentAnalysisWindow, ElementName=PsdPanel, Mode=OneWay}" />
     </shared:AnalysisPanelShell>
 </UserControl>

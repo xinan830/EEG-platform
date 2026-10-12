@@ -54,20 +54,13 @@ class ResultService:
         if numeric_cells > max_cells:
             raise ValueError("structured preview exceeds the requested cell limit")
 
-        def json_values(value: np.ndarray) -> object:
-            array = np.asarray(value)
-            if array.ndim == 0:
-                scalar = array.item()
-                return float(scalar) if np.isfinite(scalar) else None
-            return [json_values(item) for item in array]
-
         preview_arrays = {
-            name: json_values(arrays[name])
+            name: self._json_values(arrays[name])
             for name in numeric_names
             if not name.startswith("axis_")
         }
         axes = {
-            name: json_values(arrays[metadata["array_key"]])
+            name: self._json_values(arrays[metadata["array_key"]])
             for name, metadata in (structured.get("axes") or {}).items()
             if metadata.get("array_key") in arrays
         }
@@ -123,7 +116,14 @@ class ResultService:
         arrays = self.runs.base.artifacts.read_window(artifact, selection.window.window_index)
         axes = self.runs.base.artifacts.read_window_axes(artifact)
         response["artifact"] = artifact.model_dump(mode="json")
-        response["axes"] = {name: self._json_values(value) for name, value in axes.items()}
+        axis_keys = {
+            metadata["array_key"]
+            for metadata in (structured.get("axes") or {}).values()
+        }
+        response["axes"] = {
+            name: self._json_values(value) for name, value in axes.items()
+            if name in axis_keys
+        }
         response["arrays"] = {name: self._json_values(value) for name, value in arrays.items()}
         response["array_metadata"] = structured.get("arrays", {})
         response["axis_metadata"] = structured.get("axes", {})
@@ -173,10 +173,16 @@ class ResultService:
 
     @staticmethod
     def _json_values(value: np.ndarray) -> object:
-        array = np.asarray(value)
+        try:
+            array = np.asarray(value, dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("result artifact contains non-numeric values") from exc
         if array.ndim == 0:
             scalar = array.item()
             return float(scalar) if np.isfinite(scalar) else None
+        finite = np.isfinite(array)
+        if array.ndim == 1:
+            return [float(item) if finite[index] else None for index, item in enumerate(array)]
         return [ResultService._json_values(item) for item in array]
 
     def export(self, run_id: str, validation_id: str | None = None) -> bytes:

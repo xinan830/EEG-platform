@@ -17,13 +17,12 @@ public sealed class AnalysisPanelCompositionTests
         var context = new object();
         var chart = new Border();
         var parameter = new TextBlock { Text = "原始通道", Height = 50 };
-        var apply = new TestCommand();
         var close = new TestCommand();
         var shell = new AnalysisPanelShell
         {
             DataContext = context, Title = "PSD 分析", Parameters = parameter, Content = chart,
-            ApplyCommand = apply, CloseCommand = close,
-            StatusText = "参数已改变，请应用并分析。",
+            CloseCommand = close,
+            StatusText = "参数已改变，等待自动分析。",
         };
         LoadStyles(shell);
         Arrange(shell, width, 640);
@@ -31,10 +30,9 @@ public sealed class AnalysisPanelCompositionTests
         Assert.Same(context, chart.DataContext);
         Assert.Same(context, parameter.DataContext);
         var applyButton = Assert.IsType<Button>(shell.Template.FindName("PART_ApplyButton", shell));
-        Assert.Same(apply, applyButton.Command);
+        Assert.Equal(Visibility.Collapsed, applyButton.Visibility);
         Assert.True(chart.ActualHeight > 420, $"Chart height: {chart.ActualHeight}");
         Assert.True(chart.ActualWidth >= width - 28);
-        Assert.True(applyButton.TranslatePoint(new Point(), shell).X + applyButton.ActualWidth <= width);
         var toggles = 0;
         shell.DockToggleRequested += (_, _) => toggles++;
         var dock = Assert.IsType<Button>(shell.Template.FindName("PART_DockButton", shell));
