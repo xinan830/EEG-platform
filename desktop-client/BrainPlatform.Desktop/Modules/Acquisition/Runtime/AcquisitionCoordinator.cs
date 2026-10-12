@@ -1,4 +1,6 @@
 
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
+
 namespace BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 
 public sealed class AcquisitionCoordinator : IAsyncDisposable
@@ -453,6 +455,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
 
                 if (continuity.Gap is not null)
                 {
+                    DesktopLog.Warning($"acquisition_sample_gap first_missing={continuity.Gap.FirstMissingSampleCounter} last_missing={continuity.Gap.LastMissingSampleCounter} missing_count={continuity.Gap.MissingSampleCount}");
                     await activeWriter.AppendGapAsync(continuity.Gap, cancellationToken);
                     AddRecordingGap(continuity.Gap);
                 }
@@ -502,6 +505,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
                 activeWriter?.RecordingDirectory ?? string.Empty));
             if (!dispatch.Accepted && dispatch.IsNewFailure && activeWriter is not null)
             {
+                DesktopLog.Warning($"acquisition_analysis_batch_dropped reason={dispatch.RejectionReason ?? "unknown"} sample_count={batch.SampleCount}");
                 await activeWriter.AppendDiagnosticAsync(
                     "ANALYSIS_BATCH_DROPPED",
                     dispatch.RejectionReason ?? "Analysis dispatch rejected the batch.",
@@ -594,6 +598,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
 
             ResetLiveResources();
             lastFault = fault;
+            DesktopLog.Error($"acquisition_fault code={fault.Code} detail={fault.Detail}");
             SetState(AcquisitionState.Faulted, fault.Detail, null);
         }
         finally
@@ -724,6 +729,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     {
         var snapshot = new AcquisitionStateSnapshot(nextState, detail, activeSessionId, DateTimeOffset.UtcNow);
         Volatile.Write(ref state, snapshot);
+        DesktopLog.Info($"acquisition_state state={nextState} session_id={activeSessionId?.ToString("N") ?? "none"} detail={detail}");
         StateChanged?.Invoke(this, snapshot);
     }
 

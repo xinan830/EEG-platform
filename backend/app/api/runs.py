@@ -1,5 +1,7 @@
 """Traceable analysis run resources."""
 
+import logging
+
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
 
@@ -10,6 +12,7 @@ from app.services.runs import RunConflictError, RunService
 
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
+logger = logging.getLogger("brain_platform.api.runs")
 
 
 def _service(request: Request) -> RunService:
@@ -33,6 +36,10 @@ def create_run(payload: RunCreateRequest, request: Request):
         recording_id=run.recording_id,
         parameters={"run_id": run.run_id, "analysis_type": run.analysis_type, "status": run.status.value},
     )
+    logger.info(
+        "run_created request_id=%s run_id=%s recording_id=%s analysis_type=%s status=%s",
+        getattr(request.state, "request_id", "unknown"), run.run_id, run.recording_id, run.analysis_type, run.status.value,
+    )
     return serialize_analysis_run(run)
 
 
@@ -55,6 +62,10 @@ def ensure_run(payload: RunCreateRequest, request: Request):
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:
         return error_response(request, 422, "RUN_REQUEST_INVALID", str(exc))
+    logger.info(
+        "run_ensured request_id=%s run_id=%s recording_id=%s analysis_type=%s status=%s",
+        getattr(request.state, "request_id", "unknown"), run.run_id, run.recording_id, run.analysis_type, run.status.value,
+    )
     return serialize_analysis_run(run)
 
 

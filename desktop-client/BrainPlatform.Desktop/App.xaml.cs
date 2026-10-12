@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Windows;
 using BrainPlatform.Desktop.Infrastructure.Backend;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using SciChart.Charting.Visuals;
 
 namespace BrainPlatform.Desktop;
@@ -14,6 +15,7 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        DesktopLog.Info("desktop_started");
 
         ShutdownMode = ShutdownMode.OnMainWindowClose;
         DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -41,13 +43,13 @@ public partial class App : Application
 
         // ── 第二步：构建客户端 ──
         var backendEndpoint = new Uri("http://127.0.0.1:8000/");
-        var healthClient = new BackendHealthClient(new HttpClient
+        var healthClient = new BackendHealthClient(new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
         {
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(3),
         });
 
-        var runtime = new Modules.Acquisition.Runtime.ConfiguredAcquisitionRuntime(new HttpClient
+        var runtime = new Modules.Acquisition.Runtime.ConfiguredAcquisitionRuntime(new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
         {
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(2),
@@ -68,7 +70,7 @@ public partial class App : Application
             notifications,
             eventDefinitionService,
             algorithmClient);
-        var reviewFilterClient = new HttpClient
+        var reviewFilterClient = new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
         {
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(15),
@@ -94,6 +96,7 @@ public partial class App : Application
         {
             // 关闭后端进程（打包模式下）
             _backendProcess?.Dispose();
+            DesktopLog.Info("desktop_stopped");
             base.OnExit(e);
         }
     }
@@ -102,6 +105,7 @@ public partial class App : Application
         object sender,
         System.Windows.Threading.DispatcherUnhandledExceptionEventArgs e)
     {
+        DesktopLog.Error("desktop_dispatcher_unhandled_exception", e.Exception);
         MessageBox.Show(
             e.Exception.ToString(),
             "脑科研平台桌面客户端启动错误",

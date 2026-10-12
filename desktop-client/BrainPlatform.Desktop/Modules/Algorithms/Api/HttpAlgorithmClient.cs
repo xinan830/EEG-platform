@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 
@@ -111,12 +112,27 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
         CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(method, relativePath);
+        var requestId = Guid.NewGuid().ToString("N");
+        request.Headers.TryAddWithoutValidation("X-Request-ID", requestId);
         if (payload is not null)
         {
             request.Content = JsonContent.Create(payload, options: JsonOptions);
         }
 
-        using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        HttpResponseMessage response;
+        try
+        {
+            response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            DesktopLog.Error($"http_failed request_id={requestId} method={method.Method} path={relativePath} elapsed_ms={started.Elapsed.TotalMilliseconds:0.0}", exception);
+            throw;
+        }
+        using (response)
+        {
+            DesktopLog.Info($"http_completed request_id={requestId} method={method.Method} path={relativePath} status={(int)response.StatusCode} elapsed_ms={started.Elapsed.TotalMilliseconds:0.0}");
         if (!response.IsSuccessStatusCode)
         {
             throw await CreateExceptionAsync(response, cancellationToken);
@@ -125,6 +141,7 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
         var result = await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
         return result ?? throw new AlgorithmApiException(
             response.StatusCode, "EMPTY_RESPONSE", "算法服务返回了空响应。");
+        }
     }
 
     private static async Task<AlgorithmApiException> CreateExceptionAsync(

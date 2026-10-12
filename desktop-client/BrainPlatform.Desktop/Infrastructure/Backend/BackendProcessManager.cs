@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 
 namespace BrainPlatform.Desktop.Infrastructure.Backend;
 
@@ -27,6 +28,7 @@ public sealed class BackendProcessManager : IDisposable
     public async Task<bool> StartAndWaitAsync(CancellationToken cancellationToken = default)
     {
         var exePath = GetBackendExePath();
+        DesktopLog.Info($"backend_start_requested packaged={(exePath is not null)}");
         if (exePath is null)
         {
             // 开发模式：不存在打包后端，期望开发者手动启动
@@ -48,7 +50,9 @@ public sealed class BackendProcessManager : IDisposable
         _process = Process.Start(psi)
             ?? throw new InvalidOperationException("无法启动后端进程");
 
-        return await WaitForHealthyAsync(cancellationToken);
+        var ready = await WaitForHealthyAsync(cancellationToken);
+        DesktopLog.Info($"backend_start_completed ready={ready}");
+        return ready;
     }
 
     /// <summary>
@@ -56,7 +60,8 @@ public sealed class BackendProcessManager : IDisposable
     /// </summary>
     private static async Task<bool> WaitForHealthyAsync(CancellationToken cancellationToken)
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromMilliseconds(1500) };
+        using var http = new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
+        { Timeout = TimeSpan.FromMilliseconds(1500) };
         var deadline = DateTimeOffset.UtcNow.AddMilliseconds(MaxWaitMs);
 
         while (DateTimeOffset.UtcNow < deadline)
@@ -81,7 +86,8 @@ public sealed class BackendProcessManager : IDisposable
 
     private static async Task<bool> IsHealthyAsync(CancellationToken cancellationToken)
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromMilliseconds(700) };
+        using var http = new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
+        { Timeout = TimeSpan.FromMilliseconds(700) };
         try
         {
             using var response = await http.GetAsync(BackendUrl, cancellationToken);
@@ -89,6 +95,7 @@ public sealed class BackendProcessManager : IDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
+            DesktopLog.Warning("backend_health_check_failed");
             return false;
         }
     }
@@ -120,6 +127,7 @@ public sealed class BackendProcessManager : IDisposable
         catch
         {
             // 进程可能已经退出，忽略
+            DesktopLog.Warning("backend_process_dispose_failed");
         }
         finally
         {

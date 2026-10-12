@@ -60,6 +60,27 @@ public sealed class HttpAlgorithmClientTests
     }
 
     [Fact]
+    public async Task Requests_IncludeCorrelationIdWithoutLoggingPayload()
+    {
+        HttpRequestMessage? captured = null;
+        using var client = new HttpClient(new StubHandler(request =>
+        {
+            captured = request;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new { algorithms = Array.Empty<object>() }),
+            };
+        })) { BaseAddress = new Uri("http://localhost/") };
+
+        await new HttpAlgorithmClient(client).ListAlgorithmsAsync(CancellationToken.None);
+
+        Assert.NotNull(captured);
+        var requestId = captured!.Headers.GetValues("X-Request-ID").Single();
+        Assert.False(string.IsNullOrWhiteSpace(requestId));
+        Assert.Null(captured.Content);
+    }
+
+    [Fact]
     public async Task GetRun_InvalidResponseExposesStructuredBackendError()
     {
         using var client = new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)

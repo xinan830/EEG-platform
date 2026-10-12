@@ -35,13 +35,17 @@ from app.api.live_filters import router as live_filters_router
 from app.services.live_filter import LiveFilterService
 from app.bootstrap import build_builtin_registry
 from app.services.algorithm_presets import AlgorithmPresetService
-from app.core.config import DATABASE_PATH
+from app.core.config import DATABASE_PATH, STORAGE_DIR
 from app.core.api_contract import (
     RequestContextMiddleware,
     http_exception_handler,
     unhandled_exception_handler,
     validation_exception_handler,
 )
+from app.core.logging_setup import configure_logging
+
+
+configure_logging(STORAGE_DIR)
 
 
 @asynccontextmanager
