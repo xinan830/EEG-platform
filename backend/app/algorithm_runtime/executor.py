@@ -137,9 +137,10 @@ class AlgorithmRuntime:
                 f"{module.manifest.display_name_zh}动态分析窗口仅支持 "
                 f"{', '.join(f'{value:g}' for value in policy.window_options_s)} 秒"
             )
-        if typed_config.step_s != policy.refresh_step_s:
+        if typed_config.step_s not in policy.refresh_step_options_s:
             raise ValueError(
-                f"{module.manifest.display_name_zh}动态分析每 {policy.refresh_step_s:g} 秒更新"
+                f"{module.manifest.display_name_zh}动态分析刷新步长仅支持 "
+                f"{', '.join(f'{value:g}' for value in policy.refresh_step_options_s)} 秒"
             )
         return typed_config
 

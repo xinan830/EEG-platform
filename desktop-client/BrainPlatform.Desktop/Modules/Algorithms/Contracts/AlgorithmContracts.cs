@@ -96,7 +96,8 @@ public sealed record DynamicAnalysisPolicy(
     [property: JsonPropertyName("window_options_s")] IReadOnlyList<double> WindowOptionsSeconds,
     [property: JsonPropertyName("default_window_s")] double DefaultWindowSeconds,
     [property: JsonPropertyName("refresh_step_s")] double RefreshStepSeconds,
-    [property: JsonPropertyName("allow_warmup")] bool AllowWarmup);
+    [property: JsonPropertyName("allow_warmup")] bool AllowWarmup,
+    [property: JsonPropertyName("refresh_step_options_s")] IReadOnlyList<double>? RefreshStepOptionsSeconds = null);
 
 public sealed record AnalysisRunRequest(
     [property: JsonPropertyName("recording_id")] string RecordingId,

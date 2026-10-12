@@ -26,6 +26,7 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
         "window_options_s": [5.0, 10.0, 20.0, 30.0],
         "default_window_s": 5.0,
         "refresh_step_s": 1.0,
+        "refresh_step_options_s": [1.0, 2.0, 5.0],
         "allow_warmup": True,
     }
 

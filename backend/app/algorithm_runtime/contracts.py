@@ -54,6 +54,7 @@ class DynamicAnalysisPolicy(BaseModel):
     window_options_s: list[float] = Field(default_factory=lambda: [5.0, 10.0, 20.0, 30.0])
     default_window_s: float = Field(default=5.0, gt=0)
     refresh_step_s: float = Field(default=1.0, gt=0)
+    refresh_step_options_s: list[float] = Field(default_factory=lambda: [1.0, 2.0, 5.0])
     allow_warmup: bool = True
 
     @model_validator(mode="after")
@@ -64,6 +65,10 @@ class DynamicAnalysisPolicy(BaseModel):
             raise ValueError("dynamic default window must be one of the supported options")
         if self.default_window_s < self.minimum_window_s:
             raise ValueError("dynamic default window cannot be shorter than its minimum")
+        if not self.refresh_step_options_s or any(value <= 0 for value in self.refresh_step_options_s):
+            raise ValueError("dynamic refresh step options must contain positive values")
+        if self.refresh_step_s not in self.refresh_step_options_s:
+            raise ValueError("dynamic default refresh step must be one of the supported options")
         return self
 
 

@@ -39,6 +39,30 @@ def test_algorithm_result_can_represent_unavailable_value_without_zero() -> None
     assert result.failure is not None
 
 
+@pytest.mark.parametrize("step_s", [1.0, 2.0, 5.0])
+def test_dynamic_policy_accepts_documented_refresh_steps(step_s: float) -> None:
+    config = AlgorithmRuntime.validate_config(
+        module=PsdAlgorithm(),
+        config={
+            "channel": "Fz", "mode": "dynamic", "start_s": 0.0, "end_s": 20.0,
+            "window_s": 5.0, "step_s": step_s,
+        },
+    )
+
+    assert config.step_s == step_s
+
+
+def test_dynamic_policy_rejects_refresh_step_outside_catalog() -> None:
+    with pytest.raises(ValueError, match="刷新步长仅支持"):
+        AlgorithmRuntime.validate_config(
+            module=PsdAlgorithm(),
+            config={
+                "channel": "Fz", "mode": "dynamic", "start_s": 0.0, "end_s": 20.0,
+                "window_s": 5.0, "step_s": 3.0,
+            },
+        )
+
+
 def test_structured_result_declares_axes_units_and_artifact_arrays() -> None:
     result = AlgorithmStructuredResult(
         output_kind="frequency_series",

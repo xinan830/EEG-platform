@@ -29,7 +29,9 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public IReadOnlyList<string> RegisteredChannels => Catalog.RegisteredChannels;
     public IReadOnlyList<string> AnalysisModes => Catalog.AnalysisModes;
     public IReadOnlyList<double> DynamicWindowOptions => Catalog.DynamicWindowOptions;
+    public IReadOnlyList<double> DynamicStepOptions => Catalog.DynamicStepOptions;
     public string DynamicStepText { get => Catalog.DynamicStepText; set => Catalog.DynamicStepText = value; }
+    public double SelectedDynamicStepSeconds { get => Catalog.SelectedDynamicStepSeconds; set => Catalog.SelectedDynamicStepSeconds = value; }
     public double SelectedDynamicWindowSeconds { get => Catalog.SelectedDynamicWindowSeconds; set => Catalog.SelectedDynamicWindowSeconds = value; }
     public string SelectedAnalysisMode { get => Catalog.SelectedAnalysisMode; set => Catalog.SelectedAnalysisMode = value; }
     public bool IsDynamicMode => Catalog.IsDynamicMode;
@@ -135,8 +137,10 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.IsDynamicMode)
             or nameof(AlgorithmListViewModel.IsDynamicModeAvailable)
             or nameof(AlgorithmListViewModel.DynamicWindowOptions)
+            or nameof(AlgorithmListViewModel.DynamicStepOptions)
             or nameof(AlgorithmListViewModel.SelectedDynamicWindowSeconds)
             or nameof(AlgorithmListViewModel.DynamicStepText)
+            or nameof(AlgorithmListViewModel.SelectedDynamicStepSeconds)
             or nameof(AlgorithmListViewModel.IsDynamicPreviewPlaying)
             or nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)
             or nameof(AlgorithmListViewModel.DynamicPreviewCursorText)
@@ -195,8 +199,10 @@ public sealed class AnalysisContextViewModel : ObservableObject
             RaisePropertyChanged(nameof(RegisteredChannels));
             RaisePropertyChanged(nameof(SelectedAnalysisMode));
             RaisePropertyChanged(nameof(DynamicStepText));
+            RaisePropertyChanged(nameof(SelectedDynamicStepSeconds));
             RaisePropertyChanged(nameof(SelectedDynamicWindowSeconds));
             RaisePropertyChanged(nameof(DynamicWindowOptions));
+            RaisePropertyChanged(nameof(DynamicStepOptions));
             RaisePropertyChanged(nameof(IsDynamicMode));
             RaisePropertyChanged(nameof(IsDynamicModeAvailable));
             RaisePropertyChanged(nameof(IsDynamicPreviewPlaying));

@@ -209,6 +209,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             SelectedAnalysisMode = "静态";
             SelectedDynamicWindowSeconds = value?.DynamicPolicy.DefaultWindowSeconds ?? 5.0;
             DynamicStepText = value?.DynamicPolicy.RefreshStepSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) ?? "1";
+            selectedDynamicStepSeconds = value?.DynamicPolicy.RefreshStepSeconds ?? 1.0;
             ApplyAlgorithmChannelDefaults();
             RaisePropertyChanged(nameof(IsPsdSelected));
             RaisePropertyChanged(nameof(IsStftSelected));
@@ -222,6 +223,8 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             RaisePropertyChanged(nameof(ChannelLabel));
             RaisePropertyChanged(nameof(IsDynamicModeAvailable));
             RaisePropertyChanged(nameof(DynamicWindowOptions));
+            RaisePropertyChanged(nameof(DynamicStepOptions));
+            RaisePropertyChanged(nameof(SelectedDynamicStepSeconds));
             ApplyAlgorithmChannelDefaults();
             ApplyAlgorithmParameterDefaults();
             ScheduleAutomaticRun();
@@ -320,6 +323,10 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     public ObservableCollection<DynamicWindowRow> DynamicPreviewRows { get; } = [];
     public bool IsDynamicModeAvailable => SelectedAlgorithm?.Modes.Contains("dynamic") == true;
     public IReadOnlyList<double> DynamicWindowOptions => SelectedAlgorithm?.DynamicPolicy.WindowOptionsSeconds ?? [];
+    public IReadOnlyList<double> DynamicStepOptions =>
+        SelectedAlgorithm?.DynamicPolicy.RefreshStepOptionsSeconds is { Count: > 0 } options
+            ? options
+            : SelectedAlgorithm is null ? [1.0] : [SelectedAlgorithm.DynamicPolicy.RefreshStepSeconds];
     public double SelectedDynamicWindowSeconds
     {
         get => selectedDynamicWindowSeconds;
@@ -336,6 +343,16 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         {
             if (!SetProperty(ref dynamicStepText, value)) return;
             ScheduleAutomaticRun();
+        }
+    }
+    private double selectedDynamicStepSeconds = 1.0;
+    public double SelectedDynamicStepSeconds
+    {
+        get => selectedDynamicStepSeconds;
+        set
+        {
+            if (!SetProperty(ref selectedDynamicStepSeconds, value)) return;
+            DynamicStepText = value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
         }
     }
     public bool HasRegisteredChannels => RegisteredChannels.Count > 0;
