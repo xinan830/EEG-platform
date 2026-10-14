@@ -13,6 +13,7 @@ public sealed class PsdPreviewState : ObservableObject
     private string frequencyRangeText = string.Empty;
     private string valueRangeText = string.Empty;
     private StructuredPreviewResponse? structuredPreview;
+    private DynamicWindowResponse? windowPreview;
 
     public ObservableCollection<PsdPreviewPoint?> Points { get; } = [];
     public ObservableCollection<PsdBandSharePoint> BandShares { get; } = [];
@@ -25,6 +26,7 @@ public sealed class PsdPreviewState : ObservableObject
     public string FrequencyRangeText { get => frequencyRangeText; set => SetProperty(ref frequencyRangeText, value); }
     public string ValueRangeText { get => valueRangeText; set => SetProperty(ref valueRangeText, value); }
     public StructuredPreviewResponse? StructuredPreview { get => structuredPreview; set => SetProperty(ref structuredPreview, value); }
+    public DynamicWindowResponse? WindowPreview { get => windowPreview; set => SetProperty(ref windowPreview, value); }
 
     public void Clear()
     {
@@ -36,6 +38,7 @@ public sealed class PsdPreviewState : ObservableObject
         FrequencyRangeText = string.Empty;
         ValueRangeText = string.Empty;
         StructuredPreview = null;
+        WindowPreview = null;
         DynamicFrequencies = [];
         DynamicRows = [];
         DynamicIsVoltsSquaredPerHz = false;

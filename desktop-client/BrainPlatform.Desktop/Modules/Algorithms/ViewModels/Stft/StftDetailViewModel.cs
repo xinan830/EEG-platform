@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Windows.Input;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft;
 
@@ -20,6 +21,7 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
     }
 
     public StftPreview? Preview => Catalog.StftPreviewState.Result;
+    private DynamicWindowResponse? WindowResult => Catalog.StftPreviewState.WindowPreview;
     public IReadOnlyList<StftChartOption> ChartOptions { get; } =
     [
         new(StftChartKind.Heatmap, "时频热图"),
@@ -65,7 +67,9 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
     public string SelectedFrequencyText => Preview is { } preview
         ? $"频率：{preview.FrequenciesHz[(int)SelectedFrequencyIndex]:0.###} Hz" : "频率：--";
     public bool HasPreview => Preview is not null;
-    public string StatusText => Preview is not null
+    public string StatusText => WindowResult is { } current
+        ? $"当前窗口：{AlgorithmListViewModel.WindowStateLabel(current.State)}"
+        : Preview is not null
         ? Catalog.IsDynamicMode ? Catalog.DynamicCurrentWindowText : "静态时频结果"
         : Catalog.LastRun?.Error is { } error ? $"结果不可用：{AlgorithmResultFormatter.FormatFailureCodeForDisplay(error.Code)}：{(string.IsNullOrWhiteSpace(error.Message) ? "后端未返回具体原因，请检查后端日志" : error.Message)}"
         : Catalog.StructuredPreviewText.StartsWith("结构化预览不可用", StringComparison.Ordinal) ||
@@ -74,24 +78,31 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
         : Catalog.IsDynamicMode && Catalog.DynamicPreviewRows.LastOrDefault() is { } row
             ? $"当前窗口：{row.State}。{row.Failure}"
             : "暂无可显示的时频结果";
-    public string FailureReasonText => Catalog.LastRun?.Error is { } error
+    public string FailureReasonText => WindowResult?.Failure is { } windowFailure
+        ? $"{windowFailure.Code}：{windowFailure.Message}"
+        : Catalog.LastRun?.Error is { } error
         ? $"{AlgorithmResultFormatter.FormatFailureCodeForDisplay(error.Code)}：{(string.IsNullOrWhiteSpace(error.Message) ? "后端未返回具体原因，请检查后端日志" : error.Message)}"
         : QualityFailureReason(Catalog.StftPreviewState.StructuredPreview?.Quality) ??
           (Catalog.DynamicPreviewRows.FirstOrDefault(row => !string.IsNullOrWhiteSpace(row.Failure)) is { } row
               ? row.Failure
               : "暂无失败原因");
-    public bool HasFailureDetails => Catalog.LastRun?.Error is not null ||
+    public bool HasFailureDetails => WindowResult?.Failure is not null || Catalog.LastRun?.Error is not null ||
         HasQualityFailure(Catalog.StftPreviewState.StructuredPreview?.Quality) ||
         Catalog.DynamicPreviewRows.Any(row => !string.IsNullOrWhiteSpace(row.Failure));
-    public string FailureDetailsText => Catalog.LastRun?.Error is { } error
+    public string FailureDetailsText => WindowResult is { Failure: not null } current
+        ? BuildWindowFailureDetails(current)
+        : Catalog.LastRun?.Error is { } error
         ? BuildFailureDetails(error)
         : BuildQualityFailureDetails(Catalog.StftPreviewState.StructuredPreview?.Quality) ??
           string.Join(Environment.NewLine, Catalog.DynamicPreviewRows
               .Where(row => !string.IsNullOrWhiteSpace(row.Failure))
               .Select(row => $"{row.StartSeconds:0.###}–{row.EndSeconds:0.###} s：{row.Failure}"));
-    public int UnavailableWindowCount => Catalog.StftPreviewState.StructuredPreview?.WindowStateCounts.TryGetValue("Unavailable", out var unavailable) == true ? unavailable : 0;
-    public int RejectedWindowCount => Catalog.StftPreviewState.StructuredPreview?.WindowStateCounts.TryGetValue("Rejected", out var rejected) == true ? rejected : 0;
-    public string WindowStateSummary => Catalog.StftPreviewState.StructuredPreview is null ? "未产生窗口结果" : WindowStateText;
+    public int UnavailableWindowCount => WindowResult?.State == "unavailable" ? 1
+        : Catalog.StftPreviewState.StructuredPreview?.WindowStateCounts.TryGetValue("Unavailable", out var unavailable) == true ? unavailable : 0;
+    public int RejectedWindowCount => WindowResult?.State == "rejected" ? 1
+        : Catalog.StftPreviewState.StructuredPreview?.WindowStateCounts.TryGetValue("Rejected", out var rejected) == true ? rejected : 0;
+    public string WindowStateSummary => WindowResult is not null ? WindowStateText
+        : Catalog.StftPreviewState.StructuredPreview is null ? "未产生窗口结果" : WindowStateText;
     public bool IsFailureDetailsExpanded
     {
         get => isFailureDetailsExpanded;
@@ -107,15 +118,21 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
     public string FrequencyRangeText => Preview is { } preview
         ? $"频率：{preview.FrequenciesHz[0]:0.###}–{preview.FrequenciesHz[^1]:0.###} Hz"
         : "--";
-    public string QualityText => Catalog.StftPreviewState.StructuredPreview?.Quality is { } quality &&
+    public string QualityText => WindowResult is { } current
+        ? AlgorithmResultFormatter.FormatQualityForDisplay(JsonSerializer.SerializeToElement(new { status = current.Quality }))
+        : Catalog.StftPreviewState.StructuredPreview?.Quality is { } quality &&
         quality.ValueKind == System.Text.Json.JsonValueKind.Object && quality.TryGetProperty("status", out var status)
         ? AlgorithmResultFormatter.FormatQualityForDisplay(quality)
         : Catalog.LastRun?.Error?.Message ?? "尚未生成结果";
-    public string WindowStateText => Catalog.StftPreviewState.StructuredPreview is { } preview && preview.WindowStateCounts.Count > 0
+    public string WindowStateText => WindowResult is { } current
+        ? $"当前窗口：{AlgorithmResultFormatter.FormatWindowStateForDisplay(current.State)}"
+        : Catalog.StftPreviewState.StructuredPreview is { } preview && preview.WindowStateCounts.Count > 0
         ? string.Join("、", preview.WindowStateCounts.Select(item => $"{AlgorithmResultFormatter.FormatWindowStateForDisplay(item.Key)}：{item.Value}"))
         : "无动态窗口";
-    public string RunIdText => Catalog.LastRun?.RunId ?? "未运行";
-    public string ActualRangeText => Catalog.LastRun?.ActualRange is { } range
+    public string RunIdText => WindowResult is { } current ? $"窗口 {current.WindowId}" : Catalog.LastRun?.RunId ?? "未运行";
+    public string ActualRangeText => WindowResult?.Range is { } windowRange
+        ? Catalog.TimeDisplay.FormatRange(windowRange.StartSeconds, windowRange.EndSeconds)
+        : Catalog.LastRun?.ActualRange is { } range
         ? Catalog.TimeDisplay.FormatRange(range.StartSeconds, range.EndSeconds) : "--";
     public string ScientificVersionText => Catalog.LastRun?.ScientificVersion ?? "--";
     public IReadOnlyList<DynamicWindowRow> DynamicWindowRows => Catalog.DynamicWindowRows;
@@ -125,6 +142,7 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
         base.OnCatalogPropertyChanged(sender, args);
         if (args.PropertyName is nameof(AlgorithmListViewModel.TimeDisplay)
             or nameof(AlgorithmListViewModel.StftResult)
+            or nameof(AlgorithmListViewModel.DisplayedAnalysisWindow)
             or nameof(AlgorithmListViewModel.SelectedAnalysisMode)
             or nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)
             or nameof(AlgorithmListViewModel.DynamicPreviewRows)
@@ -167,7 +185,15 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
     {
         RaisePropertyChanged(nameof(Preview));
         RaisePropertyChanged(nameof(HasPreview));
+        RaisePropertyChanged(nameof(ActualRangeText));
         RaisePropertyChanged(nameof(StatusText));
+        RaisePropertyChanged(nameof(FailureReasonText));
+        RaisePropertyChanged(nameof(HasFailureDetails));
+        RaisePropertyChanged(nameof(FailureDetailsText));
+        RaisePropertyChanged(nameof(UnavailableWindowCount));
+        RaisePropertyChanged(nameof(RejectedWindowCount));
+        RaisePropertyChanged(nameof(WindowStateSummary));
+        RaisePropertyChanged(nameof(RunIdText));
         RaisePropertyChanged(nameof(TimeRangeText));
         RaisePropertyChanged(nameof(FrequencyRangeText));
         RaisePropertyChanged(nameof(MaximumTimeIndex));
@@ -189,6 +215,19 @@ public sealed class StftDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
             foreach (var property in details.EnumerateObject())
                 lines.Add($"• {property.Name}：{property.Value}");
         }
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string BuildWindowFailureDetails(DynamicWindowResponse response)
+    {
+        if (response.Failure is not { } failure) return "当前窗口没有失败证据。";
+        var lines = new List<string>
+        {
+            $"错误代码：{AlgorithmResultFormatter.FormatFailureCodeForDisplay(failure.Code)}（{failure.Code}）",
+            $"错误信息：{(string.IsNullOrWhiteSpace(failure.Message) ? "后端未返回具体原因，请检查后端日志" : failure.Message)}",
+        };
+        if (failure.Details is { } details && details.ValueKind == JsonValueKind.Object)
+            foreach (var property in details.EnumerateObject()) lines.Add($"• {property.Name}：{property.Value}");
         return string.Join(Environment.NewLine, lines);
     }
 

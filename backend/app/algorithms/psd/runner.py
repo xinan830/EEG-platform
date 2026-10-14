@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -13,9 +14,19 @@ from app.algorithm_runtime.contracts import (
     AlgorithmStructuredSeriesResult,
     StructuredSeriesWindow,
 )
+from app.algorithm_runtime.on_demand import (
+    DynamicSessionIdentity,
+    DynamicWindowIdentity,
+    DynamicWindowPlan,
+    DynamicWindowResult,
+)
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
-from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
+from app.algorithm_runtime.windows import (
+    build_dynamic_analysis_frames,
+    controlled_frames,
+    latest_dynamic_analysis_frame_at_or_before,
+)
 from app.scientific.contracts.types import SampleRange
 from app.scientific.quality import SpectralQualityGateError
 
@@ -29,6 +40,104 @@ class PsdAlgorithm:
     output_schema = MANIFEST.output_schema
     BAND_SHARE_LABELS = ("delta", "theta", "alpha", "beta", "gamma")
     BAND_SHARE_RANGES = ((1.0, 4.0), (4.0, 8.0), (8.0, 13.0), (13.0, 30.0), (30.0, 50.0))
+    window_policy_version = "psd-dynamic-window-v1"
+
+    def can_execute_window(self, config: AlgorithmConfigBase) -> bool:
+        """PSD is opt-in capable only for its validated dynamic configuration."""
+        return isinstance(config, PsdConfig) and config.mode == "dynamic"
+
+    def plan_window(self, inputs: AlgorithmInputs, config: PsdConfig, cursor_sample: int,
+                    session_identity: DynamicSessionIdentity) -> DynamicWindowPlan:
+        """Resolve the latest endpoint-aligned PSD frame already reached."""
+        if not self.can_execute_window(config):
+            raise ValueError("PSD on-demand capability requires dynamic mode")
+        if cursor_sample < 0:
+            raise ValueError("cursor sample must be non-negative")
+        window_s = config.window_s or self.manifest.dynamic_policy.default_window_s
+        step_s = config.step_s or self.manifest.dynamic_policy.refresh_step_s
+        cursor_s = cursor_sample / inputs.sfreq_hz
+        frame = latest_dynamic_analysis_frame_at_or_before(
+            config.start_s, config.end_s, duration_s=inputs.duration_s,
+            window_s=window_s, step_s=step_s, cursor_s=cursor_s,
+            minimum_window_s=self.manifest.dynamic_policy.minimum_window_s,
+            allow_warmup=self.manifest.dynamic_policy.allow_warmup,
+        )
+        if frame is None:
+            start_s = min(max(cursor_s, 0.0), inputs.duration_s)
+            end_s = min(inputs.duration_s, start_s + 1.0 / inputs.sfreq_hz)
+            if end_s <= start_s:
+                start_s = max(0.0, inputs.duration_s - 1.0 / inputs.sfreq_hz)
+                end_s = inputs.duration_s
+            return DynamicWindowPlan(
+                session_identity=session_identity, cursor_sample=cursor_sample, cursor_s=cursor_s,
+                start_sample=int(np.floor(start_s * inputs.sfreq_hz)),
+                end_sample=max(int(np.ceil(end_s * inputs.sfreq_hz)), int(np.floor(start_s * inputs.sfreq_hz)) + 1),
+                start_s=start_s, end_s=end_s,
+                state="insufficient_data", reason="cursor has no policy-eligible PSD frame",
+            )
+        sample_range = SampleRange.from_seconds(frame.window_start_s, frame.window_end_s, inputs.sfreq_hz)
+        return DynamicWindowPlan(
+            session_identity=session_identity, cursor_sample=cursor_sample, cursor_s=cursor_s,
+            start_sample=sample_range.start_sample, end_sample=sample_range.end_sample,
+            start_s=frame.window_start_s, end_s=frame.window_end_s,
+        )
+
+    def execute_window(self, inputs: AlgorithmInputs, config: PsdConfig,
+                       plan: DynamicWindowPlan, identity: DynamicWindowIdentity,
+                       check_cancelled: Callable[[], None] | None = None) -> DynamicWindowResult:
+        """Execute exactly one PSD frame through the existing full-record source cache."""
+        fixed_frequencies = self._frequency_axis(inputs.sfreq_hz, 1.0, 50.0)
+        if plan.state != "planned":
+            return DynamicWindowResult(
+                identity=identity, state="insufficient_data", output_kind="frequency_series",
+                axes={"frequency_hz": fixed_frequencies}, axis_units={"frequency_hz": "Hz"},
+                arrays={"psd": np.full(fixed_frequencies.shape, np.nan), "band_share": np.full(5, np.nan)},
+                array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="insufficient_data",
+                failure={"code": "PSD_WINDOW_INSUFFICIENT_DATA", "message": plan.reason or "window unavailable"},
+            )
+        if check_cancelled is not None:
+            check_cancelled()
+        try:
+            spectrum = self._load(
+                inputs.payload, channel=inputs.channel, start_s=plan.start_s,
+                window_s=plan.end_s - plan.start_s,
+                filter_low_hz=config.low_hz, filter_high_hz=config.high_hz,
+                output_low_hz=1.0, output_high_hz=50.0, notch_hz=config.notch_hz,
+            )
+            if check_cancelled is not None:
+                check_cancelled()
+            frequencies = np.asarray(spectrum.freqs, dtype=float)
+            values = np.asarray(spectrum.psd[0], dtype=float)
+            evidence = self._dynamic_evidence(spectrum, config)
+            quality = evidence["source_quality"]
+            if spectrum.gate_failed:
+                raise SpectralQualityGateError(quality)
+            return DynamicWindowResult(
+                identity=identity, state="ready", output_kind="frequency_series",
+                axes={"frequency_hz": frequencies}, axis_units={"frequency_hz": "Hz"},
+                arrays={"psd": values, "band_share": self._band_shares(frequencies, values)},
+                array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="clean",
+                evidence=evidence, provenance={"preprocessing_scope": "whole_recording_before_window_slice"},
+            )
+        except SpectralQualityGateError as exc:
+            return DynamicWindowResult(
+                identity=identity, state="rejected", output_kind="frequency_series",
+                axes={"frequency_hz": fixed_frequencies}, axis_units={"frequency_hz": "Hz"},
+                arrays={"psd": np.full(fixed_frequencies.shape, np.nan), "band_share": np.full(5, np.nan)},
+                array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="gate_failed",
+                evidence={"source_quality": dict(exc.quality), "spectral_evidence": dict(exc.quality.get("evidence", {})),
+                          "calculation_trace": {"algorithm": "welch_psd", "window_policy_version": self.window_policy_version}},
+                provenance={"preprocessing_scope": "whole_recording_before_window_slice"},
+                failure={"code": "PSD_WINDOW_QUALITY_GATE_FAILED", "message": "当前动态窗口未通过 PSD 质量门", "details": dict(exc.quality)},
+            )
+        except ValueError as exc:
+            return DynamicWindowResult(
+                identity=identity, state="unavailable", output_kind="frequency_series",
+                axes={"frequency_hz": fixed_frequencies}, axis_units={"frequency_hz": "Hz"},
+                arrays={"psd": np.full(fixed_frequencies.shape, np.nan), "band_share": np.full(5, np.nan)},
+                array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="unavailable",
+                failure={"code": "PSD_WINDOW_UNAVAILABLE", "message": str(exc)},
+            )
 
     @classmethod
     def _band_shares(cls, frequencies: np.ndarray, values: np.ndarray) -> np.ndarray:
@@ -195,22 +304,7 @@ class PsdAlgorithm:
                     raise ValueError("PSD 动态窗口返回的频率轴与本次 Welch 合同不一致")
                 row = np.asarray(spectrum.psd[0], dtype=float)
                 band_share_rows.append(self._band_shares(current_frequencies, row))
-                evidence = {
-                    "source_quality": {
-                        "clean_segments": spectrum.clean_epochs,
-                        "total_segments": spectrum.total_epochs,
-                        "clean_ratio": spectrum.signal_quality,
-                        "gate_failed": spectrum.gate_failed,
-                        "rejected_reasons": list(spectrum.rejected_reasons),
-                    },
-                    "spectral_evidence": dict(getattr(spectrum, "evidence", {})),
-                    "calculation_trace": {
-                        "filter_frequency_range_hz": {"low_hz": config.low_hz, "high_hz": config.high_hz},
-                        "output_frequency_range_hz": {"low_hz": trend_low_hz, "high_hz": trend_high_hz},
-                    },
-                }
-                if isinstance(evidence["spectral_evidence"].get("amplitude"), dict):
-                    evidence["source_quality"]["amplitude"] = evidence["spectral_evidence"]["amplitude"]
+                evidence = self._dynamic_evidence(spectrum, config)
             except SpectralQualityGateError as exc:
                 row = np.full(frequencies.shape, np.nan, dtype=float)
                 band_share_rows.append(np.full(5, np.nan, dtype=float))
@@ -254,6 +348,19 @@ class PsdAlgorithm:
                 },
             },
         )
+
+    @staticmethod
+    def _dynamic_evidence(spectrum: Any, config: PsdConfig) -> dict[str, Any]:
+        spectral = dict(getattr(spectrum, "evidence", {}))
+        quality = {"clean_segments": spectrum.clean_epochs, "total_segments": spectrum.total_epochs,
+                   "clean_ratio": spectrum.signal_quality, "gate_failed": spectrum.gate_failed,
+                   "rejected_reasons": list(spectrum.rejected_reasons)}
+        if isinstance(spectral.get("amplitude"), dict):
+            quality["amplitude"] = spectral["amplitude"]
+        return {"source_quality": quality, "spectral_evidence": spectral,
+                "calculation_trace": {
+                    "filter_frequency_range_hz": {"low_hz": config.low_hz, "high_hz": config.high_hz},
+                    "output_frequency_range_hz": {"low_hz": 1.0, "high_hz": 50.0}}}
 
     @staticmethod
     def _frequency_axis(sfreq_hz: float, low_hz: float = 1.0, high_hz: float = 30.0) -> np.ndarray:

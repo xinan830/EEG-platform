@@ -39,7 +39,7 @@ public sealed partial class AlgorithmListViewModel
             : Math.Clamp(DynamicPreviewCursorSeconds / DynamicPreviewDurationSeconds * 100.0, 0, 100);
         set
         {
-            if (DynamicPreviewDurationSeconds <= 0 || DynamicWindowRows.Count == 0)
+            if (DynamicPreviewDurationSeconds <= 0 || !HasDynamicPreview)
                 return;
             var cursor = DynamicPreviewDurationSeconds * Math.Clamp(value, 0, 100) / 100.0;
             if (Math.Abs(cursor - DynamicPreviewCursorSeconds) < 1e-9)
@@ -50,7 +50,11 @@ public sealed partial class AlgorithmListViewModel
         }
     }
     public string DynamicTimeProgressText => $"{TimeDisplay.FormatPoint(DynamicPreviewCursorSeconds)} / {TimeDisplay.FormatPoint(DynamicPreviewDurationSeconds)}";
-    public string DynamicCurrentWindowText => DynamicPreviewRows.LastOrDefault() is { } row
+    public string DynamicCurrentWindowText => IsOnDemandAnalysis
+        ? displayedWindow?.Range is { } actual
+            ? $"当前目标：{TimeDisplay.FormatPoint(DynamicPreviewCursorSeconds)}；已显示：{TimeDisplay.FormatRange(actual.StartSeconds, actual.EndSeconds)}（{WindowStateLabel(displayedWindow.State)}）"
+            : $"当前目标：{TimeDisplay.FormatPoint(DynamicPreviewCursorSeconds)}；尚无已显示窗口"
+        : DynamicPreviewRows.LastOrDefault() is { } row
         ? $"当前窗口：{TimeDisplay.FormatRange(row.StartSeconds, row.EndSeconds)}（{row.State}）"
         : "当前窗口：尚未释放";
     private double DynamicPreviewDurationSeconds => new[]
@@ -114,6 +118,7 @@ public sealed partial class AlgorithmListViewModel
 
     private void ClearPreviews()
     {
+        ClearWindowAnalysis();
         StopDynamicPreviewTimer();
         DynamicPreviewCursorSeconds = 0;
         DynamicPreviewRows.Clear();
@@ -205,7 +210,7 @@ public sealed partial class AlgorithmListViewModel
     {
         if (!CanStepDynamicPreview()) return;
         DynamicPreviewCursorSeconds = Math.Min(
-            DynamicWindowRows.Max(row => row.EndSeconds),
+            DynamicPlaybackEndSeconds,
             DynamicPreviewCursorSeconds + ParsePreviewStep());
         ReleaseDynamicPreviewRows();
         RaiseDynamicPreviewProperties();
@@ -220,6 +225,7 @@ public sealed partial class AlgorithmListViewModel
         SetStftResult(null);
         RaisePropertyChanged(nameof(PsdPreviewPoints));
         RaiseDynamicPreviewProperties();
+        if (IsOnDemandAnalysis) RequestWindowAtCursor();
     }
 
     private void AdvanceDynamicPreview() => StepDynamicPreview();
@@ -231,22 +237,30 @@ public sealed partial class AlgorithmListViewModel
 
     internal void SeekDynamicPreviewSeconds(double seconds)
     {
-        if (DynamicWindowRows.Count == 0)
+        if (!HasDynamicPreview)
             return;
-        var maximum = DynamicWindowRows.Max(row => row.EndSeconds);
+        var maximum = DynamicPlaybackEndSeconds;
         DynamicPreviewCursorSeconds = Math.Clamp(seconds, 0, maximum);
         ReleaseDynamicPreviewRows();
         RaiseDynamicPreviewProperties();
     }
 
-    private bool CanStartDynamicPreview() => IsDynamicMode && HasDynamicPreview && !IsDynamicPreviewPlaying && DynamicPreviewCursorSeconds < DynamicWindowRows.Max(row => row.EndSeconds);
-    private bool CanStepDynamicPreview() => IsDynamicMode && HasDynamicPreview && DynamicPreviewCursorSeconds < DynamicWindowRows.Max(row => row.EndSeconds);
+    private double DynamicPlaybackEndSeconds => IsOnDemandAnalysis ? DynamicPreviewDurationSeconds :
+        DynamicWindowRows.Select(row => row.EndSeconds).DefaultIfEmpty(0).Max();
+    private bool CanStartDynamicPreview() => IsDynamicMode && HasDynamicPreview && !IsDynamicPreviewPlaying && DynamicPreviewCursorSeconds < DynamicPlaybackEndSeconds;
+    private bool CanStepDynamicPreview() => IsDynamicMode && HasDynamicPreview && DynamicPreviewCursorSeconds < DynamicPlaybackEndSeconds;
     private bool CanResetDynamicPreview() => HasDynamicPreview && (DynamicPreviewCursorSeconds > 0 || DynamicPreviewRows.Count > 0 || IsDynamicPreviewPlaying);
 
     private double ParsePreviewStep() => double.TryParse(DynamicStepText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var step) && step > 0 ? step : 1.0;
 
     private void ReleaseDynamicPreviewRows()
     {
+        if (IsOnDemandAnalysis)
+        {
+            RequestWindowAtCursor();
+            if (DynamicPreviewCursorSeconds >= DynamicPlaybackEndSeconds) StopDynamicPreviewTimer();
+            return;
+        }
         DynamicPreviewRows.Clear();
         foreach (var row in DynamicWindowRows.Where(row => row.EndSeconds <= DynamicPreviewCursorSeconds + 1e-9))
             DynamicPreviewRows.Add(row);
@@ -393,30 +407,7 @@ public sealed partial class AlgorithmListViewModel
 
     private void SetPsdPoints(IReadOnlyList<JsonElement> frequencyValues, IReadOnlyList<JsonElement> psdValues, bool convertFromVolts)
     {
-        PsdPreviewPoints.Clear();
-        var count = Math.Min(frequencyValues.Count, psdValues.Count);
-        for (var index = 0; index < count; index++)
-        {
-            if (frequencyValues[index].ValueKind != JsonValueKind.Number ||
-                psdValues[index].ValueKind != JsonValueKind.Number ||
-                !frequencyValues[index].TryGetDouble(out var frequency) ||
-                !psdValues[index].TryGetDouble(out var value) ||
-                !double.IsFinite(frequency) || !double.IsFinite(value))
-            {
-                PsdPreviewPoints.Add(null);
-                continue;
-            }
-            // Convert only when the backend explicitly declares V²/Hz. Some
-            // result services already expose uV²/Hz values.
-            PsdPreviewPoints.Add(new PsdPreviewPoint(frequency, convertFromVolts ? value * 1_000_000_000_000d : value));
-        }
-        HasPsdPreview = PsdPreviewPoints.Any(point => point is not null);
-        if (HasPsdPreview)
-        {
-            var available = PsdPreviewPoints.Where(point => point is not null).Select(point => point!).ToArray();
-            PsdFrequencyRangeText = $"{available.Min(point => point.Frequency):0.###} - {available.Max(point => point.Frequency):0.###} {PsdFrequencyUnit}";
-            PsdValueRangeText = $"{available.Min(point => point.Value):G3} - {available.Max(point => point.Value):G3} {PsdValueUnit}";
-        }
+        PsdPointProjection.Apply(psdPreview, frequencyValues, psdValues, convertFromVolts);
     }
 
 }

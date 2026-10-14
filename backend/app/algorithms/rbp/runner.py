@@ -12,9 +12,10 @@ from app.scientific.quality import SpectralQualityGateError
 
 from .config import RbpConfig
 from .manifest import MANIFEST
+from .window import RbpWindowCapability
 
 
-class RbpAlgorithm:
+class RbpAlgorithm(RbpWindowCapability):
     manifest = MANIFEST
     config_model = RbpConfig
 
@@ -95,35 +96,12 @@ class RbpAlgorithm:
             sample_range = SampleRange.from_seconds(frame.window_start_s, frame.window_end_s, inputs.sfreq_hz)
             windows.append({"start_s": frame.window_start_s, "end_s": frame.window_end_s})
             warmups.append(frame.warmup)
-            bands: dict[str, float | None] = {name: None for name, *_ in RBP_BANDS}
-            failure: AlgorithmFailure | None = None
-            quality = "clean"
-            source_quality: dict[str, Any] = {}
-            spectral_evidence: dict[str, Any] = {}
-            try:
-                spectrum = self._load_spectrum(inputs.payload, start_s=frame.window_start_s, window_s=frame.actual_window_s, channel=inputs.channel)
-                source_quality = {"clean_segments": spectrum.clean_epochs, "total_segments": spectrum.total_epochs, "clean_ratio": spectrum.signal_quality, "gate_failed": spectrum.gate_failed, "rejected_reasons": list(spectrum.rejected_reasons)}
-                spectral_evidence = dict(spectrum.evidence)
-                if spectrum.gate_failed:
-                    raise SpectralQualityGateError(source_quality)
-                powers, bands = five_band_shares(spectrum)
-                spectral_evidence["band_power"] = powers
-                spectral_evidence["relative_band_power"] = bands
-                spectral_evidence["rbp_denominator_uv2"] = sum(powers.values())
-            except SpectralQualityGateError as exc:
-                quality = "gate_failed"
-                failure = AlgorithmFailure(code="RBP_WINDOW_QUALITY_GATE_FAILED", message="当前动态窗口未通过 RBP 质量门", detail=dict(exc.quality))
-            except (ValueError, OSError) as exc:
-                quality = "unavailable"
-                failure = AlgorithmFailure(code="RBP_WINDOW_UNAVAILABLE", message=str(exc))
-            if failure is not None:
-                values.append(None)
-            else:
-                values.append(None)
-            qualities.append(quality)
-            failures.append(failure)
-            output_values.append(bands)
-            evidence.append({"source_quality": source_quality, "spectral_evidence": spectral_evidence})
+            result = self._execute_frame(inputs, frame.window_start_s, frame.window_end_s)
+            values.append(result.value)
+            qualities.append(result.quality)
+            failures.append(result.failure)
+            output_values.append(result.output_values)
+            evidence.append(result.evidence)
         return AlgorithmSeriesResult(
             values=values, time_s=[frame.time_s for frame in frames], unit="ratio", channel=inputs.channel,
             windows=windows, quality=qualities, failures=failures, warmups=warmups,
@@ -131,3 +109,35 @@ class RbpAlgorithm:
             point_evidence=evidence, output_values=output_values,
             evidence={"bands": [name for name, *_ in RBP_BANDS], "window_s": window_s, "step_s": step_s},
         )
+
+    def _execute_frame(self, inputs: AlgorithmInputs, start_s: float, end_s: float) -> AlgorithmResult:
+        """One independent five-band frame, shared by full Run and on-demand."""
+        bands = {name: None for name, *_ in RBP_BANDS}
+        failure = None
+        quality = "clean"
+        source_quality = {}
+        spectral_evidence = {}
+        try:
+            spectrum = self._load_spectrum(inputs.payload, start_s=start_s, window_s=end_s - start_s,
+                                           channel=inputs.channel)
+            source_quality = {"clean_segments": spectrum.clean_epochs, "total_segments": spectrum.total_epochs,
+                              "clean_ratio": spectrum.signal_quality, "gate_failed": spectrum.gate_failed,
+                              "rejected_reasons": list(spectrum.rejected_reasons)}
+            spectral_evidence = dict(spectrum.evidence)
+            if spectrum.gate_failed:
+                raise SpectralQualityGateError(source_quality)
+            powers, bands = five_band_shares(spectrum)
+            spectral_evidence["band_power"] = powers
+            spectral_evidence["relative_band_power"] = bands
+            spectral_evidence["rbp_denominator_uv2"] = sum(powers.values())
+        except SpectralQualityGateError as exc:
+            quality = "gate_failed"
+            failure = AlgorithmFailure(code="RBP_WINDOW_QUALITY_GATE_FAILED",
+                                       message="当前动态窗口未通过 RBP 质量门", detail=dict(exc.quality))
+        except (ValueError, OSError) as exc:
+            quality = "unavailable"
+            failure = AlgorithmFailure(code="RBP_WINDOW_UNAVAILABLE", message=str(exc))
+        return AlgorithmResult(value=None, unit="ratio", channel=inputs.channel,
+            requested_range={"start_s": start_s, "end_s": end_s}, actual_range={"start_s": start_s, "end_s": end_s},
+            quality=quality, failure=failure, output_values=bands,
+            evidence={"source_quality": source_quality, "spectral_evidence": spectral_evidence})

@@ -33,4 +33,28 @@ public interface IAlgorithmClient
         double? cursorSeconds,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("当前算法客户端不支持结果窗口读取。");
+
+    Task<DynamicWindowResponse> EnsureDynamicWindowAsync(
+        DynamicWindowRequest request,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持按需动态窗口。");
+
+    Task<DynamicWindowResponse> GetDynamicWindowAsync(
+        string windowId,
+        string? projectId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持按需动态窗口。");
+
+    Task<DynamicSubscriptionResponse> SubscribeDynamicWindowAsync(
+        string windowId,
+        string requestId,
+        string? projectId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持按需动态窗口订阅。");
+
+    Task<DynamicSubscriptionResponse> CancelDynamicSubscriptionAsync(
+        string subscriptionId,
+        string? projectId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持按需动态窗口订阅。");
 }

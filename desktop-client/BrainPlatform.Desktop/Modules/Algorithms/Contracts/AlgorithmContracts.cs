@@ -210,6 +210,77 @@ public sealed record WindowPreviewResponse(
     [property: JsonPropertyName("scientific_version")] string? ScientificVersion,
     [property: JsonPropertyName("implementation_version")] string? ImplementationVersion);
 
+/// <summary>
+/// Backend-planned request for one dynamic analysis window. The desktop sends
+/// only the recording-relative cursor; the backend owns the actual range.
+/// </summary>
+public sealed record DynamicWindowRequest(
+    [property: JsonPropertyName("recording_id")] string RecordingId,
+    [property: JsonPropertyName("algorithm_id")] string AlgorithmId,
+    [property: JsonPropertyName("definition_id")] string? DefinitionId,
+    [property: JsonPropertyName("definition_version")] string? DefinitionVersion,
+    [property: JsonPropertyName("config")] JsonElement Config,
+    [property: JsonPropertyName("cursor_sample")] long CursorSample,
+    [property: JsonPropertyName("project_id")] string? ProjectId = null,
+    [property: JsonPropertyName("request_id")] string? RequestId = null,
+    [property: JsonPropertyName("retry")] bool Retry = false,
+    [property: JsonPropertyName("retry_of_window_id")] string? RetryOfWindowId = null);
+
+public sealed record DynamicWindowPlanResponse(
+    [property: JsonPropertyName("cursor_sample")] long CursorSample,
+    [property: JsonPropertyName("start_sample")] long StartSample,
+    [property: JsonPropertyName("end_sample")] long EndSample,
+    [property: JsonPropertyName("start_s")] double StartSeconds,
+    [property: JsonPropertyName("end_s")] double EndSeconds,
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("reason")] string? Reason,
+    [property: JsonPropertyName("session_identity")] JsonElement? SessionIdentity = null,
+    [property: JsonPropertyName("cursor_s")] double? CursorSeconds = null);
+
+public sealed record DynamicWindowRange(
+    [property: JsonPropertyName("start_sample")] long StartSample,
+    [property: JsonPropertyName("end_sample")] long EndSample,
+    [property: JsonPropertyName("start_s")] double StartSeconds,
+    [property: JsonPropertyName("end_s")] double EndSeconds);
+
+public sealed record DynamicWindowResultResponse(
+    [property: JsonPropertyName("identity")] JsonElement? Identity,
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("output_kind")] string? OutputKind,
+    [property: JsonPropertyName("axes")] IReadOnlyDictionary<string, JsonElement>? Axes,
+    [property: JsonPropertyName("axis_units")] IReadOnlyDictionary<string, string>? AxisUnits,
+    [property: JsonPropertyName("arrays")] IReadOnlyDictionary<string, JsonElement>? Arrays,
+    [property: JsonPropertyName("array_units")] IReadOnlyDictionary<string, string>? ArrayUnits,
+    [property: JsonPropertyName("quality")] string? Quality,
+    [property: JsonPropertyName("failure")] JsonElement? Failure,
+    [property: JsonPropertyName("evidence")] JsonElement? Evidence,
+    [property: JsonPropertyName("provenance")] JsonElement? Provenance);
+
+public sealed record DynamicWindowFailure(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("details")] JsonElement? Details = null);
+
+public sealed record DynamicWindowResponse(
+    [property: JsonPropertyName("session_id")] string SessionId,
+    [property: JsonPropertyName("window_id")] string WindowId,
+    [property: JsonPropertyName("request_id")] string RequestId,
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("identity")] JsonElement? Identity,
+    [property: JsonPropertyName("plan")] DynamicWindowPlanResponse? Plan,
+    [property: JsonPropertyName("range")] DynamicWindowRange? Range,
+    [property: JsonPropertyName("quality")] string? Quality,
+    [property: JsonPropertyName("failure")] DynamicWindowFailure? Failure,
+    [property: JsonPropertyName("result")] DynamicWindowResultResponse? Result,
+    [property: JsonPropertyName("subscription_id")] string? SubscriptionId = null);
+
+public sealed record DynamicSubscriptionResponse(
+    [property: JsonPropertyName("subscription_id")] string SubscriptionId,
+    [property: JsonPropertyName("window_id")] string WindowId,
+    [property: JsonPropertyName("request_id")] string RequestId,
+    [property: JsonPropertyName("project_id")] string? ProjectId,
+    [property: JsonPropertyName("state")] string State);
+
 public sealed class AlgorithmApiException : Exception
 {
     public AlgorithmApiException(HttpStatusCode statusCode, string code, string message)

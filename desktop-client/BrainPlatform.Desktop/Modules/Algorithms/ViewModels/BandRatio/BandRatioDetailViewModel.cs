@@ -6,6 +6,7 @@ public sealed class BandRatioDetailViewModel : AlgorithmSpecificDetailViewModel,
 {
     private BandRatioResultPreview? preview;
     private bool failureDetailsExpanded;
+    private string? windowSession;
 
     internal BandRatioDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "band_ratio") => Refresh();
 
@@ -36,12 +37,31 @@ public sealed class BandRatioDetailViewModel : AlgorithmSpecificDetailViewModel,
     {
         base.OnCatalogPropertyChanged(sender, args);
         if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm)) Refresh();
+        else if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
+        {
+            if (Algorithm?.Id == "band_ratio" && Catalog.DisplayedAnalysisWindow is { } response)
+            {
+                preview = BandRatioResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "",
+                    windowSession == response.SessionId ? preview : null);
+                windowSession = response.SessionId;
+            }
+            else { windowSession = null; preview = null; }
+            RaisePropertyChanged(nameof(IsDynamicResult));
+            RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds));
+            RaisePropertyChanged(nameof(ChannelText)); RaiseResults();
+        }
         else if (args.PropertyName == nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)) RaiseResults();
     }
 
     private void Refresh()
     {
-        preview = Algorithm?.Id == "band_ratio" ? BandRatioResultPreview.Parse(Catalog.LastRun?.ResultSummary) : null;
+        windowSession = null;
+        preview = Algorithm?.Id == "band_ratio"
+            ? Catalog.DisplayedAnalysisWindow is { } response
+                ? BandRatioResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "")
+                : BandRatioResultPreview.Parse(Catalog.LastRun?.ResultSummary)
+            : null;
+        if (Algorithm?.Id == "band_ratio" && Catalog.DisplayedAnalysisWindow is { } displayed) windowSession = displayed.SessionId;
         IsFailureDetailsExpanded = false;
         RaisePropertyChanged(nameof(IsDynamicResult)); RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds)); RaisePropertyChanged(nameof(ChannelText)); RaiseResults();
     }

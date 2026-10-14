@@ -299,7 +299,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     public string StructuredPreviewText { get => structuredPreviewText; private set => SetProperty(ref structuredPreviewText, value); }
     public string DynamicSeriesText { get => dynamicSeriesText; private set => SetProperty(ref dynamicSeriesText, value); }
     public AnalysisRunResponse? LastRun { get => lastRun; private set => SetProperty(ref lastRun, value); }
-    public bool IsRunActive => isSubmittingRun || LastRun?.Status is "queued" or "running";
+    public bool IsRunActive => isSubmittingRun || windowLoading || LastRun?.Status is "queued" or "running";
     public IReadOnlyList<string> AnalysisModes { get; } = ["静态", "动态"];
     public string SelectedAnalysisMode
     {
@@ -316,10 +316,10 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     public bool IsDynamicPreviewPlaying { get => isDynamicPreviewPlaying; private set => SetProperty(ref isDynamicPreviewPlaying, value); }
     public double DynamicPreviewCursorSeconds { get => dynamicPreviewCursorSeconds; private set => SetProperty(ref dynamicPreviewCursorSeconds, value); }
     public string DynamicPreviewCursorText => TimeDisplay.FormatCursor(DynamicPreviewCursorSeconds);
-    public bool HasDynamicPreview => DynamicWindowRows.Count > 0;
+    public bool HasDynamicPreview => IsOnDemandAnalysis || DynamicWindowRows.Count > 0;
     public string DynamicPreviewStatusText => !HasDynamicPreview
         ? "尚未生成动态窗口结果"
-        : IsDynamicPreviewPlaying ? "时间同步预览进行中" : DynamicPreviewCursorSeconds >= DynamicWindowRows.Max(row => row.EndSeconds) ? "时间同步预览已结束" : "时间同步预览已暂停";
+        : IsDynamicPreviewPlaying ? "时间同步预览进行中" : DynamicPreviewCursorSeconds >= DynamicPlaybackEndSeconds ? "时间同步预览已结束" : "时间同步预览已暂停";
     public ObservableCollection<DynamicWindowRow> DynamicPreviewRows { get; } = [];
     public bool IsDynamicModeAvailable => SelectedAlgorithm?.Modes.Contains("dynamic") == true;
     public IReadOnlyList<double> DynamicWindowOptions => SelectedAlgorithm?.DynamicPolicy.WindowOptionsSeconds ?? [];
@@ -534,6 +534,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     private void ScheduleAutomaticRun()
     {
         configurationRevision++;
+        if (IsOnDemandAnalysis) ClearWindowAnalysis();
         if (SelectedProjectRecording is not { Status: "已完成" } ||
             RegisteredRecording is null ||
             SelectedAlgorithm is null ||

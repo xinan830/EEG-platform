@@ -6,6 +6,7 @@ from typing import Any
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
+from app.algorithm_runtime.scalar_window import ScalarDynamicWindowCapability
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 from app.scientific.quality import SpectralQualityGateError
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
@@ -15,10 +16,21 @@ from .config import PeakFrequencyConfig
 from .manifest import MANIFEST
 
 
-class PeakFrequencyAlgorithm:
+class PeakFrequencyAlgorithm(ScalarDynamicWindowCapability):
+    window_preprocessing_scope = "whole_recording_before_window_slice"
     manifest = MANIFEST
     config_model = PeakFrequencyConfig
     output_schema = MANIFEST.output_schema
+
+    def _execute_frame(self, inputs: AlgorithmInputs, config: PeakFrequencyConfig,
+                       start_s: float, end_s: float) -> AlgorithmResult:
+        return compute_peak_frequency(
+            self._load(inputs.payload, channel=inputs.channel, start_s=start_s,
+                       window_s=end_s - start_s),
+            channel=inputs.channel, low_hz=config.low_hz, high_hz=config.high_hz,
+            requested_range={"start_s": start_s, "end_s": end_s},
+            actual_range={"start_s": start_s, "end_s": end_s},
+        )
 
     def parameter_schema(self) -> ParameterSchema:
         return ParameterSchema(parameters=[

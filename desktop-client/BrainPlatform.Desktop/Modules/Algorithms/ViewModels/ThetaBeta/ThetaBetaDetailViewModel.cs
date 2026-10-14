@@ -6,6 +6,7 @@ public sealed class ThetaBetaDetailViewModel : AlgorithmSpecificDetailViewModel,
 {
     private ThetaBetaResultPreview? preview;
     private bool isFailureDetailsExpanded;
+    private string? windowSession;
     internal ThetaBetaDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "theta_beta") => RefreshPreview();
     public ThetaBetaResultPoint? CurrentPoint => preview?.CurrentAt(Catalog.DynamicPreviewCursorSeconds);
     public IReadOnlyList<ThetaBetaResultPoint> TrendPoints => preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
@@ -37,9 +38,22 @@ public sealed class ThetaBetaDetailViewModel : AlgorithmSpecificDetailViewModel,
     {
         base.OnCatalogPropertyChanged(sender, args);
         if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm)) RefreshPreview();
+        else if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
+        {
+            if (Algorithm?.Id == "theta_beta" && Catalog.DisplayedAnalysisWindow is { } response)
+            {
+                preview = ThetaBetaResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "",
+                    windowSession == response.SessionId ? preview : null);
+                windowSession = response.SessionId;
+            }
+            else { windowSession = null; preview = null; }
+            RaisePropertyChanged(nameof(IsDynamicResult));
+            RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds));
+            RaisePropertyChanged(nameof(ChannelText)); RaiseResultProperties();
+        }
         else if (args.PropertyName == nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)) RaiseResultProperties();
     }
-    private void RefreshPreview() { preview = Algorithm?.Id == "theta_beta" ? ThetaBetaResultPreview.Parse(Catalog.LastRun?.ResultSummary) : null; IsFailureDetailsExpanded = false; RaisePropertyChanged(nameof(IsDynamicResult)); RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds)); RaisePropertyChanged(nameof(ChannelText)); RaiseResultProperties(); }
+    private void RefreshPreview() { windowSession = null; preview = Algorithm?.Id == "theta_beta" ? Catalog.DisplayedAnalysisWindow is { } response ? ThetaBetaResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "") : ThetaBetaResultPreview.Parse(Catalog.LastRun?.ResultSummary) : null; if (Algorithm?.Id == "theta_beta" && Catalog.DisplayedAnalysisWindow is { } displayed) windowSession = displayed.SessionId; IsFailureDetailsExpanded = false; RaisePropertyChanged(nameof(IsDynamicResult)); RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds)); RaisePropertyChanged(nameof(ChannelText)); RaiseResultProperties(); }
     private void RaiseResultProperties() { foreach (var name in new[] { nameof(CurrentPoint), nameof(TrendPoints), nameof(ValueText), nameof(WindowText), nameof(IapfText), nameof(ThetaRangeText), nameof(BetaRangeText), nameof(ThetaPowerText), nameof(BetaPowerText), nameof(FormulaText), nameof(StatusText), nameof(QualityText), nameof(UnavailableWindowCount), nameof(RejectedWindowCount), nameof(WindowStateSummary), nameof(FailureReasonText), nameof(FailureDetailsText) }) RaisePropertyChanged(name); }
     private static string FormatHz(double? value) => value is double number ? $"{number:0.##} Hz" : "未提供";
     private static string FormatRange(double? low, double? high) => low is double lo && high is double hi ? $"{lo:0.##}–{hi:0.##} Hz" : "未提供";

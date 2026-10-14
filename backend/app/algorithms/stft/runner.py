@@ -22,9 +22,10 @@ from app.scientific.quality import SpectralQualityGateError
 
 from .config import StftConfig
 from .manifest import MANIFEST
+from .window import StftWindowCapability
 
 
-class StftAlgorithm:
+class StftAlgorithm(StftWindowCapability):
     manifest = MANIFEST
     config_model = StftConfig
     output_schema = MANIFEST.output_schema

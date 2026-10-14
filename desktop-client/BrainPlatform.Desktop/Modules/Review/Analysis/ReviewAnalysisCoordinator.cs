@@ -17,6 +17,7 @@ public sealed class ReviewAnalysisCoordinator
 
     public ReviewAnalysisContext? Context { get; private set; }
     public WindowPreviewResponse? CurrentWindow { get; private set; }
+    public bool SupportsOnDemandWindows => provider?.SupportsOnDemandWindows == true;
 
     public Task<AlgorithmCatalogItem> GetAlgorithmAsync(CancellationToken cancellationToken) =>
         (provider ?? throw new InvalidOperationException("未配置分析 provider。")) .GetAlgorithmAsync(cancellationToken);
@@ -50,10 +51,33 @@ public sealed class ReviewAnalysisCoordinator
         return result;
     }
 
+    public async Task<WindowPreviewResponse?> LoadOnDemandAtSampleAsync(
+        string recordingId,
+        AnalysisRunRequest request,
+        long cursorSample,
+        CancellationToken cancellationToken,
+        IProgress<DynamicWindowResponse>? progress = null)
+    {
+        if (provider is null || !provider.SupportsOnDemandWindows)
+            throw new NotSupportedException("当前分析 provider 未启用按需动态窗口。");
+        if (string.IsNullOrWhiteSpace(recordingId)) throw new ArgumentException("记录 ID 不能为空。", nameof(recordingId));
+        if (cursorSample < 0) throw new ArgumentOutOfRangeException(nameof(cursorSample));
+        var requestedRevision = Interlocked.Increment(ref revision);
+        var result = await provider.LoadOnDemandAsync(recordingId, request, cursorSample, cancellationToken, progress);
+        if (requestedRevision != Volatile.Read(ref revision)) return null;
+        Context = new ReviewAnalysisContext(recordingId, result.RunId, result.CursorSample, result.CursorSeconds);
+        CurrentWindow = result;
+        return result;
+    }
+
+    public Task ReleaseOnDemandAsync(CancellationToken cancellationToken = default) =>
+        provider?.ReleaseOnDemandAsync(cancellationToken) ?? Task.CompletedTask;
+
     public void Reset()
     {
         Interlocked.Increment(ref revision);
         Context = null;
         CurrentWindow = null;
+        _ = ReleaseOnDemandAsync();
     }
 }

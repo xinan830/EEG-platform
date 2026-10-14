@@ -11,7 +11,9 @@ MANIFEST = AlgorithmManifest(
     # frame schedule with every other playback metric.
     implementation_identity="iapf-runtime-v3",
     supported_modes=["static", "dynamic"],
-    output_schema={"fields": [{"name": "iapf_hz", "unit": "Hz", "meaning": "个体 Alpha 峰频率"}]},
+    output_schema={"window_output_kind": "scalar_series", "window_axes": [{"name": "time_s", "unit": "s"}],
+                   "window_shapes": {"time_s": [1], "iapf_hz": [1]},
+                   "fields": [{"name": "iapf_hz", "unit": "Hz", "meaning": "个体 Alpha 峰频率"}]},
     definition_name="Official IAPF",
     execution_kind="official_composite_run_adapter",
 )

@@ -55,6 +55,11 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    if request.url.path == "/api/analysis-windows/ensure":
+        fields = {str(error["loc"][-1]) for error in exc.errors()}
+        cursor_fields = {"cursor_sample", "start_sample", "end_sample", "arrays", "axes"}
+        code = "WINDOW_CURSOR_INVALID" if fields & cursor_fields else "WINDOW_REQUEST_INVALID"
+        return error_response(request, 422, code, "请求参数校验失败")
     return error_response(request, 422, "INVALID_REQUEST", "请求参数校验失败")
 
 

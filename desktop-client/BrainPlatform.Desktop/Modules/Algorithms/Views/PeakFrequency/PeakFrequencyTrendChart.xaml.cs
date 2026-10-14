@@ -72,8 +72,8 @@ public partial class PeakFrequencyTrendChart : UserControl
         values.Clear();
         var points = Points?.Cast<PeakFrequencyResultPoint>().ToArray() ?? [];
         foreach (var point in points)
-            values.Append(point.TimeSeconds, point.IsComplete ? point.ValueHz!.Value : double.NaN);
+            values.Append(point.TimeSeconds, point.HasValue ? point.ValueHz!.Value : double.NaN);
         xAxis.VisibleRange = new DoubleRange(StartSeconds, Math.Max(StartSeconds + 1, EndSeconds));
-        EmptyState.Visibility = points.Any(point => point.IsComplete) ? Visibility.Collapsed : Visibility.Visible;
+        EmptyState.Visibility = points.Any(point => point.HasValue) ? Visibility.Collapsed : Visibility.Visible;
     }
 }

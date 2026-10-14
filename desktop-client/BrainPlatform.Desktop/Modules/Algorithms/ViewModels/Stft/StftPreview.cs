@@ -28,6 +28,41 @@ public sealed class StftPreview
     public static StftPreview ParseDynamic(StructuredPreviewResponse preview, int windowIndex) =>
         ParseCore(preview, windowIndex);
 
+    public static StftPreview FromWindow(DynamicWindowResponse response)
+    {
+        if (response.State != "ready" || response.Result is not { } result ||
+            result.State != "ready" || result.OutputKind != "time_frequency" || result.Quality != "clean" || response.Quality != "clean" ||
+            result.Axes is null || result.AxisUnits is null || result.Arrays is null || result.ArrayUnits is null ||
+            response.Range is not { } range)
+            throw new InvalidOperationException("STFT 按需窗口不是可显示的时频结果。");
+        if (result.Axes.Count != 2 || result.Arrays.Count != 2 || result.AxisUnits.Count != 2 || result.ArrayUnits.Count != 2 ||
+            result.AxisUnits.GetValueOrDefault("time_center_s") != "s" ||
+            result.AxisUnits.GetValueOrDefault("frequency_hz") != "Hz" ||
+            result.ArrayUnits.GetValueOrDefault("power_linear") != "V^2/Hz" ||
+            result.ArrayUnits.GetValueOrDefault("power_db") != "dB re 1 uV^2/Hz")
+            throw new InvalidOperationException("STFT 按需窗口的轴或功率单位不符合展示契约。");
+        if (!result.Axes.TryGetValue("time_center_s", out var timesAxis) ||
+            !result.Axes.TryGetValue("frequency_hz", out var frequencyAxis) ||
+            !result.Arrays.TryGetValue("power_linear", out var linearMatrix) ||
+            !result.Arrays.TryGetValue("power_db", out var matrix) ||
+            linearMatrix.ValueKind != JsonValueKind.Array || matrix.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("STFT 按需窗口缺少时频轴或功率矩阵。");
+        if (result.Provenance is not { ValueKind: JsonValueKind.Object } provenance ||
+            Text(provenance, "preprocessing_scope") != "whole_recording_before_window_slice" ||
+            Text(provenance, "inner_time_axis") != "absolute_recording_time_center_s" ||
+            Text(provenance, "analysis_state") is not ("Partial" or "Complete"))
+            throw new InvalidOperationException("STFT 按需窗口缺少连续预处理或时间轴 provenance。");
+        var times = ReadAxis(new Dictionary<string, JsonElement> { ["time_center_s"] = timesAxis }, "time_center_s");
+        var frequencies = ReadAxis(new Dictionary<string, JsonElement> { ["frequency_hz"] = frequencyAxis }, "frequency_hz");
+        if (!double.IsFinite(range.StartSeconds) || !double.IsFinite(range.EndSeconds) ||
+            range.StartSeconds < 0 || range.EndSeconds <= range.StartSeconds)
+            throw new InvalidOperationException("STFT 按需窗口范围无效。");
+        if (matrix.GetArrayLength() != times.Length)
+            throw new InvalidOperationException("STFT 按需窗口矩阵的时间维度不一致。");
+        ValidateMatrix(linearMatrix, times.Length, frequencies.Length, "STFT 线性功率矩阵");
+        return BuildPreview(times, frequencies, matrix, new TimeRange(range.StartSeconds, range.EndSeconds));
+    }
+
     private static StftPreview ParseCore(StructuredPreviewResponse preview, int? windowIndex)
     {
         if (preview.Output is not { } output || output.ValueKind != JsonValueKind.Object ||
@@ -69,6 +104,11 @@ public sealed class StftPreview
             matrix.GetArrayLength() != times.Length)
             throw new InvalidOperationException("STFT 功率矩阵的时间维度与后端时间轴不一致。");
 
+        return BuildPreview(times, frequencies, matrix, requestedRange);
+    }
+
+    private static StftPreview BuildPreview(double[] times, double[] frequencies, JsonElement matrix, TimeRange requestedRange)
+    {
         var rows = new double?[times.Length][];
         var minimum = double.PositiveInfinity;
         var maximum = double.NegativeInfinity;
@@ -96,6 +136,23 @@ public sealed class StftPreview
         if (!double.IsFinite(minimum))
             throw new InvalidOperationException("STFT 范围内没有可显示的有效功率单元。");
         return new StftPreview(times, frequencies, rows, minimum, maximum, requestedRange);
+    }
+
+    private static string Text(JsonElement value, string name) =>
+        value.TryGetProperty(name, out var item) && item.ValueKind == JsonValueKind.String
+            ? item.GetString() ?? "" : "";
+
+    private static void ValidateMatrix(JsonElement matrix, int timeCount, int frequencyCount, string label)
+    {
+        if (matrix.GetArrayLength() != timeCount)
+            throw new InvalidOperationException($"{label}的时间维度不一致。");
+        foreach (var row in matrix.EnumerateArray())
+        {
+            if (row.ValueKind != JsonValueKind.Array || row.GetArrayLength() != frequencyCount ||
+                row.EnumerateArray().Any(cell => cell.ValueKind != JsonValueKind.Number ||
+                    !cell.TryGetDouble(out var value) || !double.IsFinite(value)))
+                throw new InvalidOperationException($"{label}包含无效数值或 shape。");
+        }
     }
 
     private static double[] ReadAxis(IReadOnlyDictionary<string, JsonElement> axes, string key)

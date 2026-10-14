@@ -231,11 +231,20 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public WindowPreviewResponse? CurrentAnalysisWindow => isAnalysisStale ? null : analysisBinding?.CurrentWindow;
 
+    /// <summary>Requested cursor and displayed backend window are intentionally separate.</summary>
+    public long TargetAnalysisCursorSample => analysisBinding?.TargetCursorSample ?? -1;
+
+    public long? DisplayedAnalysisCursorSample => isAnalysisStale ? null : analysisBinding?.DisplayedCursorSample;
+
+    public string AnalysisWindowState => isAnalysisStale ? "stale" : analysisBinding?.DisplayedWindowStatus ?? "none";
+
+    public bool IsAnalysisTargetDisplayed => !isAnalysisStale && analysisBinding?.IsTargetDisplayed == true;
+
     public bool IsAnalysisLoading => analysisBinding?.IsLoading ?? false;
 
     public string AnalysisStatusText => isAnalysisStale ? "参数已改变，等待自动分析。" : analysisBinding?.StatusText ?? "未绑定分析结果。";
 
-    public bool IsAnalysisAttached => analysisBinding?.RunId is not null;
+    public bool IsAnalysisAttached => analysisBinding?.RunId is not null || analysisBinding?.IsOnDemandAttached == true;
 
     public ReviewPreparationState PreparationState => session.PreparationState;
 
@@ -356,6 +365,27 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
             checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)));
         analysisBinding.PropertyChanged += OnAnalysisBindingChanged;
         analysisBinding.AttachRun(runId);
+        isAnalysisStale = false;
+        RaiseAnalysisPropertiesChanged();
+        await analysisBinding.LoadAtSecondsAsync(PositionSeconds, cancellationToken);
+        RaiseAnalysisPropertiesChanged();
+    }
+
+    public async Task AttachOnDemandAnalysisAsync(
+        AnalysisRunRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (analysisCoordinator is null || !analysisCoordinator.SupportsOnDemandWindows)
+            throw new InvalidOperationException("当前回溯页未启用按需动态窗口。");
+
+        await DetachAnalysisAsync();
+        analysisBinding = new ReviewAnalysisBinding(
+            analysisCoordinator,
+            analysisRecording?.Id ?? recordingId,
+            samplingRateHz,
+            checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)));
+        analysisBinding.PropertyChanged += OnAnalysisBindingChanged;
+        analysisBinding.AttachOnDemand(request);
         isAnalysisStale = false;
         RaiseAnalysisPropertiesChanged();
         await analysisBinding.LoadAtSecondsAsync(PositionSeconds, cancellationToken);
@@ -653,6 +683,10 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private void RaiseAnalysisPropertiesChanged()
     {
         RaisePropertyChanged(nameof(CurrentAnalysisWindow));
+        RaisePropertyChanged(nameof(TargetAnalysisCursorSample));
+        RaisePropertyChanged(nameof(DisplayedAnalysisCursorSample));
+        RaisePropertyChanged(nameof(AnalysisWindowState));
+        RaisePropertyChanged(nameof(IsAnalysisTargetDisplayed));
         RaisePropertyChanged(nameof(IsAnalysisLoading));
         RaisePropertyChanged(nameof(AnalysisStatusText));
         RaisePropertyChanged(nameof(IsAnalysisAttached));

@@ -9,7 +9,10 @@ MANIFEST = AlgorithmManifest(
     scientific_version="official-rbp-v2",
     implementation_identity="rbp-runtime-v2-five-band",
     supported_modes=["static", "dynamic"],
-    output_schema={"fields": [
+    output_schema={"window_output_kind": "multi_metric_series",
+                   "window_axes": [{"name": "time_s", "unit": "s"}],
+                   "window_shapes": {name: [1] for name in ("time_s", "delta", "theta", "alpha", "beta", "gamma")},
+                   "fields": [
         {"name": "delta", "unit": "ratio", "meaning": "Delta 相对功率"},
         {"name": "theta", "unit": "ratio", "meaning": "Theta 相对功率"},
         {"name": "alpha", "unit": "ratio", "meaning": "Alpha 相对功率"},

@@ -46,8 +46,8 @@ public partial class ThetaBetaTrendChart : UserControl
     {
         values.Clear();
         var points = Points?.Cast<ThetaBetaResultPoint>().ToArray() ?? [];
-        foreach (var point in points) values.Append(point.TimeSeconds, point.IsComplete ? point.Value!.Value : double.NaN);
+        foreach (var point in points) values.Append(point.TimeSeconds, point.HasValue ? point.Value!.Value : double.NaN);
         xAxis.VisibleRange = new DoubleRange(StartSeconds, Math.Max(StartSeconds + 1, EndSeconds));
-        EmptyState.Visibility = points.Any(point => point.IsComplete) ? Visibility.Collapsed : Visibility.Visible;
+        EmptyState.Visibility = points.Any(point => point.HasValue) ? Visibility.Collapsed : Visibility.Visible;
     }
 }

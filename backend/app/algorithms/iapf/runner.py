@@ -6,6 +6,7 @@ from typing import Any
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
+from app.algorithm_runtime.scalar_window import ScalarDynamicWindowCapability
 from app.scientific.quality import SpectralQualityGateError
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
@@ -14,9 +15,20 @@ from .config import IapfConfig
 from .manifest import MANIFEST
 
 
-class IapfAlgorithm:
+class IapfAlgorithm(ScalarDynamicWindowCapability):
+    window_preprocessing_scope = "whole_recording_before_window_slice"
     manifest = MANIFEST
     config_model = IapfConfig
+
+    def _execute_frame(self, inputs: AlgorithmInputs, config: IapfConfig,
+                       start_s: float, end_s: float) -> AlgorithmResult:
+        return compute_iapf(
+            self._load(inputs.payload, channel=inputs.channel, start_s=start_s,
+                       window_s=end_s - start_s),
+            channel=inputs.channel,
+            requested_range={"start_s": start_s, "end_s": end_s},
+            actual_range={"start_s": start_s, "end_s": end_s},
+        )
 
     def parameter_schema(self) -> ParameterSchema:
         return ParameterSchema(parameters=[

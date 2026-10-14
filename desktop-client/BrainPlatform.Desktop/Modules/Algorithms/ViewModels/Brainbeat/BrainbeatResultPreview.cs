@@ -28,6 +28,48 @@ public sealed class BrainbeatResultPreview
     public string Channel { get; }
     public bool IsDynamic => Points.Count > 0;
 
+    public static BrainbeatResultPreview FromWindow(DynamicWindowResponse response, string channel,
+        BrainbeatResultPreview? previous = null)
+    {
+        var projection = ScalarWindowProjectionParser.Parse(response, "brainbeat", "ratio", "brainbeat_evidence");
+        var sourceLabel = string.IsNullOrWhiteSpace(channel) ? "Fz / Pz" : channel;
+        if (response.State == "ready")
+        {
+            if (response.Result?.Provenance is not { ValueKind: JsonValueKind.Object } provenance ||
+                Text(provenance, "preprocessing_scope") != "whole_recording_before_window_slice" ||
+                !Bool(provenance, "paired_sources") ||
+                !Bool(provenance, "independent_windows") ||
+                !provenance.TryGetProperty("cross_window_ema", out var ema) || ema.ValueKind != JsonValueKind.False ||
+                !Bool(provenance, "iapf_dependency") ||
+                !provenance.TryGetProperty("source_channels", out var sources) || sources.ValueKind != JsonValueKind.Object ||
+                !MatchesSources(sources, projection.Evidence, sourceLabel) ||
+                ScalarWindowProjectionParser.Number(projection.Evidence, "iapf_hz") is not > 0)
+                throw new InvalidOperationException("Brainbeat 按需结果缺少双通道独立窗口 provenance。");
+        }
+        var point = new BrainbeatPoint(
+            projection.TimeSeconds, projection.Value, projection.State, projection.Quality,
+            projection.Failure, projection.StartSeconds, projection.EndSeconds);
+        var points = ScalarWindowProjectionParser.Merge(
+            previous?.Points ?? [], point,
+            item => item.StartSeconds, item => item.EndSeconds);
+        return new BrainbeatResultPreview(null, "ratio", points,
+            sourceLabel);
+    }
+
+    private static bool MatchesSources(JsonElement sources, JsonElement evidence, string channel)
+    {
+        var fz = Text(sources, "fz");
+        var pz = Text(sources, "pz");
+        return fz.Length > 0 && pz.Length > 0 &&
+            string.Equals($"{fz} / {pz}", channel, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(Text(evidence, "fz_channel"), fz, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(Text(evidence, "pz_channel"), pz, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool Bool(JsonElement value, string name) =>
+        value.ValueKind == JsonValueKind.Object && value.TryGetProperty(name, out var item) &&
+        item.ValueKind == JsonValueKind.True;
+
     public static BrainbeatResultPreview? Parse(AnalysisRunResponse? run)
     {
         if (run?.ResultSummary is not { ValueKind: JsonValueKind.Object } summary ||

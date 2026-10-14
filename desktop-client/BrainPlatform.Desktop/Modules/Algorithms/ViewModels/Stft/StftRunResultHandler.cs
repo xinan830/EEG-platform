@@ -9,6 +9,11 @@ internal sealed class StftRunResultHandler : IAlgorithmRunResultHandler
     public string AlgorithmId => "stft";
     public bool UsesDynamicScalarSeries => false;
     public bool SupportsNotch => true;
+    public bool SupportsOnDemandWindows => string.Equals(
+        Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_STFT"), "1", StringComparison.Ordinal);
+
+    public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
+        StftWindowPresenter.Apply(catalog.StftPreviewState, response);
 
     public AlgorithmRunParameters ParseParameters(AlgorithmRunInputs inputs)
     {

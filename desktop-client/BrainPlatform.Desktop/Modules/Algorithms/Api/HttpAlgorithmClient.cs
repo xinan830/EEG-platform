@@ -105,6 +105,60 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
             cancellationToken);
     }
 
+    public Task<DynamicWindowResponse> EnsureDynamicWindowAsync(
+        DynamicWindowRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.CursorSample < 0) throw new ArgumentOutOfRangeException(nameof(request));
+        return SendAsync<DynamicWindowResponse>(
+            HttpMethod.Post, "api/analysis-windows/ensure", request, cancellationToken);
+    }
+
+    public Task<DynamicWindowResponse> GetDynamicWindowAsync(
+        string windowId,
+        string? projectId,
+        CancellationToken cancellationToken)
+    {
+        var query = string.IsNullOrWhiteSpace(projectId)
+            ? string.Empty
+            : $"?project_id={Uri.EscapeDataString(projectId)}";
+        return SendAsync<DynamicWindowResponse>(
+            HttpMethod.Get,
+            $"api/analysis-windows/{Uri.EscapeDataString(RequireId(windowId))}{query}",
+            null,
+            cancellationToken);
+    }
+
+    public Task<DynamicSubscriptionResponse> SubscribeDynamicWindowAsync(
+        string windowId,
+        string requestId,
+        string? projectId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(requestId)) throw new ArgumentException("请求 ID 不能为空。", nameof(requestId));
+        return SendAsync<DynamicSubscriptionResponse>(
+            HttpMethod.Post,
+            $"api/analysis-windows/{Uri.EscapeDataString(RequireId(windowId))}/subscriptions",
+            new { request_id = requestId, project_id = projectId },
+            cancellationToken);
+    }
+
+    public Task<DynamicSubscriptionResponse> CancelDynamicSubscriptionAsync(
+        string subscriptionId,
+        string? projectId,
+        CancellationToken cancellationToken)
+    {
+        var query = string.IsNullOrWhiteSpace(projectId)
+            ? string.Empty
+            : $"?project_id={Uri.EscapeDataString(projectId)}";
+        return SendAsync<DynamicSubscriptionResponse>(
+            HttpMethod.Delete,
+            $"api/analysis-windows/subscriptions/{Uri.EscapeDataString(RequireId(subscriptionId))}{query}",
+            null,
+            cancellationToken);
+    }
+
     private async Task<T> SendAsync<T>(
         HttpMethod method,
         string relativePath,
