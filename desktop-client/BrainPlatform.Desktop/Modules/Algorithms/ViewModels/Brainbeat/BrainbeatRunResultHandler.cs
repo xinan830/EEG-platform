@@ -7,6 +7,12 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Brainbeat;
 internal sealed class BrainbeatRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "brainbeat";
+    public bool SupportsOnDemandWindows => string.Equals(
+        Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_BRAINBEAT"), "1", StringComparison.Ordinal);
+
+    public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
+        _ = BrainbeatResultPreview.FromWindow(response,
+            $"{catalog.SelectedChannel} / {catalog.SelectedF4Channel}");
 
     public void ApplyConfigFields(IDictionary<string, object?> payload, string channel, string? secondaryChannel) =>
         payload["secondary_channel"] = secondaryChannel;

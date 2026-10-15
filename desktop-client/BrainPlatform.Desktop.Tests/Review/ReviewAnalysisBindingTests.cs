@@ -49,6 +49,21 @@ public sealed class ReviewAnalysisBindingTests
         Assert.False(binding.IsLoading);
     }
 
+    [Fact]
+    public async Task Keeps_target_cursor_separate_from_the_backend_window_cursor()
+    {
+        var coordinator = new ReviewAnalysisCoordinator((runId, sample, _, _) =>
+            Task.FromResult(Response(runId, "recording", sample!.Value - 100)));
+        await using var binding = new ReviewAnalysisBinding(coordinator, "recording", 100, 1_000);
+        binding.AttachRun("run");
+
+        await binding.LoadAtSampleAsync(500);
+
+        Assert.Equal(500, binding.TargetCursorSample);
+        Assert.Equal(400, binding.DisplayedCursorSample);
+        Assert.False(binding.IsTargetDisplayed);
+    }
+
     private static WindowPreviewResponse Response(string runId, string recordingId, long sample) => new(
         runId, recordingId, sample, sample / 100d, "available", [],
         new WindowPreviewWindow("window", 0, 0, 100, "Complete", "valid", []),

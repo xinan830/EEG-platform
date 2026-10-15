@@ -30,10 +30,13 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public IReadOnlyList<string> AnalysisModes => Catalog.AnalysisModes;
     public IReadOnlyList<double> DynamicWindowOptions => Catalog.DynamicWindowOptions;
     public IReadOnlyList<double> DynamicStepOptions => Catalog.DynamicStepOptions;
+    public IReadOnlyList<string> DynamicExecutionModes => Catalog.DynamicExecutionModes;
     public string DynamicStepText { get => Catalog.DynamicStepText; set => Catalog.DynamicStepText = value; }
     public double SelectedDynamicStepSeconds { get => Catalog.SelectedDynamicStepSeconds; set => Catalog.SelectedDynamicStepSeconds = value; }
     public double SelectedDynamicWindowSeconds { get => Catalog.SelectedDynamicWindowSeconds; set => Catalog.SelectedDynamicWindowSeconds = value; }
     public string SelectedAnalysisMode { get => Catalog.SelectedAnalysisMode; set => Catalog.SelectedAnalysisMode = value; }
+    public string SelectedDynamicExecutionMode { get => Catalog.SelectedDynamicExecutionMode; set => Catalog.SelectedDynamicExecutionMode = value; }
+    public bool IsOnDemandExecutionModeSelected => Catalog.IsOnDemandExecutionModeSelected;
     public bool IsDynamicMode => Catalog.IsDynamicMode;
     public bool IsDynamicModeAvailable => Catalog.IsDynamicModeAvailable;
     public bool IsDynamicPreviewPlaying => Catalog.IsDynamicPreviewPlaying;
@@ -51,6 +54,8 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public ICommand PauseDynamicPreviewCommand => Catalog.PauseDynamicPreviewCommand;
     public ICommand StepDynamicPreviewCommand => Catalog.StepDynamicPreviewCommand;
     public ICommand ResetDynamicPreviewCommand => Catalog.ResetDynamicPreviewCommand;
+    public void BeginDynamicPreviewSeek() => Catalog.BeginDynamicPreviewSeek();
+    public void CommitDynamicPreviewSeek() => Catalog.CommitDynamicPreviewSeek();
     public bool HasProject => Catalog.Projects?.SelectedProject is not null;
     public bool HasCompletedRecording => Catalog.SelectedProjectRecording is not null;
     public bool HasRegisteredRecording => Catalog.RegisteredRecording is not null;
@@ -65,14 +70,17 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public string StartSeconds { get => Catalog.StartSecondsText; set => Catalog.StartSecondsText = value; }
     public string EndSeconds { get => Catalog.EndSecondsText; set => Catalog.EndSecondsText = value; }
     public string RunStatus => Catalog.RunStatusText;
-    public string RunIdText => Catalog.LastRun?.RunId ?? "未运行";
-    public string RequestedRangeText => FormatRange(Catalog.LastRun?.RequestedRange);
-    public string ActualRangeText => FormatRange(Catalog.LastRun?.ActualRange);
+    public string RunIdText => Catalog.DisplayedAnalysisWindow is { } window ? $"窗口 {window.WindowId}" : Catalog.LastRun?.RunId ?? "未运行";
+    public string RequestedRangeText => FormatRange(Catalog.WindowRequestedRange ?? Catalog.LastRun?.RequestedRange);
+    public string ActualRangeText => FormatRange(Catalog.DisplayedAnalysisWindow?.Range is { } range
+        ? new TimeRange(range.StartSeconds, range.EndSeconds) : Catalog.LastRun?.ActualRange);
     public string ResultTimeText => Catalog.LastRun?.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "未运行";
     public string OutputUnit
     {
         get
         {
+            if (Catalog.DisplayedAnalysisWindow?.Result?.ArrayUnits is { Count: > 0 } units &&
+                units.Values.Distinct(StringComparer.Ordinal).ToArray() is [var windowUnit]) return windowUnit;
             var detailKind = Catalog.SelectedAlgorithm is { } algorithm
                 ? AlgorithmUiRegistry.For(algorithm.Id).DetailKind
                 : AlgorithmDetailKind.Scalar;
@@ -88,7 +96,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public string AlgorithmVersionText => Catalog.SelectedAlgorithm?.Version ?? "后端未提供";
     public string ImplementationVersionText => Catalog.SelectedAlgorithm?.ImplementationIdentity ?? "后端未提供";
     public string SelectedChannelText => SelectedChannel is { Length: > 0 } value ? value : "未选择";
-    public string ParameterSnapshotText => "由本次 Run 固化";
+    public string ParameterSnapshotText => Catalog.IsOnDemandAnalysis ? "由按需配置会话固化" : "由本次 Run 固化";
     public string OutputUnitText => OutputUnit;
     public AnalysisContextViewModel Provenance => this;
     public string WindowStateText
@@ -113,13 +121,13 @@ public sealed class AnalysisContextViewModel : ObservableObject
         }
     }
     public double RunProgressPercent => Catalog.LastRun?.ProgressPercent ?? 0;
-    public string RunProgressText => Catalog.LastRun?.ProgressText ?? "未运行";
+    public string RunProgressText => Catalog.IsOnDemandAnalysis ? Catalog.RunStatusText : Catalog.LastRun?.ProgressText ?? "未运行";
     public ICommand CancelRunCommand => Catalog.CancelRunCommand;
     public double DynamicTimeProgressPercent { get => Catalog.DynamicTimeProgressPercent; set => Catalog.DynamicTimeProgressPercent = value; }
     public string DynamicTimeProgressText => Catalog.DynamicTimeProgressText;
     public string DynamicCurrentWindowText => Catalog.DynamicCurrentWindowText;
     public bool IsRunning => Catalog.IsRunActive;
-    public bool CanCancelRun => Catalog.LastRun?.Status is "queued" or "running";
+    public bool CanCancelRun => Catalog.IsOnDemandAnalysis && Catalog.IsRunActive || Catalog.LastRun?.Status is "queued" or "running";
     public string ResultSummary => Catalog.ResultSummaryText;
 
     private void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
@@ -138,6 +146,9 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.IsDynamicModeAvailable)
             or nameof(AlgorithmListViewModel.DynamicWindowOptions)
             or nameof(AlgorithmListViewModel.DynamicStepOptions)
+            or nameof(AlgorithmListViewModel.DynamicExecutionModes)
+            or nameof(AlgorithmListViewModel.SelectedDynamicExecutionMode)
+            or nameof(AlgorithmListViewModel.IsOnDemandExecutionModeSelected)
             or nameof(AlgorithmListViewModel.SelectedDynamicWindowSeconds)
             or nameof(AlgorithmListViewModel.DynamicStepText)
             or nameof(AlgorithmListViewModel.SelectedDynamicStepSeconds)
@@ -150,6 +161,9 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.DynamicWindowRows)
             or nameof(AlgorithmListViewModel.RunStatusText)
             or nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.DisplayedAnalysisWindow)
+            or nameof(AlgorithmListViewModel.IsOnDemandAnalysis)
+            or nameof(AlgorithmListViewModel.IsRunActive)
             or nameof(AlgorithmListViewModel.DynamicTimeProgressPercent)
             or nameof(AlgorithmListViewModel.DynamicTimeProgressText)
             or nameof(AlgorithmListViewModel.DynamicCurrentWindowText)
@@ -203,6 +217,9 @@ public sealed class AnalysisContextViewModel : ObservableObject
             RaisePropertyChanged(nameof(SelectedDynamicWindowSeconds));
             RaisePropertyChanged(nameof(DynamicWindowOptions));
             RaisePropertyChanged(nameof(DynamicStepOptions));
+            RaisePropertyChanged(nameof(DynamicExecutionModes));
+            RaisePropertyChanged(nameof(SelectedDynamicExecutionMode));
+            RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
             RaisePropertyChanged(nameof(IsDynamicMode));
             RaisePropertyChanged(nameof(IsDynamicModeAvailable));
             RaisePropertyChanged(nameof(IsDynamicPreviewPlaying));

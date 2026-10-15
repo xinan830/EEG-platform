@@ -9,9 +9,10 @@ from .official import compute_faa
 
 from .config import FaaConfig
 from .manifest import MANIFEST
+from .window import FaaWindowCapability
 
 
-class FaaAlgorithm:
+class FaaAlgorithm(FaaWindowCapability):
     manifest = MANIFEST
     config_model = FaaConfig
 

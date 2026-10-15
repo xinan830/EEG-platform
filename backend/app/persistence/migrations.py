@@ -8,6 +8,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .database import connect_database
+from .dynamic_identity_migration import migration_019_dynamic_resolved_identity
+from .on_demand_migrations import (
+    migration_014_on_demand_dynamic_windows,
+    migration_015_dynamic_attempt_lease_index,
+    migration_016_dynamic_attempt_fencing,
+    migration_017_dynamic_window_generations,
+    migration_018_dynamic_manifest_integrity,
+)
 
 
 MigrationAction = Callable[[sqlite3.Connection], None]
@@ -347,6 +355,12 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(11, "run-progress", _migration_011_run_progress),
     Migration(12, "run-lanes", _migration_012_run_lanes),
     Migration(13, "run-request-keys", _migration_013_run_request_keys),
+    Migration(14, "on-demand-dynamic-windows", migration_014_on_demand_dynamic_windows),
+    Migration(15, "on-demand-attempt-lease-index", migration_015_dynamic_attempt_lease_index),
+    Migration(16, "on-demand-attempt-fencing", migration_016_dynamic_attempt_fencing),
+    Migration(17, "on-demand-window-generations", migration_017_dynamic_window_generations),
+    Migration(18, "on-demand-manifest-integrity", migration_018_dynamic_manifest_integrity),
+    Migration(19, "on-demand-resolved-identity", migration_019_dynamic_resolved_identity),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

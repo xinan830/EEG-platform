@@ -267,6 +267,26 @@ def test_window_planner_uses_state_as_source_of_truth_and_exposes_legacy_warmup_
     assert [frame.warmup for frame in frames] == [True] * 6 + [False] * 3
 
 
+def test_latest_dynamic_frame_never_selects_a_future_endpoint() -> None:
+    from app.algorithm_runtime.windows import (
+        build_dynamic_analysis_frames,
+        latest_dynamic_analysis_frame_at_or_before,
+    )
+
+    frames = build_dynamic_analysis_frames(0, 20, duration_s=20, window_s=5, step_s=1)
+    for cursor in (0, 3.9, 4, 4.2, 5, 8.7, 20):
+        actual = latest_dynamic_analysis_frame_at_or_before(
+            0, 20, duration_s=20, window_s=5, step_s=1, cursor_s=cursor,
+        )
+        expected = [frame for frame in frames if frame.time_s <= cursor + 1e-9]
+        assert (actual is None) == (not expected)
+        if expected:
+            assert actual is not None
+            assert (actual.window_start_s, actual.window_end_s, actual.state) == (
+                expected[-1].window_start_s, expected[-1].window_end_s, expected[-1].state,
+            )
+
+
 def test_parameter_schema_rejects_duplicate_keys_and_display_state() -> None:
     with pytest.raises(ValueError, match="unique"):
         ParameterSchema(parameters=[

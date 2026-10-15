@@ -52,8 +52,9 @@ public sealed partial class AlgorithmListViewModel
 
     private void ClearStftPreview()
     {
-        SetStftResult(null);
-        StftStructuredPreview = null;
+        stftPreview.Clear();
+        RaisePropertyChanged(nameof(HasStftPreview));
+        RaisePropertyChanged(nameof(StftAxisText));
     }
 
     private void UpdateDynamicStftPreview(int latestIndex, bool complete)

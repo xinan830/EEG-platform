@@ -61,6 +61,15 @@ Start the existing Python backend first with `start_brain_platform.bat` or the
 backend development command. The startup script and current web client use port
 `8000`; earlier README text naming ports `8001` or `5174` was obsolete.
 
+From the repository root, `start_brain_desktop.bat` opens separate terminal and
+WPF windows for the backend and frontend. The backend terminal keeps the live
+Uvicorn logs visible. It prefers the current `desktop-client` Release
+executable and only falls back to the portable `dist\BrainPlatform-Release`
+package when the development executable is absent. If a healthy backend owned
+by this project is already running, the script restarts it in the visible
+backend terminal so the frontend and backend windows remain clear; an
+unrelated process on port 8000 is reused without being terminated.
+
 ## Windows Release Package
 
 Build a portable desktop release from the repository root:

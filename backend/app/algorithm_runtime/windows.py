@@ -181,3 +181,67 @@ def build_dynamic_analysis_frames(
             allow_warmup=allow_warmup,
         )
     ]
+
+
+def latest_dynamic_analysis_frame_at_or_before(
+    start_s: float,
+    end_s: float,
+    *,
+    duration_s: float,
+    window_s: float,
+    step_s: float,
+    cursor_s: float,
+    minimum_window_s: float = 4.0,
+    allow_warmup: bool = True,
+) -> DynamicAnalysisFrame | None:
+    """Return the latest planned frame whose endpoint has been reached.
+
+    This is the bounded counterpart to ``build_dynamic_analysis_frames`` for
+    interactive playback.  It deliberately never selects a future endpoint.
+    The arithmetic mirrors ``build_playback_windows`` so a jump does not need
+    to materialize every preceding frame in a long recording.
+    """
+    values = (start_s, end_s, duration_s, window_s, step_s, cursor_s, minimum_window_s)
+    if not all(math.isfinite(value) for value in values):
+        raise InvalidAnalysisWindowError("analysis window values must be finite")
+    if start_s < 0 or end_s <= start_s or cursor_s < 0:
+        raise InvalidAnalysisWindowError("analysis range and cursor must be non-negative and ordered")
+    if duration_s <= 0 or window_s <= 0 or step_s <= 0 or minimum_window_s <= 0:
+        raise InvalidAnalysisWindowError("duration and analysis window values must be positive")
+
+    bounded_start = min(start_s, duration_s)
+    bounded_end = min(end_s, duration_s)
+    reached_end = min(cursor_s, bounded_end)
+    if reached_end <= bounded_start:
+        return None
+    epsilon = max(1e-9, step_s * 1e-9)
+    candidates: list[AnalysisWindow] = []
+
+    if bounded_start <= epsilon and allow_warmup:
+        warmup_end = min(window_s, bounded_end)
+        if reached_end >= minimum_window_s - epsilon and minimum_window_s < warmup_end - epsilon:
+            index = math.floor((min(reached_end, warmup_end - epsilon) - minimum_window_s) / step_s + epsilon)
+            if index >= 0:
+                endpoint = minimum_window_s + index * step_s
+                if endpoint < warmup_end - epsilon and endpoint <= reached_end + epsilon:
+                    candidates.append(AnalysisWindow(0.0, endpoint, endpoint, "Partial"))
+        if bounded_end < window_s - epsilon and reached_end >= bounded_end - epsilon:
+            candidates.append(AnalysisWindow(0.0, bounded_end, bounded_end, "Partial"))
+
+    first_end = window_s if bounded_start <= epsilon else bounded_start + window_s
+    if reached_end >= first_end - epsilon and first_end <= bounded_end + epsilon:
+        index = math.floor((min(reached_end, bounded_end) - first_end) / step_s + epsilon)
+        endpoint = min(first_end + max(index, 0) * step_s, bounded_end)
+        if endpoint <= reached_end + epsilon:
+            candidates.append(AnalysisWindow(max(bounded_start, endpoint - window_s), endpoint, endpoint, "Complete"))
+
+    if not candidates:
+        return None
+    window = max(candidates, key=lambda item: item.end_s)
+    return DynamicAnalysisFrame(
+        time_s=window.end_s,
+        window_start_s=window.start_s,
+        window_end_s=window.end_s,
+        requested_window_s=window_s,
+        state=window.state,
+    )

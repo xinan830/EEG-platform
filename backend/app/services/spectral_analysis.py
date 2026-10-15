@@ -106,8 +106,10 @@ class SpectralAnalysisService:
     def _preprocessed_recording(self, recording, low_hz, high_hz, notch_hz, execution_context):
         from app.services.recordings import RecordingService
         from app.services.mapped_preprocessing import mapped_preprocess
+        from app.services.prepared_source_identity import prepared_source_identity
 
-        identity = _spectral_cache_identity(low_hz, high_hz, notch_hz)
+        identity = prepared_source_identity(self.recordings, recording, low_hz=low_hz,
+            high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q)
         cached = self.preprocess_cache.get(recording.id, identity)
         if cached is None:
             if getattr(self.recordings.load_data, "__func__", None) is RecordingService.load_data:
@@ -120,6 +122,9 @@ class SpectralAnalysisService:
                     low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q)
                 cached = PreprocessedRecording(filtered, sfreq, tuple(names))
             self.preprocess_cache.put(recording.id, identity, cached)
+        completed = getattr(execution_context, "source_preparation_completed", None)
+        if completed is not None:
+            completed()
         return cached
 
     def load_spectrum(

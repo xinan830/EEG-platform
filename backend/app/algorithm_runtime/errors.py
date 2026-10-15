@@ -30,5 +30,33 @@ class UnsupportedAlgorithmModeError(AlgorithmRuntimeError):
     code = "ALGORITHM_MODE_UNSUPPORTED"
 
 
+class UnsupportedDynamicWindowCapabilityError(AlgorithmRuntimeError):
+    code = "ON_DEMAND_CAPABILITY_UNSUPPORTED"
+
+
 class InvalidAnalysisWindowError(AlgorithmRuntimeError):
     code = "ANALYSIS_WINDOW_INVALID"
+
+
+class DynamicWindowCapacityExceededError(AlgorithmRuntimeError):
+    code = "WINDOW_CAPACITY_EXCEEDED"
+
+
+class DynamicWindowIdentityConflictError(AlgorithmRuntimeError):
+    code = "WINDOW_IDENTITY_CONFLICT"
+
+
+class DynamicWindowProjectForbiddenError(AlgorithmRuntimeError):
+    code = "WINDOW_PROJECT_FORBIDDEN"
+
+
+class DynamicWindowCursorInvalidError(AlgorithmRuntimeError):
+    code = "WINDOW_CURSOR_INVALID"
+
+
+class DynamicWindowResultCorruptError(AlgorithmRuntimeError, ValueError):
+    code = "WINDOW_RESULT_CORRUPT"
+
+
+class DynamicWindowResourceExceededError(AlgorithmRuntimeError):
+    code = "WINDOW_RESOURCE_EXCEEDED"

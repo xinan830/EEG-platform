@@ -60,6 +60,13 @@ public sealed partial class AlgorithmListViewModel
         // Backend atomically merges active scientific configurations. New attempts
         // deliberately omit a permanent key so cancelled work can be rerun.
         var request = new AnalysisRunRequest(RegisteredRecording.Id, "official_algorithm", config);
+        if (dynamic && IsOnDemandExecutionModeSelected)
+        {
+            if (!resultHandler.SupportsOnDemandWindows)
+                throw new InvalidOperationException("当前算法未启用按需分析，请选择全量分析。");
+            await BeginWindowAnalysisAsync(request, resultHandler, preservedDynamicCursorSeconds ?? 0);
+            return;
+        }
         var requestedRevision = configurationRevision;
         var run = await runCoordinator.CreateRunAndWaitAsync(
             request,
@@ -108,6 +115,12 @@ public sealed partial class AlgorithmListViewModel
 
     private async Task CancelRunAsync()
     {
+        if (IsOnDemandAnalysis)
+        {
+            await ReleaseWindowAnalysisAsync();
+            RunStatusText = "已释放当前页面的按需分析订阅。";
+            return;
+        }
         if (LastRun is not { Status: "queued" or "running" } run)
             return;
         var updated = await client.CancelRunAsync(run.RunId, CancellationToken.None);

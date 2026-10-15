@@ -7,6 +7,7 @@ public sealed class BrainbeatDetailViewModel : AlgorithmSpecificDetailViewModel,
 {
     private BrainbeatResultPreview? preview;
     private bool isFailureDetailsExpanded;
+    private string? windowSession;
     internal BrainbeatDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "brainbeat") => Refresh();
     public BrainbeatPoint? CurrentPoint => preview?.IsDynamic == true
         ? preview.Points.LastOrDefault(point => point.TimeSeconds <= Catalog.DynamicPreviewCursorSeconds + 1e-9)
@@ -33,16 +34,39 @@ public sealed class BrainbeatDetailViewModel : AlgorithmSpecificDetailViewModel,
     {
         base.OnCatalogPropertyChanged(sender, args);
         if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm)) Refresh();
+        else if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
+        {
+            if (Algorithm?.Id == "brainbeat" && Catalog.DisplayedAnalysisWindow is { } response)
+            {
+                preview = BrainbeatResultPreview.FromWindow(response, SourceLabel(),
+                    windowSession == response.SessionId ? preview : null);
+                windowSession = response.SessionId;
+            }
+            else { windowSession = null; preview = null; }
+            RaiseResultProperties();
+        }
         else if (args.PropertyName == nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)) RaiseResultProperties();
     }
     private void Refresh()
     {
-        preview = Algorithm?.Id == "brainbeat" ? BrainbeatResultPreview.Parse(Catalog.LastRun) : null;
+        windowSession = null;
+        preview = Algorithm?.Id == "brainbeat"
+            ? Catalog.DisplayedAnalysisWindow is { } response
+                ? BrainbeatResultPreview.FromWindow(response, SourceLabel())
+                : BrainbeatResultPreview.Parse(Catalog.LastRun)
+            : null;
+        if (Algorithm?.Id == "brainbeat" && Catalog.DisplayedAnalysisWindow is { } displayed)
+            windowSession = displayed.SessionId;
         RaisePropertyChanged(nameof(CurrentPoint)); RaisePropertyChanged(nameof(ValueText)); RaisePropertyChanged(nameof(UnitText));
         RaisePropertyChanged(nameof(ChannelText)); RaisePropertyChanged(nameof(ResultText)); RaisePropertyChanged(nameof(TrendPoints));
         RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds));
         RaiseResultProperties();
     }
+
+    private string SourceLabel() =>
+        string.IsNullOrWhiteSpace(Catalog.SelectedF4Channel)
+            ? "Fz / Pz"
+            : $"{Catalog.SelectedChannel} / {Catalog.SelectedF4Channel}";
 
     private void RaiseResultProperties()
     {

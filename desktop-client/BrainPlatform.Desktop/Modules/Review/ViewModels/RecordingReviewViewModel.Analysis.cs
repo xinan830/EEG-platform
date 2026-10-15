@@ -27,6 +27,15 @@ public sealed partial class RecordingReviewViewModel
                     new ReviewAnalysisSettingsSnapshot(HighPassHz, LowPassHz, NotchHz, AnalysisSettings.WindowSeconds)));
             revision = analysisConfigurationRevision;
             await DetachAnalysisAsync();
+            if (analysisCoordinator.SupportsOnDemandWindows)
+            {
+                await AttachOnDemandAnalysisAsync(request, cancellationToken);
+                if (cancellationToken.IsCancellationRequested || revision != analysisConfigurationRevision) return;
+                PsdPreparationText = CurrentAnalysisWindow is null
+                    ? AnalysisStatusText
+                    : "PSD 按需窗口已准备，正在跟随回溯游标。";
+                return;
+            }
             var run = await EnsurePsdAnalysisAsync(request, status =>
             {
                 if (revision != analysisConfigurationRevision) return;

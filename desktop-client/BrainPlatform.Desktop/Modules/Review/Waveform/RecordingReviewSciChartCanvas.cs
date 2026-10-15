@@ -37,6 +37,10 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     private Thickness? lastLabelPlotMargin;
     private Window? owningWindow;
     private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
+    private RecordingReviewFrame? renderedFrame;
+    private double renderedPlotHeight;
+    private double renderedSensitivity;
+    private double renderedMillimetersPerDip;
 
     public RecordingReviewSciChartCanvas()
     {
@@ -156,9 +160,15 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         if (e.PropertyName is nameof(RecordingReviewViewModel.CurrentFrame)
             or nameof(RecordingReviewViewModel.VisibleDurationSeconds)
             or nameof(RecordingReviewViewModel.SensitivityMicrovoltsPerMillimeter)
-            or nameof(RecordingReviewViewModel.RecordingEvents))
+            or nameof(RecordingReviewViewModel.IsLoading)
+            or nameof(RecordingReviewViewModel.StatusText))
         {
             ApplyFrame((sender as RecordingReviewViewModel)?.CurrentFrame, sender as RecordingReviewViewModel);
+        }
+        else if (e.PropertyName == nameof(RecordingReviewViewModel.RecordingEvents))
+        {
+            UpdateEventMarkers(sender as RecordingReviewViewModel);
+            UpdateLifecycleBoundaries(sender as RecordingReviewViewModel);
         }
         else if (e.PropertyName == nameof(RecordingReviewViewModel.TimeDisplay))
         {
@@ -166,8 +176,16 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             UpdateEventMarkers(sender as RecordingReviewViewModel);
             UpdateLifecycleBoundaries(sender as RecordingReviewViewModel);
         }
-        else if (e.PropertyName is nameof(RecordingReviewViewModel.PositionSeconds)
-                 or nameof(RecordingReviewViewModel.ViewportStartSeconds))
+        else if (e.PropertyName == nameof(RecordingReviewViewModel.PositionSeconds))
+        {
+            // Drag previews can update PositionSeconds before a cold frame
+            // finishes. Keep the axis and cursor on that same target so the
+            // bottom time readout cannot outrun the chart coordinate system.
+            // This only changes the visible range; trace arrays are reused.
+            UpdateVisibleRange(sender as RecordingReviewViewModel);
+            UpdatePlaybackCursor(sender as RecordingReviewViewModel);
+        }
+        else if (e.PropertyName == nameof(RecordingReviewViewModel.ViewportStartSeconds))
         {
             UpdateVisibleRange(sender as RecordingReviewViewModel);
             UpdatePlaybackCursor(sender as RecordingReviewViewModel);
@@ -184,6 +202,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             emptyMessage.Text = viewModel?.StatusText ?? "等待加载回溯数据";
             emptyMessage.Visibility = Visibility.Visible;
             ClearSeries();
+            renderedFrame = null;
             eventMarkers.Children.Clear();
             playbackCursor.Visibility = Visibility.Collapsed;
             return;
@@ -196,14 +215,24 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         yAxis.VisibleRange = new DoubleRange(0, Math.Max(1, names.Length));
         SyncLabelPlotArea();
         emptyMessage.Text = viewModel?.StatusText ?? "已加载";
-        emptyMessage.Visibility = frame.Segments.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        emptyMessage.Visibility = viewModel?.IsLoading == true || frame.Segments.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
-        using (surface.SuspendUpdates())
+        var plotHeight = WaveformPlotLayout.GetPlotArea(surface).Height;
+        var sensitivity = viewModel?.SensitivityMicrovoltsPerMillimeter ?? 10;
+        if (!ReferenceEquals(renderedFrame, frame) || renderedPlotHeight != plotHeight ||
+            renderedSensitivity != sensitivity || renderedMillimetersPerDip != screenScale.MillimetersPerDipY)
         {
-            for (var traceIndex = 0; traceIndex < traceSeries.Count; traceIndex++)
+            using (surface.SuspendUpdates())
             {
-                UpdateSeries(traceSeries[traceIndex], frame, traceIndex, names.Length);
+                for (var traceIndex = 0; traceIndex < traceSeries.Count; traceIndex++)
+                    UpdateSeries(traceSeries[traceIndex], frame, traceIndex, names.Length);
             }
+            renderedFrame = frame;
+            renderedPlotHeight = plotHeight;
+            renderedSensitivity = sensitivity;
+            renderedMillimetersPerDip = screenScale.MillimetersPerDipY;
         }
 
         UpdatePlaybackCursor(viewModel);
@@ -236,6 +265,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
                 DataSeries = data,
                 Stroke = traceColor,
                 StrokeThickness = 1,
+                DrawNaNAs = LineDrawMode.Gaps,
             });
             traceSeries.Add(new TraceSeries(data));
             labels.RowDefinitions.Add(new RowDefinition());
@@ -257,10 +287,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
     private void UpdateSeries(TraceSeries series, RecordingReviewFrame frame, int traceIndex, int traceCount)
     {
-        var xValues = new List<double>();
-        var yValues = new List<double>();
         var baseline = traceCount - traceIndex - 0.5;
-        var hasSegment = false;
         // The plot is laid out in DIP, so sensitivity must use the calibrated
         // physical DIP/mm conversion, not the monitor's nominal raster DPI.
         var plotHeight = WaveformPlotLayout.GetPlotArea(surface).Height;
@@ -270,76 +297,14 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             plotHeight,
             sensitivity,
             screenScale.MillimetersPerDipY);
-        foreach (var segment in frame.Segments)
-        {
-            if (traceIndex >= segment.Channels.Count)
-            {
-                continue;
-            }
-
-            if (hasSegment)
-            {
-                xValues.Add(double.NaN);
-                yValues.Add(double.NaN);
-            }
-
-            AppendDecimated(
-                xValues,
-                yValues,
-                segment,
-                segment.Channels[traceIndex].Values,
-                frame,
-                baseline,
-                displayScale);
-            hasSegment = true;
-        }
+        var points = ReviewWaveformTraceProjection.Build(frame, traceIndex, baseline, displayScale, MaximumPointsPerTrace);
 
         using (series.Data.SuspendUpdates())
         {
             series.Data.Clear();
-            if (xValues.Count > 0)
+            if (points.X.Count > 0)
             {
-                series.Data.Append(xValues, yValues);
-            }
-        }
-    }
-
-    private static void AppendDecimated(
-        List<double> xValues,
-        List<double> yValues,
-        ProjectedMontageSegment segment,
-        IReadOnlyList<double> values,
-        RecordingReviewFrame frame,
-        double baseline,
-        double displayScale)
-    {
-        var bucketSize = Math.Max(1, (int)Math.Ceiling(values.Count / (double)MaximumPointsPerTrace));
-        for (var start = 0; start < values.Count; start += bucketSize)
-        {
-            var end = Math.Min(values.Count, start + bucketSize);
-            var first = -1;
-            var last = -1;
-            var min = -1;
-            var max = -1;
-            for (var index = start; index < end; index++)
-            {
-                if (!double.IsFinite(values[index]))
-                {
-                    continue;
-                }
-
-                first = first < 0 ? index : first;
-                last = index;
-                if (min < 0 || values[index] < values[min]) min = index;
-                if (max < 0 || values[index] > values[max]) max = index;
-            }
-
-            foreach (var index in new[] { first, min, max, last }.Distinct().Where(index => index >= 0).OrderBy(index => index))
-            {
-                var seconds = frame.WindowStartSeconds +
-                    (segment.FirstSampleCounter + index - frame.WindowStartSampleCounter) / (double)frame.SamplingRateHz;
-                xValues.Add(seconds);
-                yValues.Add(baseline + values[index] * 1_000_000d * displayScale);
+                series.Data.Append(points.X, points.Y);
             }
         }
     }
@@ -352,17 +317,18 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             return;
         }
 
-        var visibleStart = viewModel.ViewportStartSeconds;
-        var visibleEnd = Math.Min(viewModel.DurationSeconds, visibleStart + viewModel.VisibleDurationSeconds);
+        if (xAxis.VisibleRange is not DoubleRange visibleRange) return;
+        var visibleStart = visibleRange.Min;
+        var visibleEnd = visibleRange.Max;
         var duration = Math.Max(0.001, visibleEnd - visibleStart);
         var fraction = Math.Clamp((viewModel.PositionSeconds - visibleStart) / duration, 0, 1);
         var plotArea = WaveformPlotLayout.GetPlotArea(surface);
         var plotOrigin = surface.TranslatePoint(plotArea.TopLeft, chartHost);
         playbackCursor.SetPosition(new Rect(plotOrigin, plotArea.Size), fraction);
-        playbackCursor.Visibility = viewModel.PositionSeconds >= visibleStart &&
-                                    viewModel.PositionSeconds <= visibleEnd
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        // Keep the cursor visible while a cold target is loading. Its position
+        // is calculated against the requested visible axis, so rapid
+        // bidirectional drags do not leave it stranded at an old edge.
+        playbackCursor.Visibility = Visibility.Visible;
     }
 
     private void UpdateEventMarkers(RecordingReviewViewModel? viewModel)
@@ -476,24 +442,14 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
         var start = viewModel.ViewportStartSeconds;
         var end = Math.Max(start + 0.001, Math.Min(viewModel.DurationSeconds, start + viewModel.VisibleDurationSeconds));
-        // Keep the last complete frame on screen while a new window is being
-        // read. Moving the axis ahead of the frame creates a false white gap.
-        if (viewModel.CurrentFrame is not { } frame)
-        {
-            return;
-        }
-
-        if (frame.WindowStartSeconds <= start + 0.000_001 &&
-            frame.WindowEndSeconds + 0.000_001 >= end)
-        {
+        // The requested viewport is authoritative during navigation. A cold
+        // target may leave the plot temporarily empty, but keeping the old
+        // axis made the cursor stick to an edge while the bottom time display
+        // had already moved to the new target. That was especially visible
+        // during rapid bidirectional drags. The complete frame is still
+        // published atomically when it arrives.
+        if (xAxis.VisibleRange is not DoubleRange range || range.Min != start || range.Max != end)
             xAxis.VisibleRange = new DoubleRange(start, end);
-            return;
-        }
-
-        // A frame is a cache block and can be wider than the requested screen
-        // window. Never use its range as the display scale: paper speed and
-        // timebase must control the axis even while the next block is loading.
-        xAxis.VisibleRange = new DoubleRange(start, end);
     }
 
     private void ClearSeries()

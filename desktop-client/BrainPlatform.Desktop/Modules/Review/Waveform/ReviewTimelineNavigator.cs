@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -7,8 +6,8 @@ using System.Windows.Media;
 namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
 /// <summary>
-/// Compact review navigator. Thumb dragging is rate-limited to the review
-/// loader's usable range; clicking the track requests an atomic target jump.
+/// Compact review navigator. Pointer input selects time directly; the view
+/// model coalesces loading while track clicks request an atomic target jump.
 /// </summary>
 public sealed class ReviewTimelineNavigator : FrameworkElement
 {
@@ -36,7 +35,6 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         DependencyProperty.Register(nameof(VisibleDurationSeconds), typeof(double), typeof(ReviewTimelineNavigator),
             new FrameworkPropertyMetadata(1d, FrameworkPropertyMetadataOptions.AffectsRender));
 
-    private const double DragPagesPerSecond = 2d;
     private const double DragStartThresholdDips = 3d;
     private const double ThumbHeight = 12d;
     private const double ThumbWidth = 18d;
@@ -44,12 +42,12 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
     private bool hasDragged;
     private Point pointerDownPoint;
     private double dragOffset;
-    private double thumbGrabRatio;
     private double lastAcceptedPosition;
-    private DateTime lastDragTimeUtc;
 
     public event EventHandler<double>? PreviewPositionChanged;
     public event EventHandler<double>? PositionCommitted;
+    public event EventHandler? DragStarted;
+    public event EventHandler? DragCompleted;
 
     public double DurationSeconds
     {
@@ -175,9 +173,8 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         hasDragged = false;
         pointerDownPoint = point;
         dragOffset = point.X - thumb.X;
-        thumbGrabRatio = thumb.Width <= 0 ? 0.5 : Math.Clamp(dragOffset / thumb.Width, 0, 1);
         lastAcceptedPosition = Math.Clamp(PositionSeconds, 0, Math.Max(0, DurationSeconds));
-        lastDragTimeUtc = DateTime.UtcNow;
+        DragStarted?.Invoke(this, EventArgs.Empty);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -189,35 +186,21 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         }
 
         var point = e.GetPosition(this);
+        ContinueDrag(point);
+        e.Handled = true;
+    }
+
+    private void ContinueDrag(Point point)
+    {
         if (!hasDragged && Math.Abs(point.X - pointerDownPoint.X) < DragStartThresholdDips)
         {
             return;
         }
 
         hasDragged = true;
-        var requestedPosition = GetPositionForThumbX(point.X - dragOffset);
-        var now = DateTime.UtcNow;
-        var elapsedSeconds = Math.Max(0, (now - lastDragTimeUtc).TotalSeconds);
-        var visible = GetVisibleDuration();
-        var maximumOffset = elapsedSeconds * DragPagesPerSecond * visible;
-        var acceptedPosition = lastAcceptedPosition + Math.Clamp(
-            requestedPosition - lastAcceptedPosition,
-            -maximumOffset,
-            maximumOffset);
-        acceptedPosition = Math.Clamp(acceptedPosition, 0, Math.Max(0, DurationSeconds));
-
-        var wasLimited = Math.Abs(acceptedPosition - requestedPosition) > 0.000_001;
-        lastAcceptedPosition = acceptedPosition;
-        lastDragTimeUtc = now;
-        PreviewPositionChanged?.Invoke(this, acceptedPosition);
-
-        if (wasLimited)
-        {
-            // Keep the pointer over the same place inside the thumb. Without
-            // this, cursor and waveform navigator diverge during a long drag.
-            MoveCursorToAcceptedThumb(acceptedPosition);
-        }
-        e.Handled = true;
+        lastAcceptedPosition = GetPositionForThumbX(point.X - dragOffset);
+        InvalidateVisual();
+        PreviewPositionChanged?.Invoke(this, lastAcceptedPosition);
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -228,18 +211,33 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
             return;
         }
 
-        dragging = false;
+        EndDrag();
         ReleaseMouseCapture();
         // A real drag has already started the newest bounded loader. Clicking
         // the thumb itself intentionally leaves the viewport in place.
         e.Handled = true;
     }
 
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        EndDrag();
+    }
+
+    private void EndDrag()
+    {
+        if (!dragging) return;
+        dragging = false;
+        InvalidateVisual();
+        DragCompleted?.Invoke(this, EventArgs.Empty);
+    }
+
     private Rect GetThumbRect()
     {
         var duration = Math.Max(0.001, DurationSeconds);
         var width = GetThumbWidth();
-        var x = Math.Max(0, ActualWidth - width) * Math.Clamp(PositionSeconds / duration, 0, 1);
+        var position = dragging ? lastAcceptedPosition : PositionSeconds;
+        var x = Math.Max(0, ActualWidth - width) * Math.Clamp(position / duration, 0, 1);
         var y = Math.Max(0, ActualHeight - ThumbHeight - 3d);
         return new Rect(x, y, width, Math.Min(ThumbHeight, ActualHeight));
     }
@@ -266,20 +264,4 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
 
     private double GetThumbWidth() => Math.Clamp(ThumbWidth, 0, Math.Max(0, ActualWidth));
 
-    private double GetVisibleDuration() => Math.Clamp(
-        VisibleDurationSeconds,
-        0.001,
-        Math.Max(0.001, DurationSeconds));
-
-    private void MoveCursorToAcceptedThumb(double acceptedPosition)
-    {
-        var duration = Math.Max(0.001, DurationSeconds);
-        var thumbWidth = GetThumbWidth();
-        var thumbX = Math.Max(0, ActualWidth - thumbWidth) * Math.Clamp(acceptedPosition / duration, 0, 1);
-        var point = PointToScreen(new Point(thumbX + thumbWidth * thumbGrabRatio, ActualHeight / 2));
-        SetCursorPos((int)Math.Round(point.X), (int)Math.Round(point.Y));
-    }
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool SetCursorPos(int x, int y);
 }

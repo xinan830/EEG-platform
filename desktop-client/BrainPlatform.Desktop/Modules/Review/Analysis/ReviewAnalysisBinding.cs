@@ -15,12 +15,15 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
     private readonly long durationSamples;
     private CancellationTokenSource? loadCancellation;
     private string? runId;
+    private AnalysisRunRequest? onDemandRequest;
     private long lastRequestedSample = -1;
     private WindowPreviewResponse? currentWindow;
     private bool isLoading;
     private string statusText = "未绑定分析结果。";
     private int disposed;
     private long loadGeneration;
+    private long targetCursorSample = -1;
+    private long? onDemandRefreshStepSamples;
 
     public ReviewAnalysisBinding(
         ReviewAnalysisCoordinator coordinator,
@@ -58,7 +61,33 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         private set => Set(ref statusText, value, nameof(StatusText));
     }
 
+    /// <summary>Latest playback target. It may be newer than the displayed window.</summary>
+    public long TargetCursorSample
+    {
+        get => targetCursorSample;
+        private set => Set(ref targetCursorSample, value, nameof(TargetCursorSample));
+    }
+
+    public double TargetCursorSeconds => TargetCursorSample < 0
+        ? 0
+        : TargetCursorSample / (double)samplingRateHz;
+
+    /// <summary>Cursor returned by the backend for the currently displayed window.</summary>
+    public long? DisplayedCursorSample => CurrentWindow?.CursorSample;
+
+    public double? DisplayedCursorSeconds => CurrentWindow?.CursorSeconds;
+
+    public string DisplayedWindowStatus => CurrentWindow?.Status ?? "none";
+
+    public IReadOnlyList<string> DisplayedWindowReasonCodes =>
+        CurrentWindow?.ReasonCodes ?? Array.Empty<string>();
+
+    public bool IsTargetDisplayed => CurrentWindow is not null &&
+        CurrentWindow.CursorSample == TargetCursorSample && !IsLoading;
+
     public string? RunId => runId;
+
+    public bool IsOnDemandAttached => onDemandRequest is not null;
 
     public void AttachRun(string value)
     {
@@ -68,9 +97,28 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
         runId = value;
+        onDemandRequest = null;
+        onDemandRefreshStepSamples = null;
         lastRequestedSample = -1;
+        TargetCursorSample = -1;
         CurrentWindow = null;
         StatusText = "已绑定 PSD 结果，等待游标。";
+    }
+
+    public void AttachOnDemand(AnalysisRunRequest request)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(request);
+        CancelPendingLoad();
+        coordinator.Reset();
+        Interlocked.Increment(ref loadGeneration);
+        runId = null;
+        onDemandRequest = request;
+        onDemandRefreshStepSamples = ReadRefreshStepSamples(request);
+        lastRequestedSample = -1;
+        TargetCursorSample = -1;
+        CurrentWindow = null;
+        StatusText = "已绑定按需 PSD，等待游标。";
     }
 
     public void DetachRun()
@@ -80,7 +128,10 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
         runId = null;
+        onDemandRequest = null;
+        onDemandRefreshStepSamples = null;
         lastRequestedSample = -1;
+        TargetCursorSample = -1;
         CurrentWindow = null;
         IsLoading = false;
         StatusText = "未绑定分析结果。";
@@ -98,7 +149,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
     public async Task LoadAtSampleAsync(long sample, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        if (runId is null)
+        if (runId is null && onDemandRequest is null)
         {
             StatusText = "未绑定分析结果。";
             return;
@@ -110,17 +161,35 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         loadCancellation = linked;
         var generation = Interlocked.Increment(ref loadGeneration);
+        TargetCursorSample = sample;
         IsLoading = true;
         StatusText = "正在读取 PSD 窗口…";
         try
         {
-            var result = await coordinator.LoadAtSampleAsync(recordingId, runId, sample, linked.Token);
+            var progress = new Progress<DynamicWindowResponse>(status =>
+            {
+                if (!IsCurrent(generation, linked) || !IsLoading) return;
+                StatusText = status.State switch
+                {
+                    "preparing_source" => "正在准备连续预处理源…",
+                    "computing_window" => "正在计算当前 PSD 窗口…",
+                    "queued" => "当前 PSD 窗口等待计算…",
+                    _ => StatusText,
+                };
+            });
+            var result = onDemandRequest is { } request
+                ? await coordinator.LoadOnDemandAtSampleAsync(recordingId, request, sample, linked.Token, progress)
+                : await coordinator.LoadAtSampleAsync(recordingId, runId!, sample, linked.Token);
             linked.Token.ThrowIfCancellationRequested();
             if (result is null || !IsCurrent(generation, linked)) return;
             CurrentWindow = result;
             StatusText = result.Status switch
             {
                 "available" => "PSD 窗口已更新。",
+                "insufficient_data" => "当前窗口数据不足。",
+                "rejected" => "当前窗口被质量规则拒绝。",
+                "cancelled" => "当前窗口已取消。",
+                "failed" => "当前窗口计算失败。",
                 "unavailable" => "当前窗口不可用。",
                 _ => $"PSD 窗口状态：{result.Status}",
             };
@@ -146,24 +215,50 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
 
     public void PreviewAtSeconds(double seconds)
     {
-        if (Volatile.Read(ref disposed) != 0 || runId is null) return;
+        if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandRequest is null)) return;
         if (!double.IsFinite(seconds)) return;
         var sample = RecordingTimeMapper.ToCursorSample(
             Math.Clamp(seconds, 0, durationSamples / (double)samplingRateHz), samplingRateHz, durationSamples);
+        sample = QuantizeOnDemandPreviewSample(sample);
         if (sample == lastRequestedSample) return;
         lastRequestedSample = sample;
         _ = LoadAtSampleAsync(sample);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref disposed, 1) != 0) return ValueTask.CompletedTask;
+        if (Interlocked.Exchange(ref disposed, 1) != 0) return;
         CancelPendingLoad();
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
         runId = null;
+        onDemandRequest = null;
+        onDemandRefreshStepSamples = null;
         CurrentWindow = null;
-        return ValueTask.CompletedTask;
+        await coordinator.ReleaseOnDemandAsync();
+    }
+
+    private long QuantizeOnDemandPreviewSample(long sample)
+    {
+        if (onDemandRefreshStepSamples is not > 0) return sample;
+        var step = onDemandRefreshStepSamples.Value;
+        return sample / step * step;
+    }
+
+    private long? ReadRefreshStepSamples(AnalysisRunRequest request)
+    {
+        if (!request.Config.TryGetProperty("refresh_step_s", out var stepElement) ||
+            stepElement.ValueKind != System.Text.Json.JsonValueKind.Number ||
+            !stepElement.TryGetDouble(out var stepSeconds) ||
+            !double.IsFinite(stepSeconds) || stepSeconds <= 0)
+        {
+            return null;
+        }
+
+        var samples = stepSeconds * samplingRateHz;
+        if (!double.IsFinite(samples) || samples < 1 || samples > long.MaxValue)
+            return null;
+        return Math.Max(1, (long)Math.Round(samples, MidpointRounding.AwayFromZero));
     }
 
     private void CancelPendingLoad()
@@ -177,6 +272,19 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         if (EqualityComparer<T>.Default.Equals(field, value)) return;
         field = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        if (propertyName is nameof(CurrentWindow) or nameof(IsLoading))
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayedCursorSample)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayedCursorSeconds)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayedWindowStatus)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DisplayedWindowReasonCodes)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsTargetDisplayed)));
+        }
+        if (propertyName == nameof(TargetCursorSample))
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(TargetCursorSeconds)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsTargetDisplayed)));
+        }
     }
 
     private void ThrowIfDisposed()

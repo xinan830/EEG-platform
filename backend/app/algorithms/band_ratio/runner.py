@@ -6,6 +6,7 @@ from typing import Any
 from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
+from app.algorithm_runtime.scalar_window import ScalarDynamicWindowCapability
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 from app.scientific.quality import SpectralQualityGateError
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
@@ -15,10 +16,15 @@ from .config import BandRatioConfig
 from .manifest import MANIFEST
 
 
-class BandRatioAlgorithm:
+class BandRatioAlgorithm(ScalarDynamicWindowCapability):
+    window_preprocessing_scope = "whole_recording_before_window_slice"
     manifest = MANIFEST
     config_model = BandRatioConfig
     output_schema = MANIFEST.output_schema
+
+    def _execute_frame(self, inputs: AlgorithmInputs, config: BandRatioConfig,
+                       start_s: float, end_s: float) -> AlgorithmResult:
+        return self._calculate(inputs, config, start_s, end_s)
 
     def parameter_schema(self) -> ParameterSchema:
         number = lambda key, label: AlgorithmParameter(key=key, label_zh=label, value_type="number", unit="Hz", minimum=ANALYSIS_CONTRACT["bandpass_hz"][0], maximum=ANALYSIS_CONTRACT["bandpass_hz"][1], step=0.001)

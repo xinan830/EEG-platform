@@ -7,13 +7,16 @@ public sealed class StftPreviewState : ObservableObject
 {
     private StftPreview? result;
     private StructuredPreviewResponse? structuredPreview;
+    private DynamicWindowResponse? windowPreview;
 
     public StftPreview? Result { get => result; set => SetProperty(ref result, value); }
     public StructuredPreviewResponse? StructuredPreview { get => structuredPreview; set => SetProperty(ref structuredPreview, value); }
+    public DynamicWindowResponse? WindowPreview { get => windowPreview; set => SetProperty(ref windowPreview, value); }
 
     public void Clear()
     {
         Result = null;
         StructuredPreview = null;
+        WindowPreview = null;
     }
 }

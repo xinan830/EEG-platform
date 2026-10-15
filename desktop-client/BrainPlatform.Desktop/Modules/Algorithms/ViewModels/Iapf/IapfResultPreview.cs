@@ -16,9 +16,10 @@ public sealed record IapfResultPoint(
     double? ModelR2)
 {
     public bool IsComplete => State == "Complete" && ValueHz is not null;
+    public bool HasValue => State is "Complete" or "Partial" && ValueHz is not null;
 }
 
-public sealed record IapfResultPreview(
+public sealed partial record IapfResultPreview(
     string Channel,
     IapfResultPoint? StaticPoint,
     IReadOnlyList<IapfResultPoint> DynamicPoints)

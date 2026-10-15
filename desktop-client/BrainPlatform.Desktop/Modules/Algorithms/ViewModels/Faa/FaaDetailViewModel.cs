@@ -5,6 +5,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Faa;
 public sealed class FaaDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgorithmQualitySource
 {
     private FaaResultPreview? preview; private bool isFailureDetailsExpanded;
+    private string? windowSession;
     internal FaaDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "faa") => RefreshPreview();
     public FaaResultPoint? CurrentPoint => preview?.CurrentAt(Catalog.DynamicPreviewCursorSeconds);
     public IReadOnlyList<FaaResultPoint> TrendPoints => preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
@@ -33,8 +34,50 @@ public sealed class FaaDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     public string FailureDetailsText => Catalog.LastRun?.Error?.Message ?? (Failures.Any() ? string.Join(Environment.NewLine, Failures.Select(point => $"{point.StartSeconds:0.###}–{point.EndSeconds:0.###} s：{point.Failure}")) : "暂无失败窗口。");
     public bool IsFailureDetailsExpanded { get => isFailureDetailsExpanded; private set => SetProperty(ref isFailureDetailsExpanded, value); }
     public ICommand ToggleFailureDetailsCommand => new RelayCommand(() => IsFailureDetailsExpanded = !IsFailureDetailsExpanded);
-    protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args) { base.OnCatalogPropertyChanged(sender, args); if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm)) RefreshPreview(); else if (args.PropertyName == nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)) RaiseProperties(); }
-    private void RefreshPreview() { preview = Algorithm?.Id == "faa" ? FaaResultPreview.Parse(Catalog.LastRun?.ResultSummary) : null; IsFailureDetailsExpanded = false; RaisePropertyChanged(nameof(IsDynamicResult)); RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds)); RaisePropertyChanged(nameof(ChannelText)); RaiseProperties(); }
+    protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        base.OnCatalogPropertyChanged(sender, args);
+        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm))
+            RefreshPreview();
+        if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
+        {
+            if (Catalog.SelectedAlgorithm?.Id == AlgorithmId && Catalog.DisplayedAnalysisWindow is { } response)
+            {
+                preview = FaaResultPreview.FromWindow(response, windowSession == response.SessionId ? preview : null);
+                windowSession = response.SessionId;
+            }
+            else
+            {
+                windowSession = null;
+                preview = null;
+            }
+            RaisePreviewProperties();
+            RaiseProperties();
+        }
+        else if (args.PropertyName == nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds))
+            RaiseProperties();
+    }
+    private void RefreshPreview()
+    {
+        windowSession = null;
+        preview = Algorithm?.Id == "faa"
+            ? Catalog.DisplayedAnalysisWindow is { } response
+                ? FaaResultPreview.FromWindow(response)
+                : FaaResultPreview.Parse(Catalog.LastRun?.ResultSummary)
+            : null;
+        if (Algorithm?.Id == "faa" && Catalog.DisplayedAnalysisWindow is { } displayed)
+            windowSession = displayed.SessionId;
+        IsFailureDetailsExpanded = false;
+        RaisePreviewProperties();
+        RaiseProperties();
+    }
+    private void RaisePreviewProperties()
+    {
+        RaisePropertyChanged(nameof(IsDynamicResult));
+        RaisePropertyChanged(nameof(TimelineStartSeconds));
+        RaisePropertyChanged(nameof(TimelineEndSeconds));
+        RaisePropertyChanged(nameof(ChannelText));
+    }
     private void RaiseProperties() { foreach (var name in new[] { nameof(CurrentPoint), nameof(TrendPoints), nameof(ValueText), nameof(WindowText), nameof(LeftChannelText), nameof(RightChannelText), nameof(AlphaBandText), nameof(LeftPowerText), nameof(RightPowerText), nameof(EpochText), nameof(FormulaText), nameof(StatusText), nameof(QualityText), nameof(UnavailableWindowCount), nameof(RejectedWindowCount), nameof(WindowStateSummary), nameof(FailureReasonText), nameof(FailureDetailsText) }) RaisePropertyChanged(name); }
     private static string Power(double? value) => value is double number ? $"{number:0.###} μV²" : "未提供";
 }

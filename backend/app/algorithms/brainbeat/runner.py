@@ -15,9 +15,10 @@ from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 from .compute import compute_brainbeat
 from .config import BrainbeatConfig
 from .manifest import MANIFEST
+from .window import BrainbeatWindowCapability
 
 
-class BrainbeatAlgorithm:
+class BrainbeatAlgorithm(BrainbeatWindowCapability):
     manifest = MANIFEST
     config_model = BrainbeatConfig
 

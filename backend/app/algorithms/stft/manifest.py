@@ -9,7 +9,17 @@ MANIFEST = AlgorithmManifest(
     scientific_version="spectrogram-v2",
     implementation_identity="stft-runtime-v3-explicit-filters",
     supported_modes=["static", "dynamic"],
-    output_schema={"mode_shapes": {"static": "time x frequency", "dynamic": "window x inner_time x frequency"}, "fields": [
+    output_schema={"mode_shapes": {"static": "time x frequency", "dynamic": "window x inner_time x frequency"},
+        "window_output_kind": "time_frequency",
+        "window_axes": [
+            {"name": "time_center_s", "unit": "s", "shape": ["inner_time"]},
+            {"name": "frequency_hz", "unit": "Hz", "shape": ["frequency"]},
+        ],
+        "window_shapes": {
+            "time_center_s": ["inner_time"], "frequency_hz": ["frequency"],
+            "power_linear": ["inner_time", "frequency"], "power_db": ["inner_time", "frequency"],
+        },
+        "fields": [
         {"name": "time_center_s", "unit": "s", "shape": "time", "meaning": "时频窗中心时间"},
         {"name": "frequency_hz", "unit": "Hz", "shape": "frequency", "meaning": "时频频率轴"},
         {"name": "power_linear", "unit": "V^2/Hz", "shape": "time x frequency", "meaning": "线性功率密度"},

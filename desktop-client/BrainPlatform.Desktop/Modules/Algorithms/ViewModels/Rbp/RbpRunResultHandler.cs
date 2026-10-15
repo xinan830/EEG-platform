@@ -7,6 +7,11 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp;
 internal sealed class RbpRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "rbp";
+    public bool SupportsOnDemandWindows => string.Equals(
+        Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_RBP"), "1", StringComparison.Ordinal);
+
+    public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
+        _ = RbpResultPreview.FromWindow(response);
 
     public Task ApplyAsync(AlgorithmListViewModel catalog, AnalysisRunResponse run, bool dynamic,
         double? preservedDynamicCursorSeconds)

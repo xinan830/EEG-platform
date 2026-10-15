@@ -20,6 +20,12 @@ ARTIFACTS_DIR = STORAGE_DIR / "artifacts"
 # 旧的 brain-platform.sqlite3 被重建前服务锁住，新的应用绝不复用它。
 DATABASE_PATH = STORAGE_DIR / "brain-platform-v2.sqlite3"
 ALLOWED_EXTENSIONS = {".bdf", ".edf"}
+ON_DEMAND_PSD_ENABLED = os.environ.get("BRAIN_ENABLE_ON_DEMAND_PSD", "0") == "1"
+
+
+def on_demand_algorithm_enabled(algorithm_id: str) -> bool:
+    """Per-module default-off rollout; identifiers come only from the closed registry."""
+    return os.environ.get(f"BRAIN_ENABLE_ON_DEMAND_{algorithm_id.upper()}", "0") == "1"
 
 
 def ensure_storage_directories() -> None:

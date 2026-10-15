@@ -11,7 +11,7 @@ public sealed record RbpBandPoint(string Key, string Label, string Range, double
 public sealed record RbpWindowPoint(double TimeSeconds, double StartSeconds, double EndSeconds,
     string State, string Quality, string Failure, double?[] Shares);
 
-public sealed class RbpResultPreview
+public sealed partial class RbpResultPreview
 {
     private static readonly (string Key, string Label, string Range, string Color)[] HistoricalBands =
     [

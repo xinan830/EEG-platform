@@ -6,8 +6,9 @@ public sealed record BandRatioEvidence(double? NumeratorLowHz, double? Numerator
 public sealed record BandRatioResultPoint(double TimeSeconds, double StartSeconds, double EndSeconds, double? Value, string State, string Quality, string Failure, BandRatioEvidence Evidence)
 {
     public bool IsComplete => State == "Complete" && Value is not null;
+    public bool HasValue => State is "Complete" or "Partial" && Value is not null;
 }
-public sealed record BandRatioResultPreview(string Channel, BandRatioResultPoint? StaticPoint, IReadOnlyList<BandRatioResultPoint> DynamicPoints)
+public sealed partial record BandRatioResultPreview(string Channel, BandRatioResultPoint? StaticPoint, IReadOnlyList<BandRatioResultPoint> DynamicPoints)
 {
     public bool IsDynamic => DynamicPoints.Count > 0;
     public BandRatioResultPoint? CurrentAt(double cursor) => IsDynamic ? DynamicPoints.LastOrDefault(point => point.EndSeconds <= cursor + 1e-9) : StaticPoint;

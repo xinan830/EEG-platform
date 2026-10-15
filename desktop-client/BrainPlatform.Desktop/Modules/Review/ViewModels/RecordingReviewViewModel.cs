@@ -20,9 +20,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private readonly OperationNotificationCenter? notifications;
     private readonly ReviewAnalysisCoordinator? analysisCoordinator;
     private ReviewAnalysisBinding? analysisBinding;
-    private Task? prefetchTask;
-    private Task? playbackLoadTask;
-    private readonly LatestThrottledTask viewportLoader = new(TimeSpan.FromMilliseconds(50));
     private readonly LatestDelayedTask filterUpdater = new();
     private double highPassHz = 1;
     private double lowPassHz = 30;
@@ -32,6 +29,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private bool viewportDurationUpdatePending;
     private double viewportStartSeconds;
     private RecordingReviewFrame? publishedFrame;
+    private double publishedVisibleDuration;
     private string psdPreparationText = "PSD 未准备。";
     private bool isPsdAnalysisPanelOpen;
     private readonly string? analysisRecordingDirectory;
@@ -231,11 +229,20 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public WindowPreviewResponse? CurrentAnalysisWindow => isAnalysisStale ? null : analysisBinding?.CurrentWindow;
 
+    /// <summary>Requested cursor and displayed backend window are intentionally separate.</summary>
+    public long TargetAnalysisCursorSample => analysisBinding?.TargetCursorSample ?? -1;
+
+    public long? DisplayedAnalysisCursorSample => isAnalysisStale ? null : analysisBinding?.DisplayedCursorSample;
+
+    public string AnalysisWindowState => isAnalysisStale ? "stale" : analysisBinding?.DisplayedWindowStatus ?? "none";
+
+    public bool IsAnalysisTargetDisplayed => !isAnalysisStale && analysisBinding?.IsTargetDisplayed == true;
+
     public bool IsAnalysisLoading => analysisBinding?.IsLoading ?? false;
 
     public string AnalysisStatusText => isAnalysisStale ? "参数已改变，等待自动分析。" : analysisBinding?.StatusText ?? "未绑定分析结果。";
 
-    public bool IsAnalysisAttached => analysisBinding?.RunId is not null;
+    public bool IsAnalysisAttached => analysisBinding?.RunId is not null || analysisBinding?.IsOnDemandAttached == true;
 
     public ReviewPreparationState PreparationState => session.PreparationState;
 
@@ -356,6 +363,27 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
             checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)));
         analysisBinding.PropertyChanged += OnAnalysisBindingChanged;
         analysisBinding.AttachRun(runId);
+        isAnalysisStale = false;
+        RaiseAnalysisPropertiesChanged();
+        await analysisBinding.LoadAtSecondsAsync(PositionSeconds, cancellationToken);
+        RaiseAnalysisPropertiesChanged();
+    }
+
+    public async Task AttachOnDemandAnalysisAsync(
+        AnalysisRunRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (analysisCoordinator is null || !analysisCoordinator.SupportsOnDemandWindows)
+            throw new InvalidOperationException("当前回溯页未启用按需动态窗口。");
+
+        await DetachAnalysisAsync();
+        analysisBinding = new ReviewAnalysisBinding(
+            analysisCoordinator,
+            analysisRecording?.Id ?? recordingId,
+            samplingRateHz,
+            checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)));
+        analysisBinding.PropertyChanged += OnAnalysisBindingChanged;
+        analysisBinding.AttachOnDemand(request);
         isAnalysisStale = false;
         RaiseAnalysisPropertiesChanged();
         await analysisBinding.LoadAtSecondsAsync(PositionSeconds, cancellationToken);
@@ -499,46 +527,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         return SeekAsync(RecordingTimeMapper.ToElapsedSeconds(item.StartSample, samplingRateHz));
     }
 
-    public Task SeekAsync(double positionSeconds)
-    {
-        SetPreviewPosition(positionSeconds);
-        return session.LoadViewportAsync(ViewportStartSeconds, playback.PositionSeconds);
-    }
-
-    public Task SeekRelativeAsync(double seconds) => SeekAsync(PositionSeconds + seconds);
-
-    public async Task NavigateFromTrackClickAsync(double positionSeconds)
-    {
-        var targetPosition = Math.Clamp(positionSeconds, 0, DurationSeconds);
-        var targetViewportStart = GetFollowViewportStart(targetPosition);
-        if (!await session.NavigateFromTrackClickAsync(targetViewportStart, targetPosition))
-        {
-            return;
-        }
-
-        // The session has atomically published the target frame and viewport.
-        // Move the playback cursor only after that publication, so a track
-        // click never produces a slider position with an older waveform.
-        playback.Seek(targetPosition);
-        RaisePropertyChanged(nameof(PositionSeconds));
-        RaisePropertyChanged(nameof(PositionTimeText));
-        RaisePlaybackPropertiesChanged();
-        analysisBinding?.PreviewAtSeconds(PositionSeconds);
-    }
-
-    public Task SeekPageAsync(int direction) => SeekRelativeAsync(direction * VisibleDurationSeconds);
-
-    /// <summary>
-    /// Dragging updates the accepted scrollbar position continuously. Loading is
-    /// throttled rather than debounced, so it starts before mouse-up.
-    /// </summary>
-    public void PreviewSeek(double positionSeconds)
-    {
-        SetPreviewPosition(positionSeconds);
-        ScheduleViewportLoad();
-        PrefetchWhenApproachingCacheEdge();
-    }
-
     public Task SetVisibleDurationAsync(double visibleDurationSeconds) =>
         session.SetVisibleDurationAsync(visibleDurationSeconds, playback.PositionSeconds);
 
@@ -561,54 +549,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         session.SelectViewingMontageAsync(montage, playback.PositionSeconds);
 
     public void ReportMontageSelectionError(Exception exception) => ReportCommandError(exception);
-
-    public void TogglePlayback()
-    {
-        if (playback.IsPlaying)
-        {
-            playback.Pause();
-        }
-        else
-        {
-            playback.Play();
-        }
-
-        RaisePlaybackPropertiesChanged();
-    }
-
-    public void CyclePlaybackSpeed()
-    {
-        var next = playback.PlaybackRate switch
-        {
-            0.5d => 1d,
-            1d => 2d,
-            _ => 0.5d,
-        };
-        playback.SetPlaybackRate(next);
-        RaisePropertyChanged(nameof(PlaybackSpeedText));
-    }
-
-    public void TickPlayback()
-    {
-        if (!playback.Update())
-        {
-            return;
-        }
-
-        RaisePropertyChanged(nameof(PositionSeconds));
-        RaisePropertyChanged(nameof(PositionTimeText));
-        RaisePlaybackPropertiesChanged();
-        analysisBinding?.PreviewAtSeconds(PositionSeconds);
-        var desiredViewportStart = GetFollowViewportStart(playback.PositionSeconds);
-        UpdateViewportStart(desiredViewportStart);
-        if (!session.ContainsViewport(desiredViewportStart) &&
-            !session.TryActivateCachedViewport(desiredViewportStart, playback.PositionSeconds))
-        {
-            StartPlaybackLoad();
-        }
-
-        PrefetchWhenApproachingCacheEdge();
-    }
 
     public async ValueTask DisposeAsync()
     {
@@ -634,9 +574,13 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
             publishedFrame = session.CurrentFrame;
             RaisePropertyChanged(nameof(CurrentFrame));
         }
-        UpdateViewportStart(session.ViewportStartSeconds);
         RaisePropertyChanged(nameof(WindowTimeText));
-        RaisePropertyChanged(nameof(VisibleDurationSeconds));
+        if (Math.Abs(publishedVisibleDuration - session.VisibleDurationSeconds) > 0.000_001)
+        {
+            publishedVisibleDuration = session.VisibleDurationSeconds;
+            UpdateViewportStart(GetFollowViewportStart(playback.PositionSeconds));
+            RaisePropertyChanged(nameof(VisibleDurationSeconds));
+        }
         RaisePropertyChanged(nameof(OutputChannelCount));
         RaisePropertyChanged(nameof(IsLoading));
         RaisePropertyChanged(nameof(StatusText));
@@ -653,6 +597,10 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private void RaiseAnalysisPropertiesChanged()
     {
         RaisePropertyChanged(nameof(CurrentAnalysisWindow));
+        RaisePropertyChanged(nameof(TargetAnalysisCursorSample));
+        RaisePropertyChanged(nameof(DisplayedAnalysisCursorSample));
+        RaisePropertyChanged(nameof(AnalysisWindowState));
+        RaisePropertyChanged(nameof(IsAnalysisTargetDisplayed));
         RaisePropertyChanged(nameof(IsAnalysisLoading));
         RaisePropertyChanged(nameof(AnalysisStatusText));
         RaisePropertyChanged(nameof(IsAnalysisAttached));
@@ -682,116 +630,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         });
     }
 
-
-    private void ScheduleViewportLoad()
-    {
-        viewportLoader.Schedule(async cancellationToken =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await session.LoadViewportAsync(ViewportStartSeconds, playback.PositionSeconds);
-        });
-    }
-
-    private void StartPlaybackLoad()
-    {
-        // Do not debounce repeatedly at render cadence. One foreground request
-        // keeps running while playback advances; it fills a reusable cache block.
-        if (playbackLoadTask is { IsCompleted: false })
-        {
-            return;
-        }
-
-        playbackLoadTask = LoadPlaybackBlockAsync(ViewportStartSeconds, playback.PositionSeconds);
-    }
-
-    private async Task LoadPlaybackBlockAsync(double viewportStart, double position)
-    {
-        await session.LoadViewportAsync(viewportStart, position);
-    }
-
-    private void PrefetchWhenApproachingCacheEdge()
-    {
-        var leadSeconds = Math.Max(5, VisibleDurationSeconds * 0.75);
-        if (session.IsLoading || !session.ContainsViewport(ViewportStartSeconds) || session.CurrentFrame is not { } frame ||
-            frame.WindowEndSeconds - (ViewportStartSeconds + VisibleDurationSeconds) > leadSeconds ||
-            frame.WindowEndSeconds >= DurationSeconds ||
-            prefetchTask is { IsCompleted: false })
-        {
-            return;
-        }
-
-        prefetchTask = session.PrefetchNextAsync();
-    }
-
-    private void SetPreviewPosition(double positionSeconds)
-    {
-        playback.Seek(positionSeconds);
-        UpdateViewportStart(GetFollowViewportStart(playback.PositionSeconds));
-        RaisePropertyChanged(nameof(PositionSeconds));
-        RaisePropertyChanged(nameof(PositionTimeText));
-        RaisePlaybackPropertiesChanged();
-        analysisBinding?.PreviewAtSeconds(PositionSeconds);
-    }
-    private double GetFollowViewportStart(double positionSeconds)
-    {
-        var maximum = Math.Max(0, DurationSeconds - VisibleDurationSeconds);
-        return Math.Clamp(positionSeconds - VisibleDurationSeconds * 0.5, 0, maximum);
-    }
-    private void UpdateViewportStart(double value)
-    {
-        var bounded = Math.Clamp(value, 0, Math.Max(0, DurationSeconds - VisibleDurationSeconds));
-        if (Math.Abs(viewportStartSeconds - bounded) < 0.000_001)
-            return;
-
-        viewportStartSeconds = bounded;
-        RaisePropertyChanged(nameof(ViewportStartSeconds));
-        RaisePropertyChanged(nameof(WindowTimeText));
-    }
-    private void ScheduleViewportDurationUpdate()
-    {
-        // A timebase is an explicit seconds-per-screen value and must work
-        // before the SciChart host reports its final width. Paper-speed mode
-        // needs the calibrated physical width and waits for that measurement.
-        if ((HorizontalTimeScaleMode == HorizontalTimeScaleMode.PaperSpeed && displaySettings.ViewportWidthDips <= 0) ||
-            viewportDurationUpdateTask is { IsCompleted: false })
-        {
-            if (viewportDurationUpdateTask is { IsCompleted: false })
-            {
-                viewportDurationUpdatePending = true;
-            }
-
-            return;
-        }
-
-        var requestedDuration = displaySettings.GetVisibleSeconds(displaySettings.ViewportWidthDips);
-        var visibleDuration = Math.Clamp(requestedDuration, 1d, DurationSeconds);
-        if (Math.Abs(visibleDuration - VisibleDurationSeconds) < 0.02)
-        {
-            return;
-        }
-
-        viewportDurationUpdateTask = UpdateVisibleDurationAsync(visibleDuration);
-    }
-    private async Task UpdateVisibleDurationAsync(double visibleDuration)
-    {
-        try
-        {
-            await session.SetVisibleDurationAsync(visibleDuration, playback.PositionSeconds);
-        }
-        finally
-        {
-            viewportDurationUpdateTask = null;
-            var shouldRerun = viewportDurationUpdatePending;
-            viewportDurationUpdatePending = false;
-            // ScheduleViewportDurationUpdate applies the mode-specific guard:
-            // timebase mode is valid before the chart reports a width, while
-            // paper-speed mode must wait for calibrated viewport geometry.
-            if (shouldRerun)
-            {
-                ScheduleViewportDurationUpdate();
-            }
-        }
-    }
 
     private void OnDisplaySettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {

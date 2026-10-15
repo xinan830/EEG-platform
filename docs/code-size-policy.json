@@ -34,8 +34,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
-      "max_lines": 515,
-      "reason": "Time and playhead presentation have focused owners. Montage colors arrive with the complete review frame and use the shared RGB/palette policy; the canvas only refreshes Stroke even for unchanged labels. This scoped change preserves sampling, filtering and lifecycle rendering; 506 lines.",
+      "max_lines": 480,
+      "reason": "Review-only trace decimation and gap/time projection now have a focused owner in ReviewWaveformTraceProjection. The canvas remains a cohesive 476-line owner of chart binding, layout, viewport and overlays. This defect fix preserves unrelated local viewport changes, raw sampling, filters and montage mapping.",
       "follow_up": "Extract event/lifecycle marker rendering into a focused overlay owner before adding further waveform annotation features."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/Views/MontageDetailView.xaml": {
@@ -68,8 +68,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Playback/RecordingReviewSession.cs": {
       "decision": "split",
-      "max_lines": 565,
-      "reason": "Existing review session remains 557 lines. It attaches appearance to its complete frame from the selected immutable snapshot, including empty windows. Color does not create another loader or state machine.",
+      "max_lines": 575,
+      "reason": "Existing review session remains a cohesive 572-line owner of playback-target fencing, frame publication and immutable snapshot appearance. This navigation fix adds cancellation fencing and bounded background montage projection without creating another loader or state machine.",
       "follow_up": "Extract bounded frame loading separately from playback target coordination while preserving one revision owner."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventDefinitionEditorView.xaml": {
@@ -96,8 +96,8 @@
     },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",
-      "max_lines": 420,
-      "reason": "顺序迁移是单一、可审计的历史数据库升级入口。此次增加进度、队列分区和幂等键迁移，当前 410 行；每项迁移保持独立函数，已有 v10/v11 升级验证，暂不打散历史顺序。"
+      "max_lines": 450,
+      "reason": "顺序迁移是单一、可审计的历史数据库升级入口。此次增加按需动态窗口、租约 fencing 和活动 attempt 唯一索引，当前不超过 450 行；每项迁移保持独立函数，升级版本有显式测试，暂不打散历史顺序。"
     },
     "backend/app/services/spectral_analysis.py": {
       "decision": "keep",

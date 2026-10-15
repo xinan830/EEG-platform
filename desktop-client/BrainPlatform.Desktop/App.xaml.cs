@@ -19,7 +19,7 @@ public partial class App : Application
 
         ShutdownMode = ShutdownMode.OnMainWindowClose;
         DispatcherUnhandledException += OnDispatcherUnhandledException;
-        SciChartSurface.SetRuntimeLicenseKey("7iF0IO0u4YmElZ5QNwdqPsiu+0CxVVDJ+A1X/bvIMPf6kI3qYb+a+o+6YaEnIfCPZkWuSAw3xMdQkm7oe8Tczb1mdOlyuTXW6bCVl+KtayjQnwyGl1Mts2tPlKk9CF0eVFsYF42hUGlSRvy3vplCDTEQsUxyHkpq8bVns2PdH8GzoTqZwCrhVpgVceNa3+mmxeRKEqOBGmfR0hHi0ynOAfqAiBUn9rb6dACEEXpiNT6JLyc8Vpx1eBDOYakPa3Gra4fJ2Wh34PjLcxDjfXhFM5CaO3wLMBgpH9MFjcXC3Ko330GpNOBcUhd7tWWHPg0yX+5AlA1SqNhuopnnUMmdVzZZZlTzudvtx+f6pVgDJlnY2gQhTDzRwaH3jkSnvERuYVKdTqoi0eraFEn7dNYGfjgC8q+dR9DjB12V1fP8l6Quq9h5AdD9i9t8Nyf+1DXnmohZke0vNOjSNUGAndnSlJVKAbeFTSNJcC4DADNzx02JSGKy08X7Gtl7eZuBYhTeG+O8JVF+8ZTTLm3EDluHDgPXStCRNvmidEFUjfIwUXKuJ1O2byl9aiw=");
+        SciChartSurface.SetRuntimeLicenseKey("2RQWHmeDhvpKpDsa8pVN3szv5jTAI4KMQo+47DAGc79L9k/hVPHCmcyROfzXz7gCEAxHF219c3lxXov+FRG75oinudVQX+UDzuPREcO+SpV6etBpDLGMkqSrE/m4r0mddSbU8C7HbOF9R7oawIr/aNNel6r7vJMm52rajnZLyJgnOeWftKj8p6q9FCxK7or5KJ0sAEqmiL4HFrUIMqUpVehKgIKHRzIjVP1WWnIaHnv6cFHb/YVyrMg6rNPfxU+ec8dv6ssnYOnqWC+0qI5wuIhr48mop7j8HzZl4n/8iYYPvXsDfCoFi39/MiOfLmqF1360MvkYlcOJit9zIqZKjn9pdGHyel0eJI5ruPimNir83IR6O7MwB+fdo5D16pEh/S8I8R6q3JlQHsUxfIW/SA98x0Yjhp9wBBIBifDV3m+xFyb65ij/Sr+/EQLfJn53928780Qr9q4q6mBNULqnW0LodnX3tMg6D224ogPbPfJWgjw4B7gmBLKcHj5GV6tJQIl2k3qkmg2pGwMbI6WQ");
 
         // ── 第一步：启动打包后端（开发模式下后端不存在则跳过）──
         _backendProcess = new BackendProcessManager();

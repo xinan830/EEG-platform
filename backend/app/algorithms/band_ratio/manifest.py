@@ -9,7 +9,9 @@ MANIFEST = AlgorithmManifest(
     scientific_version="official-band-ratio-v1",
     implementation_identity="band-ratio-runtime-v2-frequency-contract",
     supported_modes=["static", "dynamic"],
-    output_schema={"fields": [{"name": "ratio", "unit": "ratio", "meaning": "分子频段功率除以分母频段功率"}]},
+    output_schema={"window_output_kind": "scalar_series", "window_axes": [{"name": "time_s", "unit": "s"}],
+                   "window_shapes": {"time_s": [1], "ratio": [1]},
+                   "fields": [{"name": "ratio", "unit": "ratio", "meaning": "分子频段功率除以分母频段功率"}]},
     definition_name="Official Band Ratio",
     execution_kind="generic_research_primitives",
 )

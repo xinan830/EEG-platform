@@ -6,6 +6,7 @@ public sealed class PeakFrequencyDetailViewModel : AlgorithmSpecificDetailViewMo
 {
     private PeakFrequencyResultPreview? preview;
     private bool isFailureDetailsExpanded;
+    private string? windowSession;
 
     internal PeakFrequencyDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "peak_frequency") => RefreshPreview();
 
@@ -61,13 +62,32 @@ public sealed class PeakFrequencyDetailViewModel : AlgorithmSpecificDetailViewMo
         base.OnCatalogPropertyChanged(sender, args);
         if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm))
             RefreshPreview();
+        else if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
+        {
+            if (Algorithm?.Id == "peak_frequency" && Catalog.DisplayedAnalysisWindow is { } response)
+            {
+                preview = PeakFrequencyResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "",
+                    windowSession == response.SessionId ? preview : null);
+                windowSession = response.SessionId;
+            }
+            else { windowSession = null; preview = null; }
+            RaisePropertyChanged(nameof(IsDynamicResult));
+            RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds));
+            RaisePropertyChanged(nameof(ChannelText)); RaiseResultProperties();
+        }
         else if (args.PropertyName is nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds))
             RaiseResultProperties();
     }
 
     private void RefreshPreview()
     {
-        preview = Algorithm?.Id == "peak_frequency" ? PeakFrequencyResultPreview.Parse(Catalog.LastRun?.ResultSummary) : null;
+        windowSession = null;
+        preview = Algorithm?.Id == "peak_frequency"
+            ? Catalog.DisplayedAnalysisWindow is { } response
+                ? PeakFrequencyResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "")
+                : PeakFrequencyResultPreview.Parse(Catalog.LastRun?.ResultSummary)
+            : null;
+        if (Algorithm?.Id == "peak_frequency" && Catalog.DisplayedAnalysisWindow is { } displayed) windowSession = displayed.SessionId;
         IsFailureDetailsExpanded = false;
         RaisePropertyChanged(nameof(IsDynamicResult));
         RaisePropertyChanged(nameof(TimelineStartSeconds));

@@ -23,9 +23,10 @@ public sealed record ThetaBetaResultPoint(
     ThetaBetaEvidence Evidence)
 {
     public bool IsComplete => State == "Complete" && Value is not null;
+    public bool HasValue => State is "Complete" or "Partial" && Value is not null;
 }
 
-public sealed record ThetaBetaResultPreview(
+public sealed partial record ThetaBetaResultPreview(
     string Channel,
     ThetaBetaResultPoint? StaticPoint,
     IReadOnlyList<ThetaBetaResultPoint> DynamicPoints)

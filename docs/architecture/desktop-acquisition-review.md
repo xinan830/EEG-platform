@@ -142,8 +142,11 @@ false causal shortcut. Intermediate history advances the Python filter in
 bounded batches without creating display chunks, and completed anchors are
 published atomically. Gaps terminate the old chain and start a new one.
 
-Foreground targets are latest-only and retain the last complete frame until the
-new exact frame is ready. Idle prefetch is bounded and yields whenever a
+Foreground targets are latest-only and retain the last complete frame object
+until a new exact frame is ready. The requested chart axis and playhead follow
+navigation immediately; a cold target may therefore show an empty interval
+briefly instead of displaying the old frame under the new time labels. Idle
+prefetch is bounded and yields whenever a
 foreground target or playback load is active. Anchor files are rebuildable,
 bounded, and never written into the raw recording directory.
 

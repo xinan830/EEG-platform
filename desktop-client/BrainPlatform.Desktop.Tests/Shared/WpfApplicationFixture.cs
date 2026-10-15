@@ -1,21 +1,29 @@
 using System.Windows;
 using System.Windows.Threading;
+using System.Runtime.CompilerServices;
 
 namespace BrainPlatform.Desktop.Tests.Shared;
 
 [CollectionDefinition("WPF application resources", DisableParallelization = true)]
 public sealed class WpfApplicationCollection : ICollectionFixture<WpfApplicationFixture>;
 
-/// <summary>One STA application/resource owner for editor integration tests.</summary>
-public sealed class WpfApplicationFixture : IDisposable
+/// <summary>Adapter to the process-owned WPF host; a collection cannot shut it down.</summary>
+public sealed class WpfApplicationFixture
 {
-    private readonly Thread thread;
-    private readonly Application application;
+    public void Run(Action action) => WpfTestApplication.Run(action);
+}
 
-    public WpfApplicationFixture()
+internal static class WpfTestApplication
+{
+    private static Application application = null!;
+
+    // Application/pack resources are process-wide, including tests outside this collection.
+    // Keep the background dispatcher alive until the test host exits.
+    [ModuleInitializer]
+    internal static void Initialize()
     {
         var ready = new TaskCompletionSource<Application>(TaskCreationOptions.RunContinuationsAsynchronously);
-        thread = new Thread(() =>
+        var thread = new Thread(() =>
         {
             try
             {
@@ -35,15 +43,5 @@ public sealed class WpfApplicationFixture : IDisposable
         application = ready.Task.GetAwaiter().GetResult();
     }
 
-    public void Run(Action action) => application.Dispatcher.Invoke(action);
-
-    public void Dispose()
-    {
-        application.Dispatcher.Invoke(() =>
-        {
-            application.Shutdown();
-            Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
-        });
-        thread.Join();
-    }
+    internal static void Run(Action action) => application.Dispatcher.Invoke(action);
 }

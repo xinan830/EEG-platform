@@ -34,6 +34,7 @@ public sealed class ReviewTimelineNavigatorTests
                     .Invoke(navigator, [new Point(thumb.Left + thumb.Width / 2, thumb.Top), thumb]);
                 Assert.Equal(seconds, (double)type.GetField("lastAcceptedPosition", BindingFlags.Instance | BindingFlags.NonPublic)!
                     .GetValue(navigator)!);
+                type.GetMethod("EndDrag", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(navigator, null);
             }
             Assert.Equal(0d, (double)getPosition.Invoke(navigator, [-100d])!);
             Assert.Equal(duration, (double)getPosition.Invoke(navigator, [width + 100])!);
@@ -52,5 +53,40 @@ public sealed class ReviewTimelineNavigatorTests
         thread.Start();
         thread.Join();
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
+    public void Drag_follows_pointer_in_both_directions_without_elapsed_time_capping()
+    {
+        OnSta(() =>
+        {
+            var navigator = new ReviewTimelineNavigator { DurationSeconds = 100, PositionSeconds = 50 };
+            navigator.Measure(new Size(640, 30));
+            navigator.Arrange(new Rect(0, 0, 640, 30));
+            var type = typeof(ReviewTimelineNavigator);
+            var thumb = (Rect)type.GetMethod("GetThumbRect", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(navigator, null)!;
+            var started = 0;
+            var ended = 0;
+            var positions = new List<double>();
+            navigator.DragStarted += (_, _) => started++;
+            navigator.DragCompleted += (_, _) => ended++;
+            navigator.PreviewPositionChanged += (_, value) => positions.Add(value);
+            type.GetMethod("BeginDrag", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(navigator, [new Point(thumb.Left + 9, thumb.Top), thumb]);
+            foreach (var seconds in new[] { 90d, 10, 75, 25 })
+            {
+                var point = new Point(seconds / 100 * (640 - 18) + 9, thumb.Top);
+                type.GetMethod("ContinueDrag", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(navigator, [point]);
+                var currentThumb = (Rect)type.GetMethod("GetThumbRect", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(navigator, null)!;
+                Assert.Equal(point.X, currentThumb.Left + 9, 6);
+            }
+            Assert.Equal(4, positions.Count);
+            Assert.All(positions.Zip(new[] { 90d, 10, 75, 25 }), pair => Assert.Equal(pair.Second, pair.First, 6));
+            type.GetMethod("EndDrag", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(navigator, null);
+            type.GetMethod("EndDrag", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(navigator, null);
+            Assert.Equal(1, started);
+            Assert.Equal(1, ended);
+            Assert.Null(type.GetMethod("SetCursorPos", BindingFlags.Static | BindingFlags.NonPublic));
+        });
     }
 }

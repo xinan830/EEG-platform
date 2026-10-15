@@ -188,15 +188,20 @@ recording's source cache.
 
 ### Requirement: Review never exposes an incomplete target frame
 
-The time navigator MAY update a preview target continuously, but the waveform
-SHALL retain its last complete frame until a complete matching frame is ready.
+The time navigator MAY update a preview target continuously, but the review
+session SHALL retain its last complete frame object until a complete matching
+frame is ready. When the requested viewport is outside that frame, the chart
+axis and playhead SHALL follow the requested target and the plot MAY be empty
+temporarily; it SHALL not display the old samples under the new time labels.
 SciChart SHALL NOT bind a partially constructed source chunk or partial montage
 frame.
 
 #### Scenario: A user drags across an uncached chunk boundary
 
 - **WHEN** the navigator target enters a chunk that has not finished building
-- **THEN** the previous complete waveform SHALL remain visible
+- **THEN** the previous complete frame SHALL remain retained by the session
+- **AND** if its time range does not cover the target, the plot SHALL show an
+  explicit loading state instead of relabeling those samples
 - **AND** the target waveform SHALL replace it atomically only after all source
   chunks and display projection needed for that target are complete.
 

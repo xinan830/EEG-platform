@@ -98,6 +98,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         if (cache.TryGetFrame(targetViewportStart, Math.Min(DurationSeconds, targetViewportStart + VisibleDurationSeconds),
                 filterSettings, SelectedViewingMontage, out var cached, out var filterUnavailable))
         {
+            SupersedePendingLoad();
             PositionSeconds = targetPosition;
             ViewportStartSeconds = targetViewportStart;
             CurrentFrame = cached;
@@ -216,10 +217,20 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             return false;
         }
 
+        SupersedePendingLoad();
         CurrentFrame = cached;
         StatusText = DescribeFrame(cached, filterUnavailable);
         Changed?.Invoke(this, EventArgs.Empty);
         return true;
+    }
+
+    private void SupersedePendingLoad()
+    {
+        Interlocked.Increment(ref revision);
+        var obsolete = Interlocked.Exchange(ref currentLoad, null);
+        obsolete?.Cancel();
+        obsolete?.Dispose();
+        IsLoading = false;
     }
 
     public async Task PrefetchNextAsync()
@@ -237,8 +248,10 @@ public sealed class RecordingReviewSession : IAsyncDisposable
 
         try
         {
+            var settings = filterSettings;
+            var montage = SelectedViewingMontage;
             var result = await BuildFrameAsync(GetCacheStart(nextViewport), lifetime.Token);
-            cache.StoreFrame(result.Frame, filterSettings, SelectedViewingMontage, result.FilterUnavailable);
+            cache.StoreFrame(result.Frame, settings, montage, result.FilterUnavailable);
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch { /* Prefetch is opportunistic; foreground reads report errors. */ }
@@ -310,7 +323,9 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         var sourceResult = await LoadDisplaySourceAsync(cacheStartSeconds, cacheEndSeconds, settings, token);
         var displayWindow = sourceResult.Window;
 
-        var projected = MontageDisplayProjector.Project(displayWindow, reader.Manifest, montage);
+        var projected = SynchronizationContext.Current is null
+            ? MontageDisplayProjector.Project(displayWindow, reader.Manifest, montage)
+            : await Task.Run(() => MontageDisplayProjector.Project(displayWindow, reader.Manifest, montage), token);
         var outputNames = projected.FirstOrDefault()?.Channels.Select(channel => channel.Label).ToArray()
             ?? montage?.DerivedChannels.OrderBy(channel => channel.DisplayOrder).Select(channel => channel.Name).ToArray()
             ?? catalog.RawSignalView.ChannelLabels.ToArray();

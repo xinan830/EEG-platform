@@ -32,10 +32,12 @@ from app.api.extensions import router as extensions_router
 from app.api.algorithms import router as algorithms_router
 from app.api.algorithm_presets import router as algorithm_presets_router
 from app.api.live_filters import router as live_filters_router
+from app.api.analysis_windows import router as analysis_windows_router
 from app.services.live_filter import LiveFilterService
+from app.services.on_demand_dynamic import DynamicWindowService
 from app.bootstrap import build_builtin_registry
 from app.services.algorithm_presets import AlgorithmPresetService
-from app.core.config import DATABASE_PATH, STORAGE_DIR
+from app.core.config import DATABASE_PATH, STORAGE_DIR, on_demand_algorithm_enabled
 from app.core.api_contract import (
     RequestContextMiddleware,
     http_exception_handler,
@@ -55,6 +57,7 @@ async def lifespan(application: FastAPI):
         yield
     finally:
         application.state.run_worker.stop()
+        application.state.dynamic_window_service.close()
 
 
 app = FastAPI(title="Brain Platform API", version="0.1.0", lifespan=lifespan)
@@ -91,6 +94,12 @@ app.state.algorithm_preset_service = AlgorithmPresetService(
     DATABASE_PATH,
 )
 app.state.live_filter_service = LiveFilterService()
+app.state.dynamic_window_service = DynamicWindowService(
+    app.state.recording_service,
+    app.state.algorithm_runtime_registry,
+    enabled_algorithms={module.manifest.algorithm_id for module in app.state.algorithm_runtime_registry.list()
+                        if on_demand_algorithm_enabled(module.manifest.algorithm_id)},
+)
 app.include_router(recordings_router)
 app.include_router(playback_router)
 app.include_router(audit_router)
@@ -105,6 +114,7 @@ app.include_router(extensions_router)
 app.include_router(algorithms_router)
 app.include_router(algorithm_presets_router)
 app.include_router(live_filters_router)
+app.include_router(analysis_windows_router)
 
 
 @app.get("/api/health")

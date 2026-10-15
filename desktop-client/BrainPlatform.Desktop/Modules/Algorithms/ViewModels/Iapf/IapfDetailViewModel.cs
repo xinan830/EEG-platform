@@ -6,6 +6,7 @@ public sealed class IapfDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
 {
     private IapfResultPreview? preview;
     private bool isFailureDetailsExpanded;
+    private string? windowSession;
 
     internal IapfDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "iapf")
     {
@@ -75,13 +76,32 @@ public sealed class IapfDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
         base.OnCatalogPropertyChanged(sender, args);
         if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm))
             RefreshPreview();
+        else if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
+        {
+            if (Algorithm?.Id == "iapf" && Catalog.DisplayedAnalysisWindow is { } response)
+            {
+                preview = IapfResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "",
+                    windowSession == response.SessionId ? preview : null);
+                windowSession = response.SessionId;
+            }
+            else { windowSession = null; preview = null; }
+            RaisePropertyChanged(nameof(IsDynamicResult));
+            RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds));
+            RaisePropertyChanged(nameof(ChannelText)); RaiseResultProperties();
+        }
         else if (args.PropertyName is nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds))
             RaiseResultProperties();
     }
 
     private void RefreshPreview()
     {
-        preview = Algorithm?.Id == "iapf" ? IapfResultPreview.Parse(Catalog.LastRun?.ResultSummary) : null;
+        windowSession = null;
+        preview = Algorithm?.Id == "iapf"
+            ? Catalog.DisplayedAnalysisWindow is { } response
+                ? IapfResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "")
+                : IapfResultPreview.Parse(Catalog.LastRun?.ResultSummary)
+            : null;
+        if (Algorithm?.Id == "iapf" && Catalog.DisplayedAnalysisWindow is { } displayed) windowSession = displayed.SessionId;
         IsFailureDetailsExpanded = false;
         RaisePropertyChanged(nameof(IsDynamicResult));
         RaisePropertyChanged(nameof(TimelineStartSeconds));

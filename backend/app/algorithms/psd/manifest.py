@@ -9,7 +9,9 @@ MANIFEST = AlgorithmManifest(
     scientific_version="offline-spectral-v3",
     implementation_identity="psd-runtime-v3-explicit-filters",
     supported_modes=["static", "dynamic"],
-    output_schema={"mode_shapes": {"static": "frequency", "dynamic": "window x frequency"}, "fields": [
+    output_schema={"mode_shapes": {"static": "frequency", "dynamic": "window x frequency"},
+        "window_output_kind": "frequency_series",
+        "window_shapes": {"frequency_hz": ["frequency"], "psd": ["frequency"], "band_share": [5]}, "fields": [
         {"name": "frequency_hz", "unit": "Hz", "shape": "frequency", "meaning": "PSD 频率轴"},
         {"name": "psd", "unit": "V^2/Hz", "shape": "frequency", "meaning": "所选通道的功率谱密度"},
         {"name": "band_share", "unit": "ratio", "shape": "5 (static) or window x 5 (dynamic)", "meaning": "Delta、Theta、Alpha、Beta、Gamma 的频段功率占比"},

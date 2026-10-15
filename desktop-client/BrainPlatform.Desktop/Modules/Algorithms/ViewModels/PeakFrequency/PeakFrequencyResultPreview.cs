@@ -6,9 +6,10 @@ public sealed record PeakFrequencyResultPoint(double TimeSeconds, double StartSe
     double? ValueHz, string State, string Quality, string Failure, double? PeakPowerV2PerHz)
 {
     public bool IsComplete => State == "Complete" && ValueHz is not null;
+    public bool HasValue => State is "Complete" or "Partial" && ValueHz is not null;
 }
 
-public sealed record PeakFrequencyResultPreview(string Channel, PeakFrequencyResultPoint? StaticPoint,
+public sealed partial record PeakFrequencyResultPreview(string Channel, PeakFrequencyResultPoint? StaticPoint,
     IReadOnlyList<PeakFrequencyResultPoint> DynamicPoints)
 {
     public bool IsDynamic => DynamicPoints.Count > 0;
