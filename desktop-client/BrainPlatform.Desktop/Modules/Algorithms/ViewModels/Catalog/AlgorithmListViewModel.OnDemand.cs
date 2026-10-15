@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Windows.Threading;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
@@ -14,6 +15,11 @@ public sealed partial class AlgorithmListViewModel
     private CancellationTokenSource? windowWait;
     private long windowRevision;
     private bool windowLoading;
+    private readonly DispatcherTimer dynamicWindowRequestTimer;
+    private bool dynamicWindowRequestPending;
+    private bool dynamicPreviewSeeking;
+    private long lastRequestedWindowSample = -1;
+    private TaskCompletionSource<Task>? pendingRequestFlush;
     internal Task CurrentWindowLoad { get; private set; } = Task.CompletedTask;
     public bool IsOnDemandAnalysis => windowRequest is not null;
     public DynamicWindowResponse? DisplayedAnalysisWindow => displayedWindow;
@@ -28,14 +34,19 @@ public sealed partial class AlgorithmListViewModel
         windowTargets ??= new DynamicWindowTargetCoordinator(client);
         windowRequest = request;
         windowHandler = handler;
+        dynamicWindowRequestTimer.Stop();
+        dynamicWindowRequestPending = false;
+        pendingRequestFlush?.TrySetResult(Task.CompletedTask);
+        pendingRequestFlush = null;
+        lastRequestedWindowSample = -1;
         DynamicPreviewCursorSeconds = Math.Clamp(initialCursor, 0, DynamicPreviewDurationSeconds);
         RaiseDynamicPreviewProperties();
         RaisePropertyChanged(nameof(IsOnDemandAnalysis));
-        RequestWindowAtCursor();
+        RequestWindowAtCursor(force: true);
         await CurrentWindowLoad;
     }
 
-    private void RequestWindowAtCursor()
+    private void RequestWindowAtCursor(bool force = false)
     {
         if (windowRequest is not { } request || windowHandler is not { } handler ||
             RegisteredRecording is not { } recording || windowTargets is null) return;
@@ -44,15 +55,91 @@ public sealed partial class AlgorithmListViewModel
         var samplingRate = recording.SamplingRateHz.Value;
         if (!double.IsFinite(samplingRate) || samplingRate != Math.Truncate(samplingRate))
             throw new InvalidOperationException("当前共享时间映射要求整数采样率，不能静默截断采样率。");
+        var samplingRateInteger = checked((int)samplingRate);
+        var rawCursor = RecordingTimeMapper.ToCursorSample(DynamicPreviewCursorSeconds,
+            samplingRateInteger,
+            checked((long)Math.Round(recording.DurationSeconds.Value * samplingRate)));
+        var cursor = QuantizeWindowCursor(request, rawCursor, samplingRateInteger);
+        if (!force && cursor == lastRequestedWindowSample) return;
+        lastRequestedWindowSample = cursor;
         windowWait?.Cancel();
         windowWait = new CancellationTokenSource();
         var revision = ++windowRevision;
-        var cursor = RecordingTimeMapper.ToCursorSample(DynamicPreviewCursorSeconds,
-            checked((int)samplingRate),
-            checked((long)Math.Round(recording.DurationSeconds.Value * samplingRate)));
         var target = new DynamicWindowRequest(request.RecordingId, handler.AlgorithmId,
             null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"));
         CurrentWindowLoad = LoadWindowTargetAsync(target, handler, revision, windowWait);
+    }
+
+    private static long QuantizeWindowCursor(AnalysisRunRequest request, long rawCursor, int samplingRateHz)
+    {
+        if (!request.Config.TryGetProperty("refresh_step_s", out var stepElement) ||
+            stepElement.ValueKind != JsonValueKind.Number ||
+            !stepElement.TryGetDouble(out var stepSeconds) ||
+            !double.IsFinite(stepSeconds) || stepSeconds <= 0)
+            return rawCursor;
+
+        var startSeconds = 0d;
+        if (request.Config.TryGetProperty("time", out var time) &&
+            time.ValueKind == JsonValueKind.Object &&
+            time.TryGetProperty("start_s", out var startElement) &&
+            startElement.ValueKind == JsonValueKind.Number &&
+            startElement.TryGetDouble(out var configuredStart) &&
+            double.IsFinite(configuredStart) && configuredStart >= 0)
+        {
+            startSeconds = configuredStart;
+        }
+
+        return DynamicWindowCursorQuantizer.QuantizeCursorSample(
+            rawCursor, samplingRateHz, stepSeconds, startSeconds);
+    }
+
+    private void QueueWindowRequest(bool immediate)
+    {
+        if (!IsOnDemandAnalysis) return;
+        if (!dynamicWindowRequestPending)
+        {
+            dynamicWindowRequestPending = true;
+            pendingRequestFlush = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
+            CurrentWindowLoad = AwaitQueuedWindowRequestAsync(pendingRequestFlush.Task);
+        }
+
+        if (immediate)
+            FlushWindowRequest();
+        else
+            dynamicWindowRequestTimer.Start();
+    }
+
+    private async Task AwaitQueuedWindowRequestAsync(Task<Task> flushTask)
+    {
+        var load = await flushTask.ConfigureAwait(false);
+        await load.ConfigureAwait(false);
+    }
+
+    private void FlushWindowRequest()
+    {
+        dynamicWindowRequestTimer.Stop();
+        if (!dynamicWindowRequestPending) return;
+
+        dynamicWindowRequestPending = false;
+        var completion = pendingRequestFlush;
+        pendingRequestFlush = null;
+        try
+        {
+            RequestWindowAtCursor();
+            completion?.TrySetResult(CurrentWindowLoad);
+        }
+        catch (Exception exception)
+        {
+            completion?.TrySetException(exception);
+        }
+    }
+
+    public void BeginDynamicPreviewSeek() => dynamicPreviewSeeking = true;
+
+    public void CommitDynamicPreviewSeek()
+    {
+        dynamicPreviewSeeking = false;
+        QueueWindowRequest(immediate: true);
     }
 
     private async Task LoadWindowTargetAsync(DynamicWindowRequest target,
@@ -115,6 +202,12 @@ public sealed partial class AlgorithmListViewModel
     public async Task ReleaseWindowAnalysisAsync()
     {
         StopDynamicPreviewTimer();
+        dynamicWindowRequestTimer.Stop();
+        dynamicWindowRequestPending = false;
+        pendingRequestFlush?.TrySetResult(Task.CompletedTask);
+        pendingRequestFlush = null;
+        dynamicPreviewSeeking = false;
+        lastRequestedWindowSample = -1;
         windowRevision++;
         windowWait?.Cancel();
         windowWait = null;
@@ -123,7 +216,7 @@ public sealed partial class AlgorithmListViewModel
         RaisePropertyChanged(nameof(IsRunActive));
     }
 
-    public void ResumeWindowAnalysis() { if (IsOnDemandAnalysis) RequestWindowAtCursor(); }
+    public void ResumeWindowAnalysis() { if (IsOnDemandAnalysis) QueueWindowRequest(immediate: true); }
 
     private void ClearWindowAnalysis()
     {

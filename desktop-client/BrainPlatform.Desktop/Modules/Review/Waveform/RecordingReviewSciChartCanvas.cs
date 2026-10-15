@@ -37,6 +37,10 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     private Thickness? lastLabelPlotMargin;
     private Window? owningWindow;
     private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
+    private RecordingReviewFrame? renderedFrame;
+    private double renderedPlotHeight;
+    private double renderedSensitivity;
+    private double renderedMillimetersPerDip;
 
     public RecordingReviewSciChartCanvas()
     {
@@ -156,9 +160,15 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         if (e.PropertyName is nameof(RecordingReviewViewModel.CurrentFrame)
             or nameof(RecordingReviewViewModel.VisibleDurationSeconds)
             or nameof(RecordingReviewViewModel.SensitivityMicrovoltsPerMillimeter)
-            or nameof(RecordingReviewViewModel.RecordingEvents))
+            or nameof(RecordingReviewViewModel.IsLoading)
+            or nameof(RecordingReviewViewModel.StatusText))
         {
             ApplyFrame((sender as RecordingReviewViewModel)?.CurrentFrame, sender as RecordingReviewViewModel);
+        }
+        else if (e.PropertyName == nameof(RecordingReviewViewModel.RecordingEvents))
+        {
+            UpdateEventMarkers(sender as RecordingReviewViewModel);
+            UpdateLifecycleBoundaries(sender as RecordingReviewViewModel);
         }
         else if (e.PropertyName == nameof(RecordingReviewViewModel.TimeDisplay))
         {
@@ -168,9 +178,11 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         }
         else if (e.PropertyName == nameof(RecordingReviewViewModel.PositionSeconds))
         {
-            // Playback runs at render cadence. The cursor is the only visual
-            // element that needs this frequency; rebuilding markers and
-            // invalidating the SciChart axis here causes dropped frames.
+            // Drag previews can update PositionSeconds before a cold frame
+            // finishes. Keep the axis and cursor on that same target so the
+            // bottom time readout cannot outrun the chart coordinate system.
+            // This only changes the visible range; trace arrays are reused.
+            UpdateVisibleRange(sender as RecordingReviewViewModel);
             UpdatePlaybackCursor(sender as RecordingReviewViewModel);
         }
         else if (e.PropertyName == nameof(RecordingReviewViewModel.ViewportStartSeconds))
@@ -190,6 +202,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             emptyMessage.Text = viewModel?.StatusText ?? "等待加载回溯数据";
             emptyMessage.Visibility = Visibility.Visible;
             ClearSeries();
+            renderedFrame = null;
             eventMarkers.Children.Clear();
             playbackCursor.Visibility = Visibility.Collapsed;
             return;
@@ -202,14 +215,24 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         yAxis.VisibleRange = new DoubleRange(0, Math.Max(1, names.Length));
         SyncLabelPlotArea();
         emptyMessage.Text = viewModel?.StatusText ?? "已加载";
-        emptyMessage.Visibility = frame.Segments.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        emptyMessage.Visibility = viewModel?.IsLoading == true || frame.Segments.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
-        using (surface.SuspendUpdates())
+        var plotHeight = WaveformPlotLayout.GetPlotArea(surface).Height;
+        var sensitivity = viewModel?.SensitivityMicrovoltsPerMillimeter ?? 10;
+        if (!ReferenceEquals(renderedFrame, frame) || renderedPlotHeight != plotHeight ||
+            renderedSensitivity != sensitivity || renderedMillimetersPerDip != screenScale.MillimetersPerDipY)
         {
-            for (var traceIndex = 0; traceIndex < traceSeries.Count; traceIndex++)
+            using (surface.SuspendUpdates())
             {
-                UpdateSeries(traceSeries[traceIndex], frame, traceIndex, names.Length);
+                for (var traceIndex = 0; traceIndex < traceSeries.Count; traceIndex++)
+                    UpdateSeries(traceSeries[traceIndex], frame, traceIndex, names.Length);
             }
+            renderedFrame = frame;
+            renderedPlotHeight = plotHeight;
+            renderedSensitivity = sensitivity;
+            renderedMillimetersPerDip = screenScale.MillimetersPerDipY;
         }
 
         UpdatePlaybackCursor(viewModel);
@@ -294,27 +317,18 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             return;
         }
 
-        var visibleStart = viewModel.ViewportStartSeconds;
-        var visibleEnd = Math.Min(viewModel.DurationSeconds, visibleStart + viewModel.VisibleDurationSeconds);
-        if (viewModel.CurrentFrame is { } frame &&
-            (frame.WindowStartSeconds > visibleStart + 0.000_001 ||
-             frame.WindowEndSeconds + 0.000_001 < visibleEnd))
-        {
-            // The axis is intentionally held at the last complete frame until
-            // the next cache block arrives. Position the cursor in that same
-            // range so it never floats over an empty plot during the handoff.
-            visibleStart = frame.WindowStartSeconds;
-            visibleEnd = frame.WindowEndSeconds;
-        }
+        if (xAxis.VisibleRange is not DoubleRange visibleRange) return;
+        var visibleStart = visibleRange.Min;
+        var visibleEnd = visibleRange.Max;
         var duration = Math.Max(0.001, visibleEnd - visibleStart);
         var fraction = Math.Clamp((viewModel.PositionSeconds - visibleStart) / duration, 0, 1);
         var plotArea = WaveformPlotLayout.GetPlotArea(surface);
         var plotOrigin = surface.TranslatePoint(plotArea.TopLeft, chartHost);
         playbackCursor.SetPosition(new Rect(plotOrigin, plotArea.Size), fraction);
-        playbackCursor.Visibility = viewModel.PositionSeconds >= visibleStart &&
-                                    viewModel.PositionSeconds <= visibleEnd
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        // Keep the cursor visible while a cold target is loading. Its position
+        // is calculated against the requested visible axis, so rapid
+        // bidirectional drags do not leave it stranded at an old edge.
+        playbackCursor.Visibility = Visibility.Visible;
     }
 
     private void UpdateEventMarkers(RecordingReviewViewModel? viewModel)
@@ -428,26 +442,14 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
         var start = viewModel.ViewportStartSeconds;
         var end = Math.Max(start + 0.001, Math.Min(viewModel.DurationSeconds, start + viewModel.VisibleDurationSeconds));
-        // Keep the last complete frame on screen while a new window is being
-        // read. Moving the axis ahead of the frame creates a false white gap.
-        if (viewModel.CurrentFrame is not { } frame)
-        {
-            return;
-        }
-
-        if (frame.WindowStartSeconds > start + 0.000_001 ||
-            frame.WindowEndSeconds + 0.000_001 < end)
-        {
-            // Keep the last complete frame and its axis while the next cache
-            // block is loading. Advancing the axis ahead of the data creates a
-            // false blank area that looks like lost waveform samples.
-            return;
-        }
-
-        // A frame is a cache block and can be wider than the requested screen
-        // window. The timebase still controls the visible axis whenever the
-        // requested range is covered by the complete frame.
-        xAxis.VisibleRange = new DoubleRange(start, end);
+        // The requested viewport is authoritative during navigation. A cold
+        // target may leave the plot temporarily empty, but keeping the old
+        // axis made the cursor stick to an edge while the bottom time display
+        // had already moved to the new target. That was especially visible
+        // during rapid bidirectional drags. The complete frame is still
+        // published atomically when it arrives.
+        if (xAxis.VisibleRange is not DoubleRange range || range.Min != start || range.Max != end)
+            xAxis.VisibleRange = new DoubleRange(start, end);
     }
 
     private void ClearSeries()

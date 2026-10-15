@@ -3,6 +3,7 @@ using System.Windows;
 using BrainPlatform.Desktop.Modules.Review.Waveform;
 using BrainPlatform.Desktop.Shared.Waveform;
 using SciChart.Charting.Visuals;
+using SciChart.Data.Model;
 
 namespace BrainPlatform.Desktop.Tests.Review;
 
@@ -50,6 +51,25 @@ public sealed partial class RecordingReviewViewModelTests
                         Assert.Equal(Visibility.Visible, cursor.Visibility);
                     }
                 }
+                vm.SeekAsync(50).GetAwaiter().GetResult();
+                canvas.UpdateLayout();
+                var held = (DoubleRange)surface.XAxes[0].VisibleRange;
+                var requested = held.Max + 2;
+                var setPosition = typeof(RecordingReviewViewModel).GetMethod("SetPreviewPosition", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                setPosition.Invoke(vm, [requested]);
+                var targetRange = (DoubleRange)surface.XAxes[0].VisibleRange;
+                Assert.Equal(requested - vm.VisibleDurationSeconds * 0.5, targetRange.Min, 6);
+                Assert.Equal(requested + vm.VisibleDurationSeconds * 0.5, targetRange.Max, 6);
+                Assert.Equal(Visibility.Visible, cursor.Visibility);
+                Assert.Equal(0.5d,
+                    (double)typeof(ReviewPlaybackCursor).GetField("fraction", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cursor)!, 6);
+                setPosition.Invoke(vm, [held.Max - 1]);
+                Assert.Equal(Visibility.Visible, cursor.Visibility);
+                var returnedRange = (DoubleRange)surface.XAxes[0].VisibleRange;
+                Assert.Equal(held.Max - 1 - vm.VisibleDurationSeconds * 0.5, returnedRange.Min, 6);
+                Assert.Equal(held.Max - 1 + vm.VisibleDurationSeconds * 0.5, returnedRange.Max, 6);
+                Assert.Equal(0.5d,
+                    (double)typeof(ReviewPlaybackCursor).GetField("fraction", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cursor)!, 6);
             }
             finally
             {

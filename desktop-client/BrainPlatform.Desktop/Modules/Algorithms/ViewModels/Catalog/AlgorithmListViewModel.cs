@@ -29,6 +29,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     private string selectedAnalysisMode = "静态";
     private double selectedDynamicWindowSeconds = 5.0;
     private string dynamicStepText = "1";
+    private string selectedDynamicExecutionMode = "全量分析";
     private string selectedChannel = string.Empty;
     private string selectedF4Channel = string.Empty;
     private string startSecondsText = "0";
@@ -73,6 +74,11 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         ResetDynamicPreviewCommand = new RelayCommand(ResetDynamicPreview, CanResetDynamicPreview);
         dynamicPreviewTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         dynamicPreviewTimer.Tick += (_, _) => AdvanceDynamicPreview();
+        dynamicWindowRequestTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(120),
+        };
+        dynamicWindowRequestTimer.Tick += (_, _) => FlushWindowRequest();
         automaticRunDebounceTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(500) };
         automaticRunDebounceTimer.Tick += async (_, _) =>
         {
@@ -207,6 +213,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             selectedAlgorithmId = value?.Id;
             ClearPreviews();
             SelectedAnalysisMode = "静态";
+            SelectedDynamicExecutionMode = "全量分析";
             SelectedDynamicWindowSeconds = value?.DynamicPolicy.DefaultWindowSeconds ?? 5.0;
             DynamicStepText = value?.DynamicPolicy.RefreshStepSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) ?? "1";
             selectedDynamicStepSeconds = value?.DynamicPolicy.RefreshStepSeconds ?? 1.0;
@@ -224,6 +231,8 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             RaisePropertyChanged(nameof(IsDynamicModeAvailable));
             RaisePropertyChanged(nameof(DynamicWindowOptions));
             RaisePropertyChanged(nameof(DynamicStepOptions));
+            RaisePropertyChanged(nameof(DynamicExecutionModes));
+            RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
             RaisePropertyChanged(nameof(SelectedDynamicStepSeconds));
             ApplyAlgorithmChannelDefaults();
             ApplyAlgorithmParameterDefaults();
@@ -309,10 +318,44 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             if (!SetProperty(ref selectedAnalysisMode, value)) return;
             ClearPreviews();
             RaisePropertyChanged(nameof(IsDynamicMode));
+            RaisePropertyChanged(nameof(DynamicExecutionModes));
+            RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
             ScheduleAutomaticRun();
         }
     }
     public bool IsDynamicMode => SelectedAnalysisMode == "动态";
+    public IReadOnlyList<string> DynamicExecutionModes
+    {
+        get
+        {
+            if (!IsDynamicModeAvailable)
+                return [];
+
+            var modes = new List<string> { "全量分析" };
+            if (SelectedAlgorithm is { } algorithm &&
+                AlgorithmRunResultHandlerRegistry.Contains(algorithm.Id) &&
+                AlgorithmRunResultHandlerRegistry.For(algorithm.Id).SupportsOnDemandWindows)
+            {
+                modes.Add("按需分析");
+            }
+            return modes;
+        }
+    }
+    public string SelectedDynamicExecutionMode
+    {
+        get => selectedDynamicExecutionMode;
+        set
+        {
+            var normalized = DynamicExecutionModes.Contains(value, StringComparer.Ordinal)
+                ? value
+                : "全量分析";
+            if (!SetProperty(ref selectedDynamicExecutionMode, normalized)) return;
+            ClearPreviews();
+            RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
+            ScheduleAutomaticRun();
+        }
+    }
+    public bool IsOnDemandExecutionModeSelected => IsDynamicMode && SelectedDynamicExecutionMode == "按需分析";
     public bool IsDynamicPreviewPlaying { get => isDynamicPreviewPlaying; private set => SetProperty(ref isDynamicPreviewPlaying, value); }
     public double DynamicPreviewCursorSeconds { get => dynamicPreviewCursorSeconds; private set => SetProperty(ref dynamicPreviewCursorSeconds, value); }
     public string DynamicPreviewCursorText => TimeDisplay.FormatCursor(DynamicPreviewCursorSeconds);

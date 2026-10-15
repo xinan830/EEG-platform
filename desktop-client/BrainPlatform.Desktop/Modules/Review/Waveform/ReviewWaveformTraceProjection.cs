@@ -62,8 +62,13 @@ internal static class ReviewWaveformTraceProjection
         ProjectedMontageSegment segment, IReadOnlyList<double> values,
         RecordingReviewFrame frame, double baseline, double displayScale)
     {
-        foreach (var index in new[] { first, min, max, last }.Distinct().Where(index => index >= 0).OrderBy(index => index))
+        Span<int> indexes = stackalloc int[] { first, min, max, last };
+        indexes.Sort();
+        var previous = -1;
+        foreach (var index in indexes)
         {
+            if (index < 0 || index == previous) continue;
+            previous = index;
             x.Add(Seconds(frame, segment.FirstSampleCounter + index));
             y.Add(baseline + values[index] * 1_000_000d * displayScale);
         }

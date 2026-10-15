@@ -445,6 +445,8 @@
                     DurationSeconds="{Binding DurationSeconds, Mode=OneWay}"
                     PositionSeconds="{Binding PositionSeconds, Mode=OneWay}"
                     VisibleDurationSeconds="{Binding VisibleDurationSeconds, Mode=OneWay}"
+                      DragStarted="OnTimelineDragStarted"
+                      DragCompleted="OnTimelineDragCompleted"
                     PreviewPositionChanged="OnTimelinePreviewPositionChanged"
                     PositionCommitted="OnTimelinePositionCommitted"
                     ToolTip="{Binding RecordingClockRangeText, Mode=OneWay}" />

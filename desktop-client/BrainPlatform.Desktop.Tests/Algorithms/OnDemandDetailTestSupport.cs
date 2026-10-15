@@ -30,6 +30,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
         catalog.SelectedF4Channel = secondaryChannel;
         catalog.EndSecondsText = "30";
         catalog.SelectedAnalysisMode = "动态";
+        catalog.SelectedDynamicExecutionMode = "按需分析";
         return catalog;
     }
 

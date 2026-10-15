@@ -30,10 +30,13 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public IReadOnlyList<string> AnalysisModes => Catalog.AnalysisModes;
     public IReadOnlyList<double> DynamicWindowOptions => Catalog.DynamicWindowOptions;
     public IReadOnlyList<double> DynamicStepOptions => Catalog.DynamicStepOptions;
+    public IReadOnlyList<string> DynamicExecutionModes => Catalog.DynamicExecutionModes;
     public string DynamicStepText { get => Catalog.DynamicStepText; set => Catalog.DynamicStepText = value; }
     public double SelectedDynamicStepSeconds { get => Catalog.SelectedDynamicStepSeconds; set => Catalog.SelectedDynamicStepSeconds = value; }
     public double SelectedDynamicWindowSeconds { get => Catalog.SelectedDynamicWindowSeconds; set => Catalog.SelectedDynamicWindowSeconds = value; }
     public string SelectedAnalysisMode { get => Catalog.SelectedAnalysisMode; set => Catalog.SelectedAnalysisMode = value; }
+    public string SelectedDynamicExecutionMode { get => Catalog.SelectedDynamicExecutionMode; set => Catalog.SelectedDynamicExecutionMode = value; }
+    public bool IsOnDemandExecutionModeSelected => Catalog.IsOnDemandExecutionModeSelected;
     public bool IsDynamicMode => Catalog.IsDynamicMode;
     public bool IsDynamicModeAvailable => Catalog.IsDynamicModeAvailable;
     public bool IsDynamicPreviewPlaying => Catalog.IsDynamicPreviewPlaying;
@@ -51,6 +54,8 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public ICommand PauseDynamicPreviewCommand => Catalog.PauseDynamicPreviewCommand;
     public ICommand StepDynamicPreviewCommand => Catalog.StepDynamicPreviewCommand;
     public ICommand ResetDynamicPreviewCommand => Catalog.ResetDynamicPreviewCommand;
+    public void BeginDynamicPreviewSeek() => Catalog.BeginDynamicPreviewSeek();
+    public void CommitDynamicPreviewSeek() => Catalog.CommitDynamicPreviewSeek();
     public bool HasProject => Catalog.Projects?.SelectedProject is not null;
     public bool HasCompletedRecording => Catalog.SelectedProjectRecording is not null;
     public bool HasRegisteredRecording => Catalog.RegisteredRecording is not null;
@@ -141,6 +146,9 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.IsDynamicModeAvailable)
             or nameof(AlgorithmListViewModel.DynamicWindowOptions)
             or nameof(AlgorithmListViewModel.DynamicStepOptions)
+            or nameof(AlgorithmListViewModel.DynamicExecutionModes)
+            or nameof(AlgorithmListViewModel.SelectedDynamicExecutionMode)
+            or nameof(AlgorithmListViewModel.IsOnDemandExecutionModeSelected)
             or nameof(AlgorithmListViewModel.SelectedDynamicWindowSeconds)
             or nameof(AlgorithmListViewModel.DynamicStepText)
             or nameof(AlgorithmListViewModel.SelectedDynamicStepSeconds)
@@ -209,6 +217,9 @@ public sealed class AnalysisContextViewModel : ObservableObject
             RaisePropertyChanged(nameof(SelectedDynamicWindowSeconds));
             RaisePropertyChanged(nameof(DynamicWindowOptions));
             RaisePropertyChanged(nameof(DynamicStepOptions));
+            RaisePropertyChanged(nameof(DynamicExecutionModes));
+            RaisePropertyChanged(nameof(SelectedDynamicExecutionMode));
+            RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
             RaisePropertyChanged(nameof(IsDynamicMode));
             RaisePropertyChanged(nameof(IsDynamicModeAvailable));
             RaisePropertyChanged(nameof(IsDynamicPreviewPlaying));

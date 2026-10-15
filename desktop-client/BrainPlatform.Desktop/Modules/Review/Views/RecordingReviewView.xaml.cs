@@ -78,6 +78,7 @@ public partial class RecordingReviewView : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        ViewModel?.EndTimelineDrag();
         playbackTimer.Stop();
         playbackTimer.Tick -= OnPlaybackTimerTick;
     }
@@ -131,6 +132,10 @@ public partial class RecordingReviewView : UserControl
     {
         ViewModel?.PreviewSeek(positionSeconds);
     }
+
+    private void OnTimelineDragStarted(object? sender, EventArgs e) => ViewModel?.BeginTimelineDrag();
+
+    private void OnTimelineDragCompleted(object? sender, EventArgs e) => ViewModel?.EndTimelineDrag();
 
     private async void OnTimelinePositionCommitted(object? sender, double positionSeconds)
     {

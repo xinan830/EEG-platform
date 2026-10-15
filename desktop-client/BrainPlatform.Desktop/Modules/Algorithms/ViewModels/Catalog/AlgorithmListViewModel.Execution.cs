@@ -60,8 +60,10 @@ public sealed partial class AlgorithmListViewModel
         // Backend atomically merges active scientific configurations. New attempts
         // deliberately omit a permanent key so cancelled work can be rerun.
         var request = new AnalysisRunRequest(RegisteredRecording.Id, "official_algorithm", config);
-        if (dynamic && resultHandler.SupportsOnDemandWindows)
+        if (dynamic && IsOnDemandExecutionModeSelected)
         {
+            if (!resultHandler.SupportsOnDemandWindows)
+                throw new InvalidOperationException("当前算法未启用按需分析，请选择全量分析。");
             await BeginWindowAnalysisAsync(request, resultHandler, preservedDynamicCursorSeconds ?? 0);
             return;
         }

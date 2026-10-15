@@ -45,7 +45,7 @@ public sealed partial class AlgorithmListViewModel
             if (Math.Abs(cursor - DynamicPreviewCursorSeconds) < 1e-9)
                 return;
             DynamicPreviewCursorSeconds = cursor;
-            ReleaseDynamicPreviewRows();
+            ReleaseDynamicPreviewRows(immediateRequest: !dynamicPreviewSeeking);
             RaiseDynamicPreviewProperties();
         }
     }
@@ -212,7 +212,7 @@ public sealed partial class AlgorithmListViewModel
         DynamicPreviewCursorSeconds = Math.Min(
             DynamicPlaybackEndSeconds,
             DynamicPreviewCursorSeconds + ParsePreviewStep());
-        ReleaseDynamicPreviewRows();
+        ReleaseDynamicPreviewRows(immediateRequest: true);
         RaiseDynamicPreviewProperties();
     }
 
@@ -225,7 +225,7 @@ public sealed partial class AlgorithmListViewModel
         SetStftResult(null);
         RaisePropertyChanged(nameof(PsdPreviewPoints));
         RaiseDynamicPreviewProperties();
-        if (IsOnDemandAnalysis) RequestWindowAtCursor();
+        if (IsOnDemandAnalysis) QueueWindowRequest(immediate: true);
     }
 
     private void AdvanceDynamicPreview() => StepDynamicPreview();
@@ -241,7 +241,7 @@ public sealed partial class AlgorithmListViewModel
             return;
         var maximum = DynamicPlaybackEndSeconds;
         DynamicPreviewCursorSeconds = Math.Clamp(seconds, 0, maximum);
-        ReleaseDynamicPreviewRows();
+        ReleaseDynamicPreviewRows(immediateRequest: true);
         RaiseDynamicPreviewProperties();
     }
 
@@ -253,11 +253,11 @@ public sealed partial class AlgorithmListViewModel
 
     private double ParsePreviewStep() => double.TryParse(DynamicStepText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var step) && step > 0 ? step : 1.0;
 
-    private void ReleaseDynamicPreviewRows()
+    private void ReleaseDynamicPreviewRows(bool immediateRequest = false)
     {
         if (IsOnDemandAnalysis)
         {
-            RequestWindowAtCursor();
+            QueueWindowRequest(immediateRequest);
             if (DynamicPreviewCursorSeconds >= DynamicPlaybackEndSeconds) StopDynamicPreviewTimer();
             return;
         }

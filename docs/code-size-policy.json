@@ -34,8 +34,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
-      "max_lines": 475,
-      "reason": "Review-only trace decimation and gap/time projection now have a focused owner in ReviewWaveformTraceProjection. The canvas remains 467 lines, owning chart binding, layout, viewport and overlays. This defect fix preserves unrelated local viewport changes, raw sampling, filters and montage mapping.",
+      "max_lines": 480,
+      "reason": "Review-only trace decimation and gap/time projection now have a focused owner in ReviewWaveformTraceProjection. The canvas remains a cohesive 476-line owner of chart binding, layout, viewport and overlays. This defect fix preserves unrelated local viewport changes, raw sampling, filters and montage mapping.",
       "follow_up": "Extract event/lifecycle marker rendering into a focused overlay owner before adding further waveform annotation features."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/Views/MontageDetailView.xaml": {
@@ -68,8 +68,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Playback/RecordingReviewSession.cs": {
       "decision": "split",
-      "max_lines": 565,
-      "reason": "Existing review session remains 557 lines. It attaches appearance to its complete frame from the selected immutable snapshot, including empty windows. Color does not create another loader or state machine.",
+      "max_lines": 575,
+      "reason": "Existing review session remains a cohesive 572-line owner of playback-target fencing, frame publication and immutable snapshot appearance. This navigation fix adds cancellation fencing and bounded background montage projection without creating another loader or state machine.",
       "follow_up": "Extract bounded frame loading separately from playback target coordination while preserving one revision owner."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventDefinitionEditorView.xaml": {

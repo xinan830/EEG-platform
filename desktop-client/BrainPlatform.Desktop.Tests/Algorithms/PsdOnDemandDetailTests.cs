@@ -119,7 +119,34 @@ public sealed class PsdOnDemandDetailTests : IDisposable
         Assert.False(catalog.IsOnDemandAnalysis);
     }
 
-    private static AlgorithmListViewModel ReadyCatalog(WindowClient client)
+    [Fact]
+    public void Dynamic_execution_defaults_to_full_and_allows_explicit_on_demand_selection()
+    {
+        var catalog = ReadyCatalog(new WindowClient(), onDemand: false);
+
+        Assert.Equal("全量分析", catalog.SelectedDynamicExecutionMode);
+        Assert.Equal(["全量分析", "按需分析"], catalog.DynamicExecutionModes);
+        Assert.False(catalog.IsOnDemandExecutionModeSelected);
+
+        catalog.SelectedDynamicExecutionMode = "按需分析";
+
+        Assert.True(catalog.IsOnDemandExecutionModeSelected);
+    }
+
+    [Fact]
+    public void Disabled_on_demand_feature_exposes_only_full_execution_and_rejects_selection()
+    {
+        Environment.SetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_PSD", null);
+        var catalog = ReadyCatalog(new WindowClient(), onDemand: false);
+
+        Assert.Equal(["全量分析"], catalog.DynamicExecutionModes);
+        catalog.SelectedDynamicExecutionMode = "按需分析";
+
+        Assert.Equal("全量分析", catalog.SelectedDynamicExecutionMode);
+        Assert.False(catalog.IsOnDemandExecutionModeSelected);
+    }
+
+    private static AlgorithmListViewModel ReadyCatalog(WindowClient client, bool onDemand = true)
     {
         var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter())
         {
@@ -134,6 +161,7 @@ public sealed class PsdOnDemandDetailTests : IDisposable
         catalog.SelectedChannel = "F3";
         catalog.EndSecondsText = "30";
         catalog.SelectedAnalysisMode = "动态";
+        catalog.SelectedDynamicExecutionMode = onDemand ? "按需分析" : "全量分析";
         return catalog;
     }
 
