@@ -7,8 +7,9 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.BandRatio;
 internal sealed class BandRatioRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "band_ratio";
-    public bool SupportsOnDemandWindows => string.Equals(
-        Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_BAND_RATIO"), "1", StringComparison.Ordinal);
+    public bool SupportsOnDemandWindows =>
+        OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
+    public FullRunMetricWindowSpec FullRunMetricWindowSpec => new("ratio");
 
     public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
         _ = BandRatioResultPreview.FromWindow(response, catalog.SelectedChannel ?? "");

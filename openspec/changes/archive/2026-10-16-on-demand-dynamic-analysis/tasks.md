@@ -1,7 +1,10 @@
 # 按需动态分析实施任务
 
-状态校正：2026-10-14。勾选表示该条交付范围已完成并有证据，不代表整期已验收。
+状态校正：2026-10-15。勾选表示该条交付范围已完成并有证据，不代表整期已验收。
 未勾选项后的“已实现/待验证”说明用于区分实际缺口；后端成功不替代 WPF GUI 验收。
+
+后续状态：用户完成九个算法及综合场景验收，并要求无需命令直接选择模式。
+`enable-accepted-offline-analysis-selection` 将已验收模块默认开放；下文“默认关闭”保留各阶段当时状态，不再代表当前默认值。
 
 ## 当前分阶段交付与验收
 
@@ -37,17 +40,18 @@
 - [x] 独立完成时频坐标、外层范围、矩阵 shape/质量的后端与 WPF 迁移；按需结果复用连续预处理 spectrogram loader，首个最小窗口只发布真实时频行，ready/rejected/insufficient 状态和 provenance 已覆盖。
 - [x] STFT 后端专项 `7 passed`，registry/output-schema 回归合计 `14 passed`；backend 全量 `657 passed`。
 - [x] STFT WPF 专项 `3 passed`，WPF 全量基线 `651 passed`；后续自动播放回归新增 1 项，当前全量 `652 passed`；生产开关 `BRAIN_ENABLE_ON_DEMAND_STFT` 与 `BRAIN_WPF_ON_DEMAND_STFT` 默认关闭。
-- [x] 自动化阶段报告见 `docs/validation/2026-10-14-on-demand-stft-stage5.md`；等待用户阶段 5 GUI 验收。
+- [x] 自动化阶段报告见 `docs/validation/2026-10-14-on-demand-stft-stage5.md`；用户阶段 5 GUI 确认见下一项。
 - [x] 用户阶段 5 GUI 验收通过；用户确认“可以了”（2026-10-14）。生产开关仍保持关闭。
 
 ### 阶段 6：最终收口
 
 - [x] Backend/WPF 全量回归、Release build、strict/规模/diff 检查及最终报告通过；证据见 `docs/validation/2026-10-14-on-demand-dynamic-analysis-final.md`。
-- [ ] 用户最终验收通过；未验收 GUI 项继续保持未勾选，不批量宣称 tasks 全部完成。
+- [x] 用户完成 PSD、STFT、RBP、频段功率比、频段峰频率、IAPF、Theta/Beta、FAA、Brainbeat 的全量/按需正常路径复验；根据逐项反馈登记，未新增代理 GUI、数值或性能证据。见 `docs/validation/2026-10-15-offline-modes-wpf-acceptance.md`。
+- [x] 用户在综合场景验收指引后反馈“可以正常”，登记 Review 生命周期与后端停止/恢复综合验收通过；证据为用户反馈，无新增代理 GUI 或性能测量，见 2026-10-15 人工验收记录。
 
 ## P0：契约、身份和持久化设计（实现前决策门）
 
-- [x] 清点当前所有动态 algorithm module 的窗口构造、最小窗口、gap/Partial/尾窗、质量规则、输入来源和 preprocessing scope，产出能力矩阵；不得假定所有 runner 可单窗调用。矩阵见 `docs/algorithms/on-demand-dynamic-capability-matrix.md`；仅 PSD 声明按需单窗能力，其余继续旧完整 Run。
+- [x] 清点当前所有动态 algorithm module 的窗口构造、最小窗口、gap/Partial/尾窗、质量规则、输入来源和 preprocessing scope，产出能力矩阵；不得假定所有 runner 可单窗调用。矩阵见 `docs/algorithms/on-demand-dynamic-capability-matrix.md`；P0 首期仅 PSD 声明能力，后续九个算法已按 P4 分别完成适配与验证。
 - [x] 冻结算法 `DynamicWindowCapability` protocol：policy/plan、prepared-source 依赖身份、单窗执行、取消检查、输出 schema 和科学证据边界；没有能力的算法继续旧完整 Run。已落在 `backend/app/algorithm_runtime/on_demand.py`，PSD 适配器已实现但仍受科学验证开关保护。
 - [x] 冻结 session、window、attempt、subscription 的身份与 SQLite schema/migration；声明配置/源预处理共享关系、项目权限域、唯一索引和并发事务规则。已落在 `on_demand_migrations.py`，并覆盖 partial unique index、外键、半开窗口约束和幂等迁移测试。
 - [x] 冻结 ensure/status/result/subscription/cancel HTTP 方法、payload、响应码、稳定错误码、sample 坐标及旧 API 兼容边界。具体路径和错误码已写入 `specs/analysis/on-demand-windows/spec.md`，由 `api/analysis_windows.py` 提供；审计字段和权限矩阵仍待 P1/P2。
@@ -76,7 +80,7 @@
 - [x] 验证 cancelled retry、多个 subscriber、最后订阅者退出、worker crash/restart、partial publish、ready corruption。仓储/API 注入和真正 subprocess kill/restart 共 2 项恢复测试通过；恢复不需要客户端再次 ensure。
 - [x] 验证完整 Run、`/api/runs/ensure`、cancel/retry、structured preview、window-preview、export 与旧 artifacts 回归。`test_on_demand_psd_api.py` 验证旧完整 Run 全链路及 source/artifact hash 不变。
 - [x] 测短/长合成记录冷/热注册、读取、连续预处理、单窗计算、发布/读取时延及峰值内存/临时磁盘；不得把准备时间隐藏在首窗指标外。60 秒/3600 秒连续与 gap 场景测量已保存；冷指标 n=1、RSS 20 ms 采样和 TestClient 限制已披露。
-- [ ] P1 科学、兼容和资源证据通过后才打开 WPF 按需功能开关。P1 自动化门已通过，测试显式 opt-in；生产两个开关默认继续关闭，等待 PSD P3 GUI 验收，不自动批量迁移。
+- [x] P1 科学、兼容和资源证据通过后才显式启用验收开关；当前源码启动脚本开启 PSD，用户完成本轮 PSD GUI 复验。源码开关默认仍关闭，其余算法通过成对环境变量验收，不自动批量开启。
 
 ## P2：WPF Review 与算法详情垂直切片
 
@@ -85,14 +89,15 @@
 - [x] Review 与算法详情分别实现轻量 target adapter，共用 coordinator；复用唯一 RecordingRelativeSampleIndex 游标，不创建第二个 timer/clock。`DynamicWindowTargetCoordinator` 仅协调传输；Review provider 与 Catalog.OnDemand 复用，详情/Review 专项测试通过。
 - [x] PSD Presenter 解析 ready result 并绑定 PSD 模块图表；不得重算滤波、PSD、质量或频带。PSD provider 将后端数组/单位映射到既有 SciChart 投影，WPF 未实现科学计算。
 - [x] 实现目标/已显示旧窗口/实际窗口独立状态、加载、insufficient、rejected、unavailable、cancelled、failed 展示。准备/计算状态经真实轮询回调展示；详情质量证据支持实际 failure.details，PSD 显示单位显式转换为 uV^2/Hz；GUI 渲染验收另列 P3。
-- [ ] 测播放、暂停、倍速、前后跳转、拖动节流、同窗命中、参数/通道改动、A→B→C 晚返回、切记录、关闭/重开面板及 waveform 不受阻。协调器/详情/provider/绑定专项已覆盖有界目标、暂停命令、配置隔离、关页和 3 项延迟进度竞态；真实 GUI 倍速、拖动及波形帧率仍待验收，不能用 VM 测试代替。
+- [x] 算法列表/详情页的全量与按需正常交互按本轮逐算法用户反馈通过；验收指引包含播放、暂停、跳转、模式切换和结果对应，未逐项采集请求日志或性能数据。
+- [x] 用户在 Review 倍速、切记录、关闭/重开面板及波形独立性验收指引后反馈“可以正常”；登记人工综合通过，不新增帧率保证。协调器的去重、配置隔离、关页和晚返回竞态继续以自动化为证。
 - [x] 验证取消一个页面订阅不影响其他订阅者，页面卸载不删除持久科学结果。后台共享订阅测试和 WPF release/close-reopen 测试已通过；页面释放只取消自己的 subscription。
 
 ## P3：真实记录验收和性能决策
 
 - [x] 使用用户本机真实 WPF 记录比较完整 Run 与按需窗口，保存脱敏诊断和可重复验收报告。2000 Hz、前 2 个导联共 114 READY 窗口，误差 0；source/artifact hash 和完整 evidence 比较已保存，不提交 EEG 或个人路径。
 - [x] 用小时级合成记录测目标随机跳转、顺序播放、gap、多通道和多请求；报告 p50/p95 首窗/后窗/准备耗时、总耗时、请求数、CPU/峰值内存/临时磁盘。200 Hz、2 通道、4 消费者；后窗/并发分布及阶段耗时完整。冷首窗/首次预处理仅 n=1，不伪称有统计 p95；高采样率/几十通道不在本报告保证范围内。
-- [ ] 确认播放目标不会形成无界请求队列；明确网络/轮询频率、服务不可用时旧回溯保持可用。自动化证明一活动+一可替换目标、200 ms 请求/轮询间隔及 backend fault 可观察/可重试；真实服务不可用时波形仍独立播放的 GUI 验收待补。
+- [x] 自动化证明一活动+一可替换目标、有界请求/轮询及 backend fault 可观察/可重试；用户在后端停止时波形独立播放及恢复验收指引后反馈“可以正常”。没有新增延迟或吞吐保证。
 - [x] 使用 hash 证明原始记录、历史 Run/artifact 未改写；验证功能开关关闭后完整 Run 路径可用。真实格式合成源 API 测试比较 source/artifact bytes，WPF opt-out 专项验证旧 Run 路径；真实用户记录证据另列上方。
 - [x] OpenSpec strict、backend 全量测试、WPF 全量测试、Release build、文件规模检查、`git diff --check` 均通过。2026-10-13 最新复核 backend 659/659，WPF 645/645，Release 0 errors、既有 NU1701 警告；strict/规模/diff 通过。WPF 共享 Application 生命周期已修复，不再把全量资源初始化失败当作环境问题跳过。
 
@@ -106,9 +111,9 @@
 - [x] 频段峰频率：频段/网格/并列峰政策、质量对照；独立 WPF 投影。
 - [x] IAPF：峰估计/不可用原因和残差 evidence 对照；独立 WPF 投影。
 - [x] Theta/Beta：个体峰与双频段关系、质量对照；独立 WPF 投影。
-- [x] FAA：成对源、连续预处理/epoch/最小干净 epoch 和数值对照；独立 WPF 投影；自动化证据已完成，等待阶段 3 GUI 验收。
-- [x] Brainbeat：双通道/派生依赖及独立窗口无跨窗 EMA 对照；独立 WPF 投影；自动化证据完成，等待阶段 4 GUI 验收。
-- [x] STFT：内部时频坐标、外层窗、shape/质量与完整 Run 矩阵对照；独立 WPF 投影；生产开关保持关闭，等待阶段 5 GUI。
+- [x] FAA：成对源、连续预处理/epoch/最小干净 epoch 和数值对照；独立 WPF 投影；阶段 3 和 2026-10-15 本轮正常路径 GUI 均获用户确认。
+- [x] Brainbeat：双通道/派生依赖及独立窗口无跨窗 EMA 对照；独立 WPF 投影；阶段 4 和 2026-10-15 本轮正常路径 GUI 均获用户确认。
+- [x] STFT：内部时频坐标、外层窗、shape/质量与完整 Run 矩阵对照；独立 WPF 投影；阶段 5 和 2026-10-15 本轮正常路径 GUI 均获用户确认，源码开关默认仍关闭。
 
 - [x] 已迁移的 RBP、四标量模块、FAA、Brainbeat 与 STFT 分别完成 science/capability 评估与 fixture/真实格式数值验证；生产开关仍默认关闭。
 - [x] FAA 单独验证 continuous preprocessing 与 per-window epoch 语义，不能复用错误 prepared-source 实现；窗口结果保留 `whole_recording_before_window_slice` provenance。

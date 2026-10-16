@@ -78,7 +78,7 @@ public sealed class RbpOnDemandDetailTests : IDisposable
     [Fact]
     public async Task Flag_off_keeps_legacy_path()
     {
-        Environment.SetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_RBP", null);
+        Environment.SetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_RBP", "0");
         var client = new OnDemandDetailClient();
         var catalog = OnDemandDetailClient.Catalog(client);
         await Assert.ThrowsAsync<NotSupportedException>(() => OnDemandDetailClient.Run(catalog));

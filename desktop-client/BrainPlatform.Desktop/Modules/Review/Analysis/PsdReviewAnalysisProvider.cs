@@ -20,11 +20,9 @@ public sealed class PsdReviewAnalysisProvider : IReviewAnalysisProvider
     }
     public string AlgorithmId => "psd";
 
-    // The backend keeps this capability disabled until the PSD equivalence
-    // evidence is accepted. A desktop opt-in makes the fallback explicit.
+    // Review and the algorithm catalog share the accepted PSD availability policy.
     public bool SupportsOnDemandWindows =>
-        enableOnDemand ?? string.Equals(
-            Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_PSD"), "1", StringComparison.Ordinal);
+        enableOnDemand ?? OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
 
     public async Task<AlgorithmCatalogItem> GetAlgorithmAsync(CancellationToken cancellationToken) =>
         (await client.ListAlgorithmsAsync(cancellationToken)).Single(item => item.Id == AlgorithmId && item.IsRunnable);

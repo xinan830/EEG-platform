@@ -43,10 +43,16 @@ before either client displays it.
 For a static PSD Run in WPF, open the algorithm workspace, select a project
 and one of its completed recordings, then register the record. The backend
 returns the actual channel list and duration. Select PSD, a channel, and the
-requested start/end seconds before starting analysis. Other catalog entries
-are visible but cannot run through this PSD-only form. The result plot shows
+requested start/end seconds before starting analysis. Each accepted algorithm
+uses its own parameter and result adapter. The result plot shows
 the bounded backend frequency/PSD preview with its declared units; unavailable
 values are left blank rather than drawn as zero.
+
+For dynamic analysis, select “分析方式” in the shared parameter card: “全量分析”
+computes the selected interval, while “按需分析” loads the cursor's target window.
+All nine accepted modules offer both choices without environment commands;
+the initial choice remains full analysis. Review's PSD adapter uses the same
+availability policy. Per-module environment overrides remain for maintenance.
 
 ## Build And Test
 
@@ -63,12 +69,12 @@ backend development command. The startup script and current web client use port
 
 From the repository root, `start_brain_desktop.bat` opens separate terminal and
 WPF windows for the backend and frontend. The backend terminal keeps the live
-Uvicorn logs visible. It prefers the current `desktop-client` Release
-executable and only falls back to the portable `dist\BrainPlatform-Release`
-package when the development executable is absent. If a healthy backend owned
+Uvicorn logs visible. It builds the current `desktop-client` Release source and
+launches its DLL with `dotnet`; it never launches the portable release package.
+If a healthy backend owned
 by this project is already running, the script restarts it in the visible
 backend terminal so the frontend and backend windows remain clear; an
-unrelated process on port 8000 is reused without being terminated.
+unrelated process on port 8000 is reported without being terminated.
 
 ## Windows Release Package
 

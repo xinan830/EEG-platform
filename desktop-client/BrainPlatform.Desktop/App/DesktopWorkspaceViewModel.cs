@@ -165,6 +165,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
 
     public async ValueTask DisposeAsync()
     {
+        await AlgorithmCatalog.DisposeAsync();
         Overview.Dispose();
         await Acquisition.DisposeAsync();
     }

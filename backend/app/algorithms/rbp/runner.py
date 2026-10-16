@@ -17,6 +17,7 @@ from .window import RbpWindowCapability
 
 class RbpAlgorithm(RbpWindowCapability):
     manifest = MANIFEST
+    on_demand_default_enabled = True
     config_model = RbpConfig
 
     def parameter_schema(self) -> ParameterSchema:

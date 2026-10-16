@@ -21,14 +21,47 @@ from app.scientific.contracts.types import SampleRange
 from app.scientific.quality import SpectralQualityGateError
 
 from .config import StftConfig
+from .evidence import window_evidence, window_provenance
 from .manifest import MANIFEST
 from .window import StftWindowCapability
 
 
 class StftAlgorithm(StftWindowCapability):
     manifest = MANIFEST
+    on_demand_default_enabled = True
     config_model = StftConfig
     output_schema = MANIFEST.output_schema
+
+    def can_reuse_offline_window(self, result: Any, *, sampling_rate_hz: float,
+                                 config: dict[str, Any] | None = None) -> bool:
+        """Opt in only for complete windows on the current STFT coordinate grid."""
+        if result.state != "ready" or result.failure is not None:
+            return False
+        provenance = result.provenance
+        if provenance.get("analysis_state") != "Complete" or provenance.get("inner_time_axis") != "relative_window_time_center_s":
+            return False
+        if config is None:
+            return False
+        window_s = float(
+            config.get("window_s")
+            or config.get("dynamic_window_s")
+            or MANIFEST.dynamic_policy.default_window_s
+        )
+        inner_count = int(np.floor(window_s - 4.0) + 1)
+        low_hz = float(config["low_hz"])
+        high_hz = float(config["high_hz"])
+        expected_times = 2.0 + np.arange(inner_count, dtype=float)
+        expected_frequencies = self._frequency_axis(sampling_rate_hz, low_hz, high_hz)
+        times = np.asarray(result.axes.get("time_center_s", []), dtype=float)
+        frequencies = np.asarray(result.axes.get("frequency_hz", []), dtype=float)
+        linear = np.asarray(result.arrays.get("power_linear", []), dtype=float)
+        power_db = np.asarray(result.arrays.get("power_db", []), dtype=float)
+        return (
+            np.array_equal(times, expected_times)
+            and np.array_equal(frequencies, expected_frequencies)
+            and linear.shape == (inner_count, expected_frequencies.size)
+            and power_db.shape == linear.shape
+        )
 
     def parameter_schema(self) -> ParameterSchema:
         return ParameterSchema(parameters=[
@@ -145,7 +178,32 @@ class StftAlgorithm(StftWindowCapability):
             quality = "clean"
             state = frame.state
             evidence: dict[str, Any] = {"calculation_trace": {"inner_valid_count": 0}}
+            provenance: dict[str, Any] = {}
             try:
+                cached = None
+                if inputs.execution_context is not None and hasattr(inputs.execution_context, "cached_window"):
+                    cached = inputs.execution_context.cached_window(sample_range.start_sample, sample_range.end_sample)
+                if cached is not None:
+                    if cached.state == "ready":
+                        cached_frequencies = np.asarray(cached.axes["frequency_hz"], dtype=float)
+                        if frequencies is None:
+                            frequencies = cached_frequencies
+                        elif not np.array_equal(frequencies, cached_frequencies):
+                            raise ValueError("STFT 动态窗口返回的频率轴与本次 Welch 合同不一致")
+                        rows_linear.append(np.asarray(cached.arrays["power_linear"], dtype=float))
+                        rows_db.append(np.asarray(cached.arrays["power_db"], dtype=float))
+                        evidence = dict(cached.evidence)
+                        provenance = dict(cached.provenance)
+                        windows.append(StructuredSeriesWindow(
+                            start_sample=sample_range.start_sample, end_sample=sample_range.end_sample,
+                            start_s=frame.window_start_s, end_s=frame.window_end_s,
+                            state=frame.state, quality=cached.quality, evidence=evidence,
+                            provenance=provenance,
+                        ))
+                        continue
+                    if cached.state == "rejected":
+                        raise SpectralQualityGateError((cached.failure or {}).get("details", {}))
+                    raise ValueError((cached.failure or {}).get("message", "cached STFT window unavailable"))
                 payload = self._load(
                     inputs.payload, channel=inputs.channel,
                     start_s=frame.window_start_s, window_s=frame.actual_window_s, low_hz=config.low_hz, high_hz=config.high_hz, notch_hz=config.notch_hz,
@@ -164,16 +222,14 @@ class StftAlgorithm(StftWindowCapability):
                 db = np.full((inner_count, len(frequencies)), np.nan, dtype=float)
                 linear[:valid_count] = linear_source[:valid_count]
                 db[:valid_count] = db_source[:valid_count]
-                evidence = {
-                    "source_quality": quality_payload,
-                    "spectral_evidence": dict(quality_payload.get("evidence", {})),
-                    "calculation_trace": {
-                        "inner_valid_count": valid_count,
-                        "frequency_range_hz": payload.get("frequency_range_hz", {"low_hz": config.low_hz, "high_hz": config.high_hz}),
-                        "filter_frequency_range_hz": payload.get("filter_frequency_range_hz", {"low_hz": config.low_hz, "high_hz": config.high_hz}),
-                        "notch_hz": payload.get("notch_hz", config.notch_hz),
-                    },
-                }
+                evidence = window_evidence(payload, valid_count=valid_count)
+                provenance = window_provenance(
+                    payload,
+                    start_s=frame.window_start_s,
+                    end_s=frame.window_end_s,
+                    source_channel=inputs.channel,
+                    analysis_state=("Partial" if frame.actual_window_s < window_s - 1e-9 else "Complete"),
+                )
                 if int(quality_payload.get("bad_windows", 0)):
                     quality = "gate_failed"
                     state = "Rejected"
@@ -204,6 +260,7 @@ class StftAlgorithm(StftWindowCapability):
                 start_sample=sample_range.start_sample, end_sample=sample_range.end_sample,
                 start_s=frame.window_start_s, end_s=frame.window_end_s,
                 state=state, quality=quality, failure=failure, evidence=evidence,
+                provenance=provenance,
             ))
 
         if frequencies is None:

@@ -70,13 +70,23 @@ def compare_real(root, scratch):
     report = {"duration_s": recording.duration_s, "sfreq_hz": recording.sfreq, "channels_tested": 0,
               "windows_tested": 0, "states": {}, "max_abs_error": 0.0, "max_relative_error": 0.0,
               "rtol": 1e-12, "atol_psd": 1e-24, "atol_ratio": 1e-12,
-              "source_files_sha256": before, "full_artifacts_sha256": []}
+              "source_files_sha256": before, "full_artifacts_sha256": [],
+              "reused_on_demand_window_counts": []}
     try:
         for channel in recording.channels[:2]:
             config = psd_config(recording, channel=channel)
+            seed = windows.ensure(DynamicWindowRequest(recording_id=recording.id, algorithm_id="psd",
+                config=config, cursor_sample=round(5.0 * recording.sfreq), request_id=f"reuse-seed-{channel}"))
+            seed_result = terminal(windows, seed["window_id"])
+            assert seed_result["state"] == "ready", seed_result
             queued = runs.enqueue(RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config=config))
             full = runs.process_next()
             assert full.run_id == queued.run_id and full.status.value == "completed", full.error
+            provenance = full.result_summary.get("execution_provenance", {})
+            reused_count = int(provenance.get("reused_on_demand_window_count", 0))
+            assert reused_count >= 1, provenance
+            report["reused_on_demand_window_counts"].append(reused_count)
+            windows.cancel_subscription(seed["subscription_id"])
             artifact = runs.list_artifacts(full.run_id)[0]
             arrays = runs.base.artifacts.read_npz(artifact)
             artifact_path = runs.base.artifacts.root / artifact.relative_path
@@ -334,7 +344,7 @@ def main():
     parser.add_argument("--recording", type=Path)
     parser.add_argument("--duration-s", type=float, default=3600)
     args = parser.parse_args()
-    report = {"schema": "on-demand-psd-diagnostic-v1", "real_recording": None}
+    report = {"schema": "on-demand-psd-diagnostic-v2", "real_recording": None}
     with tempfile.TemporaryDirectory(prefix="brain-window-validation-") as temporary:
         scratch = Path(temporary)
         if args.recording:

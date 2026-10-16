@@ -7,8 +7,9 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.ThetaBeta;
 internal sealed class ThetaBetaRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "theta_beta";
-    public bool SupportsOnDemandWindows => string.Equals(
-        Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_THETA_BETA"), "1", StringComparison.Ordinal);
+    public bool SupportsOnDemandWindows =>
+        OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
+    public FullRunMetricWindowSpec FullRunMetricWindowSpec => new("theta_beta");
 
     public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
         _ = ThetaBetaResultPreview.FromWindow(response, catalog.SelectedChannel ?? "");

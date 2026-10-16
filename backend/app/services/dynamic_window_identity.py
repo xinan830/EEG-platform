@@ -3,6 +3,7 @@
 from app.algorithms.catalog import ensure_official_definitions, official_definition_identity
 from app.algorithm_runtime.errors import DynamicWindowIdentityConflictError
 from app.core.provenance import implementation_version
+from app.algorithm_runtime.offline_execution import official_definition_sha256
 from app.services.definitions import DefinitionService
 
 
@@ -23,4 +24,9 @@ class DynamicWindowIdentityResolver:
                 detail={"definition_id": definition_id, "definition_version": version},
             )
         return {"definition_id": definition_id, "definition_version": version,
-                "definition_sha256": digest, "implementation_build": self.implementation_build}
+                "definition_sha256": official_definition_sha256(
+                    definition_id=definition_id, definition_version=version,
+                    definition_digest=digest, algorithm_id=module.manifest.algorithm_id,
+                    scientific_version=module.manifest.scientific_version,
+                    implementation_identity=module.manifest.implementation_identity,
+                ), "implementation_build": self.implementation_build}

@@ -1,10 +1,11 @@
 # desktop/offline-analysis-execution-modes Specification
 
-## ADDED Requirements
-
+## Purpose
+TBD - created by archiving change unify-offline-analysis-execution-modes. Update Purpose after archive.
+## Requirements
 ### Requirement: Offer explicit offline execution strategies
 
-For a dynamic official algorithm, the desktop client SHALL expose full analysis by default and SHALL expose on-demand analysis only when the selected result handler declares window support and its feature flag is enabled.
+For a dynamic official algorithm, the desktop client SHALL expose full analysis by default and SHALL expose on-demand analysis only when the selected result handler declares window support and its availability policy permits it. Accepted modules use module-approved defaults, with optional maintenance overrides, as specified by `desktop/offline-analysis-selection`.
 
 #### Scenario: Full analysis is the default
 
@@ -14,12 +15,12 @@ For a dynamic official algorithm, the desktop client SHALL expose full analysis 
 
 #### Scenario: On-demand is available
 
-- **WHEN** the selected algorithm declares on-demand window support and its WPF feature flag is enabled
+- **WHEN** the selected algorithm declares on-demand window support and its WPF availability policy permits it
 - **THEN** the dynamic execution strategy choices include full analysis and on-demand analysis.
 
 #### Scenario: On-demand is unavailable
 
-- **WHEN** the selected algorithm does not declare on-demand support or its feature flag is disabled
+- **WHEN** the selected algorithm does not declare on-demand support or its availability policy disables it
 - **THEN** only full analysis is offered
 - **AND** the client uses the existing full Run path.
 
@@ -32,3 +33,4 @@ Changing the offline execution strategy SHALL NOT change the selected algorithm,
 - **WHEN** a user switches between full and on-demand analysis
 - **THEN** stale display state is cleared and the selected configuration is executed again
 - **AND** no frontend scientific calculation is performed.
+

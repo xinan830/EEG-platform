@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
@@ -7,6 +9,13 @@ internal static class AlgorithmRunConfiguration
 {
     internal sealed record FrequencyBand(double LowHz, double HighHz);
     internal sealed record BandRatioBands(FrequencyBand Numerator, FrequencyBand Denominator);
+
+    internal static string StableFullRunIdempotencyKey(AnalysisRunRequest request)
+    {
+        var canonical = $"full-v1|{request.RecordingId}|{request.AnalysisType}|{request.Config.GetRawText()}";
+        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+        return $"offline-full:{digest}";
+    }
 
     internal static TimeRange ParseStaticRangeOrThrow(string startText, string endText, double durationSeconds)
     {

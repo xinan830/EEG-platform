@@ -177,7 +177,47 @@
        </StackPanel>
    </Grid>
    <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="12,10" Margin="0,0,0,12"><Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Parameters.IsBandRatioSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style><StackPanel><Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="频段功率比参数" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/><ComboBox Grid.Column="1" Width="132" Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding Parameters.BandRatioPresetNames}" SelectedItem="{Binding Parameters.SelectedRatioPreset, Mode=TwoWay}"/></Grid><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="分子频段（Hz）" FontSize="12" Foreground="#475569"/><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.NumeratorLowFrequencyText, UpdateSourceTrigger=LostFocus}"/><TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B"/><TextBox Grid.Column="2" Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.NumeratorHighFrequencyText, UpdateSourceTrigger=LostFocus}"/></Grid></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="分母频段（Hz）" FontSize="12" Foreground="#475569"/><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.DenominatorLowFrequencyText, UpdateSourceTrigger=LostFocus}"/><TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B"/><TextBox Grid.Column="2" Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.DenominatorHighFrequencyText, UpdateSourceTrigger=LostFocus}"/></Grid></StackPanel></Grid></StackPanel></Border><Border Background="#EFF6FF" CornerRadius="6" Padding="14,10"><StackPanel><TextBlock FontSize="12" Foreground="#334155"><Run Text="实际分析范围："/><Run Text="{Binding ActualRangeText, Mode=OneWay}" FontWeight="Medium"/></TextBlock><TextBlock FontSize="12" Foreground="#334155" Margin="0,3,0,0"><Run Text="窗口状态："/><Run Text="{Binding WindowStateText, Mode=OneWay}" FontWeight="Medium"/></TextBlock></StackPanel></Border>
-   <StackPanel Margin="0,12,0,0"><StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding IsDynamicMode}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style><TextBlock Text="动态参数" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6"/><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="动态窗口" FontSize="12" Foreground="#475569"/><ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding DynamicWindowOptions}" SelectedItem="{Binding SelectedDynamicWindowSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="刷新步长" FontSize="12" Foreground="#475569"/><ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding DynamicStepOptions}" SelectedItem="{Binding SelectedDynamicStepSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></StackPanel><StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,10,0,0"><TextBlock Text="执行方式" FontSize="12" Foreground="#475569"/><ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding DynamicExecutionModes}" SelectedItem="{Binding SelectedDynamicExecutionMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/></StackPanel></Grid></StackPanel>
+   <StackPanel Margin="0,12,0,0">
+       <StackPanel.Style>
+           <Style TargetType="StackPanel">
+               <Setter Property="Visibility" Value="Collapsed" />
+               <Style.Triggers>
+                   <DataTrigger Binding="{Binding IsDynamicMode}" Value="True">
+                       <Setter Property="Visibility" Value="Visible" />
+                   </DataTrigger>
+               </Style.Triggers>
+           </Style>
+       </StackPanel.Style>
+       <TextBlock Text="动态参数" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6" />
+       <Grid>
+           <Grid.RowDefinitions>
+               <RowDefinition Height="Auto" />
+               <RowDefinition Height="Auto" />
+           </Grid.RowDefinitions>
+           <Grid.ColumnDefinitions>
+               <ColumnDefinition Width="*" />
+               <ColumnDefinition Width="12" />
+               <ColumnDefinition Width="*" />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+               <TextBlock Text="动态窗口" FontSize="12" Foreground="#475569" />
+               <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding DynamicWindowOptions}"
+                         SelectedItem="{Binding SelectedDynamicWindowSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+               <TextBlock Text="刷新步长" FontSize="12" Foreground="#475569" />
+               <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding DynamicStepOptions}"
+                         SelectedItem="{Binding SelectedDynamicStepSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+           </StackPanel>
+           <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,10,0,0">
+               <TextBlock Text="分析方式" FontSize="12" Foreground="#475569" />
+               <ComboBox x:Name="DynamicExecutionModeComboBox" Style="{StaticResource AppFilterComboBoxStyle}"
+                         ItemsSource="{Binding DynamicExecutionModes}"
+                         SelectedItem="{Binding SelectedDynamicExecutionMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          ToolTip="全量分析：计算整个所选区间；按需分析：跟随游标计算目标窗口；按需预览 + 后台全量：先显示当前窗口，再后台补齐全量结果。" />
+           </StackPanel>
+       </Grid>
+   </StackPanel>
   <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="14,12" Margin="0,0,0,12">
       <Border.Style>
           <Style TargetType="Border">

@@ -3,6 +3,11 @@
   "strong_review_lines": 600,
   "critical_lines": 1000,
   "reviews": {
+    "backend/app/services/on_demand_dynamic.py": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "按需会话编排保留单一身份、订阅与发布状态所有者；调度准入、任务执行、恢复、科学身份纯函数、离线复用和 artifact 校验已有独立边界。本轮组合策略只复用既有入口，不复制科学计算；继续拆分应在单独的调度维护变更中完成。"
+    },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
       "max_lines": 445,
@@ -22,8 +27,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Views/Shared/AnalysisParameterCard.xaml": {
       "decision": "split",
-      "max_lines": 510,
-      "reason": "Only two existing input labels become explicit recording seconds; parameter bindings and layout remain unchanged.",
+      "max_lines": 550,
+      "reason": "544 行公共参数卡保留既有拆分计划。本次只展开已有动态参数区的压缩行，为分析方式控件增加名称、说明并验证双向绑定；未增加算法科学分支或新的状态所有者。",
       "follow_up": "Extract algorithm-specific parameter templates and segmented styles in a dedicated parameter-card maintenance change."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Projects/ViewModels/ProjectWorkspaceViewModel.cs": {
@@ -108,6 +113,12 @@
       "decision": "keep",
       "max_lines": 500,
       "reason": "RunService 是单一的分析运行生命周期边界，统一负责请求解析、缓存键、状态持久化、结果摘要和 artifact 关联；科学公式、SQL repository 和队列执行器已分别下沉到专属边界。当前迁移只增加了退休用户算法的公共入口保护，拆分会复制运行状态语义。"
+    },
+    "backend/app/services/run_queue.py": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "持久队列仍是 Run 状态、完整窗口覆盖门禁、幂等复用和 artifact manifest 校验的单一事务边界；worker 执行、科学模块和 repository 已分离。本轮只增加导出所依赖的完整性门禁，不机械拆分事务状态。",
+      "follow_up": "在 durable single-flight 与受控公平调度单独实现时，抽取队列策略和覆盖校验协作者，保持状态迁移唯一。"
     },
     "frontend/src/App.vue": {
       "decision": "split",
@@ -208,8 +219,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Catalog/AlgorithmListViewModel.cs": {
       "decision": "split",
-      "max_lines": 660,
-      "reason": "算法专属参数检查、完成结果分发和标量窗口解析已移入算法目录的运行适配器；主类保留目录选择、自动执行、共享请求协调与状态通知，继续按职责拆分。",
+      "max_lines": 720,
+      "reason": "算法专属参数检查、完成结果分发和标量窗口解析已移入算法目录的运行适配器；主类保留目录选择、自动执行、共享请求协调与状态通知。本轮仅增加后台 Full 观察者生命周期字段，继续按职责拆分。",
       "follow_up": "继续抽离自动执行协调；PSD/STFT 预览状态与公共参数面板的算法接入仍需独立评估。运行适配器登记见 refactor-wpf-algorithm-run-adapters。"
     }
   }

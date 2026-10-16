@@ -8,8 +8,8 @@ internal sealed class FaaRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "faa";
     public bool SupportsNotch => true;
-    public bool SupportsOnDemandWindows => string.Equals(
-        Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_FAA"), "1", StringComparison.Ordinal);
+    public bool SupportsOnDemandWindows =>
+        OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
 
     public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
         _ = FaaResultPreview.FromWindow(response);

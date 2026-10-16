@@ -108,7 +108,7 @@ public sealed class ScalarOnDemandDetailTests : IDisposable
     [Theory, MemberData(nameof(Algorithms))]
     public async Task Flag_off_keeps_full_run_path(string id)
     {
-        Environment.SetEnvironmentVariable(Flag(id), null);
+        Environment.SetEnvironmentVariable(Flag(id), "0");
         var client = Client();
         var catalog = OnDemandDetailClient.Catalog(client, id);
         await Assert.ThrowsAsync<NotSupportedException>(() => OnDemandDetailClient.Run(catalog));

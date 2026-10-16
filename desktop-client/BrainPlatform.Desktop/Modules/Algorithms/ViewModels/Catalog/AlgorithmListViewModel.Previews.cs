@@ -288,6 +288,7 @@ public sealed partial class AlgorithmListViewModel
         RaisePropertyChanged(nameof(DynamicPreviewCursorText));
         RaisePropertyChanged(nameof(HasDynamicPreview));
         RaisePropertyChanged(nameof(DynamicPreviewStatusText));
+        RaisePropertyChanged(nameof(DynamicPreviewSourceText));
         RaisePropertyChanged(nameof(DynamicPreviewRows));
         RaisePropertyChanged(nameof(DynamicTimeProgressPercent));
         RaisePropertyChanged(nameof(DynamicTimeProgressText));

@@ -14,6 +14,7 @@ from .window import FaaWindowCapability
 
 class FaaAlgorithm(FaaWindowCapability):
     manifest = MANIFEST
+    on_demand_default_enabled = True
     config_model = FaaConfig
 
     def parameter_schema(self) -> ParameterSchema:

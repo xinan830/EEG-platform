@@ -1,49 +1,86 @@
+
 @echo off
-setlocal
+setlocal EnableExtensions
+
+rem =====================================================
+rem Brain Platform - Python Backend Development Launcher
+rem Only run Python source code, never packaged EXE.
+rem =====================================================
 
 set "PROJECT_ROOT=%~dp0"
 set "BACKEND_ROOT=%PROJECT_ROOT%backend"
-set "FRONTEND_ROOT=%PROJECT_ROOT%frontend"
 set "BACKEND_PYTHON=%BACKEND_ROOT%\.venv\Scripts\python.exe"
-set "NODE_ROOT=D:\nodejs"
 
+rem Enable on-demand PSD analysis
+set "BRAIN_ENABLE_ON_DEMAND_PSD=1"
+
+title Brain Platform - Python Backend
+
+echo ==========================================
+echo    Brain Platform Python Backend
+echo ==========================================
+echo.
+
+rem Step 1: Verify Python environment
 if not exist "%BACKEND_PYTHON%" (
-    echo Backend Python environment was not found:
+    echo [ERROR] Python virtual environment not found:
     echo %BACKEND_PYTHON%
     pause
     exit /b 1
 )
 
+rem Step 2: Verify backend source code
 if not exist "%BACKEND_ROOT%\app\main.py" (
-    echo Backend entry point was not found.
+    echo [ERROR] Backend source code not found:
+    echo %BACKEND_ROOT%\app\main.py
     pause
     exit /b 1
 )
 
-if not exist "%FRONTEND_ROOT%\package.json" (
-    echo Frontend package.json was not found.
+rem Step 3: Stop process listening on port 8000
+echo [1/3] Checking port 8000...
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$pids8000 = @(Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique); foreach ($procId in $pids8000) { if ($procId -gt 0 -and $procId -ne $PID) { Write-Host ('Stopping PID: ' + $procId); Stop-Process -Id $procId -Force -ErrorAction Stop } }"
+
+if errorlevel 1 (
+    echo [ERROR] Failed to release port 8000.
     pause
     exit /b 1
 )
 
-if exist "%NODE_ROOT%\npm.cmd" (
-    set "NPM_COMMAND=%NODE_ROOT%\npm.cmd"
-) else (
-    where npm.cmd >nul 2>nul
-    if errorlevel 1 (
-        echo npm.cmd was not found. Install Node.js or update NODE_ROOT in this file.
-        pause
-        exit /b 1
-    )
-    set "NPM_COMMAND=npm.cmd"
+rem Step 4: Wait for port release
+echo [2/3] Waiting for port release...
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$free = $false; for ($i = 0; $i -lt 20; $i++) { if (-not (Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue)) { $free = $true; break }; Start-Sleep -Milliseconds 250 }; if (-not $free) { exit 1 }"
+
+if errorlevel 1 (
+    echo [ERROR] Port 8000 is still occupied.
+    pause
+    exit /b 1
 )
 
-echo Starting Brain Platform backend and frontend...
-start "Brain Platform Backend" /D "%BACKEND_ROOT%" cmd /k ""%BACKEND_PYTHON%" -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
-start "Brain Platform Frontend" /D "%FRONTEND_ROOT%" cmd /k ""%NPM_COMMAND%" run dev -- --host 127.0.0.1 --port 5173"
+rem Step 5: Start Python source backend
+echo [3/3] Starting Python backend...
+echo.
+echo Backend mode : SOURCE CODE
+echo Backend path : %BACKEND_ROOT%
+echo Backend URL  : http://127.0.0.1:8000
+echo On-demand PSD: ENABLED
+echo.
+echo Close this window to stop the backend.
+echo ==========================================
+echo.
+
+cd /d "%BACKEND_ROOT%"
+
+"%BACKEND_PYTHON%" -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+
+set "EXIT_CODE=%ERRORLEVEL%"
 
 echo.
-echo Backend API: http://127.0.0.1:8000/docs
-echo Frontend:    http://127.0.0.1:5173
-echo Close the two opened terminal windows to stop the services.
-endlocal
+echo Backend stopped. Exit code: %EXIT_CODE%
+pause
+
+endlocal & exit /b %EXIT_CODE%

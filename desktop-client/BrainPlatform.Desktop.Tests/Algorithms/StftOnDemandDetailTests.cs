@@ -14,7 +14,7 @@ public sealed class StftOnDemandDetailTests : IDisposable
     public void Dispose() => Environment.SetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_STFT", previous);
 
     [Fact]
-    public async Task Ready_window_binds_absolute_time_frequency_matrix_without_full_run()
+    public async Task Ready_window_projects_relative_time_frequency_matrix_without_full_run()
     {
         var client = new OnDemandDetailClient { Respond = Response };
         var catalog = OnDemandDetailClient.Catalog(client, "stft", unit: "dB re 1 uV^2/Hz");
@@ -86,6 +86,46 @@ public sealed class StftOnDemandDetailTests : IDisposable
         Assert.Null(state.WindowPreview);
     }
 
+    [Theory]
+    [InlineData(800, 0, 4, 2)]
+    [InlineData(3000, 10, 15, 12)]
+    [InlineData(5000, 20, 25, 22)]
+    public void Relative_window_times_are_projected_to_recording_time_once(
+        long cursorSample, double start, double end, double firstCenter)
+    {
+        var response = Response(new DynamicWindowRequest("recording", "stft", null, null,
+            JsonSerializer.SerializeToElement(new { }), cursorSample, RequestId: "request"));
+        var preview = StftPreview.FromWindow(response);
+        Assert.Equal(firstCenter, preview.TimesSeconds[0]);
+        Assert.Equal(new TimeRange(start, end), preview.RequestedRange);
+        Assert.Equal(cursorSample < 1000 ? 1 : 2, preview.TimesSeconds.Length);
+        Assert.Equal(1, preview.PowerDb[0][0]);
+    }
+
+    [Theory]
+    [InlineData("absolute_recording_time_center_s", 12, 13)]
+    [InlineData("relative_window_time_center_s", 12, 13)]
+    [InlineData("relative_window_time_center_s", -2, 3)]
+    public void Legacy_or_out_of_window_coordinates_are_rejected(string axisKind, double first, double second)
+    {
+        var response = Response(new DynamicWindowRequest("recording", "stft", null, null,
+            JsonSerializer.SerializeToElement(new { }), 3000, RequestId: "request"));
+        var result = response.Result!;
+        var axes = result.Axes!.ToDictionary(pair => pair.Key, pair => pair.Value);
+        axes["time_center_s"] = JsonSerializer.SerializeToElement(new[] { first, second });
+        var invalid = response with { Result = result with
+        {
+            Axes = axes,
+            Provenance = JsonSerializer.SerializeToElement(new
+            {
+                preprocessing_scope = "whole_recording_before_window_slice",
+                inner_time_axis = axisKind,
+                analysis_state = "Complete",
+            }),
+        } };
+        Assert.Throws<InvalidOperationException>(() => StftPreview.FromWindow(invalid));
+    }
+
     private static DynamicWindowResponse Response(DynamicWindowRequest request)
     {
         var end = request.CursorSample / 200d;
@@ -97,7 +137,7 @@ public sealed class StftOnDemandDetailTests : IDisposable
                 new DynamicWindowRange(0, request.CursorSample, 0, end), "insufficient_data",
                 new DynamicWindowFailure("STFT_WINDOW_INSUFFICIENT_DATA", "数据不足"), null, "subscription");
         var partial = end < 5;
-        var times = partial ? new[] { start + 2 } : new[] { start + 2, start + 3 };
+        var times = partial ? new[] { 2d } : new[] { 2d, 3d };
         var result = new DynamicWindowResultResponse(
             null, "ready", "time_frequency",
             new Dictionary<string, JsonElement>
@@ -117,7 +157,7 @@ public sealed class StftOnDemandDetailTests : IDisposable
             JsonSerializer.SerializeToElement(new
             {
                 preprocessing_scope = "whole_recording_before_window_slice",
-                inner_time_axis = "absolute_recording_time_center_s",
+                inner_time_axis = "relative_window_time_center_s",
                 analysis_state = partial ? "Partial" : "Complete",
             }));
         return new DynamicWindowResponse(

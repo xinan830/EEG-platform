@@ -20,6 +20,7 @@ from .window import BrainbeatWindowCapability
 
 class BrainbeatAlgorithm(BrainbeatWindowCapability):
     manifest = MANIFEST
+    on_demand_default_enabled = True
     config_model = BrainbeatConfig
 
     def parameter_schema(self) -> ParameterSchema:

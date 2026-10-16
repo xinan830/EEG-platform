@@ -7,7 +7,7 @@ MANIFEST = AlgorithmManifest(
     abbreviation="STFT",
     purpose_zh="使用冻结的 spectrogram-v2 契约计算所选原始通道的时频功率。",
     scientific_version="spectrogram-v2",
-    implementation_identity="stft-runtime-v3-explicit-filters",
+    implementation_identity="stft-runtime-v4-relative-window-times",
     supported_modes=["static", "dynamic"],
     output_schema={"mode_shapes": {"static": "time x frequency", "dynamic": "window x inner_time x frequency"},
         "window_output_kind": "time_frequency",

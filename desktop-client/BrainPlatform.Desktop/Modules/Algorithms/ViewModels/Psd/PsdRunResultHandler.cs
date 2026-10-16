@@ -9,8 +9,10 @@ internal sealed class PsdRunResultHandler : IAlgorithmRunResultHandler
     public string AlgorithmId => "psd";
     public bool UsesDynamicScalarSeries => false;
     public bool SupportsNotch => true;
-    public bool SupportsOnDemandWindows => string.Equals(
-        Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_PSD"), "1", StringComparison.Ordinal);
+    public bool SupportsOnDemandWindows =>
+        OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
+
+    public bool SupportsFullRunWindowPreview => true;
 
     public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
         PsdWindowPresenter.Apply(catalog.PsdPreviewState, response);

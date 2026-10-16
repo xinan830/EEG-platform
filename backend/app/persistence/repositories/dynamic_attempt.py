@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -129,6 +130,36 @@ class DynamicAttemptRepositoryMixin:
                    ORDER BY created_at, attempt_id LIMIT 1""", (window_id,),
             ).fetchone()
         return self._attempt(row) if row else None
+
+    def wait_for_window_terminal(
+        self,
+        window_id: str,
+        *,
+        timeout_s: float = 30.0,
+        poll_s: float = 0.05,
+        check_cancelled: Any | None = None,
+    ):
+        """Wait briefly for an existing dynamic producer before a full Run computes.
+
+        This is a coordination aid, not a second queue.  The database remains
+        the source of truth, so a process restart or lease expiry still lets
+        the full Run fall back to its validated computation path.
+        """
+        if timeout_s < 0 or poll_s <= 0:
+            raise ValueError("window wait values must be positive")
+        deadline = time.monotonic() + timeout_s
+        while True:
+            if check_cancelled is not None:
+                check_cancelled()
+            window = self.get_window(window_id)
+            if window is None:
+                return None
+            if window.state in TERMINAL_WINDOW_STATES:
+                return window
+            active = self.get_active_attempt(window_id)
+            if active is None or time.monotonic() >= deadline:
+                return window
+            time.sleep(min(poll_s, max(0.0, deadline - time.monotonic())))
 
     def is_attempt_active(self, attempt_id: str, lease_token: str) -> bool:
         now = utc_now()

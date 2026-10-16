@@ -10,10 +10,15 @@ import numpy as np
 
 from app.core.config import ARTIFACTS_DIR, DATABASE_PATH
 from app.core.provenance import (
-    build_cache_key,
     execution_environment,
     implementation_version,
     sha256_json,
+)
+from app.algorithm_runtime.offline_execution import (
+    official_definition_sha256,
+    scientific_cache_key,
+    scientific_configuration_sha256,
+    scientific_context_snapshot,
 )
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
 from app.scientific.quality import SpectralQualityGateError
@@ -21,7 +26,6 @@ from app.algorithms.catalog import ensure_official_definitions, official_definit
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.bootstrap import build_builtin_registry
-from app.algorithm_runtime.contracts import DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
 from app.models.run import AnalysisRun, RunCreateRequest, RunStatus, StructuredRunError
 from app.services.artifacts import ArtifactStore
 from app.services.definitions import DefinitionService
@@ -54,17 +58,22 @@ class RunService:
         )
 
     def create(self, request: RunCreateRequest) -> AnalysisRun:
+        if request.execution_mode != "full":
+            raise ValueError("按需分析必须通过动态窗口接口执行，不能创建全量 Run")
         recording = self.recordings.require_recording(request.recording_id)
         if not recording.source_sha256:
             raise ValueError("recording source identity is unavailable")
         resolved = self._resolve_request(request, recording)
         # ``display_state`` belongs to the renderer/session, not the scientific Run.
         config_sha256 = sha256_json(resolved["config"])
+        scientific_config_sha256 = scientific_configuration_sha256(
+            resolved["config"], resolved["scientific_context"],
+        )
         build = implementation_version()
-        cache_key = build_cache_key(
+        cache_key = scientific_cache_key(
             source_sha256=recording.source_sha256,
             definition_sha256=resolved["definition_sha256"],
-            config_sha256=config_sha256,
+            config_sha256=scientific_config_sha256,
             implementation_build=build,
             actual_range=resolved["actual_range"],
         )
@@ -90,6 +99,7 @@ class RunService:
             quality_rules=resolved["quality_rules"],
             environment=execution_environment(),
             is_preview=request.preview,
+            execution_mode="full",
             created_at=now,
             updated_at=now,
         )
@@ -190,6 +200,7 @@ class RunService:
     def _resolve_request(self, request: RunCreateRequest, recording: Any) -> dict[str, Any]:
         run_definition_id = request.definition_id
         run_definition_version = request.definition_version
+        window_policy_version = ""
         if request.analysis_type == "official_algorithm":
             official_config = OfficialAlgorithmRunConfig.model_validate(request.config)
             module = self.algorithm_runtime_registry.get(
@@ -232,6 +243,7 @@ class RunService:
             scientific_version = manifest.scientific_version
             execution_snapshot = module.execution_snapshot(typed_runtime_config)
             window = execution_snapshot.window
+            window_policy_version = getattr(module, "window_policy_version", "")
         else:
             raw = dict(request.config)
             time = raw.get("time") or {}
@@ -283,23 +295,42 @@ class RunService:
         signal_source = self.recordings.analysis_signal_provenance(recording)
         if signal_source["signal_mode"] == "acquisition_montage":
             definition = {**definition, "signal_source": signal_source}
+        channel_mapping = {"channels": channels, "signal_source": signal_source}
+        reference = {"mode": signal_source["analysis_reference"]}
+        scientific_context = scientific_context_snapshot(
+            sampling_rate_hz=float(recording.sfreq or 0.0),
+            signal_mapping=channel_mapping,
+            reference=reference,
+            filters=filters,
+            quality_rules=quality_rules,
+            window=window,
+            window_policy_version=window_policy_version,
+        )
         return {
             "config": config,
             "definition_id": run_definition_id,
             "definition_version": run_definition_version,
             "requested_range": requested_range,
             "actual_range": actual_range,
-            "channel_mapping": {"channels": channels, "signal_source": signal_source},
-            "reference": {"mode": signal_source["analysis_reference"]},
+            "channel_mapping": channel_mapping,
+            "reference": reference,
             "filters": filters,
             "window": window,
             "quality_rules": quality_rules,
+            "scientific_context": scientific_context,
             # The metric's numerical definition is immutable, while its persisted
             # evidence contract is independently versioned so legacy summaries
             # without debug evidence cannot be reused as current Run results.
-            "definition_sha256": sha256_json({
+            "definition_sha256": official_definition_sha256(
+                definition_id=definition["definition_id"],
+                definition_version=definition["definition_version"],
+                definition_digest=definition["definition_digest"],
+                algorithm_id=definition["algorithm_id"],
+                scientific_version=definition["scientific_version"],
+                implementation_identity=definition["implementation_identity"],
+            ) if request.analysis_type == "official_algorithm" and config.get("mode") == "dynamic" else sha256_json({
                 **definition,
-                "result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION if config.get("mode") == "dynamic" else "official-algorithm-result-evidence-v2",
+                "result_contract_version": "official-algorithm-result-evidence-v2",
             }) if request.analysis_type == "official_algorithm" else sha256_json(definition),
             "scientific_version": scientific_version,
         }

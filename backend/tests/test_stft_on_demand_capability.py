@@ -98,6 +98,43 @@ def test_stft_window_matches_full_dynamic_frame_for_complete_window():
     np.testing.assert_allclose(single.axes["time_center_s"], [2.0, 3.0])
     np.testing.assert_allclose(single.arrays["power_linear"], full.arrays["power_linear"][1])
     np.testing.assert_allclose(single.arrays["power_db"], full.arrays["power_db"][1])
+    assert single.evidence == full.windows[1].evidence
+
+
+def test_stft_window_normalizes_absolute_source_times_to_relative_coordinates():
+    algorithm = StftAlgorithm()
+    config = _config().model_copy(update={"start_s": 10, "end_s": 20})
+    inputs = _inputs(SimpleNamespace(load_spectrogram=lambda **_: {
+        **_payload(5.0), "times_s": [12.0, 13.0],
+    }))
+    plan = algorithm.plan_window(inputs, config, 3000, _session())
+    result = algorithm.execute_window(inputs, config, plan, _identity(plan))
+    assert result.state == "ready"
+    np.testing.assert_array_equal(result.axes["time_center_s"], [2.0, 3.0])
+    assert result.provenance["inner_time_axis"] == "relative_window_time_center_s"
+
+
+def test_stft_reuse_acceptance_rejects_partial_and_accepts_complete_contract():
+    algorithm = StftAlgorithm()
+    config = _config().model_dump(mode="json")
+    frequencies = algorithm._frequency_axis(200, 1, 30)
+
+    def loader(**kwargs):
+        count = 1 if kwargs["window_s"] < 5 else 2
+        values = _payload(kwargs["window_s"])
+        values["frequencies_hz"] = frequencies.tolist()
+        values["power_linear"]["F3"] = np.ones((count, frequencies.size)).tolist()
+        values["power_db"]["F3"] = np.ones((count, frequencies.size)).tolist()
+        return values
+
+    recording = SimpleNamespace(load_spectrogram=loader)
+    inputs = _inputs(recording)
+    plan = algorithm.plan_window(inputs, _config(), 1000, _session())
+    result = algorithm.execute_window(inputs, _config(), plan, _identity(plan))
+    assert algorithm.can_reuse_offline_window(result, sampling_rate_hz=200, config=config)
+    partial_plan = algorithm.plan_window(inputs, _config(), 800, _session())
+    partial = algorithm.execute_window(inputs, _config(), partial_plan, _identity(partial_plan))
+    assert not algorithm.can_reuse_offline_window(partial, sampling_rate_hz=200, config=config)
 
 
 def test_stft_quality_rejection_has_failure_without_publishing_matrix():

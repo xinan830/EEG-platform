@@ -49,7 +49,7 @@ public sealed class StftPreview
             throw new InvalidOperationException("STFT 按需窗口缺少时频轴或功率矩阵。");
         if (result.Provenance is not { ValueKind: JsonValueKind.Object } provenance ||
             Text(provenance, "preprocessing_scope") != "whole_recording_before_window_slice" ||
-            Text(provenance, "inner_time_axis") != "absolute_recording_time_center_s" ||
+            Text(provenance, "inner_time_axis") != "relative_window_time_center_s" ||
             Text(provenance, "analysis_state") is not ("Partial" or "Complete"))
             throw new InvalidOperationException("STFT 按需窗口缺少连续预处理或时间轴 provenance。");
         var times = ReadAxis(new Dictionary<string, JsonElement> { ["time_center_s"] = timesAxis }, "time_center_s");
@@ -60,7 +60,11 @@ public sealed class StftPreview
         if (matrix.GetArrayLength() != times.Length)
             throw new InvalidOperationException("STFT 按需窗口矩阵的时间维度不一致。");
         ValidateMatrix(linearMatrix, times.Length, frequencies.Length, "STFT 线性功率矩阵");
-        return BuildPreview(times, frequencies, matrix, new TimeRange(range.StartSeconds, range.EndSeconds));
+        var windowDuration = range.EndSeconds - range.StartSeconds;
+        if (times.Any(time => time < 0 || time > windowDuration))
+            throw new InvalidOperationException("STFT 按需窗口的内层时间轴超出窗口范围。");
+        var absoluteTimes = times.Select(time => time + range.StartSeconds).ToArray();
+        return BuildPreview(absoluteTimes, frequencies, matrix, new TimeRange(range.StartSeconds, range.EndSeconds));
     }
 
     private static StftPreview ParseCore(StructuredPreviewResponse preview, int? windowIndex)

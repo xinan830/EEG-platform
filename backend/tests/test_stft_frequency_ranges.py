@@ -48,7 +48,7 @@ def test_official_narrow_stft_completes_and_preserves_requested_axis(tmp_path: P
     np.testing.assert_array_equal(arrays[axis_key], expected_axis)
     assert arrays["power_linear"].shape[-1] == len(expected_axis)
     assert np.isfinite(arrays["power_linear"]).all()
-    assert queue.base.algorithm_runtime_registry.get("stft").manifest.implementation_identity == "stft-runtime-v3-explicit-filters"
+    assert queue.base.algorithm_runtime_registry.get("stft").manifest.implementation_identity == "stft-runtime-v4-relative-window-times"
 
 
 def _independent_matrix(raw, sfreq, low, high, notch):

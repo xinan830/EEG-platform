@@ -1,5 +1,7 @@
 import io
+import hashlib
 import json
+import sqlite3
 import time
 import zipfile
 
@@ -93,6 +95,98 @@ def test_legacy_run_api_regression_with_on_demand_enabled(tmp_path):
         with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
             assert "manifest.json" in archive.namelist()
         assert source_hashes(root) == before
+    finally:
+        windows.close()
+        client.close()
+
+
+def test_full_psd_records_verified_on_demand_window_reuse(tmp_path):
+    client, recording, windows, runs, _ = configure_api(tmp_path)
+    config = psd_config(recording)
+    try:
+        ensured = client.post("/api/analysis-windows/ensure", json={
+            "recording_id": recording.id, "algorithm_id": "psd", "config": config,
+            "cursor_sample": 1000, "request_id": "reuse-window",
+        })
+        assert ensured.status_code in {200, 202}, ensured.text
+        window = wait_window(client, ensured.json()["window_id"])
+        assert window["state"] == "ready"
+        created = client.post("/api/runs", json={
+            "recording_id": recording.id, "analysis_type": "official_algorithm", "config": config,
+        })
+        assert created.status_code == 202, created.text
+        run = runs.process_next()
+        assert run.status.value == "completed", run.error
+        provenance = (run.result_summary or {}).get("execution_provenance")
+        assert provenance["execution_mode"] == "full"
+        assert provenance["reused_on_demand_window_count"] >= 1
+        assert provenance["scientific_cache_key"] == run.cache_key
+        assert window["scientific_cache_key"] == run.cache_key
+    finally:
+        windows.close()
+        client.close()
+
+
+def test_full_psd_recomputes_corrupt_on_demand_window_and_records_miss(tmp_path):
+    client, recording, windows, runs, _ = configure_api(tmp_path)
+    config = psd_config(recording)
+    try:
+        ensured = client.post("/api/analysis-windows/ensure", json={
+            "recording_id": recording.id, "algorithm_id": "psd", "config": config,
+            "cursor_sample": 1000, "request_id": "corrupt-reuse-window",
+        })
+        assert ensured.status_code in {200, 202}, ensured.text
+        window = wait_window(client, ensured.json()["window_id"])
+        assert window["state"] == "ready"
+        record = windows.repository.get_window(window["window_id"])
+        assert record is not None and record.result_artifact_id
+        (windows.artifacts_dir / f"{record.result_artifact_id}.json").write_text("{broken", encoding="utf-8")
+        created = client.post("/api/runs", json={
+            "recording_id": recording.id, "analysis_type": "official_algorithm", "config": config,
+        })
+        assert created.status_code == 202, created.text
+        run = runs.process_next()
+        assert run.status.value == "completed", run.error
+        provenance = (run.result_summary or {}).get("execution_provenance")
+        assert provenance["reused_on_demand_window_count"] == 0
+        assert provenance["cache_miss_reasons"]["artifact_invalid"] >= 1
+    finally:
+        windows.close()
+        client.close()
+
+
+def test_full_psd_recomputes_cached_window_with_mismatched_identity(tmp_path):
+    client, recording, windows, runs, _ = configure_api(tmp_path)
+    config = psd_config(recording)
+    try:
+        ensured = client.post("/api/analysis-windows/ensure", json={
+            "recording_id": recording.id, "algorithm_id": "psd", "config": config,
+            "cursor_sample": 1000, "request_id": "identity-mismatch-window",
+        })
+        assert ensured.status_code in {200, 202}, ensured.text
+        window = wait_window(client, ensured.json()["window_id"])
+        assert window["state"] == "ready"
+        record = windows.repository.get_window(window["window_id"])
+        assert record is not None and record.result_artifact_id
+        metadata_path = windows.artifacts_dir / f"{record.result_artifact_id}.json"
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata["identity"]["configuration_sha256"] = "tampered-identity"
+        metadata_path.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
+        manifest_sha256 = hashlib.sha256(metadata_path.read_bytes()).hexdigest()
+        with sqlite3.connect(windows.repository.database_path) as connection:
+            connection.execute(
+                "UPDATE dynamic_analysis_windows SET result_manifest_sha256 = ? WHERE window_id = ?",
+                (manifest_sha256, record.window_id),
+            )
+        created = client.post("/api/runs", json={
+            "recording_id": recording.id, "analysis_type": "official_algorithm", "config": config,
+        })
+        assert created.status_code == 202, created.text
+        run = runs.process_next()
+        assert run.status.value == "completed", run.error
+        provenance = (run.result_summary or {}).get("execution_provenance")
+        assert provenance["reused_on_demand_window_count"] == 0
+        assert provenance["cache_miss_reasons"]["identity_mismatch"] >= 1
     finally:
         windows.close()
         client.close()

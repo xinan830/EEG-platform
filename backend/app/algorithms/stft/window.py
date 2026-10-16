@@ -18,6 +18,7 @@ from app.algorithm_runtime.on_demand_planning import plan_policy_window
 from app.scientific.quality import SpectralQualityGateError
 
 from .config import StftConfig
+from .evidence import window_evidence
 from .manifest import MANIFEST
 
 
@@ -94,35 +95,26 @@ class StftWindowCapability:
             if check_cancelled is not None:
                 check_cancelled()
             expected_window = config.window_s or MANIFEST.dynamic_policy.default_window_s
+            relative_times = times - float(plan.start_s)
+            if not np.isfinite(relative_times).all() or np.any(np.diff(relative_times) <= 0):
+                raise ValueError("STFT 窗口内层时间轴必须是严格递增的相对坐标")
             return DynamicWindowResult(
                 identity=identity,
                 state="ready",
                 output_kind="time_frequency",
-                axes={"time_center_s": times, "frequency_hz": frequencies},
+                axes={"time_center_s": relative_times, "frequency_hz": frequencies},
                 axis_units={"time_center_s": "s", "frequency_hz": "Hz"},
                 arrays={"power_linear": linear, "power_db": power_db},
                 array_units={"power_linear": "V^2/Hz", "power_db": "dB re 1 uV^2/Hz"},
                 quality="clean",
-                evidence={
-                    "source_quality": quality,
-                    "spectral_evidence": dict(quality.get("evidence", {})),
-                    "calculation_trace": {
-                        "spectrogram_contract_version": payload["spectrogram_contract_version"],
-                        "segment_s": float(payload["segment_s"]),
-                        "step_s": float(payload["step_s"]),
-                        "inner_time_count": int(times.size),
-                        "frequency_range_hz": payload.get("frequency_range_hz"),
-                        "filter_frequency_range_hz": payload.get("filter_frequency_range_hz"),
-                        "notch_hz": payload.get("notch_hz", config.notch_hz),
-                    },
-                },
+                evidence=window_evidence(payload, valid_count=int(times.size)),
                 provenance={
                     "preprocessing_scope": "whole_recording_before_window_slice",
                     "spectrogram_contract_version": payload["spectrogram_contract_version"],
                     "segment_s": float(payload["segment_s"]),
                     "step_s": float(payload["step_s"]),
                     "outer_window": {"start_s": plan.start_s, "end_s": plan.end_s},
-                    "inner_time_axis": "absolute_recording_time_center_s",
+                    "inner_time_axis": "relative_window_time_center_s",
                     "source_channel": inputs.channel,
                     "frequency_range_hz": payload.get("frequency_range_hz"),
                     "filter_frequency_range_hz": payload.get("filter_frequency_range_hz"),

@@ -35,6 +35,7 @@ from app.api.live_filters import router as live_filters_router
 from app.api.analysis_windows import router as analysis_windows_router
 from app.services.live_filter import LiveFilterService
 from app.services.on_demand_dynamic import DynamicWindowService
+from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
 from app.bootstrap import build_builtin_registry
 from app.services.algorithm_presets import AlgorithmPresetService
 from app.core.config import DATABASE_PATH, STORAGE_DIR, on_demand_algorithm_enabled
@@ -58,6 +59,7 @@ async def lifespan(application: FastAPI):
     finally:
         application.state.run_worker.stop()
         application.state.dynamic_window_service.close()
+        application.state.scientific_compute_coordinator.close()
 
 
 app = FastAPI(title="Brain Platform API", version="0.1.0", lifespan=lifespan)
@@ -77,7 +79,11 @@ app.state.waveform_playback_service = WaveformPlaybackService(app.state.recordin
 app.state.audit_service = AuditService()
 app.state.event_marker_service = EventMarkerService()
 app.state.report_snapshot_service = ReportSnapshotService()
-app.state.run_service = PersistentRunQueue(app.state.recording_service)
+app.state.scientific_compute_coordinator = ScientificComputeCoordinator()
+app.state.run_service = PersistentRunQueue(
+    app.state.recording_service,
+    compute_coordinator=app.state.scientific_compute_coordinator,
+)
 app.state.run_worker = RunWorker(app.state.run_service)
 app.state.validation_service = ValidationService()
 app.state.definition_service = DefinitionService()
@@ -97,8 +103,15 @@ app.state.live_filter_service = LiveFilterService()
 app.state.dynamic_window_service = DynamicWindowService(
     app.state.recording_service,
     app.state.algorithm_runtime_registry,
-    enabled_algorithms={module.manifest.algorithm_id for module in app.state.algorithm_runtime_registry.list()
-                        if on_demand_algorithm_enabled(module.manifest.algorithm_id)},
+    enabled_algorithms={
+        module.manifest.algorithm_id
+        for module in app.state.algorithm_runtime_registry.list()
+        if on_demand_algorithm_enabled(
+            module.manifest.algorithm_id,
+            default_enabled=getattr(module, "on_demand_default_enabled", False),
+        )
+    },
+    compute_coordinator=app.state.scientific_compute_coordinator,
 )
 app.include_router(recordings_router)
 app.include_router(playback_router)

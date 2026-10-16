@@ -5,6 +5,7 @@ from fastapi.responses import Response
 
 from app.core.api_contract import error_response
 from app.services.artifacts import ArtifactIntegrityError, WindowIndexUnavailable
+from app.services.results import ResultExportUnavailable
 
 
 router = APIRouter(prefix="/api/runs", tags=["results"])
@@ -59,4 +60,6 @@ def export_result(run_id: str, request: Request, validation_id: str | None = Que
         return error_response(request, 404, "RESULT_OR_VALIDATION_NOT_FOUND", "结果或校验记录不存在")
     except ArtifactIntegrityError:
         return error_response(request, 409, "ARTIFACT_INTEGRITY_FAILED", "结果文件校验失败")
+    except ResultExportUnavailable as exc:
+        return error_response(request, 409, "RESULT_EXPORT_UNAVAILABLE", str(exc))
     return Response(package, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="run-{run_id}-export.zip"'})

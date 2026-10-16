@@ -260,6 +260,7 @@ class RunRepository:
             progress_completed=int(row["progress_completed"] or 0), progress_total=row["progress_total"],
             progress_stage=row["progress_stage"], progress_message=row["progress_message"],
             execution_lane=row["execution_lane"],
+            execution_mode="full",
         )
 
 

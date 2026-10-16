@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.models.run import AnalysisRun
+from app.algorithm_runtime.offline_execution import OFFLINE_EXECUTION_CONTRACT_VERSION
 
 
 CONTRACT_VERSION = "analysis-provenance-v1"
@@ -169,6 +170,9 @@ def build_analysis_provenance(run: AnalysisRun) -> dict[str, object]:
         "scientific_algorithm_version": evidence.get("algorithm_version", run.scientific_version),
         "implementation_version": run.implementation_version,
         "config_sha256": run.config_sha256,
+        "execution_contract_version": OFFLINE_EXECUTION_CONTRACT_VERSION,
+        "execution_mode": run.execution_mode,
+        "scientific_cache_key": run.cache_key,
         "mode": mode,
         "requested_range": _range(run.requested_range),
         "actual_range": actual_range,

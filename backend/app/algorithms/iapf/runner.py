@@ -18,6 +18,7 @@ from .manifest import MANIFEST
 class IapfAlgorithm(ScalarDynamicWindowCapability):
     window_preprocessing_scope = "whole_recording_before_window_slice"
     manifest = MANIFEST
+    on_demand_default_enabled = True
     config_model = IapfConfig
 
     def _execute_frame(self, inputs: AlgorithmInputs, config: IapfConfig,

@@ -19,6 +19,7 @@ from .manifest import MANIFEST
 class BandRatioAlgorithm(ScalarDynamicWindowCapability):
     window_preprocessing_scope = "whole_recording_before_window_slice"
     manifest = MANIFEST
+    on_demand_default_enabled = True
     config_model = BandRatioConfig
     output_schema = MANIFEST.output_schema
 

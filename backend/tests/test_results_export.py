@@ -6,8 +6,9 @@ import numpy as np
 import pytest
 
 from app.services.artifacts import ArtifactIntegrityError
-from app.models.run import RunStatus, ValidationCreateRequest
+from app.models.run import RunCreateRequest, RunStatus, ValidationCreateRequest
 from app.services.results import ResultService
+from app.services.results import ResultExportUnavailable
 from app.services.validations import ValidationService
 from test_run_queue import _queue, _request
 
@@ -42,6 +43,85 @@ def test_result_export_rejects_corrupt_artifact_and_keeps_cancelled_output_null(
     queue.cancel(cancelled.run_id)
     view = service.view(cancelled.run_id)
     assert view["run"]["result_summary"] is None
+
+
+def test_result_export_rejects_incomplete_run_even_when_a_run_exists(tmp_path):
+    queue, recording_id = _queue(tmp_path)
+    queued = queue.enqueue(_request(recording_id))
+    service = ResultService(queue, ValidationService(queue.repository.database_path))
+
+    with pytest.raises(ResultExportUnavailable, match="完整结果尚未就绪"):
+        service.export(queued.run_id)
+
+
+def test_result_export_keeps_gate_failed_result_explicit(tmp_path):
+    queue, recording_id = _queue(tmp_path)
+    run = queue.enqueue(_request(recording_id))
+    queue.repository.update_status(run.run_id, RunStatus.RUNNING)
+    queue.repository.update_status(
+        run.run_id,
+        RunStatus.GATE_FAILED,
+        result_summary=None,
+    )
+
+    package = ResultService(queue, ValidationService(queue.repository.database_path)).export(run.run_id)
+
+    assert package.startswith(b"PK")
+
+
+def test_result_export_keeps_legacy_completed_dynamic_run_readable(tmp_path):
+    queue, recording_id = _queue(tmp_path)
+    run = queue.enqueue(RunCreateRequest(
+        recording_id=recording_id,
+        analysis_type="official_algorithm",
+        config={
+            "algorithm_id": "peak_frequency",
+            "channel": "F3",
+            "mode": "dynamic",
+            "time": {"start_s": 5, "end_s": 10},
+            "dynamic_window_s": 5,
+            "refresh_step_s": 1,
+            "low_hz": 1.0,
+            "high_hz": 30.0,
+        },
+    ))
+    queue.repository.update_status(run.run_id, RunStatus.RUNNING)
+    queue.repository.update_status(
+        run.run_id,
+        RunStatus.COMPLETED,
+        result_summary={"structured": {"output": {"mode": "dynamic"}}},
+    )
+
+    package = ResultService(queue, ValidationService(queue.repository.database_path)).export(run.run_id)
+
+    assert package.startswith(b"PK")
+
+
+def test_result_export_rejects_new_dynamic_run_with_incomplete_coverage(tmp_path):
+    queue, recording_id = _queue(tmp_path)
+    run = queue.enqueue(RunCreateRequest(
+        recording_id=recording_id,
+        analysis_type="official_algorithm",
+        config={
+            "algorithm_id": "peak_frequency",
+            "channel": "F3",
+            "mode": "dynamic",
+            "time": {"start_s": 5, "end_s": 10},
+            "dynamic_window_s": 5,
+            "refresh_step_s": 1,
+            "low_hz": 1.0,
+            "high_hz": 30.0,
+        },
+    ))
+    queue.repository.update_status(run.run_id, RunStatus.RUNNING)
+    queue.repository.update_status(
+        run.run_id,
+        RunStatus.COMPLETED,
+        result_summary={"execution_provenance": {"coverage": {"state": "partial", "planned_windows": 1, "terminal_windows": 0}}},
+    )
+
+    with pytest.raises(ResultExportUnavailable, match="覆盖校验"):
+        ResultService(queue, ValidationService(queue.repository.database_path)).export(run.run_id)
 
 
 def test_result_view_uses_same_analysis_provenance_projection(tmp_path):

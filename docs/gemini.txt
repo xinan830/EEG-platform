@@ -1,0 +1,207 @@
+针对大规模多通道脑电（EEG）数据（如高采样率 1000 Hz–5000 Hz、64–256 通道、数小时至数天的长程睡眠或临床监测记录）的**离线回溯（Offline Retrospective Review）与算法分析**，核心架构矛盾在于：**UI 交互要求毫秒级的视口响应（小于 16 ms 帧预算），而信号预处理与时频分析具有天然的上下文依赖性与高计算复杂度**。
+
+行业最佳实践采用“双轨异步计算 + 分块金字塔存储 + 确定性计算图（DAG）缓存”的五层解耦架构。
+
+---
+
+## 一、 总体分层架构与核心技术选型
+
+架构围绕视口驱动的实时交互轨（Fast Track）**与**全量吞吐的后台批处理轨（Slow Track）构建，二者共享同一套无状态算子与内容寻址缓存层：
+
+| 架构层级 | 核心职责 | 推荐技术栈 / 数据标准 | 解决的核心痛点 |
+| --- | --- | --- | --- |
+| **1. 分块存储与金字塔层** | 多分辨率随机切片读取、科学元数据挂载 | **Zarr** / **HDF5 (NWB)** + **BIDS** 规范 | 规避传统 EDF/BDF 顺序 I/O 瓶颈，支持并发随机块读取（Chunked I/O） |
+| **2. 渐进式可视化渲染层** | 长时序多通道波形与时频谱图流畅缩放平移 | **WebGL / WebGPU** + **Min-Max / LTTB** 降采样金字塔 | 解决百万级样本点直接绘制导致的 DOM/Canvas 崩溃与高频混叠伪影 |
+| **3. 优先级调度与取消层** | 最新游标优先执行、过期视口任务抢占与销毁 | **LIFO 优先级队列** + **AbortController / CancellationToken** | 防止快速拖拽时间轴时产生“任务雪崩”与队列饥饿 |
+| **4. 信号计算与连续流处理层** | 无边界伪影滤波、滑动窗口 PSD/STFT 计算 | **Overlap-Save（重叠保留法）** + **MNE / SciPy / Rust DSP** | 消除按需切片滤波产生的吉布斯（Gibbs）边缘振铃效应与相位失真 |
+| **5. 缓存复用与可复现溯源层** | 块级结果去重、科学血缘追踪（Provenance） | **DAG 参数哈希寻址（Merkle Tree）** + **LMDB / Redis / Parquet** | 保证按需计算与后台全量分析结果 100% 比特级一致，支持实验一键复现 |
+
+---
+
+## 二、 九大核心机制的工程实现详解
+
+### 1. 按需窗口计算（On-Demand Window Calculation）与网格对齐
+
+当用户在时间轴上拖拽或跳转至任意时间视口 $[t_{\text{start}}, t_{\text{end}}]$ 时，不能直接以任意浮点数起止点触发计算，否则会导致缓存碎片化且无法复用。
+
+* **固定时间网格对齐（Chunk Grid Quantization）：** 将整段 EEG 记录按固定时长 $\Delta T_{\text{chunk}}$（如 $10\text{ s}$ 或 $30\text{ s}$）划分为逻辑块（Tile/Chunk）。
+* **分块映射：** 视口 $[t_{\text{start}}, t_{\text{end}}]$ 自动映射为覆盖该区间的最小块索引集合：
+
+$$k_{\text{min}} = \left\lfloor \frac{t_{\text{start}}}{\Delta T_{\text{chunk}}} \right\rfloor, \quad k_{\text{max}} = \left\lceil \frac{t_{\text{end}}}{\Delta T_{\text{chunk}}} \right\rceil$$
+
+
+* 渲染层仅针对未命中缓存的块索引 $k \in [k_{\text{min}}, k_{\text{max}}]$ 发起按需计算请求。
+
+### 2. 最新游标优先调度（Latest-Cursor-First Scheduling）与过期任务取消（Expired Task Cancellation）
+
+用户在回溯长程脑电（如快速拖动滚动条查找癫痫棘慢波或睡眠纺锤波）时，1 秒内可能触发数十次视口变更。如果采用传统的 FIFO（先进先出）队列，工作线程池会被早已滑出屏幕的历史视口任务占满。
+
+1. **前端防抖与代数标记（Generation ID）：** 每次游标移动递增全局视口代数 `viewport_epoch_id`。
+2. **双端优先级队列（LIFO + 距离权重）：** 调度器维护双轨优先级：
+
+$$\text{Priority}(k) = \begin{cases} 1000 - \vert{}t_k - t_{\text{cursor}}\vert{}, & \text{若块 } k \text{ 位于当前最新视口内（最高优，越靠近游标中心越优先）} \\ 500 - \vert{}t_k - t_{\text{cursor}}\vert{}, & \text{若块 } k \text{ 位于当前视口左右预取缓冲区（Prefetch Ring，次高优）} \\ 10, & \text{后台全量批处理扫描任务（最低优，仅在空闲 Worker 上运行）} \end{cases}$$
+
+
+3. **两阶段任务取消（Two-Stage Cancellation）：**
+* **排队期直接丢弃：** 当新游标到达时，队列中所有 `epoch_id` 小于当前值且不在新视口内的待执行任务直接从堆中移除（O(1) 懒删除标记）。
+* **执行期协同中断（Cooperative Cancellation）：** 对正在 Worker 中执行的过期任务，通过 `CancellationToken` 或共享内存标志位（SharedArrayBuffer / Atomic Flag）在算法阶段边界（如通道循环间隙、IIR/FIR 滤波与 STFT 之间）检查中断信号并立即释放算力。
+
+
+
+### 3. 连续预处理（Continuous Preprocessing）—— 消除窗口边界效应
+
+EEG 信号包含显著的低频基线漂移与工频干扰。若直接对按需截取的块 $[t_k, t_{k+1}]$ 进行带通滤波（如 0.5–45 Hz）或重采样，窗口两端会出现严重的**瞬态响应（Transient Edge Artifacts / Ringing）**，导致分块拼接处出现波形跳变。
+
+* **Overlap-Save（重叠保留 / Halo Padding 机制）：**
+设预处理算子（如零相位 FIR 滤波器 `filtfilt` 或小波去噪）的有效脉冲响应长度（或所需边缘衰减时间）为 $T_{\text{halo}}$（通常取低频截止频率周期的 $3\sim 5$ 倍，例如 0.5 Hz 高通滤波取 $T_{\text{halo}} = 6\text{ s}$）。
+1. **扩展读取（Read with Halo）：** 计算块 $k$（对应时间 $[t_k, t_{k+1}]$）时，从底层 Zarr/HDF5 存储中实际读取扩展区间 $[t_k - T_{\text{halo}}, \, t_{k+1} + T_{\text{halo}}]$。文件首尾边界处采用镜像填充（Reflection Padding）。
+2. **算子执行：** 对长度为 $\Delta T_{\text{chunk}} + 2T_{\text{halo}}$ 的扩展信号执行坏道插值、重参考（CAR/Laplacian）、陷波与零相位带通滤波。
+3. **中心裁剪（Crop & Commit）：** 丢弃两端各 $T_{\text{halo}}$ 长度的受污染边缘，仅保留中心严格对齐的 $[t_k, t_{k+1}]$ 写入缓存。
+
+
+* **数学保证：** 只要 $T_{\text{halo}}$ 大于等于滤波器阶数对应的支撑域，**按需单块预处理的结果与对全长数小时信号一次性滤波后再切片的结果在数值上严格等价**。
+
+### 4. 滑动窗口 PSD / STFT 的全局相位与网格锁定
+
+计算功率谱密度（Welch PSD / Multitaper）或短时傅里叶变换（STFT 时频图）时，滑动窗口具有窗口长度 $W$（如 $2\text{ s}$）和步长 $H$（Hop size，如 $0.25\text{ s}$）。
+
+* **全局帧索引对齐：** 任意第 $m$ 个时频帧的中心时间必须严格锚定在全局样本时钟上：$t_m = m \cdot H$。
+* **跨块重叠补偿：** 计算第 $k$ 个数据块内的 STFT 矩阵或滑动 PSD 时，必须从已预处理的连续信号（或连同 Halo 一起扩展至 $T_{\text{halo}} + \frac{W}{2}$）中提取输入，确保块边界处的窗函数（如 Hann / Hamming 窗）完整跨越块接缝，拼接出的时频热力图（Spectrogram）无任何垂直亮暗条纹。
+
+### 5. 全量分析后台运行（Background Full-Volume Execution）与结果缓存复用（Cache Reuse）
+
+科研与临床分析不仅需要看局部波形，还需要全量统计指标（如整晚睡眠分期 Hypnogram、全程 α/β 功率比趋势、全记录异常事件检测）。
+
+* **Work-Stealing 与幂等补全：** 后台启动低优先级任务遍历全量块集合 $\{0, 1, \dots, N-1\}$。每处理一个块前，先查询缓存层：
+* 若用户在交互浏览时已触发过块 $k$ 的按需计算，后台任务**直接跳过该块（Cache Hit）**，绝不重复计算。
+* 若后台任务先算完了块 $k$，当用户稍后将游标拖到块 $k$ 时，前端**直接从缓存零延迟加载结果**。
+
+
+* **两级缓存架构：**
+* **L1 内存缓存（LRU Ring Buffer）：** 驻留当前视口及相邻块的 Float32 原始张量与渲染顶点，容量控制在几百 MB 至数 GB。
+* **L2 磁盘持久化缓存（Zarr / LMDB / Arrow Parquet）：** 按内容寻址存储所有已计算块的预处理波形、PSD 曲线与 STFT 矩阵，跨会话持久保存。
+
+
+
+### 6. 长时序数据渐进式可视化（Progressive Visualization / LoD Pyramid）
+
+当用户在屏幕上观察 1 小时甚至 8 小时的 EEG 全景图时，1000 Hz 采样率下每通道包含 $2.88 \times 10^7$ 个数据点，而显示器水平分辨率通常仅为 $1920 \sim 3840$ 像素。
+
+* **不能使用常规滤波降采样进行大尺度波形渲染：** 脑电图云端可视化研究表明，传统的抗混叠低通滤波降采样（Decimation）会抹平高频棘波（Spikes）和伪迹峰值，导致临床误判。
+* **多级分辨率金字塔（Multi-Resolution LoD Pyramid）：**
+* **L0（原始精度）：** 视口小于 $30\text{ s}$ 时，直接渲染全采样率点列。
+* **L1–L4（降采样包络层）：** 针对每个像素桶（Pixel Bucket），采用 **Min-Max 极值对** 或 **Min-Max LTTB（Largest Triangle Three Buckets）** 算法预计算或实时聚合。Min-Max 在每个时间桶内保留最小值与最大值，计算复杂度仅为 $O(N)$，且能 100% 保留瞬态棘波与高幅伪迹的视觉包络结构。
+
+
+* **渐进式加载体验（Progressive Refinement）：** 游标跳变瞬间，先在 5 ms 内渲染已常驻内存的顶层粗粒度（LoD L4）概览波形与低分辨率时频背景；随后随着按需计算 Worker 返回高精度块，平滑淡入替换（Tile Swap）为高清波形与精细 STFT 谱图。
+
+### 7. 科学结果可追溯与可复现（Scientific Traceability & Reproducibility）
+
+在神经科学研究与医疗器械合规（FDA 21 CFR Part 11 / 临床审计）中，任何图表或特征值都必须能够精确回溯其产生过程。
+
+* **确定性计算有向无环图（Deterministic DAG）与 Merkle Hash：**
+每个计算块及最终分析产物的缓存键（Cache Key）由以下四元组通过 SHA-256 递归哈希生成：
+
+$$\text{CacheKey}_{k, \text{node}} = \text{SHA256}\left(\text{RawDataHash}_k \parallel \text{UpstreamNodeHash} \parallel \text{AlgoVersion} \parallel \text{CanonicalJSON}(\text{Params})\right)$$
+
+
+* 一旦用户修改了滤波器截止频率（如将高通从 `0.5 Hz` 改为 `1.0 Hz`），`UpstreamNodeHash` 发生改变，下游依赖该预处理的 PSD/STFT 缓存键自动失效并触发平滑重算，而旧参数的结果依然保留在缓存中供随时对比切换。
+
+
+* **完整血缘清单（Provenance Manifest）：** 每次导出特征、图表或临床报告时，自动生成符合 **BIDS Derivatives** 或 **NWB (Neurodata Without Borders)** 标准的元数据清单，记录：原始文件 SHA-256 校验和、电极蒙太奇（Montage）、坏道剔除列表、滤波器拓扑与阶数、窗函数类型、随机种子（如 ICA 分解种子）以及算法库精确版本号。
+
+---
+
+## 三、 架构交互与调度流转可视化
+
+通过下方的交互式架构图，可以逐步推演当用户拖拽时间轴游标或修改算法参数时，**视口调度器、过期任务取消器、Overlap-Save 连续预处理引擎、双轨 Worker 与 DAG 缓存**之间的协同工作机制：
+
+---
+
+## 四、 生产环境落地的核心代码设计范式（Python / Rust / Web 协同）
+
+在实际工程落地中（如基于 **Rust + Tauri / WebGPU** 构建桌面端，或 **FastAPI + Ray / Celery + React WebGL** 构建云原生平台），最关键的数据契约是**确定性缓存键生成**与 **Overlap-Save 切片计算器**：
+
+```python
+import hashlib
+import json
+import numpy as np
+from scipy.signal import filtfilt, butter, stft
+
+def build_dag_cache_key(recording_hash: str, chunk_idx: int, pipeline_spec: list[dict]) -> str:
+    """
+    基于原始数据块指纹与有序算子参数链生成确定性 SHA-256 缓存键（保障科学可追溯与可复现）
+    """
+    canonical_spec = json.dumps(pipeline_spec, sort_keys=True, separators=(",", ":"))
+    payload = f"{recording_hash}|chunk:{chunk_idx}|dag:{canonical_spec}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+def process_chunk_overlap_save(
+    zarr_array,
+    chunk_idx: int,
+    sfreq: float,
+    chunk_sec: float = 10.0,
+    halo_sec: float = 4.0,
+    l_freq: float = 0.5,
+    h_freq: float = 45.0,
+    stft_win_sec: float = 2.0,
+    stft_hop_sec: float = 0.25,
+    cancel_token=None,
+):
+    """
+    带 Halo 边缘扩展的连续预处理与全局网格对齐 STFT 计算
+    """
+    n_total_samples = zarr_array.shape[1]
+    chunk_samples = int(chunk_sec * sfreq)
+    halo_samples = int(halo_sec * sfreq)
+
+    # 1. 计算目标块在全局样本轴上的精确边界
+    core_start = chunk_idx * chunk_samples
+    core_end = min(core_start + chunk_samples, n_total_samples)
+
+    # 2. 计算带 Halo 的扩展读取边界（首尾越界部分记录需镜像填充的长度）
+    read_start = max(0, core_start - halo_samples)
+    read_end = min(n_total_samples, core_end + halo_samples)
+    pad_left = (core_start - halo_samples) - read_start if core_start < halo_samples else 0
+    pad_right = (core_end + halo_samples) - read_end if (core_end + halo_samples) > n_total_samples else 0
+
+    raw_slice = np.asarray(zarr_array[:, read_start:read_end], dtype=np.float64)
+    if pad_left < 0 or pad_right > 0:
+        raw_slice = np.pad(raw_slice, ((0, 0), (-pad_left, pad_right)), mode="reflect")
+
+    if cancel_token and cancel_token.is_cancelled():
+        return None  # 协同中断点 1：I/O 完成后立即检查游标是否已过期
+
+    # 3. 连续零相位带通滤波（消除相位偏移）
+    b, a = butter(N=4, Wn=[l_freq / (0.5 * sfreq), h_freq / (0.5 * sfreq)], btype="band")
+    filtered_ext = filtfilt(b, a, raw_slice, axis=-1)
+
+    if cancel_token and cancel_token.is_cancelled():
+        return None  # 协同中断点 2：滤波完成后检查游标是否已过期
+
+    # 4. 裁剪中心有效区间（消除滤波边缘振铃伪影）
+    valid_len = core_end - core_start
+    clean_core = filtered_ext[:, halo_samples : halo_samples + valid_len]
+
+    # 5. 全局网格锁定的滑动窗口 STFT（利用 Halo 保证块接缝处窗函数完整）
+    nperseg = int(stft_win_sec * sfreq)
+    noverlap = nperseg - int(stft_hop_sec * sfreq)
+    half_win = nperseg // 2
+    stft_slice = filtered_ext[:, halo_samples - half_win : halo_samples + valid_len + half_win]
+    freqs, times, Zxx = stft(
+        stft_slice, fs=sfreq, window="hann", nperseg=nperseg, noverlap=noverlap, boundary=None, padded=False
+    )
+    psd_spectrogram = np.abs(Zxx) ** 2
+
+    return {
+        "clean_waveform": clean_core.astype(np.float32),
+        "spectrogram": psd_spectrogram.astype(np.float32),
+        "freqs": freqs.astype(np.float32),
+    }
+
+```
+
+### 关键工程避坑指南
+
+* **关于 ICA / CSP 等空间滤波器的离线回溯特殊处理：** 频域滤波（FIR/IIR）属于时不变局部算子，可通过 Halo 扩展实现分块无损计算；但独立成分分析（ICA）或协方差空间滤波属于**全局统计模型**。最佳架构中，ICA 权重矩阵 $W$ 应作为**独立的上游全局节点**（通过对全量记录进行稀疏均匀抽样或后台两阶段拟合得出），一旦 $W$ 锁定并生成哈希，按需窗口只需执行矩阵乘法 $S_{\text{chunk}} = W \cdot X_{\text{chunk}}$，即可实现微秒级实时去眼电/心电伪迹回溯。
+* **IIR 滤波器的状态传递 vs Overlap-Save：** 在随机游标跳转场景下，不要依赖保存滤波器内部状态向量 $z_i$（`lfilter_zi`），因为那要求严格的从头至尾顺序计算；采用固定 $T_{\text{halo}}$ 的 **Overlap-Save + 零相位 FIR/IIR (`filtfilt`)** 才能真正解耦块与块之间的顺序依赖，支持任意位置的瞬时随机跳转。

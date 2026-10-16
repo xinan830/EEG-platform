@@ -110,7 +110,7 @@ public sealed class PsdOnDemandDetailTests : IDisposable
     [Fact]
     public async Task Flag_off_retains_legacy_full_run_path()
     {
-        Environment.SetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_PSD", null);
+        Environment.SetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_PSD", "0");
         var client = new WindowClient();
         var catalog = ReadyCatalog(client);
         await Assert.ThrowsAsync<NotSupportedException>(() => InvokeRun(catalog));
@@ -125,7 +125,7 @@ public sealed class PsdOnDemandDetailTests : IDisposable
         var catalog = ReadyCatalog(new WindowClient(), onDemand: false);
 
         Assert.Equal("全量分析", catalog.SelectedDynamicExecutionMode);
-        Assert.Equal(["全量分析", "按需分析"], catalog.DynamicExecutionModes);
+        Assert.Equal(["全量分析", "按需分析", "按需预览 + 后台全量"], catalog.DynamicExecutionModes);
         Assert.False(catalog.IsOnDemandExecutionModeSelected);
 
         catalog.SelectedDynamicExecutionMode = "按需分析";
@@ -136,7 +136,7 @@ public sealed class PsdOnDemandDetailTests : IDisposable
     [Fact]
     public void Disabled_on_demand_feature_exposes_only_full_execution_and_rejects_selection()
     {
-        Environment.SetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_PSD", null);
+        Environment.SetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_PSD", "0");
         var catalog = ReadyCatalog(new WindowClient(), onDemand: false);
 
         Assert.Equal(["全量分析"], catalog.DynamicExecutionModes);

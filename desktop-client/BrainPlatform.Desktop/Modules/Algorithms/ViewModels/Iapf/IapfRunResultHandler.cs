@@ -7,8 +7,9 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Iapf;
 internal sealed class IapfRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "iapf";
-    public bool SupportsOnDemandWindows => string.Equals(
-        Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_IAPF"), "1", StringComparison.Ordinal);
+    public bool SupportsOnDemandWindows =>
+        OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
+    public FullRunMetricWindowSpec FullRunMetricWindowSpec => new("iapf_hz");
 
     public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
         _ = IapfResultPreview.FromWindow(response, catalog.SelectedChannel ?? "");

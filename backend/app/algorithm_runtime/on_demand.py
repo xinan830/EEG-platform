@@ -211,6 +211,8 @@ class DynamicWindowResponse(BaseModel):
     range: dict[str, Any] | None = None
     quality: str | None = None
     subscription_id: str | None = None
+    execution_mode: Literal["on_demand"] = "on_demand"
+    scientific_cache_key: str | None = None
 
     @model_validator(mode="after")
     def validate_state_payload(self) -> "DynamicWindowResponse":

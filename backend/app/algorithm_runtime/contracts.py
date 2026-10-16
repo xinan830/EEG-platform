@@ -183,6 +183,7 @@ class StructuredSeriesWindow(BaseModel):
     quality: str = Field(min_length=1)
     failure: AlgorithmFailure | None = None
     evidence: dict[str, Any] = Field(default_factory=dict)
+    provenance: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_range(self) -> "StructuredSeriesWindow":

@@ -7,8 +7,9 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.PeakFrequency;
 internal sealed class PeakFrequencyRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "peak_frequency";
-    public bool SupportsOnDemandWindows => string.Equals(
-        Environment.GetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_PEAK_FREQUENCY"), "1", StringComparison.Ordinal);
+    public bool SupportsOnDemandWindows =>
+        OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
+    public FullRunMetricWindowSpec FullRunMetricWindowSpec => new("peak_frequency_hz");
 
     public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
         _ = PeakFrequencyResultPreview.FromWindow(response, catalog.SelectedChannel ?? "");

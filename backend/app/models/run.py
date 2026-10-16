@@ -46,6 +46,10 @@ class RunCreateRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=256)
     project_id: str | None = None
     batch_run_id: str | None = None
+    # ``on_demand`` uses the dedicated window API and is not a persisted
+    # AnalysisRun. Keeping the field explicit makes the offline contract
+    # visible at the request boundary while preserving full as the default.
+    execution_mode: Literal["full", "on_demand"] = "full"
 
 
 class AnalysisRun(BaseModel):
@@ -82,6 +86,7 @@ class AnalysisRun(BaseModel):
     progress_stage: str | None = None
     progress_message: str | None = None
     execution_lane: Literal["interactive", "batch"] = "interactive"
+    execution_mode: Literal["full", "on_demand"] = "full"
     created_at: str
     updated_at: str
     started_at: str | None = None

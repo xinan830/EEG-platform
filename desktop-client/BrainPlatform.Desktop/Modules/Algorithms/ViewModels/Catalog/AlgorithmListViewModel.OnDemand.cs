@@ -19,6 +19,10 @@ public sealed partial class AlgorithmListViewModel
     private bool dynamicWindowRequestPending;
     private bool dynamicPreviewSeeking;
     private long lastRequestedWindowSample = -1;
+    private string displayedWindowSource = "按需窗口";
+    private string? fullWindowCacheRunId;
+    private Task<StructuredPreviewResponse?>? fullWindowCacheTask;
+    private CancellationTokenSource? fullWindowCacheCancellation;
     private TaskCompletionSource<Task>? pendingRequestFlush;
     internal Task CurrentWindowLoad { get; private set; } = Task.CompletedTask;
     public bool IsOnDemandAnalysis => windowRequest is not null;
@@ -153,9 +157,9 @@ public sealed partial class AlgorithmListViewModel
             var progress = new Progress<DynamicWindowResponse>(status =>
             {
                 if (revision != windowRevision || waiter.IsCancellationRequested || !windowLoading) return;
-                RunStatusText = $"按需窗口：{WindowStateLabel(status.State)}；保留上次已显示结果。";
+                RunStatusText = $"{displayedWindowSource}：{WindowStateLabel(status.State)}；保留上次已显示结果。";
             });
-            var response = await windowTargets!.LoadAsync(target, waiter.Token, progress);
+            var response = await LoadPreferredWindowAsync(target, handler, progress, waiter.Token);
             if (revision != windowRevision || waiter.IsCancellationRequested) return;
             if (response.Identity is not { } identity ||
                 !identity.TryGetProperty("recording_id", out var source) || source.GetString() != target.RecordingId)
@@ -172,7 +176,7 @@ public sealed partial class AlgorithmListViewModel
                 DynamicWindowRows.Add(row);
                 DynamicPreviewRows.Add(row);
             }
-            RunStatusText = $"按需窗口：{WindowStateLabel(response.State)}";
+            RunStatusText = $"{displayedWindowSource}：{WindowStateLabel(response.State)}";
             ResultSummaryText = response.Failure?.Message ?? $"窗口 {response.WindowId}：{WindowStateLabel(response.State)}";
             ProvenanceText = JsonSerializer.Serialize(new { response.SessionId, response.WindowId, response.Identity,
                 response.Range, response.Result?.Provenance });
@@ -199,6 +203,113 @@ public sealed partial class AlgorithmListViewModel
         }
     }
 
+    private async Task<DynamicWindowResponse> LoadPreferredWindowAsync(
+        DynamicWindowRequest target,
+        IAlgorithmRunResultHandler handler,
+        IProgress<DynamicWindowResponse> progress,
+        CancellationToken cancellationToken)
+    {
+        var completedFull = IsCompletedBackgroundFullRun(handler);
+        if (completedFull is not null)
+        {
+            try
+            {
+                if (handler.SupportsFullRunMetricWindowPreview &&
+                    handler.TryAdaptFullRunWindow(completedFull, target, RegisteredRecording?.SamplingRateHz, out var metricResponse))
+                {
+                    displayedWindowSource = "全量已完成窗口（本地缓存）";
+                    progress.Report(metricResponse);
+                    return metricResponse;
+                }
+
+                if (!handler.SupportsFullRunWindowPreview)
+                    throw new InvalidOperationException("当前算法没有可验证的 Full 窗口适配器。");
+                var cached = await EnsureFullWindowCacheAsync(completedFull.RunId, cancellationToken);
+                if (cached is not null)
+                {
+                    var cachedResponse = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(
+                        cached, target, RegisteredRecording?.SamplingRateHz);
+                    displayedWindowSource = "全量已完成窗口（本地缓存）";
+                    progress.Report(cachedResponse);
+                    return cachedResponse;
+                }
+                var preview = await client.GetWindowPreviewAsync(
+                    completedFull.RunId, target.CursorSample, null, cancellationToken);
+                if (!string.Equals(preview.RecordingId, target.RecordingId, StringComparison.Ordinal))
+                    throw new InvalidOperationException("完整结果窗口的记录身份不匹配，已拒绝绑定。");
+                var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(
+                    preview, target, RegisteredRecording?.SamplingRateHz);
+                displayedWindowSource = "全量已完成窗口";
+                progress.Report(response);
+                return response;
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception error) when (error is AlgorithmApiException or InvalidOperationException)
+            {
+                // A completed Run may predate the window-index contract or fail
+                // integrity validation. Keep the interactive preview usable,
+                // but make the fallback source explicit.
+                displayedWindowSource = "按需窗口（全量窗口不可用）";
+            }
+        }
+
+        if (completedFull is null)
+            displayedWindowSource = "按需窗口";
+        return await windowTargets!.LoadAsync(target, cancellationToken, progress);
+    }
+
+    private async Task<StructuredPreviewResponse?> EnsureFullWindowCacheAsync(
+        string runId, CancellationToken cancellationToken)
+    {
+        if (!string.Equals(fullWindowCacheRunId, runId, StringComparison.Ordinal))
+        {
+            fullWindowCacheCancellation?.Cancel();
+            fullWindowCacheCancellation?.Dispose();
+            fullWindowCacheCancellation = new CancellationTokenSource();
+            fullWindowCacheRunId = runId;
+            fullWindowCacheTask = LoadFullWindowCacheAsync(runId, fullWindowCacheCancellation.Token);
+        }
+
+        try
+        {
+            return await fullWindowCacheTask!.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+    }
+
+    private async Task<StructuredPreviewResponse?> LoadFullWindowCacheAsync(
+        string runId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await client.GetStructuredPreviewAsync(runId, 1_000_000, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception)
+        {
+            // Large artifacts may exceed the bounded preview budget. The
+            // caller then uses the verified per-window artifact endpoint.
+            return null;
+        }
+    }
+
+    private AnalysisRunResponse? IsCompletedBackgroundFullRun(IAlgorithmRunResultHandler handler) =>
+        IsCombinedExecutionModeSelected &&
+        (handler.SupportsFullRunWindowPreview || handler.SupportsFullRunMetricWindowPreview) &&
+        backgroundFullRequest is { } request &&
+        request.RecordingId == targetRecordingId &&
+        BackgroundFullRun is { Status: "completed" } run
+            ? run
+            : null;
+
+    private string? targetRecordingId => windowRequest?.RecordingId;
+
     public async Task ReleaseWindowAnalysisAsync()
     {
         StopDynamicPreviewTimer();
@@ -212,6 +323,11 @@ public sealed partial class AlgorithmListViewModel
         windowWait?.Cancel();
         windowWait = null;
         windowLoading = false;
+        fullWindowCacheCancellation?.Cancel();
+        fullWindowCacheCancellation?.Dispose();
+        fullWindowCacheCancellation = null;
+        fullWindowCacheRunId = null;
+        fullWindowCacheTask = null;
         if (windowTargets is not null) await windowTargets.ResetAsync();
         RaisePropertyChanged(nameof(IsRunActive));
     }
@@ -224,6 +340,7 @@ public sealed partial class AlgorithmListViewModel
         windowRequest = null;
         windowHandler = null;
         displayedWindow = null;
+        displayedWindowSource = "按需窗口";
         psdPreview.Clear();
         stftPreview.Clear();
         RaisePropertyChanged(nameof(IsOnDemandAnalysis));

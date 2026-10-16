@@ -129,6 +129,49 @@
                            VerticalAlignment="Center" />
             </Grid>
 
+            <!-- Combined mode keeps the ready preview and background full Run separate. -->
+            <Border Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1"
+                    CornerRadius="8" Padding="10,8" Margin="0,8,0,0">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasBackgroundFullRun}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <TextBlock Text="后台全量分析" FontSize="12" FontWeight="SemiBold" Foreground="#166534" />
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ProgressBar Grid.Column="0" Value="{Binding BackgroundFullRunProgressPercent, Mode=OneWay}"
+                                     Maximum="100" Style="{StaticResource ModernProgressBarStyle}"
+                                     Foreground="#16A34A" Margin="0,0,10,0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding BackgroundFullRunProgressText, Mode=OneWay}"
+                                   FontSize="11.5" FontWeight="SemiBold" Foreground="#166534"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock Text="{Binding BackgroundFullRunStatusText, Mode=OneWay}" FontSize="11"
+                               Foreground="#15803D" TextWrapping="Wrap" Margin="0,5,0,0" />
+                    <Button Command="{Binding CancelBackgroundFullRunCommand}"
+                            IsEnabled="{Binding CanCancelBackgroundFullRun}"
+                            Style="{StaticResource AppCompactCancelButtonStyle}"
+                            HorizontalAlignment="Left" Margin="0,8,0,0"
+                            ToolTip="只取消后台全量分析，保留当前按需预览"
+                            AutomationProperties.Name="取消后台全量分析">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="11" Margin="0,0,5,0" />
+                            <TextBlock Text="取消后台全量" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+
             <!-- Dynamic Preview Container -->
             <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="14,12" Margin="0,14,0,0">
                 <Border.Style>

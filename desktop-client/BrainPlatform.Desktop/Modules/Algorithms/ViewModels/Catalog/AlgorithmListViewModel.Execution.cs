@@ -10,6 +10,7 @@ public sealed partial class AlgorithmListViewModel
 
     private async Task RunAsync()
     {
+        if (disposed) return;
         if (isSubmittingRun) return;
         isSubmittingRun = true;
         RaisePropertyChanged(nameof(IsRunActive));
@@ -18,7 +19,7 @@ public sealed partial class AlgorithmListViewModel
         {
             isSubmittingRun = false;
             RaisePropertyChanged(nameof(IsRunActive));
-            if (automaticRunPending) automaticRunDebounceTimer.Start();
+            if (!disposed && !detailSuspended && automaticRunPending) automaticRunDebounceTimer.Start();
         }
     }
 
@@ -60,11 +61,21 @@ public sealed partial class AlgorithmListViewModel
         // Backend atomically merges active scientific configurations. New attempts
         // deliberately omit a permanent key so cancelled work can be rerun.
         var request = new AnalysisRunRequest(RegisteredRecording.Id, "official_algorithm", config);
-        if (dynamic && IsOnDemandExecutionModeSelected)
+        if (dynamic && (IsOnDemandExecutionModeSelected || IsCombinedExecutionModeSelected))
         {
             if (!resultHandler.SupportsOnDemandWindows)
                 throw new InvalidOperationException("当前算法未启用按需分析，请选择全量分析。");
+            var previewRevision = configurationRevision;
             await BeginWindowAnalysisAsync(request, resultHandler, preservedDynamicCursorSeconds ?? 0);
+            if (!disposed && !detailSuspended && IsCombinedExecutionModeSelected && configurationRevision == previewRevision &&
+                RegisteredRecording?.Id == request.RecordingId && SelectedAlgorithm?.Id == algorithm.Id)
+            {
+                var fullRequest = request with
+                {
+                    IdempotencyKey = AlgorithmRunConfiguration.StableFullRunIdempotencyKey(request),
+                };
+                BeginBackgroundFullRun(fullRequest, algorithm.Id, previewRevision);
+            }
             return;
         }
         var requestedRevision = configurationRevision;

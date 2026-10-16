@@ -87,6 +87,39 @@ class DynamicWindowRepository(DynamicAttemptRepositoryMixin):
             row = connection.execute("SELECT * FROM dynamic_analysis_sessions WHERE session_id = ?", (session_id,)).fetchone()
         return self._session(row) if row else None
 
+    def find_session(self, identity: DynamicWindowIdentity) -> DynamicSessionRecord | None:
+        """Find a session only when every persisted scientific identity field matches."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT * FROM dynamic_analysis_sessions
+                   WHERE recording_id = ? AND source_sha256 = ? AND algorithm_id = ?
+                     AND definition_id = ? AND definition_version = ? AND scientific_version = ?
+                     AND implementation_identity = ? AND configuration_sha256 = ?
+                     AND window_policy_version = ? AND project_id IS ?
+                     AND definition_sha256 = ? AND implementation_build = ?""",
+                (identity.recording_id, identity.source_sha256, identity.algorithm_id,
+                 identity.definition_id, identity.definition_version, identity.scientific_version,
+                 identity.implementation_identity, identity.configuration_sha256,
+                 identity.window_policy_version, identity.project_scope,
+                 identity.definition_sha256, identity.implementation_build),
+            ).fetchone()
+        return self._session(row) if row else None
+
+    def latest_windows(self, session_id: str) -> list[DynamicWindowRecord]:
+        """Return one newest generation per recording-relative range."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                """SELECT w.* FROM dynamic_analysis_windows w
+                   WHERE w.session_id = ? AND NOT EXISTS (
+                       SELECT 1 FROM dynamic_analysis_windows newer
+                       WHERE newer.session_id = w.session_id
+                         AND newer.start_sample = w.start_sample
+                         AND newer.end_sample = w.end_sample
+                         AND newer.generation > w.generation
+                   ) ORDER BY w.start_sample, w.end_sample""", (session_id,),
+            ).fetchall()
+        return [self._window(row) for row in rows]
+
     def ensure_window(self, session_id: str, *, start_sample: int, end_sample: int,
                       start_s: float, end_s: float, state: OnDemandWindowState = "queued",
                       quality: str = "pending") -> DynamicWindowRecord:

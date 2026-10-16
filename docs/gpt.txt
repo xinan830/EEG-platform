@@ -1,0 +1,403 @@
+# EEG 脑电数据离线回溯与算法分析：最佳架构研究
+
+技术调研 · 2026 年 10 月 16 日 · MNE-Python / SciPy / SciChart / Python / WPF
+
+## 一、核心结论
+
+根据检索到的 MNE、SciPy、SciChart、Dask 等官方文档，针对科研级 EEG 离线分析平台，我推荐采用：
+
+按需窗口计算 + 后台全量分析 + 多级共享缓存 + 游标优先调度 + 可取消任务 + 连续预处理 + 渐进式可视化 + 不可变科学结果。
+
+这不是某个开源项目提供的一整套标准架构，而是结合成熟科学计算技术、时序数据处理与桌面软件工程实践得出的系统设计方案。
+
+最关键的架构原则是：
+
+将数据读取、科学计算、后台调度、结果存储和前端绘制分成五个独立职责，不允许鼠标拖动直接触发整段 EEG 重算。
+
+交互优先
+
+只计算当前需要的窗口
+
+后台完整
+
+分段完成全记录分析
+
+缓存共享
+
+同一计算结果不重复生成
+
+科学一致
+
+按需与全量结果口径一致
+
+## 二、推荐的整体架构
+
+\#chatgpt-mermaid-\_r_c2\_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-\_r_c2\_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_c2\_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-\_r_c2\_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-\_r_c2\_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_c2\_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-\_r_c2\_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-\_r_c2\_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-\_r_c2\_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-\_r_c2\_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-\_r_c2\_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-\_r_c2\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_c2\_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_c2\_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-\_r_c2\_ p{margin:0;}#chatgpt-mermaid-\_r_c2\_ .label{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_c2\_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_c2\_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_c2\_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-\_r_c2\_ .label text,#chatgpt-mermaid-\_r_c2\_ span{fill:rgb(13, 13, 13);color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_c2\_ .node rect,#chatgpt-mermaid-\_r_c2\_ .node circle,#chatgpt-mermaid-\_r_c2\_ .node ellipse,#chatgpt-mermaid-\_r_c2\_ .node polygon,#chatgpt-mermaid-\_r_c2\_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1px;}#chatgpt-mermaid-\_r_c2\_ .rough-node .label text,#chatgpt-mermaid-\_r_c2\_ .node .label text,#chatgpt-mermaid-\_r_c2\_ .image-shape .label,#chatgpt-mermaid-\_r_c2\_ .icon-shape .label{text-anchor:middle;}#chatgpt-mermaid-\_r_c2\_ .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#chatgpt-mermaid-\_r_c2\_ .rough-node .label,#chatgpt-mermaid-\_r_c2\_ .node .label,#chatgpt-mermaid-\_r_c2\_ .image-shape .label,#chatgpt-mermaid-\_r_c2\_ .icon-shape .label{text-align:center;}#chatgpt-mermaid-\_r_c2\_ .node.clickable{cursor:pointer;}#chatgpt-mermaid-\_r_c2\_ .root .anchor path{fill:rgb(143, 143, 143)!important;stroke-width:0;stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_c2\_ .arrowheadPath{fill:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_c2\_ .edgePath .path{stroke:rgb(143, 143, 143);stroke-width:1px;}#chatgpt-mermaid-\_r_c2\_ .flowchart-link{stroke:rgb(143, 143, 143);fill:none;}#chatgpt-mermaid-\_r_c2\_ .edgeLabel{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_c2\_ .edgeLabel p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_c2\_ .edgeLabel rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_c2\_ .labelBkg{background-color:rgba(252, 252, 252, 0.5);}#chatgpt-mermaid-\_r_c2\_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_c2\_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_c2\_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_c2\_ div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:12px;background:rgb(243, 243, 243);border:1px solid rgba(0, 0, 0, 0.1);border-radius:2px;pointer-events:none;z-index:100;}#chatgpt-mermaid-\_r_c2\_ .flowchartTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-\_r_c2\_ rect.text{fill:none;stroke-width:0;}#chatgpt-mermaid-\_r_c2\_ .icon-shape,#chatgpt-mermaid-\_r_c2\_ .image-shape{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-\_r_c2\_ .icon-shape p,#chatgpt-mermaid-\_r_c2\_ .image-shape p{background-color:rgb(252, 252, 252);padding:2px;}#chatgpt-mermaid-\_r_c2\_ .icon-shape .label rect,#chatgpt-mermaid-\_r_c2\_ .image-shape .label rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-\_r_c2\_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-\_r_c2\_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-\_r_c2\_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].node rect,#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].cluster rect,#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-\_r_c2\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-\_r_c2\_-gradient);stroke-width:1px;}#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-\_r_c2\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-\_r_c2\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_c2\_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-\_r_c2\_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-\_r_c2\_ .node text{font-size:14px;font-weight:600;letter-spacing:normal;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_c2\_ .edgeLabels text{font-size:13px;font-weight:600;letter-spacing:-0.08px;fill:rgb(0, 79, 153);}#chatgpt-mermaid-\_r_c2\_ .node tspan[font-weight="normal"],#chatgpt-mermaid-\_r_c2\_ .edgeLabels tspan[font-weight="normal"]{font-weight:600;}#chatgpt-mermaid-\_r_c2\_ .edgeLabel .label rect{opacity:1;rx:13px;ry:13px;fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-width:1px;}#chatgpt-mermaid-\_r_c2\_ .node rect,#chatgpt-mermaid-\_r_c2\_ .node circle,#chatgpt-mermaid-\_r_c2\_ .node ellipse,#chatgpt-mermaid-\_r_c2\_ .node polygon,#chatgpt-mermaid-\_r_c2\_ .node path{fill:rgb(229, 243, 255);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-\_r_c2\_ .node rect{rx:16px;ry:16px;}#chatgpt-mermaid-\_r_c2\_ .node.mermaid-decision .label-container{fill:rgb(245, 250, 255);stroke:rgb(206, 219, 229);stroke-dasharray:2,2;}#chatgpt-mermaid-\_r_c2\_ .edgePaths .flowchart-link{stroke:rgb(143, 143, 143);stroke-width:1px;stroke-linecap:round;stroke-linejoin:round;}#chatgpt-mermaid-\_r_c2\_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-\_r_c2\_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}WPF + SciChart 用户界面交互请求协调器最新游标优先调度器后台全量分析调度器共享任务与缓存索引数据读取与连续预处理算法模块执行器科学结果与元数据多分辨率可视化数据原始 EEG 数据缓存命中
+
+推荐的技术职责：
+
+| 系统层    | 负责内容                  | 推荐技术                    |
+| ------ | --------------------- | ----------------------- |
+| 界面层    | 波形、时间游标、PSD/STFT 展示   | WPF + SciChart          |
+| 协调层    | 请求身份、去重、过期响应丢弃        | C# + Python API         |
+| 调度层    | 交互优先级、后台任务、公平调度、取消    | Python 任务调度器            |
+| 科学计算层  | 滤波、参考转换、PSD、STFT、算法插件 | NumPy / SciPy / MNE     |
+| 数据与缓存层 | 分段读取、预处理缓存、结果复用       | mmap / SQLite / 可选 Zarr |
+| 溯源层    | 算法版本、参数、输入数据、质量状态     | 不可变 Run / Artifact 元数据  |
+
+这套架构特别适合需要同时支持实时采集、离线回溯、静态分析、动态分析，以及未来用户自定义算法的研究工作站。
+
+## 三、关键技术问题与检索结果
+
+### 1. 按需窗口计算：不应该先分析整份记录
+
+MNE-Python 官方的 `Raw.get_data()` 支持指定 `start`、`stop` 和 `picks`，可以按样本范围及通道读取数据，不必每次加载全部记录。
+
+例如，用户在两小时 EEG 数据中跳转到第 65 分钟，可以只请求对应时间范围的数据。需要注意，MNE 的 `preload=False` 虽然支持按需读取，但不能直接对未预加载的 Raw 对象执行某些原地滤波操作，因此必须另行设计连续预处理层。
+
+[image](https://www.google.com/s2/favicons?domain=https://mne.tools\&sz=32)
+
+MNE 1.13.2 documentation
+
++1
+
+
+
+推荐建立统一的 `WindowRequest` 契约：
+
+```
+record_id
+algorithm_id
+algorithm_version
+preprocessing_identity
+channel_ids
+start_sample
+stop_sample
+window_size_samples
+hop_size_samples
+request_generation
+```
+
+其中，时间范围统一采用原始采样点索引和左闭右开区间，避免浮点时间换算造成窗口重复、遗漏或偏移。
+
+对于算法执行，必须区分两类任务：
+
+- `InteractiveWindow`：只获取用户当前需要的窗口结果，优先快速响应。
+- `FullRecordRun`：后台覆盖整份记录，生成完整且持久的科学分析结果。
+
+两种任务必须使用同一科学算法定义，但可以有不同的读取和调度策略。
+
+### 2. 连续预处理：这是科学正确性的关键
+
+不能简单地把连续 EEG 切成 10 秒一段，然后分别调用滤波器，并假定拼起来就等于整段连续滤波。
+
+MNE 的滤波文档明确讨论了滤波器长度、相位、边界伪影及信号畸变问题；SciPy 的 `sosfilt` 则支持传递滤波状态，`filtfilt` / `sosfiltfilt` 是另一类前后向零相位处理。
+
+[image](https://www.google.com/s2/favicons?domain=https://mne.tools\&sz=32)
+
+MNE 1.13.2 documentation
+
++2
+
+
+
+因此建议分为两种模式：
+
+连续因果预处理
+
+适合实时采集或明确采用因果滤波的离线计算。沿时间顺序处理数据，跨块保存滤波器内部状态与检查点。不能随意从一个全新的初始状态开始计算中间窗口。
+
+离线零相位预处理
+
+适合需要前后向滤波的分析。首选按连续记录片段生成可复用预处理结果；内存不足时可按验证过的算法采用带重叠边界的分块处理，并与全段参考实现比较误差。不能假定固定的几秒重叠总是足够。
+
+我的建议是，把连续预处理结果作为独立的共享数据产物，而不是让 PSD、频段功率、IAPF 等算法各自重新滤波。
+
+另外，坏段、采集断点及数据缺口必须显式管理。MNE 也会利用特定 annotation 将不连续片段分开滤波。不能静默删除坏数据后，把断开的时间轴当作连续信号。
+
+[image](https://www.google.com/s2/favicons?domain=https://mne.tools\&sz=32)
+
+MNE 1.13.2 documentation
+
++1
+
+
+
+### 3. 滑动 PSD / STFT：统一时间窗口定义
+
+MNE 提供 `psd_array_welch`，SciPy 提供 `welch` 和 `ShortTimeFFT`。它们都能支持频谱分析，但窗口函数、重叠量、平均方式、归一化方式及默认值不完全相同，不能不加区分地混用。
+
+[image](https://www.google.com/s2/favicons?domain=https://mne.tools\&sz=32)
+
+MNE 1.13.2 documentation
+
++2
+
+
+
+对于动态 EEG 分析，建议将窗口定义固定为：
+
+\\[ s_k=kH,\qquad e_k=s_k+N \\]
+
+其中：
+
+- \\(N\\)：每个分析窗口的采样点数
+- \\(H\\)：相邻分析窗口的步长
+- \\(k\\)：全记录中的窗口编号
+
+这三个参数决定同一条记录在前台按需计算和后台全量计算时，是否真正指向同一个窗口。
+
+还必须区分动态分析外层窗口与 Welch PSD 内部 FFT 分段。例如外层 4 秒、每 1 秒产生一个分析结果，而每个 4 秒窗口内部还可以具有自己的 FFT 分段、重叠和平均策略。两个层级的配置不能混为一谈。
+
+最重要的保证：
+
+`按需窗口 #120` 与 `全量分析窗口 #120` 的科学数据身份和计算定义应相同。只允许因为明确记录的数值精度、执行后端等因素出现经验证的容差，而不是产生两个互相矛盾的结果。
+
+## 四、最新游标优先调度与过期任务取消
+
+当用户快速拖动 EEG 时间轴时，不能把每一次位置变化都作为必须完成的计算任务。
+
+推荐采用 Latest-Request-Wins（最新请求优先）+ Cooperative Cancellation（协作式取消）。
+
+连续拖动时间轴时的调度示意
+
+游标 10s
+
+已过期
+
+取消或丢弃响应
+
+游标 28s
+
+已过期
+
+取消或丢弃响应
+
+游标 65s
+
+当前请求
+
+优先执行与展示
+
+前端通过不断递增的 `request_generation` 判断响应是否过期。即使旧 HTTP 请求返回成功，只要它不属于当前有效请求，也不能覆盖现在的界面。
+
+后端优先取消尚未开始的旧任务；对于已经执行的任务，在读取分块、窗口计算或提交结果等安全检查点协作退出。Python 官方明确指出，`Future.cancel()` 无法取消已经开始运行的任务，所以不能只依靠这个接口。
+
+[image](https://www.google.com/s2/favicons?domain=https://docs.python.org\&sz=32)
+
+Python 3.15.0 documentation
+
++1
+
+
+
+需要特别注意：交互请求过期，不等于底层科学计算结果也必须作废。
+
+如果同一个窗口正在被后台全量分析使用，调度器应允许前台取消订阅，但保留仍被后台任务需要的共享计算。后台全量任务也不应该因为用户拖动游标就被整体取消。
+
+建议调度策略为：
+
+| 优先级 | 工作类型        | 调度行为        |
+| --- | ----------- | ----------- |
+| P0  | 当前可见窗口、最新游标 | 最高交互优先级     |
+| P1  | 当前窗口附近的预取   | 仅在资源允许时执行   |
+| P2  | 后台全量分析      | 保留进度，公平持续执行 |
+| P3  | 缓存预热及维护     | 空闲执行，可延后    |
+
+这里的优先级是一种推荐设计，而不是 Python 或 MNE 自带的任务级别。后台还应保留最低执行份额，防止用户持续交互造成全量任务长期饥饿。
+
+## 五、多级结果缓存：避免重复计算
+
+建议严格区分四类数据产物，而不是简单把所有东西存入一个结果缓存。
+
+L0 原始数据
+
+不可变 EEG 原始文件、通道信息、采样率、采集断点和数据身份
+
+L1 连续预处理缓存
+
+滤波、重参考、单位、预处理参数及连续信号有效范围
+
+L2 科学算法结果缓存
+
+PSD、STFT、频段功率、IAPF、FAA、算法窗口结果和质量信息
+
+L3 可视化缓存
+
+波形缩略数据、多分辨率数据、频谱显示数据、图形渲染数据
+
+特别要强调：L3 是显示层的派生产物，不能用它代替 L2 科学结果，更不能用降采样后的波形去计算正式 PSD。
+
+对于本地单用户工作站，优先使用 `NumPy memmap + SQLite` 即可构建坚实的底座。当数据量和并发模式增长后，再考虑 Zarr 的压缩分块数组，以及 Dask 的分块重叠运算。Zarr 与 Dask 官方都提供了相应能力，但没有必要一开始就把它们全部引入。
+
+[image](https://www.google.com/s2/favicons?domain=https://zarr.readthedocs.io\&sz=32)
+
+zarr-python
+
++1
+
+
+
+缓存命中必须依赖内容身份，而不只依赖文件名：
+
+```
+preprocessing_key =
+  hash(
+    source_fingerprint,
+    channel_mapping,
+    reference_definition,
+    preprocessing_parameters,
+    implementation_version,
+    numeric_execution_policy
+  )
+
+result_key =
+  hash(
+    preprocessing_key,
+    algorithm_id,
+    scientific_version,
+    implementation_version,
+    canonical_parameters,
+    channel_selection,
+    window_identity,
+    quality_policy,
+    execution_semantics
+  )
+```
+
+这里的字段是逻辑定义，实际实现时需要规范化序列化、明确字段语义，并避免把不会影响结果的界面参数纳入科学缓存键。还要记录输入文件的内容校验或可验证指纹，而不是仅凭文件路径和修改时间判断身份。
+
+缓存落盘建议采用临时写入、校验、原子发布和数据库状态提交的流程。未完成、已取消、校验失败的产物不得被当作正式完成结果。
+
+SQLite 的 WAL 模式支持读写并行，适合本地结果索引和任务元数据；但仍需管理写事务、忙等待及持久化一致性。
+
+[image](https://www.google.com/s2/favicons?domain=https://www.sqlite.org\&sz=32)
+
+sqlite.org
+
++1
+
+
+
+## 六、长时序 EEG 渐进式可视化
+
+这一部分有两项非常值得参考的研究成果。
+
+[OM3: An Ordered Multi-level Min-Max Representation for Interactive Progressive Visualization of Time Series](https://images.openai.com/static-rsc-4/dlMk08QDkTSuibJsSXYzY_uNI7S251vV28Ak-1qxuqClrND5YTcV77f0J8FOs_uQg80YLo1Z2B8UsHRi0gFIpeewAZz1gu-2qcGTwRmsjRN0vqfCpSSB3HAZUBwPENUz0QaJGSzMfKqEzDTdRbKbdw59503oiiMCwVoloaDh_Ag?purpose=inline)
+
+[M4: A Visualization-Oriented Time Series Data Aggregation](https://www.vldb.org/pvldb/vol7/p797-jugel.pdf?utm_source=chatgpt.com)
+
+PVLDB · 2014 · 经典时序可视化研究
+
+提出按照屏幕像素列保留首点、末点、最小值和最大值。相比只保留最小值和最大值，能更好地保持折线的连接关系。论文在特定二值折线栅格化假设下给出了无像素误差的证明。
+
+[image](https://www.google.com/s2/favicons?domain=https://www.vldb.org\&sz=32)
+
+VLDB
+
+
+
+[Visualization-Oriented Progressive Time Series Transformation](https://images.openai.com/static-rsc-4/7M6UoNRzKf6fzgc4WvtK-beK1sngY-U1O43dT_e5aTYBS-BcW9IUVZyDlm4Uf2A9YP6AT9IE06blf7fa50xL1A690slJrcph57sZzxbN4Fm74xKZZOXxo5cs60MRQTWeLId3US-8kS0bgfQpmxAJWhetMKN1oBvDkIs-ZeBN2iI?purpose=inline)
+
+[Visualization-Oriented Progressive Time Series Transformation](https://www.yunhaiwang.net/sigmod2026/PIVOT/?utm_source=chatgpt.com)
+
+ACM SIGMOD · 2026 · 渐进式时序变换研究
+
+PIVOT 研究利用层次缓存与渐进式计算减少等待，重点针对可按点变换的数据操作。适合借鉴其交互理念，但不能直接假设它适用于具有长程依赖的 EEG 滤波和频谱运算。
+
+[image](https://www.google.com/s2/favicons?domain=https://www.yunhaiwang.net\&sz=32)
+
+yunhaiwang.net
+
+
+
+结合 EEG 波形，我推荐采用多分辨率时间序列金字塔 + 按需精细化绘制。
+
+```
+原始波形：每一个采样点
+       │
+       ├── Level 0：完整分辨率
+       ├── Level 1：较细时间聚合
+       ├── Level 2：中等时间聚合
+       ├── Level 3：较粗时间聚合
+       └── Level N：全记录概览
+
+用户放大 → 更高时间分辨率
+用户缩小 → 更低时间分辨率
+```
+
+每个聚合桶保留原始时间位置、首尾值、极值及其真实时间索引。送入 SciChart 绘制时，必须按真实时间排序、去除重复点、保留断点，不应该把最小值与最大值放在相同 X 坐标上随意连接。
+
+SciChart v9 文档也强调，按 X 升序且等间隔的数据能够得到更高效的重采样处理。它还提供绘制优先级、帧率控制和批量更新机制。应避免因过于频繁地使用 `SuspendUpdates()` 而阻塞实际绘图。
+
+[image](https://www.google.com/s2/favicons?domain=https://www.scichart.com\&sz=32)
+
+WPF Chart Documentation
+
++2
+
+
+
+对于 STFT 时频图，可使用 SciChart 的 `FastUniformHeatmapRenderableSeries`，只加载可视时间范围所对应的频谱矩阵，并依据屏幕分辨率选择合适的显示密度。
+
+[image](https://www.google.com/s2/favicons?domain=https://www.scichart.com\&sz=32)
+
+WPF Chart Documentation
+
+
+
+这里有一个明确的限制：渐进式可视化可以先粗后细，但科学分析不能把粗略预览伪装成最终计算结果。
+
+## 七、科学结果可追溯与可复现
+
+建议借鉴 Brain Imaging Data Structure (BIDS) 的 Derivatives 设计思想。
+
+BIDS 要求衍生数据包含描述文件，并通过 `GeneratedBy` 等字段记录生成流程。它的核心价值在于让科学数据的来源、处理方法及后续复用具有明确的机器可读依据。
+
+[image](https://www.google.com/s2/favicons?domain=https://bids-specification.readthedocs.io\&sz=32)
+
+Brain Imaging Data Structure 1.11.2
+
++1
+
+
+
+建议每次正式分析生成不可变的 `RunManifest`，至少涵盖输入记录身份、参与通道、采样率、预处理身份、算法科学版本、实现版本、参数快照、窗口规则、数据单位、质量策略、依赖版本、执行时间及生成产物。
+
+对每个分析窗口，再独立记录 `Complete / Partial / Rejected / Unavailable` 等状态，以及有效采样数量、质量原因和产物校验信息。`Partial` 不能只表示后台尚未计算完毕；需要分别表达覆盖进度和窗口科学完整性。
+
+这样后期更换算法、调整参数或者升级 SciPy，都不会把旧结果直接覆盖。科研人员能够定位某张 PSD 图到底是从哪份原始记录、经过哪些变换、使用哪个算法版本得到的。
+
+## 八、针对当前 WPF + Python 脑科研平台的落地建议
+
+不建议现在大幅度重写整个后端，而是逐步加强现有模块之间的契约。
+
+| 实施顺序 | 推荐工程改动               | 验收重点            |
+| ---- | -------------------- | --------------- |
+| P0   | 统一窗口身份和科学缓存键         | 同一窗口不会生成重复的不同身份 |
+| P0   | 最新请求优先和过期响应保护        | 快速拖动不会展示旧窗口结果   |
+| P0   | 连续预处理缓存及科学对照         | 按需窗口与参考计算在容差内一致 |
+| P1   | 共享任务注册、取消与订阅         | 前台取消不破坏后台全量计算   |
+| P1   | 全量任务断点续算及持久化         | 程序重启后不重复已完成窗口   |
+| P1   | 多级波形和时频图可视化          | 长记录缩放时保持交互流畅    |
+| P2   | 统一 RunManifest 和导出机制 | 结果来源、版本和参数可追溯   |
+
+需要给算法注册契约增加或保持明确的能力声明：支持独立窗口计算的算法使用按需调度；依赖全局拟合、跨长时间上下文或整段数据的算法，必须使用对应的准备阶段或全量运行路径，不能为了统一接口而强制切成互不相关的窗口。
+
+最终还应建立同一组科学验证数据，测试连续与分块滤波误差、窗口边界、坏段、尾窗、时间轴对齐、缓存失效、并发取消、崩溃恢复、不同单位换算，以及按需和全量计算的一致性。
+
+## 九、最值得保留的官方资料
+
+| 资料                                                                                                                               | 研究价值           |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| [MNE Raw API](https://mne.tools/stable/generated/mne.io.Raw.html?utm_source=chatgpt.com)                                         | 离线数据分段读取及预处理语义 |
+| [MNE Filtering](https://mne.tools/stable/auto_tutorials/preprocessing/25_background_filtering.html?utm_source=chatgpt.com)       | 连续滤波、相位与边界伪影   |
+| [SciPy ShortTimeFFT](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.ShortTimeFFT.html?utm_source=chatgpt.com) | 滑动时频计算         |
+| [SciChart Performance](https://www.scichart.com/documentation/win/current/Data%20Performance%20Tips.html?utm_source=chatgpt.com) | WPF 大规模数据绘制    |
+| [M4 论文](https://www.vldb.org/pvldb/vol7/p797-jugel.pdf?utm_source=chatgpt.com)                                                   | 波形降采样及像素级保真    |
+| [PIVOT 2026](https://www.yunhaiwang.net/sigmod2026/PIVOT/?utm_source=chatgpt.com)                                                | 渐进式时序可视化与缓存    |
+| [BIDS Derivatives](https://bids.neuroimaging.io/getting_started/folders_and_files/derivatives.html?utm_source=chatgpt.com)       | 科学产物溯源与标准化     |
+
+最终建议： 现阶段最值得投入的不是继续增加算法，而是先让按需窗口、后台全量分析和共享缓存使用统一的科学数据身份，并确保预处理连续性。一旦这一层完成，后续增加 PSD、STFT、频段功率、连接性或自定义算法时，才能同时获得交互性能、缓存复用能力与科学可信度。
+
+这也是目前这套可扩展 EEG 科研平台最重要的底层架构方向。

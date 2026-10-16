@@ -29,10 +29,13 @@ class WindowLeaseLost(RuntimeError):
 
 class WindowExecutionControl:
     def __init__(self, check: Callable[[], None], prepared: Callable[[], None],
-                 resource_policy: DynamicWindowResourcePolicy | None = None) -> None:
+                 resource_policy: DynamicWindowResourcePolicy | None = None,
+                 compute_coordinator: Any | None = None) -> None:
         self.check = check
         self.prepared = prepared
         self.preparation_resource_policy = resource_policy
+        self.compute_coordinator = compute_coordinator
+        self._compute_lease: Any | None = None
 
     def source_preparation_completed(self) -> None:
         self.check()
@@ -43,9 +46,22 @@ class WindowExecutionControl:
 
     def window_started(self) -> None:
         self.check()
+        if self.compute_coordinator is not None:
+            if self._compute_lease is not None:
+                raise RuntimeError("a dynamic window is already active")
+            self._compute_lease = self.compute_coordinator.acquire("interactive", self.check)
 
     def window_completed(self) -> None:
-        self.check()
+        try:
+            self.check()
+        finally:
+            self.close()
+
+    def close(self) -> None:
+        lease = self._compute_lease
+        self._compute_lease = None
+        if lease is not None:
+            lease.release()
 
 
 def execute_window_job(
@@ -55,6 +71,7 @@ def execute_window_job(
     remove_unreferenced: Callable[[str], None], stop: threading.Event,
     *, manifest_digest: Callable[[str], str], lease_seconds: float = 300,
     resource_policy: DynamicWindowResourcePolicy | None = None,
+    compute_coordinator: Any | None = None,
 ) -> None:
     """Compute outside SQLite; all window mutations are transactionally fenced."""
     logger = logging.getLogger(__name__)
@@ -102,10 +119,11 @@ def execute_window_job(
         check()
         repository.update_attempt_window(attempt_id, worker_id, token, "preparing_source")
         heartbeat_thread.start()
-        control = WindowExecutionControl(check, prepared, resource_policy)
+        control = WindowExecutionControl(check, prepared, resource_policy, compute_coordinator)
         inputs.execution_context = control
         if hasattr(inputs.payload, "execution_context"):
             inputs.payload.execution_context = control
+        control.window_started()
         result = capability.execute_window(inputs, config, plan, identity, check_cancelled=check)
         result.evidence = AlgorithmEvidence.model_validate(with_sample_coordinate(
             result.evidence, {"start_s": plan.start_s, "end_s": plan.end_s}, inputs.sfreq_hz,
@@ -148,6 +166,8 @@ def execute_window_job(
         except (KeyError, ValueError):
             logger.info("dynamic_window_stale_outcome_discarded window_id=%s attempt_id=%s", window_id, attempt_id)
     finally:
+        if 'control' in locals():
+            control.close()
         heartbeat_stop.set()
         if heartbeat_thread.ident is not None:
             heartbeat_thread.join(timeout=5)

@@ -36,6 +36,7 @@ from .manifest import MANIFEST
 
 class PsdAlgorithm:
     manifest = MANIFEST
+    on_demand_default_enabled = True
     config_model = PsdConfig
     output_schema = MANIFEST.output_schema
     BAND_SHARE_LABELS = ("delta", "theta", "alpha", "beta", "gamma")
@@ -45,6 +46,14 @@ class PsdAlgorithm:
     def can_execute_window(self, config: AlgorithmConfigBase) -> bool:
         """PSD is opt-in capable only for its validated dynamic configuration."""
         return isinstance(config, PsdConfig) and config.mode == "dynamic"
+
+    def can_reuse_offline_window(self, result: DynamicWindowResult, *, sampling_rate_hz: float,
+                                 config: dict[str, Any] | None = None) -> bool:
+        """Opt in to reuse only results on the current dynamic Welch grid."""
+        return result.quality == "clean" and result.failure is None and np.array_equal(
+            np.asarray(result.axes["frequency_hz"], dtype=float),
+            self._frequency_axis(sampling_rate_hz, 1.0, 50.0),
+        )
 
     def plan_window(self, inputs: AlgorithmInputs, config: PsdConfig, cursor_sample: int,
                     session_identity: DynamicSessionIdentity) -> DynamicWindowPlan:
@@ -292,6 +301,24 @@ class PsdAlgorithm:
             state = frame.state
             evidence: dict[str, Any] = {}
             try:
+                cached = None
+                if inputs.execution_context is not None and hasattr(inputs.execution_context, "cached_window"):
+                    cached = inputs.execution_context.cached_window(sample_range.start_sample, sample_range.end_sample)
+                if cached is not None:
+                    if cached.state == "ready":
+                        row = np.asarray(cached.arrays["psd"], dtype=float)
+                        band_share_rows.append(np.asarray(cached.arrays["band_share"], dtype=float))
+                        evidence = dict(cached.evidence)
+                        rows.append(row)
+                        windows.append(StructuredSeriesWindow(
+                            start_sample=sample_range.start_sample, end_sample=sample_range.end_sample,
+                            start_s=frame.window_start_s, end_s=frame.window_end_s,
+                            state=frame.state, quality=cached.quality, evidence=evidence,
+                        ))
+                        continue
+                    if cached.state == "rejected":
+                        raise SpectralQualityGateError((cached.failure or {}).get("details", {}))
+                    raise ValueError((cached.failure or {}).get("message", "cached PSD window unavailable"))
                 spectrum = self._load(
                     inputs.payload, channel=inputs.channel,
                     start_s=frame.window_start_s, window_s=frame.actual_window_s,

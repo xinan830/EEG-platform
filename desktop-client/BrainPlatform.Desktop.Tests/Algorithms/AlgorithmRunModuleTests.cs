@@ -20,6 +20,41 @@ public sealed class AlgorithmRunModuleTests
         Assert.Equal(scalar, module.UsesDynamicScalarSeries);
     }
 
+    [Theory]
+    [InlineData("peak_frequency", "peak_frequency_hz")]
+    [InlineData("iapf", "iapf_hz")]
+    [InlineData("band_ratio", "ratio")]
+    [InlineData("theta_beta", "theta_beta")]
+    public void ScalarFullPreview_UsesSharedDeclarativeMetricSpec(string id, string valueField)
+    {
+        var module = AlgorithmRunResultHandlerRegistry.For(id);
+
+        Assert.NotNull(module.FullRunMetricWindowSpec);
+        Assert.Equal(valueField, module.FullRunMetricWindowSpec!.ValueField);
+        Assert.True(module.SupportsFullRunMetricWindowPreview);
+    }
+
+    [Fact]
+    public void RbpFullPreview_UsesSharedDeclarativeBandSpec()
+    {
+        var spec = AlgorithmRunResultHandlerRegistry.For("rbp").FullRunMetricWindowSpec;
+
+        Assert.NotNull(spec);
+        Assert.Equal("ratio", spec!.ValueField);
+        Assert.Equal(["delta", "theta", "alpha", "beta", "gamma"], spec.MultiMetricFields);
+    }
+
+    [Theory]
+    [InlineData("faa")]
+    [InlineData("brainbeat")]
+    public void PairedAlgorithms_DoNotClaimFullPreviewWithoutPairProvenance(string id)
+    {
+        var module = AlgorithmRunResultHandlerRegistry.For(id);
+
+        Assert.Null(module.FullRunMetricWindowSpec);
+        Assert.False(module.SupportsFullRunMetricWindowPreview);
+    }
+
     [Fact]
     public void UnregisteredAlgorithm_CannotFallBackToAnotherResultType()
     {

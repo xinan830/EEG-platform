@@ -8,7 +8,7 @@ using BrainPlatform.Desktop.Modules.Projects.ViewModels;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 
-public sealed partial class AlgorithmListViewModel : ObservableObject
+public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly IAlgorithmClient client;
     private readonly AlgorithmRunCoordinator runCoordinator;
@@ -66,6 +66,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         RegisterCommand = new AsyncRelayCommand(RegisterAsync, ReportRunError);
         RunCommand = new AsyncRelayCommand(RunAsync, ReportRunError);
         CancelRunCommand = new AsyncRelayCommand(CancelRunAsync, ReportRunError);
+        CancelBackgroundFullRunCommand = new AsyncRelayCommand(CancelBackgroundFullRunAsync, ReportRunError);
         SelectStaticModeCommand = new RelayCommand(() => SelectedAnalysisMode = "静态");
         SelectDynamicModeCommand = new RelayCommand(() => SelectedAnalysisMode = "动态");
         StartDynamicPreviewCommand = new RelayCommand(StartDynamicPreview, CanStartDynamicPreview);
@@ -83,7 +84,8 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         automaticRunDebounceTimer.Tick += async (_, _) =>
         {
             automaticRunDebounceTimer.Stop();
-            if (!automaticRunPending || IsRunActive || RegisteredRecording is null || SelectedAlgorithm is null)
+            if (disposed || detailSuspended || !automaticRunPending || IsRunActive ||
+                RegisteredRecording is null || SelectedAlgorithm is null)
                 return;
             automaticRunPending = false;
             try { await RunAsync(); }
@@ -124,6 +126,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     public ICommand RegisterCommand { get; }
     public ICommand RunCommand { get; }
     public ICommand CancelRunCommand { get; }
+    public ICommand CancelBackgroundFullRunCommand { get; }
     public ICommand SelectStaticModeCommand { get; }
     public ICommand SelectDynamicModeCommand { get; }
     public ICommand StartDynamicPreviewCommand { get; }
@@ -233,6 +236,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             RaisePropertyChanged(nameof(DynamicStepOptions));
             RaisePropertyChanged(nameof(DynamicExecutionModes));
             RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
+            RaisePropertyChanged(nameof(IsCombinedExecutionModeSelected));
             RaisePropertyChanged(nameof(SelectedDynamicStepSeconds));
             ApplyAlgorithmChannelDefaults();
             ApplyAlgorithmParameterDefaults();
@@ -308,7 +312,8 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     public string StructuredPreviewText { get => structuredPreviewText; private set => SetProperty(ref structuredPreviewText, value); }
     public string DynamicSeriesText { get => dynamicSeriesText; private set => SetProperty(ref dynamicSeriesText, value); }
     public AnalysisRunResponse? LastRun { get => lastRun; private set => SetProperty(ref lastRun, value); }
-    public bool IsRunActive => isSubmittingRun || windowLoading || LastRun?.Status is "queued" or "running";
+    public bool IsRunActive => isSubmittingRun || windowLoading ||
+        LastRun?.Status is "queued" or "running";
     public IReadOnlyList<string> AnalysisModes { get; } = ["静态", "动态"];
     public string SelectedAnalysisMode
     {
@@ -320,6 +325,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             RaisePropertyChanged(nameof(IsDynamicMode));
             RaisePropertyChanged(nameof(DynamicExecutionModes));
             RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
+            RaisePropertyChanged(nameof(IsCombinedExecutionModeSelected));
             ScheduleAutomaticRun();
         }
     }
@@ -331,12 +337,13 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
             if (!IsDynamicModeAvailable)
                 return [];
 
-            var modes = new List<string> { "全量分析" };
+            var modes = new List<string> { OfflineAnalysisAvailability.FullOnly };
             if (SelectedAlgorithm is { } algorithm &&
                 AlgorithmRunResultHandlerRegistry.Contains(algorithm.Id) &&
                 AlgorithmRunResultHandlerRegistry.For(algorithm.Id).SupportsOnDemandWindows)
             {
-                modes.Add("按需分析");
+                modes.Add(OfflineAnalysisAvailability.OnDemandOnly);
+                modes.Add(OfflineAnalysisAvailability.OnDemandWithBackgroundFull);
             }
             return modes;
         }
@@ -348,21 +355,27 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
         {
             var normalized = DynamicExecutionModes.Contains(value, StringComparer.Ordinal)
                 ? value
-                : "全量分析";
+                : OfflineAnalysisAvailability.FullOnly;
             if (!SetProperty(ref selectedDynamicExecutionMode, normalized)) return;
             ClearPreviews();
             RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
+            RaisePropertyChanged(nameof(IsCombinedExecutionModeSelected));
             ScheduleAutomaticRun();
         }
     }
-    public bool IsOnDemandExecutionModeSelected => IsDynamicMode && SelectedDynamicExecutionMode == "按需分析";
+    public bool IsOnDemandExecutionModeSelected => IsDynamicMode && SelectedDynamicExecutionMode == OfflineAnalysisAvailability.OnDemandOnly;
+    public bool IsCombinedExecutionModeSelected => IsDynamicMode && SelectedDynamicExecutionMode == OfflineAnalysisAvailability.OnDemandWithBackgroundFull;
     public bool IsDynamicPreviewPlaying { get => isDynamicPreviewPlaying; private set => SetProperty(ref isDynamicPreviewPlaying, value); }
     public double DynamicPreviewCursorSeconds { get => dynamicPreviewCursorSeconds; private set => SetProperty(ref dynamicPreviewCursorSeconds, value); }
     public string DynamicPreviewCursorText => TimeDisplay.FormatCursor(DynamicPreviewCursorSeconds);
     public bool HasDynamicPreview => IsOnDemandAnalysis || DynamicWindowRows.Count > 0;
+    public string DynamicPreviewSourceText => displayedWindowSource;
     public string DynamicPreviewStatusText => !HasDynamicPreview
         ? "尚未生成动态窗口结果"
-        : IsDynamicPreviewPlaying ? "时间同步预览进行中" : DynamicPreviewCursorSeconds >= DynamicPlaybackEndSeconds ? "时间同步预览已结束" : "时间同步预览已暂停";
+        : $"{DynamicPreviewSourceText} · " +
+          (IsDynamicPreviewPlaying ? "时间同步预览进行中" :
+           DynamicPreviewCursorSeconds >= DynamicPlaybackEndSeconds ? "时间同步预览已结束" :
+           "时间同步预览已暂停");
     public ObservableCollection<DynamicWindowRow> DynamicPreviewRows { get; } = [];
     public bool IsDynamicModeAvailable => SelectedAlgorithm?.Modes.Contains("dynamic") == true;
     public IReadOnlyList<double> DynamicWindowOptions => SelectedAlgorithm?.DynamicPolicy.WindowOptionsSeconds ?? [];
@@ -577,7 +590,9 @@ public sealed partial class AlgorithmListViewModel : ObservableObject
     private void ScheduleAutomaticRun()
     {
         configurationRevision++;
+        InvalidateBackgroundFullRunDisplay();
         if (IsOnDemandAnalysis) ClearWindowAnalysis();
+        if (disposed || detailSuspended) return;
         if (SelectedProjectRecording is not { Status: "已完成" } ||
             RegisteredRecording is null ||
             SelectedAlgorithm is null ||
