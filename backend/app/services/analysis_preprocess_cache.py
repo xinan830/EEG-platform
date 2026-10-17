@@ -21,6 +21,16 @@ class PreprocessedRecording:
     contract: PreparedSourceContract | None = None
 
 
+@dataclass(frozen=True)
+class PreparedSourceCacheLookup:
+    value: PreprocessedRecording | None
+    miss_reason: str | None = None
+
+    @property
+    def hit(self) -> bool:
+        return self.value is not None
+
+
 class AnalysisPreprocessCache:
     """Small LRU cache; entries are immutable by convention after insertion."""
 
@@ -34,17 +44,23 @@ class AnalysisPreprocessCache:
 
     def get(self, recording_id: str, algorithm_version: str,
             expected_contract: PreparedSourceContract | None = None) -> PreprocessedRecording | None:
+        return self.lookup(recording_id, algorithm_version, expected_contract).value
+
+    def lookup(self, recording_id: str, algorithm_version: str,
+               expected_contract: PreparedSourceContract | None = None) -> PreparedSourceCacheLookup:
         key = (recording_id, algorithm_version)
         with self._lock:
             value = self._entries.get(key)
-            if value is not None and expected_contract is not None and (
-                    value.contract is None or not value.contract.matches(expected_contract)):
+            if value is None:
+                return PreparedSourceCacheLookup(None, "not_cached")
+            if expected_contract is not None and value.contract is None:
                 # A hash collision or stale in-process entry must be treated as
                 # a miss, never as permission to reuse an unverifiable source.
-                value = None
-            if value is not None:
-                self._entries.move_to_end(key)
-            return value
+                return PreparedSourceCacheLookup(None, "contract_unavailable")
+            if expected_contract is not None and not value.contract.matches(expected_contract):
+                return PreparedSourceCacheLookup(None, "contract_mismatch")
+            self._entries.move_to_end(key)
+            return PreparedSourceCacheLookup(value)
 
     def put(self, recording_id: str, algorithm_version: str, value: PreprocessedRecording) -> None:
         key = (recording_id, algorithm_version)

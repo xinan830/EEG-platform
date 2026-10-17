@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -33,6 +34,7 @@ FREQUENCY_BANDS = {
     "alpha": (8.0, 13.0),
     "beta": (13.0, 30.0),
 }
+logger = logging.getLogger(__name__)
 POWERLINE_NOTCH_HZ = 50.0
 POWERLINE_NOTCH_Q = 30.0
 _AUTO_NOTCH = object()
@@ -128,7 +130,13 @@ class SpectralAnalysisService:
                 channel_units=tuple(recording.channel_units or ("V",) * len(recording.channels)),
                 preprocessing_manifest=identity, numerical_tolerance=1e-12,
             )
-        cached = self.preprocess_cache.get(recording.id, identity, expected_contract)
+        lookup = self.preprocess_cache.lookup(recording.id, identity, expected_contract)
+        cached = lookup.value
+        if not lookup.hit:
+            logger.info(
+                "prepared_source_cache_miss recording_id=%s identity=%s reason=%s",
+                recording.id, identity, lookup.miss_reason,
+            )
         if cached is None:
             if getattr(self.recordings.load_data, "__func__", None) is RecordingService.load_data:
                 cached = mapped_preprocess(self.recordings, recording, low_hz=low_hz,
