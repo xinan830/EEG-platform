@@ -40,3 +40,16 @@ python scripts/validate_on_demand_psd.py --recording D:\迅雷下载\纪昱彤\r
 ## 边界与恢复回归
 
 后端专项测试 `45 passed`，覆盖首窗/尾窗、gap、rejected、insufficient、失败、进程恢复、显式 generation 重试、结果窗口选择和科学配置隔离。该证据证明状态机和持久化恢复行为，不代表真实设备断电或长时间压力测试已经完成。
+
+## 共享协调器压力
+
+使用同一条真实 Recording、同一个 `ScientificComputeCoordinator(max_active=1, interactive_burst_limit=4)`，后台全量与连续按需请求并行执行：
+
+- Full：`146/146` 窗口完成。
+- 按需：30 个窗口均为 `ready`。
+- 按需延迟：p50 `182.7 ms`，p95 `248.8 ms`，最大 `1929.3 ms`。
+- 协调器：interactive 获取 30 次，batch 获取 146 次，`batch_yields=29`。
+- 最长 interactive 等待 `1.768 s`；最长 batch 等待 `102 ms`。
+- 最长 batch 持有计算槽 `1.831 s`，RSS 峰值约 `193 MB`。
+
+这证明后台不会在连续交互下永久饥饿，但也暴露了不可中断计算单元造成的最坏拖拽延迟。当前仍未完成 CPU/临时磁盘完整采样、资源拒绝场景和 WPF 实际拖拽帧率验收。
