@@ -60,6 +60,8 @@ def run(recording_path: Path, duration_s: float) -> dict:
         config = psd_config(recording)
         queued = runs.enqueue(RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config=config))
         rss_peak = process.memory_info().rss
+        cpu_before = process.cpu_times()
+        disk_free_min = psutil.disk_usage(str(scratch)).free
         preview_latencies: list[float] = []
         preview_states: dict[str, int] = {}
         full_holder: list[object] = []
@@ -81,12 +83,14 @@ def run(recording_path: Path, duration_s: float) -> dict:
                     preview_states[result["state"]] = preview_states.get(result["state"], 0) + 1
                     windows.cancel_subscription(response["subscription_id"])
                     rss_peak = max(rss_peak, process.memory_info().rss)
+                    disk_free_min = min(disk_free_min, psutil.disk_usage(str(scratch)).free)
                 full = future.result(timeout=300)
             if full is None:
                 full = runs.get(queued.run_id)
             if full is None:
                 raise RuntimeError("full run disappeared before pressure measurement completed")
             metrics = coordinator.snapshot()
+            cpu_after = process.cpu_times()
             return {
                 "recording_duration_s": recording.duration_s,
                 "queued_run_id": queued.run_id,
@@ -98,6 +102,14 @@ def run(recording_path: Path, duration_s: float) -> dict:
                 "preview_max_ms": max(preview_latencies, default=None),
                 "preview_states": preview_states,
                 "rss_peak_bytes": rss_peak,
+                "cpu_seconds": (cpu_after.user + cpu_after.system) - (cpu_before.user + cpu_before.system),
+                "scratch_disk_free_min_bytes": disk_free_min,
+                "resource_budget": {
+                    "max_active": coordinator.max_active,
+                    "max_pending_windows": windows._max_pending_windows,
+                    "max_preparation_bytes": windows.resource_policy.max_preparation_bytes,
+                    "max_artifact_directory_bytes": windows.resource_policy.max_artifact_directory_bytes,
+                },
                 "coordinator": metrics,
             }
         finally:

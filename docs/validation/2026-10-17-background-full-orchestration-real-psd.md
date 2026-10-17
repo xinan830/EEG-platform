@@ -51,5 +51,7 @@ python scripts/validate_on_demand_psd.py --recording D:\迅雷下载\纪昱彤\r
 - 协调器：interactive 获取 30 次，batch 获取 146 次，`batch_yields=29`。
 - 最长 interactive 等待 `1.768 s`；最长 batch 等待 `102 ms`。
 - 最长 batch 持有计算槽 `1.831 s`，RSS 峰值约 `193 MB`。
+- 第二次真实测量的 CPU 时间 `9.64 s`、RSS 峰值约 `194 MB`、临时目录最低可用磁盘约 `177.7 GB`；活动槽位上限为 `1`，待处理窗口上限为 `16`，连续预处理预算为 `8 GiB`，artifact 目录预算为 `2 GiB`。
+- 第二次真实测量仍完成 Full `146/146`，按需 p95 `210.8 ms`、最大 `1824.9 ms`，`batch_yields=27`。
 
-这证明后台不会在连续交互下永久饥饿，但也暴露了不可中断计算单元造成的最坏拖拽延迟。当前仍未完成 CPU/临时磁盘完整采样、资源拒绝场景和 WPF 实际拖拽帧率验收。
+这证明后台不会在连续交互下永久饥饿，但也暴露了不可中断计算单元造成的最坏拖拽延迟。资源拒绝原因另由 `test_on_demand_resource_budgets.py` 覆盖；WPF 实际拖拽帧率验收仍未完成。
