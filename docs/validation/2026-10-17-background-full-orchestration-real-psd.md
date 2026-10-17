@@ -35,3 +35,7 @@ python scripts/validate_on_demand_psd.py --recording D:\迅雷下载\纪昱彤\r
 ## 结论
 
 全量结果向按需窗口提供复用的科学身份和数值证据成立；剩余风险集中在 durable single-flight、真实调度公平性和 WPF 展示链路，不能由本次后端对照测试覆盖。
+
+## 边界与恢复回归
+
+后端专项测试 `45 passed`，覆盖首窗/尾窗、gap、rejected、insufficient、失败、进程恢复、显式 generation 重试、结果窗口选择和科学配置隔离。该证据证明状态机和持久化恢复行为，不代表真实设备断电或长时间压力测试已经完成。
