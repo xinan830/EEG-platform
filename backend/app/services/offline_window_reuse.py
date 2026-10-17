@@ -80,9 +80,25 @@ class OfflineWindowReuse:
             # repository/lease state remains authoritative across restarts;
             # a bounded wait falls back to the normal validated full path.
             if row.state in {"queued", "preparing_source", "computing_window"}:
-                row = self.repository.wait_for_window_terminal(
-                    row.window_id, check_cancelled=check_cancelled,
+                # A full Run is another consumer while it waits for the
+                # interactive producer. Without this protection subscription,
+                # cancelling the UI subscription could cancel shared work that
+                # the full Run is still waiting to reuse.
+                protection = self.repository.create_subscription(
+                    row.window_id,
+                    f"full-reuse:{run.run_id}:{row.window_id}",
+                    project_id=session.project_id,
                 )
+                try:
+                    row = self.repository.wait_for_window_terminal(
+                        row.window_id, check_cancelled=check_cancelled,
+                    )
+                finally:
+                    self.repository.cancel_subscription(
+                        protection.subscription_id,
+                        project_id=session.project_id,
+                        cancel_unobserved_work=False,
+                    )
                 if row is None:
                     miss("window_disappeared")
                     return None

@@ -75,6 +75,23 @@ def test_subscriber_cancellation_is_isolated(tmp_path):
     assert repository.get_window(window.window_id) == window
 
 
+def test_cancelling_one_consumer_does_not_cancel_protected_shared_work(tmp_path):
+    database = tmp_path / "catalog.sqlite3"
+    _recording(database)
+    repository = DynamicWindowRepository(database)
+    session = repository.ensure_session(_identity(), configuration={})
+    window = repository.ensure_window(session.session_id, start_sample=10, end_sample=510, start_s=0.1, end_s=5.1)
+    ui_subscription = repository.create_subscription(window.window_id, "ui-request")
+    full_subscription = repository.create_subscription(window.window_id, "full-reuse-request")
+
+    repository.cancel_subscription(ui_subscription.subscription_id, cancel_unobserved_work=True)
+    assert repository.get_window(window.window_id).state == "queued"
+    assert repository.active_subscription_count(window.window_id) == 1
+
+    repository.cancel_subscription(full_subscription.subscription_id, cancel_unobserved_work=False)
+    assert repository.get_window(window.window_id).state == "queued"
+
+
 def test_different_scientific_configuration_gets_a_different_session(tmp_path):
     database = tmp_path / "catalog.sqlite3"
     _recording(database)
