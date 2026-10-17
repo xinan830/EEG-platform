@@ -194,6 +194,48 @@ class DynamicAttemptRepositoryMixin:
         assert updated is not None
         return self._attempt(updated)
 
+    def release_producers(self, owner_id: str) -> int:
+        """Release queued full producers after their owning Run stops."""
+        if not owner_id:
+            raise ValueError("producer owner id is required")
+        now = utc_now()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                """SELECT attempt_id, window_id FROM dynamic_analysis_attempts
+                   WHERE producer_owner_id = ? AND producer_mode = 'full'
+                     AND state = 'queued'""", (owner_id,),
+            ).fetchall()
+            for row in rows:
+                connection.execute(
+                    "UPDATE dynamic_analysis_attempts SET state = 'superseded', updated_at = ? WHERE attempt_id = ?",
+                    (now, row["attempt_id"]),
+                )
+                connection.execute(
+                    """UPDATE dynamic_analysis_windows SET updated_at = ?
+                       WHERE window_id = ? AND state IN ('queued', 'preparing_source')""",
+                    (now, row["window_id"]),
+                )
+        return len(rows)
+
+    def recover_orphaned_full_producers(self) -> int:
+        """Release queued full producers whose Run is no longer live."""
+        now = utc_now()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            rows = connection.execute(
+                """SELECT a.attempt_id, a.window_id FROM dynamic_analysis_attempts a
+                   LEFT JOIN analysis_runs r ON r.run_id = a.producer_owner_id
+                   WHERE a.producer_mode = 'full' AND a.state = 'queued'
+                     AND (r.run_id IS NULL OR r.status NOT IN ('queued', 'running'))"""
+            ).fetchall()
+            for row in rows:
+                connection.execute(
+                    "UPDATE dynamic_analysis_attempts SET state = 'superseded', updated_at = ? WHERE attempt_id = ?",
+                    (now, row["attempt_id"]),
+                )
+        return len(rows)
+
     def wait_for_window_terminal(
         self,
         window_id: str,

@@ -171,3 +171,8 @@ def migration_020_dynamic_producer_metadata(connection: sqlite3.Connection) -> N
         "CREATE INDEX IF NOT EXISTS idx_dynamic_attempts_priority "
         "ON dynamic_analysis_attempts(window_id, state, priority DESC, created_at, attempt_id)"
     )
+
+
+def migration_021_repair_dynamic_producer_metadata(connection: sqlite3.Connection) -> None:
+    """Repair databases that recorded v20 before its columns were applied."""
+    migration_020_dynamic_producer_metadata(connection)

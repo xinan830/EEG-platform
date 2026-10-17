@@ -16,6 +16,7 @@ from .on_demand_migrations import (
     migration_016_dynamic_attempt_fencing,
     migration_017_dynamic_window_generations,
     migration_018_dynamic_manifest_integrity,
+    migration_021_repair_dynamic_producer_metadata,
 )
 
 
@@ -363,6 +364,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(18, "on-demand-manifest-integrity", migration_018_dynamic_manifest_integrity),
     Migration(19, "on-demand-resolved-identity", migration_019_dynamic_resolved_identity),
     Migration(20, "dynamic-producer-metadata", migration_020_dynamic_producer_metadata),
+    Migration(21, "repair-dynamic-producer-metadata", migration_021_repair_dynamic_producer_metadata),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

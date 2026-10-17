@@ -12,7 +12,10 @@ def validate_window_result(result, manifest):
         manifest.output_schema["fields"] + manifest.output_schema.get("window_axes", []))}
     actual = {**checked.axis_units, **checked.array_units}
     if set(checked.axes) & set(checked.arrays) or actual != declared:
-        raise ValueError("dynamic window fields or units do not match the module's output schema")
+        raise ValueError(
+            "dynamic window fields or units do not match the module's output schema: "
+            f"declared={declared!r} actual={actual!r} axes={sorted(checked.axes)} arrays={sorted(checked.arrays)}"
+        )
     expected_kind = manifest.output_schema.get("window_output_kind")
     if expected_kind is not None and checked.output_kind != expected_kind:
         raise ValueError("dynamic window output kind does not match the module's output schema")

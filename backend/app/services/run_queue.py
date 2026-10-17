@@ -61,6 +61,7 @@ class PersistentRunQueue:
         self._offline_window_reuse = OfflineWindowReuse(database_path, artifacts_dir)
         self.compute_coordinator = compute_coordinator or ScientificComputeCoordinator()
         self.repository.recover_interrupted()
+        self._offline_window_reuse.repository.recover_orphaned_full_producers()
 
     def enqueue(
         self,
@@ -159,6 +160,12 @@ class PersistentRunQueue:
             coverage, window_ranges = self._validate_full_coverage(
                 run, recording, resolved, result, execution_context, total,
             )
+            published_windows = self._offline_window_reuse.publish_full_windows(
+                run=run, resolved=resolved, registry=self.base.algorithm_runtime_registry,
+                source_sha256=recording.source_sha256 or "", result=result, arrays=arrays,
+            )
+            if published_windows:
+                logger.info("full_windows_published run_id=%s count=%s", run.run_id, published_windows)
             if execution_context.reused_window_count:
                 result["execution_provenance"] = execution_provenance(
                     "full", cache_key=run.cache_key,
@@ -231,6 +238,9 @@ class PersistentRunQueue:
                 error=StructuredRunError(code="ANALYSIS_EXECUTION_FAILED", message=str(exc) or f"分析执行抛出 {type(exc).__name__}", stage="analysis",
                                          details={"exception_type": type(exc).__name__, "exception_message": str(exc)}))
         finally:
+            # A failed or cancelled full Run must not leave queued producer
+            # markers blocking later on-demand ownership takeover.
+            self._offline_window_reuse.repository.release_producers(run.run_id)
             if execution_context is not None:
                 execution_context.close()
 

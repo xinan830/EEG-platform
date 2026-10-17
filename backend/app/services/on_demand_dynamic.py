@@ -272,6 +272,7 @@ class DynamicWindowService:
         while not self._stop.wait(1):
             try:
                 self.repository.recover_expired_attempts()
+                self.repository.recover_orphaned_full_producers()
                 for window in self.repository.recoverable_windows(self._max_pending_windows):
                     if self._stop.is_set():
                         return
