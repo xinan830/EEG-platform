@@ -152,6 +152,37 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
     }
 
     [Fact]
+    public async Task Background_progress_does_not_replace_current_preview_window()
+    {
+        var client = new OnDemandDetailClient
+        {
+            Respond = OnDemandDetailClient.PsdResponse,
+            RespondFullRun = request => new AnalysisRunResponse(
+                "full-run-running", request.RecordingId, request.AnalysisType, "running", "fixture-v1", null, null,
+                null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 2, 10,
+                "analysis", "2/10"),
+        };
+        client.PollResponses.Enqueue(new AnalysisRunResponse(
+            "full-run-running", "recording", "official_algorithm", "running", "fixture-v1", null, null,
+            null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 3, 10,
+            "analysis", "3/10"));
+        var catalog = OnDemandDetailClient.Catalog(client, "psd", "V^2/Hz");
+        catalog.SelectedDynamicExecutionMode = "按需预览 + 后台全量";
+
+        await OnDemandDetailClient.Run(catalog);
+        await catalog.CurrentWindowLoad;
+        var displayed = catalog.DisplayedAnalysisWindow;
+        var values = catalog.PsdPreviewState.Points.Select(point => point?.Value).ToArray();
+
+        await Task.Delay(650);
+
+        Assert.Same(displayed, catalog.DisplayedAnalysisWindow);
+        Assert.Equal(values, catalog.PsdPreviewState.Points.Select(point => point?.Value).ToArray());
+        Assert.Equal(3, catalog.BackgroundFullRun?.ProgressCompleted);
+        await catalog.ReleaseWindowAnalysisAsync();
+    }
+
+    [Fact]
     public async Task Combined_stft_serves_completed_full_matrix_with_window_provenance()
     {
         var client = new OnDemandDetailClient
