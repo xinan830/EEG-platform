@@ -173,5 +173,12 @@ def test_interactive_burst_gives_waiting_batch_a_turn():
 
     assert batch_acquired.is_set()
     assert errors == []
-    assert coordinator.snapshot()["metrics"]["acquired"]["batch"] == 1
+    metrics = coordinator.snapshot()["metrics"]
+    assert metrics["acquired"]["batch"] == 1
+    assert metrics["waited"]["batch"] == 1
+    assert metrics["max_wait_s"]["batch"] > 0
+    assert metrics["completed"]["interactive"] == 5
+    assert metrics["completed"]["batch"] == 1
+    assert metrics["batch_yields"] >= 1
+    assert metrics["max_hold_s"]["interactive"] >= 0
 
