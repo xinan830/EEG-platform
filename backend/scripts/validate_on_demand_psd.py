@@ -39,6 +39,7 @@ from app.services.validations import ValidationService
 from app.services.mapped_preprocessing import MappedArrays
 import app.services.mapped_preprocessing as preprocessing
 from app.services.dynamic_window_artifacts import DynamicWindowArtifactStore
+from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
 
 
 def hashes(root):
@@ -64,8 +65,13 @@ def compare_real(root, scratch):
     before = hashes(root)
     recordings = RecordingService(scratch / "stored", scratch / "catalog.sqlite3")
     recording = recordings.register_wpf_recording(str(root), signal_mode="acquisition_montage")
-    runs = PersistentRunQueue(recordings, recordings.database_path, scratch / "artifacts")
-    windows = DynamicWindowService(recordings, build_builtin_registry(), recordings.database_path, scratch / "artifacts")
+    # The real combined strategy must use one bounded coordinator. Creating
+    # one gate per worker would make fairness and resource measurements false.
+    coordinator = ScientificComputeCoordinator()
+    runs = PersistentRunQueue(recordings, recordings.database_path, scratch / "artifacts",
+                              compute_coordinator=coordinator)
+    windows = DynamicWindowService(recordings, build_builtin_registry(), recordings.database_path,
+                                   scratch / "artifacts", compute_coordinator=coordinator)
     results = ResultService(runs, ValidationService(recordings.database_path))
     report = {"duration_s": recording.duration_s, "sfreq_hz": recording.sfreq, "channels_tested": 0,
               "windows_tested": 0, "states": {}, "max_abs_error": 0.0, "max_relative_error": 0.0,
@@ -133,9 +139,11 @@ def compare_real(root, scratch):
         assert hashes(root) == before
         report["source_and_history_unchanged"] = True
         report["window_evidence_equal"] = True
+        report["compute_coordinator"] = coordinator.snapshot()
         return report
     finally:
         windows.close(wait=True)
+        coordinator.close()
 
 
 class Resources:
