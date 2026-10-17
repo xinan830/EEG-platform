@@ -129,6 +129,10 @@ class SpectralAnalysisService:
                 channel_names=tuple(recording.channels),
                 channel_units=tuple(recording.channel_units or ("V",) * len(recording.channels)),
                 preprocessing_manifest=identity, numerical_tolerance=1e-12,
+                numerical_tolerance_evidence=(
+                    "validated PSD full/on-demand comparison; "
+                    "rtol=1e-12, atol=1e-24 V^2/Hz"
+                ),
                 filter_phase="zero_phase",
                 reference_semantics=str(
                     self.recordings.analysis_signal_provenance(recording).get(

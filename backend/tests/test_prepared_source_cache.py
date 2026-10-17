@@ -14,6 +14,7 @@ def source_contract(identity="source-1"):
         valid_start_sample=0, valid_end_sample=4000,
         channel_names=("F3",), channel_units=("V",),
         preprocessing_manifest=identity, numerical_tolerance=1e-12,
+        numerical_tolerance_evidence="independent PSD comparison; rtol=1e-12, atol=1e-24 V^2/Hz",
     )
 
 

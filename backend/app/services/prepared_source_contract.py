@@ -25,6 +25,7 @@ class PreparedSourceContract:
     channel_units: tuple[str, ...]
     preprocessing_manifest: str
     numerical_tolerance: float
+    numerical_tolerance_evidence: str = ""
     filter_phase: str = "zero_phase"
     reference_semantics: str = "as_recorded"
     gap_policy: str = "preserve"
@@ -51,6 +52,8 @@ class PreparedSourceContract:
             raise ValueError("prepared-source preprocessing manifest is required")
         if self.numerical_tolerance < 0:
             raise ValueError("prepared-source numerical tolerance must be non-negative")
+        if self.status == "ready" and not self.numerical_tolerance_evidence.strip():
+            raise ValueError("ready prepared-source requires numerical tolerance evidence")
         for name, value in (
             ("filter_phase", self.filter_phase),
             ("reference_semantics", self.reference_semantics),
@@ -90,6 +93,7 @@ class PreparedSourceContract:
             "channel_units": list(self.channel_units),
             "preprocessing_manifest": self.preprocessing_manifest,
             "numerical_tolerance": self.numerical_tolerance,
+            "numerical_tolerance_evidence": self.numerical_tolerance_evidence,
             "filter_phase": self.filter_phase,
             "reference_semantics": self.reference_semantics,
             "gap_policy": self.gap_policy,

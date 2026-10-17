@@ -17,6 +17,7 @@ def contract(**changes):
         "channel_units": ("V", "V"),
         "preprocessing_manifest": "manifest-1",
         "numerical_tolerance": 1e-12,
+        "numerical_tolerance_evidence": "independent PSD comparison; rtol=1e-12, atol=1e-24 V^2/Hz",
     }
     values.update(changes)
     return PreparedSourceContract(**values)
@@ -45,6 +46,7 @@ def test_prepared_source_contract_requires_exact_scientific_identity():
     ("gap_policy", ""),
     ("boundary_policy", ""),
     ("implementation_identity", ""),
+    ("numerical_tolerance_evidence", ""),
     ("status", "failed"),
 ])
 def test_prepared_source_contract_rejects_invalid_state(field, value):
@@ -63,3 +65,9 @@ def test_failed_or_unavailable_preparation_requires_reason():
     with pytest.raises(ValueError, match="requires a reason"):
         contract(status="failed")
     assert contract(status="failed", status_reason="filter_failed").as_dict()["status_reason"] == "filter_failed"
+
+
+def test_ready_preparation_requires_tolerance_evidence():
+    with pytest.raises(ValueError, match="tolerance evidence"):
+        contract(numerical_tolerance_evidence="")
+    assert "numerical_tolerance_evidence" in contract().as_dict()
