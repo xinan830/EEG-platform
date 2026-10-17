@@ -30,11 +30,12 @@ class PreparedSourceContract:
     gap_policy: str = "preserve"
     boundary_policy: str = "valid_only"
     implementation_identity: str = "development-unversioned"
+    status_reason: str | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version != "prepared-source-v1":
             raise ValueError("unsupported prepared-source contract version")
-        if self.status not in {"ready", "unavailable"}:
+        if self.status not in {"unprepared", "preparing", "ready", "failed", "unavailable"}:
             raise ValueError("invalid prepared-source status")
         if self.sample_rate_hz <= 0:
             raise ValueError("prepared-source sample rate must be positive")
@@ -59,6 +60,8 @@ class PreparedSourceContract:
         ):
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"prepared-source {name} is required")
+        if self.status in {"failed", "unavailable"} and not self.status_reason:
+            raise ValueError("prepared-source unavailable state requires a reason")
 
     def matches(self, expected: "PreparedSourceContract") -> bool:
         """Return whether this entry can satisfy the expected scientific source."""
@@ -73,6 +76,7 @@ class PreparedSourceContract:
             "schema_version": self.schema_version,
             "identity": self.identity,
             "status": self.status,
+            "status_reason": self.status_reason,
             "sample_rate_hz": self.sample_rate_hz,
             "prepared_range": {
                 "start_sample": self.prepared_start_sample,

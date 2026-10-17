@@ -45,7 +45,21 @@ def test_prepared_source_contract_requires_exact_scientific_identity():
     ("gap_policy", ""),
     ("boundary_policy", ""),
     ("implementation_identity", ""),
+    ("status", "failed"),
 ])
 def test_prepared_source_contract_rejects_invalid_state(field, value):
     with pytest.raises(ValueError):
         contract(**{field: value})
+
+
+@pytest.mark.parametrize("status", ["unprepared", "preparing"])
+def test_non_terminal_preparation_states_are_valid_but_never_reusable(status):
+    candidate = contract(status=status)
+    assert candidate.as_dict()["status"] == status
+    assert not candidate.matches(contract())
+
+
+def test_failed_or_unavailable_preparation_requires_reason():
+    with pytest.raises(ValueError, match="requires a reason"):
+        contract(status="failed")
+    assert contract(status="failed", status_reason="filter_failed").as_dict()["status_reason"] == "filter_failed"
