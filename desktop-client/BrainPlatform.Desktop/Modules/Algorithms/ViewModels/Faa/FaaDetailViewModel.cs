@@ -8,7 +8,8 @@ public sealed class FaaDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     private string? windowSession;
     internal FaaDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "faa") => RefreshPreview();
     public FaaResultPoint? CurrentPoint => preview?.CurrentAt(Catalog.DynamicPreviewCursorSeconds);
-    public IReadOnlyList<FaaResultPoint> TrendPoints => preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
+    public IReadOnlyList<FaaResultPoint> TrendPoints =>
+        preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
     public bool IsDynamicResult => preview?.IsDynamic == true;
     public double TimelineStartSeconds => preview?.DynamicPoints.FirstOrDefault()?.StartSeconds ?? 0;
     public double TimelineEndSeconds => preview?.DynamicPoints.LastOrDefault()?.EndSeconds ?? 1;
@@ -37,10 +38,18 @@ public sealed class FaaDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
         base.OnCatalogPropertyChanged(sender, args);
-        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm))
+        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.BackgroundFullRun)
+            or nameof(AlgorithmListViewModel.SelectedAlgorithm))
             RefreshPreview();
         if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
         {
+            if (IsServingCompletedBackgroundFullRun)
+            {
+                RaisePreviewProperties();
+                RaiseProperties();
+                return;
+            }
             if (Catalog.SelectedAlgorithm?.Id == AlgorithmId && Catalog.DisplayedAnalysisWindow is { } response)
             {
                 preview = FaaResultPreview.FromWindow(response, windowSession == response.SessionId ? preview : null);
@@ -61,11 +70,13 @@ public sealed class FaaDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     {
         windowSession = null;
         preview = Algorithm?.Id == "faa"
-            ? Catalog.DisplayedAnalysisWindow is { } response
+            ? CompletedBackgroundFullRun?.ResultSummary is { } fullSummary
+                ? FaaResultPreview.Parse(fullSummary)
+                : Catalog.DisplayedAnalysisWindow is { } response
                 ? FaaResultPreview.FromWindow(response)
                 : FaaResultPreview.Parse(Catalog.LastRun?.ResultSummary)
             : null;
-        if (Algorithm?.Id == "faa" && Catalog.DisplayedAnalysisWindow is { } displayed)
+        if (!IsServingCompletedBackgroundFullRun && Algorithm?.Id == "faa" && Catalog.DisplayedAnalysisWindow is { } displayed)
             windowSession = displayed.SessionId;
         IsFailureDetailsExpanded = false;
         RaisePreviewProperties();

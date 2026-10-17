@@ -107,10 +107,23 @@ public sealed partial class AlgorithmListViewModel
             CurrentWindowLoad = AwaitQueuedWindowRequestAsync(pendingRequestFlush.Task);
         }
 
-        if (immediate)
+        // Once a completed Full Run is available, the target is served from
+        // immutable local result data. Waiting for the interactive 120 ms
+        // throttle in that case only makes the slider look disconnected from
+        // the chart; the throttle remains for real on-demand computation.
+        if (immediate || CanServeCompletedFullWindowLocally())
             FlushWindowRequest();
         else
             dynamicWindowRequestTimer.Start();
+    }
+
+    private bool CanServeCompletedFullWindowLocally()
+    {
+        if (windowHandler is not { } handler || IsCompletedBackgroundFullRun(handler) is null)
+            return false;
+        if (handler.SupportsFullRunMetricWindowPreview)
+            return true;
+        return handler.SupportsFullRunWindowPreview && fullWindowCacheTask is not null;
     }
 
     private async Task AwaitQueuedWindowRequestAsync(Task<Task> flushTask)

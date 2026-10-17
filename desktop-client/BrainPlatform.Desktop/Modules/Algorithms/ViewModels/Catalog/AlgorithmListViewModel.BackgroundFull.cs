@@ -158,6 +158,14 @@ public sealed partial class AlgorithmListViewModel
         backgroundFullObservationError = null;
         backgroundFullObservationMessage = null;
         if (!detailSuspended) RaiseBackgroundFullRunProperties();
+        if (!detailSuspended && run.Status == "completed" &&
+            windowHandler is { SupportsFullRunWindowPreview: true, SupportsFullRunMetricWindowPreview: false })
+        {
+            // Start loading the immutable full artifact as soon as it is
+            // complete. The first cursor move should not pay the structured
+            // preview download cost or the interactive throttle interval.
+            _ = EnsureFullWindowCacheAsync(run.RunId, CancellationToken.None);
+        }
         if (!detailSuspended && !wasCompleted && run.Status == "completed" &&
             IsCombinedExecutionModeSelected && IsOnDemandAnalysis)
         {

@@ -33,9 +33,16 @@ public sealed class BrainbeatDetailViewModel : AlgorithmSpecificDetailViewModel,
     protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
         base.OnCatalogPropertyChanged(sender, args);
-        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm)) Refresh();
+        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.BackgroundFullRun)
+            or nameof(AlgorithmListViewModel.SelectedAlgorithm)) Refresh();
         else if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
         {
+            if (IsServingCompletedBackgroundFullRun)
+            {
+                RaiseResultProperties();
+                return;
+            }
             if (Algorithm?.Id == "brainbeat" && Catalog.DisplayedAnalysisWindow is { } response)
             {
                 preview = BrainbeatResultPreview.FromWindow(response, SourceLabel(),
@@ -51,11 +58,13 @@ public sealed class BrainbeatDetailViewModel : AlgorithmSpecificDetailViewModel,
     {
         windowSession = null;
         preview = Algorithm?.Id == "brainbeat"
-            ? Catalog.DisplayedAnalysisWindow is { } response
+            ? CompletedBackgroundFullRun is { } fullRun
+                ? BrainbeatResultPreview.Parse(fullRun)
+                : Catalog.DisplayedAnalysisWindow is { } response
                 ? BrainbeatResultPreview.FromWindow(response, SourceLabel())
                 : BrainbeatResultPreview.Parse(Catalog.LastRun)
             : null;
-        if (Algorithm?.Id == "brainbeat" && Catalog.DisplayedAnalysisWindow is { } displayed)
+        if (!IsServingCompletedBackgroundFullRun && Algorithm?.Id == "brainbeat" && Catalog.DisplayedAnalysisWindow is { } displayed)
             windowSession = displayed.SessionId;
         RaisePropertyChanged(nameof(CurrentPoint)); RaisePropertyChanged(nameof(ValueText)); RaisePropertyChanged(nameof(UnitText));
         RaisePropertyChanged(nameof(ChannelText)); RaisePropertyChanged(nameof(ResultText)); RaisePropertyChanged(nameof(TrendPoints));

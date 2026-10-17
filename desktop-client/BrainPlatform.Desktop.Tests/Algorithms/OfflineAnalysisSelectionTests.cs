@@ -137,11 +137,13 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
 
         await OnDemandDetailClient.Run(catalog);
         await catalog.CurrentWindowLoad;
+        var requestCountAfterFullCache = client.Requests.Count;
         catalog.DynamicTimeProgressPercent = 50;
         await catalog.CurrentWindowLoad;
 
         Assert.Equal(1, client.StructuredPreviewCalls);
         Assert.Equal(0, client.FullWindowPreviewCalls);
+        Assert.Equal(requestCountAfterFullCache, client.Requests.Count);
         Assert.Equal("全量已完成窗口（本地缓存）", catalog.DynamicPreviewSourceText);
         Assert.StartsWith("full-cache:", catalog.DisplayedAnalysisWindow!.SessionId);
         Assert.Equal([9e12, 8e12, 7e12],
@@ -167,11 +169,13 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
 
         await OnDemandDetailClient.Run(catalog);
         await catalog.CurrentWindowLoad;
+        var requestCountAfterFullCache = client.Requests.Count;
         catalog.DynamicTimeProgressPercent = 50;
         await catalog.CurrentWindowLoad;
 
         Assert.Equal(1, client.StructuredPreviewCalls);
         Assert.Equal(0, client.FullWindowPreviewCalls);
+        Assert.Equal(requestCountAfterFullCache, client.Requests.Count);
         Assert.Equal("全量已完成窗口（本地缓存）", catalog.DynamicPreviewSourceText);
         Assert.NotNull(detail.Preview);
         Assert.Equal([12d, 13d], detail.Preview!.TimesSeconds);
@@ -211,14 +215,65 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         catalog.SelectedDynamicExecutionMode = "按需预览 + 后台全量";
 
         await OnDemandDetailClient.Run(catalog);
+        var requestCountAfterFullCache = client.Requests.Count;
         catalog.DynamicTimeProgressPercent = 50;
         await catalog.CurrentWindowLoad;
 
         Assert.Equal(0, client.StructuredPreviewCalls);
         Assert.Equal(0, client.FullWindowPreviewCalls);
+        Assert.Equal(requestCountAfterFullCache, client.Requests.Count);
         Assert.Equal("全量已完成窗口（本地缓存）", catalog.DynamicPreviewSourceText);
         Assert.StartsWith("full-metric:", catalog.DisplayedAnalysisWindow!.SessionId);
         Assert.Equal("ready", catalog.DisplayedAnalysisWindow.State);
+        await catalog.ReleaseWindowAnalysisAsync();
+    }
+
+    [Fact]
+    public async Task Combined_scalar_detail_releases_completed_full_series_through_cursor()
+    {
+        var client = new OnDemandDetailClient
+        {
+            Respond = ScalarWindowTestSupport.Response,
+            RespondFullRun = request => new AnalysisRunResponse(
+                "full-run-iapf", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,
+                JsonSerializer.SerializeToElement(new
+                {
+                    metric = new
+                    {
+                        channel = "F3",
+                        official = new { algorithm_id = "iapf" },
+                        output = new { unit = "Hz" },
+                        series = new[]
+                        {
+                            new { time_s = 5d, window_start_s = 0d, window_end_s = 5d,
+                                value = 9.5, analysis_state = "Complete", quality = new { status = "clean" } },
+                            new { time_s = 10d, window_start_s = 5d, window_end_s = 10d,
+                                value = 10.25, analysis_state = "Complete", quality = new { status = "clean" } },
+                        },
+                    },
+                }),
+                null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 10, 10,
+                "completed", "已完成"),
+        };
+        var catalog = OnDemandDetailClient.Catalog(client, "iapf", "Hz");
+        var detail = new AlgorithmDetailViewModel(catalog).Iapf;
+        catalog.SelectedDynamicExecutionMode = "按需预览 + 后台全量";
+
+        await OnDemandDetailClient.Run(catalog);
+        // A completed Full Run is the local source, but the chart must not
+        // paint a future window before the cursor reaches it.
+        catalog.DynamicTimeProgressPercent = 20;
+        await catalog.CurrentWindowLoad;
+
+        Assert.Single(detail.TrendPoints);
+        Assert.Equal([9.5], detail.TrendPoints.Select(point => point.ValueHz).ToArray());
+
+        // Moving to 12 seconds reveals the second completed one-second-step
+        // window from the full result without submitting another calculation.
+        catalog.DynamicTimeProgressPercent = 40;
+        await catalog.CurrentWindowLoad;
+        Assert.Equal(2, detail.TrendPoints.Count);
+        Assert.Equal([9.5, 10.25], detail.TrendPoints.Select(point => point.ValueHz).ToArray());
         await catalog.ReleaseWindowAnalysisAsync();
     }
 

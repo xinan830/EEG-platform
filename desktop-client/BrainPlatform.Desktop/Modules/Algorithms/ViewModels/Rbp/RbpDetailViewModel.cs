@@ -11,7 +11,9 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     internal RbpDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "rbp")
     {
         if (catalog.SelectedAlgorithm?.Id != AlgorithmId) return;
-        if (catalog.DisplayedAnalysisWindow is { } response)
+        if (CompletedBackgroundFullRun is { } fullRun)
+            preview = RbpResultPreview.Parse(fullRun);
+        else if (catalog.DisplayedAnalysisWindow is { } response)
         {
             preview = RbpResultPreview.FromWindow(response);
             windowSession = response.SessionId;
@@ -20,11 +22,11 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     }
 
     public IReadOnlyList<RbpBandPoint> Bands => preview.BandsAt(Catalog.DynamicPreviewCursorSeconds);
-    public IReadOnlyList<RbpWindowPoint> Trend => preview.Windows
-        .Where(window => window.EndSeconds <= Catalog.DynamicPreviewCursorSeconds + 1e-9).ToArray();
+    public IReadOnlyList<RbpWindowPoint> Trend =>
+        preview.Windows.Where(window => !IsDynamic || window.EndSeconds <= Catalog.DynamicPreviewCursorSeconds + 1e-9).ToArray();
     public bool IsDynamic => Catalog.IsDynamicMode;
     public bool HasResult => Bands.Any(band => band.Share is not null);
-    public string QualityText => Catalog.DisplayedAnalysisWindow is { } response && Catalog.SelectedAlgorithm?.Id == AlgorithmId
+    public string QualityText => !IsServingCompletedBackgroundFullRun && Catalog.DisplayedAnalysisWindow is { } response && Catalog.SelectedAlgorithm?.Id == AlgorithmId
         ? response.State == "ready" ? AlgorithmResultFormatter.FormatQualityStatus(response.Quality ?? "unknown")
             : AlgorithmListViewModel.WindowStateLabel(response.State)
         : Catalog.LastRun?.Error?.Message ?? (IsDynamic
@@ -64,13 +66,23 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
         base.OnCatalogPropertyChanged(sender, args);
-        if (args.PropertyName == nameof(AlgorithmListViewModel.LastRun))
+        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.BackgroundFullRun))
         {
             windowSession = null;
-            preview = RbpResultPreview.Parse(Catalog.SelectedAlgorithm?.Id == "rbp" ? Catalog.LastRun : null);
+            preview = Catalog.SelectedAlgorithm?.Id == "rbp"
+                ? CompletedBackgroundFullRun is { } fullRun
+                    ? RbpResultPreview.Parse(fullRun)
+                    : RbpResultPreview.Parse(Catalog.LastRun)
+                : RbpResultPreview.Parse(null);
         }
         if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
         {
+            if (IsServingCompletedBackgroundFullRun)
+            {
+                RaiseRbpProperties();
+                return;
+            }
             if (Catalog.SelectedAlgorithm?.Id == AlgorithmId && Catalog.DisplayedAnalysisWindow is { } response)
             {
                 preview = RbpResultPreview.FromWindow(response, windowSession == response.SessionId ? preview : null);
@@ -83,6 +95,7 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
             }
         }
         if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.BackgroundFullRun)
             or nameof(AlgorithmListViewModel.DisplayedAnalysisWindow)
             or nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)
             or nameof(AlgorithmListViewModel.IsDynamicMode))
@@ -99,5 +112,20 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
             RaisePropertyChanged(nameof(FailureReasonText));
             RaisePropertyChanged(nameof(FailureDetailsText));
         }
+    }
+
+    private void RaiseRbpProperties()
+    {
+        RaisePropertyChanged(nameof(Bands));
+        RaisePropertyChanged(nameof(Trend));
+        RaisePropertyChanged(nameof(IsDynamic));
+        RaisePropertyChanged(nameof(HasResult));
+        RaisePropertyChanged(nameof(WindowText));
+        RaisePropertyChanged(nameof(QualityText));
+        RaisePropertyChanged(nameof(UnavailableWindowCount));
+        RaisePropertyChanged(nameof(RejectedWindowCount));
+        RaisePropertyChanged(nameof(WindowStateSummary));
+        RaisePropertyChanged(nameof(FailureReasonText));
+        RaisePropertyChanged(nameof(FailureDetailsText));
     }
 }

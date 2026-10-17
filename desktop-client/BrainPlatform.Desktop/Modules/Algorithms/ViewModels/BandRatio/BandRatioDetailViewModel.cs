@@ -11,7 +11,8 @@ public sealed class BandRatioDetailViewModel : AlgorithmSpecificDetailViewModel,
     internal BandRatioDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "band_ratio") => Refresh();
 
     public BandRatioResultPoint? CurrentPoint => preview?.CurrentAt(Catalog.DynamicPreviewCursorSeconds);
-    public IReadOnlyList<BandRatioResultPoint> TrendPoints => preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
+    public IReadOnlyList<BandRatioResultPoint> TrendPoints =>
+        preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
     public bool IsDynamicResult => preview?.IsDynamic == true;
     public double TimelineStartSeconds => preview?.DynamicPoints.FirstOrDefault()?.StartSeconds ?? 0;
     public double TimelineEndSeconds => preview?.DynamicPoints.LastOrDefault()?.EndSeconds ?? 1;
@@ -36,9 +37,16 @@ public sealed class BandRatioDetailViewModel : AlgorithmSpecificDetailViewModel,
     protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
         base.OnCatalogPropertyChanged(sender, args);
-        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm)) Refresh();
+        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.BackgroundFullRun)
+            or nameof(AlgorithmListViewModel.SelectedAlgorithm)) Refresh();
         else if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
         {
+            if (IsServingCompletedBackgroundFullRun)
+            {
+                RaiseResults();
+                return;
+            }
             if (Algorithm?.Id == "band_ratio" && Catalog.DisplayedAnalysisWindow is { } response)
             {
                 preview = BandRatioResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "",
@@ -57,11 +65,14 @@ public sealed class BandRatioDetailViewModel : AlgorithmSpecificDetailViewModel,
     {
         windowSession = null;
         preview = Algorithm?.Id == "band_ratio"
-            ? Catalog.DisplayedAnalysisWindow is { } response
+            ? CompletedBackgroundFullRun?.ResultSummary is { } fullSummary
+                ? BandRatioResultPreview.Parse(fullSummary)
+                : Catalog.DisplayedAnalysisWindow is { } response
                 ? BandRatioResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "")
                 : BandRatioResultPreview.Parse(Catalog.LastRun?.ResultSummary)
             : null;
-        if (Algorithm?.Id == "band_ratio" && Catalog.DisplayedAnalysisWindow is { } displayed) windowSession = displayed.SessionId;
+        if (!IsServingCompletedBackgroundFullRun && Algorithm?.Id == "band_ratio" && Catalog.DisplayedAnalysisWindow is { } displayed)
+            windowSession = displayed.SessionId;
         IsFailureDetailsExpanded = false;
         RaisePropertyChanged(nameof(IsDynamicResult)); RaisePropertyChanged(nameof(TimelineStartSeconds)); RaisePropertyChanged(nameof(TimelineEndSeconds)); RaisePropertyChanged(nameof(ChannelText)); RaiseResults();
     }

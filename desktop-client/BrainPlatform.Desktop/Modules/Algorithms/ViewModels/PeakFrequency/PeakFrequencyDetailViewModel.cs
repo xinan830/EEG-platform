@@ -11,7 +11,8 @@ public sealed class PeakFrequencyDetailViewModel : AlgorithmSpecificDetailViewMo
     internal PeakFrequencyDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "peak_frequency") => RefreshPreview();
 
     public PeakFrequencyResultPoint? CurrentPoint => preview?.CurrentAt(Catalog.DynamicPreviewCursorSeconds);
-    public IReadOnlyList<PeakFrequencyResultPoint> TrendPoints => preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
+    public IReadOnlyList<PeakFrequencyResultPoint> TrendPoints =>
+        preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
     public bool IsDynamicResult => preview?.IsDynamic == true;
     public double TimelineStartSeconds => preview?.DynamicPoints.FirstOrDefault()?.StartSeconds ?? 0;
     public double TimelineEndSeconds => preview?.DynamicPoints.LastOrDefault()?.EndSeconds ?? 1;
@@ -60,10 +61,17 @@ public sealed class PeakFrequencyDetailViewModel : AlgorithmSpecificDetailViewMo
     protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
         base.OnCatalogPropertyChanged(sender, args);
-        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm))
+        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.BackgroundFullRun)
+            or nameof(AlgorithmListViewModel.SelectedAlgorithm))
             RefreshPreview();
         else if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
         {
+            if (IsServingCompletedBackgroundFullRun)
+            {
+                RaiseResultProperties();
+                return;
+            }
             if (Algorithm?.Id == "peak_frequency" && Catalog.DisplayedAnalysisWindow is { } response)
             {
                 preview = PeakFrequencyResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "",
@@ -83,11 +91,14 @@ public sealed class PeakFrequencyDetailViewModel : AlgorithmSpecificDetailViewMo
     {
         windowSession = null;
         preview = Algorithm?.Id == "peak_frequency"
-            ? Catalog.DisplayedAnalysisWindow is { } response
+            ? CompletedBackgroundFullRun?.ResultSummary is { } fullSummary
+                ? PeakFrequencyResultPreview.Parse(fullSummary)
+                : Catalog.DisplayedAnalysisWindow is { } response
                 ? PeakFrequencyResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "")
                 : PeakFrequencyResultPreview.Parse(Catalog.LastRun?.ResultSummary)
             : null;
-        if (Algorithm?.Id == "peak_frequency" && Catalog.DisplayedAnalysisWindow is { } displayed) windowSession = displayed.SessionId;
+        if (!IsServingCompletedBackgroundFullRun && Algorithm?.Id == "peak_frequency" && Catalog.DisplayedAnalysisWindow is { } displayed)
+            windowSession = displayed.SessionId;
         IsFailureDetailsExpanded = false;
         RaisePropertyChanged(nameof(IsDynamicResult));
         RaisePropertyChanged(nameof(TimelineStartSeconds));

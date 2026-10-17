@@ -15,7 +15,11 @@ public sealed class IapfDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
 
     public IapfResultPoint? CurrentPoint => preview?.CurrentAt(Catalog.DynamicPreviewCursorSeconds);
 
-    public IReadOnlyList<IapfResultPoint> TrendPoints => preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
+    // Full results are the source of truth, but the chart is a playback
+    // projection: only windows whose endpoint has reached the cursor are
+    // released. This keeps a completed full run from painting the future.
+    public IReadOnlyList<IapfResultPoint> TrendPoints =>
+        preview?.VisibleThrough(Catalog.DynamicPreviewCursorSeconds) ?? [];
 
     public bool IsDynamicResult => preview?.IsDynamic == true;
     public double TimelineStartSeconds => preview?.DynamicPoints.FirstOrDefault()?.StartSeconds ?? 0;
@@ -74,10 +78,20 @@ public sealed class IapfDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
     protected override void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
         base.OnCatalogPropertyChanged(sender, args);
-        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.SelectedAlgorithm))
+        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.BackgroundFullRun)
+            or nameof(AlgorithmListViewModel.SelectedAlgorithm))
             RefreshPreview();
         else if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
         {
+            if (IsServingCompletedBackgroundFullRun)
+            {
+                // The completed full series is already authoritative. A
+                // cursor move must only change CurrentPoint, not replace the
+                // series with the windows visited during dragging.
+                RaiseResultProperties();
+                return;
+            }
             if (Algorithm?.Id == "iapf" && Catalog.DisplayedAnalysisWindow is { } response)
             {
                 preview = IapfResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "",
@@ -97,11 +111,14 @@ public sealed class IapfDetailViewModel : AlgorithmSpecificDetailViewModel, IAlg
     {
         windowSession = null;
         preview = Algorithm?.Id == "iapf"
-            ? Catalog.DisplayedAnalysisWindow is { } response
+            ? CompletedBackgroundFullRun?.ResultSummary is { } fullSummary
+                ? IapfResultPreview.Parse(fullSummary)
+                : Catalog.DisplayedAnalysisWindow is { } response
                 ? IapfResultPreview.FromWindow(response, Catalog.SelectedChannel ?? "")
                 : IapfResultPreview.Parse(Catalog.LastRun?.ResultSummary)
             : null;
-        if (Algorithm?.Id == "iapf" && Catalog.DisplayedAnalysisWindow is { } displayed) windowSession = displayed.SessionId;
+        if (!IsServingCompletedBackgroundFullRun && Algorithm?.Id == "iapf" && Catalog.DisplayedAnalysisWindow is { } displayed)
+            windowSession = displayed.SessionId;
         IsFailureDetailsExpanded = false;
         RaisePropertyChanged(nameof(IsDynamicResult));
         RaisePropertyChanged(nameof(TimelineStartSeconds));
