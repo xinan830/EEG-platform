@@ -51,6 +51,16 @@ WPF 可以把这三个值显示为“仅全量分析”“仅按需分析”“�
 
 准备数据不满足契约时，按需执行必须等待准备、返回明确的准备中/不可用状态或走已验证的算法专属路径，不能静默改用局部截窗滤波。
 
+### 5.1 durable single-flight 的所有权规则
+
+同一科学 `WindowKey` 的协调记录必须只有一个活动 producer。producer 负责准备、计算、校验和不可变发布；full 与 on-demand 都是独立 consumer，不因 consumer 数量增加而创建第二个 producer。consumer 订阅包含 `subscription_id`、请求代数、优先级和取消状态，取消只释放该订阅；仅当没有任何活动 consumer、且 producer 尚未进入不可取消的科学计算单元时，才允许协作取消。producer 发生租约过期时由持久化协调点回收并重新排队，旧 producer 不得发布结果。
+
+按需请求可以提升同一 WindowKey 的优先级，但不得改变科学身份或覆盖后台 consumer。full consumer 等待已有 producer 时不得持有计算槽；producer 完成后所有 consumer 读取同一个已校验 artifact。
+
+### 5.2 份额与资源观测契约
+
+协调器必须记录以下字段：`lane`、`window_key`、`wait_ms`、`hold_ms`、`yield_reason`、`cancel_observed`、`resource_rejection_code`、`active_slots`、`rss_bytes`、`cpu_seconds` 和 `temporary_disk_free_bytes`。后台最低执行份额由可配置的交互突发上限和实际 `batch_yields`/`batch_completed` 观测共同定义，不在没有测量前承诺固定帧率或零等待。资源拒绝必须来自结构化预算代码，不能伪装成科学质量拒绝；压力验收至少要证明后台 Run 完成、交互请求不永久饥饿，并报告最坏不可中断工作单元持续时间。
+
 ## 4. 调度与资源门
 
 首期使用有限资源预算，不增加无界线程：
