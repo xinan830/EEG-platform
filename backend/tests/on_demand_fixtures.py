@@ -21,6 +21,7 @@ from app.services.recordings import RecordingService
 from app.services.results import ResultService
 from app.services.run_queue import PersistentRunQueue
 from app.services.validations import ValidationService
+from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
 
 
 def write_recording(root: Path, *, first_counter: int = 700, gap: bool = False,
@@ -76,8 +77,15 @@ def configure_api(tmp_path: Path, *, gap: bool = False, rejected: bool = False,
     write_recording(root, gap=gap, rejected=rejected, duration_s=duration_s, labels=labels)
     recordings = RecordingService(tmp_path / "stored", tmp_path / "catalog.sqlite3")
     recording = recordings.register_wpf_recording(str(root), signal_mode="acquisition_montage")
-    runs = PersistentRunQueue(recordings, recordings.database_path, tmp_path / "artifacts")
-    windows = DynamicWindowService(recordings, build_builtin_registry(), recordings.database_path, tmp_path / "artifacts")
+    compute_coordinator = ScientificComputeCoordinator()
+    runs = PersistentRunQueue(
+        recordings, recordings.database_path, tmp_path / "artifacts",
+        compute_coordinator=compute_coordinator,
+    )
+    windows = DynamicWindowService(
+        recordings, build_builtin_registry(), recordings.database_path, tmp_path / "artifacts",
+        compute_coordinator=compute_coordinator,
+    )
     app = FastAPI()
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
