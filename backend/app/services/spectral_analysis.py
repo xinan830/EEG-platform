@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+from dataclasses import replace
 
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.core.provenance import implementation_version
@@ -22,6 +23,7 @@ from app.scientific.primitives import preprocess_offline as preprocess_offline
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.recording import RecordingSummary
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
+from app.services.prepared_source_contract import PreparedSourceContract
 from app.services.analysis_input_validation import validate_recording_analysis_input
 
 
@@ -110,7 +112,23 @@ class SpectralAnalysisService:
 
         identity = prepared_source_identity(self.recordings, recording, low_hz=low_hz,
             high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q)
-        cached = self.preprocess_cache.get(recording.id, identity)
+        expected_contract = None
+        # Legacy/custom loaders may omit recording-level sample metadata. In
+        # that case the source cannot be contract-validated before loading;
+        # preserve the existing loader seam and attach a contract only when
+        # the immutable recording summary is complete.
+        if recording.sfreq is not None and recording.duration_s is not None and recording.channels:
+            sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
+            expected_contract = PreparedSourceContract(
+                schema_version="prepared-source-v1", identity=identity, status="ready",
+                sample_rate_hz=float(recording.sfreq),
+                prepared_start_sample=0, prepared_end_sample=sample_count,
+                valid_start_sample=0, valid_end_sample=sample_count,
+                channel_names=tuple(recording.channels),
+                channel_units=tuple(recording.channel_units or ("V",) * len(recording.channels)),
+                preprocessing_manifest=identity, numerical_tolerance=1e-12,
+            )
+        cached = self.preprocess_cache.get(recording.id, identity, expected_contract)
         if cached is None:
             if getattr(self.recordings.load_data, "__func__", None) is RecordingService.load_data:
                 cached = mapped_preprocess(self.recordings, recording, low_hz=low_hz,
@@ -121,6 +139,8 @@ class SpectralAnalysisService:
                 filtered = self.spectral_gateway.preprocess(np.asarray(data, dtype=float), sfreq,
                     low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q)
                 cached = PreprocessedRecording(filtered, sfreq, tuple(names))
+            if expected_contract is not None:
+                cached = replace(cached, contract=expected_contract)
             self.preprocess_cache.put(recording.id, identity, cached)
         completed = getattr(execution_context, "source_preparation_completed", None)
         if completed is not None:

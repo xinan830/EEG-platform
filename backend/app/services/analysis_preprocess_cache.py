@@ -9,6 +9,8 @@ from typing import Any
 
 import numpy as np
 
+from app.services.prepared_source_contract import PreparedSourceContract
+
 
 @dataclass(frozen=True)
 class PreprocessedRecording:
@@ -16,6 +18,7 @@ class PreprocessedRecording:
     sfreq: float
     channel_names: tuple[str, ...]
     owner: Any = None
+    contract: PreparedSourceContract | None = None
 
 
 class AnalysisPreprocessCache:
@@ -29,10 +32,16 @@ class AnalysisPreprocessCache:
         self._entries: OrderedDict[tuple[str, str], PreprocessedRecording] = OrderedDict()
         self._lock = RLock()
 
-    def get(self, recording_id: str, algorithm_version: str) -> PreprocessedRecording | None:
+    def get(self, recording_id: str, algorithm_version: str,
+            expected_contract: PreparedSourceContract | None = None) -> PreprocessedRecording | None:
         key = (recording_id, algorithm_version)
         with self._lock:
             value = self._entries.get(key)
+            if value is not None and expected_contract is not None and (
+                    value.contract is None or not value.contract.matches(expected_contract)):
+                # A hash collision or stale in-process entry must be treated as
+                # a miss, never as permission to reuse an unverifiable source.
+                value = None
             if value is not None:
                 self._entries.move_to_end(key)
             return value
