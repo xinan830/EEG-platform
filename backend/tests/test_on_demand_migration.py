@@ -162,6 +162,14 @@ def test_v19_preserves_populated_sessions_generations_checksums_and_live_leases(
     with sqlite3.connect(database) as connection:
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         for table, rows in snapshots.items():
-            assert connection.execute(f"SELECT * FROM {table}").fetchall() == rows
+            current = connection.execute(f"SELECT * FROM {table}").fetchall()
+            if table != "dynamic_analysis_attempts":
+                assert current == rows
+                continue
+            # Migration 20 appends explicit producer metadata. The legacy
+            # lease columns must remain byte-for-byte readable, while old
+            # attempts receive the documented safe defaults.
+            assert [row[:len(rows[0])] for row in current] == rows
+            assert current[0][-3:] == ("on_demand", None, 0)
         assert connection.execute("SELECT definition_sha256, implementation_build FROM dynamic_analysis_sessions").fetchone() == ("", "")
     assert migrate_database(database) == CURRENT_SCHEMA_VERSION

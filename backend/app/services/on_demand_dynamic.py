@@ -233,6 +233,7 @@ class DynamicWindowService:
                 window.window_id, attempt_request_id, max_active_attempts=self._max_pending_windows,
                 max_project_attempts=self.resource_policy.max_project_attempts,
                 max_recording_attempts=self.resource_policy.max_recording_attempts,
+                producer_mode="on_demand", producer_owner_id=request_id, priority=100,
             )
         except ValueError as exc:
             # The single worker may have published the window between the

@@ -46,6 +46,9 @@ class DynamicAttemptRecord:
     error: dict[str, Any] | None
     created_at: str
     updated_at: str
+    producer_mode: str
+    producer_owner_id: str | None
+    priority: int
 
 
 class DynamicAttemptRepositoryMixin:
@@ -53,9 +56,15 @@ class DynamicAttemptRepositoryMixin:
 
     def create_attempt(self, window_id: str, request_id: str, *, max_active_attempts: int | None = None,
                        max_project_attempts: int | None = None,
-                       max_recording_attempts: int | None = None) -> DynamicAttemptRecord:
+                       max_recording_attempts: int | None = None,
+                       producer_mode: str = "on_demand", producer_owner_id: str | None = None,
+                       priority: int = 0) -> DynamicAttemptRecord:
         if not request_id:
             raise ValueError("dynamic attempt requires a request identity")
+        if producer_mode not in {"full", "on_demand"}:
+            raise ValueError("dynamic attempt producer_mode must be 'full' or 'on_demand'")
+        if type(priority) is not int:
+            raise ValueError("dynamic attempt priority must be an integer")
         now = utc_now()
         attempt_id = uuid4().hex
         with self._connect() as connection:
@@ -70,6 +79,18 @@ class DynamicAttemptRepositoryMixin:
                 (window_id,),
             ).fetchone()
             if existing is not None:
+                # A queued full producer can be promoted by an interactive
+                # consumer, but a running producer remains fenced and cannot
+                # be stolen mid-computation.
+                if existing["state"] == "queued" and priority > int(existing["priority"] or 0):
+                    connection.execute(
+                        "UPDATE dynamic_analysis_attempts SET priority = ?, updated_at = ? WHERE attempt_id = ? AND state = 'queued'",
+                        (priority, now, existing["attempt_id"]),
+                    )
+                    existing = connection.execute(
+                        "SELECT * FROM dynamic_analysis_attempts WHERE attempt_id = ?",
+                        (existing["attempt_id"],),
+                    ).fetchone()
                 return self._attempt(existing)
             scope = connection.execute(
                 """SELECT s.project_id, s.recording_id FROM dynamic_analysis_windows w
@@ -100,9 +121,10 @@ class DynamicAttemptRepositoryMixin:
             try:
                 connection.execute(
                     """INSERT INTO dynamic_analysis_attempts(
-                        attempt_id, window_id, request_id, state, created_at, updated_at
-                    ) VALUES (?, ?, ?, 'queued', ?, ?)""",
-                    (attempt_id, window_id, request_id, now, now),
+                        attempt_id, window_id, request_id, state, created_at, updated_at,
+                        producer_mode, producer_owner_id, priority
+                    ) VALUES (?, ?, ?, 'queued', ?, ?, ?, ?, ?)""",
+                    (attempt_id, window_id, request_id, now, now, producer_mode, producer_owner_id, priority),
                 )
             except sqlite3.IntegrityError as exc:
                 existing = connection.execute(
@@ -127,7 +149,7 @@ class DynamicAttemptRepositoryMixin:
             row = connection.execute(
                 """SELECT * FROM dynamic_analysis_attempts
                    WHERE window_id = ? AND state IN ('queued', 'running')
-                   ORDER BY created_at, attempt_id LIMIT 1""", (window_id,),
+                   ORDER BY priority DESC, created_at, attempt_id LIMIT 1""", (window_id,),
             ).fetchone()
         return self._attempt(row) if row else None
 
@@ -194,7 +216,7 @@ class DynamicAttemptRepositoryMixin:
             row = connection.execute(
                 """SELECT * FROM dynamic_analysis_attempts
                    WHERE window_id = ? AND state = 'queued'
-                   ORDER BY created_at, attempt_id LIMIT 1""", (window_id,),
+                   ORDER BY priority DESC, created_at, attempt_id LIMIT 1""", (window_id,),
             ).fetchone()
             if row is None:
                 return None
@@ -367,4 +389,7 @@ class DynamicAttemptRepositoryMixin:
             state=row["state"], worker_id=row["worker_id"], lease_token=row["lease_token"],
             lease_expires_at=row["lease_expires_at"], heartbeat_at=row["heartbeat_at"],
             error=_loads(row["error_json"]), created_at=row["created_at"], updated_at=row["updated_at"],
+            producer_mode=row["producer_mode"] if "producer_mode" in row.keys() else "on_demand",
+            producer_owner_id=row["producer_owner_id"] if "producer_owner_id" in row.keys() else None,
+            priority=int(row["priority"]) if "priority" in row.keys() else 0,
         )

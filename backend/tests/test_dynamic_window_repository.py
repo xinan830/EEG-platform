@@ -209,6 +209,38 @@ def test_attempt_lease_claim_heartbeat_failure_and_retry_are_scoped(tmp_path):
     assert claimed_retry is not None and claimed_retry.attempt_id == retry.attempt_id
 
 
+def test_attempt_persists_producer_metadata_and_prefers_higher_priority(tmp_path):
+    database = tmp_path / "catalog.sqlite3"
+    _recording(database)
+    repository = DynamicWindowRepository(database)
+    session = repository.ensure_session(_identity(), configuration={})
+    window = repository.ensure_window(session.session_id, start_sample=0, end_sample=500, start_s=0, end_s=5)
+    full = repository.create_attempt(
+        window.window_id, "full-request", producer_mode="full",
+        producer_owner_id="run-1", priority=10,
+    )
+    assert full.producer_mode == "full"
+    assert full.producer_owner_id == "run-1"
+    assert full.priority == 10
+    # The existing active attempt remains the single durable producer. A
+    # higher-priority request cannot create a second producer for the window.
+    on_demand = repository.create_attempt(
+        window.window_id, "preview-request", producer_mode="on_demand",
+        producer_owner_id="page-1", priority=100,
+    )
+    assert on_demand.attempt_id == full.attempt_id
+    assert on_demand.priority == 100
+    assert repository.get_active_attempt(window.window_id).priority == 100
+
+    claimed = repository.claim_attempt(window.window_id, "full-worker", "2999-01-01T00:00:00+00:00")
+    assert claimed is not None
+    unchanged = repository.create_attempt(
+        window.window_id, "late-preview", producer_mode="on_demand",
+        producer_owner_id="page-2", priority=1000,
+    )
+    assert unchanged.priority == 100
+
+
 def test_expired_attempts_are_requeued_and_terminal_windows_cannot_retry(tmp_path):
     database = tmp_path / "catalog.sqlite3"
     _recording(database)

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .database import connect_database
 from .dynamic_identity_migration import migration_019_dynamic_resolved_identity
+from .on_demand_migrations import migration_020_dynamic_producer_metadata
 from .on_demand_migrations import (
     migration_014_on_demand_dynamic_windows,
     migration_015_dynamic_attempt_lease_index,
@@ -361,6 +362,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(17, "on-demand-window-generations", migration_017_dynamic_window_generations),
     Migration(18, "on-demand-manifest-integrity", migration_018_dynamic_manifest_integrity),
     Migration(19, "on-demand-resolved-identity", migration_019_dynamic_resolved_identity),
+    Migration(20, "dynamic-producer-metadata", migration_020_dynamic_producer_metadata),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

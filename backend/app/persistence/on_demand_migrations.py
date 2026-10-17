@@ -152,3 +152,22 @@ def migration_018_dynamic_manifest_integrity(connection: sqlite3.Connection) -> 
     columns = {row[1] for row in connection.execute("PRAGMA table_info(dynamic_analysis_windows)")}
     if "result_manifest_sha256" not in columns:
         connection.execute("ALTER TABLE dynamic_analysis_windows ADD COLUMN result_manifest_sha256 TEXT")
+
+
+def migration_020_dynamic_producer_metadata(connection: sqlite3.Connection) -> None:
+    """Persist explicit producer mode, owner and priority for shared leases."""
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(dynamic_analysis_attempts)")}
+    if "producer_mode" not in columns:
+        connection.execute(
+            "ALTER TABLE dynamic_analysis_attempts ADD COLUMN producer_mode TEXT NOT NULL DEFAULT 'on_demand'"
+        )
+    if "producer_owner_id" not in columns:
+        connection.execute("ALTER TABLE dynamic_analysis_attempts ADD COLUMN producer_owner_id TEXT")
+    if "priority" not in columns:
+        connection.execute(
+            "ALTER TABLE dynamic_analysis_attempts ADD COLUMN priority INTEGER NOT NULL DEFAULT 0"
+        )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_dynamic_attempts_priority "
+        "ON dynamic_analysis_attempts(window_id, state, priority DESC, created_at, attempt_id)"
+    )
