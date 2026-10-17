@@ -25,6 +25,11 @@ class PreparedSourceContract:
     channel_units: tuple[str, ...]
     preprocessing_manifest: str
     numerical_tolerance: float
+    filter_phase: str = "zero_phase"
+    reference_semantics: str = "as_recorded"
+    gap_policy: str = "preserve"
+    boundary_policy: str = "valid_only"
+    implementation_identity: str = "development-unversioned"
 
     def __post_init__(self) -> None:
         if self.schema_version != "prepared-source-v1":
@@ -45,6 +50,15 @@ class PreparedSourceContract:
             raise ValueError("prepared-source preprocessing manifest is required")
         if self.numerical_tolerance < 0:
             raise ValueError("prepared-source numerical tolerance must be non-negative")
+        for name, value in (
+            ("filter_phase", self.filter_phase),
+            ("reference_semantics", self.reference_semantics),
+            ("gap_policy", self.gap_policy),
+            ("boundary_policy", self.boundary_policy),
+            ("implementation_identity", self.implementation_identity),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"prepared-source {name} is required")
 
     def matches(self, expected: "PreparedSourceContract") -> bool:
         """Return whether this entry can satisfy the expected scientific source."""
@@ -72,4 +86,9 @@ class PreparedSourceContract:
             "channel_units": list(self.channel_units),
             "preprocessing_manifest": self.preprocessing_manifest,
             "numerical_tolerance": self.numerical_tolerance,
+            "filter_phase": self.filter_phase,
+            "reference_semantics": self.reference_semantics,
+            "gap_policy": self.gap_policy,
+            "boundary_policy": self.boundary_policy,
+            "implementation_identity": self.implementation_identity,
         }

@@ -129,6 +129,15 @@ class SpectralAnalysisService:
                 channel_names=tuple(recording.channels),
                 channel_units=tuple(recording.channel_units or ("V",) * len(recording.channels)),
                 preprocessing_manifest=identity, numerical_tolerance=1e-12,
+                filter_phase="zero_phase",
+                reference_semantics=str(
+                    self.recordings.analysis_signal_provenance(recording).get(
+                        "analysis_reference", "as_recorded"
+                    )
+                ),
+                gap_policy="preserve",
+                boundary_policy="valid_only",
+                implementation_identity=implementation_version(),
             )
         lookup = self.preprocess_cache.lookup(recording.id, identity, expected_contract)
         cached = lookup.value
