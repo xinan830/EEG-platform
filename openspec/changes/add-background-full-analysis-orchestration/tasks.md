@@ -28,7 +28,7 @@
 ## 缓存与结果来源
 
 - [x] 保持科学缓存身份与调度策略解耦，覆盖记录、导联、通道、滤波、参考、窗口、参数、版本和实际范围。
-- [ ] 实现 `PreparedSourceContract` 的身份和状态校验；准备范围、边界状态或 manifest 不匹配时拒绝复用并返回结构化 miss reason。
+- [x] 实现 `PreparedSourceContract` 的身份和状态校验；准备范围、边界状态或 manifest 不匹配时拒绝复用并返回结构化 miss reason。
 - [x] 复用 PSD/STFT 已验证的按需到全量窗口结果，并覆盖部分命中、损坏回退、质量状态和取消。
 - [x] 设计并验证完整 Run 反向提供按需窗口的只读窗口索引；若本轮风险过高，明确延期而不猜测数组位置。
 - [x] 为每个结果记录 `producer_mode`、`result_scope`、`served_from`、窗口范围、单位、质量和不可变 `provenance_id`；禁止把局部完成显示为完整结果。
