@@ -46,7 +46,7 @@
 
 ## 科学与回归验证
 
-- [ ] 使用已知真实 Recording 对 PSD 做组合策略验证：首个按需窗口、后台进度、窗口复用、数值、轴、单位、质量、evidence 和原始文件 hash。
+- [x] 使用已知真实 Recording 对 PSD 做组合策略验证：首个按需窗口、后台进度、窗口复用、数值、轴、单位、质量、evidence 和原始文件 hash。
 - [x] 使用真实或合成 Recording 对 STFT 做同样验证，特别检查相对内层时间轴、shape 和 artifact 校验。
 - [ ] 验证边界窗口、首窗、尾窗、gap、rejected、insufficient、失败、重启恢复和配置代数隔离。
 - [x] 验证完整 Run 只有在所有计划窗口均有合法终态、窗口状态持久化、artifact 索引/manifest/checksum 校验通过且无未知状态时才进入 `completed`。
