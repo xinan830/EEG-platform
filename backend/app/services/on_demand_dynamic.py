@@ -251,7 +251,10 @@ class DynamicWindowService:
         subscription_id = None if recovering is not None else self.repository.create_subscription(
             window.window_id, request_id, project_id=payload.project_id,
         ).subscription_id
-        if attempt.state == "queued":
+        # A queued full producer owns this WindowKey. It is intentionally not
+        # submitted to the on-demand executor; the full worker will publish or
+        # release it through the shared coordinator.
+        if attempt.state == "queued" and attempt.producer_mode != "full":
             with self._lock:
                 if attempt.attempt_id not in self._pending:
                     future = self._executor.submit(
