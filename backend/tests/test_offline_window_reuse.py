@@ -173,3 +173,31 @@ def test_full_dynamic_run_cannot_complete_with_missing_window(tmp_path, monkeypa
     finally:
         windows.close()
         client.close()
+
+
+def test_full_window_publication_failure_releases_producer_lease(tmp_path, monkeypatch):
+    client, recording, windows, runs, _ = configure_api(tmp_path)
+    config = psd_config(recording)
+    try:
+        created = client.post("/api/runs", json={
+            "recording_id": recording.id, "analysis_type": "official_algorithm", "config": config,
+        })
+        assert created.status_code == 202, created.text
+
+        def fail_write(*_args, **_kwargs):
+            raise OSError("simulated dynamic artifact write failure")
+
+        monkeypatch.setattr(runs._offline_window_reuse.artifacts, "write", fail_write)
+        failed = runs.process_next()
+        assert failed is not None and failed.status.value == "failed"
+
+        with sqlite3.connect(windows.repository.database_path) as connection:
+            assert connection.execute(
+                "SELECT COUNT(*) FROM dynamic_analysis_attempts WHERE state IN ('queued', 'running')"
+            ).fetchone()[0] == 0
+            assert connection.execute(
+                "SELECT COUNT(*) FROM dynamic_analysis_windows WHERE state = 'failed'"
+            ).fetchone()[0] >= 1
+    finally:
+        windows.close()
+        client.close()

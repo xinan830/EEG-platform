@@ -271,6 +271,38 @@ def test_queued_producer_transfer_is_fenced_and_running_owner_cannot_be_stolen(t
         )
 
 
+def test_orphaned_full_producer_is_reclaimed_but_live_run_is_preserved(tmp_path):
+    database = tmp_path / "catalog.sqlite3"
+    _recording(database)
+    repository = DynamicWindowRepository(database)
+    session = repository.ensure_session(_identity(), configuration={})
+    orphan_window = repository.ensure_window(session.session_id, start_sample=0, end_sample=500, start_s=0, end_s=5)
+    orphan = repository.create_attempt(
+        orphan_window.window_id, "orphan-full", producer_mode="full",
+        producer_owner_id="missing-run", priority=10,
+    )
+    assert repository.recover_orphaned_full_producers() == 1
+    assert repository.get_attempt(orphan.attempt_id).state == "superseded"
+
+    live_window = repository.ensure_window(session.session_id, start_sample=500, end_sample=1000, start_s=5, end_s=10)
+    live = repository.create_attempt(
+        live_window.window_id, "live-full", producer_mode="full",
+        producer_owner_id="live-run", priority=10,
+    )
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "INSERT INTO analysis_runs("
+            "run_id, recording_id, analysis_type, status, scientific_version, implementation_version, "
+            "config_json, config_sha256, cache_key, requested_range_json, channel_mapping_json, reference_json, "
+            "filter_json, window_json, quality_rules_json, environment_json, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("live-run", "recording-1", "official_algorithm", "running", "science-1", "impl-1",
+             "{}", "config", "cache", "{}", "{}", "{}", "{}", "{}", "{}", "{}", "now", "now"),
+        )
+    assert repository.recover_orphaned_full_producers() == 0
+    assert repository.get_attempt(live.attempt_id).state == "queued"
+
+
 def test_expired_attempts_are_requeued_and_terminal_windows_cannot_retry(tmp_path):
     database = tmp_path / "catalog.sqlite3"
     _recording(database)

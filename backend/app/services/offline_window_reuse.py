@@ -233,65 +233,79 @@ class OfflineWindowReuse:
             claimed = self.repository.claim_attempt(window.window_id, worker_id, expiry)
             if claimed is None:
                 continue
-            dynamic_state = str(item.get("state") or "Complete")
-            failure = item.get("failure")
-            if isinstance(failure, dict) and "detail" in failure and "details" not in failure:
-                failure = {**failure, "details": failure.get("detail") or {}}
-                failure.pop("detail", None)
-            if dynamic_state in {"Rejected", "Unavailable"}:
-                state = "rejected" if dynamic_state == "Rejected" else "unavailable"
-                quality = str(item.get("quality") or state)
-                payload_axes = {}
-                payload_arrays: dict[str, Any] = {}
-            else:
-                state, quality = "ready", str(item.get("quality") or "clean")
-                payload_axes = axis_values
-                payload_arrays = {}
-                for name, value in arrays.items():
-                    if name.startswith("axis_") or name == "window_evidence_json":
-                        continue
-                    matrix = np.asarray(value)
-                    if matrix.ndim == 0:
-                        payload_arrays[name] = matrix
-                    elif matrix.shape[0] == len(window_items):
-                        payload_arrays[name] = matrix[index]
-                    else:
-                        payload_arrays[name] = matrix
-                if any(not np.isfinite(np.asarray(value, dtype=float)).all() for value in payload_arrays.values()):
-                    state, quality = "unavailable", "unavailable"
+            artifact_id: str | None = None
+            try:
+                dynamic_state = str(item.get("state") or "Complete")
+                failure = item.get("failure")
+                if isinstance(failure, dict) and "detail" in failure and "details" not in failure:
+                    failure = {**failure, "details": failure.get("detail") or {}}
+                    failure.pop("detail", None)
+                if dynamic_state in {"Rejected", "Unavailable"}:
+                    state = "rejected" if dynamic_state == "Rejected" else "unavailable"
+                    quality = str(item.get("quality") or state)
                     payload_axes = {}
+                    payload_arrays: dict[str, Any] = {}
+                else:
+                    state, quality = "ready", str(item.get("quality") or "clean")
+                    payload_axes = axis_values
                     payload_arrays = {}
-                    failure = {"code": "FULL_WINDOW_NONFINITE", "message": "完整结果窗口包含不可复用的非有限值"}
-            evidence: dict[str, Any] = {}
-            if index < len(evidence_values):
-                evidence = dict(evidence_values[index])
-            provenance_id = sha256_json({"run_id": run.run_id, "window_id": window.window_id, "producer_mode": "full"})
-            window_identity = DynamicWindowIdentity(
-                **identity.model_dump(), generation=window.generation,
-                start_sample=start_sample, end_sample=end_sample,
-            )
-            dynamic_result = DynamicWindowResult(
-                identity=window_identity, state=state, output_kind=str(structured.get("output", {}).get("kind", "series")),
-                axes=payload_axes, axis_units={name: str((structured.get("axes") or {}).get(name, {}).get("unit", "")) for name in payload_axes},
-                arrays=payload_arrays,
-                array_units={name: str((structured.get("arrays") or {}).get(name, {}).get("unit", "")) for name in payload_arrays},
-                quality=quality, failure=failure, evidence=evidence,
-                provenance={"execution_mode": "full", "producer_mode": "full", "result_scope": "window",
-                            "served_from": "full_computation", "scientific_cache_key": run.cache_key,
-                            "provenance_id": provenance_id},
-            )
-            dynamic_result = validate_window_result(dynamic_result, module.manifest)
-            artifact_id = self.artifacts.write(window.window_id, dynamic_result)
-            self.repository.update_attempt_window(
-                claimed.attempt_id, worker_id, claimed.lease_token or "", "preparing_source",
-            )
-            self.repository.update_attempt_window(
-                claimed.attempt_id, worker_id, claimed.lease_token or "", "computing_window",
-            )
-            self.repository.update_attempt_window(
-                claimed.attempt_id, worker_id, claimed.lease_token or "", state,
-                quality=quality, failure=failure, artifact_id=artifact_id,
-                manifest_sha256=self.artifacts.manifest_digest(artifact_id) if state == "ready" else None,
-            )
-            published += 1
+                    for name, value in arrays.items():
+                        if name.startswith("axis_") or name == "window_evidence_json":
+                            continue
+                        matrix = np.asarray(value)
+                        if matrix.ndim == 0:
+                            payload_arrays[name] = matrix
+                        elif matrix.shape[0] == len(window_items):
+                            payload_arrays[name] = matrix[index]
+                        else:
+                            payload_arrays[name] = matrix
+                    if any(not np.isfinite(np.asarray(value, dtype=float)).all() for value in payload_arrays.values()):
+                        state, quality = "unavailable", "unavailable"
+                        payload_axes = {}
+                        payload_arrays = {}
+                        failure = {"code": "FULL_WINDOW_NONFINITE", "message": "完整结果窗口包含不可复用的非有限值"}
+                evidence: dict[str, Any] = {}
+                if index < len(evidence_values):
+                    evidence = dict(evidence_values[index])
+                provenance_id = sha256_json({"run_id": run.run_id, "window_id": window.window_id, "producer_mode": "full"})
+                window_identity = DynamicWindowIdentity(
+                    **identity.model_dump(), generation=window.generation,
+                    start_sample=start_sample, end_sample=end_sample,
+                )
+                dynamic_result = DynamicWindowResult(
+                    identity=window_identity, state=state, output_kind=str(structured.get("output", {}).get("kind", "series")),
+                    axes=payload_axes, axis_units={name: str((structured.get("axes") or {}).get(name, {}).get("unit", "")) for name in payload_axes},
+                    arrays=payload_arrays,
+                    array_units={name: str((structured.get("arrays") or {}).get(name, {}).get("unit", "")) for name in payload_arrays},
+                    quality=quality, failure=failure, evidence=evidence,
+                    provenance={"execution_mode": "full", "producer_mode": "full", "result_scope": "window",
+                                "served_from": "full_computation", "scientific_cache_key": run.cache_key,
+                                "provenance_id": provenance_id},
+                )
+                dynamic_result = validate_window_result(dynamic_result, module.manifest)
+                artifact_id = self.artifacts.write(window.window_id, dynamic_result)
+                self.repository.update_attempt_window(
+                    claimed.attempt_id, worker_id, claimed.lease_token or "", "preparing_source",
+                )
+                self.repository.update_attempt_window(
+                    claimed.attempt_id, worker_id, claimed.lease_token or "", "computing_window",
+                )
+                self.repository.update_attempt_window(
+                    claimed.attempt_id, worker_id, claimed.lease_token or "", state,
+                    quality=quality, failure=failure, artifact_id=artifact_id,
+                    manifest_sha256=self.artifacts.manifest_digest(artifact_id) if state == "ready" else None,
+                )
+                published += 1
+            except Exception as exc:
+                failure = {"code": "FULL_WINDOW_PUBLICATION_FAILED", "message": str(exc) or type(exc).__name__}
+                try:
+                    self.repository.update_attempt_window(
+                        claimed.attempt_id, worker_id, claimed.lease_token or "", "failed",
+                        quality="failed", failure=failure,
+                    )
+                except (ValueError, KeyError):
+                    pass
+                if artifact_id is not None:
+                    self.artifacts.remove_unreferenced(artifact_id)
+                raise
         return published
