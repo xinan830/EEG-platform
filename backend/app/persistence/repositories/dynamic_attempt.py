@@ -153,6 +153,47 @@ class DynamicAttemptRepositoryMixin:
             ).fetchone()
         return self._attempt(row) if row else None
 
+    def transfer_queued_producer(
+        self,
+        window_id: str,
+        *,
+        expected_owner_id: str,
+        new_owner_id: str,
+        producer_mode: str,
+        priority: int,
+    ) -> DynamicAttemptRecord:
+        """Transfer a queued producer without touching a running lease."""
+        if not expected_owner_id or not new_owner_id:
+            raise ValueError("producer ownership transfer requires both owners")
+        if producer_mode not in {"full", "on_demand"}:
+            raise ValueError("dynamic attempt producer_mode must be 'full' or 'on_demand'")
+        if type(priority) is not int:
+            raise ValueError("dynamic attempt priority must be an integer")
+        now = utc_now()
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                """SELECT * FROM dynamic_analysis_attempts
+                   WHERE window_id = ? AND state = 'queued'
+                   ORDER BY priority DESC, created_at, attempt_id LIMIT 1""",
+                (window_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError("queued dynamic producer not found")
+            if row["producer_owner_id"] != expected_owner_id:
+                raise ValueError("queued producer owner does not match transfer expectation")
+            connection.execute(
+                """UPDATE dynamic_analysis_attempts
+                   SET producer_mode = ?, producer_owner_id = ?, priority = ?, updated_at = ?
+                   WHERE attempt_id = ? AND state = 'queued'""",
+                (producer_mode, new_owner_id, priority, now, row["attempt_id"]),
+            )
+            updated = connection.execute(
+                "SELECT * FROM dynamic_analysis_attempts WHERE attempt_id = ?", (row["attempt_id"],)
+            ).fetchone()
+        assert updated is not None
+        return self._attempt(updated)
+
     def wait_for_window_terminal(
         self,
         window_id: str,

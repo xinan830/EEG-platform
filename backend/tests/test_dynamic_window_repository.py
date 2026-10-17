@@ -241,6 +241,36 @@ def test_attempt_persists_producer_metadata_and_prefers_higher_priority(tmp_path
     assert unchanged.priority == 100
 
 
+def test_queued_producer_transfer_is_fenced_and_running_owner_cannot_be_stolen(tmp_path):
+    database = tmp_path / "catalog.sqlite3"
+    _recording(database)
+    repository = DynamicWindowRepository(database)
+    session = repository.ensure_session(_identity(), configuration={})
+    window = repository.ensure_window(session.session_id, start_sample=0, end_sample=500, start_s=0, end_s=5)
+    original = repository.create_attempt(
+        window.window_id, "full-request", producer_mode="full",
+        producer_owner_id="run-1", priority=10,
+    )
+    transferred = repository.transfer_queued_producer(
+        window.window_id, expected_owner_id="run-1", new_owner_id="page-1",
+        producer_mode="on_demand", priority=100,
+    )
+    assert transferred.attempt_id == original.attempt_id
+    assert transferred.producer_mode == "on_demand"
+    with pytest.raises(ValueError, match="owner"):
+        repository.transfer_queued_producer(
+            window.window_id, expected_owner_id="run-1", new_owner_id="page-2",
+            producer_mode="on_demand", priority=100,
+        )
+    claimed = repository.claim_attempt(window.window_id, "page-worker", "2999-01-01T00:00:00+00:00")
+    assert claimed is not None
+    with pytest.raises(KeyError, match="queued"):
+        repository.transfer_queued_producer(
+            window.window_id, expected_owner_id="page-1", new_owner_id="run-2",
+            producer_mode="full", priority=10,
+        )
+
+
 def test_expired_attempts_are_requeued_and_terminal_windows_cannot_retry(tmp_path):
     database = tmp_path / "catalog.sqlite3"
     _recording(database)
