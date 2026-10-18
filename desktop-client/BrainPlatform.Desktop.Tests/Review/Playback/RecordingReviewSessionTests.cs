@@ -1,4 +1,6 @@
 
+using BrainPlatform.Desktop.Modules.Review.Diagnostics;
+
 namespace BrainPlatform.Desktop.Tests.Review;
 
 public sealed class RecordingReviewSessionTests
@@ -190,6 +192,39 @@ public sealed class RecordingReviewSessionTests
 
         Assert.Equal(2, filter.CallCount);
         Assert.Equal(2, reader.ReadCount);
+    }
+
+    [Fact]
+    public async Task PerformanceProbeRecordsBoundedReviewStagesWithoutSignalValues()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new RangeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var sink = new CapturePerformanceSink();
+
+        await using var session = new RecordingReviewSession(
+            reader, catalog, 10, new FakeFilter(), performanceSink: sink);
+        await session.InitializeAsync();
+
+        Assert.Contains(sink.Samples, sample =>
+            sample.Stage == ReviewPerformanceStage.RawRead &&
+            sample.Source == ReviewPerformanceSource.Disk);
+        Assert.Contains(sink.Samples, sample =>
+            sample.Stage == ReviewPerformanceStage.FilteredSource &&
+            sample.Source == ReviewPerformanceSource.FilterService);
+        Assert.Contains(sink.Samples, sample => sample.Stage == ReviewPerformanceStage.FrameBuild);
+        Assert.All(sink.Samples, sample =>
+        {
+            Assert.Equal(reader.Manifest.SessionId, sample.RecordingSessionId);
+            Assert.True(sample.PointCount >= 0);
+            Assert.True(sample.ElapsedMilliseconds >= 0);
+        });
     }
 
     [Fact]
@@ -488,5 +523,12 @@ public sealed class RecordingReviewSessionTests
 
             return source;
         }
+    }
+
+    private sealed class CapturePerformanceSink : IReviewPerformanceSink
+    {
+        public List<ReviewPerformanceSample> Samples { get; } = [];
+
+        public void Record(ReviewPerformanceSample sample) => Samples.Add(sample);
     }
 }

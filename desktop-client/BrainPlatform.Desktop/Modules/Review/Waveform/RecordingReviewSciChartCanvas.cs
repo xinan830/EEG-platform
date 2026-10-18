@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -8,6 +9,7 @@ using SciChart.Charting.Visuals;
 using SciChart.Charting.Visuals.Axes;
 using SciChart.Charting.Visuals.RenderableSeries;
 using SciChart.Data.Model;
+using BrainPlatform.Desktop.Modules.Review.Diagnostics;
 
 namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
@@ -287,6 +289,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
     private void UpdateSeries(TraceSeries series, RecordingReviewFrame frame, int traceIndex, int traceCount)
     {
+        var started = ReviewPerformanceDiagnostics.Enabled ? Stopwatch.GetTimestamp() : 0L;
         var baseline = traceCount - traceIndex - 0.5;
         // The plot is laid out in DIP, so sensitivity must use the calibrated
         // physical DIP/mm conversion, not the monitor's nominal raster DPI.
@@ -306,6 +309,20 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             {
                 series.Data.Append(points.X, points.Y);
             }
+        }
+
+        if (ReviewPerformanceDiagnostics.Enabled)
+        {
+            ReviewPerformanceDiagnostics.Default.Record(new ReviewPerformanceSample(
+                frame.RecordingSessionId,
+                ReviewPerformanceStage.ChartBinding,
+                ReviewPerformanceSource.PublishedFrame,
+                frame.Revision,
+                frame.WindowStartSeconds,
+                frame.WindowEndSeconds,
+                traceCount,
+                points.X.Count,
+                Stopwatch.GetElapsedTime(started).TotalMilliseconds));
         }
     }
 
