@@ -91,15 +91,18 @@ semantics and quality behavior.
 
 ### Requirement: Catalog state matches executable scope
 
-The official catalog SHALL mark only IAPF and Theta/Beta as available and
-runnable in this change. Other official algorithms SHALL retain their current
-availability and runnable state.
+The official catalog SHALL derive availability and runnable state from each
+installed validated runtime module rather than an obsolete algorithm-name
+allowlist. IAPF, Theta/Beta, FAA and offline Brainbeat SHALL be available and
+runnable when their corresponding validated modules are installed. This
+offline capability SHALL NOT enable a stateful realtime Brainbeat path.
 
 #### Scenario: Read catalog after the cutover
 
-- **WHEN** a client requests the official catalog
-- **THEN** `iapf` and `theta_beta` are `available` and runnable
-- **AND THEN** FAA and BrainBeat remain `shadow_validation` and non-runnable
+- **WHEN** a client requests the official catalog with the validated IAPF, Theta/Beta, FAA and offline Brainbeat modules installed
+- **THEN** those entries are available and runnable for their declared modes
+- **AND** each reports its module-owned scientific and implementation identity
+- **AND** offline Brainbeat availability does not claim realtime IAPF-lock or EMA support
 
 ### Requirement: Preserve scientific contracts
 
@@ -120,3 +123,14 @@ IAPF-2]` Hz and Beta over `[IAPF+2,30]` Hz from the same selected channel.
 - **WHEN** the IAPF fit produces no Peak or COG after the shared PSD quality
   gate passes
 - **THEN** the output is `null` with its backend reason and is never zero
+
+### Requirement: PSD exposes standard band shares in structured results
+The official PSD structured result MUST expose `band_share` in the fixed order
+Delta, Theta, Alpha, Beta, Gamma, with unit `ratio`. Static output MUST use
+five values and dynamic output MUST use one five-value row per analysis window.
+
+#### Scenario: Render band shares without client recomputation
+- **WHEN** a clean PSD run completes
+- **THEN** the structured preview contains `band_share`
+- **AND** its values are backend-computed relative powers
+- **AND** the calculation trace declares the band names and ranges

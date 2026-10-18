@@ -36,7 +36,12 @@ internal sealed class ReviewCheckpointCoordinator(
     IRecordingReviewFilter filter,
     ReviewCheckpointAnchorCache anchorCache) : IAsyncDisposable
 {
-    private const double AdvanceBatchSeconds = 10;
+    // Cold seeks in long recordings must preserve exact causal history, but a
+    // 10-second HTTP round trip is needlessly expensive. Keep each request
+    // bounded by both time and payload size so low-rate/high-channel records
+    // do not create oversized allocations.
+    private const double MaximumAdvanceBatchSeconds = 1800;
+    private const long MaximumAdvancePayloadBytes = 32L * 1024 * 1024;
     private readonly SemaphoreSlim workGate = new(1, 1);
     private int disposed;
 
@@ -101,8 +106,8 @@ internal sealed class ReviewCheckpointCoordinator(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var remaining = target.FirstSampleCounter - cursor;
-            var count = Math.Min(remaining,
-                checked((long)Math.Ceiling(AdvanceBatchSeconds * reader.Manifest.SamplingRateHz)));
+            var count = Math.Min(remaining, GetAdvanceBatchSampleCount(
+                reader.Manifest.SamplingRateHz, target.ChannelCount));
             var startSeconds = (cursor - firstCounter) / (double)reader.Manifest.SamplingRateHz;
             var durationSeconds = count / (double)reader.Manifest.SamplingRateHz;
             var history = await reader.ReadWindowAsync(startSeconds, durationSeconds, cancellationToken);
@@ -124,9 +129,8 @@ internal sealed class ReviewCheckpointCoordinator(
 
                 var bounded = Slice(rawSegment, cursor, target.FirstSampleCounter);
                 if (bounded is null) continue;
-                await ownedSession.Current.AdvanceAsync(bounded, cancellationToken);
+                var checkpoint = await ownedSession.Current.AdvanceAndExportAsync(bounded, cancellationToken);
                 cursor = bounded.LastSampleCounter + 1L;
-                var checkpoint = await ownedSession.Current.ExportAsync(cancellationToken);
                 await anchorCache.StoreAsync(group, segmentOrigin, cursor, checkpoint, cancellationToken);
                 Publish(new ReviewPreparationState(ReviewPreparationPhase.PreparingHistory,
                     segmentOrigin, cursor, target.FirstSampleCounter));
@@ -155,6 +159,17 @@ internal sealed class ReviewCheckpointCoordinator(
         var first = await reader.ReadWindowAsync(0, duration, cancellationToken);
         return first.Segments.FirstOrDefault()?.FirstSampleCounter
             ?? throw new InvalidOperationException("记录开头没有可读取的样本。");
+    }
+
+    private static long GetAdvanceBatchSampleCount(int samplingRateHz, int channelCount)
+    {
+        if (samplingRateHz <= 0 || channelCount <= 0)
+            throw new ArgumentOutOfRangeException();
+
+        var byTime = checked((long)Math.Ceiling(MaximumAdvanceBatchSeconds * samplingRateHz));
+        var bytesPerSample = checked((long)channelCount * sizeof(double));
+        var byPayload = Math.Max(1L, MaximumAdvancePayloadBytes / bytesPerSample);
+        return Math.Max(1L, Math.Min(byTime, byPayload));
     }
 
     private static RecordingReviewSegment? Slice(

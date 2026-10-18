@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Http;
@@ -72,6 +73,11 @@ public interface IRecordingReviewCheckpointSession : IAsyncDisposable
 {
     Task RestoreAsync(string checkpoint, CancellationToken cancellationToken);
     Task AdvanceAsync(RecordingReviewSegment source, CancellationToken cancellationToken);
+    async Task<string> AdvanceAndExportAsync(RecordingReviewSegment source, CancellationToken cancellationToken)
+    {
+        await AdvanceAsync(source, cancellationToken);
+        return await ExportAsync(cancellationToken);
+    }
     Task<RecordingReviewSegment> FilterAsync(RecordingReviewSegment source, CancellationToken cancellationToken);
     Task<string> ExportAsync(CancellationToken cancellationToken);
 }
@@ -348,6 +354,24 @@ public sealed class HttpRecordingReviewFilter(HttpClient httpClient) : IRecordin
                 $"api/live-filters/sessions/{sessionId}/warmup/binary?sample_count={source.SampleCount}",
                 content, cancellationToken);
             response.EnsureSuccessStatusCode();
+        }
+
+        public async Task<string> AdvanceAndExportAsync(
+            RecordingReviewSegment source, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            using var content = CreateBinaryContent(source.SampleMajorValues);
+            using var response = await client.PostAsync(
+                $"api/live-filters/sessions/{sessionId}/warmup/binary?sample_count={source.SampleCount}&return_checkpoint=true",
+                content, cancellationToken);
+            // Keep mixed-version local backend/client restarts usable. Older
+            // backends ignore the query and return the legacy 204 response.
+            if (response.StatusCode == HttpStatusCode.NoContent)
+                return await ExportAsync(cancellationToken);
+            response.EnsureSuccessStatusCode();
+            var payload = await response.Content.ReadFromJsonAsync<FilterCheckpointResponse>(cancellationToken)
+                ?? throw new InvalidOperationException("回溯滤波没有返回 checkpoint。");
+            return payload.CheckpointB64;
         }
 
         public async Task<RecordingReviewSegment> FilterAsync(

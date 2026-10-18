@@ -36,7 +36,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private readonly ReviewFilteredSourceChunkCache filteredSourceCache = new();
     private readonly ReviewCheckpointCoordinator? checkpointCoordinator;
     private readonly object sourceChunkLoadGate = new();
-    private readonly Dictionary<string, Task<ReviewFilteredSourceChunk>> sourceChunkLoads = [];
+    private readonly Dictionary<string, SourceChunkBuildWork> sourceChunkLoads = [];
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? currentLoad;
     private long revision;
@@ -400,10 +400,19 @@ public sealed class RecordingReviewSession : IAsyncDisposable
                 ? "recorded-segments-v2;exact-checkpoint-history;causal-state-never-crosses-gap"
                 : "recorded-segments-v1;causal-state-never-crosses-gap");
         var work = GetOrStartFilteredSourceChunkBuild(key, chunkIndex, startSeconds, durationSeconds, settings, contract);
-        return await work.WaitAsync(token);
+        work.AddWaiter();
+        try
+        {
+            return await work.Task.WaitAsync(token);
+        }
+        finally
+        {
+            if (work.ReleaseWaiter() == 0 && !work.Task.IsCompleted)
+                work.CancelWhenUnused();
+        }
     }
 
-    private Task<ReviewFilteredSourceChunk> GetOrStartFilteredSourceChunkBuild(
+    private SourceChunkBuildWork GetOrStartFilteredSourceChunkBuild(
         ReviewFilteredSourceChunkKey key,
         int chunkIndex,
         double startSeconds,
@@ -413,24 +422,30 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     {
         lock (sourceChunkLoadGate)
         {
-            if (sourceChunkLoads.TryGetValue(key.Fingerprint, out var existing))
+            if (sourceChunkLoads.TryGetValue(key.Fingerprint, out var existing) &&
+                !existing.Task.IsCanceled && !existing.Task.IsFaulted)
             {
                 return existing;
             }
 
-            var created = BuildFilteredSourceChunkAsync(key, chunkIndex, startSeconds, durationSeconds, settings, contract, lifetime.Token);
-            sourceChunkLoads.Add(key.Fingerprint, created);
+            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+            var created = BuildFilteredSourceChunkAsync(
+                key, chunkIndex, startSeconds, durationSeconds, settings, contract, cancellation.Token);
+            var work = new SourceChunkBuildWork(created, cancellation);
+            sourceChunkLoads[key.Fingerprint] = work;
             _ = created.ContinueWith(completed =>
             {
                 lock (sourceChunkLoadGate)
                 {
-                    if (sourceChunkLoads.TryGetValue(key.Fingerprint, out var current) && ReferenceEquals(current, completed))
+                    if (sourceChunkLoads.TryGetValue(key.Fingerprint, out var current) &&
+                        ReferenceEquals(current, work))
                     {
                         sourceChunkLoads.Remove(key.Fingerprint);
                     }
                 }
+                cancellation.Dispose();
             }, TaskScheduler.Default);
-            return created;
+            return work;
         }
     }
 
@@ -565,6 +580,32 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private double ClampViewportStart(double value) => Math.Clamp(value, 0, Math.Max(0, DurationSeconds - VisibleDurationSeconds));
     private sealed record FrameBuildResult(RecordingReviewFrame Frame, bool FilterUnavailable);
     private sealed record SourceBuildResult(RecordingReviewWindow Window, bool FilterUnavailable);
+    private sealed class SourceChunkBuildWork(Task<ReviewFilteredSourceChunk> task, CancellationTokenSource cancellation)
+    {
+        private int waiters;
+
+        public Task<ReviewFilteredSourceChunk> Task { get; } = task;
+        public CancellationTokenSource Cancellation { get; } = cancellation;
+
+        public void AddWaiter() => Interlocked.Increment(ref waiters);
+
+        public int ReleaseWaiter() => Interlocked.Decrement(ref waiters);
+
+        public void CancelWhenUnused() => _ = CancelWhenUnusedAsync();
+
+        private async Task CancelWhenUnusedAsync()
+        {
+            // Give a newer drag target a short opportunity to join the same
+            // in-flight chunk before cancelling obsolete work.
+            try { await System.Threading.Tasks.Task.Delay(100); }
+            catch (ObjectDisposedException) { return; }
+            if (Volatile.Read(ref waiters) == 0 && !Task.IsCompleted)
+            {
+                try { Cancellation.Cancel(); }
+                catch (ObjectDisposedException) { }
+            }
+        }
+    }
     private void ThrowIfDisposed()
     {
         if (Volatile.Read(ref disposed) != 0) throw new ObjectDisposedException(nameof(RecordingReviewSession));

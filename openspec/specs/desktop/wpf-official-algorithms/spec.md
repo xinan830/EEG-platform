@@ -406,3 +406,152 @@ IAPF or official Theta/Beta definitions.
 - **WHEN** the operator selects IAPF
 - **THEN** no generic band preset is shown and the backend IAPF contract remains
   unchanged
+
+### Requirement: PSD band-share chart is an independent view component
+The WPF PSD detail page MUST render band shares through a standalone chart
+component and MUST consume the backend `band_share` array without calculating
+PSD, band power, or normalization in the client.
+The page MUST offer a chart selector that shows either the PSD spectrum or the
+band-share chart in the same main plot area. Changing the chart MUST NOT rerun
+the algorithm or reset the selected dynamic time position.
+
+#### Scenario: Show the latest complete dynamic band-share row
+- **WHEN** a dynamic PSD timeline reaches a complete window
+- **THEN** the chart shows that window's five backend-returned shares
+- **AND** changing the timeline updates the chart without changing the PSD
+  spectrum component.
+
+#### Scenario: Switch the PSD chart
+- **WHEN** the user selects band share or power spectral density
+- **THEN** the corresponding SciChart view is shown in the same plot area
+- **AND** the selected channel, Run, and dynamic time position are unchanged.
+
+### Requirement: WPF IAPF detail presents backend-owned result and method
+The IAPF detail page SHALL display the backend IAPF value in Hz and the selected Peak/COG method evidence. It SHALL show unavailable results without substituting zero or a prior window value. It SHALL NOT calculate IAPF or draw a fitting curve absent from backend artifacts.
+
+#### Scenario: Static result and unavailable result
+- **WHEN** an IAPF Run completes with a finite scalar and method evidence
+- **THEN** WPF displays that value, unit, source method, channel and Run context
+- **WHEN** the result is unavailable
+- **THEN** WPF shows the backend failure state without a numeric value
+
+### Requirement: WPF IAPF dynamic trend follows recording time
+The IAPF dynamic chart SHALL render only backend-returned complete values at their `time_s` positions, synchronized with the existing seek/playback cursor. Rejected or unavailable windows SHALL remain gaps and retain their reason in the result panel.
+
+#### Scenario: Seek across valid and rejected windows
+- **WHEN** the operator seeks through dynamic IAPF windows
+- **THEN** the chart reveals only results at or before the cursor
+- **AND** a rejected current window displays no carried-forward IAPF value
+
+### Requirement: IAPF retains the shared quality status card
+The IAPF detail page SHALL display the same shared quality status card used by other official spectral algorithms. Its status and failure details SHALL come from the backend IAPF result; dynamic window counts and reasons SHALL reflect windows reached by the current timeline cursor.
+
+#### Scenario: Inspect a rejected IAPF window
+- **WHEN** the timeline reaches a rejected IAPF window
+- **THEN** the shared card shows its quality state, rejected count and failure reason
+- **AND** the operator can expand the window failure details
+
+### Requirement: WPF Peak Frequency detail displays backend-owned values
+The Peak Frequency detail SHALL show the backend value in Hz, source channel, actual analysis window and available peak-power evidence. The client SHALL NOT select a peak from PSD data or replace an unavailable result with zero or a prior result.
+
+#### Scenario: Static and unavailable results
+- **WHEN** a static Peak Frequency Run provides a finite result
+- **THEN** the detail shows that frequency and its declared unit
+- **WHEN** the backend result is unavailable
+- **THEN** the detail shows its failure reason with no numeric substitute
+
+### Requirement: Dynamic Peak Frequency follows the shared recording-time cursor
+The detail trend SHALL reveal only backend-returned complete points at or before the cursor. Rejected or unavailable windows SHALL leave gaps, retain their backend reasons and update shared quality counts only after the cursor reaches them.
+
+#### Scenario: Seek across a rejected window
+- **WHEN** the operator seeks from a complete point into a rejected window
+- **THEN** the current frequency becomes unavailable and the trend does not carry the previous value forward
+- **AND** the shared quality card exposes the rejected window and its reason
+
+### Requirement: Dynamic scalar points preserve structured failures
+The backend SHALL serialize each dynamic scalar window's failure object when present, including its code and message, alongside quality status. Successful points SHALL carry no failure.
+
+#### Scenario: Quality gate rejects a dynamic point
+- **WHEN** a dynamic algorithm returns a failed window
+- **THEN** the Run result series contains that window's structured failure without fabricating a numeric value
+
+### Requirement: Render official RBP in its own WPF detail view
+
+The desktop SHALL display current official RBP (`official-rbp-v2`) as five backend-returned Delta, Theta, Alpha, Beta and Gamma shares over 1–50 Hz in its RBP-owned view. It SHALL NOT compute band integrals, normalize values or replace missing shares with zero. Historical four-band Runs SHALL retain their four-band 1–30 Hz labeling.
+
+#### Scenario: Current five-band static result
+
+- **WHEN** the backend returns a completed current-version static RBP Run
+- **THEN** WPF displays five band values and their declared ranges with shared quality and provenance surfaces
+
+#### Scenario: Static RBP result
+
+- **WHEN** a completed current static RBP Run contains five clean band values
+- **THEN** WPF displays those values in the declared band order
+- **AND** the shared quality and provenance controls remain available
+
+#### Scenario: Static quality failure
+
+- **WHEN** RBP returns a completed Run whose quality gate rejects the result
+- **THEN** no numeric share is plotted
+- **AND** WPF shows the backend failure reason
+
+### Requirement: Synchronize dynamic RBP with the WPF time cursor
+
+The desktop SHALL display all five current-version backend RBP shares for the selected dynamic window and five trend series. Rejected and unavailable windows SHALL remain gaps.
+
+#### Scenario: Rejected dynamic window
+
+- **WHEN** the cursor reaches a rejected or unavailable current-version RBP window
+- **THEN** five current-window shares are unavailable and the trends contain a gap without borrowing a previous value
+
+#### Scenario: Cursor before first window
+
+- **WHEN** the cursor is earlier than the first released RBP window
+- **THEN** the result view shows no current-window measurement
+
+### Requirement: WPF renders an official STFT time-frequency result
+The WPF STFT detail view MUST render the backend-provided single-channel
+`power_db` matrix with declared time, frequency, and dB units. It MUST preserve
+unavailable cells and MUST NOT calculate STFT or quality decisions locally.
+
+#### Scenario: Static STFT result
+- **WHEN** a static STFT Run returns a valid structured preview
+- **THEN** the detail view displays its time-frequency image and axes
+- **AND** its displayed time coordinates follow the backend time axis
+
+#### Scenario: Dynamic STFT timeline
+- **WHEN** the timeline reaches a complete dynamic window
+- **THEN** the detail view displays that window's returned time-frequency matrix
+- **AND** the X coordinates use the window start plus backend inner-time centers
+- **AND** seeking to another window updates the image without another Run
+
+#### Scenario: Rejected or unavailable window
+- **WHEN** the selected dynamic window is rejected or unavailable
+- **THEN** no earlier window's heatmap is presented as its result
+- **AND** the unavailable state and backend window reason remain visible
+
+### Requirement: Load bounded long-recording PSD previews
+
+The WPF PSD detail loader SHALL request the existing structured preview API
+with a 1,000,000-cell budget. Successful previews SHALL preserve backend
+spectrum values, band shares and dynamic windows without recomputation.
+
+#### Scenario: Preview exceeds the old desktop budget
+
+- **WHEN** a completed dynamic PSD contains more than 20,000 and at most
+  1,000,000 numeric cells
+- **THEN** the desktop loads its spectrum, backend band shares and timeline
+- **AND** seeking selects the corresponding backend row without rerunning
+  the scientific calculation
+
+#### Scenario: Static band share output
+
+- **WHEN** a static PSD preview contains five available band-share values
+- **THEN** the desktop exposes those five values to the band-share chart
+
+#### Scenario: Rejected dynamic window
+
+- **WHEN** the user seeks to a rejected window
+- **THEN** the spectrum and band-share projection do not retain the previous
+  valid window's values

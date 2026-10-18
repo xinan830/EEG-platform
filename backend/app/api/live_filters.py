@@ -1,5 +1,6 @@
 import numpy as np
 from fastapi import APIRouter, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.core.api_contract import error_response
@@ -121,6 +122,7 @@ async def warmup_filter_binary(
     session_id: str,
     request: Request,
     sample_count: int = Query(gt=0),
+    return_checkpoint: bool = Query(default=False),
 ) -> Response:
     """Advance a new display-filter session without returning warm-up samples.
 
@@ -134,6 +136,11 @@ async def warmup_filter_binary(
             raise ValueError("binary warmup payload is not aligned to float64")
         values = np.frombuffer(payload, dtype="<f8")
         _service(request).process_array(session_id, values, sample_count)
+        if return_checkpoint:
+            return JSONResponse({
+                "checkpoint_b64": _service(request).export_checkpoint(session_id),
+                "version": CHECKPOINT_VERSION,
+            })
         return Response(
             status_code=status.HTTP_204_NO_CONTENT,
             headers={"X-Warmup-Sample-Count": str(sample_count), "X-Unit": "V"},

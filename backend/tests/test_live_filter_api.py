@@ -84,6 +84,15 @@ def test_binary_warmup_advances_filter_state_without_returning_waveform() -> Non
     assert response.content == b""
     assert response.headers["x-warmup-sample-count"] == "100"
     assert response.headers["x-unit"] == "V"
+
+    checkpointed = client.post(
+        f"/api/live-filters/sessions/{session_id}/warmup/binary?sample_count=100&return_checkpoint=true",
+        content=source.tobytes(),
+        headers={"Content-Type": "application/vnd.brain-platform.float64"},
+    )
+    assert checkpointed.status_code == 200
+    assert checkpointed.json()["version"] == "display-filter-state-v1"
+    assert checkpointed.json()["checkpoint_b64"]
     assert client.delete(f"/api/live-filters/sessions/{session_id}").status_code == 204
 
 
