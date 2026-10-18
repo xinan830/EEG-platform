@@ -314,6 +314,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         if (ReviewPerformanceDiagnostics.Enabled)
         {
             ReviewPerformanceDiagnostics.Default.Record(new ReviewPerformanceSample(
+                (DataContext as RecordingReviewViewModel)?.ReviewSessionId ?? Guid.Empty,
                 frame.RecordingSessionId,
                 ReviewPerformanceStage.ChartBinding,
                 ReviewPerformanceSource.PublishedFrame,

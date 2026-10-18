@@ -4,6 +4,7 @@ namespace BrainPlatform.Desktop.Modules.Review.Diagnostics;
 
 public enum ReviewPerformanceStage
 {
+    NavigationTarget,
     RawRead,
     FilteredSource,
     FrameBuild,
@@ -12,6 +13,7 @@ public enum ReviewPerformanceStage
 
 public enum ReviewPerformanceSource
 {
+    InteractiveTarget,
     MemoryCache,
     Disk,
     FilterCache,
@@ -21,6 +23,7 @@ public enum ReviewPerformanceSource
 }
 
 public sealed record ReviewPerformanceSample(
+    Guid ReviewSessionId,
     Guid RecordingSessionId,
     ReviewPerformanceStage Stage,
     ReviewPerformanceSource Source,
@@ -58,7 +61,8 @@ public static class ReviewPerformanceDiagnostics
             if (!Enabled) return;
 
             DesktopLog.Info(
-                $"review_perf recording_id={sample.RecordingSessionId:N}" +
+                $"review_perf review_session_id={sample.ReviewSessionId:N}" +
+                $" recording_id={sample.RecordingSessionId:N}" +
                 $" stage={sample.Stage} source={sample.Source}" +
                 $" revision={sample.Revision?.ToString() ?? "none"}" +
                 $" start_s={sample.StartSeconds:0.######}" +

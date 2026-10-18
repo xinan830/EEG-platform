@@ -4,9 +4,12 @@
 
 - [ ] Record the current revision, test environment, and review performance
   matrix for 10 s, 10 min, 1 h, 24 h, and a multi-day fixture.
-- [ ] Instrument navigation target, raw read, filter/checkpoint, result lookup,
-  frame publication, SciChart binding, point count, request count, and memory
-  observations with recording/session/request identities.
+- [x] Add opt-in diagnostics for navigation targets, raw reads,
+  filter/checkpoint source, frame publication, and SciChart binding. Each
+  sample carries recording and review-session identities, revision, absolute
+  time range, source, point count, and elapsed time without raw signal values.
+- [ ] Extend the evidence path to algorithm result lookup/computation, request
+  counts, and bounded memory observations.
 - [ ] Distinguish `window-preview` read hits from actual filter or algorithm
   execution in logs and tests.
 - [ ] Measure continuous playback for unbounded DataSeries growth, dispatcher

@@ -70,6 +70,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     }
 
     public event EventHandler? Changed;
+    public Guid ReviewSessionId { get; } = Guid.NewGuid();
     public MontageProfile? AcquisitionMontage { get; }
     public MontageProfile? SelectedViewingMontage { get; private set; }
     public double PositionSeconds { get; private set; }
@@ -161,6 +162,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         ThrowIfDisposed();
         PositionSeconds = Math.Clamp(positionSeconds, 0, DurationSeconds);
         ViewportStartSeconds = ClampViewportStart(viewportStartSeconds);
+        RecordNavigationTarget(ViewportStartSeconds);
         if (TryActivateCachedViewport())
         {
             return Task.CompletedTask;
@@ -608,6 +610,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private void RecordFrameBuild(FrameBuildResult result, long revision, double requestedStartSeconds, long started)
     {
         performanceSink.Record(new ReviewPerformanceSample(
+            ReviewSessionId,
             reader.Manifest.SessionId,
             ReviewPerformanceStage.FrameBuild,
             result.Source,
@@ -628,6 +631,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     {
         var segment = window.Segments.FirstOrDefault();
         performanceSink.Record(new ReviewPerformanceSample(
+            ReviewSessionId,
             reader.Manifest.SessionId,
             stage,
             source,
@@ -638,6 +642,19 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             window.Segments.Sum(item => item.SampleCount),
             elapsedMilliseconds));
     }
+
+    private void RecordNavigationTarget(double viewportStartSeconds) =>
+        performanceSink.Record(new ReviewPerformanceSample(
+            ReviewSessionId,
+            reader.Manifest.SessionId,
+            ReviewPerformanceStage.NavigationTarget,
+            ReviewPerformanceSource.InteractiveTarget,
+            revision,
+            viewportStartSeconds,
+            Math.Min(DurationSeconds, viewportStartSeconds + VisibleDurationSeconds),
+            0,
+            0,
+            0));
 
     private sealed record FrameBuildResult(
         RecordingReviewFrame Frame,

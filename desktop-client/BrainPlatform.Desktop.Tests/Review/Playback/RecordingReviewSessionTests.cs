@@ -219,8 +219,13 @@ public sealed class RecordingReviewSessionTests
             sample.Stage == ReviewPerformanceStage.FilteredSource &&
             sample.Source == ReviewPerformanceSource.FilterService);
         Assert.Contains(sink.Samples, sample => sample.Stage == ReviewPerformanceStage.FrameBuild);
+        Assert.Contains(sink.Samples, sample =>
+            sample.Stage == ReviewPerformanceStage.NavigationTarget &&
+            sample.Source == ReviewPerformanceSource.InteractiveTarget);
+        Assert.NotEqual(Guid.Empty, sink.Samples[0].ReviewSessionId);
         Assert.All(sink.Samples, sample =>
         {
+            Assert.Equal(sink.Samples[0].ReviewSessionId, sample.ReviewSessionId);
             Assert.Equal(reader.Manifest.SessionId, sample.RecordingSessionId);
             Assert.True(sample.PointCount >= 0);
             Assert.True(sample.ElapsedMilliseconds >= 0);

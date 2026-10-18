@@ -197,6 +197,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public double PositionSeconds => playback.PositionSeconds;
 
+    public Guid ReviewSessionId => session.ReviewSessionId;
+
     /// <summary>The left edge shown by the chart. This changes at render cadence while navigating.</summary>
     public double ViewportStartSeconds => viewportStartSeconds;
 
