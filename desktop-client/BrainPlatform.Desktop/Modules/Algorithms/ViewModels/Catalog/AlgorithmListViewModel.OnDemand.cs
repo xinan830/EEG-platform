@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Algorithms.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
@@ -222,6 +224,7 @@ public sealed partial class AlgorithmListViewModel
         IProgress<DynamicWindowResponse> progress,
         CancellationToken cancellationToken)
     {
+        var started = Stopwatch.GetTimestamp();
         var completedFull = IsCompletedBackgroundFullRun(handler);
         if (completedFull is not null)
         {
@@ -232,6 +235,10 @@ public sealed partial class AlgorithmListViewModel
                 {
                     displayedWindowSource = "全量已完成窗口（本地缓存）";
                     progress.Report(metricResponse);
+                    AlgorithmWindowPerformanceDiagnostics.Record(target, handler.AlgorithmId,
+                        completedFull.RunId, AlgorithmWindowPerformanceSource.FullRunMetricLocal,
+                        metricResponse.State, metricResponse.WindowId,
+                        AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(started));
                     return metricResponse;
                 }
 
@@ -244,6 +251,10 @@ public sealed partial class AlgorithmListViewModel
                         cached, target, RegisteredRecording?.SamplingRateHz);
                     displayedWindowSource = "全量已完成窗口（本地缓存）";
                     progress.Report(cachedResponse);
+                    AlgorithmWindowPerformanceDiagnostics.Record(target, handler.AlgorithmId,
+                        completedFull.RunId, AlgorithmWindowPerformanceSource.FullRunStructuredCache,
+                        cachedResponse.State, cachedResponse.WindowId,
+                        AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(started));
                     return cachedResponse;
                 }
                 var preview = await client.GetWindowPreviewAsync(
@@ -254,6 +265,10 @@ public sealed partial class AlgorithmListViewModel
                     preview, target, RegisteredRecording?.SamplingRateHz);
                 displayedWindowSource = "全量已完成窗口";
                 progress.Report(response);
+                AlgorithmWindowPerformanceDiagnostics.Record(target, handler.AlgorithmId,
+                    completedFull.RunId, AlgorithmWindowPerformanceSource.FullRunIndexedRead,
+                    response.State, response.WindowId,
+                    AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(started));
                 return response;
             }
             catch (OperationCanceledException) { throw; }
@@ -263,12 +278,23 @@ public sealed partial class AlgorithmListViewModel
                 // integrity validation. Keep the interactive preview usable,
                 // but make the fallback source explicit.
                 displayedWindowSource = "按需窗口（全量窗口不可用）";
+                AlgorithmWindowPerformanceDiagnostics.Record(target, handler.AlgorithmId,
+                    completedFull.RunId, AlgorithmWindowPerformanceSource.OnDemandFallback,
+                    "fallback", null,
+                    AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(started));
             }
         }
 
         if (completedFull is null)
             displayedWindowSource = "按需窗口";
-        return await windowTargets!.LoadAsync(target, cancellationToken, progress);
+        var onDemand = await windowTargets!.LoadAsync(target, cancellationToken, progress);
+        AlgorithmWindowPerformanceDiagnostics.Record(target, handler.AlgorithmId,
+            completedFull?.RunId, completedFull is null
+                ? AlgorithmWindowPerformanceSource.OnDemand
+                : AlgorithmWindowPerformanceSource.OnDemandFallback,
+            onDemand.State, onDemand.WindowId,
+            AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(started));
+        return onDemand;
     }
 
     private async Task<StructuredPreviewResponse?> EnsureFullWindowCacheAsync(

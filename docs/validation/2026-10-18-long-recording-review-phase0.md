@@ -10,6 +10,9 @@ OpenSpec：`improve-long-recording-review-performance`
 - `git diff --check` 通过。
 - 回溯会话现在以 opt-in 方式记录导航目标、原始读取、滤波源、帧构建和
   SciChart 绑定阶段。
+- 算法动态窗口现在以同一开关记录全量结果的本地指标适配、结构化预览缓存、
+  索引化 `window-preview` 读取、按需计算和全量回退到按需这几类来源，并携带
+  算法/Recording/Run/请求身份、窗口状态和耗时。
 - 诊断样本包含 `recording_id`、`review_session_id`、revision、绝对时间范围、
   来源、通道数、点数和耗时；不包含原始 EEG 数值、完整响应或凭据。
 - 现有回溯缓存仍有明确上限：原始窗口 2 个、帧 3 个、每条显示轨迹最多
@@ -34,7 +37,7 @@ GET  /api/live-filters/sessions/{review-session}/checkpoint
 - 10 秒、10 分钟、1 小时、24 小时和多日记录的实际性能矩阵。
 - SciChart GPU 渲染、Dispatcher 耗时和 GC/内存曲线。
 - 算法 `window-preview` 的完整结果查找/计算来源，以及全量结果是否被重复
-  计算。
+  计算。现在已经有来源诊断，但尚未在真实长记录上采集对照矩阵。
 - 真实设备或用户机器上的多日回溯体验；自动化测试不能替代该验收。
 
 ## 根因决策

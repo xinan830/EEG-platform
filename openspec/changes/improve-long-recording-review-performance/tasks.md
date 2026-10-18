@@ -8,8 +8,10 @@
   filter/checkpoint source, frame publication, and SciChart binding. Each
   sample carries recording and review-session identities, revision, absolute
   time range, source, point count, and elapsed time without raw signal values.
-- [ ] Extend the evidence path to algorithm result lookup/computation, request
-  counts, and bounded memory observations.
+- [x] Extend the evidence path to algorithm result lookup/computation. Full-run
+  metric adaptation, structured-preview cache, indexed `window-preview`, and
+  on-demand fallback now emit distinct opt-in sources and timings.
+- [ ] Add request-count aggregation and bounded memory observations.
 - [ ] Distinguish `window-preview` read hits from actual filter or algorithm
   execution in logs and tests.
 - [ ] Measure continuous playback for unbounded DataSeries growth, dispatcher
