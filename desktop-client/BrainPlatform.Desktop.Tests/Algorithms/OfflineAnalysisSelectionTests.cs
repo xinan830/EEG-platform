@@ -152,6 +152,34 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
     }
 
     [Fact]
+    public async Task Combined_psd_falls_back_to_on_demand_when_full_artifacts_are_unavailable()
+    {
+        var client = new OnDemandDetailClient
+        {
+            Respond = OnDemandDetailClient.PsdResponse,
+            RespondFullRun = request => new AnalysisRunResponse(
+                "full-run-corrupt", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,
+                null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 10, 10,
+                "completed", "已完成"),
+            RespondFullStructuredPreview = _ => throw new InvalidOperationException("structured artifact is corrupt"),
+            RespondFullWindowPreview = (_, _) => throw new InvalidOperationException("indexed artifact is unavailable"),
+        };
+        var catalog = OnDemandDetailClient.Catalog(client, "psd", "V^2/Hz");
+        catalog.SelectedDynamicExecutionMode = "按需预览 + 后台全量";
+
+        await OnDemandDetailClient.Run(catalog);
+        await catalog.CurrentWindowLoad;
+
+        Assert.Equal(1, client.StructuredPreviewCalls);
+        Assert.Equal(1, client.FullWindowPreviewCalls);
+        Assert.Single(client.Requests);
+        Assert.Equal("按需窗口（全量窗口不可用）", catalog.DynamicPreviewSourceText);
+        Assert.NotNull(catalog.DisplayedAnalysisWindow);
+        Assert.Equal("ready", catalog.DisplayedAnalysisWindow!.State);
+        await catalog.ReleaseWindowAnalysisAsync();
+    }
+
+    [Fact]
     public async Task Background_progress_does_not_replace_current_preview_window()
     {
         var client = new OnDemandDetailClient

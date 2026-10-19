@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using System.Net.Http;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
+using BrainPlatform.Desktop.Modules.Review.Waveform;
 
 namespace BrainPlatform.Desktop.Modules.Review.Playback;
 
@@ -17,7 +17,8 @@ public sealed record RecordingReviewFrame(
     Guid RecordingSessionId, long Revision, int SamplingRateHz, long WindowStartSampleCounter,
     double WindowStartSeconds, double WindowEndSeconds, string ViewingMontageName,
     IReadOnlyList<ProjectedMontageSegment> Segments, IReadOnlyList<string> OutputChannelNames,
-    IReadOnlyList<string>? OutputChannelColors = null);
+    IReadOnlyList<string>? OutputChannelColors = null,
+    string? DisplaySourceIdentity = null);
 
 /// <summary>
 /// Owns bounded review-window loading. A frame is a cache block; the viewport
@@ -28,23 +29,16 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     // Keep first paint quick at high sampling rates; the next bounded block is
     // loaded ahead of the visible range instead of making one giant request.
     private const double CacheCoverageMultiplier = 1.5;
-    private const double FilteredSourceChunkSeconds = 10;
-    private const double MinimumFilterWarmupSeconds = 5;
-    private const double MaximumFilterWarmupSeconds = 30;
     private readonly IRecordingReviewReader reader;
     private readonly RecordingMontageCatalogResult catalog;
-    private readonly IRecordingReviewFilter? filter;
     private readonly RecordingReviewWindowCache cache = new();
-    private readonly ReviewFilteredSourceChunkCache filteredSourceCache = new();
-    private readonly ReviewCheckpointCoordinator? checkpointCoordinator;
+    private readonly ReviewSourceLoader sourceLoader;
+    private readonly ReviewDisplayLevelProvider displayLevelProvider = new();
     private readonly IReviewPerformanceSink performanceSink;
-    private readonly object sourceChunkLoadGate = new();
-    private readonly Dictionary<string, SourceChunkBuildWork> sourceChunkLoads = [];
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? currentLoad;
     private long revision;
     private RecordingReviewFilterSettings filterSettings = new(1, 30, 50);
-    private ReviewFilterContract? filterContract;
     private int disposed;
 
     public RecordingReviewSession(IRecordingReviewReader reader, RecordingMontageCatalogResult catalog,
@@ -56,14 +50,9 @@ public sealed class RecordingReviewSession : IAsyncDisposable
 
         this.reader = reader;
         this.catalog = catalog;
-        this.filter = filter;
         this.performanceSink = performanceSink ?? ReviewPerformanceDiagnostics.Default;
-        if (filter is not null)
-        {
-            checkpointCoordinator = new ReviewCheckpointCoordinator(
-                reader, filter, new ReviewCheckpointAnchorCache());
-            checkpointCoordinator.ProgressChanged += OnPreparationProgressChanged;
-        }
+        sourceLoader = new ReviewSourceLoader(reader, filter, cache,
+            (stage, source, window, elapsed) => RecordWindow(stage, source, window, null, elapsed));
         VisibleDurationSeconds = Math.Min(visibleDurationSeconds, reader.DurationSeconds);
         AcquisitionMontage = catalog.AcquisitionMontage;
         SelectedViewingMontage = catalog.AcquisitionMontage;
@@ -82,6 +71,20 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     public string StatusText { get; private set; } = "等待读取记录。";
     public RecordingReviewFilterSettings FilterSettings => filterSettings;
     public ReviewPreparationState PreparationState { get; private set; } = ReviewPreparationState.Idle;
+
+    /// <summary>
+    /// Reads an optional completed display level for the chart. A miss is
+    /// intentionally represented by null so the existing bounded frame path
+    /// remains the authoritative fallback.
+    /// </summary>
+    internal Task<ReviewDisplayFrame?> TryBuildDisplayFrameAsync(
+        RecordingReviewFrame referenceFrame,
+        double viewportStartSeconds,
+        double visibleDurationSeconds,
+        int plotWidthPixels,
+        CancellationToken cancellationToken) =>
+        displayLevelProvider.TryReadAsync(referenceFrame, viewportStartSeconds,
+            visibleDurationSeconds, plotWidthPixels, cancellationToken);
 
     public Task InitializeAsync() => LoadViewportAsync(0, 0);
 
@@ -115,17 +118,19 @@ public sealed class RecordingReviewSession : IAsyncDisposable
 
         var requestRevision = Interlocked.Increment(ref revision);
         var load = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        var token = load.Token;
         var previousLoad = Interlocked.Exchange(ref currentLoad, load);
         previousLoad?.Cancel();
-        previousLoad?.Dispose();
+        PreparationState = ReviewPreparationState.Idle;
         IsLoading = true;
         StatusText = "正在跳转到目标波形…";
         Changed?.Invoke(this, EventArgs.Empty);
         try
         {
             var started = Stopwatch.GetTimestamp();
-            var result = await BuildFrameAsync(GetCacheStart(targetViewportStart), load.Token);
-            load.Token.ThrowIfCancellationRequested();
+            var result = await BuildFrameAsync(GetCacheStart(targetViewportStart), token,
+                CreatePreparationProgress(requestRevision, token));
+            token.ThrowIfCancellationRequested();
             if (requestRevision != Volatile.Read(ref revision)) return false;
 
             RecordFrameBuild(result, requestRevision, targetViewportStart, started);
@@ -138,7 +143,8 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             StatusText = DescribeFrame(frame, result.FilterUnavailable);
             return true;
         }
-        catch (OperationCanceledException) when (load.IsCancellationRequested) { return false; }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return false; }
+        catch (Exception) when (requestRevision != Volatile.Read(ref revision)) { return false; }
         catch (Exception exception) when (requestRevision == Volatile.Read(ref revision))
         {
             StatusText = $"回溯跳转失败：{exception.Message}";
@@ -219,6 +225,14 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         return TryActivateCachedViewport();
     }
 
+    /// <summary>Fences the previous user target before a throttled replacement starts.</summary>
+    public bool PreviewNavigationTarget(double viewportStartSeconds, double positionSeconds)
+    {
+        ThrowIfDisposed();
+        SupersedePendingLoad();
+        return TryActivateCachedViewport(viewportStartSeconds, positionSeconds);
+    }
+
     private bool TryActivateCachedViewport()
     {
         if (!cache.TryGetFrame(ViewportStartSeconds, ViewportEndSeconds, filterSettings, SelectedViewingMontage,
@@ -239,7 +253,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         Interlocked.Increment(ref revision);
         var obsolete = Interlocked.Exchange(ref currentLoad, null);
         obsolete?.Cancel();
-        obsolete?.Dispose();
+        PreparationState = ReviewPreparationState.Idle;
         IsLoading = false;
     }
 
@@ -270,16 +284,10 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
+        SupersedePendingLoad();
         lifetime.Cancel();
-        currentLoad?.Cancel();
-        currentLoad?.Dispose();
         lifetime.Dispose();
-        if (checkpointCoordinator is not null)
-        {
-            checkpointCoordinator.ProgressChanged -= OnPreparationProgressChanged;
-            await checkpointCoordinator.DisposeAsync();
-        }
-        await Task.CompletedTask;
+        await sourceLoader.DisposeAsync();
     }
 
     private async Task LoadCacheBlockAsync(double cacheStartSeconds)
@@ -291,16 +299,17 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         var nextLoad = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var previousLoad = Interlocked.Exchange(ref currentLoad, nextLoad);
         previousLoad?.Cancel();
-        previousLoad?.Dispose();
-        var load = currentLoad!;
+        var load = nextLoad;
         var token = load.Token;
+        PreparationState = ReviewPreparationState.Idle;
         IsLoading = true;
         StatusText = "正在读取波形…";
         Changed?.Invoke(this, EventArgs.Empty);
         try
         {
             var started = Stopwatch.GetTimestamp();
-            var result = await BuildFrameAsync(cacheStartSeconds, token);
+            var result = await BuildFrameAsync(cacheStartSeconds, token,
+                CreatePreparationProgress(requestRevision, token));
             token.ThrowIfCancellationRequested();
             if (requestRevision != Volatile.Read(ref revision)) return;
 
@@ -312,6 +321,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             StatusText = DescribeFrame(frame, result.FilterUnavailable);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+        catch (Exception) when (requestRevision != Volatile.Read(ref revision)) { return; }
         catch (Exception exception) when (requestRevision == Volatile.Read(ref revision))
         {
             StatusText = $"回溯读取失败：{exception.Message}";
@@ -328,12 +338,13 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         }
     }
 
-    private async Task<FrameBuildResult> BuildFrameAsync(double cacheStartSeconds, CancellationToken token)
+    private async Task<FrameBuildResult> BuildFrameAsync(double cacheStartSeconds, CancellationToken token,
+        Action<ReviewPreparationState>? progress = null)
     {
         var cacheEndSeconds = Math.Min(DurationSeconds, cacheStartSeconds + CacheDurationSeconds);
         var settings = filterSettings;
         var montage = SelectedViewingMontage;
-        var sourceResult = await LoadDisplaySourceAsync(cacheStartSeconds, cacheEndSeconds, settings, token);
+        var sourceResult = await sourceLoader.LoadAsync(cacheStartSeconds, cacheEndSeconds, settings, token, progress);
         var displayWindow = sourceResult.Window;
 
         var projected = SynchronizationContext.Current is null
@@ -346,242 +357,35 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             reader.Manifest.SamplingRateHz, projected.FirstOrDefault()?.FirstSampleCounter ?? 0,
             displayWindow.ActualStartSeconds, displayWindow.ActualEndSeconds,
             montage?.Name ?? "原始设备通道", projected, outputNames,
-            MontageOutputAppearance.ResolveColors(montage, outputNames)),
+            MontageOutputAppearance.ResolveColors(montage, outputNames),
+            sourceResult.FilterUnavailable || sourceResult.FilterContract is null
+                ? ReviewDisplaySourceIdentity.CreateRaw(reader.Manifest, montage)
+                : ReviewDisplaySourceIdentity.CreateFiltered(reader.Manifest, montage,
+                    settings, sourceResult.FilterContract)),
             sourceResult.FilterUnavailable, sourceResult.Source);
     }
-
-    private async Task<SourceBuildResult> LoadDisplaySourceAsync(
-        double startSeconds,
-        double endSeconds,
-        RecordingReviewFilterSettings settings,
-        CancellationToken token)
-    {
-        if (filter is null)
-        {
-            return new SourceBuildResult(await ReadRawAsync(startSeconds, endSeconds, token), false,
-                ReviewPerformanceSource.Disk);
-        }
-
-        ReviewFilterContract contract;
-        try
-        {
-            contract = filterContract ??= await filter.GetContractAsync(token);
-        }
-        catch (HttpRequestException)
-        {
-            return new SourceBuildResult(await ReadRawAsync(startSeconds, endSeconds, token), true,
-                ReviewPerformanceSource.RawFallback);
-        }
-        catch (TaskCanceledException) when (!token.IsCancellationRequested)
-        {
-            return new SourceBuildResult(await ReadRawAsync(startSeconds, endSeconds, token), true,
-                ReviewPerformanceSource.RawFallback);
-        }
-
-        var firstChunk = (int)Math.Floor(startSeconds / FilteredSourceChunkSeconds);
-        var lastChunk = (int)Math.Floor(Math.Max(startSeconds, endSeconds - 0.000_001) / FilteredSourceChunkSeconds);
-        var chunks = new List<RecordingReviewWindow>(lastChunk - firstChunk + 1);
-        for (var chunkIndex = firstChunk; chunkIndex <= lastChunk; chunkIndex++)
-        {
-            token.ThrowIfCancellationRequested();
-            chunks.Add((await LoadFilteredSourceChunkAsync(chunkIndex, contract, settings, token)).Window);
-        }
-
-        return new SourceBuildResult(CombineChunks(startSeconds, endSeconds, chunks), false,
-            ReviewPerformanceSource.FilterService);
-    }
-
-    private async Task<ReviewFilteredSourceChunk> LoadFilteredSourceChunkAsync(
-        int chunkIndex,
-        ReviewFilterContract contract,
-        RecordingReviewFilterSettings settings,
-        CancellationToken token)
-    {
-        var startSeconds = chunkIndex * FilteredSourceChunkSeconds;
-        var durationSeconds = Math.Min(FilteredSourceChunkSeconds, DurationSeconds - startSeconds);
-        var sampleOffset = checked((long)Math.Floor(startSeconds * reader.Manifest.SamplingRateHz));
-        var sampleCount = checked((int)Math.Ceiling(durationSeconds * reader.Manifest.SamplingRateHz));
-        var usesExactCheckpointHistory = filter is HttpRecordingReviewFilter;
-        var warmupSampleCount = usesExactCheckpointHistory ? 0 : checked((int)Math.Ceiling(
-            Math.Min(startSeconds, GetFilterWarmupSeconds(settings)) * reader.Manifest.SamplingRateHz));
-        var key = new ReviewFilteredSourceChunkKey(
-            reader.Manifest.SessionId,
-            ReviewFilteredSourceChunkKey.CreateManifestFingerprint(reader.Manifest),
-            reader.Manifest.SamplingRateHz,
-            ReviewFilteredSourceChunkKey.CreateChannelSchemaFingerprint(reader.Manifest),
-            settings,
-            contract,
-            sampleOffset,
-            sampleCount,
-            warmupSampleCount,
-            usesExactCheckpointHistory
-                ? "recorded-segments-v2;exact-checkpoint-history;causal-state-never-crosses-gap"
-                : "recorded-segments-v1;causal-state-never-crosses-gap");
-        var work = GetOrStartFilteredSourceChunkBuild(key, chunkIndex, startSeconds, durationSeconds, settings, contract);
-        work.AddWaiter();
-        try
-        {
-            return await work.Task.WaitAsync(token);
-        }
-        finally
-        {
-            if (work.ReleaseWaiter() == 0 && !work.Task.IsCompleted)
-                work.CancelWhenUnused();
-        }
-    }
-
-    private SourceChunkBuildWork GetOrStartFilteredSourceChunkBuild(
-        ReviewFilteredSourceChunkKey key,
-        int chunkIndex,
-        double startSeconds,
-        double durationSeconds,
-        RecordingReviewFilterSettings settings,
-        ReviewFilterContract contract)
-    {
-        lock (sourceChunkLoadGate)
-        {
-            if (sourceChunkLoads.TryGetValue(key.Fingerprint, out var existing) &&
-                !existing.Task.IsCanceled && !existing.Task.IsFaulted)
-            {
-                return existing;
-            }
-
-            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-            var created = BuildFilteredSourceChunkAsync(
-                key, chunkIndex, startSeconds, durationSeconds, settings, contract, cancellation.Token);
-            var work = new SourceChunkBuildWork(created, cancellation);
-            sourceChunkLoads[key.Fingerprint] = work;
-            _ = created.ContinueWith(completed =>
-            {
-                lock (sourceChunkLoadGate)
-                {
-                    if (sourceChunkLoads.TryGetValue(key.Fingerprint, out var current) &&
-                        ReferenceEquals(current, work))
-                    {
-                        sourceChunkLoads.Remove(key.Fingerprint);
-                    }
-                }
-                cancellation.Dispose();
-            }, TaskScheduler.Default);
-            return work;
-        }
-    }
-
-    private async Task<ReviewFilteredSourceChunk> BuildFilteredSourceChunkAsync(
-        ReviewFilteredSourceChunkKey key,
-        int chunkIndex,
-        double startSeconds,
-        double durationSeconds,
-        RecordingReviewFilterSettings settings,
-        ReviewFilterContract contract,
-        CancellationToken token)
-    {
-        var cached = await filteredSourceCache.TryReadAsync(key, token);
-        if (cached is not null)
-        {
-            RecordWindow(ReviewPerformanceStage.FilteredSource, ReviewPerformanceSource.FilterCache,
-                cached.Window, null, 0);
-            return cached;
-        }
-
-        var raw = await ReadRawAsync(startSeconds, startSeconds + durationSeconds, token);
-        if (raw.Segments.Count == 0)
-        {
-            return new ReviewFilteredSourceChunk(raw, null);
-        }
-
-        if (filter is not HttpRecordingReviewFilter)
-        {
-            var warmup = await ReadWarmupAsync(startSeconds, settings, token);
-            var legacyFiltered = await filter!.ApplyWithWarmupAsync(
-                warmup,
-                raw,
-                reader.Manifest,
-                settings,
-                token);
-            await filteredSourceCache.StoreAsync(key, legacyFiltered, token);
-            RecordWindow(ReviewPerformanceStage.FilteredSource, ReviewPerformanceSource.FilterService,
-                legacyFiltered, null, 0);
-            return new ReviewFilteredSourceChunk(legacyFiltered, null);
-        }
-
-        var coordinated = await checkpointCoordinator!.FilterAsync(raw, settings, contract, token)
-            ?? throw new InvalidOperationException("HTTP 回溯滤波器没有提供 checkpoint 会话。");
-        var filtered = coordinated.Window;
-        token.ThrowIfCancellationRequested();
-        await filteredSourceCache.StoreAsync(key, filtered, coordinated.Checkpoint, token);
-        RecordWindow(ReviewPerformanceStage.FilteredSource, ReviewPerformanceSource.FilterService,
-            filtered, null, 0);
-        return new ReviewFilteredSourceChunk(filtered, coordinated.Checkpoint);
-    }
-
-    private async Task<RecordingReviewWindow> ReadRawAsync(double startSeconds, double endSeconds, CancellationToken token)
-    {
-        if (cache.TryGetRaw(startSeconds, endSeconds, out var cached))
-        {
-            RecordWindow(ReviewPerformanceStage.RawRead, ReviewPerformanceSource.MemoryCache,
-                cached, null, 0);
-            return cached;
-        }
-
-        var started = Stopwatch.GetTimestamp();
-        var window = await reader.ReadWindowAsync(startSeconds, endSeconds - startSeconds, token);
-        cache.StoreRaw(window);
-        RecordWindow(ReviewPerformanceStage.RawRead, ReviewPerformanceSource.Disk,
-            window, null, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
-        return window;
-    }
-
-    private static RecordingReviewWindow CombineChunks(
-        double requestedStartSeconds,
-        double requestedEndSeconds,
-        IReadOnlyList<RecordingReviewWindow> chunks)
-    {
-        var segments = chunks.SelectMany(chunk => chunk.Segments).ToArray();
-        if (segments.Length == 0)
-        {
-            return new RecordingReviewWindow(requestedStartSeconds, requestedStartSeconds, requestedEndSeconds, []);
-        }
-
-        return new RecordingReviewWindow(
-            requestedStartSeconds,
-            chunks.First(chunk => chunk.Segments.Count > 0).ActualStartSeconds,
-            chunks.Last(chunk => chunk.Segments.Count > 0).ActualEndSeconds,
-            segments);
-    }
-
-    private async Task<RecordingReviewWindow?> ReadWarmupAsync(
-        double cacheStartSeconds,
-        RecordingReviewFilterSettings settings,
-        CancellationToken token)
-    {
-        var duration = Math.Min(cacheStartSeconds, GetFilterWarmupSeconds(settings));
-        if (duration <= 0)
-        {
-            return null;
-        }
-
-        var start = cacheStartSeconds - duration;
-        if (cache.TryGetRaw(start, cacheStartSeconds, out var cached))
-        {
-            return cached;
-        }
-
-        var warmup = await reader.ReadWindowAsync(start, duration, token);
-        cache.StoreRaw(warmup);
-        return warmup;
-    }
-
-    private static double GetFilterWarmupSeconds(RecordingReviewFilterSettings settings) => Math.Clamp(
-        3d / settings.HighPassHz,
-        MinimumFilterWarmupSeconds,
-        MaximumFilterWarmupSeconds);
 
     private static string DescribeFrame(RecordingReviewFrame frame, bool filterUnavailable) =>
         frame.Segments.Count == 0 ? "当前时间范围没有可显示的数据。"
         : filterUnavailable ? "滤波服务不可用，当前显示原始数据。"
         : frame.Segments.Count > 1 ? "记录存在采样缺口，已保留空白。"
         : "已加载";
+
+    private Action<ReviewPreparationState> CreatePreparationProgress(long requestRevision, CancellationToken token)
+    {
+        var context = SynchronizationContext.Current;
+        void Publish(ReviewPreparationState state)
+        {
+            if (Volatile.Read(ref disposed) != 0 || token.IsCancellationRequested ||
+                requestRevision != Volatile.Read(ref revision) || !IsLoading) return;
+            OnPreparationProgressChanged(null, state);
+        }
+        return state =>
+        {
+            if (context is null || ReferenceEquals(context, SynchronizationContext.Current)) Publish(state);
+            else context.Post(_ => Publish(state), null);
+        };
+    }
 
     private void OnPreparationProgressChanged(object? sender, ReviewPreparationState state)
     {
@@ -660,36 +464,6 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         RecordingReviewFrame Frame,
         bool FilterUnavailable,
         ReviewPerformanceSource Source);
-    private sealed record SourceBuildResult(
-        RecordingReviewWindow Window,
-        bool FilterUnavailable,
-        ReviewPerformanceSource Source);
-    private sealed class SourceChunkBuildWork(Task<ReviewFilteredSourceChunk> task, CancellationTokenSource cancellation)
-    {
-        private int waiters;
-
-        public Task<ReviewFilteredSourceChunk> Task { get; } = task;
-        public CancellationTokenSource Cancellation { get; } = cancellation;
-
-        public void AddWaiter() => Interlocked.Increment(ref waiters);
-
-        public int ReleaseWaiter() => Interlocked.Decrement(ref waiters);
-
-        public void CancelWhenUnused() => _ = CancelWhenUnusedAsync();
-
-        private async Task CancelWhenUnusedAsync()
-        {
-            // Give a newer drag target a short opportunity to join the same
-            // in-flight chunk before cancelling obsolete work.
-            try { await System.Threading.Tasks.Task.Delay(100); }
-            catch (ObjectDisposedException) { return; }
-            if (Volatile.Read(ref waiters) == 0 && !Task.IsCompleted)
-            {
-                try { Cancellation.Cancel(); }
-                catch (ObjectDisposedException) { }
-            }
-        }
-    }
     private void ThrowIfDisposed()
     {
         if (Volatile.Read(ref disposed) != 0) throw new ObjectDisposedException(nameof(RecordingReviewSession));

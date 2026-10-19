@@ -3,12 +3,14 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Modules.Events.Views;
+using BrainPlatform.Desktop.Modules.Review.Diagnostics;
 
 namespace BrainPlatform.Desktop.Modules.Review.Views;
 
 public partial class RecordingReviewView : UserControl
 {
     private readonly DispatcherTimer playbackTimer;
+    private ReviewResourceMonitor? resourceMonitor;
 
     public RecordingReviewView()
     {
@@ -74,10 +76,35 @@ public partial class RecordingReviewView : UserControl
     {
         playbackTimer.Tick += OnPlaybackTimerTick;
         playbackTimer.Start();
+        if (ReviewPerformanceDiagnostics.Enabled && resourceMonitor is null)
+        {
+            resourceMonitor = new ReviewResourceMonitor(
+                action =>
+                {
+                    if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return false;
+                    try
+                    {
+                        Dispatcher.BeginInvoke(DispatcherPriority.Background, action);
+                        return true;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // Shutdown can race the state check; a diagnostic probe must not report a user error.
+                        return false;
+                    }
+                },
+                () => ViewModel is { CurrentFrame: { } frame } viewModel
+                    ? new ReviewResourceContext(viewModel.ReviewSessionId, frame.RecordingSessionId,
+                        viewModel.PositionSeconds, viewModel.IsPlaying)
+                    : null);
+            resourceMonitor.Start();
+        }
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        resourceMonitor?.Dispose();
+        resourceMonitor = null;
         ViewModel?.EndTimelineDrag();
         playbackTimer.Stop();
         playbackTimer.Tick -= OnPlaybackTimerTick;

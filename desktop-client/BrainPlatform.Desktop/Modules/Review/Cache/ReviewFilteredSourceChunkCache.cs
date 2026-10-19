@@ -13,12 +13,19 @@ internal sealed class ReviewFilteredSourceChunkCache
 {
     private static readonly byte[] Magic = "BPRVCH01"u8.ToArray();
     private readonly string root;
+    private readonly long maximumBytes;
+    private readonly SemaphoreSlim gate = new(1, 1);
+    private bool indexLoaded;
+    private readonly Dictionary<string, CachedFileMetadata> metadataByPath = new(StringComparer.OrdinalIgnoreCase);
+    private long trackedBytes;
 
-    public ReviewFilteredSourceChunkCache(string? root = null)
+    public ReviewFilteredSourceChunkCache(string? root = null, long maximumBytes = 512L * 1024 * 1024)
     {
+        if (maximumBytes <= 0) throw new ArgumentOutOfRangeException(nameof(maximumBytes));
         this.root = root ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "BrainPlatform", "review-cache");
+        this.maximumBytes = maximumBytes;
     }
 
     public async Task<ReviewFilteredSourceChunk?> TryReadAsync(
@@ -62,6 +69,7 @@ internal sealed class ReviewFilteredSourceChunkCache
             }
 
             if (stream.Position != stream.Length) return null;
+            await MarkAccessedAsync(path, cancellationToken);
             return new ReviewFilteredSourceChunk(
                 new RecordingReviewWindow(header.RequestedStartSeconds, header.ActualStartSeconds,
                     header.ActualEndSeconds, segments),
@@ -85,46 +93,129 @@ internal sealed class ReviewFilteredSourceChunkCache
         CancellationToken cancellationToken)
     {
         if (window.Segments.Count == 0) return;
-        var path = GetPath(key);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        var header = new CacheHeader(
-            key.Fingerprint,
-            window.RequestedStartSeconds,
-            window.ActualStartSeconds,
-            window.ActualEndSeconds,
-            checkpoint,
-            window.Segments.Select(segment => new SegmentDescriptor(
-                segment.FirstSampleCounter, segment.SampleCount, segment.ChannelCount)).ToArray());
-        var headerBytes = JsonSerializer.SerializeToUtf8Bytes(header);
-
+        await gate.WaitAsync(cancellationToken);
         try
         {
-            await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
-                128 * 1024, FileOptions.Asynchronous | FileOptions.WriteThrough))
+            var path = GetPath(key);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            var header = new CacheHeader(
+                key.Fingerprint,
+                window.RequestedStartSeconds,
+                window.ActualStartSeconds,
+                window.ActualEndSeconds,
+                checkpoint,
+                window.Segments.Select(segment => new SegmentDescriptor(
+                    segment.FirstSampleCounter, segment.SampleCount, segment.ChannelCount)).ToArray());
+            var headerBytes = JsonSerializer.SerializeToUtf8Bytes(header);
+
+            try
             {
-                await stream.WriteAsync(Magic, cancellationToken);
-                await stream.WriteAsync(BitConverter.GetBytes(headerBytes.Length), cancellationToken);
-                await stream.WriteAsync(headerBytes, cancellationToken);
-                foreach (var segment in window.Segments)
+                await using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                    128 * 1024, FileOptions.Asynchronous | FileOptions.WriteThrough))
                 {
-                    var bytes = new byte[checked(segment.SampleMajorValues.Length * sizeof(double))];
-                    Buffer.BlockCopy(segment.SampleMajorValues, 0, bytes, 0, bytes.Length);
-                    await stream.WriteAsync(bytes, cancellationToken);
+                    await stream.WriteAsync(Magic, cancellationToken);
+                    await stream.WriteAsync(BitConverter.GetBytes(headerBytes.Length), cancellationToken);
+                    await stream.WriteAsync(headerBytes, cancellationToken);
+                    foreach (var segment in window.Segments)
+                    {
+                        var bytes = new byte[checked(segment.SampleMajorValues.Length * sizeof(double))];
+                        Buffer.BlockCopy(segment.SampleMajorValues, 0, bytes, 0, bytes.Length);
+                        await stream.WriteAsync(bytes, cancellationToken);
+                    }
+                    await stream.FlushAsync(cancellationToken);
                 }
-                await stream.FlushAsync(cancellationToken);
+
+                File.Move(temporaryPath, path, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
             }
 
-            File.Move(temporaryPath, path, overwrite: true);
+            EnsureIndexLoaded();
+            UpdateMetadataAfterStore(path);
+            EnforceBounds();
         }
         finally
         {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
+            gate.Release();
         }
     }
+
+    private void UpdateMetadataAfterStore(string path)
+    {
+        if (metadataByPath.Remove(path, out var removed)) trackedBytes -= removed.Length;
+        var info = new FileInfo(path);
+        metadataByPath[path] = new CachedFileMetadata(path, info.Length, DateTime.UtcNow, DateTime.UtcNow);
+        trackedBytes += info.Length;
+    }
+
+    private void EnforceBounds()
+    {
+        if (trackedBytes <= maximumBytes) return;
+
+        var victims = metadataByPath.Values
+            .OrderBy(file => file.LastAccessUtc)
+            .ThenBy(file => file.LastWriteUtc)
+            .ToArray();
+        foreach (var metadata in victims)
+        {
+            if (trackedBytes <= maximumBytes) break;
+            try
+            {
+                if (File.Exists(metadata.Path))
+                {
+                    File.Delete(metadata.Path);
+                }
+            }
+            catch (IOException)
+            {
+                // Cache files are rebuildable; a locked file is retried on the next eviction pass.
+                continue;
+            }
+            if (File.Exists(metadata.Path)) continue;
+            metadataByPath.Remove(metadata.Path);
+            trackedBytes -= metadata.Length;
+        }
+    }
+
+    private async Task MarkAccessedAsync(string path, CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            EnsureIndexLoaded();
+            if (!metadataByPath.TryGetValue(path, out var metadata)) return;
+            metadataByPath[path] = metadata with { LastAccessUtc = DateTime.UtcNow };
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private void EnsureIndexLoaded()
+    {
+        if (indexLoaded) return;
+        if (Directory.Exists(root))
+        {
+            foreach (var path in Directory.EnumerateFiles(root, "*.bprvc", SearchOption.AllDirectories))
+            {
+                var info = new FileInfo(path);
+                if (!info.Exists) continue;
+                metadataByPath[path] = new CachedFileMetadata(
+                    path, info.Length, info.LastAccessTimeUtc, info.LastWriteTimeUtc);
+                trackedBytes += info.Length;
+            }
+        }
+        indexLoaded = true;
+    }
+
+    private sealed record CachedFileMetadata(string Path, long Length, DateTime LastAccessUtc, DateTime LastWriteUtc);
 
     private string GetPath(ReviewFilteredSourceChunkKey key) => Path.Combine(root, key.RecordingSessionId.ToString("N"),
         key.Fingerprint[..2], key.Fingerprint + ".bprvc");

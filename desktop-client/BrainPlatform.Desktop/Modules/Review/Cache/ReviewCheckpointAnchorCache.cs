@@ -62,6 +62,9 @@ internal sealed class ReviewCheckpointAnchorCache
     private readonly int maximumAnchorCount;
     private readonly long maximumBytes;
     private readonly SemaphoreSlim gate = new(1, 1);
+    private readonly Dictionary<string, AnchorFileMetadata> metadataByPath = new(StringComparer.OrdinalIgnoreCase);
+    private bool indexLoaded;
+    private long trackedBytes;
 
     public ReviewCheckpointAnchorCache(
         string? root = null,
@@ -85,19 +88,28 @@ internal sealed class ReviewCheckpointAnchorCache
         await gate.WaitAsync(cancellationToken);
         try
         {
+            EnsureIndexLoaded();
             var directory = GetGroupDirectory(group);
-            if (!Directory.Exists(directory)) return null;
-            foreach (var path in Directory.EnumerateFiles(directory, $"*{FileExtension}")
-                         .OrderByDescending(ParseNextSampleCounter))
+            foreach (var metadata in metadataByPath.Values
+                         .Where(item => string.Equals(Path.GetDirectoryName(item.Path), directory,
+                             StringComparison.OrdinalIgnoreCase))
+                         .OrderByDescending(item => item.NextSampleCounter))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var next = ParseNextSampleCounter(path);
+                var path = metadata.Path;
+                var next = metadata.NextSampleCounter;
                 if (next > targetNextSampleCounter) continue;
                 var anchor = await TryReadAsync(path, cancellationToken);
                 if (anchor is null || anchor.GroupFingerprint != group.Fingerprint ||
                     anchor.SegmentOriginSampleCounter != segmentOriginSampleCounter ||
                     anchor.NextSampleCounter != next)
+                {
+                    if (anchor is null) RemoveMetadata(path);
                     continue;
+                }
+
+                var lastAccess = DateTime.UtcNow;
+                metadataByPath[path] = metadata with { LastAccessUtc = lastAccess };
                 File.SetLastAccessTimeUtc(path, DateTime.UtcNow);
                 return anchor;
             }
@@ -124,6 +136,7 @@ internal sealed class ReviewCheckpointAnchorCache
         await gate.WaitAsync(cancellationToken);
         try
         {
+            EnsureIndexLoaded();
             var directory = GetGroupDirectory(group);
             Directory.CreateDirectory(directory);
             var path = Path.Combine(directory, $"{nextSampleCounter.ToString(CultureInfo.InvariantCulture)}{FileExtension}");
@@ -144,6 +157,11 @@ internal sealed class ReviewCheckpointAnchorCache
             {
                 if (File.Exists(temporary)) File.Delete(temporary);
             }
+
+            RemoveMetadata(path);
+            var now = DateTime.UtcNow;
+            metadataByPath[path] = new AnchorFileMetadata(path, nextSampleCounter, payload.LongLength, now, now);
+            trackedBytes += payload.LongLength;
             EnforceBounds(cancellationToken);
         }
         finally
@@ -171,19 +189,57 @@ internal sealed class ReviewCheckpointAnchorCache
 
     private void EnforceBounds(CancellationToken cancellationToken)
     {
-        if (!Directory.Exists(root)) return;
-        var files = Directory.EnumerateFiles(root, $"*{FileExtension}", SearchOption.AllDirectories)
-            .Select(path => new FileInfo(path))
-            .OrderByDescending(file => file.LastAccessTimeUtc)
-            .ToArray();
+        if (metadataByPath.Count <= maximumAnchorCount && trackedBytes <= maximumBytes)
+            return;
+
         long retainedBytes = 0;
-        for (var index = 0; index < files.Length; index++)
+        var retainedCount = 0;
+        foreach (var metadata in metadataByPath.Values
+                     .OrderByDescending(file => file.LastAccessUtc)
+                     .ThenByDescending(file => file.LastWriteUtc)
+                     .ToArray())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var retain = index < maximumAnchorCount && retainedBytes + files[index].Length <= maximumBytes;
-            if (retain) retainedBytes += files[index].Length;
-            else files[index].Delete();
+            var retain = retainedCount < maximumAnchorCount &&
+                         retainedBytes + metadata.Length <= maximumBytes;
+            if (retain) retainedBytes += metadata.Length;
+            else
+            {
+                if (File.Exists(metadata.Path)) File.Delete(metadata.Path);
+                RemoveMetadata(metadata.Path);
+            }
+            if (retain) retainedCount++;
         }
+        trackedBytes = retainedBytes;
+    }
+
+    private void EnsureIndexLoaded()
+    {
+        if (indexLoaded) return;
+
+        if (Directory.Exists(root))
+        {
+            foreach (var path in Directory.EnumerateFiles(root, $"*{FileExtension}", SearchOption.AllDirectories))
+            {
+                var info = new FileInfo(path);
+                if (!info.Exists) continue;
+                metadataByPath[path] = new AnchorFileMetadata(
+                    path,
+                    ParseNextSampleCounter(path),
+                    info.Length,
+                    info.LastAccessTimeUtc,
+                    info.LastWriteTimeUtc);
+                trackedBytes += info.Length;
+            }
+        }
+
+        indexLoaded = true;
+    }
+
+    private void RemoveMetadata(string path)
+    {
+        if (metadataByPath.Remove(path, out var removed))
+            trackedBytes -= removed.Length;
     }
 
     private string GetGroupDirectory(ReviewCheckpointAnchorGroupKey group) =>
@@ -192,6 +248,13 @@ internal sealed class ReviewCheckpointAnchorCache
     private static long ParseNextSampleCounter(string path) =>
         long.TryParse(Path.GetFileNameWithoutExtension(path), NumberStyles.None, CultureInfo.InvariantCulture,
             out var value) ? value : long.MinValue;
+
+    private sealed record AnchorFileMetadata(
+        string Path,
+        long NextSampleCounter,
+        long Length,
+        DateTime LastAccessUtc,
+        DateTime LastWriteUtc);
 
     private sealed record AnchorFile(
         int Version,

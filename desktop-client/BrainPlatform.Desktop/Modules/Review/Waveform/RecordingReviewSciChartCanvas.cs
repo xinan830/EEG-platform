@@ -38,8 +38,15 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     private string[] activeLabels = [];
     private Thickness? lastLabelPlotMargin;
     private Window? owningWindow;
+    private CancellationTokenSource? displayFrameLoad;
+    private long displayFrameRequest;
+    private RecordingReviewFrame? displayAttemptFrame;
+    private double displayAttemptViewportStart = double.NaN;
+    private double displayAttemptVisibleDuration = double.NaN;
+    private int displayAttemptWidth;
     private ScreenScaleContext screenScale = ScreenScaleContext.Nominal;
     private RecordingReviewFrame? renderedFrame;
+    private ReviewDisplayFrame? renderedDisplayFrame;
     private double renderedPlotHeight;
     private double renderedSensitivity;
     private double renderedMillimetersPerDip;
@@ -126,6 +133,9 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         }
 
         Unsubscribe();
+        displayFrameLoad?.Cancel();
+        displayFrameLoad?.Dispose();
+        displayFrameLoad = null;
     }
 
     private void OnWindowDisplayContextChanged(object? sender, EventArgs eventArgs) => UpdateScreenScale();
@@ -193,18 +203,26 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             UpdatePlaybackCursor(sender as RecordingReviewViewModel);
             UpdateEventMarkers(sender as RecordingReviewViewModel);
             UpdateLifecycleBoundaries(sender as RecordingReviewViewModel);
+            StartDisplayFrameLoad(sender as RecordingReviewViewModel);
         }
     }
 
     private void ApplyFrame(RecordingReviewFrame? frame, RecordingReviewViewModel? viewModel)
     {
         UpdateTimePresentation(viewModel);
+        if (!ReferenceEquals(renderedFrame, frame))
+        {
+            renderedDisplayFrame = null;
+            CancelDisplayFrameLoad();
+        }
         if (frame is null)
         {
             emptyMessage.Text = viewModel?.StatusText ?? "等待加载回溯数据";
             emptyMessage.Visibility = Visibility.Visible;
             ClearSeries();
             renderedFrame = null;
+            renderedDisplayFrame = null;
+            CancelDisplayFrameLoad();
             eventMarkers.Children.Clear();
             playbackCursor.Visibility = Visibility.Collapsed;
             return;
@@ -240,6 +258,110 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         UpdatePlaybackCursor(viewModel);
         UpdateEventMarkers(viewModel);
         UpdateLifecycleBoundaries(viewModel);
+        if (renderedDisplayFrame is { } display &&
+            ReferenceEquals(displayAttemptFrame, frame) &&
+            Math.Abs(display.WindowStartSeconds - (viewModel?.ViewportStartSeconds ?? double.NaN)) < 0.000_001)
+            RenderDisplayFrame(display, viewModel!);
+        StartDisplayFrameLoad(viewModel);
+    }
+
+    private void StartDisplayFrameLoad(RecordingReviewViewModel? viewModel)
+    {
+        if (viewModel?.CurrentFrame is not { } frame || chartHost.ActualWidth <= 0 ||
+            string.IsNullOrWhiteSpace(frame.DisplaySourceIdentity))
+            return;
+
+        var width = Math.Max(1, (int)Math.Round(chartHost.ActualWidth));
+        if (ReferenceEquals(displayAttemptFrame, frame) &&
+            Math.Abs(displayAttemptViewportStart - viewModel.ViewportStartSeconds) < 0.000_001 &&
+            Math.Abs(displayAttemptVisibleDuration - viewModel.VisibleDurationSeconds) < 0.000_001 &&
+            displayAttemptWidth == width)
+            return;
+
+        var request = Interlocked.Increment(ref displayFrameRequest);
+        displayFrameLoad?.Cancel();
+        displayFrameLoad?.Dispose();
+        var load = new CancellationTokenSource();
+        displayFrameLoad = load;
+        displayAttemptFrame = frame;
+        displayAttemptViewportStart = viewModel.ViewportStartSeconds;
+        displayAttemptVisibleDuration = viewModel.VisibleDurationSeconds;
+        displayAttemptWidth = width;
+        _ = LoadDisplayFrameAsync(viewModel, frame, request, load);
+    }
+
+    private async Task LoadDisplayFrameAsync(
+        RecordingReviewViewModel viewModel,
+        RecordingReviewFrame frame,
+        long request,
+        CancellationTokenSource load)
+    {
+        try
+        {
+            var display = await viewModel.TryBuildDisplayFrameAsync(
+                frame,
+                displayAttemptWidth,
+                load.Token);
+            if (load.IsCancellationRequested || request != Volatile.Read(ref displayFrameRequest) ||
+                !ReferenceEquals(DataContext, viewModel) || !ReferenceEquals(viewModel.CurrentFrame, frame))
+                return;
+            if (display is null)
+            {
+                renderedDisplayFrame = null;
+                return;
+            }
+
+            renderedDisplayFrame = display;
+            RenderDisplayFrame(display, viewModel);
+        }
+        catch (OperationCanceledException) when (load.IsCancellationRequested) { }
+        catch { /* A display cache miss must never break the raw review path. */ }
+        finally
+        {
+            if (ReferenceEquals(displayFrameLoad, load))
+            {
+                displayFrameLoad = null;
+                load.Dispose();
+            }
+        }
+    }
+
+    private void CancelDisplayFrameLoad()
+    {
+        Interlocked.Increment(ref displayFrameRequest);
+        displayFrameLoad?.Cancel();
+        displayFrameLoad?.Dispose();
+        displayFrameLoad = null;
+        displayAttemptFrame = null;
+        displayAttemptViewportStart = double.NaN;
+        displayAttemptVisibleDuration = double.NaN;
+        displayAttemptWidth = 0;
+    }
+
+    private void RenderDisplayFrame(ReviewDisplayFrame frame, RecordingReviewViewModel viewModel)
+    {
+        var plotHeight = WaveformPlotLayout.GetPlotArea(surface).Height;
+        var sensitivity = viewModel.SensitivityMicrovoltsPerMillimeter;
+        var displayScale = ScreenScaleCalculator.VerticalDisplayScale(
+            frame.OutputChannelNames.Count,
+            plotHeight,
+            sensitivity,
+            screenScale.MillimetersPerDipY);
+        using (surface.SuspendUpdates())
+        {
+            for (var traceIndex = 0; traceIndex < traceSeries.Count && traceIndex < frame.Traces.Count; traceIndex++)
+            {
+                var baseline = frame.OutputChannelNames.Count - traceIndex - 0.5;
+                var trace = frame.Traces[traceIndex];
+                var y = trace.ValuesVolts.Select(value =>
+                    double.IsFinite(value) ? baseline + value * 1_000_000d * displayScale : double.NaN).ToArray();
+                using (traceSeries[traceIndex].Data.SuspendUpdates())
+                {
+                    traceSeries[traceIndex].Data.Clear();
+                    traceSeries[traceIndex].Data.Append(trace.XSeconds.ToArray(), y);
+                }
+            }
+        }
     }
 
     private void EnsureTraceSeries(IReadOnlyList<string> names, IReadOnlyList<string>? colors)

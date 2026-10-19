@@ -118,6 +118,39 @@ public sealed class FullRunMetricWindowPreviewAdapterTests
         Assert.Equal("QUALITY", response.Failure!.Code);
     }
 
+    [Fact]
+    public void Structured_preview_reports_insufficient_data_when_no_window_covers_cursor()
+    {
+        var preview = StructuredPreview([]);
+
+        var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(
+            preview, StructuredTarget(1000), 200);
+
+        Assert.Equal("insufficient_data", response.State);
+        Assert.Null(response.Result);
+        Assert.Equal("NO_COMPLETED_WINDOW", response.Failure!.Code);
+    }
+
+    [Fact]
+    public void Structured_preview_rejects_malformed_window_metadata()
+    {
+        var preview = StructuredPreview([
+            JsonSerializer.SerializeToElement(new
+            {
+                window_id = "window-0",
+                start_sample = 0L,
+                state = "Complete",
+                quality = "clean",
+            }),
+        ]);
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            FullRunWindowPreviewAdapter.ToDynamicWindowResponse(
+                preview, StructuredTarget(1000), 200));
+
+        Assert.Contains("end_sample", error.Message);
+    }
+
     private static AnalysisRunResponse Run(JsonElement summary) => new(
         "run", "recording", "official_algorithm", "completed", "fixture-v1", null, null,
         summary, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 1, 1, "completed", "已完成");
@@ -125,4 +158,32 @@ public sealed class FullRunMetricWindowPreviewAdapterTests
     private static DynamicWindowRequest Target(long cursorSample) => new(
         "recording", "peak_frequency", null, null, JsonSerializer.SerializeToElement(new { }), cursorSample,
         RequestId: "request");
+
+    private static DynamicWindowRequest StructuredTarget(long cursorSample) => new(
+        "recording", "psd", null, null, JsonSerializer.SerializeToElement(new { }), cursorSample,
+        RequestId: "request");
+
+    private static StructuredPreviewResponse StructuredPreview(IReadOnlyList<JsonElement> windows) => new(
+        "run",
+        new RunArtifact("artifact", "run", "structured", "result.json", "application/json", 1, "hash", null,
+            new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+        JsonSerializer.SerializeToElement(new { kind = "frequency_series" }),
+        ["F3"],
+        new TimeRange(0, 10),
+        new TimeRange(0, 10),
+        new Dictionary<string, JsonElement>
+        {
+            ["frequency_hz"] = JsonSerializer.SerializeToElement(new[] { 1d, 2d, 3d }),
+        },
+        new Dictionary<string, JsonElement>(),
+        new Dictionary<string, JsonElement>
+        {
+            ["psd"] = JsonSerializer.SerializeToElement(new[] { new[] { 1d, 2d, 3d } }),
+        },
+        new Dictionary<string, JsonElement>(),
+        windows,
+        new Dictionary<string, int>(),
+        JsonSerializer.SerializeToElement(new { status = "clean" }),
+        "fixture-v1",
+        "fixture-v1");
 }

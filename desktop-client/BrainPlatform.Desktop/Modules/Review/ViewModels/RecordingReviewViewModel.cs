@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
+using BrainPlatform.Desktop.Modules.Review.Waveform;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
@@ -194,6 +195,13 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public MontageProfile? CurrentViewingMontage => session.SelectedViewingMontage;
 
     public RecordingReviewFrame? CurrentFrame => session.CurrentFrame;
+
+    internal Task<ReviewDisplayFrame?> TryBuildDisplayFrameAsync(
+        RecordingReviewFrame frame,
+        int plotWidthPixels,
+        CancellationToken cancellationToken) =>
+        session.TryBuildDisplayFrameAsync(frame, ViewportStartSeconds,
+            VisibleDurationSeconds, plotWidthPixels, cancellationToken);
 
     public double PositionSeconds => playback.PositionSeconds;
 
@@ -573,6 +581,17 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         RaisePropertyChanged(nameof(CurrentViewingMontage));
         if (!ReferenceEquals(publishedFrame, session.CurrentFrame))
         {
+            // A drag preview keeps the previous chart viewport until the
+            // replacement frame is complete. Commit the viewport immediately
+            // before publishing that frame so SciChart never renders a new
+            // axis against an old/partial frame.
+            if (pendingPreviewViewportStart is { } pending &&
+                session.CurrentFrame is not null &&
+                Math.Abs(session.ViewportStartSeconds - pending) < 0.000_001)
+            {
+                pendingPreviewViewportStart = null;
+                UpdateViewportStart(pending);
+            }
             publishedFrame = session.CurrentFrame;
             RaisePropertyChanged(nameof(CurrentFrame));
         }

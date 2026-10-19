@@ -156,6 +156,24 @@ warm-up semantics, and processing version. Derived cache files are disposable;
 write a temporary file and atomically rename it only after completion. A
 partial or stale chunk must never be bound to the chart.
 
+`ReviewSourceLoader` owns source reads, filtered chunk work and checkpoint
+lifetime; `RecordingReviewSession` remains the sole foreground revision/frame
+publication owner. Shared chunks deliver progress only to their current
+waiters. Replaced waiters detach, prefetch has no foreground progress subscriber,
+and queued UI callbacks recheck target revision, cancellation and loading state.
+Closing the coordinator cancels active/queued work immediately but defers its
+synchronization-resource disposal until admitted operations have exited.
+
+The current review cache retains at most two raw windows and three frames, with
+an independent 64 MiB float64 payload budget for each class. A complete entry
+larger than its class budget is returned to its current consumer but is not
+retained; samples, gaps and units are never truncated. `ReviewSourceLoader`
+admits at most two unfinished filtered chunk builds. Other builds wait on a
+cancellable admission token, while identical reusable work is shared. A slot
+is released only after the build task exits, including after a subscriber has
+cancelled. These are scoped cache/admission limits, not a whole-process memory
+or GPU guarantee.
+
 Use latest-only scheduling for drag requests, deduplicate identical in-flight
 chunk builds, retain a small frame LRU, and prefetch nearby chunks. A review
 frame is committed only after its complete target data is ready. Keep the prior

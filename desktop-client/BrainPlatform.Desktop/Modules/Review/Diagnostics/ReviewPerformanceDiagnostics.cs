@@ -20,6 +20,7 @@ public enum ReviewPerformanceSource
     FilterService,
     RawFallback,
     PublishedFrame,
+    DisplayLevelCache,
 }
 
 public sealed record ReviewPerformanceSample(

@@ -125,7 +125,7 @@ public sealed partial class AlgorithmListViewModel
             return false;
         if (handler.SupportsFullRunMetricWindowPreview)
             return true;
-        return handler.SupportsFullRunWindowPreview && fullWindowCacheTask is not null;
+        return handler.SupportsFullRunWindowPreview && fullWindowCacheTask is { IsCompletedSuccessfully: true, Result: not null };
     }
 
     private async Task AwaitQueuedWindowRequestAsync(Task<Task> flushTask)
@@ -230,6 +230,7 @@ public sealed partial class AlgorithmListViewModel
         {
             try
             {
+                FullRunPreviewIntegrity.RequireRun(completedFull, windowRequest!);
                 if (handler.SupportsFullRunMetricWindowPreview &&
                     handler.TryAdaptFullRunWindow(completedFull, target, RegisteredRecording?.SamplingRateHz, out var metricResponse))
                 {
@@ -244,7 +245,7 @@ public sealed partial class AlgorithmListViewModel
 
                 if (!handler.SupportsFullRunWindowPreview)
                     throw new InvalidOperationException("当前算法没有可验证的 Full 窗口适配器。");
-                var cached = await EnsureFullWindowCacheAsync(completedFull.RunId, cancellationToken);
+                var cached = await EnsureFullWindowCacheAsync(completedFull, cancellationToken);
                 if (cached is not null)
                 {
                     var cachedResponse = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(
@@ -259,8 +260,7 @@ public sealed partial class AlgorithmListViewModel
                 }
                 var preview = await client.GetWindowPreviewAsync(
                     completedFull.RunId, target.CursorSample, null, cancellationToken);
-                if (!string.Equals(preview.RecordingId, target.RecordingId, StringComparison.Ordinal))
-                    throw new InvalidOperationException("完整结果窗口的记录身份不匹配，已拒绝绑定。");
+                FullRunPreviewIntegrity.RequireIndexed(preview, completedFull, target);
                 var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(
                     preview, target, RegisteredRecording?.SamplingRateHz);
                 displayedWindowSource = "全量已完成窗口";
@@ -298,15 +298,16 @@ public sealed partial class AlgorithmListViewModel
     }
 
     private async Task<StructuredPreviewResponse?> EnsureFullWindowCacheAsync(
-        string runId, CancellationToken cancellationToken)
+        AnalysisRunResponse run, CancellationToken cancellationToken)
     {
+        var runId = run.RunId;
         if (!string.Equals(fullWindowCacheRunId, runId, StringComparison.Ordinal))
         {
             fullWindowCacheCancellation?.Cancel();
             fullWindowCacheCancellation?.Dispose();
             fullWindowCacheCancellation = new CancellationTokenSource();
             fullWindowCacheRunId = runId;
-            fullWindowCacheTask = LoadFullWindowCacheAsync(runId, fullWindowCacheCancellation.Token);
+            fullWindowCacheTask = LoadFullWindowCacheAsync(run, fullWindowCacheCancellation.Token);
         }
 
         try
@@ -320,11 +321,13 @@ public sealed partial class AlgorithmListViewModel
     }
 
     private async Task<StructuredPreviewResponse?> LoadFullWindowCacheAsync(
-        string runId, CancellationToken cancellationToken)
+        AnalysisRunResponse run, CancellationToken cancellationToken)
     {
         try
         {
-            return await client.GetStructuredPreviewAsync(runId, 1_000_000, cancellationToken);
+            var preview = await client.GetStructuredPreviewAsync(run.RunId, 1_000_000, cancellationToken);
+            FullRunPreviewIntegrity.RequireStructured(preview, run);
+            return preview;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

@@ -72,10 +72,9 @@
       "reason": "One pure bounded display-frame transformation remains 542 lines. Color travels with each already-resolved output; the reference formulas, native source indexes, counter gaps and extrema algorithm are unchanged."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Playback/RecordingReviewSession.cs": {
-      "decision": "split",
-      "max_lines": 575,
-      "reason": "Existing review session remains a cohesive 572-line owner of playback-target fencing, frame publication and immutable snapshot appearance. This navigation fix adds cancellation fencing and bounded background montage projection without creating another loader or state machine.",
-      "follow_up": "Extract bounded frame loading separately from playback target coordination while preserving one revision owner."
+      "decision": "keep",
+      "max_lines": 455,
+      "reason": "Completed the prior high-risk source-loader extraction after deterministic foreground race coverage. The roughly 450-line session now exclusively owns navigation revisions, foreground cancellation, cache activation, frame projection/publication and request-scoped progress. Raw/filtered source loading and checkpoint lifetime live in ReviewSourceLoader; shared chunk ownership/progress lives in ReviewSourceChunkWork. Preserve a single foreground revision owner rather than fragmenting its state to meet a mechanical line target. New source/coordinator/test files remain below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventDefinitionEditorView.xaml": {
       "decision": "split",

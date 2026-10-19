@@ -32,11 +32,11 @@ internal static class FullRunWindowPreviewAdapter
         var state = WindowState(window);
         var quality = WindowQuality(window);
         if (quality is "rejected" or "unavailable" or "failed")
-            state = "rejected";
-        var arrays = SliceArrays(preview.Arrays, index);
-        var result = new DynamicWindowResultResponse(
+            state = quality is "rejected" ? "rejected" : "unavailable";
+        var failure = WindowFailure(window);
+        var result = state != "ready" ? null : new DynamicWindowResultResponse(
             Identity(target.RecordingId), state, OutputKind(preview.Output),
-            preview.Axes, AxisUnits(preview.AxisMetadata), arrays,
+            preview.Axes, AxisUnits(preview.AxisMetadata), SliceArrays(preview.Arrays, index),
             ArrayUnits(preview.ArrayMetadata), quality, null, null, WindowProvenance(window));
         var startSample = Long(window, "start_sample");
         var endSample = Long(window, "end_sample");
@@ -45,7 +45,7 @@ internal static class FullRunWindowPreviewAdapter
             target.RequestId ?? string.Empty, state, Identity(target.RecordingId), null,
             new DynamicWindowRange(startSample, endSample,
                 startSample / rate, endSample / rate),
-            quality, null, result);
+            quality, failure, result);
     }
 
     public static DynamicWindowResponse ToDynamicWindowResponse(
@@ -66,14 +66,14 @@ internal static class FullRunWindowPreviewAdapter
         var startSeconds = window.StartSample / rate;
         var endSeconds = window.EndSample / rate;
         var state = MapState(preview.Status);
-        var result = preview.Arrays is null || preview.Axes is null
+        var result = state != "ready" || preview.Arrays is null || preview.Axes is null
             ? null
             : new DynamicWindowResultResponse(
                 Identity(preview.RecordingId), state, OutputKind(preview.Output),
                 NormalizeAxes(preview.Axes, preview.AxisMetadata),
                 AxisUnits(preview.AxisMetadata), preview.Arrays,
                 ArrayUnits(preview.ArrayMetadata), Quality(preview.Quality), FailureElement(preview),
-                null, null);
+                null, JsonSerializer.SerializeToElement(new { analysis_state = window.WindowState }));
         return new DynamicWindowResponse(
             $"full:{preview.RunId}", $"full:{preview.RunId}:{window.WindowId}",
             target.RequestId ?? string.Empty, state, Identity(preview.RecordingId), null,
@@ -109,7 +109,7 @@ internal static class FullRunWindowPreviewAdapter
                 item.Value[index].ValueKind == JsonValueKind.Array)
                 sliced[item.Key] = item.Value[index];
             else
-                sliced[item.Key] = item.Value;
+                throw new InvalidOperationException("完整结果缺少对应窗口的数组行。");
         }
         return sliced;
     }
@@ -119,7 +119,7 @@ internal static class FullRunWindowPreviewAdapter
         {
             "Complete" => "ready",
             "Rejected" => "rejected",
-            "Partial" => "unavailable",
+            "Partial" => "ready",
             _ => "unavailable",
         };
 
@@ -129,10 +129,19 @@ internal static class FullRunWindowPreviewAdapter
     private static string WindowId(JsonElement window, int index) =>
         String(window, "window_id") ?? $"window-{index}";
 
-    private static JsonElement? WindowProvenance(JsonElement window) =>
-        window.TryGetProperty("provenance", out var provenance) &&
-        provenance.ValueKind == JsonValueKind.Object
-            ? provenance
+    private static JsonElement WindowProvenance(JsonElement window)
+    {
+        var fields = new Dictionary<string, JsonElement>();
+        if (window.TryGetProperty("provenance", out var provenance) && provenance.ValueKind == JsonValueKind.Object)
+            foreach (var item in provenance.EnumerateObject()) fields[item.Name] = item.Value;
+        fields["analysis_state"] = JsonSerializer.SerializeToElement(String(window, "state"));
+        return JsonSerializer.SerializeToElement(fields);
+    }
+
+    private static DynamicWindowFailure? WindowFailure(JsonElement window) =>
+        window.TryGetProperty("failure", out var failure) && failure.ValueKind == JsonValueKind.Object
+            ? new DynamicWindowFailure(String(failure, "code") ?? "FULL_WINDOW_UNAVAILABLE",
+                String(failure, "message") ?? "完整结果窗口不可用", failure)
             : null;
 
     private static long Long(JsonElement window, string name) =>

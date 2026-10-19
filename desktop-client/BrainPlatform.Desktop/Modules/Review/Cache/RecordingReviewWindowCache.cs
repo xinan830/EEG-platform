@@ -9,9 +9,21 @@ internal sealed class RecordingReviewWindowCache
 {
     private const int MaximumRawWindows = 2;
     private const int MaximumFrames = 3;
+    internal const long DefaultPayloadBudgetBytes = 64L * 1024 * 1024;
+    private readonly long maximumRawPayloadBytes;
+    private readonly long maximumFramePayloadBytes;
     private readonly object gate = new();
     private readonly LinkedList<RawEntry> rawEntries = [];
     private readonly LinkedList<FrameEntry> frameEntries = [];
+
+    public RecordingReviewWindowCache(long maximumRawPayloadBytes = DefaultPayloadBudgetBytes,
+        long maximumFramePayloadBytes = DefaultPayloadBudgetBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumRawPayloadBytes);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumFramePayloadBytes);
+        this.maximumRawPayloadBytes = maximumRawPayloadBytes;
+        this.maximumFramePayloadBytes = maximumFramePayloadBytes;
+    }
 
     public bool TryGetRaw(double startSeconds, double endSeconds, out RecordingReviewWindow window)
     {
@@ -32,6 +44,8 @@ internal sealed class RecordingReviewWindowCache
 
     public void StoreRaw(RecordingReviewWindow window)
     {
+        var bytes = window.Segments.Sum(segment => segment.SampleMajorValues.LongLength * sizeof(double));
+        if (bytes > maximumRawPayloadBytes) return;
         lock (gate)
         {
             var existing = rawEntries.FirstOrDefault(item => SameRange(item.Window, window));
@@ -41,8 +55,8 @@ internal sealed class RecordingReviewWindowCache
                 return;
             }
 
-            rawEntries.AddFirst(new RawEntry(window));
-            Trim(rawEntries, MaximumRawWindows);
+            rawEntries.AddFirst(new RawEntry(window, bytes));
+            Trim(rawEntries, MaximumRawWindows, maximumRawPayloadBytes, entry => entry.PayloadBytes);
         }
     }
 
@@ -84,10 +98,20 @@ internal sealed class RecordingReviewWindowCache
         MontageProfile? montage,
         bool filterUnavailable)
     {
+        var bytes = frame.Segments.Sum(segment => segment.Channels.Sum(channel => channel.Values.LongLength * sizeof(double)));
+        if (bytes > maximumFramePayloadBytes) return;
         lock (gate)
         {
-            frameEntries.AddFirst(new FrameEntry(frame, settings, MontageFingerprint(montage), filterUnavailable));
-            Trim(frameEntries, MaximumFrames);
+            var existing = frameEntries.FirstOrDefault(entry => ReferenceEquals(entry.Frame, frame) &&
+                entry.Settings == settings && entry.MontageFingerprint == MontageFingerprint(montage) &&
+                entry.FilterUnavailable == filterUnavailable);
+            if (existing is not null)
+            {
+                Touch(frameEntries, existing);
+                return;
+            }
+            frameEntries.AddFirst(new FrameEntry(frame, settings, MontageFingerprint(montage), filterUnavailable, bytes));
+            Trim(frameEntries, MaximumFrames, maximumFramePayloadBytes, entry => entry.PayloadBytes);
         }
     }
 
@@ -116,19 +140,22 @@ internal sealed class RecordingReviewWindowCache
         }
     }
 
-    private static void Trim<T>(LinkedList<T> entries, int maximum)
+    private static void Trim<T>(LinkedList<T> entries, int maximum, long maximumBytes, Func<T, long> size)
     {
-        while (entries.Count > maximum)
+        var bytes = entries.Sum(size);
+        while (entries.Count > maximum || bytes > maximumBytes)
         {
+            bytes -= size(entries.Last!.Value);
             entries.RemoveLast();
         }
     }
 
-    private sealed record RawEntry(RecordingReviewWindow Window);
+    private sealed record RawEntry(RecordingReviewWindow Window, long PayloadBytes);
 
     private sealed record FrameEntry(
         RecordingReviewFrame Frame,
         RecordingReviewFilterSettings Settings,
         string MontageFingerprint,
-        bool FilterUnavailable);
+        bool FilterUnavailable,
+        long PayloadBytes);
 }

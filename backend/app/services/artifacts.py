@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import tempfile
+import zipfile
 from pathlib import Path
 from uuid import uuid4
 
@@ -99,45 +100,56 @@ class ArtifactStore:
 
     def read_window(self, artifact: RunArtifact, window_index: int) -> dict[str, np.ndarray]:
         """Read one derived window without loading the canonical NPZ matrix."""
-        index_path = self._window_index_path(artifact)
-        if not index_path.is_file():
-            raise WindowIndexUnavailable("window index has not been prepared for this artifact")
-        if index_path.stat().st_size > self.MAX_INDEX_BYTES:
-            raise WindowIndexUnavailable("window index exceeds the resource limit")
+        index = self._read_window_index(artifact)
         try:
-            index = json.loads(index_path.read_text(encoding="utf-8"))
-            if index.get("format") != "result-window-index-v1" or index.get("artifact_sha256") != artifact.sha256:
-                raise WindowIndexUnavailable("window index is stale or incompatible")
-            windows = index.get("windows") or []
+            windows = index["windows"]
+            if not isinstance(windows, list):
+                raise WindowIndexUnavailable("window index rows are malformed")
             if type(window_index) is not int or not 0 <= window_index < len(windows):
                 raise IndexError("result window index is outside the artifact")
             entry = windows[window_index]
-            chunk_path = (self.root / entry["path"]).resolve()
-            self._require_confined(chunk_path)
-            if chunk_path.stat().st_size > self.MAX_WINDOW_CHUNK_BYTES:
-                raise WindowIndexUnavailable("result window exceeds the resource limit")
-            if not chunk_path.is_file() or self._sha256_file(chunk_path) != entry["sha256"]:
-                raise ArtifactIntegrityError("result window chunk integrity verification failed")
-            with np.load(chunk_path, allow_pickle=False) as loaded:
-                return {name: np.asarray(loaded[name]) for name in loaded.files}
-        except (KeyError, TypeError, json.JSONDecodeError) as exc:
+            if entry["window_index"] != window_index:
+                raise WindowIndexUnavailable("result window row identity does not match")
+            return self._read_derived_npz(entry["path"], entry["sha256"], self.MAX_WINDOW_CHUNK_BYTES)
+        except (KeyError, TypeError) as exc:
             raise WindowIndexUnavailable("window index is malformed") from exc
 
     def read_window_axes(self, artifact: RunArtifact) -> dict[str, np.ndarray]:
+        """Verify the same sidecar identity even when axes are read independently."""
+        index = self._read_window_index(artifact)
+        try:
+            return self._read_derived_npz(index["static_path"], index["static_sha256"], self.MAX_AXIS_BYTES)
+        except (KeyError, TypeError) as exc:
+            raise WindowIndexUnavailable("window axis index is malformed") from exc
+
+    def _read_window_index(self, artifact: RunArtifact) -> dict[str, object]:
         index_path = self._window_index_path(artifact)
-        if not index_path.is_file():
-            raise WindowIndexUnavailable("window index has not been prepared for this artifact")
-        if index_path.stat().st_size > self.MAX_INDEX_BYTES:
-            raise WindowIndexUnavailable("window index exceeds the resource limit")
-        index = json.loads(index_path.read_text(encoding="utf-8"))
-        static_path = (self.root / index["static_path"]).resolve()
-        self._require_confined(static_path)
-        if static_path.stat().st_size > self.MAX_AXIS_BYTES:
-            raise WindowIndexUnavailable("result axes exceed the resource limit")
-        if not static_path.is_file() or self._sha256_file(static_path) != index["static_sha256"]:
-            raise ArtifactIntegrityError("result axis file integrity verification failed")
-        with np.load(static_path, allow_pickle=False) as loaded:
-            return {name: np.asarray(loaded[name]) for name in loaded.files}
+        try:
+            if index_path.stat().st_size > self.MAX_INDEX_BYTES:
+                raise WindowIndexUnavailable("window index exceeds the resource limit")
+            index = json.loads(index_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise WindowIndexUnavailable("window index is missing, unreadable or incomplete") from exc
+        if not isinstance(index, dict):
+            raise WindowIndexUnavailable("window index is malformed")
+        if index.get("format") != "result-window-index-v1" or index.get("artifact_sha256") != artifact.sha256:
+            raise WindowIndexUnavailable("window index is stale or incompatible")
+        return index
+
+    def _read_derived_npz(self, relative_path: str, sha256: str, max_bytes: int) -> dict[str, np.ndarray]:
+        path = (self.root / relative_path).resolve()
+        self._require_confined(path)
+        try:
+            if path.stat().st_size > max_bytes:
+                raise WindowIndexUnavailable("derived result exceeds the resource limit")
+            if self._sha256_file(path) != sha256:
+                raise ArtifactIntegrityError("derived result integrity verification failed")
+            with np.load(path, allow_pickle=False) as loaded:
+                return {name: np.asarray(loaded[name]) for name in loaded.files}
+        except OSError as exc:
+            raise WindowIndexUnavailable("derived result is missing or unreadable") from exc
+        except (ValueError, EOFError, zipfile.BadZipFile) as exc:
+            raise ArtifactIntegrityError("derived result is not a readable NPZ") from exc
 
     def prepare_window_index(
         self,

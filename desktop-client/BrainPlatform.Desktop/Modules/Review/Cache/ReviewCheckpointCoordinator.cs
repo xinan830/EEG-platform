@@ -43,6 +43,10 @@ internal sealed class ReviewCheckpointCoordinator(
     private const double MaximumAdvanceBatchSeconds = 1800;
     private const long MaximumAdvancePayloadBytes = 32L * 1024 * 1024;
     private readonly SemaphoreSlim workGate = new(1, 1);
+    private readonly object lifetimeGate = new();
+    private readonly CancellationTokenSource lifetime = new();
+    private int operations;
+    private bool cancellationSent;
     private int disposed;
 
     public event EventHandler<ReviewPreparationState>? ProgressChanged;
@@ -51,32 +55,40 @@ internal sealed class ReviewCheckpointCoordinator(
         RecordingReviewWindow source,
         RecordingReviewFilterSettings settings,
         ReviewFilterContract contract,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<ReviewPreparationState>? progress = null)
     {
-        ThrowIfDisposed();
-        await workGate.WaitAsync(cancellationToken);
+        var operation = BeginOperation(cancellationToken);
+        var token = operation.Token;
+        var acquired = false;
         try
         {
+            await workGate.WaitAsync(token);
+            acquired = true;
+            token.ThrowIfCancellationRequested();
             var output = new List<RecordingReviewSegment>(source.Segments.Count);
             string? lastCheckpoint = null;
             foreach (var target in source.Segments)
             {
-                var result = await FilterSegmentAsync(target, settings, contract, cancellationToken);
+                var result = await FilterSegmentAsync(target, settings, contract, token, progress);
                 if (result is null) return null;
                 output.Add(result.Value.Segment);
                 lastCheckpoint = result.Value.Checkpoint;
             }
-            Publish(new ReviewPreparationState(ReviewPreparationPhase.Complete, 0, 0, 0));
+            token.ThrowIfCancellationRequested();
+            Publish(new ReviewPreparationState(ReviewPreparationPhase.Complete, 0, 0, 0), token, progress);
             return new RecordingReviewFilterChunkResult(source with { Segments = output }, lastCheckpoint);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            Publish(new ReviewPreparationState(ReviewPreparationPhase.Failed, 0, 0, 0, exception.Message));
+            Publish(new ReviewPreparationState(ReviewPreparationPhase.Failed, 0, 0, 0, exception.Message), token, progress);
             throw;
         }
         finally
         {
-            workGate.Release();
+            if (acquired) workGate.Release();
+            operation.Dispose();
+            EndOperation();
         }
     }
 
@@ -84,7 +96,8 @@ internal sealed class ReviewCheckpointCoordinator(
         RecordingReviewSegment target,
         RecordingReviewFilterSettings settings,
         ReviewFilterContract contract,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<ReviewPreparationState>? progress)
     {
         var group = ReviewCheckpointAnchorGroupKey.Create(reader.Manifest, settings, contract);
         var firstCounter = await GetFirstSampleCounterAsync(cancellationToken);
@@ -97,11 +110,13 @@ internal sealed class ReviewCheckpointCoordinator(
         var session = await filter.OpenCheckpointSessionAsync(reader.Manifest, settings, cancellationToken);
         if (session is null) return null;
         await using var ownedSession = new CheckpointSessionOwner(session);
+        cancellationToken.ThrowIfCancellationRequested();
         if (anchor is not null)
             await ownedSession.Current.RestoreAsync(anchor.CheckpointB64, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
         Publish(new ReviewPreparationState(ReviewPreparationPhase.PreparingHistory,
-            segmentOrigin, cursor, target.FirstSampleCounter));
+            segmentOrigin, cursor, target.FirstSampleCounter), cancellationToken, progress);
         while (cursor < target.FirstSampleCounter)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -111,6 +126,7 @@ internal sealed class ReviewCheckpointCoordinator(
             var startSeconds = (cursor - firstCounter) / (double)reader.Manifest.SamplingRateHz;
             var durationSeconds = count / (double)reader.Manifest.SamplingRateHz;
             var history = await reader.ReadWindowAsync(startSeconds, durationSeconds, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             if (history.Segments.Count == 0)
                 throw new InvalidOperationException("精确滤波历史中没有可读取的原始样本。");
 
@@ -130,10 +146,11 @@ internal sealed class ReviewCheckpointCoordinator(
                 var bounded = Slice(rawSegment, cursor, target.FirstSampleCounter);
                 if (bounded is null) continue;
                 var checkpoint = await ownedSession.Current.AdvanceAndExportAsync(bounded, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 cursor = bounded.LastSampleCounter + 1L;
                 await anchorCache.StoreAsync(group, segmentOrigin, cursor, checkpoint, cancellationToken);
                 Publish(new ReviewPreparationState(ReviewPreparationPhase.PreparingHistory,
-                    segmentOrigin, cursor, target.FirstSampleCounter));
+                    segmentOrigin, cursor, target.FirstSampleCounter), cancellationToken, progress);
                 advanced = true;
                 if (cursor >= target.FirstSampleCounter) break;
             }
@@ -144,10 +161,12 @@ internal sealed class ReviewCheckpointCoordinator(
         if (cursor != target.FirstSampleCounter)
             throw new InvalidOperationException("checkpoint 与目标样本计数器不连续。");
         Publish(new ReviewPreparationState(ReviewPreparationPhase.FilteringTarget,
-            segmentOrigin, cursor, target.LastSampleCounter + 1L));
+            segmentOrigin, cursor, target.LastSampleCounter + 1L), cancellationToken, progress);
         var filtered = await ownedSession.Current.FilterAsync(target, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         cursor = target.LastSampleCounter + 1L;
         var finalCheckpoint = await ownedSession.Current.ExportAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         await anchorCache.StoreAsync(group, segmentOrigin, cursor, finalCheckpoint, cancellationToken);
         return (filtered, finalCheckpoint);
     }
@@ -187,12 +206,58 @@ internal sealed class ReviewCheckpointCoordinator(
         return new RecordingReviewSegment(start, sampleCount, source.ChannelCount, values);
     }
 
-    private void Publish(ReviewPreparationState state) => ProgressChanged?.Invoke(this, state);
+    private void Publish(ReviewPreparationState state, CancellationToken token, Action<ReviewPreparationState>? progress)
+    {
+        if (token.IsCancellationRequested || Volatile.Read(ref disposed) != 0) return;
+        progress?.Invoke(state);
+        if (!token.IsCancellationRequested && Volatile.Read(ref disposed) == 0)
+            ProgressChanged?.Invoke(this, state);
+    }
+
+    private CancellationTokenSource BeginOperation(CancellationToken token)
+    {
+        lock (lifetimeGate)
+        {
+            ThrowIfDisposed();
+            var operation = CancellationTokenSource.CreateLinkedTokenSource(token, lifetime.Token);
+            operations++;
+            return operation;
+        }
+    }
+
+    private void EndOperation()
+    {
+        lock (lifetimeGate)
+        {
+            operations--;
+            DisposeResourcesWhenIdle();
+        }
+    }
+
+    private void DisposeResourcesWhenIdle()
+    {
+        if (operations != 0 || !cancellationSent) return;
+        workGate.Dispose();
+        lifetime.Dispose();
+    }
 
     public ValueTask DisposeAsync()
     {
-        Interlocked.Exchange(ref disposed, 1);
-        workGate.Dispose();
+        lock (lifetimeGate)
+        {
+            if (disposed != 0) return ValueTask.CompletedTask;
+            Volatile.Write(ref disposed, 1);
+        }
+        // Do not wait for non-cooperative remote work, or dispose its gate early.
+        try { lifetime.Cancel(); }
+        finally
+        {
+            lock (lifetimeGate)
+            {
+                cancellationSent = true;
+                DisposeResourcesWhenIdle();
+            }
+        }
         return ValueTask.CompletedTask;
     }
 

@@ -93,14 +93,19 @@ public sealed partial class RecordingReviewViewModelTests
             (0, 0, 0), (2, 0, 0.2), (5, 0, 0.5), (50, 45, 0.5),
             (95, 90, 0.5), (98, 90, 0.8), (100, 90, 1),
         };
+        var lastCommittedStart = 0d;
         foreach (var item in cases.Concat(cases.Reverse()))
         {
             vm.PreviewSeek(item.Position);
             Assert.Equal(item.Position, vm.PositionSeconds);
-            Assert.Equal(item.Start, vm.ViewportStartSeconds);
-            Assert.Equal(item.Fraction, (vm.PositionSeconds - vm.ViewportStartSeconds) / vm.VisibleDurationSeconds, 6);
+            // Cold drag previews move only the cursor. The axis remains on the
+            // last complete frame until the replacement frame is committed.
+            Assert.True(
+                Math.Abs(vm.ViewportStartSeconds - lastCommittedStart) < 0.000_001 ||
+                Math.Abs(vm.ViewportStartSeconds - item.Start) < 0.000_001);
             await vm.SeekAsync(item.Position);
             Assert.Equal(item.Start, vm.ViewportStartSeconds);
+            lastCommittedStart = item.Start;
         }
     }
 

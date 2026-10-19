@@ -32,6 +32,41 @@ target or relabel older samples with newer time coordinates.
 - **AND** a complete current-identity frame SHALL be required before replacing
   the published frame.
 
+#### Scenario: A drag target waits in the interaction throttle
+
+- **WHEN** the user accepts target B while target A is loading, even before
+  B's throttled load begins
+- **THEN** A SHALL already be fenced from frame publication
+- **AND** the last complete frame SHALL retain its original sample coordinates
+- **AND** this user-navigation fencing SHALL NOT restart a reusable block on
+  every continuous-playback clock tick.
+
+#### Scenario: An obsolete load fails or finishes after review is closed
+
+- **WHEN** a cancelled or superseded load later returns success or failure
+- **THEN** it SHALL NOT replace the latest frame, status, position or loading
+  state, and SHALL NOT raise late user-visible errors
+- **AND** a disposed review session SHALL NOT publish change notifications
+- **AND** a failure of the current active target SHALL still be reported.
+
+#### Scenario: Shared checkpoint work outlives a foreground subscriber
+
+- **WHEN** a foreground request is replaced, returns to a cached frame, or is
+  disposed while shared checkpoint work is still active
+- **THEN** progress SHALL reach only current subscribers to that source work
+- **AND** prefetch-only progress SHALL NOT change foreground status
+- **AND** a new current subscriber to the same work MAY reuse its latest progress
+  without restarting the scientific work.
+
+#### Scenario: A checkpoint coordinator closes with active and queued work
+
+- **WHEN** the coordinator is closed while an operation is active or queued
+- **THEN** both operations SHALL receive cancellation and no late progress SHALL
+  be published
+- **AND** synchronization resources SHALL remain valid until admitted operations
+  have finished releasing them
+- **AND** non-cooperative late completion SHALL NOT prevent prompt close.
+
 ### Requirement: Visible waveform data remains bounded
 
 Review SHALL bound chart points, frame memory, in-flight requests, and derived
@@ -47,6 +82,21 @@ cache usage by explicit budgets independent of total recording duration.
 - **AND** playback ticks inside a cached viewport SHALL not append an unbounded
   history series.
 
+#### Scenario: A single cache entry exceeds the retention budget
+
+- **WHEN** a complete raw window or frame exceeds its numeric-payload cache budget
+- **THEN** it SHALL remain intact for the requesting consumer without being retained
+- **AND** reusable smaller cache entries SHALL NOT be evicted just to admit it
+- **AND** this retention policy SHALL NOT truncate samples or change gaps or units.
+
+#### Scenario: Filtered source admission is saturated
+
+- **WHEN** two filtered source builds are unfinished for one loader
+- **THEN** a different build SHALL await cancellable admission without starting raw reads
+- **AND** an identical reusable build SHALL still be shared
+- **AND** cancelled but unfinished builds SHALL retain admission until they actually exit
+- **AND** closing review SHALL cancel admission waiters without awaiting non-cooperative work.
+
 ### Requirement: Long recordings support resolution-appropriate waveform display
 
 The review SHALL select a display level from visible absolute time range,
@@ -60,12 +110,30 @@ preserve ordered temporal extrema and explicit invalid/gap states.
   samples in the recording
 - **AND** each bucket SHALL preserve its valid extrema in temporal order
 - **AND** recorded gaps SHALL remain visible breaks.
+- **AND** a disposable chunk identity SHALL include the selected display level,
+  chunk index, and channel index so separate traces cannot collide.
+
+#### Scenario: The selected display level is not complete
+
+- **WHEN** the level index is absent, corrupt, stale, or does not cover the
+  complete visible sample range
+- **THEN** review SHALL treat it as a cache miss
+- **AND** SHALL fall back to the bounded raw/filtered review-window path
+- **AND** SHALL NOT publish a partial display level as a complete waveform.
 
 #### Scenario: A user zooms into a short interval
 
 - **WHEN** the visible range becomes small enough for a finer level
 - **THEN** review SHALL select a finer compatible level or bounded raw samples
 - **AND** the displayed values SHALL retain the declared unit and channel order.
+
+#### Scenario: A bucket contains a gap or invalid sample
+
+- **WHEN** a display bucket is only partially covered by source samples or
+  contains a non-finite value
+- **THEN** the bucket SHALL be published as an explicit gap
+- **AND** extrema from the two sides of the gap SHALL NOT be combined into a
+  continuous display value.
 
 ### Requirement: Filtered display levels preserve filter identity
 
@@ -99,6 +167,28 @@ SHALL read that result without invoking algorithm computation or filter warmup.
 - **WHEN** no compatible complete window exists
 - **THEN** review MAY use the existing bounded latest-only on-demand path
 - **AND** the unavailable reason/source path SHALL remain observable.
+
+#### Scenario: A cached preview does not belong to the completed Run
+
+- **WHEN** a structured preview has a different Run, artifact Run, scientific
+  version, invalid window ordering or inconsistent per-window array shape
+- **THEN** it SHALL NOT be bound as the current result
+- **AND** review SHALL try verified indexed read before explicit on-demand
+  fallback, without relabeling the invalid values as current data.
+
+#### Scenario: Indexed result files are incomplete
+
+- **WHEN** a required index, window chunk or axis file is missing, malformed,
+  stale, incompatible or fails its checksum
+- **THEN** the backend SHALL return a structured unavailable/integrity error
+- **AND** the client MAY fall back to on-demand without modifying the Run.
+
+#### Scenario: A saved warm-up window is scientifically usable
+
+- **WHEN** the backend marks a `Partial` window as usable
+- **THEN** reuse SHALL preserve its warm-up state and provenance
+- **AND** a scientific rejection SHALL remain unavailable rather than being
+  replaced by an older successful window or a fabricated zero.
 
 ### Requirement: Long-recording derived indexes are disposable and atomic
 

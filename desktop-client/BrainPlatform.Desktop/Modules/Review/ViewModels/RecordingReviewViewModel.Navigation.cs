@@ -7,6 +7,7 @@ public sealed partial class RecordingReviewViewModel
     private readonly LatestThrottledTask viewportLoader = new(TimeSpan.FromMilliseconds(50));
     private bool isTimelineDragging;
     private bool resumePlaybackAfterDrag;
+    private double? pendingPreviewViewportStart;
 
     public void BeginTimelineDrag()
     {
@@ -47,9 +48,20 @@ public sealed partial class RecordingReviewViewModel
     /// <summary>Cache hits apply immediately; cold targets use the bounded loader.</summary>
     public void PreviewSeek(double positionSeconds)
     {
-        SetPreviewPosition(positionSeconds);
-        if (!session.TryActivateCachedViewport(ViewportStartSeconds, playback.PositionSeconds))
-            ScheduleViewportLoad();
+        var targetViewportStart = GetFollowViewportStart(Math.Clamp(positionSeconds, 0, DurationSeconds));
+        // Keep the chart viewport on the last complete frame while dragging.
+        // Moving the axis before the replacement frame is ready exposes the
+        // old frame only over its overlap and leaves the rest blank.
+        SetPreviewPositionCore(positionSeconds, updateViewport: false);
+        pendingPreviewViewportStart = targetViewportStart;
+        if (session.PreviewNavigationTarget(targetViewportStart, playback.PositionSeconds))
+        {
+            pendingPreviewViewportStart = null;
+            UpdateViewportStart(targetViewportStart);
+            return;
+        }
+
+        ScheduleViewportLoad(targetViewportStart);
     }
 
     public void TogglePlayback()
@@ -81,13 +93,23 @@ public sealed partial class RecordingReviewViewModel
         PrefetchWhenApproachingCacheEdge();
     }
 
-    private void ScheduleViewportLoad()
+    private void ScheduleViewportLoad(double? requestedViewportStart = null)
     {
+        var targetViewportStart = requestedViewportStart ?? pendingPreviewViewportStart ?? ViewportStartSeconds;
         viewportLoader.Schedule(async cancellationToken =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!session.TryActivateCachedViewport(ViewportStartSeconds, playback.PositionSeconds))
-                await session.LoadViewportAsync(ViewportStartSeconds, playback.PositionSeconds);
+            if (!session.TryActivateCachedViewport(targetViewportStart, playback.PositionSeconds))
+                await session.LoadViewportAsync(targetViewportStart, playback.PositionSeconds);
+
+            if (!cancellationToken.IsCancellationRequested &&
+                pendingPreviewViewportStart is { } pending &&
+                Math.Abs(pending - targetViewportStart) < 0.000_001 &&
+                session.ContainsViewport(targetViewportStart))
+            {
+                pendingPreviewViewportStart = null;
+                UpdateViewportStart(targetViewportStart);
+            }
         });
     }
 
@@ -108,10 +130,13 @@ public sealed partial class RecordingReviewViewModel
         prefetchTask = session.PrefetchNextAsync();
     }
 
-    private void SetPreviewPosition(double positionSeconds)
+    private void SetPreviewPosition(double positionSeconds) => SetPreviewPositionCore(positionSeconds, true);
+
+    private void SetPreviewPositionCore(double positionSeconds, bool updateViewport)
     {
         playback.Seek(positionSeconds);
-        UpdateViewportStart(GetFollowViewportStart(playback.PositionSeconds));
+        if (updateViewport)
+            UpdateViewportStart(GetFollowViewportStart(playback.PositionSeconds));
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         RaisePlaybackPropertiesChanged();

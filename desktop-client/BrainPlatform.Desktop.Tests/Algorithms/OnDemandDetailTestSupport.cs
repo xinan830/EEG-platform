@@ -172,7 +172,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
             "clean", null, result, "subscription");
     }
 
-    private static WindowPreviewResponse FullPsdWindowPreview(long sample) =>
+    internal static WindowPreviewResponse FullPsdWindowPreview(long sample) =>
         new(
             "full-run-1", "recording", sample, sample / 200d, "available", [],
             new WindowPreviewWindow("full-window-1", 0, 0, 1000, "Complete", "valid", []),
@@ -194,9 +194,9 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
             {
                 ["psd"] = JsonSerializer.SerializeToElement(new { unit = "V^2/Hz" }),
             },
-            "offline-spectral-v3", "fixture-v1");
+            "fixture-v1", "fixture-v1");
 
-    private static StructuredPreviewResponse FullPsdStructuredPreview() =>
+    internal static StructuredPreviewResponse FullPsdStructuredPreview() =>
         new(
             "full-run-1",
             new RunArtifact("artifact", "full-run-1", "official_algorithm", "artifact.npz",
@@ -230,7 +230,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
                 })
             ],
             new Dictionary<string, int> { ["Complete"] = 1 },
-            JsonSerializer.SerializeToElement("clean"), "offline-spectral-v3", "fixture-v1");
+            JsonSerializer.SerializeToElement("clean"), "fixture-v1", "fixture-v1");
 
     internal static StructuredPreviewResponse FullStftStructuredPreview() =>
         new(
@@ -305,7 +305,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
                 }),
             ],
             new Dictionary<string, int> { ["Complete"] = 3 },
-            JsonSerializer.SerializeToElement("clean"), "spectrogram-v2", "fixture-v1");
+            JsonSerializer.SerializeToElement("clean"), "fixture-v1", "fixture-v1");
 
     private static AnalysisRunResponse CompletedFullRun(AnalysisRunRequest request) => new(
         "full-run-1", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,

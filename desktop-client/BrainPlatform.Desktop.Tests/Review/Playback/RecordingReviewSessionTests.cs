@@ -209,7 +209,7 @@ public sealed class RecordingReviewSessionTests
         var sink = new CapturePerformanceSink();
 
         await using var session = new RecordingReviewSession(
-            reader, catalog, 10, new FakeFilter(), performanceSink: sink);
+            reader, catalog, 10, new DelayedFilter(), performanceSink: sink);
         await session.InitializeAsync();
 
         Assert.Contains(sink.Samples, sample =>
@@ -218,6 +218,10 @@ public sealed class RecordingReviewSessionTests
         Assert.Contains(sink.Samples, sample =>
             sample.Stage == ReviewPerformanceStage.FilteredSource &&
             sample.Source == ReviewPerformanceSource.FilterService);
+        Assert.All(sink.Samples.Where(sample =>
+                sample.Stage == ReviewPerformanceStage.FilteredSource &&
+                sample.Source == ReviewPerformanceSource.FilterService),
+            sample => Assert.True(sample.ElapsedMilliseconds >= 10));
         Assert.Contains(sink.Samples, sample => sample.Stage == ReviewPerformanceStage.FrameBuild);
         Assert.Contains(sink.Samples, sample =>
             sample.Stage == ReviewPerformanceStage.NavigationTarget &&
@@ -422,6 +426,27 @@ public sealed class RecordingReviewSessionTests
             var copied = source.Segments.Select(segment =>
                 segment with { SampleMajorValues = segment.SampleMajorValues.ToArray() }).ToArray();
             return Task.FromResult(source with { Segments = copied });
+        }
+    }
+
+    private sealed class DelayedFilter : IRecordingReviewFilter
+    {
+        public Task<RecordingReviewWindow> ApplyAsync(
+            RecordingReviewWindow source,
+            LocalRawRecordingManifest manifest,
+            RecordingReviewFilterSettings settings,
+            CancellationToken cancellationToken) =>
+            ApplyWithWarmupAsync(null, source, manifest, settings, cancellationToken);
+
+        public async Task<RecordingReviewWindow> ApplyWithWarmupAsync(
+            RecordingReviewWindow? warmup,
+            RecordingReviewWindow source,
+            LocalRawRecordingManifest manifest,
+            RecordingReviewFilterSettings settings,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(25, cancellationToken);
+            return source;
         }
     }
 

@@ -72,6 +72,36 @@ public sealed class ReviewFilteredSourceChunkCacheTests
         }
     }
 
+    [Fact]
+    public async Task CacheEvictsOldestCompletedChunksWhenBudgetIsExceeded()
+    {
+        var probeRoot = Path.Combine(Path.GetTempPath(), "brain-platform-review-cache-tests", Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "brain-platform-review-cache-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var probe = new ReviewFilteredSourceChunkCache(probeRoot);
+            await probe.StoreAsync(Key(new ReviewFilterContract("display-iir-sos-v2", "contract-a")), Window(), CancellationToken.None);
+            var entryLength = new FileInfo(Directory.EnumerateFiles(probeRoot, "*.bprvc", SearchOption.AllDirectories).Single()).Length;
+            var cache = new ReviewFilteredSourceChunkCache(root, entryLength * 2 + 1);
+            var first = Key(new ReviewFilterContract("display-iir-sos-v2", "contract-a"));
+            var second = Key(new ReviewFilterContract("display-iir-sos-v2", "contract-b"));
+            var third = Key(new ReviewFilterContract("display-iir-sos-v2", "contract-c"));
+
+            await cache.StoreAsync(first, Window(), CancellationToken.None);
+            await cache.StoreAsync(second, Window(), CancellationToken.None);
+            await cache.StoreAsync(third, Window(), CancellationToken.None);
+
+            Assert.Null(await cache.TryReadAsync(first, CancellationToken.None));
+            Assert.NotNull(await cache.TryReadAsync(second, CancellationToken.None));
+            Assert.NotNull(await cache.TryReadAsync(third, CancellationToken.None));
+        }
+        finally
+        {
+            if (Directory.Exists(probeRoot)) Directory.Delete(probeRoot, recursive: true);
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static ReviewFilteredSourceChunkKey Key(ReviewFilterContract contract) => new(
         Guid.Parse("712a5e5a-9d4e-4d36-b1ef-9a5254a4d9bb"),
         "raw-manifest", 1000, "schema",
