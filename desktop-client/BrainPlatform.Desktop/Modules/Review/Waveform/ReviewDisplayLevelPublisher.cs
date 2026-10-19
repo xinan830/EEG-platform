@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using BrainPlatform.Desktop.Modules.Review.Cache;
@@ -106,9 +107,46 @@ internal sealed class ReviewDisplayLevelPublisher
                 channelEntries, cancellationToken);
         }
     }
+
+    /// <summary>
+    /// Publishes projected chunks only when every source chunk declares the
+    /// exact display identity selected by the level. This keeps raw and
+    /// filtered products from silently sharing a level index.
+    /// </summary>
+    public Task PublishAllChannelsFromSourceAsync(
+        ReviewDisplayLevel level,
+        IAsyncEnumerable<ReviewDisplayLevelSourceChunk> sources,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(level);
+        ArgumentNullException.ThrowIfNull(sources);
+        return PublishAllChannelsAsync(level, AdaptSources(level, sources, cancellationToken), cancellationToken);
+    }
+
+    private static async IAsyncEnumerable<ReviewDisplayLevelPublicationChunk> AdaptSources(
+        ReviewDisplayLevel level,
+        IAsyncEnumerable<ReviewDisplayLevelSourceChunk> sources,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var source in sources.WithCancellation(cancellationToken))
+        {
+            if (!string.Equals(source.SourceIdentity, level.SourceFingerprint, StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "显示层源身份与滤波/原始数据身份不一致，拒绝发布显示块。");
+            yield return new ReviewDisplayLevelPublicationChunk(
+                source.ChunkIndex, source.FirstSampleCounter, source.SampleCount, source.Segments);
+        }
+    }
 }
 
 internal sealed record ReviewDisplayLevelPublicationChunk(
+    int ChunkIndex,
+    long FirstSampleCounter,
+    int SampleCount,
+    IReadOnlyList<ProjectedMontageSegment> Segments);
+
+internal sealed record ReviewDisplayLevelSourceChunk(
+    string SourceIdentity,
     int ChunkIndex,
     long FirstSampleCounter,
     int SampleCount,

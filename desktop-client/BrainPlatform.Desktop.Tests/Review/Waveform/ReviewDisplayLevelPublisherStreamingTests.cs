@@ -49,4 +49,34 @@ public sealed class ReviewDisplayLevelPublisherStreamingTests
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task Rejects_source_chunks_with_a_different_display_identity()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "brain-review-display-streaming", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var level = new ReviewDisplayLevel("filtered-source", 4, 1, 800, 1, 1);
+            var index = new ReviewDisplayLevelIndex(root);
+            var publisher = new ReviewDisplayLevelPublisher(
+                new ReviewDisplayLevelChunkCache(root), index);
+
+            async IAsyncEnumerable<ReviewDisplayLevelSourceChunk> Sources()
+            {
+                yield return new ReviewDisplayLevelSourceChunk("raw-source", 0, 0, 1,
+                    [new ProjectedMontageSegment(0, 1,
+                        [new ProjectedMontageChannel("F3", [1])])]);
+                await Task.Yield();
+            }
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                publisher.PublishAllChannelsFromSourceAsync(level, Sources(), CancellationToken.None));
+            Assert.Null(await index.TryReadAsync(
+                new ReviewDisplayLevelIndexKey(level.Identity), CancellationToken.None));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
 }
