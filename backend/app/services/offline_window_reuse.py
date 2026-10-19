@@ -197,9 +197,13 @@ class OfflineWindowReuse:
                 "window_output_kind" not in module.manifest.output_schema):
             return 0
         identity = self._session_identity(run, resolved, module, source_sha256)
-        session = self.repository.find_session(identity)
-        if session is None:
-            return 0
+        # A full run may be the first producer for this scientific identity.
+        # Create the shared session here so its published windows are visible
+        # to later on-demand requests instead of requiring a prior preview.
+        session = self.repository.ensure_session(
+            identity,
+            configuration={**config, "_scientific_context": resolved["scientific_context"]},
+        )
         structured = result.get("structured") if isinstance(result, dict) else None
         if not isinstance(structured, dict) or not isinstance(structured.get("windows"), list):
             return 0

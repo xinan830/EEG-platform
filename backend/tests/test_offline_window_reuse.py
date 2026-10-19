@@ -148,6 +148,29 @@ def test_full_dynamic_run_publishes_complete_window_index_and_coverage(tmp_path)
         client.close()
 
 
+def test_full_first_publishes_windows_for_later_on_demand_reuse(tmp_path):
+    client, recording, windows, runs, _ = configure_api(tmp_path)
+    config = psd_config(recording)
+    try:
+        created = client.post("/api/runs", json={
+            "recording_id": recording.id, "analysis_type": "official_algorithm", "config": config,
+        })
+        assert created.status_code == 202, created.text
+        run = runs.process_next()
+        assert run is not None and run.status.value == "completed", run.error
+
+        ensured = client.post("/api/analysis-windows/ensure", json={
+            "recording_id": recording.id, "algorithm_id": "psd", "config": config,
+            "cursor_sample": 1000,
+        })
+        assert ensured.status_code == 200, ensured.text
+        assert ensured.json()["state"] == "ready"
+        assert ensured.json()["result"]["provenance"]["served_from"] == "full_computation"
+    finally:
+        windows.close()
+        client.close()
+
+
 def test_full_dynamic_run_cannot_complete_with_missing_window(tmp_path, monkeypatch):
     client, recording, windows, runs, _ = configure_api(tmp_path)
     config = psd_config(recording)
