@@ -74,7 +74,9 @@ def execute_window_job(
     compute_coordinator: Any | None = None,
 ) -> None:
     """Compute outside SQLite; all window mutations are transactionally fenced."""
-    logger = logging.getLogger(__name__)
+    # The application file handler is scoped to the ``brain_platform``
+    # namespace; keep worker lifecycle timings in that same stream.
+    logger = logging.getLogger("brain_platform.dynamic_window")
     started = time.perf_counter()
     worker_id = f"dynamic-worker-{os.getpid()}"
     expiry = lambda: (datetime.now(timezone.utc) + timedelta(seconds=lease_seconds)).isoformat()

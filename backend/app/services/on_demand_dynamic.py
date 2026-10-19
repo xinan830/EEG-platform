@@ -68,7 +68,8 @@ class DynamicWindowService:
         self._identity_resolver = DynamicWindowIdentityResolver(database_path)
         self.artifacts_dir = Path(artifacts_dir) / "dynamic-windows"
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
-        self._logger = logging.getLogger(__name__)
+        # Keep admission and cache-hit timings in the application log stream.
+        self._logger = logging.getLogger("brain_platform.dynamic_window")
         self._artifact_store = DynamicWindowArtifactStore(self.artifacts_dir, self.repository)
         self._artifact_store.cleanup()
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="dynamic-window")
