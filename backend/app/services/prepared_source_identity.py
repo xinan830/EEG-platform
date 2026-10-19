@@ -4,13 +4,16 @@ from app.core.provenance import implementation_version, sha256_json
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 
-def prepared_source_identity(recordings, recording, *, low_hz, high_hz, notch_hz, notch_q):
+def prepared_source_identity(recordings, recording, *, low_hz, high_hz, notch_hz, notch_q,
+                             channel_names=None):
+    selected_channels = tuple(channel_names) if channel_names is not None else None
     return sha256_json({
         "schema_version": "continuous-prepared-source-v1",
         "source_sha256": recording.source_sha256,
         "sampling_rate_hz": recording.sfreq,
         "duration_s": recording.duration_s,
         "channel_order": recording.channels,
+        "selected_channels": list(selected_channels) if selected_channels is not None else None,
         "raw_labels": recording.raw_channel_labels,
         "canonical_labels": recording.canonical_channel_labels,
         "channel_types": recording.channel_types,

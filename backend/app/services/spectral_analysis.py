@@ -107,13 +107,23 @@ class SpectralAnalysisService:
         self.preprocess_cache = preprocess_cache
         self.spectral_gateway = spectral_gateway or _ServiceSpectralGateway()
 
-    def _preprocessed_recording(self, recording, low_hz, high_hz, notch_hz, execution_context):
+    def _preprocessed_recording(self, recording, low_hz, high_hz, notch_hz,
+                                execution_context, channels=None):
         from app.services.recordings import RecordingService
         from app.services.mapped_preprocessing import mapped_preprocess
         from app.services.prepared_source_identity import prepared_source_identity
 
+        selected_channels = None
+        policy = getattr(execution_context, "preparation_resource_policy", None)
+        if policy is not None and channels:
+            sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
+            all_channel_bytes = sample_count * len(recording.channels) * np.dtype("float64").itemsize * 2
+            if all_channel_bytes > policy.max_preparation_bytes:
+                available = {name.casefold(): name for name in recording.channels}
+                selected_channels = tuple(available[item.casefold()] for item in channels)
         identity = prepared_source_identity(self.recordings, recording, low_hz=low_hz,
-            high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q)
+            high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
+            channel_names=selected_channels)
         expected_contract = None
         # Legacy/custom loaders may omit recording-level sample metadata. In
         # that case the source cannot be contract-validated before loading;
@@ -121,13 +131,15 @@ class SpectralAnalysisService:
         # the immutable recording summary is complete.
         if recording.sfreq is not None and recording.duration_s is not None and recording.channels:
             sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
+            contract_channels = selected_channels or tuple(recording.channels)
+            unit_lookup = dict(zip(recording.channels, recording.channel_units or ("V",) * len(recording.channels)))
             expected_contract = PreparedSourceContract(
                 schema_version="prepared-source-v1", identity=identity, status="ready",
                 sample_rate_hz=float(recording.sfreq),
                 prepared_start_sample=0, prepared_end_sample=sample_count,
                 valid_start_sample=0, valid_end_sample=sample_count,
-                channel_names=tuple(recording.channels),
-                channel_units=tuple(recording.channel_units or ("V",) * len(recording.channels)),
+                channel_names=contract_channels,
+                channel_units=tuple(unit_lookup[name] for name in contract_channels),
                 preprocessing_manifest=identity, numerical_tolerance=1e-12,
                 numerical_tolerance_evidence=(
                     "validated PSD full/on-demand comparison; "
@@ -154,6 +166,7 @@ class SpectralAnalysisService:
             if getattr(self.recordings.load_data, "__func__", None) is RecordingService.load_data:
                 cached = mapped_preprocess(self.recordings, recording, low_hz=low_hz,
                     high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
+                    channels=list(selected_channels) if selected_channels is not None else None,
                     execution_context=execution_context)
             else:
                 data, sfreq, names, _events = self.recordings.load_data(recording)
@@ -202,7 +215,8 @@ class SpectralAnalysisService:
         elif notch_hz is not None and float(notch_hz) not in (50.0, 60.0):
             raise ValueError("陷波仅支持关闭、50Hz 或 60Hz")
         cached = _preprocessed or self._preprocessed_recording(
-            recording, filter_low_hz, filter_high_hz, notch_hz, execution_context)
+            recording, filter_low_hz, filter_high_hz, notch_hz, execution_context,
+            channels=channels)
         filtered_all, sfreq, names = cached.data, cached.sfreq, list(cached.channel_names)
         available = {name.casefold(): name for name in names}
         requested = names if channels is None else [available.get(item.casefold()) for item in channels]

@@ -40,7 +40,10 @@ public sealed class DynamicWindowObserver(IAlgorithmClient client)
             onStatus?.Invoke(response);
             while (IsPending(response.State))
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken);
+                // Source preparation can take seconds for long recordings. Do
+                // not poll it at the computation cadence; keep the faster
+                // cadence only once the target window is actually computing.
+                await Task.Delay(PollDelay(response.State), cancellationToken);
                 response = await client.GetDynamicWindowAsync(response.WindowId, request.ProjectId, cancellationToken);
                 onStatus?.Invoke(response);
             }
@@ -61,4 +64,12 @@ public sealed class DynamicWindowObserver(IAlgorithmClient client)
     }
 
     private static bool IsPending(string state) => state is "queued" or "preparing_source" or "computing_window";
+
+    private static TimeSpan PollDelay(string state) => state switch
+    {
+        "queued" => TimeSpan.FromMilliseconds(500),
+        "preparing_source" => TimeSpan.FromSeconds(1),
+        "computing_window" => TimeSpan.FromMilliseconds(200),
+        _ => TimeSpan.FromMilliseconds(500),
+    };
 }
