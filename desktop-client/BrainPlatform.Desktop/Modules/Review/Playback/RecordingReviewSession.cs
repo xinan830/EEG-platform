@@ -34,6 +34,9 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private readonly RecordingReviewWindowCache cache = new();
     private readonly ReviewSourceLoader sourceLoader;
     private readonly ReviewDisplayLevelProvider displayLevelProvider = new();
+    private readonly ReviewDisplayLevelPublisher displayLevelPublisher = new(
+        new ReviewDisplayLevelChunkCache(), new ReviewDisplayLevelIndex());
+    private readonly SemaphoreSlim displayLevelBuildGate = new(1, 1);
     private readonly IReviewPerformanceSink performanceSink;
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? currentLoad;
@@ -77,14 +80,52 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     /// intentionally represented by null so the existing bounded frame path
     /// remains the authoritative fallback.
     /// </summary>
-    internal Task<ReviewDisplayFrame?> TryBuildDisplayFrameAsync(
+    internal async Task<ReviewDisplayFrame?> TryBuildDisplayFrameAsync(
         RecordingReviewFrame referenceFrame,
         double viewportStartSeconds,
         double visibleDurationSeconds,
         int plotWidthPixels,
-        CancellationToken cancellationToken) =>
-        displayLevelProvider.TryReadAsync(referenceFrame, viewportStartSeconds,
+        CancellationToken cancellationToken)
+    {
+        var display = await displayLevelProvider.TryReadAsync(referenceFrame, viewportStartSeconds,
             visibleDurationSeconds, plotWidthPixels, cancellationToken);
+        if (display is not null || string.IsNullOrWhiteSpace(referenceFrame.DisplaySourceIdentity))
+            return display;
+
+        await displayLevelBuildGate.WaitAsync(cancellationToken);
+        try
+        {
+            display = await displayLevelProvider.TryReadAsync(referenceFrame, viewportStartSeconds,
+                visibleDurationSeconds, plotWidthPixels, cancellationToken);
+            if (display is not null) return display;
+
+            var level = ReviewDisplayLevelSelector.Select(
+                visibleDurationSeconds, referenceFrame.SamplingRateHz, plotWidthPixels,
+                referenceFrame.OutputChannelNames.Count, referenceFrame.DisplaySourceIdentity);
+            var sampleCount = checked((int)Math.Ceiling(
+                (referenceFrame.WindowEndSeconds - referenceFrame.WindowStartSeconds) * referenceFrame.SamplingRateHz));
+            if (sampleCount <= 0) return null;
+
+            async IAsyncEnumerable<ReviewDisplayLevelSourceChunk> Source()
+            {
+                yield return new ReviewDisplayLevelSourceChunk(
+                    referenceFrame.DisplaySourceIdentity,
+                    checked((int)Math.Max(0, referenceFrame.WindowStartSampleCounter / Math.Max(1, sampleCount))),
+                    referenceFrame.WindowStartSampleCounter,
+                    sampleCount,
+                    referenceFrame.Segments);
+                await Task.Yield();
+            }
+
+            await displayLevelPublisher.PublishAllChannelsFromSourceAsync(level, Source(), cancellationToken);
+            return await displayLevelProvider.TryReadAsync(referenceFrame, viewportStartSeconds,
+                visibleDurationSeconds, plotWidthPixels, cancellationToken);
+        }
+        finally
+        {
+            displayLevelBuildGate.Release();
+        }
+    }
 
     public Task InitializeAsync() => LoadViewportAsync(0, 0);
 
@@ -288,6 +329,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         lifetime.Cancel();
         lifetime.Dispose();
         await sourceLoader.DisposeAsync();
+        displayLevelBuildGate.Dispose();
     }
 
     private async Task LoadCacheBlockAsync(double cacheStartSeconds)
