@@ -62,6 +62,37 @@ public sealed class ReviewDisplayLevelChunkCacheTests
     }
 
     [Fact]
+    public async Task Display_chunks_are_evicted_when_the_persistent_budget_is_exceeded()
+    {
+        var probeRoot = NewRoot();
+        var root = NewRoot();
+        try
+        {
+            var level = ReviewDisplayLevelSelector.Select(60, 250, 800, 1, "raw-budget");
+            var probeKey = new ReviewDisplayLevelChunkKey(level.Identity, 0);
+            var chunk = new ReviewDisplayLevelChunk(level.Identity, 0,
+                [new(0, 1, false, 0, 0, 0, 1)]);
+            var probe = new ReviewDisplayLevelChunkCache(probeRoot);
+            await probe.StoreAsync(probeKey, chunk, CancellationToken.None);
+            var entryLength = new FileInfo(Directory.EnumerateFiles(probeRoot, "*.bprvd", SearchOption.AllDirectories).Single()).Length;
+
+            var cache = new ReviewDisplayLevelChunkCache(root, entryLength * 2 + 1);
+            await cache.StoreAsync(new(level.Identity, 0), chunk, CancellationToken.None);
+            await cache.StoreAsync(new(level.Identity, 1), chunk with { ChunkIndex = 1 }, CancellationToken.None);
+            await cache.StoreAsync(new(level.Identity, 2), chunk with { ChunkIndex = 2 }, CancellationToken.None);
+
+            Assert.Null(await cache.TryReadAsync(new(level.Identity, 0), CancellationToken.None));
+            Assert.NotNull(await cache.TryReadAsync(new(level.Identity, 1), CancellationToken.None));
+            Assert.NotNull(await cache.TryReadAsync(new(level.Identity, 2), CancellationToken.None));
+        }
+        finally
+        {
+            Delete(probeRoot);
+            Delete(root);
+        }
+    }
+
+    [Fact]
     public async Task Display_level_index_round_trips_only_sorted_completed_entries()
     {
         var root = NewRoot();
