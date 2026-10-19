@@ -1,5 +1,6 @@
 """HTTP resources for opt-in, single dynamic-analysis windows."""
 
+import logging
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 from uuid import uuid4
@@ -10,6 +11,7 @@ from app.core.api_contract import error_response
 
 
 router = APIRouter(prefix="/api/analysis-windows", tags=["analysis-windows"])
+logger = logging.getLogger("brain_platform.dynamic_window")
 
 
 def _service(request: Request):
@@ -30,6 +32,18 @@ def ensure_window(payload: DynamicWindowRequest, request: Request):
     except ValueError as exc:
         message = str(exc)
         return error_response(request, 422, "WINDOW_REQUEST_INVALID", message)
+    result = value.get("result") if isinstance(value.get("result"), dict) else None
+    provenance = result.get("provenance") if isinstance(result, dict) else None
+    served_from = provenance.get("served_from") if isinstance(provenance, dict) else None
+    logger.info(
+        "dynamic_window_ensure_result window_id=%s state=%s served_from=%s cache_hit=%s "
+        "scientific_cache_key=%s start_sample=%s end_sample=%s",
+        value.get("window_id"), value.get("state"), served_from,
+        bool(value.get("state") in {"ready", "rejected", "unavailable", "insufficient_data"}),
+        value.get("scientific_cache_key"),
+        (value.get("range") or {}).get("start_sample"),
+        (value.get("range") or {}).get("end_sample"),
+    )
     request.app.state.audit_service.record("dynamic_window.ensure", payload.request_id,
         recording_id=payload.recording_id, session_id=value["session_id"], parameters={
             "window_id": value["window_id"], "subscription_id": value["subscription_id"],
