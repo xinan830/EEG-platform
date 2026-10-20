@@ -40,3 +40,8 @@ ANT-Amplify/
 !/_verify/acquisition-mapping-probe/
 /_verify/**/bin/
 /_verify/**/obj/
+/storage/logs/
+/ANT-Amplify.zip
+/.artifacts/
+/code_over_600.csv
+/desktop-client.Tests/Review/Waveform/ReviewDisplayLevelReaderTests.cs

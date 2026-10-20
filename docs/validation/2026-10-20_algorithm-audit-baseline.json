@@ -1,0 +1,447 @@
+{
+  "generated_from": "backend/app/algorithms/builtin_modules.py",
+  "algorithms": [
+    {
+      "id": "band_ratio",
+      "display_name_zh": "频段功率比",
+      "scientific_version": "official-band-ratio-v1",
+      "implementation_identity": "band-ratio-runtime-v2-frequency-contract",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ],
+      "availability": "available",
+      "is_runnable": true,
+      "execution_kind": "generic_research_primitives",
+      "required_channel_roles": [],
+      "output_schema": {
+        "window_output_kind": "scalar_series",
+        "window_axes": [
+          {
+            "name": "time_s",
+            "unit": "s"
+          }
+        ],
+        "window_shapes": {
+          "time_s": [
+            1
+          ],
+          "ratio": [
+            1
+          ]
+        },
+        "fields": [
+          {
+            "name": "ratio",
+            "unit": "ratio",
+            "meaning": "分子频段功率除以分母频段功率"
+          }
+        ]
+      },
+      "module": "BandRatioAlgorithm"
+    },
+    {
+      "id": "brainbeat",
+      "display_name_zh": "脑节律指标",
+      "scientific_version": "official-brainbeat-v1",
+      "implementation_identity": "brainbeat-runtime-v1",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ],
+      "availability": "available",
+      "is_runnable": true,
+      "execution_kind": "official_composite_run_adapter",
+      "required_channel_roles": [
+        "Fz",
+        "Pz",
+        "IAPF"
+      ],
+      "output_schema": {
+        "window_output_kind": "scalar_series",
+        "window_axes": [
+          {
+            "name": "time_s",
+            "unit": "s"
+          }
+        ],
+        "window_shapes": {
+          "time_s": [
+            1
+          ],
+          "brainbeat": [
+            1
+          ]
+        },
+        "fields": [
+          {
+            "name": "brainbeat",
+            "unit": "ratio",
+            "meaning": "Fz 相对 Theta 除以 Pz 相对 Alpha"
+          }
+        ]
+      },
+      "module": "BrainbeatAlgorithm"
+    },
+    {
+      "id": "faa",
+      "display_name_zh": "额叶 Alpha 不对称性",
+      "scientific_version": "official-faa-v2",
+      "implementation_identity": "faa-runtime-v2",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ],
+      "availability": "available",
+      "is_runnable": true,
+      "execution_kind": "official_composite_run_adapter",
+      "required_channel_roles": [],
+      "output_schema": {
+        "window_output_kind": "scalar_series",
+        "window_axes": [
+          {
+            "name": "time_s",
+            "unit": "s"
+          }
+        ],
+        "window_shapes": {
+          "time_s": [
+            1
+          ],
+          "faa": [
+            1
+          ]
+        },
+        "fields": [
+          {
+            "name": "faa",
+            "unit": "dimensionless",
+            "meaning": "F4 Alpha 功率对数减 F3 Alpha 功率对数"
+          }
+        ]
+      },
+      "module": "FaaAlgorithm"
+    },
+    {
+      "id": "iapf",
+      "display_name_zh": "个体 Alpha 峰频率",
+      "scientific_version": "official-iapf-v2",
+      "implementation_identity": "iapf-runtime-v3",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ],
+      "availability": "available",
+      "is_runnable": true,
+      "execution_kind": "official_composite_run_adapter",
+      "required_channel_roles": [],
+      "output_schema": {
+        "window_output_kind": "scalar_series",
+        "window_axes": [
+          {
+            "name": "time_s",
+            "unit": "s"
+          }
+        ],
+        "window_shapes": {
+          "time_s": [
+            1
+          ],
+          "iapf_hz": [
+            1
+          ]
+        },
+        "fields": [
+          {
+            "name": "iapf_hz",
+            "unit": "Hz",
+            "meaning": "个体 Alpha 峰频率"
+          }
+        ]
+      },
+      "module": "IapfAlgorithm"
+    },
+    {
+      "id": "peak_frequency",
+      "display_name_zh": "频段峰频率",
+      "scientific_version": "official-peak-frequency-v1",
+      "implementation_identity": "peak-frequency-runtime-v2-frequency-contract",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ],
+      "availability": "available",
+      "is_runnable": true,
+      "execution_kind": "generic_research_primitives",
+      "required_channel_roles": [],
+      "output_schema": {
+        "window_output_kind": "scalar_series",
+        "window_axes": [
+          {
+            "name": "time_s",
+            "unit": "s"
+          }
+        ],
+        "window_shapes": {
+          "time_s": [
+            1
+          ],
+          "peak_frequency_hz": [
+            1
+          ]
+        },
+        "fields": [
+          {
+            "name": "peak_frequency_hz",
+            "unit": "Hz",
+            "meaning": "最大 PSD 对应的频率"
+          }
+        ]
+      },
+      "module": "PeakFrequencyAlgorithm"
+    },
+    {
+      "id": "psd",
+      "display_name_zh": "功率谱密度",
+      "scientific_version": "offline-spectral-v3",
+      "implementation_identity": "psd-runtime-v3-explicit-filters",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ],
+      "availability": "available",
+      "is_runnable": true,
+      "execution_kind": "generic_research_primitives",
+      "required_channel_roles": [],
+      "output_schema": {
+        "mode_shapes": {
+          "static": "frequency",
+          "dynamic": "window x frequency"
+        },
+        "window_output_kind": "frequency_series",
+        "window_shapes": {
+          "frequency_hz": [
+            "frequency"
+          ],
+          "psd": [
+            "frequency"
+          ],
+          "band_share": [
+            5
+          ]
+        },
+        "fields": [
+          {
+            "name": "frequency_hz",
+            "unit": "Hz",
+            "shape": "frequency",
+            "meaning": "PSD 频率轴"
+          },
+          {
+            "name": "psd",
+            "unit": "V^2/Hz",
+            "shape": "frequency",
+            "meaning": "所选通道的功率谱密度"
+          },
+          {
+            "name": "band_share",
+            "unit": "ratio",
+            "shape": "5 (static) or window x 5 (dynamic)",
+            "meaning": "Delta、Theta、Alpha、Beta、Gamma 的频段功率占比"
+          }
+        ]
+      },
+      "module": "PsdAlgorithm"
+    },
+    {
+      "id": "rbp",
+      "display_name_zh": "相对频段功率",
+      "scientific_version": "official-rbp-v2",
+      "implementation_identity": "rbp-runtime-v2-five-band",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ],
+      "availability": "available",
+      "is_runnable": true,
+      "execution_kind": "generic_research_primitives",
+      "required_channel_roles": [],
+      "output_schema": {
+        "window_output_kind": "multi_metric_series",
+        "window_axes": [
+          {
+            "name": "time_s",
+            "unit": "s"
+          }
+        ],
+        "window_shapes": {
+          "time_s": [
+            1
+          ],
+          "delta": [
+            1
+          ],
+          "theta": [
+            1
+          ],
+          "alpha": [
+            1
+          ],
+          "beta": [
+            1
+          ],
+          "gamma": [
+            1
+          ]
+        },
+        "fields": [
+          {
+            "name": "delta",
+            "unit": "ratio",
+            "meaning": "Delta 相对功率"
+          },
+          {
+            "name": "theta",
+            "unit": "ratio",
+            "meaning": "Theta 相对功率"
+          },
+          {
+            "name": "alpha",
+            "unit": "ratio",
+            "meaning": "Alpha 相对功率"
+          },
+          {
+            "name": "beta",
+            "unit": "ratio",
+            "meaning": "Beta 相对功率"
+          },
+          {
+            "name": "gamma",
+            "unit": "ratio",
+            "meaning": "Gamma 相对功率"
+          }
+        ]
+      },
+      "module": "RbpAlgorithm"
+    },
+    {
+      "id": "stft",
+      "display_name_zh": "时频分析",
+      "scientific_version": "spectrogram-v2",
+      "implementation_identity": "stft-runtime-v4-relative-window-times",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ],
+      "availability": "available",
+      "is_runnable": true,
+      "execution_kind": "generic_research_primitives",
+      "required_channel_roles": [],
+      "output_schema": {
+        "mode_shapes": {
+          "static": "time x frequency",
+          "dynamic": "window x inner_time x frequency"
+        },
+        "window_output_kind": "time_frequency",
+        "window_axes": [
+          {
+            "name": "time_center_s",
+            "unit": "s",
+            "shape": [
+              "inner_time"
+            ]
+          },
+          {
+            "name": "frequency_hz",
+            "unit": "Hz",
+            "shape": [
+              "frequency"
+            ]
+          }
+        ],
+        "window_shapes": {
+          "time_center_s": [
+            "inner_time"
+          ],
+          "frequency_hz": [
+            "frequency"
+          ],
+          "power_linear": [
+            "inner_time",
+            "frequency"
+          ],
+          "power_db": [
+            "inner_time",
+            "frequency"
+          ]
+        },
+        "fields": [
+          {
+            "name": "time_center_s",
+            "unit": "s",
+            "shape": "time",
+            "meaning": "时频窗中心时间"
+          },
+          {
+            "name": "frequency_hz",
+            "unit": "Hz",
+            "shape": "frequency",
+            "meaning": "时频频率轴"
+          },
+          {
+            "name": "power_linear",
+            "unit": "V^2/Hz",
+            "shape": "time x frequency",
+            "meaning": "线性功率密度"
+          },
+          {
+            "name": "power_db",
+            "unit": "dB re 1 uV^2/Hz",
+            "shape": "time x frequency",
+            "meaning": "显示功率密度"
+          }
+        ]
+      },
+      "module": "StftAlgorithm"
+    },
+    {
+      "id": "theta_beta",
+      "display_name_zh": "Theta/Beta 比值",
+      "scientific_version": "official-theta-beta-v2",
+      "implementation_identity": "theta-beta-runtime-v1",
+      "supported_modes": [
+        "static",
+        "dynamic"
+      ],
+      "availability": "available",
+      "is_runnable": true,
+      "execution_kind": "official_composite_run_adapter",
+      "required_channel_roles": [],
+      "output_schema": {
+        "window_output_kind": "scalar_series",
+        "window_axes": [
+          {
+            "name": "time_s",
+            "unit": "s"
+          }
+        ],
+        "window_shapes": {
+          "time_s": [
+            1
+          ],
+          "theta_beta": [
+            1
+          ]
+        },
+        "fields": [
+          {
+            "name": "theta_beta",
+            "unit": "dimensionless",
+            "meaning": "个体化 Theta 功率除以个体化 Beta 功率"
+          }
+        ]
+      },
+      "module": "ThetaBetaAlgorithm"
+    }
+  ]
+}

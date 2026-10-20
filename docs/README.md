@@ -16,6 +16,7 @@ When these sources conflict, current OpenSpec specifications take precedence. Hi
 - `algorithms/`: processing, unit, timing, validation, and implementation context.
 - `roadmaps/`: the current delivery roadmap.
 - `validation/`: completed engineering validation reports.
+- The 2026-10-20 official algorithm audit is in progress: synthetic numeric reference, robustness, real-data blocker, and provisional rating/backlog reports are linked from `validation/algorithm-audit-plan-2026-10-20.md`. Do not treat the provisional ratings as clinical or current-version real-record validation.
 - `工程开发契约.md`: project-wide engineering requirements.
 
 ## Historical Material
