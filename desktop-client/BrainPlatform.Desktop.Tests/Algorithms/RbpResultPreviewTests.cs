@@ -17,11 +17,11 @@ public sealed class RbpResultPreviewTests
     public void Static_UsesBackendSharesInDeclaredBandOrder()
     {
         var preview = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"clean"},"band_values":{"beta":0.4,"alpha":0.3,"theta":0.2,"delta":0.1}}}
+            {"metric":{"quality":{"status":"clean"},"band_values":{"gamma":0.1,"beta":0.2,"alpha":0.3,"theta":0.2,"delta":0.2}}}
             """));
 
-        Assert.Equal([0.1, 0.2, 0.3, 0.4], preview.BandsAt(0).Select(band => band.Share));
-        Assert.Equal("10.0%", preview.BandsAt(0)[0].ShareText);
+        Assert.Equal([0.2, 0.2, 0.3, 0.2, 0.1], preview.BandsAt(0).Select(band => band.Share));
+        Assert.Equal("20.0%", preview.BandsAt(0)[0].ShareText);
         Assert.False(preview.IsDynamic);
     }
 
@@ -49,6 +49,16 @@ public sealed class RbpResultPreviewTests
     }
 
     [Fact]
+    public void RetiredVersion_IsNotInterpretedOrDisplayed()
+    {
+        var preview = RbpResultPreview.Parse(Run("""
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4}}}
+            """, "official-rbp-v1"));
+
+        Assert.Empty(preview.BandsAt(10));
+    }
+
+    [Fact]
     public void CurrentVersion_InvalidGammaMakesTheFiveBandMeasurementUnavailableAsASet()
     {
         var preview = RbpResultPreview.Parse(Run("""
@@ -63,9 +73,9 @@ public sealed class RbpResultPreviewTests
     {
         var preview = RbpResultPreview.Parse(Run("""
             {"metric":{"series":[
-              {"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4}},
+              {"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.3,"gamma":0.1}},
               {"time_s":5,"window_start_s":1,"window_end_s":5,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["PSD_QUALITY_GATE_FAILED"]},"band_values":{"delta":null,"theta":null,"alpha":null,"beta":null}},
-              {"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.4}}
+              {"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.3,"gamma":0.1}}
             ]}}
             """));
 
@@ -81,17 +91,14 @@ public sealed class RbpResultPreviewTests
     public void InvalidOrRejectedShares_NeverBecomeZero()
     {
         var rejected = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"gate_failed"},"band_values":{"delta":0.5,"theta":0.5,"alpha":0,"beta":0}}}
+            {"metric":{"quality":{"status":"gate_failed"},"band_values":{"delta":0.5,"theta":0.5,"alpha":0,"beta":0,"gamma":0}}}
             """));
         var missing = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":null,"theta":1.2,"alpha":-0.1,"beta":0.4}}}
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4,"gamma":null}}}
             """));
 
         Assert.All(rejected.BandsAt(0), band => Assert.Null(band.Share));
-        Assert.Null(missing.BandsAt(0)[0].Share);
-        Assert.Null(missing.BandsAt(0)[1].Share);
-        Assert.Null(missing.BandsAt(0)[2].Share);
-        Assert.Equal(0.4, missing.BandsAt(0)[3].Share);
+        Assert.All(missing.BandsAt(0), band => Assert.Null(band.Share));
     }
 
     [Fact]
@@ -120,7 +127,7 @@ public sealed class RbpResultPreviewTests
                 var preview = RbpResultPreview.Parse(DynamicRun());
                 var chart = new RbpChart { IsTrend = true, Bands = preview.BandsAt(6), Windows = preview.Windows };
                 var surface = Assert.IsType<SciChartSurface>(chart.Content);
-                Assert.Equal(4, surface.RenderableSeries.Count);
+                Assert.Equal(5, surface.RenderableSeries.Count);
                 var firstLine = Assert.IsType<FastLineRenderableSeries>(surface.RenderableSeries[0]);
                 var values = Assert.IsType<XyDataSeries<double, double>>(firstLine.DataSeries);
                 Assert.Equal(0.1, values.YValues[0]);
@@ -164,13 +171,13 @@ public sealed class RbpResultPreviewTests
 
     private static AnalysisRunResponse DynamicRun() => Run("""
         {"metric":{"series":[
-          {"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4}},
+          {"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.3,"gamma":0.1}},
           {"time_s":5,"window_start_s":1,"window_end_s":5,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["RBP_WINDOW_QUALITY_GATE_FAILED"]},"band_values":{"delta":null,"theta":null,"alpha":null,"beta":null}},
-          {"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.4}}
+          {"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.3,"gamma":0.1}}
         ]}}
         """);
 
-    private static AnalysisRunResponse Run(string summary, string scientificVersion = "offline-spectral-v3") => new(
+    private static AnalysisRunResponse Run(string summary, string scientificVersion = "official-rbp-v2") => new(
         "run-1", "recording-1", "official_algorithm", "completed", scientificVersion,
         new TimeRange(0, 20), new TimeRange(0, 20), JsonSerializer.Deserialize<JsonElement>(summary),
         null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);

@@ -8,7 +8,6 @@ public sealed class FullResultFallbackTests
 {
     [Theory]
     [InlineData("run")]
-    [InlineData("artifact_run")]
     [InlineData("version")]
     [InlineData("truncated")]
     [InlineData("rank")]
@@ -21,7 +20,6 @@ public sealed class FullResultFallbackTests
         preview = defect switch
         {
             "run" => preview with { RunId = "stale" },
-            "artifact_run" => preview with { Artifact = preview.Artifact with { RunId = "stale" } },
             "version" => preview with { ScientificVersion = "old" },
             "truncated" => preview with { Arrays = Arrays(Array.Empty<double[]>()) },
             "rank" => preview with { Arrays = Arrays(new[] { 9d, 8d, 7d }) },
@@ -52,6 +50,34 @@ public sealed class FullResultFallbackTests
         finally { await catalog.ReleaseWindowAnalysisAsync(); }
     }
 
+    [Fact]
+    public async Task Reused_full_run_serves_cursor_moves_from_structured_cache_without_indexed_http()
+    {
+        var client = Client();
+        var respondFullRun = client.RespondFullRun;
+        client.RespondFullRun = request => respondFullRun(request) with { ReusedFromRunId = "original-run" };
+        client.RespondFullStructuredPreview = _ =>
+        {
+            var preview = OnDemandDetailClient.FullPsdStructuredPreview();
+            return preview with { Artifact = preview.Artifact with { RunId = "original-run" } };
+        };
+        var catalog = OnDemandDetailClient.Catalog(client, "psd", "V^2/Hz");
+        catalog.SelectedDynamicExecutionMode = "按需预览 + 后台全量";
+        try
+        {
+            await OnDemandDetailClient.Run(catalog);
+            await catalog.CurrentWindowLoad;
+            catalog.DynamicTimeProgressPercent = 50;
+            await catalog.CurrentWindowLoad;
+
+            Assert.Equal(1, client.StructuredPreviewCalls);
+            Assert.Equal(0, client.FullWindowPreviewCalls);
+            Assert.Equal("全量已完成窗口（本地缓存）", catalog.DynamicPreviewSourceText);
+            Assert.Equal("ready", catalog.DisplayedAnalysisWindow!.State);
+        }
+        finally { await catalog.ReleaseWindowAnalysisAsync(); }
+    }
+
     [Theory]
     [InlineData("missing")]
     [InlineData("run")]
@@ -60,7 +86,7 @@ public sealed class FullResultFallbackTests
     [InlineData("cursor")]
     [InlineData("future")]
     [InlineData("array")]
-    public async Task Unusable_indexed_response_explicitly_falls_back_to_on_demand(string defect)
+    public async Task Unusable_indexed_response_does_not_silently_recompute_on_demand(string defect)
     {
         var client = Client();
         client.RespondFullStructuredPreview = _ => throw new InvalidOperationException("incomplete artifact");
@@ -85,12 +111,13 @@ public sealed class FullResultFallbackTests
         {
             await OnDemandDetailClient.Run(catalog);
             await catalog.CurrentWindowLoad;
+            var requestCountBeforeMove = client.Requests.Count;
             catalog.DynamicTimeProgressPercent = 50;
             await catalog.CurrentWindowLoad;
-            Assert.Equal("按需窗口（全量窗口不可用）", catalog.DynamicPreviewSourceText);
-            Assert.Equal("session", catalog.DisplayedAnalysisWindow!.SessionId);
-            Assert.Equal("ready", catalog.DisplayedAnalysisWindow.State);
-            Assert.Equal(new[] { 1e12, 2e12, 1e12 }, catalog.PsdPreviewState.Points.Select(p => p!.Value));
+            Assert.Equal("全量窗口不可用", catalog.DynamicPreviewSourceText);
+            Assert.StartsWith("full-unavailable:", catalog.DisplayedAnalysisWindow!.SessionId);
+            Assert.Equal("unavailable", catalog.DisplayedAnalysisWindow.State);
+            Assert.Equal(requestCountBeforeMove, client.Requests.Count);
         }
         finally { await catalog.ReleaseWindowAnalysisAsync(); }
     }

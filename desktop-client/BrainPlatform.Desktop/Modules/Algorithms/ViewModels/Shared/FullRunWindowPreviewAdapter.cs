@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.CompilerServices;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
@@ -9,6 +10,8 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 /// </summary>
 internal static class FullRunWindowPreviewAdapter
 {
+    private static readonly ConditionalWeakTable<StructuredPreviewResponse, FullRunWindowIndex> WindowIndexes = [];
+
     public static DynamicWindowResponse ToDynamicWindowResponse(
         StructuredPreviewResponse preview,
         DynamicWindowRequest target,
@@ -16,7 +19,8 @@ internal static class FullRunWindowPreviewAdapter
     {
         if (samplingRateHz is not > 0 || !double.IsFinite(samplingRateHz.Value))
             throw new InvalidOperationException("完整结果窗口缺少有效采样率，无法建立时间范围。");
-        var selected = SelectWindow(preview.Windows, target.CursorSample);
+        var selected = WindowIndexes.GetValue(preview, item => FullRunWindowIndex.Create(item.Windows))
+            .Find(target.CursorSample);
         if (selected is null)
         {
             return new DynamicWindowResponse(
@@ -27,6 +31,8 @@ internal static class FullRunWindowPreviewAdapter
         }
 
         var rate = samplingRateHz.Value;
+        var descriptor = FullRunResultDescriptors.For(preview.Output);
+        descriptor.Validate(preview);
         var index = selected.Value.Index;
         var window = selected.Value.Window;
         var state = WindowState(window);
@@ -36,8 +42,8 @@ internal static class FullRunWindowPreviewAdapter
         var failure = WindowFailure(window);
         var result = state != "ready" ? null : new DynamicWindowResultResponse(
             Identity(target.RecordingId), state, OutputKind(preview.Output),
-            preview.Axes, AxisUnits(preview.AxisMetadata), SliceArrays(preview.Arrays, index),
-            ArrayUnits(preview.ArrayMetadata), quality, null, null, WindowProvenance(window));
+            preview.Axes, AxisUnits(preview.AxisMetadata), SliceArrays(preview.Arrays, index, descriptor.OutputArrays),
+            ArrayUnits(preview.ArrayMetadata, descriptor.OutputArrays), quality, null, null, WindowProvenance(window, preview.Output));
         var startSample = Long(window, "start_sample");
         var endSample = Long(window, "end_sample");
         return new DynamicWindowResponse(
@@ -66,14 +72,15 @@ internal static class FullRunWindowPreviewAdapter
         var startSeconds = window.StartSample / rate;
         var endSeconds = window.EndSample / rate;
         var state = MapState(preview.Status);
+        var descriptor = FullRunResultDescriptors.For(preview.Output);
         var result = state != "ready" || preview.Arrays is null || preview.Axes is null
             ? null
             : new DynamicWindowResultResponse(
                 Identity(preview.RecordingId), state, OutputKind(preview.Output),
                 NormalizeAxes(preview.Axes, preview.AxisMetadata),
                 AxisUnits(preview.AxisMetadata), preview.Arrays,
-                ArrayUnits(preview.ArrayMetadata), Quality(preview.Quality), FailureElement(preview),
-                null, JsonSerializer.SerializeToElement(new { analysis_state = window.WindowState }));
+                ArrayUnits(preview.ArrayMetadata, descriptor.OutputArrays), Quality(preview.Quality), FailureElement(preview),
+                null, WindowProvenance(JsonSerializer.SerializeToElement(new { state = window.WindowState }), preview.Output));
         return new DynamicWindowResponse(
             $"full:{preview.RunId}", $"full:{preview.RunId}:{window.WindowId}",
             target.RequestId ?? string.Empty, state, Identity(preview.RecordingId), null,
@@ -82,34 +89,17 @@ internal static class FullRunWindowPreviewAdapter
             Quality(preview.Quality), Failure(preview), result);
     }
 
-    private static (int Index, JsonElement Window)? SelectWindow(
-        IReadOnlyList<JsonElement> windows, long cursorSample)
-    {
-        (int Index, JsonElement Window)? selected = null;
-        for (var index = 0; index < windows.Count; index++)
-        {
-            var window = windows[index];
-            if (window.ValueKind != JsonValueKind.Object) continue;
-            if (Long(window, "end_sample") <= cursorSample)
-                selected = (index, window);
-            else
-                break;
-        }
-        return selected;
-    }
-
     private static IReadOnlyDictionary<string, JsonElement> SliceArrays(
-        IReadOnlyDictionary<string, JsonElement> arrays, int index)
+        IReadOnlyDictionary<string, JsonElement> arrays, int index, IReadOnlyList<string> outputArrays)
     {
         var sliced = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
-        foreach (var item in arrays)
+        foreach (var name in outputArrays)
         {
-            if (item.Value.ValueKind == JsonValueKind.Array &&
-                item.Value.GetArrayLength() > index &&
-                item.Value[index].ValueKind == JsonValueKind.Array)
-                sliced[item.Key] = item.Value[index];
+            if (arrays.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.Array &&
+                value.GetArrayLength() > index && value[index].ValueKind == JsonValueKind.Array)
+                sliced[name] = value[index];
             else
-                throw new InvalidOperationException("完整结果缺少对应窗口的数组行。");
+                throw new InvalidOperationException($"完整结果缺少算法输出数组 {name} 的对应窗口行。");
         }
         return sliced;
     }
@@ -129,12 +119,30 @@ internal static class FullRunWindowPreviewAdapter
     private static string WindowId(JsonElement window, int index) =>
         String(window, "window_id") ?? $"window-{index}";
 
-    private static JsonElement WindowProvenance(JsonElement window)
+    private static JsonElement WindowProvenance(JsonElement window, JsonElement? output)
     {
         var fields = new Dictionary<string, JsonElement>();
         if (window.TryGetProperty("provenance", out var provenance) && provenance.ValueKind == JsonValueKind.Object)
             foreach (var item in provenance.EnumerateObject()) fields[item.Name] = item.Value;
-        fields["analysis_state"] = JsonSerializer.SerializeToElement(String(window, "state"));
+
+        var analysisState = String(window, "state") ?? "Complete";
+        fields["analysis_state"] = JsonSerializer.SerializeToElement(analysisState);
+        if (OutputKind(output) == "time_frequency")
+        {
+            // Older Full artifacts persist the time/frequency arrays and window
+            // ranges but predate per-window provenance. For this versioned STFT
+            // output, the shared inner time axis is window-relative and the
+            // backend computes after whole-recording preprocessing.
+            fields.TryAdd("preprocessing_scope", JsonSerializer.SerializeToElement("whole_recording_before_window_slice"));
+            fields.TryAdd("inner_time_axis", JsonSerializer.SerializeToElement("relative_window_time_center_s"));
+            if (!window.TryGetProperty("provenance", out var existing) || existing.ValueKind != JsonValueKind.Object ||
+                !existing.TryGetProperty("preprocessing_scope", out _) ||
+                !existing.TryGetProperty("inner_time_axis", out _))
+            {
+                fields["compatibility_source"] = JsonSerializer.SerializeToElement("legacy_full_artifact");
+                fields["compatibility_version"] = JsonSerializer.SerializeToElement(1);
+            }
+        }
         return JsonSerializer.SerializeToElement(fields);
     }
 
@@ -219,11 +227,11 @@ internal static class FullRunWindowPreviewAdapter
     }
 
     private static IReadOnlyDictionary<string, string> ArrayUnits(
-        IReadOnlyDictionary<string, JsonElement>? metadata) =>
+        IReadOnlyDictionary<string, JsonElement>? metadata, IReadOnlyList<string> outputArrays) =>
         metadata is null
             ? new Dictionary<string, string>()
-            : metadata
-                .Where(item => item.Value.ValueKind == JsonValueKind.Object &&
-                    item.Value.TryGetProperty("unit", out _))
-                .ToDictionary(item => item.Key, item => item.Value.GetProperty("unit").GetString() ?? string.Empty);
+            : outputArrays
+                .Where(name => metadata.TryGetValue(name, out var item) && item.ValueKind == JsonValueKind.Object &&
+                    item.TryGetProperty("unit", out _))
+                .ToDictionary(name => name, name => metadata[name].GetProperty("unit").GetString() ?? string.Empty);
 }

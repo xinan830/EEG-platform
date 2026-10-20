@@ -9,6 +9,7 @@ public enum AlgorithmWindowPerformanceSource
     FullRunMetricLocal,
     FullRunStructuredCache,
     FullRunIndexedRead,
+    FullRunUnavailable,
     OnDemand,
     OnDemandFallback,
 }
@@ -31,7 +32,8 @@ public static class AlgorithmWindowPerformanceDiagnostics
         AlgorithmWindowPerformanceSource source,
         string state,
         string? windowId,
-        long elapsedMilliseconds)
+        long elapsedMilliseconds,
+        string? failureReason = null)
     {
         if (!Enabled) return;
 
@@ -43,6 +45,7 @@ public static class AlgorithmWindowPerformanceDiagnostics
             $" source={source}" +
             $" state={state}" +
             $" window_id={windowId ?? "none"}" +
+            (failureReason is null ? string.Empty : $" failure_reason={failureReason.Replace(' ', '_')}" ) +
             $" cursor_sample={request.CursorSample}" +
             $" elapsed_ms={elapsedMilliseconds}");
     }

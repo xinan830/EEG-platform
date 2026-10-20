@@ -17,9 +17,34 @@ public sealed class FullRunWindowIntegrityTests
                 state = "Complete", quality = "clean", provenance = new { analysis_state = "Complete" },
             })],
         };
-        FullRunPreviewIntegrity.RequireStructured(preview, Run());
+        FullRunPreviewIntegrity.RequireStructured(preview, Run() with { ReusedFromRunId = "original-run" });
         var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(preview, Target(1000), 200);
         Assert.Equal("full-cache:full-run-1:window-0", response.WindowId);
+        Assert.Equal("ready", response.State);
+        Assert.Equal(9, response.Result!.Arrays!["psd"][0].GetDouble());
+    }
+
+    [Fact]
+    public void Reused_run_rejects_artifact_from_unrelated_run()
+    {
+        var original = OnDemandDetailClient.FullPsdStructuredPreview();
+        var preview = original with { Artifact = original.Artifact with { RunId = "unrelated-run" } };
+        Assert.Throws<InvalidOperationException>(() => FullRunPreviewIntegrity.RequireStructured(
+            preview, Run() with { ReusedFromRunId = "original-run" }));
+    }
+
+    [Fact]
+    public void Reused_run_accepts_artifact_owned_by_original_run()
+    {
+        var original = OnDemandDetailClient.FullPsdStructuredPreview();
+        var preview = original with
+        {
+            Artifact = original.Artifact with { RunId = "original-run" },
+        };
+
+        FullRunPreviewIntegrity.RequireStructured(preview, Run() with { ReusedFromRunId = "original-run" });
+        var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(preview, Target(1000), 200);
+
         Assert.Equal("ready", response.State);
         Assert.Equal(9, response.Result!.Arrays!["psd"][0].GetDouble());
     }
@@ -38,6 +63,78 @@ public sealed class FullRunWindowIntegrityTests
         Assert.Equal("Partial", response.Result!.Provenance!.Value.GetProperty("analysis_state").GetString());
         Assert.Equal("retained", response.Result.Provenance.Value.GetProperty("evidence").GetString());
         Assert.Equal(9, response.Result.Arrays!["psd"][0].GetDouble());
+    }
+
+    [Fact]
+    public void Full_stft_window_excludes_auxiliary_window_evidence_from_display_units()
+    {
+        var preview = OnDemandDetailClient.FullStftStructuredPreview();
+        var arrays = preview.Arrays.ToDictionary(pair => pair.Key, pair => pair.Value);
+        arrays["window_evidence_json"] = JsonSerializer.SerializeToElement(new[] { "{}", "{}", "{}" });
+        var metadata = preview.ArrayMetadata!.ToDictionary(pair => pair.Key, pair => pair.Value);
+        metadata["window_evidence_json"] = JsonSerializer.SerializeToElement(new { unit = "json" });
+        preview = preview with { Arrays = arrays, ArrayMetadata = metadata };
+
+        FullRunPreviewIntegrity.RequireStructured(preview, Run());
+        var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(preview, Target(2000), 200);
+        var state = new BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft.StftPreviewState();
+
+        BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft.StftWindowPresenter.Apply(state, response);
+
+        Assert.NotNull(state.Result);
+        Assert.Equal("dB re 1 uV^2/Hz", state.Result!.PowerUnit);
+    }
+
+    [Fact]
+    public void Shared_descriptor_rejects_missing_scientific_array_before_window_read()
+    {
+        var preview = OnDemandDetailClient.FullStftStructuredPreview() with
+        {
+            Arrays = new Dictionary<string, JsonElement>
+            {
+                ["power_linear"] = JsonSerializer.SerializeToElement(new[] { new[] { new[] { 1d } } }),
+            },
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            FullRunPreviewIntegrity.RequireStructured(preview, Run()));
+
+        Assert.Contains("power_db", exception.Message);
+    }
+
+    [Fact]
+    public void Shared_descriptor_preserves_psd_and_stft_output_contracts()
+    {
+        var psd = FullRunResultDescriptor.For(OnDemandDetailClient.FullPsdStructuredPreview().Output);
+        var stft = FullRunResultDescriptor.For(OnDemandDetailClient.FullStftStructuredPreview().Output);
+
+        Assert.Equal(["psd"], psd.OutputArrays);
+        Assert.Equal(["power_linear", "power_db"], stft.OutputArrays);
+        Assert.Equal("frequency_hz", psd.TimeAxis);
+        Assert.Equal("relative_window_time_center_s", stft.TimeSemantics);
+    }
+
+    [Fact]
+    public void Legacy_full_stft_window_receives_contract_provenance_from_saved_dynamic_geometry()
+    {
+        var preview = OnDemandDetailClient.FullStftStructuredPreview();
+        var windows = preview.Windows.Select(window =>
+        {
+            var values = window.EnumerateObject()
+                .Where(property => property.Name != "provenance")
+                .ToDictionary(property => property.Name, property => property.Value);
+            return JsonSerializer.SerializeToElement(values);
+        }).ToArray();
+        preview = preview with { Windows = windows };
+
+        FullRunPreviewIntegrity.RequireStructured(preview, Run());
+        var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(preview, Target(2000), 200);
+        var state = new BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft.StftPreviewState();
+        BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft.StftWindowPresenter.Apply(state, response);
+
+        Assert.NotNull(state.Result);
+        Assert.Equal([7d, 8d], state.Result!.TimesSeconds);
+        Assert.Equal("dB re 1 uV^2/Hz", state.Result.PowerUnit);
     }
 
     [Fact]

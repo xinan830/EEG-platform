@@ -25,6 +25,7 @@ public sealed partial class AlgorithmListViewModel
     private string? fullWindowCacheRunId;
     private Task<StructuredPreviewResponse?>? fullWindowCacheTask;
     private CancellationTokenSource? fullWindowCacheCancellation;
+    private readonly Dictionary<(string RunId, long CursorSample), WindowPreviewResponse> fullWindowPreviewCache = [];
     private TaskCompletionSource<Task>? pendingRequestFlush;
     internal Task CurrentWindowLoad { get; private set; } = Task.CompletedTask;
     public bool IsOnDemandAnalysis => windowRequest is not null;
@@ -121,7 +122,8 @@ public sealed partial class AlgorithmListViewModel
 
     private bool CanServeCompletedFullWindowLocally()
     {
-        if (windowHandler is not { } handler || IsCompletedBackgroundFullRun(handler) is null)
+        if (SelectedAlgorithm?.SupportsDeclaredFullResultToPreview != true ||
+            windowHandler is not { } handler || IsCompletedBackgroundFullRun(handler) is null)
             return false;
         if (handler.SupportsFullRunMetricWindowPreview)
             return true;
@@ -203,8 +205,9 @@ public sealed partial class AlgorithmListViewModel
         catch (Exception error)
         {
             if (revision != windowRevision) return;
+            var source = string.IsNullOrWhiteSpace(displayedWindowSource) ? "窗口" : displayedWindowSource;
             RunStatusText = error is AlgorithmApiException api
-                ? $"按需读取失败：{api.Code}：{api.Message}" : $"按需读取失败：{error.Message}";
+                ? $"{source}读取失败：{api.Code}：{api.Message}" : $"{source}读取失败：{error.Message}";
         }
         finally
         {
@@ -258,8 +261,8 @@ public sealed partial class AlgorithmListViewModel
                         AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(started));
                     return cachedResponse;
                 }
-                var preview = await client.GetWindowPreviewAsync(
-                    completedFull.RunId, target.CursorSample, null, cancellationToken);
+                var preview = await GetCachedFullWindowPreviewAsync(
+                    completedFull.RunId, target.CursorSample, cancellationToken);
                 FullRunPreviewIntegrity.RequireIndexed(preview, completedFull, target);
                 var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(
                     preview, target, RegisteredRecording?.SamplingRateHz);
@@ -274,14 +277,18 @@ public sealed partial class AlgorithmListViewModel
             catch (OperationCanceledException) { throw; }
             catch (Exception error) when (error is AlgorithmApiException or InvalidOperationException)
             {
-                // A completed Run may predate the window-index contract or fail
-                // integrity validation. Keep the interactive preview usable,
-                // but make the fallback source explicit.
-                displayedWindowSource = "按需窗口（全量窗口不可用）";
+                // Once the combined mode has a completed Full Run, silently
+                // recomputing the same window on demand would hide a broken or
+                // unverifiable Full artifact and produce misleading provenance.
+                // Surface the failure instead; the caller can repair/re-run the
+                // Full analysis explicitly.
+                displayedWindowSource = "全量窗口不可用";
                 AlgorithmWindowPerformanceDiagnostics.Record(target, handler.AlgorithmId,
-                    completedFull.RunId, AlgorithmWindowPerformanceSource.OnDemandFallback,
-                    "fallback", null,
-                    AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(started));
+                    completedFull.RunId, AlgorithmWindowPerformanceSource.FullRunUnavailable,
+                    "unavailable", null,
+                    AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(started),
+                    error.Message);
+                return FullRunUnavailableResponse(completedFull, target, error);
             }
         }
 
@@ -296,6 +303,27 @@ public sealed partial class AlgorithmListViewModel
             AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(started));
         return onDemand;
     }
+
+    private async Task<WindowPreviewResponse> GetCachedFullWindowPreviewAsync(
+        string runId, long cursorSample, CancellationToken cancellationToken)
+    {
+        if (fullWindowPreviewCache.TryGetValue((runId, cursorSample), out var cached))
+            return cached;
+
+        var preview = await client.GetWindowPreviewAsync(runId, cursorSample, null, cancellationToken);
+        fullWindowPreviewCache[(runId, cursorSample)] = preview;
+        return preview;
+    }
+
+    private static DynamicWindowResponse FullRunUnavailableResponse(
+        AnalysisRunResponse run, DynamicWindowRequest target, Exception error) =>
+        new(
+            $"full-unavailable:{run.RunId}", $"full-unavailable:{run.RunId}:{target.CursorSample}",
+            target.RequestId ?? string.Empty, "unavailable",
+            JsonSerializer.SerializeToElement(new { recording_id = target.RecordingId }),
+            null, null, "unavailable",
+            new DynamicWindowFailure("FULL_RUN_WINDOW_UNAVAILABLE",
+                $"全量分析已完成，但当前窗口无法读取：{error.Message}"), null);
 
     private async Task<StructuredPreviewResponse?> EnsureFullWindowCacheAsync(
         AnalysisRunResponse run, CancellationToken cancellationToken)
@@ -343,6 +371,7 @@ public sealed partial class AlgorithmListViewModel
 
     private AnalysisRunResponse? IsCompletedBackgroundFullRun(IAlgorithmRunResultHandler handler) =>
         IsCombinedExecutionModeSelected &&
+        SelectedAlgorithm is { SupportsDeclaredFullResultToPreview: true } &&
         (handler.SupportsFullRunWindowPreview || handler.SupportsFullRunMetricWindowPreview) &&
         backgroundFullRequest is { } request &&
         request.RecordingId == targetRecordingId &&
@@ -370,6 +399,7 @@ public sealed partial class AlgorithmListViewModel
         fullWindowCacheCancellation = null;
         fullWindowCacheRunId = null;
         fullWindowCacheTask = null;
+        fullWindowPreviewCache.Clear();
         if (windowTargets is not null) await windowTargets.ResetAsync();
         RaisePropertyChanged(nameof(IsRunActive));
     }

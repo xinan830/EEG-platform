@@ -152,7 +152,8 @@ public sealed class PsdOnDemandDetailTests : IDisposable
         {
             SelectedAlgorithm = new AlgorithmCatalogItem("official", "psd", "offline-spectral-v3",
                 "功率谱密度", "PSD", "", [], ["static", "dynamic"], default,
-                new DynamicAnalysisPolicy(4, [5, 10], 5, 1, true), "available", true, null, null, null),
+                new DynamicAnalysisPolicy(4, [5, 10], 5, 1, true), "available", true, null, null, null,
+                JsonDocument.Parse("{\"on_demand\":{\"implementation\":\"implemented\",\"validation\":\"validated\"},\"combined_preview_background_full\":{\"implementation\":\"implemented\",\"validation\":\"unvalidated\"},\"full_result_to_preview\":{\"implementation\":\"implemented\",\"validation\":\"validated\"}}").RootElement),
         };
         typeof(AlgorithmListViewModel).GetProperty(nameof(AlgorithmListViewModel.RegisteredRecording))!
             .SetValue(catalog, new RegisteredRecording("recording", "fixture", ".wpf", "2026-10-13T00:00:00Z",

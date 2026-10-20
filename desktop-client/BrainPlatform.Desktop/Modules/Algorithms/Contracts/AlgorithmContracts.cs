@@ -22,8 +22,25 @@ public sealed record AlgorithmCatalogItem(
     [property: JsonPropertyName("is_runnable")] bool IsRunnable,
     [property: JsonPropertyName("definition_id")] string? DefinitionId,
     [property: JsonPropertyName("definition_version")] string? DefinitionVersion,
-    [property: JsonPropertyName("implementation_identity")] string? ImplementationIdentity)
+    [property: JsonPropertyName("implementation_identity")] string? ImplementationIdentity,
+    [property: JsonPropertyName("dynamic_capabilities")] JsonElement DynamicCapabilities = default)
 {
+    public bool SupportsDeclaredOnDemand =>
+        HasDeclaredImplementation("on_demand");
+
+    public bool SupportsDeclaredFullResultToPreview =>
+        HasDeclaredImplementation("full_result_to_preview");
+
+    public bool SupportsDeclaredCombined =>
+        HasDeclaredImplementation("combined_preview_background_full");
+
+    private bool HasDeclaredImplementation(string path) =>
+        DynamicCapabilities.ValueKind == JsonValueKind.Object &&
+        DynamicCapabilities.TryGetProperty(path, out var capability) &&
+        capability.TryGetProperty("implementation", out var implementation) &&
+        implementation.ValueKind == JsonValueKind.String &&
+        implementation.GetString() == "implemented";
+
     public string ModesDisplay =>
         Modes.Count == 0 ? "未声明" : string.Join("、", Modes.Select(FormatMode));
 
@@ -121,7 +138,8 @@ public sealed record AnalysisRunResponse(
     [property: JsonPropertyName("progress_completed")] int ProgressCompleted = 0,
     [property: JsonPropertyName("progress_total")] int? ProgressTotal = null,
     [property: JsonPropertyName("progress_stage")] string? ProgressStage = null,
-    [property: JsonPropertyName("progress_message")] string? ProgressMessage = null)
+    [property: JsonPropertyName("progress_message")] string? ProgressMessage = null,
+    [property: JsonPropertyName("reused_from_run_id")] string? ReusedFromRunId = null)
 {
     public double ProgressPercent => Status == "completed" ? 100 :
         ProgressTotal is > 0 ? Math.Clamp(100.0 * ProgressCompleted / ProgressTotal.Value, 0, Status == "running" ? 99 : 100) : 0;

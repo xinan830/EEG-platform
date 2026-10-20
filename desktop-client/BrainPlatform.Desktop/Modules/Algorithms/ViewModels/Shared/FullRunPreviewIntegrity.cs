@@ -17,7 +17,11 @@ internal static class FullRunPreviewIntegrity
 
     public static void RequireStructured(StructuredPreviewResponse preview, AnalysisRunResponse run)
     {
-        Require(preview.RunId == run.RunId && preview.Artifact.RunId == run.RunId &&
+        // A cache-hit Run owns the response envelope, while its immutable
+        // artifact may still belong to the original Run that produced it.
+        var artifactRunMatches = preview.Artifact.RunId == run.RunId ||
+            preview.Artifact.RunId == run.ReusedFromRunId;
+        Require(preview.RunId == run.RunId && artifactRunMatches &&
             preview.ScientificVersion == run.ScientificVersion && !string.IsNullOrWhiteSpace(run.ScientificVersion),
             "完整结果缓存的 Run、文件来源或科学版本不匹配。");
         var previousEnd = -1L;
@@ -38,11 +42,13 @@ internal static class FullRunPreviewIntegrity
         }
 
         Require(preview.Windows.Count > 0, "完整结果缺少可验证的动态窗口元数据。");
-        Require(preview.Arrays.Count > 0, "完整结果缺少窗口数组。");
-        foreach (var values in preview.Arrays.Values)
+        var descriptor = FullRunResultDescriptors.For(preview.Output);
+        descriptor.Validate(preview);
+        foreach (var name in descriptor.OutputArrays)
         {
+            if (!preview.Arrays.TryGetValue(name, out var values)) continue;
             Require(values.ValueKind == JsonValueKind.Array && values.GetArrayLength() == preview.Windows.Count,
-                "完整结果数组行数与窗口数不一致。");
+                $"完整结果输出数组 {name} 的窗口行数与窗口数不一致。");
             foreach (var row in values.EnumerateArray())
                 RequireGeometry(preview.Output, preview.Axes, row);
         }
@@ -73,7 +79,11 @@ internal static class FullRunPreviewIntegrity
             foreach (var item in metadata)
                 if (Text(item.Value, "array_key") is { } key && preview.Axes.TryGetValue(key, out var values))
                     axes[item.Key] = values;
-        foreach (var row in preview.Arrays!.Values) RequireGeometry(preview.Output, axes, row);
+        var descriptor = FullRunResultDescriptors.For(preview.Output);
+        Require(descriptor.OutputArrays.Any(preview.Arrays!.ContainsKey), "完整结果窗口缺少算法输出数组。");
+        foreach (var name in descriptor.OutputArrays)
+            if (preview.Arrays.TryGetValue(name, out var row))
+                RequireGeometry(preview.Output, axes, row);
     }
 
     private static void RequireGeometry(JsonElement? output,

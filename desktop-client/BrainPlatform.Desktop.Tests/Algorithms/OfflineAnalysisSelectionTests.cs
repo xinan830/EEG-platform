@@ -152,7 +152,7 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
     }
 
     [Fact]
-    public async Task Combined_psd_falls_back_to_on_demand_when_full_artifacts_are_unavailable()
+    public async Task Combined_psd_does_not_silently_recompute_when_full_artifacts_are_unavailable()
     {
         var client = new OnDemandDetailClient
         {
@@ -173,9 +173,9 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         Assert.Equal(1, client.StructuredPreviewCalls);
         Assert.Equal(1, client.FullWindowPreviewCalls);
         Assert.Single(client.Requests);
-        Assert.Equal("按需窗口（全量窗口不可用）", catalog.DynamicPreviewSourceText);
+        Assert.Equal("全量窗口不可用", catalog.DynamicPreviewSourceText);
         Assert.NotNull(catalog.DisplayedAnalysisWindow);
-        Assert.Equal("ready", catalog.DisplayedAnalysisWindow!.State);
+        Assert.Equal("unavailable", catalog.DisplayedAnalysisWindow!.State);
         await catalog.ReleaseWindowAnalysisAsync();
     }
 

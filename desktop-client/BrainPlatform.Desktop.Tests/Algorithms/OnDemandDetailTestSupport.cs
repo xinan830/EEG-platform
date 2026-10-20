@@ -26,11 +26,15 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
     internal static AlgorithmListViewModel Catalog(OnDemandDetailClient client, string id = "rbp", string unit = "ratio",
         string primaryChannel = "F3", string secondaryChannel = "F7")
     {
+        var supportsFullToPreview = id is "psd" or "stft" or "rbp" or "peak_frequency" or "iapf" or "band_ratio" or "theta_beta";
+        var fullToPreviewImplementation = supportsFullToPreview ? "implemented" : "unsupported";
+        var fullToPreviewValidation = supportsFullToPreview ? "validated" : "not_applicable";
+        var capabilityJson = $"{{\"on_demand\":{{\"implementation\":\"implemented\",\"validation\":\"validated\"}},\"combined_preview_background_full\":{{\"implementation\":\"implemented\",\"validation\":\"unvalidated\"}},\"full_result_to_preview\":{{\"implementation\":\"{fullToPreviewImplementation}\",\"validation\":\"{fullToPreviewValidation}\"}}}}";
         var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter())
         {
             SelectedAlgorithm = new AlgorithmCatalogItem("official", id, "fixture-v1", id, id, "", [],
                 ["static", "dynamic"], default, new DynamicAnalysisPolicy(4, [5, 10], 5, 1, true),
-                "available", true, null, null, null),
+                "available", true, null, null, null, JsonDocument.Parse(capabilityJson).RootElement),
         };
         typeof(AlgorithmListViewModel).GetProperty(nameof(AlgorithmListViewModel.RegisteredRecording))!
             .SetValue(catalog, new RegisteredRecording("recording", "fixture", ".wpf", "2026-10-13T00:00:00Z",

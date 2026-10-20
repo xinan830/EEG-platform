@@ -13,16 +13,12 @@ public sealed record RbpWindowPoint(double TimeSeconds, double StartSeconds, dou
 
 public sealed partial class RbpResultPreview
 {
-    private static readonly (string Key, string Label, string Range, string Color)[] HistoricalBands =
+    private static readonly (string Key, string Label, string Range, string Color)[] CurrentBands =
     [
         ("delta", "δ Delta", "1–4 Hz", "#4D8BC8"),
         ("theta", "θ Theta", "4–8 Hz", "#46A78B"),
         ("alpha", "α Alpha", "8–13 Hz", "#D47B79"),
         ("beta", "β Beta", "13–30 Hz", "#C49A48"),
-    ];
-    private static readonly (string Key, string Label, string Range, string Color)[] CurrentBands =
-    [
-        .. HistoricalBands,
         ("gamma", "γ Gamma", "30–50 Hz", "#8D73D1"),
     ];
 
@@ -55,9 +51,10 @@ public sealed partial class RbpResultPreview
 
     public static RbpResultPreview Parse(AnalysisRunResponse? run)
     {
-        var bands = run?.ScientificVersion == "official-rbp-v2" ? CurrentBands : HistoricalBands;
+        var isCurrentVersion = run?.ScientificVersion == "official-rbp-v2";
+        var bands = isCurrentVersion ? CurrentBands : [];
         var unavailable = new double?[bands.Length];
-        if (run?.Status != "completed" || run.ResultSummary is not { } summary ||
+        if (!isCurrentVersion || run?.Status != "completed" || run.ResultSummary is not { } summary ||
             !summary.TryGetProperty("metric", out var metric) || metric.ValueKind != JsonValueKind.Object)
             return new RbpResultPreview(bands, unavailable, [], "", "");
 

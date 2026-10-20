@@ -63,8 +63,10 @@ public sealed partial class AlgorithmListViewModel
         var request = new AnalysisRunRequest(RegisteredRecording.Id, "official_algorithm", config);
         if (dynamic && (IsOnDemandExecutionModeSelected || IsCombinedExecutionModeSelected))
         {
-            if (!resultHandler.SupportsOnDemandWindows)
+            if (!algorithm.SupportsDeclaredOnDemand || !resultHandler.SupportsOnDemandWindows)
                 throw new InvalidOperationException("当前算法未启用按需分析，请选择全量分析。");
+            if (IsCombinedExecutionModeSelected && !algorithm.SupportsDeclaredCombined)
+                throw new InvalidOperationException("当前算法未声明组合动态分析策略，请选择其他分析方式。");
             var previewRevision = configurationRevision;
             await BeginWindowAnalysisAsync(request, resultHandler, preservedDynamicCursorSeconds ?? 0);
             if (!disposed && !detailSuspended && IsCombinedExecutionModeSelected && configurationRevision == previewRevision &&

@@ -160,6 +160,7 @@ public sealed partial class AlgorithmListViewModel
         backgroundFullObservationMessage = null;
         if (!detailSuspended) RaiseBackgroundFullRunProperties();
         if (!detailSuspended && run.Status == "completed" &&
+            SelectedAlgorithm is { SupportsDeclaredFullResultToPreview: true } &&
             windowHandler is { SupportsFullRunWindowPreview: true, SupportsFullRunMetricWindowPreview: false })
         {
             // Start loading the immutable full artifact as soon as it is

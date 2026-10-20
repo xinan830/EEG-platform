@@ -339,11 +339,13 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
 
             var modes = new List<string> { OfflineAnalysisAvailability.FullOnly };
             if (SelectedAlgorithm is { } algorithm &&
+                algorithm.SupportsDeclaredOnDemand &&
                 AlgorithmRunResultHandlerRegistry.Contains(algorithm.Id) &&
                 AlgorithmRunResultHandlerRegistry.For(algorithm.Id).SupportsOnDemandWindows)
             {
                 modes.Add(OfflineAnalysisAvailability.OnDemandOnly);
-                modes.Add(OfflineAnalysisAvailability.OnDemandWithBackgroundFull);
+                if (algorithm.SupportsDeclaredCombined)
+                    modes.Add(OfflineAnalysisAvailability.OnDemandWithBackgroundFull);
             }
             return modes;
         }
