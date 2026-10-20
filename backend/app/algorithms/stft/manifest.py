@@ -1,4 +1,5 @@
 from app.algorithm_runtime.contracts import AlgorithmManifest
+from app.algorithms.capabilities import official_dynamic_capabilities, official_result_graph
 
 
 MANIFEST = AlgorithmManifest(
@@ -7,8 +8,10 @@ MANIFEST = AlgorithmManifest(
     abbreviation="STFT",
     purpose_zh="使用冻结的 spectrogram-v2 契约计算所选原始通道的时频功率。",
     scientific_version="spectrogram-v2",
+    is_current_version=True,
     implementation_identity="stft-runtime-v4-relative-window-times",
     supported_modes=["static", "dynamic"],
+    dynamic_capabilities=official_dynamic_capabilities(full_to_preview=True, on_demand_to_full=True),
     output_schema={"mode_shapes": {"static": "time x frequency", "dynamic": "window x inner_time x frequency"},
         "window_output_kind": "time_frequency",
         "window_axes": [
@@ -25,6 +28,13 @@ MANIFEST = AlgorithmManifest(
         {"name": "power_linear", "unit": "V^2/Hz", "shape": "time x frequency", "meaning": "线性功率密度"},
         {"name": "power_db", "unit": "dB re 1 uV^2/Hz", "shape": "time x frequency", "meaning": "显示功率密度"},
     ]},
-    definition_name="Official STFT",
+    definition_persistence={
+        "name": "Official STFT", "version": "1.0.0",
+        "graph": official_result_graph(["time_center_s", "frequency_hz", "power_linear", "power_db"]),
+        "inputs": {"raw_channel": {"type": "TimeSeries", "unit": "V", "channel_order": "selected"}},
+        "outputs": {"time_center_s": {"type": "TimeAxis", "unit": "s"}, "frequency_hz": {"type": "FrequencyAxis", "unit": "Hz"}, "power_linear": {"type": "PowerSpectralDensity", "unit": "V^2/Hz"}, "power_db": {"type": "PowerSpectralDensity", "unit": "dB re 1 uV^2/Hz"}},
+        "quality_rules": {"official_result": True},
+        "references": ["docs/algorithms/08-spectrogram.md"],
+    },
     execution_kind="generic_research_primitives",
 )

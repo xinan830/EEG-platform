@@ -26,6 +26,10 @@ class AmbiguousAlgorithmVersionError(AlgorithmRuntimeError):
     code = "ALGORITHM_VERSION_REQUIRED"
 
 
+class RetiredAlgorithmVersionError(AlgorithmRuntimeError):
+    code = "ALGORITHM_VERSION_RETIRED"
+
+
 class UnsupportedAlgorithmModeError(AlgorithmRuntimeError):
     code = "ALGORITHM_MODE_UNSUPPORTED"
 

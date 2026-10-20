@@ -101,6 +101,29 @@ def test_registry_requires_an_explicit_version_when_multiple_versions_exist() ->
     assert registry.get("demo", "2.0.0").manifest.scientific_version == "2.0.0"
 
 
+def test_current_resolution_requires_exactly_one_explicit_marker() -> None:
+    registry = AlgorithmRegistry()
+    current = DemoAlgorithm()
+    current.manifest = current.manifest.model_copy(update={"is_current_version": True})
+    retired = DemoAlgorithm()
+    retired.manifest = retired.manifest.model_copy(update={"scientific_version": "2.0.0"})
+    registry.register(current)
+    registry.register(retired)
+    assert registry.get_current("demo") is current
+
+    retired.manifest = retired.manifest.model_copy(update={"is_current_version": True})
+    registry = AlgorithmRegistry()
+    registry.register(current)
+    registry.register(retired)
+    with pytest.raises(UnknownAlgorithmError, match="exactly one declared current"):
+        registry.get_current("demo")
+
+    empty_registry = AlgorithmRegistry()
+    empty_registry.register(DemoAlgorithm())
+    with pytest.raises(UnknownAlgorithmError, match="exactly one declared current"):
+        empty_registry.get_current("demo")
+
+
 def test_build_windows_is_deterministic_and_bounded() -> None:
     windows = build_windows(0, 10, duration_s=12, window_s=4, step_s=2)
     assert [(item.start_s, item.end_s, item.center_s) for item in windows] == [

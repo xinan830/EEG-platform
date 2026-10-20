@@ -49,3 +49,16 @@ class AlgorithmRegistry:
 
     def list(self) -> list[AlgorithmModule]:
         return sorted(self._modules.values(), key=lambda item: (item.manifest.algorithm_id, item.manifest.scientific_version))
+
+    def get_current(self, algorithm_id: str) -> AlgorithmModule:
+        """Resolve an explicitly current module without inferring version order."""
+        matches = [
+            module for module in self._modules.values()
+            if module.manifest.algorithm_id == algorithm_id and module.manifest.is_current_version
+        ]
+        if len(matches) != 1:
+            raise UnknownAlgorithmError(
+                f"algorithm {algorithm_id!r} does not have exactly one declared current version",
+                detail={"algorithm_id": algorithm_id, "current_versions": [m.manifest.scientific_version for m in matches]},
+            )
+        return matches[0]

@@ -29,7 +29,7 @@ def _context(pair: np.ndarray, sfreq: float) -> _RecordingAlgorithmContext:
 def _session(algorithm: FaaAlgorithm) -> DynamicSessionIdentity:
     return DynamicSessionIdentity(
         recording_id="faa-on-demand", source_sha256="source", algorithm_id="faa",
-        definition_id="definition", definition_version=algorithm.manifest.definition_version,
+        definition_id="definition", definition_version=algorithm.manifest.definition_persistence.version,
         scientific_version=algorithm.manifest.scientific_version,
         implementation_identity=algorithm.manifest.implementation_identity,
         configuration_sha256="config", window_policy_version=algorithm.window_policy_version,

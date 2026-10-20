@@ -23,7 +23,7 @@ def inputs(loader):
 def session():
     manifest = RbpAlgorithm.manifest
     return DynamicSessionIdentity(recording_id="recording", source_sha256="source", algorithm_id="rbp",
-        definition_id="definition", definition_version=manifest.definition_version,
+        definition_id="definition", definition_version=manifest.definition_persistence.version,
         scientific_version=manifest.scientific_version, implementation_identity=manifest.implementation_identity,
         configuration_sha256="config", window_policy_version="rbp-dynamic-window-v1")
 

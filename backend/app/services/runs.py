@@ -20,6 +20,7 @@ from app.algorithm_runtime.offline_execution import (
     scientific_configuration_sha256,
     scientific_context_snapshot,
 )
+from app.algorithm_runtime.errors import RetiredAlgorithmVersionError
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
 from app.scientific.quality import SpectralQualityGateError
 from app.algorithms.catalog import ensure_official_definitions, official_definition_identity
@@ -203,10 +204,15 @@ class RunService:
         window_policy_version = ""
         if request.analysis_type == "official_algorithm":
             official_config = OfficialAlgorithmRunConfig.model_validate(request.config)
-            module = self.algorithm_runtime_registry.get(
-                official_config.algorithm_id,
-                official_config.scientific_version,
-            )
+            module = self.algorithm_runtime_registry.get_current(official_config.algorithm_id)
+            if (official_config.scientific_version is not None and
+                    official_config.scientific_version != module.manifest.scientific_version):
+                raise RetiredAlgorithmVersionError(
+                    f"official algorithm version {official_config.scientific_version!r} is retired",
+                    detail={"algorithm_id": official_config.algorithm_id,
+                            "requested_version": official_config.scientific_version,
+                            "current_version": module.manifest.scientific_version},
+                )
             duration = float(recording.duration_s or 0.0)
             if official_config.time.end_s > duration + 1.5 / float(recording.sfreq or 1.0):
                 raise ValueError(f"official analysis range exceeds recording duration of {duration:.3f} s")

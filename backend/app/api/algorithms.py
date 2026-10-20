@@ -17,13 +17,16 @@ def _official_items(request: Request) -> list[dict[str, object]]:
     registry = getattr(request.app.state, "algorithm_runtime_registry", None)
     if registry is None:
         registry = build_builtin_registry()
-    runtime_modules = {
-        (module.manifest.algorithm_id, module.manifest.scientific_version): module
-        for module in registry.list()
-    }
+    official_items = official_algorithm_catalog(request.app.state.definition_service)
+    runtime_modules = {}
+    for official in official_items:
+        try:
+            runtime_modules[official.algorithm_id] = registry.get_current(official.algorithm_id)
+        except AlgorithmRuntimeError:
+            pass
     items: list[dict[str, object]] = []
-    for official in official_algorithm_catalog(request.app.state.definition_service):
-        module = runtime_modules.get((official.algorithm_id, official.scientific_version))
+    for official in official_items:
+        module = runtime_modules.get(official.algorithm_id)
         if module is None:
             items.append({
                 "source": "official", "id": official.algorithm_id,
@@ -38,13 +41,16 @@ def _official_items(request: Request) -> list[dict[str, object]]:
                 "definition_id": official.definition_id,
                 "definition_version": official.definition_version,
                 "implementation_identity": official.implementation_identity,
+                "dynamic_capabilities": None,
             })
             continue
         manifest = module.manifest
         if (
-            manifest.execution_kind != official.execution_kind
+            manifest.scientific_version != official.scientific_version
+            or not manifest.is_current_version
+            or manifest.execution_kind != official.execution_kind
             or manifest.implementation_identity != official.implementation_identity
-            or manifest.definition_name is None
+            or manifest.definition_persistence is None
         ):
             raise AlgorithmRuntimeError("official catalog/runtime manifest mismatch")
         items.append({
@@ -58,6 +64,10 @@ def _official_items(request: Request) -> list[dict[str, object]]:
             "modes": list(manifest.supported_modes),
             "output_schema": manifest.output_schema,
             "dynamic_policy": manifest.dynamic_policy.model_dump(mode="json"),
+            "dynamic_capabilities": (
+                manifest.dynamic_capabilities.model_dump(mode="json")
+                if manifest.dynamic_capabilities is not None else None
+            ),
             "availability": official.availability,
             "is_runnable": official.is_runnable,
             "definition_id": official.definition_id,

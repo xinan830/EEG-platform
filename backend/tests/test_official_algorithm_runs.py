@@ -6,6 +6,7 @@ import pytest
 
 from app.algorithms.catalog import ensure_official_definitions, official_algorithm_catalog, official_definition_identity
 from app.algorithm_runtime.contracts import DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
+from app.algorithm_runtime.errors import RetiredAlgorithmVersionError
 from app.core.provenance import sha256_json
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
@@ -77,6 +78,18 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
         "rejected_reasons": [],
     }
     assert service.list_artifacts(completed.run_id)
+
+
+def test_retired_official_version_is_rejected_before_eeg_load_or_queue(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+    request = _request(recording_id, "iapf")
+    request.config["scientific_version"] = "official-iapf-v1"
+
+    with pytest.raises(RetiredAlgorithmVersionError):
+        service.create(request)
+
+    assert service.recordings.load_data_calls == 0
+    assert service.list(recording_id) == []
 
 
 def test_official_theta_beta_uses_one_selected_raw_channel(tmp_path: Path):

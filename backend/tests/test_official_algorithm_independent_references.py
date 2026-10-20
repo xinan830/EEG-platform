@@ -12,8 +12,14 @@ from app.algorithms.faa.official import compute_faa
 from app.algorithms.rbp.official import five_band_shares
 from app.algorithms.iapf.official import estimate_iapf
 from app.algorithms.theta_beta.official import metric_values
+import importlib.metadata as _metadata
+
 from app.scientific.primitives.spectral import SpectralEstimate
 from app.scientific.primitives.spectral import estimate_spectrogram
+
+NUMPY_VERSION, SCIPY_VERSION = "2.3.4", "1.16.3"
+assert _metadata.version("numpy") == NUMPY_VERSION
+assert _metadata.version("scipy") == SCIPY_VERSION
 
 
 def _reference_band_power(frequencies: np.ndarray, values: np.ndarray, low: float, high: float) -> np.ndarray:

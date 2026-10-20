@@ -9,6 +9,12 @@ from app.services.independent_spectral_reference import IndependentSpectralRefer
 from app.services.recordings import RecordingService
 from app.services.validations import ValidationService
 
+import importlib.metadata as _metadata
+
+NUMPY_VERSION, SCIPY_VERSION = "2.3.4", "1.16.3"
+assert _metadata.version("numpy") == NUMPY_VERSION
+assert _metadata.version("scipy") == SCIPY_VERSION
+
 
 class _Audit:
     def record(self, *args, **kwargs):

@@ -1,4 +1,5 @@
 from app.algorithm_runtime.contracts import AlgorithmManifest
+from app.algorithms.capabilities import official_dynamic_capabilities, official_result_graph
 
 
 MANIFEST = AlgorithmManifest(
@@ -7,13 +8,23 @@ MANIFEST = AlgorithmManifest(
     abbreviation="BrainBeat",
     purpose_zh="根据 Fz 相对 Theta 与 Pz 相对 Alpha 的关系计算脑节律指标。",
     scientific_version="official-brainbeat-v1",
+    is_current_version=True,
     implementation_identity="brainbeat-runtime-v1",
     supported_modes=["static", "dynamic"],
+    dynamic_capabilities=official_dynamic_capabilities(full_to_preview=False),
     output_schema={"window_output_kind": "scalar_series",
                    "window_axes": [{"name": "time_s", "unit": "s"}],
                    "window_shapes": {"time_s": [1], "brainbeat": [1]},
                    "fields": [{"name": "brainbeat", "unit": "ratio", "meaning": "Fz 相对 Theta 除以 Pz 相对 Alpha"}]},
-    definition_name="Official BRAINBEAT",
+    definition_persistence={
+        "name": "Official BRAINBEAT", "version": "1.0.0",
+        "graph": official_result_graph(["brainbeat"]),
+        "definition_metadata": {"inputs": ["Fz", "Pz", "IAPF"], "formula": "relative_theta_Fz / relative_alpha_Pz", "welch_segment_s": 2.0, "overlap": 0.5, "independent_windows": True, "cross_window_ema": False},
+        "inputs": {"Fz": {"type": "TimeSeries", "unit": "V"}, "Pz": {"type": "TimeSeries", "unit": "V"}},
+        "outputs": {"brainbeat": {"type": "Scalar", "unit": "ratio"}},
+        "quality_rules": {"cross_window_ema": False},
+        "references": ["docs/algorithms/04-spectral-metrics.md"],
+    },
     execution_kind="official_composite_run_adapter",
     availability="available",
     is_runnable=True,

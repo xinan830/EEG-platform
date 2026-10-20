@@ -29,6 +29,9 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
         "refresh_step_options_s": [1.0, 2.0, 5.0],
         "allow_warmup": True,
     }
+    assert by_id["psd"]["dynamic_capabilities"]["combined_preview_background_full"]["implementation"] == "implemented"
+    assert by_id["psd"]["dynamic_capabilities"]["combined_preview_background_full"]["validation"] == "unvalidated"
+    assert by_id["faa"]["dynamic_capabilities"]["full_result_to_preview"]["implementation"] == "unsupported"
 
 
 def test_active_catalog_excludes_historical_user_algorithms(tmp_path, monkeypatch) -> None:
@@ -47,3 +50,32 @@ def test_active_catalog_excludes_historical_user_algorithms(tmp_path, monkeypatc
     assert all(item["source"] == "official" for item in response.json()["algorithms"])
     assert not any(item["id"] == definition.definition_id for item in response.json()["algorithms"])
     assert TestClient(app).get(f"/api/algorithm-definitions/{definition.definition_id}").status_code == 404
+
+def test_public_official_catalog_matches_builtin_module_declarations() -> None:
+    from app.algorithms.builtin_modules import build_builtin_modules
+    from app.bootstrap import build_builtin_registry
+
+    response = TestClient(app).get("/api/algorithms")
+    assert response.status_code == 200
+    official = [item for item in response.json()["algorithms"] if item["source"] == "official"]
+    registry = build_builtin_registry()
+    modules = {module.manifest.algorithm_id: module for module in build_builtin_modules()}
+    assert {item["id"] for item in official} == set(modules)
+
+    for item in official:
+        module = registry.get_current(item["id"])
+        assert module.manifest.algorithm_id == modules[item["id"]].manifest.algorithm_id
+        assert item["version"] == module.manifest.scientific_version
+        assert item["display_name_zh"] == module.manifest.display_name_zh
+        assert item["abbreviation"] == module.manifest.abbreviation
+        assert item["description"] == module.manifest.purpose_zh
+        assert item["modes"] == list(module.manifest.supported_modes)
+        assert item["output_schema"] == module.manifest.output_schema
+        expected_capabilities = (
+            module.manifest.dynamic_capabilities.model_dump(mode="json")
+            if module.manifest.dynamic_capabilities is not None else None
+        )
+        assert item["dynamic_capabilities"] == expected_capabilities
+        expected_parameters = [parameter.model_dump(mode="json") for parameter in module.parameter_schema().parameters]
+        assert item["parameters"] == expected_parameters
+        assert item["implementation_identity"] == module.manifest.implementation_identity

@@ -59,7 +59,7 @@ def _session(algorithm: BrainbeatAlgorithm) -> DynamicSessionIdentity:
     return DynamicSessionIdentity(
         recording_id="brainbeat-window-test", source_sha256="source",
         algorithm_id=manifest.algorithm_id, definition_id="definition",
-        definition_version=manifest.definition_version,
+        definition_version=manifest.definition_persistence.version,
         scientific_version=manifest.scientific_version,
         implementation_identity=manifest.implementation_identity,
         configuration_sha256="config", window_policy_version=algorithm.window_policy_version,

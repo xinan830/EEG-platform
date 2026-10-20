@@ -14,6 +14,8 @@ from .execution_control import ExecutionControl
 AlgorithmMode = Literal["static", "dynamic"]
 StructuredOutputKind = Literal["frequency_series", "time_frequency"]
 DynamicStructuredOutputKind = Literal["frequency_series", "time_frequency"]
+CapabilityImplementationStatus = Literal["implemented", "unsupported"]
+CapabilityValidationStatus = Literal["validated", "unvalidated", "not_applicable"]
 
 # Persisted dynamic points carry this independently from an algorithm's
 # scientific version.  Altering point timing or evidence requires a new value
@@ -91,20 +93,59 @@ class AlgorithmEvidence(BaseModel):
     extensions: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
+class DefinitionPersistenceMetadata(BaseModel):
+    """Identity used only to persist the immutable Definition record."""
+
+    name: str = Field(min_length=1)
+    version: str = Field(min_length=1)
+    definition_metadata: dict[str, Any] = Field(default_factory=dict)
+    graph: dict[str, Any] = Field(default_factory=dict)
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    outputs: dict[str, Any] = Field(default_factory=dict)
+    quality_rules: dict[str, Any] = Field(default_factory=dict)
+    references: list[str] = Field(default_factory=list)
+
+
+class CapabilityEvidenceStatus(BaseModel):
+    implementation: CapabilityImplementationStatus
+    validation: CapabilityValidationStatus
+    evidence: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+    @model_validator(mode="after")
+    def validate_evidence_state(self) -> "CapabilityEvidenceStatus":
+        if self.implementation == "unsupported" and not self.reason:
+            raise ValueError("unsupported capability requires a reason")
+        if self.validation == "validated" and not self.evidence:
+            raise ValueError("validated capability requires evidence references")
+        return self
+
+
+class DynamicStrategyCapabilities(BaseModel):
+    full: CapabilityEvidenceStatus
+    on_demand: CapabilityEvidenceStatus
+    combined_preview_background_full: CapabilityEvidenceStatus
+    full_result_to_preview: CapabilityEvidenceStatus
+    on_demand_result_to_full: CapabilityEvidenceStatus
+
+
 class AlgorithmManifest(BaseModel):
     algorithm_id: str = Field(min_length=1)
     display_name_zh: str = Field(min_length=1)
     abbreviation: str = Field(min_length=1)
     purpose_zh: str = Field(min_length=1)
     scientific_version: str = Field(min_length=1)
+    # Official modules must opt in explicitly. Generic/user modules retain
+    # their registry's existing version semantics and ignore this marker.
+    is_current_version: bool = False
     implementation_identity: str = Field(min_length=1)
     supported_modes: list[AlgorithmMode] = Field(default_factory=lambda: ["static"])
     output_schema: dict[str, Any] = Field(min_length=1)
     dynamic_policy: DynamicAnalysisPolicy = Field(default_factory=DynamicAnalysisPolicy)
-    # Official lifecycle data belongs to the executable module manifest.  User
-    # definition modules leave these fields at their generic defaults.
-    definition_name: str | None = None
-    definition_version: str = "1.0.0"
+    dynamic_capabilities: DynamicStrategyCapabilities | None = None
+    # This nested record is persistence provenance, not scientific metadata.
+    # Official modules declare it; user modules leave it absent.
+    definition_persistence: DefinitionPersistenceMetadata | None = None
     execution_kind: str = "runtime_algorithm"
     availability: Literal["shadow_validation", "available", "deprecated"] = "available"
     is_runnable: bool = True

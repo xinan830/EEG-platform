@@ -20,6 +20,7 @@ from app.algorithm_runtime.on_demand import (
 from app.algorithm_runtime.errors import (
     DynamicWindowCapacityExceededError, DynamicWindowProjectForbiddenError,
     DynamicWindowCursorInvalidError, DynamicWindowResultCorruptError,
+    RetiredAlgorithmVersionError,
 )
 from app.algorithm_runtime.on_demand_registry import DynamicWindowCapabilityRegistry
 from app.algorithm_runtime.registry import AlgorithmRegistry
@@ -102,6 +103,16 @@ class DynamicWindowService:
 
     def _ensure_locked(self, payload: DynamicWindowRequest, *, recovering: DynamicWindowRecord | None = None) -> dict[str, Any]:
         started = time.perf_counter()
+        requested_version = payload.config.get("scientific_version")
+        module = self.registry.get_current(payload.algorithm_id)
+        if requested_version is not None and requested_version != module.manifest.scientific_version:
+            raise RetiredAlgorithmVersionError(
+                f"official algorithm version {requested_version!r} is retired",
+                detail={"algorithm_id": payload.algorithm_id,
+                        "requested_version": requested_version,
+                        "current_version": module.manifest.scientific_version},
+            )
+        capability = self.capabilities.get(payload.algorithm_id, module.manifest.scientific_version)
         recording = self.recordings.require_recording(payload.recording_id)
         if payload.project_id is not None:
             if (self._projects.get(payload.project_id) is None or
@@ -109,9 +120,7 @@ class DynamicWindowService:
                 raise DynamicWindowProjectForbiddenError("记录不属于请求的项目。")
         if not recording.source_sha256 or not recording.sfreq or not recording.duration_s:
             raise ValueError("recording scientific identity or metadata is unavailable")
-        capability = self.capabilities.get(payload.algorithm_id, payload.config.get("scientific_version") or self.registry.get(payload.algorithm_id).manifest.scientific_version)
         official = OfficialAlgorithmRunConfig.model_validate(self._official_payload(payload))
-        module = self.registry.get(payload.algorithm_id, official.scientific_version)
         typed_config = module.config_model.model_validate(official.runtime_config())
         typed_config = self._runtime_validate(module, typed_config)
         context = _RecordingAlgorithmContext(self.recordings, recording)
