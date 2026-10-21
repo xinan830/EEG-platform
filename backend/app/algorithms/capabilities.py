@@ -4,12 +4,14 @@ from app.algorithm_runtime.contracts import CapabilityEvidenceStatus, DynamicStr
 from app.algorithms.rbp.official import RBP_BANDS
 
 
-def official_dynamic_capabilities(*, full_to_preview: bool, on_demand_to_full: bool = False) -> DynamicStrategyCapabilities:
+def official_dynamic_capabilities(
+    *, full_to_preview: bool, on_demand_to_full: bool = False,
+    combined_evidence: list[str] | None = None, inverse_reuse_evidence: list[str] | None = None,
+) -> DynamicStrategyCapabilities:
     """Declare shared lifecycle support while retaining per-module reuse choices.
 
-    Evidence references are deliberately attached only to paths with existing
-    recorded validation. Combined stress and inverse reuse remain unvalidated
-    until their own algorithm-specific evidence is added.
+    New modules remain unvalidated until they explicitly supply evidence for
+    combined execution and inverse reuse independently.
     """
     full = CapabilityEvidenceStatus(
         implementation="implemented", validation="validated",
@@ -20,8 +22,9 @@ def official_dynamic_capabilities(*, full_to_preview: bool, on_demand_to_full: b
         evidence=["docs/algorithms/on-demand-dynamic-capability-matrix.md"],
     )
     combined = CapabilityEvidenceStatus(
-        implementation="implemented", validation="unvalidated",
-        reason="Combined-path evidence is not yet complete for this algorithm.",
+        implementation="implemented", validation="validated" if combined_evidence else "unvalidated",
+        evidence=combined_evidence or [],
+        reason=None if combined_evidence else "Combined-path evidence is not yet complete for this algorithm.",
     )
     if full_to_preview:
         forward = CapabilityEvidenceStatus(
@@ -35,8 +38,9 @@ def official_dynamic_capabilities(*, full_to_preview: bool, on_demand_to_full: b
         )
     if on_demand_to_full:
         inverse = CapabilityEvidenceStatus(
-            implementation="implemented", validation="unvalidated",
-            reason="The module provides an algorithm-specific exact-window reuse validator; directional validation evidence is pending.",
+            implementation="implemented", validation="validated" if inverse_reuse_evidence else "unvalidated",
+            evidence=inverse_reuse_evidence or [],
+            reason=None if inverse_reuse_evidence else "The module provides an algorithm-specific exact-window reuse validator; directional validation evidence is pending.",
         )
     else:
         inverse = CapabilityEvidenceStatus(

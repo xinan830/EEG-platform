@@ -13,7 +13,10 @@ MANIFEST = AlgorithmManifest(
     is_current_version=True,
     implementation_identity="rbp-runtime-v2-five-band",
     supported_modes=["static", "dynamic"],
-    dynamic_capabilities=official_dynamic_capabilities(full_to_preview=True),
+    dynamic_capabilities=official_dynamic_capabilities(
+        full_to_preview=True,
+        combined_evidence=["backend/tests/test_official_combined_strategies.py", "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"],
+    ),
     output_schema={"window_output_kind": "multi_metric_series",
                    "window_axes": [{"name": "time_s", "unit": "s"}],
                    "window_shapes": {name: [1] for name in ("time_s", "delta", "theta", "alpha", "beta", "gamma")},

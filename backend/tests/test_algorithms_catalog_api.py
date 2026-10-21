@@ -30,7 +30,7 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
         "allow_warmup": True,
     }
     assert by_id["psd"]["dynamic_capabilities"]["combined_preview_background_full"]["implementation"] == "implemented"
-    assert by_id["psd"]["dynamic_capabilities"]["combined_preview_background_full"]["validation"] == "unvalidated"
+    assert by_id["psd"]["dynamic_capabilities"]["combined_preview_background_full"]["validation"] == "validated"
     assert by_id["faa"]["dynamic_capabilities"]["full_result_to_preview"]["implementation"] == "unsupported"
 
 

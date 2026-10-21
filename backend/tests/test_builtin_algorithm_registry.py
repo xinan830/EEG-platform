@@ -100,12 +100,13 @@ def test_registration_gate_reports_algorithm_layer_and_exact_missing_item() -> N
     )
 
 
-def test_capability_report_does_not_infer_combined_validation_from_independent_modes() -> None:
+def test_capability_report_requires_explicit_combined_evidence() -> None:
     report = official_capability_report(Path(__file__).resolve().parents[2])
     for algorithm_id, item in report.items():
         assert item["paths"]["full"]["status"] == "validated", algorithm_id
         assert item["paths"]["on_demand"]["status"] == "validated", algorithm_id
-        assert item["paths"]["combined_preview_background_full"]["status"] == "unvalidated", algorithm_id
-        assert item["release_ready"] is False, algorithm_id
+        assert item["paths"]["combined_preview_background_full"]["status"] == "validated", algorithm_id
+        assert "backend/tests/test_official_combined_strategies.py" in item["paths"]["combined_preview_background_full"]["evidence"]
+        assert item["release_ready"] is True, algorithm_id
     assert report["psd"]["paths"]["full_result_to_preview"]["status"] == "validated"
     assert report["faa"]["paths"]["full_result_to_preview"]["status"] == "unsupported"

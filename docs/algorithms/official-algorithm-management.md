@@ -22,24 +22,26 @@
 
 | 算法 | Full | On-demand | Combined preview + background full | Full→preview | On-demand→full |
 | --- | --- | --- | --- | --- | --- |
-| PSD | implemented / validated | implemented / validated | implemented / unvalidated | implemented / validated | implemented / unvalidated |
-| STFT | implemented / validated | implemented / validated | implemented / unvalidated | implemented / validated | implemented / unvalidated |
-| RBP | implemented / validated | implemented / validated | implemented / unvalidated | implemented / validated | unsupported |
-| Band Ratio | implemented / validated | implemented / validated | implemented / unvalidated | implemented / validated | unsupported |
-| Peak Frequency | implemented / validated | implemented / validated | implemented / unvalidated | implemented / validated | unsupported |
-| IAPF | implemented / validated | implemented / validated | implemented / unvalidated | implemented / validated | unsupported |
-| Theta/Beta | implemented / validated | implemented / validated | implemented / unvalidated | implemented / validated | unsupported |
-| FAA | implemented / validated | implemented / validated | implemented / unvalidated | unsupported | unsupported |
-| Brainbeat | implemented / validated | implemented / validated | implemented / unvalidated | unsupported | unsupported |
+| PSD | implemented / validated | implemented / validated | implemented / validated | implemented / validated | implemented / validated |
+| STFT | implemented / validated | implemented / validated | implemented / validated | implemented / validated | implemented / validated |
+| RBP | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| Band Ratio | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| Peak Frequency | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| IAPF | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| Theta/Beta | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| FAA | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
+| Brainbeat | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
 
-矩阵依据是现存模块/handler 能力声明和历史验证材料，按当前 manifest 声明及其 evidence 文件核对；实现和验证仍是独立状态。Full→preview 的七项实现范围来自 `docs/algorithms/on-demand-dynamic-capability-matrix.md`；FAA、Brainbeat 未声明该方向。当前只有 PSD、STFT 模块实现 `can_reuse_offline_window`，其余算法声明 unsupported；共享发布/消费基础设施不能代替算法专属数值/形状判定。组合真实记录压力证据当前明确覆盖 PSD（`docs/validation/2026-10-17-background-full-orchestration-real-psd.md`）；2026-10-15 九算法验收证明正常用户路径，不等同于九算法各自的组合压力验证。矩阵需由后续自动 gate 和逐算法证据更新，不能手工把 `unvalidated` 改成 `validated`。
+矩阵按当前 manifest 与专项证据核对。九算法 combined 由 `test_official_combined_strategies.py` 的真实队列/窗口服务合成集成测试及 WPF `OfficialCombinedStrategyTests` 验证；覆盖数值、状态、质量、范围、provenance 和双向取消隔离。PSD/STFT 的 on-demand→full 由 `test_official_directional_reuse.py` 对照无缓存全量，并检查损坏证据重算。其余复用方向的 unsupported 声明不变。能力构造器缺省仍为 unvalidated，新算法必须显式提交自己的证据。
+
+这些 validated 状态限定为可重跑的工程验证，不代表九算法已完成真实长记录压力或临床验证。真实记录组合压力证据仍仅明确覆盖 PSD（`docs/validation/2026-10-17-background-full-orchestration-real-psd.md`）。
 
 可机读、由回归测试核对的当前策略和契约矩阵见
-[official-algorithm-strategy-matrix.json](../validation/official-algorithm-strategy-matrix.json)。它冻结九个模块的 manifest、参数 schema、输出 schema 指纹，并逐条标出验证测试；shared combined 生命周期测试只证明共享调度与前台/后台状态隔离，不证明每个科学算法的组合数值等价。
+[official-algorithm-strategy-matrix.json](../validation/official-algorithm-strategy-matrix.json)。它冻结九个模块的 manifest、参数 schema、输出 schema 指纹，并逐条标出验证测试；只有共享生命周期证据的路径不能据此宣称算法专属数值等价。
 
 独立数值参考和当前合成输入/输出数组快照见
 [official-algorithm-numeric-baseline.json](../validation/official-algorithm-numeric-baseline.json) 与
-[NPZ 数组 artifact](../validation/official-algorithm-numeric-baseline-arrays.npz)。报告记录 NumPy/SciPy 版本及 artifact SHA-256；已有独立参考测试对 PSD/STFT 轴和矩阵以及标量、FAA、Brainbeat 指标做数值比较。当前冻结数组 artifact 仅包含合成输入及 PSD/STFT 输出，尚未冻结九算法每条已支持策略/复用路径的 expected/actual 全量数组、逐点最大误差和失败坐标；因此 OpenSpec 5.1 仍未完成。组合模式九算法专属状态、质量、范围和 provenance 的证据也未齐，4.4 仍未完成。以上是工程验证，不是临床验证。
+[NPZ 数组 artifact](../validation/official-algorithm-numeric-baseline-arrays.npz)。九算法全量系列快照另见 `official-algorithm-strategy-baseline.json/.npz`。本轮不重生成这些冻结数组；新增策略专项测试重新计算无缓存对照，再逐点比较组合结果并报告最大绝对/相对误差及失败坐标。已有独立数值参考负责公式正确性，策略对照负责执行路径一致性，两者不能互相替代。当前验证范围和重跑命令见 [组合策略报告](../validation/2026-10-21-official-combined-strategies.md)。以上均为工程验证。
 
 ## Latest-only 版本规则
 

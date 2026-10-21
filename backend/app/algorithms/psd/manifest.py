@@ -11,7 +11,11 @@ MANIFEST = AlgorithmManifest(
     is_current_version=True,
     implementation_identity="psd-runtime-v3-explicit-filters",
     supported_modes=["static", "dynamic"],
-    dynamic_capabilities=official_dynamic_capabilities(full_to_preview=True, on_demand_to_full=True),
+    dynamic_capabilities=official_dynamic_capabilities(
+        full_to_preview=True,
+        combined_evidence=["backend/tests/test_official_combined_strategies.py", "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"],
+        on_demand_to_full=True, inverse_reuse_evidence=["backend/tests/test_official_directional_reuse.py"],
+    ),
     output_schema={"mode_shapes": {"static": "frequency", "dynamic": "window x frequency"},
         "window_output_kind": "frequency_series",
         "window_shapes": {"frequency_hz": ["frequency"], "psd": ["frequency"], "band_share": [5]}, "fields": [

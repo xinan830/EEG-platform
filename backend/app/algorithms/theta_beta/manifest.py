@@ -12,7 +12,10 @@ MANIFEST = AlgorithmManifest(
     is_current_version=True,
     implementation_identity="theta-beta-runtime-v1",
     supported_modes=["static", "dynamic"],
-    dynamic_capabilities=official_dynamic_capabilities(full_to_preview=True),
+    dynamic_capabilities=official_dynamic_capabilities(
+        full_to_preview=True,
+        combined_evidence=["backend/tests/test_official_combined_strategies.py", "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"],
+    ),
     output_schema={"window_output_kind": "scalar_series", "window_axes": [{"name": "time_s", "unit": "s"}],
                    "window_shapes": {"time_s": [1], "theta_beta": [1]},
                    "fields": [{"name": "theta_beta", "unit": "dimensionless", "meaning": "个体化 Theta 功率除以个体化 Beta 功率"}]},

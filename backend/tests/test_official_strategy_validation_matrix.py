@@ -138,9 +138,19 @@ def test_strategy_baseline_freezes_all_nine_algorithm_series_and_artifact_arrays
         assert combined["independent_lifecycle_identity"] is True
 
 
-def test_capability_report_keeps_combined_unvalidated_without_per_algorithm_evidence() -> None:
+def test_capability_report_validates_only_explicit_algorithm_scoped_evidence() -> None:
     report = official_capability_report(ROOT)
     for algorithm_id, item in report.items():
         combined = item["paths"]["combined_preview_background_full"]
-        assert combined["status"] == "unvalidated", algorithm_id
-        assert item["release_ready"] is False, algorithm_id
+        assert combined["status"] == "validated", algorithm_id
+        assert item["release_ready"] is True, algorithm_id
+
+
+def test_new_modules_do_not_inherit_combined_or_inverse_validation() -> None:
+    from app.algorithms.capabilities import official_dynamic_capabilities
+    from combined_strategy_support import ALGORITHM_IDS
+
+    declared = official_dynamic_capabilities(full_to_preview=True, on_demand_to_full=True)
+    assert declared.combined_preview_background_full.validation == "unvalidated"
+    assert declared.on_demand_result_to_full.validation == "unvalidated"
+    assert {module.manifest.algorithm_id for module in build_builtin_modules()} == set(ALGORITHM_IDS)

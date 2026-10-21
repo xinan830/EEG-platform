@@ -82,13 +82,21 @@ class OfflineWindowReuse:
                     start_s=float(start_sample) / sfreq, end_s=float(end_sample) / sfreq,
                 )
                 windows[(start_sample, end_sample)] = row
-                if self.repository.get_active_attempt(row.window_id) is None:
-                    self.repository.create_attempt(
-                        row.window_id, f"full:{run.run_id}:{row.window_id}",
-                        producer_mode="full", producer_owner_id=run.run_id, priority=10,
-                    )
-                miss("full_producer_claimed")
-                return None
+                if row.state == "queued" and self.repository.get_active_attempt(row.window_id) is None:
+                    try:
+                        attempt = self.repository.create_attempt(
+                            row.window_id, f"full:{run.run_id}:{row.window_id}",
+                            producer_mode="full", producer_owner_id=run.run_id, priority=10,
+                        )
+                    except ValueError:
+                        # An interactive producer may finish after ensure_window.
+                        row = self.repository.get_window(row.window_id)
+                        if row is None or row.state not in {"ready", "rejected", "unavailable", "failed", "cancelled"}:
+                            raise
+                    else:
+                        if attempt.producer_mode == "full" and attempt.producer_owner_id == run.run_id:
+                            miss("full_producer_claimed")
+                            return None
             # When the combined strategy starts full analysis immediately
             # after the preview request, let the existing on-demand producer
             # finish this exact window before deciding to recompute it.  The

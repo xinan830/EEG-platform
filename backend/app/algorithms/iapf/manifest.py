@@ -14,7 +14,10 @@ MANIFEST = AlgorithmManifest(
     # frame schedule with every other playback metric.
     implementation_identity="iapf-runtime-v3",
     supported_modes=["static", "dynamic"],
-    dynamic_capabilities=official_dynamic_capabilities(full_to_preview=True),
+    dynamic_capabilities=official_dynamic_capabilities(
+        full_to_preview=True,
+        combined_evidence=["backend/tests/test_official_combined_strategies.py", "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"],
+    ),
     output_schema={"window_output_kind": "scalar_series", "window_axes": [{"name": "time_s", "unit": "s"}],
                    "window_shapes": {"time_s": [1], "iapf_hz": [1]},
                    "fields": [{"name": "iapf_hz", "unit": "Hz", "meaning": "个体 Alpha 峰频率"}]},
