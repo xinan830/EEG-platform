@@ -40,6 +40,12 @@ internal static class FullRunWindowPreviewAdapter
         if (quality is "rejected" or "unavailable" or "failed")
             state = quality is "rejected" ? "rejected" : "unavailable";
         var failure = WindowFailure(window);
+        if (state == "ready" && !HasCurrentContract(window, preview.Output))
+        {
+            state = "unavailable";
+            quality = "unavailable";
+            failure = ContractFailure();
+        }
         var result = state != "ready" ? null : new DynamicWindowResultResponse(
             Identity(target.RecordingId), state, OutputKind(preview.Output),
             preview.Axes, AxisUnits(preview.AxisMetadata), SliceArrays(preview.Arrays, index, descriptor.OutputArrays),
@@ -73,6 +79,12 @@ internal static class FullRunWindowPreviewAdapter
         var endSeconds = window.EndSample / rate;
         var state = MapState(preview.Status);
         var descriptor = FullRunResultDescriptors.For(preview.Output);
+        var windowEvidence = JsonSerializer.SerializeToElement(new
+        {
+            state = window.WindowState, provenance = window.Provenance,
+        });
+        var missingContract = state == "ready" && !HasCurrentContract(windowEvidence, preview.Output);
+        if (missingContract) state = "unavailable";
         var result = state != "ready" || preview.Arrays is null || preview.Axes is null
             ? null
             : new DynamicWindowResultResponse(
@@ -80,13 +92,14 @@ internal static class FullRunWindowPreviewAdapter
                 NormalizeAxes(preview.Axes, preview.AxisMetadata),
                 AxisUnits(preview.AxisMetadata), preview.Arrays,
                 ArrayUnits(preview.ArrayMetadata, descriptor.OutputArrays), Quality(preview.Quality), FailureElement(preview),
-                null, WindowProvenance(JsonSerializer.SerializeToElement(new { state = window.WindowState }), preview.Output));
+                null, WindowProvenance(windowEvidence, preview.Output));
         return new DynamicWindowResponse(
             $"full:{preview.RunId}", $"full:{preview.RunId}:{window.WindowId}",
             target.RequestId ?? string.Empty, state, Identity(preview.RecordingId), null,
             new DynamicWindowRange(window.StartSample, window.EndSample,
                 startSeconds, endSeconds),
-            Quality(preview.Quality), Failure(preview), result);
+            missingContract ? "unavailable" : Quality(preview.Quality),
+            missingContract ? ContractFailure() : Failure(preview), result);
     }
 
     private static IReadOnlyDictionary<string, JsonElement> SliceArrays(
@@ -127,24 +140,17 @@ internal static class FullRunWindowPreviewAdapter
 
         var analysisState = String(window, "state") ?? "Complete";
         fields["analysis_state"] = JsonSerializer.SerializeToElement(analysisState);
-        if (OutputKind(output) == "time_frequency")
-        {
-            // Older Full artifacts persist the time/frequency arrays and window
-            // ranges but predate per-window provenance. For this versioned STFT
-            // output, the shared inner time axis is window-relative and the
-            // backend computes after whole-recording preprocessing.
-            fields.TryAdd("preprocessing_scope", JsonSerializer.SerializeToElement("whole_recording_before_window_slice"));
-            fields.TryAdd("inner_time_axis", JsonSerializer.SerializeToElement("relative_window_time_center_s"));
-            if (!window.TryGetProperty("provenance", out var existing) || existing.ValueKind != JsonValueKind.Object ||
-                !existing.TryGetProperty("preprocessing_scope", out _) ||
-                !existing.TryGetProperty("inner_time_axis", out _))
-            {
-                fields["compatibility_source"] = JsonSerializer.SerializeToElement("legacy_full_artifact");
-                fields["compatibility_version"] = JsonSerializer.SerializeToElement(1);
-            }
-        }
         return JsonSerializer.SerializeToElement(fields);
     }
+
+    private static bool HasCurrentContract(JsonElement window, JsonElement? output) =>
+        OutputKind(output) != "time_frequency" ||
+        (window.TryGetProperty("provenance", out var provenance) && provenance.ValueKind == JsonValueKind.Object &&
+            String(provenance, "preprocessing_scope") == "whole_recording_before_window_slice" &&
+            String(provenance, "inner_time_axis") == "relative_window_time_center_s");
+
+    private static DynamicWindowFailure ContractFailure() => new(
+        "FULL_WINDOW_CONTRACT_UNAVAILABLE", "完整结果缺少当前算法所需的窗口证据，请重新计算。");
 
     private static DynamicWindowFailure? WindowFailure(JsonElement window) =>
         window.TryGetProperty("failure", out var failure) && failure.ValueKind == JsonValueKind.Object

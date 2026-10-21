@@ -1,1 +1,1 @@
-"""Historical scientific references and scalar Definition compatibility modules."""
+"""Research primitive vocabulary used by current Definition metadata validation."""

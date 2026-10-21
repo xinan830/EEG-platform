@@ -92,7 +92,7 @@
     {
       "capability": "official_theta_beta",
       "kind": "algorithm",
-      "canonical_import": "app.algorithms.theta_beta.official.metric_values",
+      "canonical_import": "app.algorithms.theta_beta.compute.compute_theta_beta",
       "owner": "algorithms",
       "scientific_version": "official-theta-beta-v2",
       "implementation_identity": "algorithms-official-theta-beta-v2",
@@ -125,10 +125,10 @@
     {
       "capability": "validation_official_algorithms",
       "kind": "validation",
-      "canonical_import": "app.eeg_core.official_algorithms.validation",
-      "owner": "eeg_core",
-      "scientific_version": "validation-reference-v1",
-      "implementation_identity": "independent-validation-reference",
+      "canonical_import": "app.services.independent_spectral_reference.IndependentSpectralReferenceService",
+      "owner": "services",
+      "scientific_version": "offline-spectral-v3",
+      "implementation_identity": "independent-scipy-mne-spectral-reference-v1",
       "authority": false,
       "executable": false,
       "reference_only": true,

@@ -1,4 +1,8 @@
-# Official Algorithm Migration
+# Official Algorithm Migration (Historical Record)
+
+This is a historical decision record. The shadow implementations and CLI
+examples below are retired and no longer runnable. Current execution and
+validation follow [official algorithm management](../algorithms/official-algorithm-management.md).
 
 ## Scope
 

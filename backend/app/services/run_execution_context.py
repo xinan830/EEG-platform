@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-import inspect
 from typing import Any
 
 
@@ -38,23 +37,9 @@ class RunExecutionContext:
         # needs the shared compute slot.  Never hold the batch lease while
         # waiting on persisted on-demand work.
         self._release_compute_lease()
-        provider = self._cached_window_provider
-        try:
-            parameters = inspect.signature(provider).parameters
-        except (TypeError, ValueError):
-            parameters = {}
-        supports_cancellation = (
-            "check_cancelled" in parameters
-            or any(item.kind is inspect.Parameter.VAR_KEYWORD for item in parameters.values())
+        result = self._cached_window_provider(
+            start_sample, end_sample, check_cancelled=self.check_cancelled,
         )
-        if supports_cancellation:
-            result = provider(
-                start_sample, end_sample, check_cancelled=self.check_cancelled,
-            )
-        else:
-            # Keep compatibility with test/integration providers written
-            # before cancellation-aware cache waits were introduced.
-            result = provider(start_sample, end_sample)
         if result is not None:
             self.reused_window_count += 1
         else:

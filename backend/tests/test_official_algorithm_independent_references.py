@@ -11,7 +11,7 @@ import numpy as np
 from app.algorithms.faa.official import compute_faa
 from app.algorithms.rbp.official import five_band_shares
 from app.algorithms.iapf.official import estimate_iapf
-from app.algorithms.theta_beta.official import metric_values
+from app.algorithms.theta_beta.compute import compute_theta_beta
 import importlib.metadata as _metadata
 
 from app.scientific.primitives.spectral import SpectralEstimate
@@ -95,25 +95,19 @@ def test_iapf_matches_independent_log_spectral_reference():
     assert result.source == "peak"
 
 
-def test_rbp_and_theta_beta_match_independent_band_integration_reference():
+def test_theta_beta_matches_independent_iapf_and_band_integration_reference():
     frequencies = np.arange(1.0, 30.25, 0.25)
     psd = np.ones((3, len(frequencies))) * 1e-12
     psd[0, (frequencies >= 4.0) & (frequencies <= 8.0)] *= 3.0
     psd[0, (frequencies >= 8.0) & (frequencies <= 12.0)] *= 2.0
     psd[1, (frequencies >= 8.0) & (frequencies <= 12.0)] *= 4.0
     psd[2, (frequencies >= 8.0) & (frequencies <= 12.0)] *= 4.0
-    spectrum = SpectralEstimate(frequencies, psd, 1.0, 14, 14, None)
-
-    totals = _reference_band_power(frequencies, psd, 1.0, 30.0)
-    alpha = _reference_band_power(frequencies, psd, 8.0, 12.0)
-    theta = _reference_band_power(frequencies, psd, 4.0, 8.0)
-    beta = _reference_band_power(frequencies, psd, 13.0, 30.0)
-    expected_brainbeat = (theta[0] / totals[0]) / (alpha[1] / totals[1])
-    expected_fatigue = theta[0] / _reference_band_power(frequencies, psd, 12.0, 30.0)[0]
-    result = metric_values(spectrum, 10.0)
-
-    np.testing.assert_allclose(result["brainbeat"], expected_brainbeat, rtol=1e-12, atol=1e-24)
-    np.testing.assert_allclose(result["fatigue"]["Fz"], expected_fatigue, rtol=1e-12, atol=1e-24)
+    single = SpectralEstimate(frequencies, psd[:1], 1.0, 14, 14, None)
+    iapf = _reference_iapf(frequencies, single.psd)
+    expected_fatigue = (_reference_band_power(frequencies, psd[0], max(4, iapf - 6), iapf - 2)
+                        / _reference_band_power(frequencies, psd[0], iapf + 2, 30))
+    result = compute_theta_beta(single, channel="Fz", requested_range={"start_s": 0, "end_s": 30})
+    np.testing.assert_allclose(result.value, expected_fatigue, rtol=1e-12, atol=1e-24)
 
 
 def test_faa_matches_independent_paired_epoch_fft_reference():

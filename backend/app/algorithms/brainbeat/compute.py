@@ -4,7 +4,7 @@ from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmFailure, AlgorithmResult
 from app.algorithms.iapf.official import estimate_iapf
-from app.eeg_core.official_algorithms.brainbeat import segment_brainbeat
+from app.algorithms.brainbeat.official import segment_brainbeat
 
 
 def compute_brainbeat(

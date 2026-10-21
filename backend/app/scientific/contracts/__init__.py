@@ -1,6 +1,6 @@
 """Typed and versioned scientific contracts."""
 
-from .analysis import ANALYSIS_ALGORITHM_VERSION, ANALYSIS_CONTRACT, LIVE_ANALYSIS_CONTRACT
+from .analysis import ANALYSIS_ALGORITHM_VERSION, ANALYSIS_CONTRACT
 
 from .types import (
     GapEvidence,
@@ -20,7 +20,6 @@ from .types import (
 __all__ = [
     "ANALYSIS_ALGORITHM_VERSION",
     "ANALYSIS_CONTRACT",
-    "LIVE_ANALYSIS_CONTRACT",
     "OutputField",
     "OutputSchema",
     "GapEvidence",

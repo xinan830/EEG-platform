@@ -10,12 +10,9 @@ from app.scientific.primitives.spectral import band_power
 ARTIFACT_THRESHOLD_UV = 150.0
 FAA_CHANNELS = ("F3", "F4")
 FAA_BAND = (8.0, 13.0)
-LEGACY_FAA_INITIAL_DISCARD_S = 12.0
-FAA_DISCARD_S = LEGACY_FAA_INITIAL_DISCARD_S
 FAA_EPOCH_S = 2.0
 FAA_EPOCH_OVERLAP = 0.5
 FAA_MIN_CLEAN_EPOCHS = 10
-FAA_PERIOD_CAP_S = 1800.0
 
 
 def faa_epoch_bounds(n_samples: int, epoch_samples: int, step_samples: int) -> list[tuple[int, int]]:

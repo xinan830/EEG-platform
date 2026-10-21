@@ -18,7 +18,7 @@ from app.scientific.contracts import (
 from app.scientific.primitives.spectral import band_power, estimate_spectrogram, estimate_welch_psd, preprocess_offline
 from app.algorithms.faa.official import compute_faa
 from app.algorithms.iapf.official import estimate_iapf
-from app.algorithms.theta_beta.official import metric_values
+from app.algorithms.theta_beta.compute import compute_theta_beta
 from app.scientific.primitives.spectral import SpectralEstimate
 
 
@@ -191,6 +191,6 @@ def test_migrated_official_algorithms_match_frozen_synthetic_baseline():
     faa = compute_faa(10e-6 * np.sin(2.0 * np.pi * 10.0 * times), 20e-6 * np.sin(2.0 * np.pi * 10.0 * times), 100.0)
     np.testing.assert_allclose(faa["faa"], fixture["faa"]["synthetic_faa"], rtol=rules["default_rtol"], atol=rules["default_atol"])
 
-    theta_beta = metric_values(spectrum, 10.0)
-    np.testing.assert_allclose(theta_beta["brainbeat"], fixture["theta_beta_v2"]["synthetic_brainbeat"], rtol=rules["default_rtol"], atol=rules["default_atol"])
-    np.testing.assert_allclose(theta_beta["fatigue"]["Fz"], fixture["theta_beta_v2"]["synthetic_fatigue_fz"], rtol=rules["default_rtol"], atol=rules["default_atol"])
+    theta_beta = compute_theta_beta(SpectralEstimate(frequencies, peak[None, :], 1.0, 14, 14, None),
+                                   channel="Fz", requested_range={"start_s": 0, "end_s": 30})
+    np.testing.assert_allclose(theta_beta.value, fixture["theta_beta_v2"]["synthetic_fatigue_fz"], rtol=rules["default_rtol"], atol=rules["default_atol"])

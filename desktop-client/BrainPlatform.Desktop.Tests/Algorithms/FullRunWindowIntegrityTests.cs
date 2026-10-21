@@ -114,15 +114,23 @@ public sealed class FullRunWindowIntegrityTests
         Assert.Equal("relative_window_time_center_s", stft.TimeSemantics);
     }
 
-    [Fact]
-    public void Legacy_full_stft_window_receives_contract_provenance_from_saved_dynamic_geometry()
+    [Theory]
+    [InlineData("provenance")]
+    [InlineData("preprocessing_scope")]
+    [InlineData("inner_time_axis")]
+    public void Full_stft_without_current_provenance_is_unavailable(string missing)
     {
         var preview = OnDemandDetailClient.FullStftStructuredPreview();
         var windows = preview.Windows.Select(window =>
         {
             var values = window.EnumerateObject()
-                .Where(property => property.Name != "provenance")
+                .Where(property => missing != "provenance" || property.Name != "provenance")
                 .ToDictionary(property => property.Name, property => property.Value);
+            if (missing != "provenance")
+                values["provenance"] = JsonSerializer.SerializeToElement(
+                    window.GetProperty("provenance").EnumerateObject()
+                        .Where(property => property.Name != missing)
+                        .ToDictionary(property => property.Name, property => property.Value));
             return JsonSerializer.SerializeToElement(values);
         }).ToArray();
         preview = preview with { Windows = windows };
@@ -132,9 +140,11 @@ public sealed class FullRunWindowIntegrityTests
         var state = new BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft.StftPreviewState();
         BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft.StftWindowPresenter.Apply(state, response);
 
-        Assert.NotNull(state.Result);
-        Assert.Equal([7d, 8d], state.Result!.TimesSeconds);
-        Assert.Equal("dB re 1 uV^2/Hz", state.Result.PowerUnit);
+        Assert.Equal("unavailable", response.State);
+        Assert.Null(response.Result);
+        Assert.Null(state.Result);
+        Assert.Equal("FULL_WINDOW_CONTRACT_UNAVAILABLE", response.Failure!.Code);
+        Assert.Contains("重新计算", response.Failure.Message);
     }
 
     [Fact]

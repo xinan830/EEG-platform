@@ -22,7 +22,7 @@ from app.algorithms.faa.official import compute_faa
 from app.algorithms.iapf.official import estimate_iapf
 from app.algorithms.peak_frequency.compute import compute_peak_frequency
 from app.algorithms.rbp.official import five_band_shares
-from app.algorithms.theta_beta.official import metric_values
+from app.algorithms.theta_beta.compute import compute_theta_beta
 from app.models.run import ValidationCreateRequest
 from app.scientific.primitives.spectral import (
     SpectralEstimate,
@@ -127,32 +127,6 @@ def _reference_iapf(freqs: np.ndarray, psd: np.ndarray) -> dict[str, float | str
         "cog_hz": cog,
         "model_error": error,
         "model_r2": r2,
-    }
-
-
-def _reference_theta_beta(freqs: np.ndarray, psd: np.ndarray, iapf: float) -> dict[str, object]:
-    totals = _reference_band_power(freqs, psd, 1, 30)
-    posterior = np.mean(psd[1:3], axis=0)
-    posterior_total = float(_reference_band_power(freqs, posterior, 1, 30))
-    narrow = float(_reference_band_power(freqs, posterior, iapf - 1, iapf + 1))
-    pa = float(_reference_band_power(freqs, posterior, iapf - 2, iapf + 2))
-    fa = float(_reference_band_power(freqs, psd[0], iapf - 2, iapf + 2))
-    theta = _reference_band_power(freqs, psd, max(4, iapf - 6), iapf - 2)
-    beta = _reference_band_power(freqs, psd, iapf + 2, 30)
-    pz_alpha = float(_reference_band_power(freqs, psd[1], iapf - 2, iapf + 2))
-    posterior_ratio = pa / posterior_total if posterior_total > 0 else 0
-    frontal_ratio = fa / totals[0] if totals[0] > 0 else 0
-    pz_ratio = pz_alpha / totals[1] if totals[1] > 0 else 0
-    theta_ratio = theta[0] / totals[0] if totals[0] > 0 else 0
-    return {
-        "relaxation": narrow / posterior_total if posterior_total > 0 else None,
-        "spatial_distribution": frontal_ratio / posterior_ratio if posterior_ratio >= 0.02 else None,
-        "brainbeat": theta_ratio / pz_ratio if pz_ratio > 0 else None,
-        "fatigue": {name: float(theta[i] / beta[i]) for i, name in enumerate(("Fz", "Pz", "Oz")) if beta[i] > 0},
-        "narrow_alpha": [
-            float(_reference_band_power(freqs, psd[i], iapf - 1, iapf + 1) / totals[i]) if totals[i] > 0 else 0
-            for i in range(3)
-        ],
     }
 
 
@@ -282,16 +256,14 @@ def test_peak_iapf_band_ratio_theta_beta_and_rbp_match_independent_spectrum():
     np.testing.assert_allclose(ratio.value, ref_num / ref_den, rtol=RTOL, atol=ATOL_RATIO)
     assert ratio.evidence["extensions"]["band_ratio_evidence"]["numerator_power_v2"] == pytest.approx(ref_num)
 
-    theta_expected = _reference_theta_beta(freqs, psd, 10.0)
-    theta_actual = metric_values(spectrum, 10.0)
-    for name in ("relaxation", "spatial_distribution", "brainbeat"):
-        np.testing.assert_allclose(theta_actual[name], theta_expected[name], rtol=RTOL, atol=ATOL_RATIO)
-    np.testing.assert_allclose(
-        [theta_actual["fatigue"][key] for key in ("Fz", "Pz", "Oz")],
-        [theta_expected["fatigue"][key] for key in ("Fz", "Pz", "Oz")], rtol=RTOL, atol=ATOL_RATIO,
-    )
-    np.testing.assert_allclose(theta_actual["narrow_alpha"], theta_expected["narrow_alpha"],
-                               rtol=RTOL, atol=ATOL_RATIO)
+    for index, name in enumerate(("Fz", "Pz", "Oz")):
+        row = psd[index:index + 1]
+        iapf_reference = _reference_iapf(freqs, row)["value"]
+        theta_expected = (float(_reference_band_power(freqs, row[0], max(4, iapf_reference - 6), iapf_reference - 2))
+                          / float(_reference_band_power(freqs, row[0], iapf_reference + 2, 30)))
+        theta_actual = compute_theta_beta(_spectrum(freqs, row), channel=name,
+                                         requested_range=requested, actual_range=actual_range)
+        np.testing.assert_allclose(theta_actual.value, theta_expected, rtol=RTOL, atol=ATOL_RATIO)
 
     rbp_freqs = freqs[freqs <= 50]
     rbp_psd = psd[:1, :len(rbp_freqs)]

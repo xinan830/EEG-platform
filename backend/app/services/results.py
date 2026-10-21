@@ -150,6 +150,7 @@ class ResultService:
             window_state="Partial" if state == "Partial" else "Complete",
             quality_status="valid" if usable else ("rejected" if state == "Rejected" else "unavailable"),
             reason_codes=() if usable else (reason,),
+            provenance=raw.get("provenance") if isinstance(raw.get("provenance"), dict) else None,
         )
 
     @staticmethod

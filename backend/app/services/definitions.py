@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from app.core.config import DATABASE_PATH
-from app.legacy.definition_engine import validate_graph, validate_parameters
+from app.definitions.validation import validate_graph, validate_parameters
 from app.models.algorithm_definition import AlgorithmDefinition, AlgorithmDefinitionVersion, DefinitionCreateRequest, DefinitionVersionDraft
 from app.persistence.repositories.definition import DefinitionRepository
 

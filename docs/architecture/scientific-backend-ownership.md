@@ -14,7 +14,9 @@ migrated, but new active scientific code MUST NOT be added there.
 | IAPF | `app/algorithms/iapf/official.py` | same |
 | FAA | `app/algorithms/faa/official.py` | same |
 | RBP band contract and Runtime execution | `app/algorithms/rbp/official.py`, `runner.py` | same |
-| Theta/Beta | `app/algorithms/theta_beta/official.py` | same |
+| Theta/Beta | `app/algorithms/theta_beta/compute.py` | same |
+| Brainbeat | `app/algorithms/brainbeat/official.py`, `compute.py` | same |
+| Definition validation | `app/definitions/validation.py` | same |
 | Official catalog | `app/algorithms/catalog.py` | same |
 | Generic execution | `app/algorithm_runtime/` | same |
 
@@ -29,18 +31,19 @@ Tests and diagnostic scripts import the canonical owners directly.
 The following remain executable only from validation tests and are not Runtime
 registration targets:
 
-- `app/eeg_core/official_algorithms/validation/`
-- `app/eeg_core/realtime_spectral.py`
 - `app/services/independent_spectral_reference.py`
 
 ## Historical References And Definition Engine
 
 The legacy metric playback transport and stateful `EEGProcessor` execution
-stack were retired. The remaining paths are validation references or support
-scalar Definition preview; they are not active playback authorities:
+stack and historical graph/formula executors were retired. Current Definition
+metadata validation does not execute graphs or formulas:
 
-- `app/legacy/definition_engine.py`
-- `app/eeg_core/primitives/` (historical definition graph vocabulary)
+- `app/definitions/validation.py` (topology and parameter validation)
+- `app/eeg_core/primitives/` (closed vocabulary used by current validation)
+
+Historical shadow modules and their CLI are removed. Current independent
+references and frozen artifacts remain in `backend/tests` and `docs/validation`.
 
 ## Rules
 

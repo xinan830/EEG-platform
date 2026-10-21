@@ -29,6 +29,7 @@ class SavedResultWindow(SampleRange):
     window_state: Literal["Partial", "Complete"]
     quality_status: Literal["valid", "rejected", "unavailable"]
     reason_codes: tuple[str, ...] = ()
+    provenance: dict[str, object] | None = None
 
     @model_validator(mode="after")
     def require_quality_reason(self) -> SavedResultWindow:

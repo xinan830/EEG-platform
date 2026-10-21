@@ -7,7 +7,7 @@ from typing import Any
 from app.algorithms.builtin_modules import BUILTIN_ALGORITHM_MANIFESTS
 from app.algorithm_runtime.contracts import AlgorithmManifest
 from app.core.provenance import sha256_json
-from app.eeg_core.official_algorithms.contracts import OfficialAlgorithmCatalogItem
+from app.algorithms.catalog_contracts import OfficialAlgorithmCatalogItem
 from app.models.algorithm_definition import DefinitionVersionDraft
 
 
@@ -30,7 +30,7 @@ def _manifest(algorithm_id: str) -> AlgorithmManifest:
 
 
 def official_definition(algorithm_id: str) -> dict[str, object]:
-    """Return stable compatibility metadata derived from the Runtime manifest."""
+    """Return immutable Definition metadata derived from the Runtime manifest."""
     manifest = _manifest(algorithm_id)
     persistence = manifest.definition_persistence
     if persistence is None:

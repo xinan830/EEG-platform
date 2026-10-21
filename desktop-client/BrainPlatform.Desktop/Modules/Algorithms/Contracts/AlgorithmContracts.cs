@@ -208,7 +208,8 @@ public sealed record WindowPreviewWindow(
     [property: JsonPropertyName("end_sample")] long EndSample,
     [property: JsonPropertyName("window_state")] string WindowState,
     [property: JsonPropertyName("quality_status")] string QualityStatus,
-    [property: JsonPropertyName("reason_codes")] IReadOnlyList<string> ReasonCodes);
+    [property: JsonPropertyName("reason_codes")] IReadOnlyList<string> ReasonCodes,
+    [property: JsonPropertyName("provenance")] JsonElement? Provenance = null);
 
 public sealed record WindowPreviewResponse(
     [property: JsonPropertyName("run_id")] string RunId,

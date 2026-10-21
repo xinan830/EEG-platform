@@ -4,19 +4,11 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
-
-from app.algorithm_runtime.contracts import AlgorithmManifest
+from pydantic import BaseModel
 
 
 OfficialAvailability = Literal["shadow_validation", "available", "deprecated"]
 OfficialExecutionKind = Literal["generic_research_primitives", "official_composite_shadow_only", "official_composite_run_adapter"]
-
-
-# Runnable official algorithms use the same manifest they execute.  This alias
-# preserves the catalog type name for callers while removing a second metadata
-# model that could drift from executable modules.
-OfficialAlgorithmManifest = AlgorithmManifest
 
 
 class OfficialAlgorithmCatalogItem(BaseModel):

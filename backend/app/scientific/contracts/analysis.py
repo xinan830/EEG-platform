@@ -1,4 +1,4 @@
-"""Public contracts for offline and realtime quantitative analysis."""
+"""Public contracts for current offline quantitative analysis."""
 
 ANALYSIS_ALGORITHM_VERSION = "offline-spectral-v3"
 
@@ -45,17 +45,4 @@ ANALYSIS_CONTRACT: dict[str, object] = {
     "faa_static_scope": "exact_requested_absolute_range",
     "metric_iapf_policy": "global_locked_else_last_candidate_else_10Hz",
     "validation_status": "engineering_verified_not_clinically_validated",
-}
-
-LIVE_ANALYSIS_CONTRACT: dict[str, object] = {
-    "algorithm_version": "realtime-eegprocessor-v1",
-    "pipeline_status": "legacy_realtime_analysis",
-    "metric_filter_phase": "causal_sos",
-    "metric_bandpass_hz": [1.0, 30.0],
-    "iapf_preprocessing": "mne_fir_zero_phase",
-    "iapf_lock_window_s": 30.0,
-    "iapf_lock_attempt_step_s": 5.0,
-    "faa_initial_discard_s": 12.0,
-    "brainbeat_formula": "relative_theta_Fz / relative_alpha_Pz",
-    "note": "This pipeline is distinct from offline-spectral-v3 and may not produce identical values.",
 }

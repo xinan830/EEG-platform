@@ -31,9 +31,8 @@ from app.algorithms.faa.config import FaaConfig
 from app.algorithms.iapf.compute import compute_iapf
 from app.algorithms.iapf.runner import IapfAlgorithm
 from app.algorithms.theta_beta.compute import compute_theta_beta
-from app.algorithms.theta_beta.official import metric_values
 from app.algorithms.theta_beta.runner import ThetaBetaAlgorithm
-from app.eeg_core.official_algorithms.brainbeat import segment_brainbeat
+from app.algorithms.brainbeat.official import segment_brainbeat
 from app.scientific.primitives.spectral import (
     SpectralEstimate,
     band_power,
@@ -108,14 +107,14 @@ class TestIapfAndThetaBetaBoundaries:
         assert result.failure is not None
         assert result.failure.code == "BAND_RANGE_INVALID"
 
-    def test_theta_beta_band_near_boundary_freezes_helper_contract(self):
-        # IAPF at 4.0 Hz makes the theta band [4, 2] empty. The low-level
-        # metric_values helper propagates the band_power ValueError; the
-        # compute_theta_beta runner catches it and returns a structured
-        # BAND_RANGE_INVALID failure instead of fabricating a value.
+    def test_theta_beta_band_near_boundary_returns_structured_failure(self, monkeypatch):
+        from app.algorithms.iapf.official import IAPFEstimate
+        monkeypatch.setattr("app.algorithms.theta_beta.compute.estimate_iapf",
+                            lambda _: IAPFEstimate(4.0, "peak", None, 0.9, 0.1, 4.0, 4.0))
         spectrum = _flat_spectrum()
-        with pytest.raises(ValueError):
-            metric_values(spectrum, 4.0)
+        result = compute_theta_beta(spectrum, channel="Fz", requested_range=REQUESTED)
+        assert result.value is None
+        assert result.failure.code == "BAND_RANGE_INVALID"
 
     def test_theta_beta_runner_catches_invalid_band_structured(self):
         spectrum = _flat_spectrum()
@@ -124,14 +123,14 @@ class TestIapfAndThetaBetaBoundaries:
             actual_range=REQUESTED,
         )
         # Flat PSD gives a valid IAPF (~15.5 Hz), so this exercises the
-        # normal path; the invalid-band path is covered by the helper test.
+        # normal path; the invalid-band path is covered separately.
         assert result.value is not None and result.value > 0
 
-    def test_theta_beta_requires_three_channels(self):
+    def test_theta_beta_accepts_one_explicit_channel(self):
         spectrum = _flat_spectrum(channels=1)
-        values = metric_values(spectrum, 10.0)
-        assert values["relaxation"] is None
-        assert values["fatigue"] == {}
+        result = compute_theta_beta(spectrum, channel="Fz", requested_range=REQUESTED)
+        assert result.value is not None
+        assert result.channel == "Fz"
 
 
 class TestFaaBoundaries:

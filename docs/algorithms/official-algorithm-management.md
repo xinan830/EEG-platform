@@ -10,7 +10,7 @@
 | Definition 名称/版本、可选不可变描述 payload | manifest 的 `definition_persistence` | Definition repository、Run/window identity provenance | 属存储 provenance；已发布记录不可变。旧描述 payload 可能与当前科学版本不同，不提供旧计算器执行路径 |
 | 参数模型、通道解析、执行快照、静态/动态计算 | 各算法包的 `config.py`、`runner.py`、`compute.py`、`window.py`、`official.py` | 后端 runtime/executor、Run 服务、按需 worker | 公式及算法专属质量/通道角色不得移入通用运行时或 WPF |
 | 算法注册与执行生命周期 | `backend/app/algorithm_runtime/` 和闭合工厂表 `backend/app/algorithms/builtin_modules.py` | catalog、Run、动态窗口能力注册、worker | 共享层执行通用校验、解析、调度和 provenance；科学计算委托模块 |
-| Definition 图与持久化摘要 | `backend/app/algorithms/catalog.py`，由模块元数据生成 | Definition repository、旧的 Definition 预览/存储链路 | 图结构不自动等同于官方科学实现；RBP 有额外 graph contract/digest 约束 |
+| Definition 图与持久化摘要 | `backend/app/algorithms/catalog.py`，由模块元数据生成；校验在 `backend/app/definitions/validation.py` | Definition repository、当前存储和校验服务 | 图结构不自动等同于官方科学实现；不提供旧图执行器或公式预览；RBP 有额外 graph contract/digest 约束 |
 | UI 标题、排序、详细视图工厂、通道提示和显示参数 | WPF `AlgorithmUiRegistry.cs` | 算法工作区、detail view model | presentation metadata；不拥有科学身份或公式 |
 | Run 结果映射、结果投影和按需视图能力 | WPF `AlgorithmRunResultHandlerRegistry.cs` 及各算法 handler/detail | Run 展示、按需预览、全量结果投影 | 是独立客户端集成点；不能仅凭后端目录项推断已完成 |
 | 三种策略与方向性复用调度 | 后端动态能力 registry、window reuse/publisher/consumer；WPF `AlgorithmListViewModel` 共享调度 | 动态 API、Run 和桌面交互 | full→preview 与 on-demand→full 是不同方向；声明、代码实现、验证证据分开记录 |
@@ -72,3 +72,5 @@ Retired versions remain identifiable when their stored metadata is present, so a
 ## 兼容策略清理
 
 官方算法只维护当前 scientific version。旧 FAA evidence 不再被重新解释，缺少当前 FAA contract 的历史结果不会被投影为当前 provenance；缺少动态 coverage provenance 的旧全量 Run 不再导出。频谱服务使用当前 ScientificSpectralGateway，不保留历史 monkeypatch/facade 入口。数据库 schema migration 仍保留，因为它负责数据库启动和结构升级，不执行旧科学算法。
+
+退役清理后，旧实时频谱、shadow 包与脚本、旧三通道指标组合、graph/formula 执行器和测试 provider 旧签名适配均已删除。当前 Definition 校验归入 `backend/app/definitions/validation.py`；Brainbeat 纯公式归入自己的算法包。WPF 两条完整结果预览路径只使用后端保存的 STFT 窗口证据，缺失或不符合当前契约时返回 `FULL_WINDOW_CONTRACT_UNAVAILABLE` 并要求重新计算，不补造 provenance。

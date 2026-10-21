@@ -1,9 +1,9 @@
 import numpy as np
 from scipy import signal
 
-from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, LIVE_ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.algorithms.faa.official import compute_faa
-from app.algorithms.theta_beta.official import metric_values
+from app.algorithms.theta_beta.compute import compute_theta_beta
 from app.scientific.primitives.spectral import (
     SpectralEstimate,
     band_power,
@@ -28,9 +28,6 @@ def test_offline_preprocessing_matches_independent_scipy_reference():
     assert "iapf_window_s" not in ANALYSIS_CONTRACT
     assert "iapf_step_s" not in ANALYSIS_CONTRACT
     assert ANALYSIS_CONTRACT["faa_static_scope"] == "exact_requested_absolute_range"
-    assert LIVE_ANALYSIS_CONTRACT["iapf_lock_window_s"] == 30.0
-    assert LIVE_ANALYSIS_CONTRACT["iapf_lock_attempt_step_s"] == 5.0
-    assert LIVE_ANALYSIS_CONTRACT["faa_initial_discard_s"] == 12.0
 
 
 def test_psd_frequency_range_changes_the_declared_filter_and_welch_axis():
@@ -191,7 +188,7 @@ def test_band_integration_interpolates_boundaries_without_losing_area():
     assert delta + theta == band_power(freqs, psd, 1.0, 8.0)
 
 
-def test_metric_formulas_use_fz_theta_over_pz_alpha_and_frontal_posterior_alpha():
+def test_theta_beta_formula_uses_one_raw_channel_and_actual_iapf():
     freqs = np.arange(1.0, 31.0)
     psd = np.ones((3, len(freqs)))
     psd[0, (freqs >= 4) & (freqs <= 8)] = 3.0
@@ -200,13 +197,11 @@ def test_metric_formulas_use_fz_theta_over_pz_alpha_and_frontal_posterior_alpha(
     psd[2, (freqs >= 8) & (freqs <= 12)] = 4.0
     spectrum = SpectralEstimate(freqs, psd, 1.0, 1, 1, None)
 
-    result = metric_values(spectrum, 10.0)
-
-    total = np.trapezoid(psd, freqs, axis=1)
-    theta_fz = np.trapezoid(psd[0, (freqs >= 4) & (freqs <= 8)], freqs[(freqs >= 4) & (freqs <= 8)]) / total[0]
-    alpha_pz = np.trapezoid(psd[1, (freqs >= 8) & (freqs <= 12)], freqs[(freqs >= 8) & (freqs <= 12)]) / total[1]
-    assert np.isclose(result["brainbeat"], theta_fz / alpha_pz)
-    assert result["spatial_distribution"] is not None
+    result = compute_theta_beta(spectrum, channel="Fz", requested_range={"start_s": 0, "end_s": 30})
+    evidence = result.evidence["extensions"]["theta_beta_evidence"]
+    theta = band_power(freqs, psd[0], *evidence["theta_range_hz"])
+    beta = band_power(freqs, psd[0], *evidence["beta_range_hz"])
+    assert np.isclose(result.value, theta / beta)
 
 
 def test_shared_faa_uses_log_power_difference():

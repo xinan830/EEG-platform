@@ -1,5 +1,3 @@
-## MODIFIED Requirements
-
 ## ADDED Requirements
 
 ### Requirement: Centrally manage dynamic execution strategies
@@ -44,6 +42,13 @@ algorithm-specific output/evidence.
 - **WHEN** an algorithm supports full and on-demand execution but has no declaration for one reuse direction
 - **THEN** the shared runtime does not reuse results in that direction
 - **AND** each strategy follows its own validated computation path
+
+## RENAMED Requirements
+
+- FROM: `### Requirement: Preserve historical result evidence without legacy execution`
+- TO: `### Requirement: Target only the current official algorithm version`
+
+## MODIFIED Requirements
 
 ### Requirement: Execute every selectable algorithm through the runtime
 
@@ -155,6 +160,12 @@ algorithm versions. It SHALL NOT provide migration, execution, interpretation,
 or display compatibility for Runs and artifacts produced by retired official
 algorithm versions. Algorithm-management updates SHALL NOT intentionally delete
 stored recordings, Runs, or artifacts; their accessibility is not guaranteed.
+
+#### Scenario: Inspect a retired Run
+
+- **WHEN** a client reads a Run created under a retired algorithm identity
+- **THEN** the application does not load or execute a retired calculator
+- **AND** any stored metadata remains unchanged without a compatibility interpretation guarantee
 
 #### Scenario: Retired-version data has no compatibility guarantee
 

@@ -158,7 +158,8 @@ def test_window_preview_selects_saved_window_and_returns_derived_chunk(tmp_path)
             "output": {"id": "psd", "kind": "frequency_series"},
             "windows": [
                 {"start_sample": 0, "end_sample": 400, "start_s": 0, "end_s": 4, "state": "Complete", "quality": "clean"},
-                {"start_sample": 200, "end_sample": 600, "start_s": 2, "end_s": 6, "state": "Complete", "quality": "clean"},
+                {"start_sample": 200, "end_sample": 600, "start_s": 2, "end_s": 6, "state": "Complete", "quality": "clean",
+                 "provenance": {"preprocessing_scope": "whole_recording_before_window_slice", "evidence": "backend-preserved"}},
             ],
             "axes": {"frequency_hz": {"array_key": "axis_frequency_hz", "unit": "Hz"}},
             "arrays": {"psd": {"unit": "V^2/Hz"}},
@@ -173,6 +174,9 @@ def test_window_preview_selects_saved_window_and_returns_derived_chunk(tmp_path)
     assert preview["arrays"]["psd"] == [3.0, 4.0]
     assert preview["axes"]["axis_frequency_hz"] == [1.0, 2.0]
     assert preview["artifact"]["artifact_id"] == artifact.artifact_id
+    assert preview["window"]["provenance"] == {
+        "preprocessing_scope": "whole_recording_before_window_slice", "evidence": "backend-preserved",
+    }
 
 
 def test_window_preview_serializes_object_dtype_numeric_axes(tmp_path, monkeypatch):

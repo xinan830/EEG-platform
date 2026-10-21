@@ -1,19 +1,16 @@
-# Algorithm Definition Engine
+# Algorithm Definition Validation
 
-Definitions are backend-only, versioned research graphs. A Definition identity
-is mutable only in its descriptive metadata; each stored version is a distinct
-SemVer snapshot. Publishing changes a draft version's lifecycle state but never
-rewrites graph, schema, units, quality rules or digest. Corrections require a
-new SemVer version.
+Definitions store versioned backend research metadata. Each published version
+is immutable; updates require a new version rather than rewriting graph,
+schema, unit, quality or digest fields.
 
-The graph can reference only the closed primitive registry. It is topologically
-sorted before execution and rejects cycles, unknown nodes, missing inputs and
-unit incompatibility with stable codes. Formula parsing uses an AST allowlist
-for names, finite numeric constants, arithmetic and `ln`; it does not call
-`eval`, import modules, inspect attributes or accept indexing/calls.
+`backend/app/definitions/validation.py` validates graph topology and parameter
+schemas for DefinitionService. It rejects unknown primitive names, missing
+dependencies, cycles, invalid outputs and parameter violations with structured
+codes. Validation checks the closed primitive vocabulary but does not execute
+nodes or process EEG.
 
-`POST /api/algorithm-definitions/preview` is an in-memory scalar preview. Its
-response is explicitly `preview: true` and `persisted: false`; it cannot
-overwrite a formal AnalysisRun. Current spectrum, spectrogram, Viewer and
-official algorithms remain on their existing paths until Change 04 completes
-shadow validation.
+The old graph executor, scalar AST formula interpreter and their compatibility
+entry points have been removed. The scalar preview API was already retired;
+there is no supported replacement formula execution path. Current official
+algorithms run through their own modules and the shared algorithm runtime.

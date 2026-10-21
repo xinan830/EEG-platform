@@ -101,8 +101,8 @@ def test_cancel_during_reuse_stops_full_run_without_publishing_artifact(tmp_path
         def cancelling_provider(**arguments):
             cached_window = provider(**arguments)
 
-            def read(start_sample, end_sample):
-                result = cached_window(start_sample, end_sample)
+            def read(start_sample, end_sample, *, check_cancelled):
+                result = cached_window(start_sample, end_sample, check_cancelled=check_cancelled)
                 if result is not None:
                     reused.append((start_sample, end_sample))
                     runs.cancel(arguments["run"].run_id)

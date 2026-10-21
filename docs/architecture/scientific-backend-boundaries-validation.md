@@ -1,5 +1,9 @@
 # Scientific Backend Boundaries Migration Validation
 
+Historical migration report: subsequent retirement cleanup removes the legacy
+references and graph executor mentioned here. Current ownership is recorded in
+`scientific-backend-ownership.md`.
+
 ## Scope
 
 This report records the structural migration state for

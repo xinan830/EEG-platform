@@ -148,9 +148,13 @@ def test_retired_metric_executor_implementations_are_removed() -> None:
     assert not (ROOT / "app" / "algorithms" / "user_definition" / "runner.py").exists()
 
 
-def test_retired_definition_engine_is_owned_by_legacy_boundary() -> None:
-    implementation = ROOT / "app" / "legacy" / "definition_engine.py"
+def test_definition_validation_has_current_ownership_without_retired_execution() -> None:
+    implementation = ROOT / "app" / "definitions" / "validation.py"
     assert implementation.exists()
+    source = implementation.read_text(encoding="utf-8")
+    assert "def execute_graph" not in source
+    assert "def evaluate_formula" not in source
+    assert not (ROOT / "app" / "legacy" / "definition_engine.py").exists()
     assert not (ROOT / "app" / "eeg_core" / "definition_engine.py").exists()
 
 

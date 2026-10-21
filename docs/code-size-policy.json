@@ -5,8 +5,8 @@
   "reviews": {
     "backend/app/services/on_demand_dynamic.py": {
       "decision": "keep",
-      "max_lines": 450,
-      "reason": "按需会话编排保留单一身份、订阅与发布状态所有者；调度准入、任务执行、恢复、科学身份纯函数、离线复用和 artifact 校验已有独立边界。本轮组合策略只复用既有入口，不复制科学计算；继续拆分应在单独的调度维护变更中完成。"
+      "max_lines": 451,
+      "reason": "退役清理复核：现有文件为 451 行，本轮未增加业务代码。按需会话保留身份、订阅与发布状态所有权；调度准入、任务执行、恢复、科学身份、离线复用和 artifact 校验已有独立边界。文件尚未达到 600 行高风险线，当前不为消除一行差异而机械拆分。"
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
@@ -105,8 +105,13 @@
     },
     "backend/app/services/spectral_analysis.py": {
       "decision": "keep",
-      "max_lines": 500,
-      "reason": "该服务统一编排已有 PSD/STFT 兼容结果和 provenance，不持有滤波数学。缓存、分块滤波、映射所有权和记录访问已有独立边界；当前 481 行，STFT 保留一次计算的数据租约防止并发缓存淘汰。此次不重构已有兼容响应封装。"
+      "max_lines": 521,
+      "reason": "退役清理复核：当前 521 行，本轮未改动该文件。职责是配置频谱请求的源数据租约、缓存与响应 provenance 编排；滤波和频谱数学已归入 ScientificSpectralGateway，分块读取和映射另有所有者。仍低于 600 行，保留共同数据租约的生命周期，避免为文档清理改动并发语义。"
+    },
+    "backend/app/persistence/repositories/dynamic_attempt.py": {
+      "decision": "keep",
+      "max_lines": 478,
+      "reason": "退役清理复核补登现有 478 行文件，本轮未改动业务代码。该 mixin 统一管理动态 attempt 的创建、producer 转移、租约 fencing、心跳、终态和崩溃恢复；事务一致性与窗口仓库连接属于同一持久化边界。当前低于 600 行，保留完整的租约事务约束比拆成互相依赖的状态写入器更易审计。"
     },
     "backend/app/services/runs.py": {
       "decision": "keep",

@@ -2,6 +2,10 @@
 
 Date: 2026-09-16
 
+Historical inventory only: the subsequent retirement cleanup removes the shadow
+references and graph executor described below. Current Definition validation
+is in `app/definitions/validation.py`; see `scientific-backend-ownership.md`.
+
 This audit is the deletion gate for `replace-algorithm-runtime-and-theta-beta-v2`.
 No source path is deleted only because its filename looks old; each candidate is
 classified by its imports and callers first.

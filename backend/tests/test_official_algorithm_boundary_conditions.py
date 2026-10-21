@@ -31,9 +31,8 @@ from app.algorithms.faa.config import FaaConfig
 from app.algorithms.iapf.compute import compute_iapf
 from app.algorithms.iapf.runner import IapfAlgorithm
 from app.algorithms.theta_beta.compute import compute_theta_beta
-from app.algorithms.theta_beta.official import metric_values
 from app.algorithms.theta_beta.runner import ThetaBetaAlgorithm
-from app.eeg_core.official_algorithms.brainbeat import segment_brainbeat
+from app.algorithms.brainbeat.official import segment_brainbeat
 from app.scientific.primitives.spectral import (
     SpectralEstimate,
     band_power,
