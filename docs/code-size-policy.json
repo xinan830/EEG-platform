@@ -5,8 +5,8 @@
   "reviews": {
     "backend/app/services/on_demand_dynamic.py": {
       "decision": "keep",
-      "max_lines": 451,
-      "reason": "退役清理复核：现有文件为 451 行，本轮未增加业务代码。按需会话保留身份、订阅与发布状态所有权；调度准入、任务执行、恢复、科学身份、离线复用和 artifact 校验已有独立边界。文件尚未达到 600 行高风险线，当前不为消除一行差异而机械拆分。"
+      "max_lines": 490,
+      "reason": "历史与当前兼容导联快照接入：当前 487 行，按 recording 目录校验所选身份，并将后端权威来源、profile ID、映射和公式冻结进科学上下文；未加入导联数值计算。调度、任务执行、恢复、离线复用和 artifact 校验已有独立边界。保留同一准入流程，避免为行数拆散请求校验，仍低于 600 行高风险线。"
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
@@ -95,8 +95,8 @@
     },
     "backend/app/services/recordings.py": {
       "decision": "keep",
-      "max_lines": 520,
-      "reason": "频谱和时频编排已迁至 spectral_analysis.py；分块读取器和映射预处理分别归入独立服务，本文件保留 Recording 导入、身份、文件读取与现行入口。采集导联快照校验和数值投影归入 acquisition_analysis_signals.py，本文件仅登记两种来源身份及选择读取器，当前 512 行。"
+      "max_lines": 570,
+      "reason": "算法导联选择：当前 563 行，负责 recording 注册入口、目录身份和样本读取器委派；兼容 profile 校验及内容寻址快照由 analysis_montage_snapshots.py 负责，信号投影由 acquisition_analysis_signals.py 负责。职责仍集中在 recording 生命周期和数据访问，尚低于 600 行高风险线；继续增长时应评估将注册/目录查询拆到独立服务。"
     },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",
@@ -110,8 +110,8 @@
     },
     "backend/app/persistence/repositories/dynamic_attempt.py": {
       "decision": "keep",
-      "max_lines": 478,
-      "reason": "退役清理复核补登现有 478 行文件，本轮未改动业务代码。该 mixin 统一管理动态 attempt 的创建、producer 转移、租约 fencing、心跳、终态和崩溃恢复；事务一致性与窗口仓库连接属于同一持久化边界。当前低于 600 行，保留完整的租约事务约束比拆成互相依赖的状态写入器更易审计。"
+      "max_lines": 490,
+      "reason": "动态 attempt mixin 统一管理创建、producer 转移、租约 fencing、心跳、终态和崩溃恢复；事务一致性与窗口仓库连接属于同一持久化边界。当前仍低于 600 行，保留完整租约事务更易审计；本轮增加 producer-mode scoped admission，维护双 lane 的独立额度。"
     },
     "backend/app/services/runs.py": {
       "decision": "keep",

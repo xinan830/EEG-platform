@@ -123,6 +123,40 @@ class DynamicWindowService:
         official = OfficialAlgorithmRunConfig.model_validate(self._official_payload(payload))
         typed_config = module.config_model.model_validate(official.runtime_config())
         typed_config = self._runtime_validate(module, typed_config)
+        montage_snapshot = official.montage_snapshot()
+        if montage_snapshot is not None:
+            catalogue = {str(item.get("id")): item for item in getattr(recording, "montage_catalogue", ())}
+            profile = catalogue.get(str(montage_snapshot["id"]))
+            if profile is None:
+                raise ValueError("ANALYSIS_MONTAGE_NOT_IN_RECORDING: 所选导联配置不属于该记录的历史目录")
+            if montage_snapshot.get("revision") != profile.get("revision") or montage_snapshot.get("fingerprint") != profile.get("fingerprint"):
+                raise ValueError("ANALYSIS_MONTAGE_STALE: 所选导联配置版本或指纹与记录快照不一致")
+            montage_snapshot = {
+                **montage_snapshot,
+                "snapshot_source": profile.get("snapshot_source", "acquisition"),
+                "source_profile_id": profile.get("source_profile_id", profile["id"]),
+                "source_mapping": profile.get("source_mapping", {}),
+                "formulas": profile.get("formulas", []),
+            }
+            catalogue_outputs = {str(item.get("id")): item for item in profile.get("outputs", []) if item.get("available", False)}
+            outputs = set(catalogue_outputs)
+            requested = module.requested_channels(typed_config)
+            requested_outputs = montage_snapshot.get("outputs") or []
+            mapped_ids = [str(item.get("output", "")) for item in requested_outputs]
+            mapped_roles = [str(item.get("role", "")) for item in requested_outputs]
+            if (len(mapped_ids) != len(set(mapped_ids)) or
+                    len(mapped_roles) != len(set(mapped_roles)) or
+                    any(not role for role in mapped_roles) or
+                    set(mapped_ids) != {str(channel) for channel in requested}):
+                raise ValueError("ANALYSIS_MONTAGE_MAPPING_MISMATCH: 导联角色映射与算法请求输入不一致")
+            for output in requested_outputs:
+                output_id = str(output.get("output", ""))
+                declared = catalogue_outputs.get(output_id)
+                if declared is not None and str(output.get("role", "")) != str(declared.get("role", "")):
+                    raise ValueError("ANALYSIS_MONTAGE_MAPPING_MISMATCH: 导联角色映射与算法请求输入不一致")
+            if any(channel.casefold() not in {item.casefold() for item in outputs} for channel in requested):
+                raise ValueError("ANALYSIS_MONTAGE_ROLE_UNRESOLVED: 算法输入未解析到所选历史导联输出")
+            recording = self.recordings.select_analysis_montage(recording, str(montage_snapshot["id"]))
         context = _RecordingAlgorithmContext(self.recordings, recording)
         try:
             inputs = module.resolve_inputs(context, typed_config)
@@ -151,6 +185,8 @@ class DynamicWindowService:
                 "channels": module.requested_channels(typed_config),
                 "signal_source": signal_source,
             }
+            if montage_snapshot is not None:
+                channel_mapping["analysis_montage"] = montage_snapshot
             reference = {"mode": signal_source["analysis_reference"]}
             scientific_context = scientific_context_snapshot(
                 sampling_rate_hz=inputs.sfreq_hz,

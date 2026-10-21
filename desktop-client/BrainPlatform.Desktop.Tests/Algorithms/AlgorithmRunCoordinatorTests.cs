@@ -41,7 +41,8 @@ public sealed class AlgorithmRunCoordinatorTests
         public string? RegisteredDirectory { get; private set; }
         public int PollCount { get; private set; }
 
-        public Task<RegisteredRecording> RegisterWpfRecordingAsync(string sourceDirectory, CancellationToken cancellationToken)
+        public Task<RegisteredRecording> RegisterWpfRecordingAsync(string sourceDirectory, CancellationToken cancellationToken,
+            IReadOnlyList<BrainPlatform.Desktop.Modules.Montages.Domain.MontageProfile>? analysisMontageProfiles = null)
         {
             RegisteredDirectory = sourceDirectory;
             return Task.FromResult(new RegisteredRecording(

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .database import connect_database
+from .analysis_montage_migration import migration_022_analysis_montage_snapshots
 from .dynamic_identity_migration import migration_019_dynamic_resolved_identity
 from .on_demand_migrations import migration_020_dynamic_producer_metadata
 from .on_demand_migrations import (
@@ -365,6 +366,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(19, "on-demand-resolved-identity", migration_019_dynamic_resolved_identity),
     Migration(20, "dynamic-producer-metadata", migration_020_dynamic_producer_metadata),
     Migration(21, "repair-dynamic-producer-metadata", migration_021_repair_dynamic_producer_metadata),
+    Migration(22, "analysis-montage-snapshots", migration_022_analysis_montage_snapshots),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

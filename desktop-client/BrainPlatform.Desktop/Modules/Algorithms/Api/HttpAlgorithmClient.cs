@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 
@@ -40,7 +41,8 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
 
     public Task<RegisteredRecording> RegisterWpfRecordingAsync(
         string sourceDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<MontageProfile>? analysisMontageProfiles = null)
     {
         if (string.IsNullOrWhiteSpace(sourceDirectory))
         {
@@ -50,7 +52,7 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
         return SendAsync<RegisteredRecording>(
             HttpMethod.Post,
             "api/recordings/register-wpf",
-            new WpfRecordingRegistrationRequest(sourceDirectory),
+            new WpfRecordingRegistrationRequest(sourceDirectory, AnalysisMontageProfiles: analysisMontageProfiles ?? []),
             cancellationToken);
     }
 

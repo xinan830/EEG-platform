@@ -30,6 +30,40 @@ def test_scoped_admission_is_transactional_and_duplicates_remain_available(admis
         assert connection.execute("SELECT COUNT(*) FROM dynamic_analysis_subscriptions").fetchone()[0] == 2
 
 
+@pytest.mark.parametrize("scope", ["project", "recording"])
+def test_full_publication_reservations_do_not_consume_on_demand_quotas(admission, scope):
+    service, request, started, _ = admission
+    service.resource_policy = replace(service.resource_policy, **{f"max_{scope}_attempts": 2})
+    first = service.ensure(request)
+    assert started.wait(2)
+
+    # Full results may reserve many windows until their Run publishes them.
+    # Those reservations are outside the interactive queue's scoped budgets.
+    repository = service.repository
+    for index in range(2):
+        window = repository.ensure_window(
+            first["session_id"], start_sample=2000 + index * 1000,
+            end_sample=3000 + index * 1000, start_s=10 + index * 5, end_s=15 + index * 5,
+        )
+        repository.create_attempt(
+            window.window_id, f"full-{index}", producer_mode="full",
+            producer_owner_id=f"run-{index}", priority=10,
+        )
+
+    second = service.ensure(request.model_copy(update={"cursor_sample": 1200, "request_id": "second"}))
+    assert second["window_id"] != first["window_id"]
+    with pytest.raises(DynamicWindowCapacityExceededError) as error:
+        service.ensure(request.model_copy(update={"cursor_sample": 1400, "request_id": "third"}))
+    assert error.value.detail["scope"] == f"{scope}_id"
+    with sqlite3.connect(service.repository.database_path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM dynamic_analysis_attempts WHERE producer_mode = 'full' AND state = 'queued'"
+        ).fetchone()[0] == 2
+        assert connection.execute(
+            "SELECT COUNT(*) FROM dynamic_analysis_attempts WHERE producer_mode = 'on_demand' AND state IN ('queued','running')"
+        ).fetchone()[0] == 2
+
+
 def test_persistent_capacity_does_not_delete_or_block_ready_results(tmp_path):
     client, recording, service, _, root = configure_api(tmp_path)
     before = source_hashes(root)

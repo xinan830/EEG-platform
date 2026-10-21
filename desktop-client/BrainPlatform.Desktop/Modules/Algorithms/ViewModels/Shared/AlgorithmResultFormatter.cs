@@ -94,7 +94,30 @@ internal static class AlgorithmResultFormatter
         var channel = provenance.ValueKind == JsonValueKind.Object && provenance.TryGetProperty("channel", out var channelElement)
             ? channelElement.GetString() ?? "未指定"
             : "未指定";
-        return $"Run：{run.RunId}；科学版本：{version}；模式：{mode}；通道：{channel}；请求范围：{FormatRange(run.RequestedRange)}；实际范围：{FormatRange(run.ActualRange)}";
+        var montage = FormatMontage(provenance);
+        return $"Run：{run.RunId}；科学版本：{version}；模式：{mode}；通道：{channel}；{montage}请求范围：{FormatRange(run.RequestedRange)}；实际范围：{FormatRange(run.ActualRange)}";
+    }
+
+    private static string FormatMontage(JsonElement provenance)
+    {
+        if (provenance.ValueKind != JsonValueKind.Object ||
+            !provenance.TryGetProperty("analysis_montage", out var montage) ||
+            montage.ValueKind != JsonValueKind.Object)
+            return "导联配置：未提供；";
+
+        var id = montage.TryGetProperty("id", out var idElement) ? idElement.GetString() : null;
+        var revision = montage.TryGetProperty("revision", out var revisionElement) ? revisionElement.GetString() : null;
+        var fingerprint = montage.TryGetProperty("fingerprint", out var fingerprintElement) ? fingerprintElement.GetString() : null;
+        var outputs = montage.TryGetProperty("outputs", out var outputElement) && outputElement.ValueKind == JsonValueKind.Array
+            ? string.Join(", ", outputElement.EnumerateArray().Select(output =>
+            {
+                var role = output.TryGetProperty("role", out var roleElement) ? roleElement.GetString() : null;
+                var selected = output.TryGetProperty("output", out var selectedElement) ? selectedElement.GetString() : null;
+                return string.IsNullOrWhiteSpace(role) ? selected ?? "未命名" : $"{role}→{selected ?? "未命名"}";
+            }))
+            : "未提供映射";
+        var identity = string.Join("/", new[] { id, revision }.Where(item => !string.IsNullOrWhiteSpace(item)));
+        return $"导联配置：{(string.IsNullOrWhiteSpace(identity) ? "未命名" : identity)}；指纹：{(string.IsNullOrWhiteSpace(fingerprint) ? "未提供" : fingerprint)}；映射：{outputs}；";
     }
 
     internal static string BuildStructuredPreview(StructuredPreviewResponse preview)

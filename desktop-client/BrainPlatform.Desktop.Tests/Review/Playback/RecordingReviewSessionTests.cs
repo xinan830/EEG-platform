@@ -146,7 +146,7 @@ public sealed class RecordingReviewSessionTests
     }
 
     [Fact]
-    public async Task SwitchingViewingMontageReusesCompletedFilteredSourceChunks()
+    public async Task ReviewDisplayMontageSwitchKeepsAcquisitionIdentityAndOnlyReprojectsFrame()
     {
         var configuration = Configuration(2);
         var acquisition = Profile("采集导联", configuration, 2);
@@ -166,6 +166,8 @@ public sealed class RecordingReviewSessionTests
 
         Assert.Equal(2, filter.CallCount);
         Assert.Equal(2, reader.ReadCount);
+        Assert.Same(acquisition, session.AcquisitionMontage);
+        Assert.Same(alternate, session.SelectedViewingMontage);
         Assert.Equal(alternate.Name, session.CurrentFrame!.ViewingMontageName);
     }
 

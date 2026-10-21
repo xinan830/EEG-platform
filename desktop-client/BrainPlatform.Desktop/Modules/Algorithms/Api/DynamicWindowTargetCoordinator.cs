@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
@@ -105,6 +106,7 @@ public sealed class DynamicWindowTargetCoordinator
                 pending = null;
                 active = work;
             }
+            var started = Stopwatch.GetTimestamp();
             try
             {
                 var response = client is null
@@ -139,8 +141,10 @@ public sealed class DynamicWindowTargetCoordinator
                     work.Finished.TrySetResult();
                 }
             }
-            // This is transport backpressure, not another playback/scientific clock.
-            if (cadence > TimeSpan.Zero) await Task.Delay(cadence).ConfigureAwait(false);
+            // Bound start frequency without adding a fixed gap after a slow job.
+            // Observation includes awaited subscription cleanup; ownership stays serial.
+            var remaining = cadence - Stopwatch.GetElapsedTime(started);
+            if (remaining > TimeSpan.Zero) await Task.Delay(remaining).ConfigureAwait(false);
         }
     }
 

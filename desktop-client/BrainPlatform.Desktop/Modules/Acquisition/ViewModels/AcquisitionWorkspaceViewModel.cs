@@ -22,6 +22,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     private readonly OperationNotificationCenter? notifications;
     private readonly EventDefinitionService eventDefinitionService;
     private readonly IRecordingRegistrationClient? recordingRegistrationClient;
+    private readonly MontageProfileStore montageStore;
     private AcquisitionDeviceDescriptor? appliedSetupDevice;
     private string sdkLibraryPath;
     private string recordingDirectory;
@@ -51,7 +52,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         Dispatcher? dispatcher = null,
         OperationNotificationCenter? notifications = null,
         EventDefinitionService? eventDefinitionService = null,
-        IRecordingRegistrationClient? recordingRegistrationClient = null)
+        IRecordingRegistrationClient? recordingRegistrationClient = null,
+        MontageProfileStore? montageStore = null)
     {
         this.settingsStore = settingsStore ?? new LocalAcquisitionSettingsStore();
         this.deviceSession = deviceSession ?? new DeviceSessionManager(runtime ?? new ConfiguredAcquisitionRuntime());
@@ -64,6 +66,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         this.notifications = notifications;
         this.eventDefinitionService = eventDefinitionService ?? new EventDefinitionService(new EventDefinitionStore());
         this.recordingRegistrationClient = recordingRegistrationClient;
+        this.montageStore = montageStore ?? new MontageProfileStore();
         var settings = LoadSettings();
         sdkLibraryPath = AntEegoSdkPathResolver.Resolve(settings.SdkLibraryPath, AppContext.BaseDirectory);
         recordingDirectory = settings.RecordingDirectory;
@@ -662,6 +665,10 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         var referenceRange = SelectedReferenceRangeVolts ?? throw new InvalidOperationException("请选择参考量程。");
         var bipolarRange = SelectedBipolarRangeVolts ?? throw new InvalidOperationException("请选择双极量程。");
         AntEegoRangePair.Validate(referenceRange, bipolarRange);
+        var historicalProfiles = (await montageStore.LoadAsync(CancellationToken.None))
+            .Where(profile => !profile.IsArchived && string.Equals(profile.ChannelConfigurationFingerprint, montage.ChannelConfigurationFingerprint, StringComparison.Ordinal))
+            .GroupBy(profile => profile.Id, StringComparer.Ordinal).Select(group => group.First()).ToArray();
+        if (historicalProfiles.All(profile => profile.Id != montage.Id)) historicalProfiles = [montage, .. historicalProfiles];
         if (string.IsNullOrWhiteSpace(project.DirectoryPath))
         {
             throw new InvalidOperationException("所选项目没有有效的项目目录，请先打开项目设置修正。");
@@ -684,7 +691,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
                 ChannelConfigurationSnapshotJson: JsonSerializer.Serialize(channelSnapshot),
                 MontageConfigurationId: montage.Id,
                 MontageConfigurationName: montage.Name,
-                MontageConfigurationSnapshotJson: JsonSerializer.Serialize(montage))),
+                MontageConfigurationSnapshotJson: JsonSerializer.Serialize(montage),
+                MontageCatalogueSnapshotJson: JsonSerializer.Serialize(historicalProfiles))),
             CancellationToken.None);
         savedSamplingRateHz = samplingRateHz;
         savedReferenceRangeText = referenceRange.ToString("R", CultureInfo.InvariantCulture);

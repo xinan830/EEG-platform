@@ -14,7 +14,8 @@ public sealed record AntEegoAdapterOptions(
     string? ChannelConfigurationSnapshotJson = null,
     string? MontageConfigurationId = null,
     string? MontageConfigurationName = null,
-    string? MontageConfigurationSnapshotJson = null)
+    string? MontageConfigurationSnapshotJson = null,
+    string? MontageCatalogueSnapshotJson = null)
 {
     public TimeSpan EffectiveEmptyReadDelay => EmptyReadDelay ?? TimeSpan.FromMilliseconds(10);
 

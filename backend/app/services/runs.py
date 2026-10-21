@@ -64,6 +64,7 @@ class RunService:
         recording = self.recordings.require_recording(request.recording_id)
         if not recording.source_sha256:
             raise ValueError("recording source identity is unavailable")
+        recording = self._recording_for_request(request, recording)
         resolved = self._resolve_request(request, recording)
         # ``display_state`` belongs to the renderer/session, not the scientific Run.
         config_sha256 = sha256_json(resolved["config"])
@@ -185,6 +186,15 @@ class RunService:
     def list_artifacts(self, run_id: str):
         return self.repository.list_artifacts(self.resolve_artifact_source_run_id(run_id))
 
+    def _recording_for_request(self, request: RunCreateRequest, recording: Any) -> Any:
+        """Bind the immutable recording to the selected analysis montage snapshot."""
+        if request.analysis_type != "official_algorithm":
+            return recording
+        config = OfficialAlgorithmRunConfig.model_validate(request.config)
+        if not config.analysis_montage_id:
+            return recording
+        return self.recordings.select_analysis_montage(recording, config.analysis_montage_id)
+
     def resolve_artifact_source_run_id(self, run_id: str) -> str:
         """Follow cache reuse provenance to the Run that owns the artifact."""
         visited: set[str] = set()
@@ -202,8 +212,10 @@ class RunService:
         run_definition_id = request.definition_id
         run_definition_version = request.definition_version
         window_policy_version = ""
+        official_config = None
         if request.analysis_type == "official_algorithm":
             official_config = OfficialAlgorithmRunConfig.model_validate(request.config)
+            montage_snapshot = official_config.montage_snapshot()
             module = self.algorithm_runtime_registry.get_current(official_config.algorithm_id)
             if (official_config.scientific_version is not None and
                     official_config.scientific_version != module.manifest.scientific_version):
@@ -227,6 +239,30 @@ class RunService:
             if unknown:
                 raise ValueError(f"official analysis channel does not exist: {unknown[0]}")
             channels = requested_channels
+            if montage_snapshot is not None:
+                catalogue = {str(item.get("id")): item for item in getattr(recording, "montage_catalogue", ())}
+                profile = catalogue.get(str(montage_snapshot["id"]))
+                if profile is None:
+                    raise ValueError("ANALYSIS_MONTAGE_NOT_IN_RECORDING: 所选导联配置不属于该记录的历史目录")
+                if montage_snapshot.get("revision") != profile.get("revision") or montage_snapshot.get("fingerprint") != profile.get("fingerprint"):
+                    raise ValueError("ANALYSIS_MONTAGE_STALE: 所选导联配置版本或指纹与记录快照不一致")
+                available_outputs = {str(item.get("id")): item for item in profile.get("outputs", []) if item.get("available", False)}
+                requested_outputs = montage_snapshot.get("outputs") or []
+                mapped_ids = [str(item.get("output", "")) for item in requested_outputs]
+                mapped_roles = [str(item.get("role", "")) for item in requested_outputs]
+                if (len(mapped_ids) != len(set(mapped_ids)) or
+                        len(mapped_roles) != len(set(mapped_roles)) or
+                        any(not role for role in mapped_roles) or
+                        set(mapped_ids) != {str(channel) for channel in channels}):
+                    raise ValueError("ANALYSIS_MONTAGE_MAPPING_MISMATCH: 导联角色映射与算法请求输入不一致")
+                for output in requested_outputs:
+                    output_id = str(output.get("output", ""))
+                    if output_id not in available_outputs:
+                        raise ValueError("ANALYSIS_MONTAGE_OUTPUT_UNAVAILABLE: 所选导联输出不在历史目录中")
+                    if str(output.get("role", "")) != str(available_outputs[output_id].get("role", "")):
+                        raise ValueError("ANALYSIS_MONTAGE_MAPPING_MISMATCH: 导联角色映射与算法请求输入不一致")
+                if any(channel.casefold() not in {name.casefold() for name in available_outputs} for channel in channels):
+                    raise ValueError("ANALYSIS_MONTAGE_ROLE_UNRESOLVED: 算法输入未解析到所选历史导联输出")
             manifest = module.manifest
             config = official_config.model_copy(
                 update={"scientific_version": manifest.scientific_version}
@@ -303,6 +339,28 @@ class RunService:
             definition = {**definition, "signal_source": signal_source}
         channel_mapping = {"channels": channels, "signal_source": signal_source}
         reference = {"mode": signal_source["analysis_reference"]}
+        if request.analysis_type == "official_algorithm":
+            montage_snapshot = OfficialAlgorithmRunConfig.model_validate(config).montage_snapshot()
+            if montage_snapshot is not None:
+                selected_profile = next(
+                    (item for item in getattr(recording, "montage_catalogue", ())
+                     if str(item.get("id")) == str(montage_snapshot["id"])),
+                    None,
+                )
+                if selected_profile is None:
+                    raise ValueError("ANALYSIS_MONTAGE_NOT_IN_RECORDING: 所选导联配置不属于该记录目录")
+                if (montage_snapshot.get("revision") != selected_profile.get("revision")
+                        or montage_snapshot.get("fingerprint") != selected_profile.get("fingerprint")):
+                    raise ValueError("ANALYSIS_MONTAGE_STALE: 所选导联配置版本或指纹与记录快照不一致")
+                montage_snapshot = {
+                    **montage_snapshot,
+                    "snapshot_source": selected_profile.get("snapshot_source", "acquisition"),
+                    "source_profile_id": selected_profile.get("source_profile_id", selected_profile["id"]),
+                    "source_mapping": selected_profile.get("source_mapping", {}),
+                    "formulas": selected_profile.get("formulas", []),
+                }
+                channel_mapping["analysis_montage"] = montage_snapshot
+                reference["analysis_montage"] = montage_snapshot
         scientific_context = scientific_context_snapshot(
             sampling_rate_hz=float(recording.sfreq or 0.0),
             signal_mapping=channel_mapping,

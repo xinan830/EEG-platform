@@ -21,7 +21,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="25" /><RowDefinition Height="25" /><RowDefinition Height="25" /><RowDefinition Height="25" />
                     <RowDefinition Height="25" /><RowDefinition Height="25" /><RowDefinition Height="25" /><RowDefinition Height="28" />
-                    <RowDefinition Height="25" /><RowDefinition Height="25" />
+                    <RowDefinition Height="25" /><RowDefinition Height="25" /><RowDefinition Height="Auto" MinHeight="25" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="90" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <TextBlock Grid.Row="0" Text="Run ID" Style="{StaticResource ProvenanceLabelStyle}" /><TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding RunIdText}" Style="{StaticResource ProvenanceValueStyle}" />
@@ -34,6 +34,7 @@
                 <TextBlock Grid.Row="7" Text="参数快照" Style="{StaticResource ProvenanceLabelStyle}" /><TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding ParameterSnapshotText}" Style="{StaticResource ProvenanceValueStyle}" />
                 <TextBlock Grid.Row="8" Text="输出单位" Style="{StaticResource ProvenanceLabelStyle}" /><TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding OutputUnitText}" Style="{StaticResource ProvenanceValueStyle}" />
                 <TextBlock Grid.Row="9" Text="结果生成时间" Style="{StaticResource ProvenanceLabelStyle}" /><TextBlock Grid.Row="9" Grid.Column="1" Text="{Binding ResultTimeText}" Style="{StaticResource ProvenanceValueStyle}" />
+                <TextBlock Grid.Row="10" Text="分析导联" Style="{StaticResource ProvenanceLabelStyle}" /><TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding AnalysisMontageDetailsText}" Style="{StaticResource ProvenanceValueStyle}" TextWrapping="Wrap" />
             </Grid>
         </StackPanel>
     </Border>

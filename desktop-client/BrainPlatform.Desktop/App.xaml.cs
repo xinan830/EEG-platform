@@ -64,12 +64,14 @@ public partial class App : Application
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(15),
         });
+        var montageStore = new MontageProfileStore();
         workspace = new DesktopWorkspaceViewModel(
             healthClient,
-            new AcquisitionWorkspaceViewModel(runtime: runtime, deviceSession: deviceSession, notifications: notifications, eventDefinitionService: eventDefinitionService, recordingRegistrationClient: algorithmClient),
+            new AcquisitionWorkspaceViewModel(runtime: runtime, deviceSession: deviceSession, notifications: notifications, eventDefinitionService: eventDefinitionService, recordingRegistrationClient: algorithmClient, montageStore: montageStore),
             notifications,
             eventDefinitionService,
-            algorithmClient);
+            algorithmClient,
+            montageStore: montageStore);
         var reviewFilterClient = new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
         {
             BaseAddress = backendEndpoint,

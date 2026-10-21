@@ -24,6 +24,10 @@ class OfficialAlgorithmRunConfig(BaseModel):
     numerator_high_hz: float | None = Field(default=None, ge=0)
     denominator_low_hz: float | None = Field(default=None, ge=0)
     denominator_high_hz: float | None = Field(default=None, ge=0)
+    analysis_montage_id: str | None = Field(default=None, min_length=1, max_length=160)
+    analysis_montage_revision: str | None = Field(default=None, min_length=1, max_length=160)
+    analysis_montage_fingerprint: str | None = Field(default=None, min_length=1, max_length=160)
+    analysis_montage_outputs: list[dict[str, str]] | None = None
 
     @model_validator(mode="after")
     def validate_contract(self) -> "OfficialAlgorithmRunConfig":
@@ -89,3 +93,13 @@ class OfficialAlgorithmRunConfig(BaseModel):
                 "denominator_high_hz": float(self.denominator_high_hz),
             })
         return config
+
+    def montage_snapshot(self) -> dict[str, Any] | None:
+        if not self.analysis_montage_id:
+            return None
+        return {
+            "id": self.analysis_montage_id,
+            "revision": self.analysis_montage_revision,
+            "fingerprint": self.analysis_montage_fingerprint,
+            "outputs": self.analysis_montage_outputs or [],
+        }

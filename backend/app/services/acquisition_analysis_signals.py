@@ -39,16 +39,112 @@ class AcquisitionSignalView:
     provenance: dict
 
 
-def read_acquisition_signal_view(directory: str | Path) -> AcquisitionSignalView:
+def historical_montage_catalogue(directory: str | Path, view: AcquisitionSignalView | None = None) -> tuple[dict[str, object], ...]:
+    """Return the immutable analysis choices recorded by acquisition.
+
+    The manifest is the source of truth.  This function only describes the
+    captured projection; it never derives a new profile from current settings.
+    """
+    manifest = json.loads((Path(directory) / "manifest.json").read_text(encoding="utf-8"))
+    hardware = _field(manifest, "HardwareConfiguration", {})
+    acquisition_default_id = _field(hardware, "montage_configuration_id")
+    raw_catalogue = _field(hardware, "montage_catalogue_snapshot_json")
+    if raw_catalogue:
+        profiles = json.loads(raw_catalogue)
+        resolved_views = [read_acquisition_signal_view(directory, str(_field(profile, "Id", ""))) for profile in profiles]
+    else:
+        resolved_views = [view if view is not None else read_acquisition_signal_view(directory)]
+    if not acquisition_default_id and resolved_views:
+        acquisition_default_id = resolved_views[0].provenance.get("montage_id")
+    result = []
+    for resolved in resolved_views:
+        entry = _catalogue_entry(resolved)
+        entry["is_acquisition_default"] = entry["id"] == acquisition_default_id
+        entry["label"] = resolved.provenance.get("montage_label") or entry["id"]
+        entry["revision"] = str(resolved.provenance.get("montage_revision") or "acquisition-montage-v1")
+        result.append(entry)
+    return tuple(result)
+
+
+def _catalogue_entry(resolved: AcquisitionSignalView) -> dict[str, object]:
+    provenance = resolved.provenance
+    outputs = []
+    for signal in resolved.signals:
+        outputs.append({
+            "id": signal.name,
+            "label": signal.name,
+            "role": signal.positive,
+            "source_mapping": provenance.get("source_mapping", {}).get(signal.positive, {}),
+            "formula": {
+                "positive": signal.positive,
+                "negative_kind": signal.kind,
+                "negative_labels": list(signal.negatives),
+            },
+            "unit": "V",
+            "available": True,
+            "unavailable_reason": None,
+        })
+    fingerprint = str(provenance.get("snapshot_sha256", ""))
+    profile_id = str(provenance.get("montage_id") or "acquisition-default")
+    return {
+        "id": profile_id,
+        "revision": "acquisition-montage-v1",
+        "fingerprint": fingerprint,
+        "label": provenance.get("montage_label") or profile_id,
+        "is_acquisition_default": False,
+        "available": True,
+        "unavailable_reason": None,
+        "outputs": outputs,
+        "source_mapping": provenance.get("source_mapping", {}),
+        "formulas": provenance.get("formulas", []),
+        "hardware_reference": provenance.get("hardware_reference"),
+        "hardware_ground": provenance.get("hardware_ground"),
+        "snapshot_source": provenance.get("snapshot_source", "acquisition"),
+        "source_profile_id": provenance.get("source_profile_id", profile_id),
+    }
+
+
+def read_acquisition_signal_view(
+    directory: str | Path, montage_id: str | None = None, *, profile_snapshot: dict | None = None,
+) -> AcquisitionSignalView:
     try:
         manifest = json.loads((Path(directory) / "manifest.json").read_text(encoding="utf-8"))
         hardware = _field(manifest, "HardwareConfiguration", {})
         montage = json.loads(hardware["montage_configuration_snapshot_json"])
+        raw_catalogue = hardware.get("montage_catalogue_snapshot_json")
+        if profile_snapshot is not None:
+            montage = profile_snapshot
+        elif montage_id and raw_catalogue:
+            profiles = json.loads(raw_catalogue)
+            selected = next((profile for profile in profiles if str(_field(profile, "Id", "")) == montage_id), None)
+            if selected is None:
+                raise ValueError("requested historical montage is not present")
+            montage = selected
+        elif montage_id and montage_id != str(_field(montage, "Id", "")):
+            raise ValueError("requested historical montage is not present")
         recorded = json.loads(hardware["channel_configuration_snapshot_json"])
         bound = _field(montage, "ChannelConfigurationSnapshot")
         rows = _field(montage, "DerivedChannels")
         if not bound or not rows or not _field(recorded, "Channels"):
             raise ValueError("snapshot is empty")
+        if profile_snapshot is not None and (
+            not _field(montage, "Id") or not _field(recorded, "Id")
+            or _field(bound, "Id") != _field(recorded, "Id")
+        ):
+            raise ValueError("channel configuration identity mismatch")
+        if profile_snapshot is not None:
+            # UI metadata may differ, but the complete native mapping must remain
+            # the same, including channels not used by this particular formula.
+            def mapping(snapshot):
+                return sorted((int(_field(ch, "NativeChannelIndex")),
+                               str(_field(ch, "ElectrodeLabel", "")).strip().casefold(),
+                               _channel_kind(_field(ch, "ExpectedKind")))
+                              for ch in _field(snapshot, "Channels", []))
+            if mapping(bound) != mapping(recorded):
+                raise ValueError("recorded channel mapping mismatch")
+            recorded_fingerprint = _field(recorded, "Fingerprint")
+            if recorded_fingerprint and _field(montage, "ChannelConfigurationFingerprint") != recorded_fingerprint:
+                raise ValueError("channel configuration fingerprint mismatch")
         if (not _field(recorded, "DeviceSignature")
             or _field(montage, "DeviceSignature") != _field(recorded, "DeviceSignature")
             or _field(bound, "DeviceSignature") != _field(recorded, "DeviceSignature")):
@@ -112,8 +208,12 @@ def read_acquisition_signal_view(directory: str | Path) -> AcquisitionSignalView
         return AcquisitionSignalView(tuple(signals), {
             "signal_mode": "acquisition_montage", "projection_version": "acquisition-montage-v1",
             "analysis_reference": "acquisition_montage_snapshot",
+            "snapshot_source": "acquisition",
             "snapshot_sha256": hashlib.sha256(canonical.encode()).hexdigest(),
-            "montage_id": _field(montage, "Id"), "source_mapping": sources,
+            "montage_id": _field(montage, "Id"),
+            "montage_revision": _field(montage, "Revision"),
+            "montage_fingerprint": _field(montage, "Fingerprint"),
+            "montage_label": _field(montage, "Name"), "source_mapping": sources,
             "hardware_reference": _field(recorded, "HardwareReferenceElectrodeLocation"),
             "hardware_ground": _field(recorded, "HardwareGroundElectrodeLocation"),
             "formulas": [{"name": s.name, "positive": s.positive, "negative_kind": s.kind, "negative_labels": list(s.negatives)} for s in signals],

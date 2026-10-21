@@ -17,6 +17,7 @@ public sealed class AntEegoAcquisitionDriver : IAcquisitionDeviceDriver
     public const string MontageConfigurationIdSetting = "montage_configuration_id";
     public const string MontageConfigurationNameSetting = "montage_configuration_name";
     public const string MontageConfigurationSnapshotSetting = "montage_configuration_snapshot_json";
+    public const string MontageCatalogueSnapshotSetting = "montage_catalogue_snapshot_json";
 
     public AcquisitionDriverDescriptor Descriptor { get; } = new(
         DriverId,
@@ -43,7 +44,8 @@ public sealed class AntEegoAcquisitionDriver : IAcquisitionDeviceDriver
             ChannelConfigurationSnapshotJson: configuration.GetOptionalSetting(ChannelConfigurationSnapshotSetting),
             MontageConfigurationId: configuration.GetOptionalSetting(MontageConfigurationIdSetting),
             MontageConfigurationName: configuration.GetOptionalSetting(MontageConfigurationNameSetting),
-            MontageConfigurationSnapshotJson: configuration.GetOptionalSetting(MontageConfigurationSnapshotSetting)));
+            MontageConfigurationSnapshotJson: configuration.GetOptionalSetting(MontageConfigurationSnapshotSetting),
+            MontageCatalogueSnapshotJson: configuration.GetOptionalSetting(MontageCatalogueSnapshotSetting)));
     }
 
     public static AcquisitionDriverConfiguration CreateConfiguration(AntEegoAdapterOptions options)
@@ -77,6 +79,7 @@ public sealed class AntEegoAcquisitionDriver : IAcquisitionDeviceDriver
         AddOptionalTextSetting(settings, MontageConfigurationIdSetting, options.MontageConfigurationId);
         AddOptionalTextSetting(settings, MontageConfigurationNameSetting, options.MontageConfigurationName);
         AddOptionalTextSetting(settings, MontageConfigurationSnapshotSetting, options.MontageConfigurationSnapshotJson);
+        AddOptionalTextSetting(settings, MontageCatalogueSnapshotSetting, options.MontageCatalogueSnapshotJson);
 
         return new AcquisitionDriverConfiguration(DriverId, settings, options.ChannelLabelsByNativeIndex);
     }

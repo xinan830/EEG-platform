@@ -70,6 +70,12 @@ For an official Run, the trace chain is frozen at enqueue time: algorithm ID, De
 
 Retired versions remain identifiable when their stored metadata is present, so an audit can distinguish the old identity and artifact. The current application does not execute, migrate, interpret, or add special display compatibility for retired versions. New requests resolve only the explicitly marked current version and reject retired identities before EEG loading or queueing.
 
+## 历史导联选择与 Run 联动
+
+算法详情提供两个选择器。“导联配置”默认采用采集配置，并包含当前设置中与记录实际 native 通道映射兼容的 profile；候选经桌面筛选后，仍必须由后端校验设备、完整通道映射、硬件 REF/GND、公式依赖和 V 单位。后端按 recording 保存独立内容寻址快照；后续全局 profile 修改不会改变记录快照，原始采集 manifest/chunk 保持不变。“分析导联”由选定快照和算法输入角色生成。切换配置会保留角色并更新输出名称及 Run 科学配置修订。单通道算法映射其声明的角色；FAA、Brainbeat 等多输入算法逐角色映射并保留输入顺序，缺少角色时结构化拒绝。
+
+Run 将配置 id/revision/fingerprint、角色到输出、源通道映射及公式纳入请求身份、缓存身份和 provenance。后端从原始采集样本按所选且已验证的历史/分析快照投影，算法包仍负责自己的科学计算。原始数据只读。阅图显示导联独立于分析导联，显示设置改变不会改变算法请求或触发重算。旧记录可在重新注册并通过兼容性校验后获得当前 profile 的独立分析快照；不允许以当前配置静默推断未提交的导联。
+
 
 ## 兼容策略清理
 

@@ -77,6 +77,7 @@ class PersistentRunQueue:
         recording = self.recordings.require_recording(request.recording_id)
         if not recording.source_sha256:
             raise ValueError("recording source identity is unavailable")
+        recording = self.base._recording_for_request(request, recording)
         resolved = self.base._resolve_request(request, recording)
         config_sha256 = sha256_json(resolved["config"])
         scientific_config_sha256 = scientific_configuration_sha256(
@@ -134,6 +135,7 @@ class PersistentRunQueue:
             recording = self.recordings.require_recording(run.recording_id)
             request = RunCreateRequest(recording_id=run.recording_id, analysis_type=run.analysis_type, config=run.config,
                                        definition_id=run.definition_id, definition_version=run.definition_version)
+            recording = self.base._recording_for_request(request, recording)
             resolved = self.base._resolve_request(request, recording)
             actual_range = resolved["actual_range"]
             total = self._progress_total(run, recording)

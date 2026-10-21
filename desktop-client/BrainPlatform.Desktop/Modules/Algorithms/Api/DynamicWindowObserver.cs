@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 
@@ -11,6 +12,7 @@ public sealed class DynamicWindowObserver(IAlgorithmClient client)
         Action<DynamicWindowResponse>? onStatus = null)
     {
         string? subscriptionId = null;
+        var started = Stopwatch.GetTimestamp();
         try
         {
             var response = await client.EnsureDynamicWindowAsync(request, cancellationToken);
@@ -40,10 +42,9 @@ public sealed class DynamicWindowObserver(IAlgorithmClient client)
             onStatus?.Invoke(response);
             while (IsPending(response.State))
             {
-                // Source preparation can take seconds for long recordings. Do
-                // not poll it at the computation cadence; keep the faster
-                // cadence only once the target window is actually computing.
-                await Task.Delay(PollDelay(response.State), cancellationToken);
+                // A warm source can finish immediately after ensure. Discover
+                // short jobs promptly, but back off for long source preparation.
+                await Task.Delay(PollDelay(response.State, Stopwatch.GetElapsedTime(started)), cancellationToken);
                 response = await client.GetDynamicWindowAsync(response.WindowId, request.ProjectId, cancellationToken);
                 onStatus?.Invoke(response);
             }
@@ -65,7 +66,9 @@ public sealed class DynamicWindowObserver(IAlgorithmClient client)
 
     private static bool IsPending(string state) => state is "queued" or "preparing_source" or "computing_window";
 
-    private static TimeSpan PollDelay(string state) => state switch
+    internal static TimeSpan PollDelay(string state, TimeSpan elapsed) => elapsed < TimeSpan.FromSeconds(1)
+        ? TimeSpan.FromMilliseconds(100)
+        : state switch
     {
         "queued" => TimeSpan.FromMilliseconds(500),
         "preparing_source" => TimeSpan.FromSeconds(1),

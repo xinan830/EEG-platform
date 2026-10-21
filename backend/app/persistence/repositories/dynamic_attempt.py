@@ -97,6 +97,9 @@ class DynamicAttemptRepositoryMixin:
                    JOIN dynamic_analysis_sessions s ON s.session_id=w.session_id WHERE w.window_id=?""",
                 (window_id,),
             ).fetchone()
+            # Full attempts reserve publication for the Run worker, not slots
+            # in the interactive executor. Bound each producer's own backlog;
+            # same-window reuse above still shares one fenced producer.
             for column, limit in (("project_id", max_project_attempts), ("recording_id", max_recording_attempts)):
                 if limit is None:
                     continue
@@ -104,14 +107,16 @@ class DynamicAttemptRepositoryMixin:
                     f"""SELECT COUNT(*) FROM dynamic_analysis_attempts a
                         JOIN dynamic_analysis_windows w ON w.window_id=a.window_id
                         JOIN dynamic_analysis_sessions s ON s.session_id=w.session_id
-                        WHERE a.state IN ('queued','running') AND s.{column} IS ?""", (scope[column],),
+                        WHERE a.state IN ('queued','running') AND a.producer_mode = ?
+                          AND s.{column} IS ?""", (producer_mode, scope[column]),
                 ).fetchone()[0]
                 if active >= limit:
                     raise DynamicWindowCapacityExceededError("动态分析域内任务已达到容量上限。",
                         detail={"scope": column, "limit": limit})
             if max_active_attempts is not None:
                 active = connection.execute(
-                    "SELECT COUNT(*) FROM dynamic_analysis_attempts WHERE state IN ('queued', 'running')",
+                    """SELECT COUNT(*) FROM dynamic_analysis_attempts
+                       WHERE state IN ('queued', 'running') AND producer_mode = ?""", (producer_mode,),
                 ).fetchone()[0]
                 if active >= max_active_attempts:
                     raise DynamicWindowCapacityExceededError(

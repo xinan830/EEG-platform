@@ -5,6 +5,7 @@ using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 using BrainPlatform.Desktop.Modules.Projects.ViewModels;
+using BrainPlatform.Desktop.Modules.Montages.Stores;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 
@@ -13,6 +14,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     private readonly IAlgorithmClient client;
     private readonly AlgorithmRunCoordinator runCoordinator;
     private readonly OperationNotificationCenter notifications;
+    private readonly MontageProfileStore montageStore;
     private string statusText = "尚未加载算法目录。";
     private bool isLoading;
     private bool isLoadFailed;
@@ -31,6 +33,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     private string dynamicStepText = "1";
     private string selectedDynamicExecutionMode = "全量分析";
     private string selectedChannel = string.Empty;
+    private HistoricalMontageDescriptor? selectedMontageProfile;
     private string selectedF4Channel = string.Empty;
     private string startSecondsText = "0";
     private string endSecondsText = string.Empty;
@@ -56,12 +59,13 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     private bool automaticRunPending;
 
     public AlgorithmListViewModel(IAlgorithmClient client, OperationNotificationCenter notifications, ProjectWorkspaceViewModel? projects = null,
-        RecordingTimeDisplaySettings? timeDisplaySettings = null)
+        RecordingTimeDisplaySettings? timeDisplaySettings = null, MontageProfileStore? montageStore = null)
     {
         InitializeTimeDisplay(timeDisplaySettings ?? new RecordingTimeDisplaySettings());
         this.client = client ?? throw new ArgumentNullException(nameof(client));
         runCoordinator = new AlgorithmRunCoordinator(client);
         this.notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
+        this.montageStore = montageStore ?? new MontageProfileStore();
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, ReportCatalogError);
         RegisterCommand = new AsyncRelayCommand(RegisterAsync, ReportRunError);
         RunCommand = new AsyncRelayCommand(RunAsync, ReportRunError);
@@ -135,6 +139,38 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     public ICommand ResetDynamicPreviewCommand { get; }
     public ProjectWorkspaceViewModel? Projects { get; }
     public ObservableCollection<string> RegisteredChannels { get; } = [];
+    public ObservableCollection<HistoricalMontageDescriptor> MontageProfiles { get; } = [];
+    public HistoricalMontageDescriptor? SelectedMontageProfile
+    {
+        get => selectedMontageProfile;
+        set
+        {
+            var previousRole = selectedMontageProfile?.Outputs?
+                .FirstOrDefault(output => string.Equals(output.Id, SelectedChannel, StringComparison.OrdinalIgnoreCase))?.Role
+                ?? SelectedChannel;
+            var previousSecondaryRole = selectedMontageProfile?.Outputs?
+                .FirstOrDefault(output => string.Equals(output.Id, SelectedF4Channel, StringComparison.OrdinalIgnoreCase))?.Role
+                ?? SelectedF4Channel;
+            if (!SetProperty(ref selectedMontageProfile, value)) return;
+            RegisteredChannels.Clear();
+            foreach (var output in value?.Outputs?.Where(output => output.Available) ?? [])
+                RegisteredChannels.Add(output.Id);
+            var mapped = value?.Outputs?.FirstOrDefault(output =>
+                string.Equals(output.Role, previousRole, StringComparison.OrdinalIgnoreCase))?.Id;
+            SelectedChannel = mapped ?? RegisteredChannels.FirstOrDefault() ?? string.Empty;
+            var mappedSecondary = value?.Outputs?.FirstOrDefault(output =>
+                string.Equals(output.Role, previousSecondaryRole, StringComparison.OrdinalIgnoreCase))?.Id;
+            if (!string.IsNullOrWhiteSpace(previousSecondaryRole))
+                SelectedF4Channel = mappedSecondary ?? string.Empty;
+            RaisePropertyChanged(nameof(HasRegisteredChannels));
+            RaisePropertyChanged(nameof(AnalysisMontageText));
+            ScheduleAutomaticRun();
+        }
+    }
+    public string AnalysisMontageText => SelectedMontageProfile?.Label ?? "未选择历史导联配置";
+    public string AnalysisMontageDetailsText => SelectedMontageProfile is not { } profile
+        ? "分析导联：未选择历史配置"
+        : $"分析导联：{string.Join("、", profile.Outputs.Where(output => output.Available).Select(output => $"{output.Role}→{output.Label}"))}；版本 {profile.Revision}；指纹 {profile.Fingerprint}";
     public IReadOnlyList<FrequencyBandPreset> FrequencyBandPresets { get; } =
     [
         new("自定义", null, null),
@@ -162,6 +198,8 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
             SourceDirectory = value?.RecordingDirectory ?? string.Empty;
             RegisteredRecording = null;
             RegisteredChannels.Clear();
+            MontageProfiles.Clear();
+            SelectedMontageProfile = null;
             SelectedChannel = string.Empty;
             SelectedF4Channel = string.Empty;
             EndSecondsText = string.Empty;

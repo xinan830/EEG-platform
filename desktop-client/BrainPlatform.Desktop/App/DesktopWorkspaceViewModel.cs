@@ -26,7 +26,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         montageStore ??= new MontageProfileStore(projectStore: projectStore);
         Algorithms = algorithmClient ?? throw new ArgumentNullException(nameof(algorithmClient));
         Projects = new ProjectWorkspaceViewModel(Notifications, store: projectStore);
-        AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects, TimeDisplaySettings);
+        AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects, TimeDisplaySettings, montageStore);
         AlgorithmWorkspace = new AlgorithmWorkspaceViewModel(AlgorithmCatalog);
         Overview = new DeviceOverviewViewModel(acquisition.DeviceSession, acquisition);
         ChannelConfigurations = new ChannelConfigurationWorkspaceViewModel(

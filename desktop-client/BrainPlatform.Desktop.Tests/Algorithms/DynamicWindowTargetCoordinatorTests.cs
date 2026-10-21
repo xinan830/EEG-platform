@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
@@ -6,6 +7,48 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 
 public sealed class DynamicWindowTargetCoordinatorTests
 {
+    [Fact]
+    public async Task Slow_observation_does_not_add_a_second_cadence_before_pending_target()
+    {
+        var observer = new ControlledObserver();
+        var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.FromMilliseconds(800));
+        try
+        {
+            var first = coordinator.LoadAsync(Request(100), CancellationToken.None);
+            var active = await observer.NextAsync();
+            var pending = coordinator.LoadAsync(Request(200), CancellationToken.None);
+            await Task.Delay(900);
+            active.Complete();
+            await first;
+            var next = await observer.NextAsync().WaitAsync(TimeSpan.FromMilliseconds(500));
+            next.Complete();
+            await pending;
+            Assert.Equal(1, observer.MaximumConcurrent);
+        }
+        finally { await coordinator.ResetAsync(); }
+    }
+
+    [Fact]
+    public async Task Fast_observation_still_limits_the_frequency_of_target_starts()
+    {
+        var observer = new ControlledObserver();
+        var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.FromMilliseconds(400));
+        try
+        {
+            var first = coordinator.LoadAsync(Request(100), CancellationToken.None);
+            var active = await observer.NextAsync();
+            var pending = coordinator.LoadAsync(Request(200), CancellationToken.None);
+            active.Complete();
+            await first;
+            var next = await observer.NextAsync();
+            next.Complete();
+            await pending;
+            Assert.True(Stopwatch.GetElapsedTime(active.Started, next.Started) >= TimeSpan.FromMilliseconds(300));
+            Assert.Equal(1, observer.MaximumConcurrent);
+        }
+        finally { await coordinator.ResetAsync(); }
+    }
+
     [Fact]
     public async Task Rapid_targets_keep_one_active_and_only_the_latest_pending()
     {
@@ -181,6 +224,7 @@ public sealed class DynamicWindowTargetCoordinatorTests
 
     private sealed class Call(DynamicWindowRequest request, CancellationToken token)
     {
+        public long Started { get; } = Stopwatch.GetTimestamp();
         public DynamicWindowRequest Request { get; } = request;
         public CancellationToken Token { get; } = token;
         public TaskCompletionSource<DynamicWindowResponse> Result { get; } =

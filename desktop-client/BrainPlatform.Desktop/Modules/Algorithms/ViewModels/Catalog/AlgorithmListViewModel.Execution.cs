@@ -1,5 +1,6 @@
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
+using System.Collections.Concurrent;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 
@@ -7,6 +8,7 @@ public sealed partial class AlgorithmListViewModel
 {
     private bool isSubmittingRun;
     private long configurationRevision;
+    private readonly ConcurrentDictionary<string, byte> obsoleteRunCancellations = new(StringComparer.Ordinal);
 
     private async Task RunAsync()
     {
@@ -55,7 +57,7 @@ public sealed partial class AlgorithmListViewModel
         var preservedDynamicCursorSeconds = dynamic && HasDynamicPreview
             ? DynamicPreviewCursorSeconds
             : (double?)null;
-        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, SelectedChannel, requestedRange, dynamic ? "dynamic" : "static", runParameters.FrequencyBand, runParameters.RatioBands, runParameters.F4Channel, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0);
+        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, SelectedChannel, requestedRange, dynamic ? "dynamic" : "static", runParameters.FrequencyBand, runParameters.RatioBands, runParameters.F4Channel, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0, SelectedMontageProfile);
         AlgorithmParameterValidation.ValidateOrThrow(algorithm, config);
         ClearPreviews();
         // Backend atomically merges active scientific configurations. New attempts
@@ -85,7 +87,8 @@ public sealed partial class AlgorithmListViewModel
             request,
             updatedRun =>
             {
-                if (RegisteredRecording?.Id != request.RecordingId || SelectedAlgorithm?.Id != algorithm.Id)
+                if (RegisteredRecording?.Id != request.RecordingId || SelectedAlgorithm?.Id != algorithm.Id ||
+                    configurationRevision != requestedRevision)
                     return;
                 LastRun = updatedRun;
                 RunStatusText = $"{algorithm.DisplayNameZh}：{updatedRun.Status}（{updatedRun.RunId}）" +
@@ -94,7 +97,6 @@ public sealed partial class AlgorithmListViewModel
                 RaisePropertyChanged(nameof(IsRunActive));
             },
             CancellationToken.None);
-        if (LastRun?.RunId == run.RunId) LastRun = run;
         if (RegisteredRecording?.Id != request.RecordingId || SelectedAlgorithm?.Id != algorithm.Id ||
             configurationRevision != requestedRevision)
             return;
@@ -142,6 +144,44 @@ public sealed partial class AlgorithmListViewModel
         RunStatusText = $"分析已请求取消：{LastRun.Status}";
         RaisePropertyChanged(nameof(IsRunActive));
         RaisePropertyChanged(nameof(RunProgressText));
+    }
+
+    private async Task CancelObsoleteRunAsync(AnalysisRunResponse run)
+    {
+        if (!obsoleteRunCancellations.TryAdd(run.RunId, 0))
+            return;
+
+        try
+        {
+            AnalysisRunResponse updated;
+            try
+            {
+                updated = await client.CancelRunAsync(run.RunId, CancellationToken.None);
+            }
+            catch (AlgorithmApiException error) when (error.Code == "RUN_NOT_CANCELLABLE")
+            {
+                updated = await client.GetRunAsync(run.RunId, CancellationToken.None);
+            }
+
+            if (!disposed && LastRun?.RunId == run.RunId)
+            {
+                LastRun = updated;
+                RunStatusText = updated.Status is "completed" or "failed" or "cancelled"
+                    ? $"过期配置的分析已结束：{updated.Status}"
+                    : $"已取消过期配置的分析：{updated.Status}";
+                RaisePropertyChanged(nameof(IsRunActive));
+                RaisePropertyChanged(nameof(RunProgressText));
+            }
+        }
+        catch (Exception error)
+        {
+            if (!disposed)
+                notifications.PublishError($"过期配置的分析取消失败：{error.Message}");
+        }
+        finally
+        {
+            obsoleteRunCancellations.TryRemove(run.RunId, out _);
+        }
     }
 
 }

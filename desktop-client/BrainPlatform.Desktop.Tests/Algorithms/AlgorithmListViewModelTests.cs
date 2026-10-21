@@ -232,7 +232,6 @@ public sealed class AlgorithmListViewModelTests
         public Task<StructuredPreviewResponse> GetStructuredPreviewAsync(string runId, int maxCells, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
-
     [Fact]
     public void StaticAlgorithmAllowList_IncludesBandRatio()
     {

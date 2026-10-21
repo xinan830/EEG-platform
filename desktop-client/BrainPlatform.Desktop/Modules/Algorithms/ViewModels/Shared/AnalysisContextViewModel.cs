@@ -27,6 +27,10 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public ProjectRecordingRow? SelectedProjectRecording { get => Catalog.SelectedProjectRecording; set => Catalog.SelectedProjectRecording = value; }
     public IReadOnlyList<ProjectRecordingRow> CompletedRecordings => Catalog.Projects?.CompletedRecordings ?? [];
     public IReadOnlyList<string> RegisteredChannels => Catalog.RegisteredChannels;
+    public IReadOnlyList<HistoricalMontageDescriptor> MontageProfiles => Catalog.MontageProfiles;
+    public HistoricalMontageDescriptor? SelectedMontageProfile { get => Catalog.SelectedMontageProfile; set => Catalog.SelectedMontageProfile = value; }
+    public string AnalysisMontageText => Catalog.AnalysisMontageText;
+    public string AnalysisMontageDetailsText => Catalog.AnalysisMontageDetailsText;
     public IReadOnlyList<string> AnalysisModes => Catalog.AnalysisModes;
     public IReadOnlyList<double> DynamicWindowOptions => Catalog.DynamicWindowOptions;
     public IReadOnlyList<double> DynamicStepOptions => Catalog.DynamicStepOptions;
@@ -159,6 +163,9 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.SelectedProjectRecording)
             or nameof(AlgorithmListViewModel.SelectedAlgorithm)
             or nameof(AlgorithmListViewModel.RegisteredChannels)
+            or nameof(AlgorithmListViewModel.MontageProfiles)
+            or nameof(AlgorithmListViewModel.SelectedMontageProfile)
+            or nameof(AlgorithmListViewModel.AnalysisMontageText)
             or nameof(AlgorithmListViewModel.RegisteredRecording)
             or nameof(AlgorithmListViewModel.SelectedChannel)
             or nameof(AlgorithmListViewModel.SelectedF4Channel)
@@ -235,6 +242,10 @@ public sealed class AnalysisContextViewModel : ObservableObject
             RaisePropertyChanged(nameof(SelectedProjectRecording));
             RaisePropertyChanged(nameof(CompletedRecordings));
             RaisePropertyChanged(nameof(RegisteredChannels));
+            RaisePropertyChanged(nameof(MontageProfiles));
+            RaisePropertyChanged(nameof(SelectedMontageProfile));
+            RaisePropertyChanged(nameof(AnalysisMontageText));
+            RaisePropertyChanged(nameof(AnalysisMontageDetailsText));
             RaisePropertyChanged(nameof(SelectedAnalysisMode));
             RaisePropertyChanged(nameof(DynamicStepText));
             RaisePropertyChanged(nameof(SelectedDynamicStepSeconds));

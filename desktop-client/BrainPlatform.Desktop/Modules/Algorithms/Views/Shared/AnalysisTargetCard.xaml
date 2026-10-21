@@ -124,6 +124,24 @@
                               SelectedItem="{Binding SelectedChannel, Mode=TwoWay}" />
                 </StackPanel>
             </Grid>
+            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="导联配置" FontSize="12" Foreground="#64748B" Margin="0,0,0,6" />
+                    <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" Width="190" Height="32"
+                              ItemsSource="{Binding MontageProfiles}"
+                              SelectedItem="{Binding SelectedMontageProfile, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel VerticalAlignment="Bottom" Margin="0,0,0,8">
+                    <TextBlock Text="{Binding AnalysisMontageText}" FontSize="12" Foreground="#334155" />
+                    <TextBlock Text="{Binding AnalysisMontageDetailsText}" FontSize="11" Foreground="#64748B" TextWrapping="Wrap" MaxWidth="620" />
+                </StackPanel>
+            </StackPanel>
         </StackPanel>
     </Border>
 </UserControl>

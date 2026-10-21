@@ -13,6 +13,24 @@ internal static class FullRunPreviewIntegrity
         Require(request.Config.TryGetProperty("scientific_version", out var version) &&
             version.ValueKind == JsonValueKind.String && version.GetString() == run.ScientificVersion,
             "完整结果的科学版本与请求不匹配。");
+        if (run.Status == "completed" &&
+            Text(request.Config, "analysis_montage_id") is { Length: > 0 } expectedId)
+        {
+            var expectedRevision = Text(request.Config, "analysis_montage_revision");
+            var expectedFingerprint = Text(request.Config, "analysis_montage_fingerprint");
+            Require(!string.IsNullOrWhiteSpace(expectedRevision) && !string.IsNullOrWhiteSpace(expectedFingerprint),
+                "请求缺少完整的导联配置身份。");
+            var provenance = run.AnalysisProvenance;
+            Require(provenance is { ValueKind: JsonValueKind.Object } value &&
+                value.TryGetProperty("channel_mapping", out var mapping) &&
+                mapping.ValueKind == JsonValueKind.Object &&
+                mapping.TryGetProperty("analysis_montage", out var montage) &&
+                montage.ValueKind == JsonValueKind.Object &&
+                Text(montage, "id") == expectedId &&
+                Text(montage, "revision") == expectedRevision &&
+                Text(montage, "fingerprint") == expectedFingerprint,
+                "完整结果的导联配置身份与请求不匹配，已拒绝展示。");
+        }
     }
 
     public static void RequireStructured(StructuredPreviewResponse preview, AnalysisRunResponse run)

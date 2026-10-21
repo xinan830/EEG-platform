@@ -93,7 +93,26 @@ class RecordingService:
         )
         return self.require_recording(recording.id)
 
-    def register_wpf_recording(self, source_directory: str, *, signal_mode: str = "raw") -> RecordingSummary:
+    def register_wpf_recording(
+        self, source_directory: str, *, signal_mode: str = "raw",
+        analysis_montage_profiles: list[dict[str, object]] | None = None,
+    ) -> RecordingSummary:
+        if analysis_montage_profiles and signal_mode != "acquisition_montage":
+            raise ValueError("analysis montage snapshots require acquisition_montage mode")
+        prepared_snapshots = None
+        if analysis_montage_profiles:
+            from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
+            serialized = [json.dumps(profile, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+                          for profile in analysis_montage_profiles]
+            prepared_snapshots = AnalysisMontageSnapshots(self.database_path).prepare(source_directory, serialized)
+        registered = self._register_wpf_source(source_directory, signal_mode=signal_mode)
+        if prepared_snapshots:
+            from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
+            AnalysisMontageSnapshots(self.database_path).save(registered.id, prepared_snapshots)
+            return self.require_recording(registered.id)
+        return registered
+
+    def _register_wpf_source(self, source_directory: str, *, signal_mode: str) -> RecordingSummary:
         facts = inspect_wpf_recording(source_directory)
         if signal_mode not in {"raw", "acquisition_montage"}:
             raise ValueError("unknown analysis signal mode")
@@ -154,7 +173,20 @@ class RecordingService:
             row = connection.execute("SELECT * FROM recordings WHERE id = ?", (recording_id,)).fetchone()
         if row is None:
             raise KeyError("录制文件不存在")
-        return self._row_to_summary(row)
+        summary = self._row_to_summary(row)
+        if summary.stored_name.startswith("wpf-montage:"):
+            from app.services.acquisition_analysis_signals import historical_montage_catalogue, read_acquisition_signal_view
+            directory = summary.stored_name.removeprefix("wpf-montage:")
+            try:
+                catalogue = historical_montage_catalogue(directory)
+            except Exception:
+                catalogue = ()
+            from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
+            snapshots = AnalysisMontageSnapshots(self.database_path).catalogue(summary.id, directory)
+            known_ids = {entry["id"] for entry in catalogue}
+            combined = catalogue + tuple(entry for entry in snapshots if entry["id"] not in known_ids)
+            return RecordingSummary(**{**summary.__dict__, "montage_catalogue": combined})
+        return summary
 
 
     def load_data(self, recording: RecordingSummary) -> tuple[object, float, list[str], list[dict[str, object]]]:
@@ -193,7 +225,7 @@ class RecordingService:
         ]
         return raw, float(raw.info["sfreq"]), list(raw.ch_names), events
 
-    def open_sample_reader(self, recording: RecordingSummary):
+    def open_sample_reader(self, recording: RecordingSummary, *, analysis_montage_id: str | None = None):
         """Caller owns a sample-block reader and must close it after use."""
         from app.services.recording_samples import ArraySampleReader, EdfSampleReader, WpfSampleReader
         if getattr(self.load_data, "__func__", None) is not RecordingService.load_data:
@@ -201,20 +233,39 @@ class RecordingService:
             return ArraySampleReader(data, sfreq, names)
         if recording.extension == ".wpf":
             if recording.stored_name.startswith("wpf-montage:"):
-                from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader, read_acquisition_signal_view
+                from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader
+                from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
                 directory = recording.stored_name.removeprefix("wpf-montage:")
-                view = read_acquisition_signal_view(directory)
+                view = AnalysisMontageSnapshots(self.database_path).resolve(
+                    recording.id, directory, analysis_montage_id or recording.selected_montage_id,
+                )
                 return AcquisitionMontageSampleReader(WpfSampleReader(directory), view)
             return WpfSampleReader(recording.stored_name.removeprefix("wpf:"))
         raw, _sfreq, _names, _events = self.open_data_reader(recording)
         return EdfSampleReader(raw)
 
+    def select_analysis_montage(self, recording: RecordingSummary, montage_id: str) -> RecordingSummary:
+        """Validate a registered montage snapshot and bind its output channels."""
+        if not recording.stored_name.startswith("wpf-montage:"):
+            raise ValueError("ANALYSIS_MONTAGE_UNSUPPORTED: 该记录不支持采集导联投影")
+        from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
+
+        directory = recording.stored_name.removeprefix("wpf-montage:")
+        view = AnalysisMontageSnapshots(self.database_path).resolve(recording.id, directory, montage_id)
+        return RecordingSummary(**{
+            **recording.__dict__,
+            "channels": tuple(signal.name for signal in view.signals),
+            "selected_montage_id": montage_id,
+        })
+
     def analysis_signal_provenance(self, recording: RecordingSummary) -> dict:
         if not hasattr(recording, "stored_name"):
             recording = self.require_recording(recording.id)
         if recording.stored_name.startswith("wpf-montage:"):
-            from app.services.acquisition_analysis_signals import read_acquisition_signal_view
-            return read_acquisition_signal_view(recording.stored_name.removeprefix("wpf-montage:")).provenance
+            from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
+            return AnalysisMontageSnapshots(self.database_path).resolve(
+                recording.id, recording.stored_name.removeprefix("wpf-montage:"), recording.selected_montage_id,
+            ).provenance
         return {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}
 
     def load_preview_data(

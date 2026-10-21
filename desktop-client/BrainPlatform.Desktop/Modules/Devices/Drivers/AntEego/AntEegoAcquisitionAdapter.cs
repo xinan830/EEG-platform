@@ -262,6 +262,7 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IDisp
             AddOptionalHardwareConfiguration(hardwareConfiguration, "montage_configuration_id", options.MontageConfigurationId);
             AddOptionalHardwareConfiguration(hardwareConfiguration, "montage_configuration_name", options.MontageConfigurationName);
             AddOptionalHardwareConfiguration(hardwareConfiguration, "montage_configuration_snapshot_json", options.MontageConfigurationSnapshotJson);
+            AddOptionalHardwareConfiguration(hardwareConfiguration, "montage_catalogue_snapshot_json", options.MontageCatalogueSnapshotJson);
 
             var metadata = new AcquisitionStreamMetadata(
                 identity.ToDeviceId(),

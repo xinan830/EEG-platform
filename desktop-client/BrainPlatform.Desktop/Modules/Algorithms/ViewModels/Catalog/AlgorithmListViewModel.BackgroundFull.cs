@@ -279,6 +279,7 @@ public sealed partial class AlgorithmListViewModel
     private void InvalidateBackgroundFullRunDisplay()
     {
         var hadState = HasBackgroundFullRun;
+        var obsoleteRun = BackgroundFullRun is { Status: "queued" or "running" } run ? run : null;
         StopBackgroundObservation();
         backgroundFullRequest = null;
         backgroundFullAlgorithmId = null;
@@ -292,6 +293,8 @@ public sealed partial class AlgorithmListViewModel
         }
         BackgroundFullRun = null;
         RaiseBackgroundFullRunProperties();
+        if (obsoleteRun is not null)
+            _ = CancelObsoleteRunAsync(obsoleteRun);
     }
 
     public async Task SuspendDetailAsync()

@@ -75,8 +75,9 @@ internal static class AlgorithmRunConfiguration
         string? f4Channel = null,
         double? windowSeconds = null,
         double? stepSeconds = null,
-        double? notchHz = 50.0) =>
-        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds, notchHz));
+        double? notchHz = 50.0,
+        HistoricalMontageDescriptor? montage = null) =>
+        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds, notchHz, montage));
 
     internal static bool IsSupportedAlgorithm(AlgorithmCatalogItem? algorithm) =>
         algorithm is { IsRunnable: true } &&
@@ -111,7 +112,8 @@ internal static class AlgorithmRunConfiguration
         string? f4Channel,
         double? windowSeconds,
         double? stepSeconds,
-        double? notchHz)
+        double? notchHz,
+        HistoricalMontageDescriptor? montage)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -127,10 +129,21 @@ internal static class AlgorithmRunConfiguration
             ["denominator_low_hz"] = ratioBands?.Denominator.LowHz,
             ["denominator_high_hz"] = ratioBands?.Denominator.HighHz,
             ["f4_channel"] = null,
+            ["analysis_montage_id"] = montage?.Id,
+            ["analysis_montage_revision"] = montage?.Revision,
+            ["analysis_montage_fingerprint"] = montage?.Fingerprint,
+            ["analysis_montage_outputs"] = montage?.Outputs?.Select(output => new { role = output.Role, output = output.Id, unit = output.Unit }).ToArray(),
         };
 
         AlgorithmRunResultHandlerRegistry.For(algorithm.Id)
             .ApplyConfigFields(payload, channel, f4Channel);
+
+        var selectedOutputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { channel };
+        if (!string.IsNullOrWhiteSpace(f4Channel)) selectedOutputs.Add(f4Channel);
+        payload["analysis_montage_outputs"] = montage?.Outputs?
+            .Where(output => output.Available && selectedOutputs.Contains(output.Id))
+            .Select(output => new { role = output.Role, output = output.Id, unit = output.Unit })
+            .ToArray();
 
         if (AlgorithmRunResultHandlerRegistry.Contains(algorithm.Id) &&
             AlgorithmRunResultHandlerRegistry.For(algorithm.Id).SupportsNotch)

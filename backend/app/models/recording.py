@@ -19,3 +19,7 @@ class RecordingSummary:
     channel_types: tuple[str, ...] = ()
     channel_units: tuple[str, ...] = ()
     import_version: str = "legacy-unversioned"
+    # Immutable historical analysis montage catalogue captured with WPF records.
+    # Empty means the record is readable but intentionally non-switchable.
+    montage_catalogue: tuple[dict[str, object], ...] = ()
+    selected_montage_id: str | None = None

@@ -1,5 +1,6 @@
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 
@@ -11,11 +12,12 @@ internal sealed class AlgorithmRunCoordinator(IAlgorithmClient client)
 
     internal async Task<RegisteredRecording> RegisterRecordingAsync(
         string sourceDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<MontageProfile>? analysisMontageProfiles = null)
     {
         var registration = client as IRecordingRegistrationClient
             ?? throw new InvalidOperationException("当前算法客户端不支持 WPF 记录注册。");
-        return await registration.RegisterWpfRecordingAsync(sourceDirectory, cancellationToken);
+        return await registration.RegisterWpfRecordingAsync(sourceDirectory, cancellationToken, analysisMontageProfiles);
     }
 
     internal async Task<AnalysisRunResponse> CreateRunAndWaitAsync(

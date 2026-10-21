@@ -25,6 +25,50 @@ public sealed class FullRunWindowIntegrityTests
     }
 
     [Fact]
+    public void Completed_run_requires_the_requested_montage_identity_in_provenance()
+    {
+        var request = new AnalysisRunRequest("recording", "official_algorithm", JsonSerializer.SerializeToElement(new
+        {
+            scientific_version = "fixture-v1",
+            analysis_montage_id = "montage-a",
+            analysis_montage_revision = "revision-2",
+            analysis_montage_fingerprint = "fingerprint-a",
+        }));
+        var run = Run() with
+        {
+            AnalysisProvenance = JsonSerializer.SerializeToElement(new
+            {
+                channel_mapping = new
+                {
+                    analysis_montage = new
+                    {
+                        id = "montage-a", revision = "revision-2", fingerprint = "fingerprint-a",
+                    },
+                },
+            }),
+        };
+
+        FullRunPreviewIntegrity.RequireRun(run, request);
+
+        var stale = run with
+        {
+            AnalysisProvenance = JsonSerializer.SerializeToElement(new
+            {
+                channel_mapping = new
+                {
+                    analysis_montage = new
+                    {
+                        id = "montage-a", revision = "revision-2", fingerprint = "fingerprint-old",
+                    },
+                },
+            }),
+        };
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            FullRunPreviewIntegrity.RequireRun(stale, request));
+        Assert.Contains("导联配置身份", exception.Message);
+    }
+
+    [Fact]
     public void Reused_run_rejects_artifact_from_unrelated_run()
     {
         var original = OnDemandDetailClient.FullPsdStructuredPreview();

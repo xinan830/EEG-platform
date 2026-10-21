@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Acquisition.Contracts;
+using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
@@ -127,6 +130,49 @@ public sealed class HttpAlgorithmClientTests
         using var requestJson = JsonDocument.Parse(capturedBody!);
         Assert.Equal("acquisition_montage", requestJson.RootElement.GetProperty("signal_mode").GetString());
         Assert.Equal(new[] { "F7-REF", "F3-REF" }, recording.Channels);
+    }
+
+    [Fact]
+    public async Task RegisterWpfRecording_SendsCompleteAnalysisMontageProfiles()
+    {
+        string? capturedBody = null;
+        using var client = new HttpClient(new StubHandler(request =>
+        {
+            capturedBody = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new
+                {
+                    id = "rec-1", original_name = "recording", extension = ".wpf",
+                    created_at = "2026-09-26T00:00:00Z", sfreq = 2000.0,
+                    duration_s = 2.0, channels = new[] { "F3-REF" }, source_sha256 = "abc",
+                }),
+            };
+        })) { BaseAddress = new Uri("http://localhost/") };
+        var channelConfiguration = new ChannelConfigurationProfile(
+            "channels-1", "Channels", "test", ChannelConfigurationSource.User, "device-1",
+            [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "F3", true, 0)],
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        var profile = new MontageProfile(
+            "montage-2", "Average", "test", MontageProfileSource.User, "device-1", "channels-fingerprint",
+            channelConfiguration,
+            [new DerivedMontageChannel("F3-AVG", "F3", MontageNegativeKind.Mean, ["F3", "F7"], 0)],
+            2, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch,
+            AverageReferenceLabels: ["F3", "F7"]);
+
+        await new HttpAlgorithmClient(client).RegisterWpfRecordingAsync(
+            "D:\\recordings\\rec-1", CancellationToken.None, [profile]);
+
+        using var requestJson = JsonDocument.Parse(capturedBody!);
+        var submitted = requestJson.RootElement.GetProperty("analysis_montage_profiles")[0];
+        Assert.Equal("montage-2", submitted.GetProperty("id").GetString());
+        Assert.Equal(2, submitted.GetProperty("revision").GetInt32());
+        Assert.Equal("channels-1", submitted.GetProperty("channelConfigurationSnapshot").GetProperty("id").GetString());
+        Assert.Equal(0, submitted.GetProperty("channelConfigurationSnapshot").GetProperty("channels")[0]
+            .GetProperty("nativeChannelIndex").GetInt32());
+        Assert.Equal("F3-AVG", submitted.GetProperty("derivedChannels")[0].GetProperty("name").GetString());
+        Assert.Equal(2, submitted.GetProperty("derivedChannels")[0].GetProperty("negativeKind").GetInt32());
+        Assert.Equal("F7", submitted.GetProperty("averageReferenceLabels")[1].GetString());
     }
 
     [Fact]
