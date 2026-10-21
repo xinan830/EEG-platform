@@ -87,10 +87,15 @@ def test_queue_persists_resolved_official_definition_identity(tmp_path: Path):
     )
 
     queued = queue.enqueue(request)
+    request.config["scientific_version"] = "official-iapf-v99"
+    request.config["algorithm_id"] = "retired-or-different-algorithm"
+    frozen = queue.get(queued.run_id)
 
     assert queued.definition_id is not None
     assert queued.definition_version == "1.0.0"
-    assert queued.scientific_version == "official-iapf-v2"
+    assert frozen.scientific_version == "official-iapf-v2"
+    assert frozen.config["scientific_version"] == "official-iapf-v2"
+    assert frozen.config["algorithm_id"] == "iapf"
     completed = queue.process_next()
     assert completed is not None and completed.status is RunStatus.COMPLETED
     assert completed.definition_id == queued.definition_id

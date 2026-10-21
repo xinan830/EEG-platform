@@ -186,6 +186,10 @@ class PersistentRunQueue:
                 result["execution_provenance"] = execution_provenance(
                     "full", cache_key=run.cache_key, served_from="full_computation", coverage=coverage,
                 )
+            elif run.analysis_type == "official_algorithm":
+                result["execution_provenance"] = execution_provenance(
+                    "full", cache_key=run.cache_key, served_from="full_computation",
+                )
             execution_context.check_cancelled()
             if total is not None:
                 self.repository.update_progress(run.run_id, total, total, stage="persisting", message="正在保存结果")

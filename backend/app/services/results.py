@@ -200,23 +200,18 @@ class ResultService:
             )
         if run.status.value == "completed" and run.analysis_type == "official_algorithm" and run.config.get("mode") == "dynamic":
             provenance = (run.result_summary or {}).get("execution_provenance")
-            coverage = provenance.get("coverage") if isinstance(provenance, dict) else None
-            if provenance is not None and not isinstance(provenance, dict):
+            if not isinstance(provenance, dict):
                 raise ResultExportUnavailable("动态结果的溯源结构不可验证，不能导出。")
-            if isinstance(provenance, dict):
-                if not isinstance(coverage, dict) or coverage.get("state") != "complete":
-                    raise ResultExportUnavailable("完整结果尚未通过动态窗口覆盖校验。")
-                try:
-                    planned = int(coverage["planned_windows"])
-                    terminal = int(coverage["terminal_windows"])
-                except (KeyError, TypeError, ValueError) as exc:
-                    raise ResultExportUnavailable("动态结果缺少可验证的窗口覆盖信息。") from exc
-                if planned < 0 or terminal != planned:
-                    raise ResultExportUnavailable("动态结果的窗口覆盖不完整，不能导出。")
-            # A completed dynamic Run predating the coverage contract remains
-            # exportable as historical evidence. New runs are gate-checked by
-            # the queue before reaching completed, so absence here is legacy
-            # provenance rather than proof of a new incomplete run.
+            coverage = provenance.get("coverage")
+            if not isinstance(coverage, dict) or coverage.get("state") != "complete":
+                raise ResultExportUnavailable("完整结果尚未通过动态窗口覆盖校验。")
+            try:
+                planned = int(coverage["planned_windows"])
+                terminal = int(coverage["terminal_windows"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ResultExportUnavailable("动态结果缺少可验证的窗口覆盖信息。") from exc
+            if planned < 0 or terminal != planned:
+                raise ResultExportUnavailable("动态结果的窗口覆盖不完整，不能导出。")
         artifacts = self.runs.list_artifacts(run_id)
         validation = self.validations.report(validation_id) if validation_id else None
         manifest = self._manifest(run, artifacts, validation_id)

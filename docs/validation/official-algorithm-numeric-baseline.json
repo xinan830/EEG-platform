@@ -1,0 +1,105 @@
+{
+  "schema": "official-algorithm-numeric-baseline-v1",
+  "scope": "engineering_validation_only_not_clinical_validation",
+  "reference_implementation": "analytic-numpy-reference-v1",
+  "environment": {
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "tolerances": {
+    "rtol": 1e-10,
+    "atol": 1e-20
+  },
+  "contract_snapshot_sha256": "78f1ec43e268cc77127e030589f8b1af24bc2bc537925ddd8e3caf916cd5f00e",
+  "array_artifact": {
+    "path": "docs/validation/official-algorithm-numeric-baseline-arrays.npz",
+    "sha256": "e317119d157ed7cb612529c27c899744af30c0026aa757b603df0a9b2ec2e490",
+    "arrays": {
+      "source_v": [
+        800,
+        2
+      ],
+      "welch_frequency_hz": [
+        117
+      ],
+      "welch_psd_v2_hz": [
+        2,
+        117
+      ],
+      "stft_center_s": [
+        5
+      ],
+      "stft_frequency_hz": [
+        117
+      ],
+      "stft_power_v2_hz": [
+        5,
+        2,
+        117
+      ]
+    }
+  },
+  "algorithms": {
+    "band_ratio": {
+      "scientific_version": "official-band-ratio-v1",
+      "implementation_identity": "band-ratio-runtime-v2-frequency-contract",
+      "reference_test": "backend/tests/test_official_algorithm_numeric_reference_audit.py::test_peak_iapf_band_ratio_theta_beta_and_rbp_match_independent_spectrum",
+      "status": "reference_test_present"
+    },
+    "brainbeat": {
+      "scientific_version": "official-brainbeat-v1",
+      "implementation_identity": "brainbeat-runtime-v1",
+      "reference_test": "backend/tests/test_official_algorithm_numeric_reference_audit.py::test_faa_and_offline_brainbeat_match_independent_references_in_any_window_order",
+      "status": "reference_test_present"
+    },
+    "faa": {
+      "scientific_version": "official-faa-v2",
+      "implementation_identity": "faa-runtime-v2",
+      "reference_test": "backend/tests/test_official_algorithm_numeric_reference_audit.py::test_faa_and_offline_brainbeat_match_independent_references_in_any_window_order",
+      "status": "reference_test_present"
+    },
+    "iapf": {
+      "scientific_version": "official-iapf-v2",
+      "implementation_identity": "iapf-runtime-v3",
+      "reference_test": "backend/tests/test_official_algorithm_numeric_reference_audit.py::test_peak_iapf_band_ratio_theta_beta_and_rbp_match_independent_spectrum",
+      "status": "reference_test_present"
+    },
+    "peak_frequency": {
+      "scientific_version": "official-peak-frequency-v1",
+      "implementation_identity": "peak-frequency-runtime-v2-frequency-contract",
+      "reference_test": "backend/tests/test_official_algorithm_numeric_reference_audit.py::test_peak_iapf_band_ratio_theta_beta_and_rbp_match_independent_spectrum",
+      "status": "reference_test_present"
+    },
+    "psd": {
+      "scientific_version": "offline-spectral-v3",
+      "implementation_identity": "psd-runtime-v3-explicit-filters",
+      "reference_test": "backend/tests/test_official_algorithm_numeric_reference_audit.py::test_independent_welch_periodogram_and_stft_match_exact_axes_and_matrices",
+      "status": "reference_test_present"
+    },
+    "rbp": {
+      "scientific_version": "official-rbp-v2",
+      "implementation_identity": "rbp-runtime-v2-five-band",
+      "reference_test": "backend/tests/test_official_algorithm_numeric_reference_audit.py::test_peak_iapf_band_ratio_theta_beta_and_rbp_match_independent_spectrum",
+      "status": "reference_test_present"
+    },
+    "stft": {
+      "scientific_version": "spectrogram-v2",
+      "implementation_identity": "stft-runtime-v4-relative-window-times",
+      "reference_test": "backend/tests/test_official_algorithm_numeric_reference_audit.py::test_independent_welch_periodogram_and_stft_match_exact_axes_and_matrices",
+      "status": "reference_test_present"
+    },
+    "theta_beta": {
+      "scientific_version": "official-theta-beta-v2",
+      "implementation_identity": "theta-beta-runtime-v1",
+      "reference_test": "backend/tests/test_official_algorithm_numeric_reference_audit.py::test_peak_iapf_band_ratio_theta_beta_and_rbp_match_independent_spectrum",
+      "status": "reference_test_present"
+    }
+  },
+  "limitation": "Independent reference tests and the strategy baseline together cover all nine current algorithms. Directional reuse remains included only where manifest declares it; unsupported paths have no numeric baseline by design.",
+  "strategy_baseline": {
+    "path": "docs/validation/official-algorithm-strategy-baseline.npz",
+    "sha256": "32b8ad9ed72dd0f03c73a2d363ca64d74670412fd9fa4d578dc9411475e7d965",
+    "algorithm_count": 9,
+    "purpose": "full dynamic output arrays and combined lifecycle evidence for every current official algorithm"
+  }
+}

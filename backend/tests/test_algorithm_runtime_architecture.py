@@ -225,6 +225,20 @@ def test_official_runtime_uses_field_level_output_schemas_only() -> None:
             assert "output_unit" not in item.read_text(encoding="utf-8"), item
 
 
+def test_retired_official_reference_calculators_are_validation_only() -> None:
+    app_root = ROOT / "app"
+    validation_root = app_root / "eeg_core" / "official_algorithms" / "validation"
+    for path in app_root.rglob("*.py"):
+        if validation_root in path.parents:
+            continue
+        imported = _imported_modules(path)
+        assert not any(
+            module.startswith("app.eeg_core.official_algorithms.validation")
+            or module.endswith("legacy_reference")
+            for module in imported
+        ), path.relative_to(app_root)
+
+
 def test_retired_calculators_are_not_imported_by_product_code() -> None:
     product_files = [
         ROOT / "app" / "main.py",
@@ -243,3 +257,24 @@ def test_audit_documents_legacy_deletion_gate() -> None:
     assert "ChannelMapping" in text
     assert "forwarding adapters had moved" in text
     assert "machine-checked" in text
+
+
+def test_generic_run_services_do_not_import_algorithm_science_implementations() -> None:
+    services = ROOT / "app" / "services"
+    for path in services.glob("*.py"):
+        imported = _imported_modules(path)
+        assert not any(
+            module.startswith("app.algorithms.")
+            and module.rsplit(".", 1)[-1] in {"compute", "official"}
+            for module in imported
+        ), path.name
+
+
+def test_official_algorithm_computations_remain_in_backend_algorithm_packages() -> None:
+    algorithms = ROOT / "app" / "algorithms"
+    assert len(list(algorithms.glob("*/compute.py"))) >= 4
+    assert len(list(algorithms.glob("*/runner.py"))) == 9
+    for path in (ROOT.parent / "desktop-client" / "BrainPlatform.Desktop" / "Modules" / "Algorithms").rglob("*.cs"):
+        source = path.read_text(encoding="utf-8")
+        assert "MathNet.Numerics" not in source, path
+        assert "FftSharp" not in source, path

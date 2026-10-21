@@ -4,10 +4,14 @@
 
 The official catalog SHALL derive runnable official metadata from the installed
 runtime module manifest, including Definition identity, scientific version,
-implementation identity, output unit, modes and availability. A non-runnable
-official capability without a runtime module MAY use one explicit static
-descriptor. The active scientific version SHALL be explicitly declared for
-each official algorithm ID; catalog clients SHALL NOT select retired versions.
+implementation identity, output schema, parameters, modes, strategy
+capabilities and availability. A non-runnable capability MAY use an explicit
+static descriptor only when that descriptor is declared by the authoritative
+catalog source. A missing runtime module for an executable manifest or any
+catalog/runtime identity mismatch SHALL fail the official catalog response;
+the API SHALL NOT synthesize parameters, policy, availability, or capability
+values. The active scientific version SHALL be explicitly declared for each
+official algorithm ID; catalog clients SHALL NOT select retired versions.
 
 #### Scenario: Read the catalog
 
@@ -26,9 +30,11 @@ each official algorithm ID; catalog clients SHALL NOT select retired versions.
 
 #### Scenario: Installed evidence is unavailable
 
-- **WHEN** the runtime registry cannot be resolved
-- **THEN** the response returns user algorithms plus `OFFICIAL_ALGORITHM_CATALOG_UNAVAILABLE`
-- **AND** no incomplete official item is represented as runnable
+- **WHEN** an executable manifest cannot resolve to its current runtime module,
+  or catalog and runtime identity/contracts disagree
+- **THEN** the response returns `OFFICIAL_ALGORITHM_CATALOG_UNAVAILABLE`
+- **AND** no synthetic partial official item is returned with empty parameters
+  or a hard-coded dynamic policy
 
 #### Scenario: Read catalog after RBP and FAA enablement
 

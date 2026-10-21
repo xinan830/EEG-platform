@@ -18,38 +18,21 @@ def _official_items(request: Request) -> list[dict[str, object]]:
     if registry is None:
         registry = build_builtin_registry()
     official_items = official_algorithm_catalog(request.app.state.definition_service)
-    runtime_modules = {}
-    for official in official_items:
-        try:
-            runtime_modules[official.algorithm_id] = registry.get_current(official.algorithm_id)
-        except AlgorithmRuntimeError:
-            pass
     items: list[dict[str, object]] = []
     for official in official_items:
-        module = runtime_modules.get(official.algorithm_id)
-        if module is None:
-            items.append({
-                "source": "official", "id": official.algorithm_id,
-                "version": official.scientific_version,
-                "display_name_zh": official.display_name_zh,
-                "abbreviation": official.abbreviation,
-                "description": official.purpose_zh,
-                "parameters": [], "modes": list(official.supported_modes),
-                "output_schema": official.output_schema,
-                "dynamic_policy": {"minimum_window_s": 4.0, "window_options_s": [5.0, 10.0, 20.0, 30.0], "default_window_s": 5.0, "refresh_step_s": 1.0, "refresh_step_options_s": [1.0, 2.0, 5.0], "allow_warmup": True},
-                "availability": official.availability, "is_runnable": False,
-                "definition_id": official.definition_id,
-                "definition_version": official.definition_version,
-                "implementation_identity": official.implementation_identity,
-                "dynamic_capabilities": None,
-            })
-            continue
+        module = registry.get_current(official.algorithm_id)
         manifest = module.manifest
         if (
-            manifest.scientific_version != official.scientific_version
+            manifest.algorithm_id != official.algorithm_id
+            or manifest.scientific_version != official.scientific_version
             or not manifest.is_current_version
             or manifest.execution_kind != official.execution_kind
             or manifest.implementation_identity != official.implementation_identity
+            or manifest.display_name_zh != official.display_name_zh
+            or manifest.abbreviation != official.abbreviation
+            or manifest.purpose_zh != official.purpose_zh
+            or manifest.supported_modes != official.supported_modes
+            or manifest.output_schema != official.output_schema
             or manifest.definition_persistence is None
         ):
             raise AlgorithmRuntimeError("official catalog/runtime manifest mismatch")

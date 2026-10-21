@@ -1,0 +1,369 @@
+{
+  "schema": "official-algorithm-strategy-baseline-v1",
+  "scope": "engineering_validation_only_not_clinical_validation",
+  "environment": {
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "tolerances": {
+    "rtol": 1e-10,
+    "atol": 1e-20
+  },
+  "artifact": {
+    "path": "docs/validation/official-algorithm-strategy-baseline.npz",
+    "sha256": "32b8ad9ed72dd0f03c73a2d363ca64d74670412fd9fa4d578dc9411475e7d965",
+    "arrays": [
+      "band_ratio__metric_time_s",
+      "band_ratio__metric_values",
+      "band_ratio__series_json",
+      "brainbeat__metric_time_s",
+      "brainbeat__metric_values",
+      "brainbeat__series_json",
+      "faa__metric_time_s",
+      "faa__metric_values",
+      "faa__series_json",
+      "iapf__metric_time_s",
+      "iapf__metric_values",
+      "iapf__series_json",
+      "peak_frequency__metric_time_s",
+      "peak_frequency__metric_values",
+      "peak_frequency__series_json",
+      "psd__axis_frequency_hz",
+      "psd__band_share",
+      "psd__psd",
+      "psd__series_json",
+      "psd__window_evidence_json",
+      "rbp__metric_time_s",
+      "rbp__metric_values",
+      "rbp__series_json",
+      "stft__axis_frequency_hz",
+      "stft__axis_time_center_s",
+      "stft__power_db",
+      "stft__power_linear",
+      "stft__series_json",
+      "stft__window_evidence_json",
+      "theta_beta__metric_time_s",
+      "theta_beta__metric_values",
+      "theta_beta__series_json"
+    ]
+  },
+  "algorithms": {
+    "band_ratio": {
+      "scientific_version": "official-band-ratio-v1",
+      "implementation_identity": "band-ratio-runtime-v2-frequency-contract",
+      "window_count": 27,
+      "states": [
+        "Complete",
+        "Partial"
+      ],
+      "qualities": [
+        "clean"
+      ],
+      "requested_range": null,
+      "actual_range": {
+        "end_s": 30.0,
+        "start_s": 0.0
+      },
+      "combined": {
+        "preview_state": "ready",
+        "background_full_state": "completed",
+        "preview_provenance": {
+          "served_from": "on_demand_computation",
+          "strategy": "combined_preview"
+        },
+        "background_provenance": {
+          "served_from": "full_computation",
+          "strategy": "combined_background_full",
+          "coverage": {}
+        },
+        "independent_lifecycle_identity": true
+      },
+      "evidence_tests": [
+        "backend/tests/test_official_algorithm_runs.py",
+        "backend/tests/test_official_strategy_validation_matrix.py",
+        "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs"
+      ]
+    },
+    "brainbeat": {
+      "scientific_version": "official-brainbeat-v1",
+      "implementation_identity": "brainbeat-runtime-v1",
+      "window_count": 27,
+      "states": [
+        "Complete"
+      ],
+      "qualities": [
+        "clean"
+      ],
+      "requested_range": null,
+      "actual_range": {
+        "end_s": 30.0,
+        "start_s": 0.0
+      },
+      "combined": {
+        "preview_state": "ready",
+        "background_full_state": "completed",
+        "preview_provenance": {
+          "served_from": "on_demand_computation",
+          "strategy": "combined_preview"
+        },
+        "background_provenance": {
+          "served_from": "full_computation",
+          "strategy": "combined_background_full",
+          "coverage": {}
+        },
+        "independent_lifecycle_identity": true
+      },
+      "evidence_tests": [
+        "backend/tests/test_official_algorithm_runs.py",
+        "backend/tests/test_official_strategy_validation_matrix.py",
+        "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs"
+      ]
+    },
+    "faa": {
+      "scientific_version": "official-faa-v2",
+      "implementation_identity": "faa-runtime-v2",
+      "window_count": 11,
+      "states": [
+        "Complete"
+      ],
+      "qualities": [
+        "clean"
+      ],
+      "requested_range": null,
+      "actual_range": {
+        "end_s": 30.0,
+        "start_s": 0.0
+      },
+      "combined": {
+        "preview_state": "ready",
+        "background_full_state": "completed",
+        "preview_provenance": {
+          "served_from": "on_demand_computation",
+          "strategy": "combined_preview"
+        },
+        "background_provenance": {
+          "served_from": "full_computation",
+          "strategy": "combined_background_full",
+          "coverage": {}
+        },
+        "independent_lifecycle_identity": true
+      },
+      "evidence_tests": [
+        "backend/tests/test_official_algorithm_runs.py",
+        "backend/tests/test_official_strategy_validation_matrix.py",
+        "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs"
+      ]
+    },
+    "iapf": {
+      "scientific_version": "official-iapf-v2",
+      "implementation_identity": "iapf-runtime-v3",
+      "window_count": 27,
+      "states": [
+        "Complete",
+        "Partial"
+      ],
+      "qualities": [
+        "clean"
+      ],
+      "requested_range": null,
+      "actual_range": {
+        "end_s": 30.0,
+        "start_s": 0.0
+      },
+      "combined": {
+        "preview_state": "ready",
+        "background_full_state": "completed",
+        "preview_provenance": {
+          "served_from": "on_demand_computation",
+          "strategy": "combined_preview"
+        },
+        "background_provenance": {
+          "served_from": "full_computation",
+          "strategy": "combined_background_full",
+          "coverage": {}
+        },
+        "independent_lifecycle_identity": true
+      },
+      "evidence_tests": [
+        "backend/tests/test_official_algorithm_runs.py",
+        "backend/tests/test_official_strategy_validation_matrix.py",
+        "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs"
+      ]
+    },
+    "peak_frequency": {
+      "scientific_version": "official-peak-frequency-v1",
+      "implementation_identity": "peak-frequency-runtime-v2-frequency-contract",
+      "window_count": 27,
+      "states": [
+        "Complete",
+        "Partial"
+      ],
+      "qualities": [
+        "clean"
+      ],
+      "requested_range": null,
+      "actual_range": {
+        "end_s": 30.0,
+        "start_s": 0.0
+      },
+      "combined": {
+        "preview_state": "ready",
+        "background_full_state": "completed",
+        "preview_provenance": {
+          "served_from": "on_demand_computation",
+          "strategy": "combined_preview"
+        },
+        "background_provenance": {
+          "served_from": "full_computation",
+          "strategy": "combined_background_full",
+          "coverage": {}
+        },
+        "independent_lifecycle_identity": true
+      },
+      "evidence_tests": [
+        "backend/tests/test_official_algorithm_runs.py",
+        "backend/tests/test_official_strategy_validation_matrix.py",
+        "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs"
+      ]
+    },
+    "psd": {
+      "scientific_version": "offline-spectral-v3",
+      "implementation_identity": "psd-runtime-v3-explicit-filters",
+      "window_count": 27,
+      "states": [
+        "Partial",
+        "Complete"
+      ],
+      "qualities": [
+        "clean"
+      ],
+      "requested_range": null,
+      "actual_range": null,
+      "combined": {
+        "preview_state": "ready",
+        "background_full_state": "completed",
+        "preview_provenance": {
+          "served_from": "on_demand_computation",
+          "strategy": "combined_preview"
+        },
+        "background_provenance": {
+          "served_from": "full_computation",
+          "strategy": "combined_background_full",
+          "coverage": {}
+        },
+        "independent_lifecycle_identity": true
+      },
+      "evidence_tests": [
+        "backend/tests/test_official_algorithm_runs.py",
+        "backend/tests/test_official_strategy_validation_matrix.py",
+        "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs"
+      ]
+    },
+    "rbp": {
+      "scientific_version": "official-rbp-v2",
+      "implementation_identity": "rbp-runtime-v2-five-band",
+      "window_count": 27,
+      "states": [
+        "Complete",
+        "Partial"
+      ],
+      "qualities": [
+        "clean"
+      ],
+      "requested_range": null,
+      "actual_range": {
+        "end_s": 30.0,
+        "start_s": 0.0
+      },
+      "combined": {
+        "preview_state": "ready",
+        "background_full_state": "completed",
+        "preview_provenance": {
+          "served_from": "on_demand_computation",
+          "strategy": "combined_preview"
+        },
+        "background_provenance": {
+          "served_from": "full_computation",
+          "strategy": "combined_background_full",
+          "coverage": {}
+        },
+        "independent_lifecycle_identity": true
+      },
+      "evidence_tests": [
+        "backend/tests/test_official_algorithm_runs.py",
+        "backend/tests/test_official_strategy_validation_matrix.py",
+        "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs"
+      ]
+    },
+    "stft": {
+      "scientific_version": "spectrogram-v2",
+      "implementation_identity": "stft-runtime-v4-relative-window-times",
+      "window_count": 27,
+      "states": [
+        "Partial",
+        "Complete"
+      ],
+      "qualities": [
+        "clean"
+      ],
+      "requested_range": null,
+      "actual_range": null,
+      "combined": {
+        "preview_state": "ready",
+        "background_full_state": "completed",
+        "preview_provenance": {
+          "served_from": "on_demand_computation",
+          "strategy": "combined_preview"
+        },
+        "background_provenance": {
+          "served_from": "full_computation",
+          "strategy": "combined_background_full",
+          "coverage": {}
+        },
+        "independent_lifecycle_identity": true
+      },
+      "evidence_tests": [
+        "backend/tests/test_official_algorithm_runs.py",
+        "backend/tests/test_official_strategy_validation_matrix.py",
+        "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs"
+      ]
+    },
+    "theta_beta": {
+      "scientific_version": "official-theta-beta-v2",
+      "implementation_identity": "theta-beta-runtime-v1",
+      "window_count": 27,
+      "states": [
+        "Complete",
+        "Partial"
+      ],
+      "qualities": [
+        "clean"
+      ],
+      "requested_range": null,
+      "actual_range": {
+        "end_s": 30.0,
+        "start_s": 0.0
+      },
+      "combined": {
+        "preview_state": "ready",
+        "background_full_state": "completed",
+        "preview_provenance": {
+          "served_from": "on_demand_computation",
+          "strategy": "combined_preview"
+        },
+        "background_provenance": {
+          "served_from": "full_computation",
+          "strategy": "combined_background_full",
+          "coverage": {}
+        },
+        "independent_lifecycle_identity": true
+      },
+      "evidence_tests": [
+        "backend/tests/test_official_algorithm_runs.py",
+        "backend/tests/test_official_strategy_validation_matrix.py",
+        "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs"
+      ]
+    }
+  },
+  "method": "All nine current modules execute the official dynamic runtime on one deterministic synthetic recording. Every numeric series and persisted artifact array is frozen. Combined evidence records the shared preview/background lifecycle identities and each algorithm output contract; directional reuse remains governed by manifest declarations."
+}

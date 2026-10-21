@@ -66,6 +66,8 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
     assert completed.definition_id is not None
     assert completed.definition_version == "1.0.0"
     assert completed.scientific_version == "official-iapf-v2"
+    assert completed.result_summary["implementation_identity"] == "iapf-runtime-v3"
+    assert completed.result_summary["artifacts"][0]["sha256"]
     metric = completed.result_summary["metric"]
     assert metric["output"]["unit"] == "Hz"
     assert metric["output"]["value"] == pytest.approx(10.0, abs=0.5)

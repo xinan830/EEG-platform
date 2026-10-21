@@ -46,9 +46,14 @@ def scientific_configuration_sha256(
 ) -> str:
     """Hash normalized algorithm parameters together with their value context."""
 
+    # Implementation identity is persisted as an audit snapshot, while the
+    # resolved Definition digest already binds it into the scientific cache key.
+    # Exclude that duplicate metadata so full and on-demand callers with the
+    # same scientific parameters share one configuration identity.
+    normalized_config = {key: value for key, value in config.items() if key != "implementation_identity"}
     return sha256_json({
         "scientific_configuration_contract": "scientific-config-v1",
-        "config": dict(config),
+        "config": normalized_config,
         "context": dict(context),
     })
 

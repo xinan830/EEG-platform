@@ -150,7 +150,12 @@ class RunAnalysisExecutor:
 
     def execute(self, analysis_type: str, recording: Any, resolved: dict[str, Any]):
         if analysis_type == "official_algorithm":
-            return self._execute_official_algorithm(recording, resolved)
+            payload, arrays, unit = self._execute_official_algorithm(recording, resolved)
+            payload["implementation_identity"] = resolved.get("implementation_identity") or self.algorithm_runtime.registry.get(
+                OfficialAlgorithmRunConfig.model_validate(resolved["config"]).algorithm_id,
+                resolved["scientific_version"],
+            ).manifest.implementation_identity
+            return payload, arrays, unit
 
         config = AnalysisConfigRequest.model_validate(resolved["config"])
         if analysis_type == "spectrum":

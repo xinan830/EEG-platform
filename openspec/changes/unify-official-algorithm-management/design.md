@@ -86,3 +86,57 @@ Rollback restores the prior registration/composition code and active-version map
 ## Open Questions
 
 None. The user explicitly chose latest-only behavior without historical-version compatibility; old stored bytes may remain physically present but need not be accessible through the current application.
+
+
+## Catalog and cross-process ownership update
+
+The backend manifest remains the source of official scientific identity,
+parameters, output schema, modes, dynamic policy, and strategy declarations.
+`official_algorithm_catalog()` projects that source together with persisted
+Definition provenance. The HTTP catalog resolves each item to the explicitly
+current module and verifies identity-bearing fields before serialization. A
+missing executable module or mismatch fails the official catalog request; it
+does not produce a partially populated item with fabricated defaults.
+
+WPF registries remain process-local because they own presentation factories
+and result parsing. They do not duplicate scientific identity or parameter
+schemas: WPF reads those fields from the backend catalog. Backend catalog
+parity tests and WPF JSON-contract/capability tests jointly guard this
+boundary. Algorithm formulas, channel roles, quality extensions, and evidence
+remain in each backend algorithm package; shared runtime and WPF only
+coordinate and present them.
+
+
+## Strategy and directional reuse verification
+
+The existing offline coordinator remains the single strategy orchestrator. WPF
+shows full analysis by default and offers on-demand/combined modes only when
+the backend manifest declares the capability and the process-local result
+handler implements the required view path. Combined validation stays
+independent from full and on-demand validation. Full-result-to-preview is a
+WPF projection path; on-demand-result-to-full is a backend artifact-reuse
+path. The latter requires a module-owned validator and checks exact source,
+scientific/run identity, frozen configuration, window sample bounds,
+manifest/checksum, result state/quality, and algorithm-specific output axes
+and shapes before reuse. Unsupported directions remain explicitly unsupported.
+
+Retired official reference calculators under the validation package remain
+available only to tests and audit tooling; product runtime imports them
+nowhere. They are not compatibility calculators for persisted Runs.
+
+
+## Version and queue identity checks
+
+Official catalog and Run resolution use the explicit `is_current_version`
+marker. Tests exercise a lexically/numerically larger retired version and
+change the current marker to prove the resolver follows the declaration.
+Retired execution requests fail before EEG loading or queue creation. Queue
+tests mutate the caller-owned request after enqueue and verify the persisted
+Run continues with its frozen current scientific version and algorithm ID.
+
+
+## Provenance and retired identity closure
+
+An official Run freezes `algorithm_id`, Definition ID/version, scientific version, the module-owned `implementation_identity`, implementation build, scientific configuration hash/cache key, execution mode, actual sample bounds, and result artifact checksums. The backend-authored `analysis_provenance` projection exposes these values together with the selected strategy and its producing/serving provenance. Missing identity fields remain null; provenance projection does not infer a version or reconstruct a retired contract.
+
+Historical stored Runs retain their persisted identity and result bytes for audit reads. The current runtime rejects retired identities before EEG loading or queueing and does not register compatibility calculators, migration paths, or special legacy rendering. The migration regression test verifies that stored scientific/version and result identity survive schema upgrade, while the retired-execution test verifies no execution is attempted.

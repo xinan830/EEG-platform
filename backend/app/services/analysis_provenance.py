@@ -60,20 +60,20 @@ def _frequency(evidence: dict[str, Any]) -> dict[str, object] | None:
 
 
 def _faa_provenance_fields(faa: dict[str, Any]) -> dict[str, object]:
-    """Project FAA's own FFT contract without relabelling it as Welch."""
+    """Project only the current paired-epoch FFT contract."""
     contract = _as_dict(faa.get("faa_contract"))
+    required = ("epoch_s", "overlap_fraction", "step_s", "frequency_resolution_hz", "alpha_band_hz")
+    if any(key not in contract for key in required):
+        return {}
     try:
-        epoch_s = float(contract.get("epoch_s", faa.get("epoch_s")))
-        overlap = float(contract.get("overlap_fraction", 0.5))
-        # Legacy FAA evidence persisted epoch length and overlap but not these
-        # two display fields. They are deterministic properties of that saved
-        # contract, not a recomputation of any EEG value.
-        step_s = float(contract.get("step_s", epoch_s * (1.0 - overlap)))
-        resolution = float(contract.get("frequency_resolution_hz", 1.0 / epoch_s))
-        band = [float(item) for item in contract.get("alpha_band_hz", faa.get("band", []))]
-        if len(band) != 2:
-            raise ValueError("invalid Alpha band")
-    except (KeyError, TypeError, ValueError):
+        epoch_s = float(contract["epoch_s"])
+        overlap = float(contract["overlap_fraction"])
+        step_s = float(contract["step_s"])
+        resolution = float(contract["frequency_resolution_hz"])
+        band = [float(item) for item in contract["alpha_band_hz"]]
+        if len(band) != 2 or epoch_s <= 0 or resolution <= 0:
+            raise ValueError("invalid current FAA contract")
+    except (TypeError, ValueError):
         return {}
     preprocessing = {"kind": "per_epoch_demean", "label_zh": "每个成对 Epoch 独立去均值；未做软件带通"}
     if contract.get("software_bandpass"):
@@ -83,19 +83,9 @@ def _faa_provenance_fields(faa: dict[str, Any]) -> dict[str, object]:
             "label_zh": "整条记录连续滤波后截取分析窗口，再逐 Epoch 去均值" if scope == "whole_recording_before_window_slice" else "分析窗口独立滤波，再逐 Epoch 去均值",
         }
     return {
-        "method": {
-            "kind": "faa_paired_epoch_fft",
-            "label_zh": "成对 Epoch FFT 密度谱",
-            "detail_zh": f"{epoch_s:g} s Hann，{overlap * 100:g}% Epoch overlap（{step_s:g} s 步进）",
-        },
+        "method": {"kind": "faa_paired_epoch_fft", "label_zh": "成对 Epoch FFT 密度谱", "detail_zh": f"{epoch_s:g} s Hann，{overlap * 100:g}% Epoch overlap（{step_s:g} s 步进）"},
         "preprocessing": preprocessing,
-        "frequency": {
-            "label_zh": "Alpha 积分频段",
-            "low_hz": band[0],
-            "high_hz": band[1],
-            "point_count": int(round((band[1] - band[0]) / resolution)) + 1,
-            "resolution_hz": resolution,
-        },
+        "frequency": {"label_zh": "Alpha 积分频段", "low_hz": band[0], "high_hz": band[1], "point_count": int(round((band[1] - band[0]) / resolution)) + 1, "resolution_hz": resolution},
         "quality_label_zh": "成对 Epoch 质量门",
     }
 
@@ -157,21 +147,28 @@ def build_analysis_provenance(run: AnalysisRun) -> dict[str, object]:
     channel = point.get("channel") or metric.get("channel") or run.config.get("channel")
 
     faa_fields = _faa_provenance_fields(faa_evidence) if faa_evidence else {}
-    definition_version = run.definition_version
-    if definition_version is None and run.analysis_type == "official_algorithm":
-        # All executable official modules currently use their frozen v1
-        # contract. Older Runs predate persistence of this field.
-        definition_version = "1.0.0"
+    official_identity = None
+    if run.analysis_type == "official_algorithm":
+        official_identity = {
+            "algorithm_id": run.config.get("algorithm_id"),
+            "definition_id": run.definition_id,
+            "definition_version": run.definition_version,
+            "scientific_version": run.scientific_version,
+            "implementation_identity": summary.get("implementation_identity", run.config.get("implementation_identity")),
+            "implementation_build": run.implementation_version,
+        }
     return {
         "contract_version": CONTRACT_VERSION,
         "status": run.status.value,
         "analysis_type": run.analysis_type,
-        "definition_version": definition_version,
-        "scientific_algorithm_version": evidence.get("algorithm_version", run.scientific_version),
+        "definition_version": run.definition_version,
+        "official_algorithm_identity": official_identity,
+        "scientific_algorithm_version": run.scientific_version,
         "implementation_version": run.implementation_version,
         "config_sha256": run.config_sha256,
         "execution_contract_version": OFFLINE_EXECUTION_CONTRACT_VERSION,
         "execution_mode": run.execution_mode,
+        "execution_provenance": _as_dict(summary.get("execution_provenance")) or None,
         "scientific_cache_key": run.cache_key,
         "mode": mode,
         "requested_range": _range(run.requested_range),

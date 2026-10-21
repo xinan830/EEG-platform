@@ -106,11 +106,18 @@ def test_current_resolution_requires_exactly_one_explicit_marker() -> None:
     current = DemoAlgorithm()
     current.manifest = current.manifest.model_copy(update={"is_current_version": True})
     retired = DemoAlgorithm()
-    retired.manifest = retired.manifest.model_copy(update={"scientific_version": "2.0.0"})
+    retired.manifest = retired.manifest.model_copy(update={"scientific_version": "99.0.0"})
     registry.register(current)
     registry.register(retired)
     assert registry.get_current("demo") is current
+    assert registry.get_current("demo").manifest.scientific_version == "1.0.0"
 
+    current.manifest = current.manifest.model_copy(update={"is_current_version": False})
+    retired.manifest = retired.manifest.model_copy(update={"is_current_version": True})
+    assert registry.get_current("demo") is retired
+    assert registry.get_current("demo").manifest.scientific_version == "99.0.0"
+
+    current.manifest = current.manifest.model_copy(update={"is_current_version": True})
     retired.manifest = retired.manifest.model_copy(update={"is_current_version": True})
     registry = AlgorithmRegistry()
     registry.register(current)

@@ -65,12 +65,18 @@ def test_public_official_catalog_matches_builtin_module_declarations() -> None:
     for item in official:
         module = registry.get_current(item["id"])
         assert module.manifest.algorithm_id == modules[item["id"]].manifest.algorithm_id
-        assert item["version"] == module.manifest.scientific_version
-        assert item["display_name_zh"] == module.manifest.display_name_zh
-        assert item["abbreviation"] == module.manifest.abbreviation
-        assert item["description"] == module.manifest.purpose_zh
-        assert item["modes"] == list(module.manifest.supported_modes)
-        assert item["output_schema"] == module.manifest.output_schema
+        manifest = module.manifest
+        assert item["version"] == manifest.scientific_version
+        assert item["display_name_zh"] == manifest.display_name_zh
+        assert item["abbreviation"] == manifest.abbreviation
+        assert item["description"] == manifest.purpose_zh
+        assert item["modes"] == list(manifest.supported_modes)
+        assert item["output_schema"] == manifest.output_schema
+        assert item["dynamic_policy"] == manifest.dynamic_policy.model_dump(mode="json")
+        assert item["availability"] == manifest.availability
+        assert item["is_runnable"] == manifest.is_runnable
+        assert item["implementation_identity"] == manifest.implementation_identity
+        assert item["definition_version"] == manifest.definition_persistence.version
         expected_capabilities = (
             module.manifest.dynamic_capabilities.model_dump(mode="json")
             if module.manifest.dynamic_capabilities is not None else None

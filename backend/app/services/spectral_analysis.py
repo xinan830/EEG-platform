@@ -1,8 +1,7 @@
 """Offline spectral use cases built on a recording data loader.
 
 The service owns analysis-only preprocessing cache and response envelopes.
-``RecordingService`` remains the public compatibility facade for existing
-routes, while file catalog and waveform responsibilities stay separate.
+File catalog and waveform responsibilities stay separate.
 """
 
 from __future__ import annotations
@@ -20,7 +19,6 @@ from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.core.provenance import implementation_version
 from app.scientific.quality import SpectralQualityGateError
 from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY, ScientificSpectralGateway
-from app.scientific.primitives import preprocess_offline as preprocess_offline
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.recording import RecordingSummary
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
@@ -48,30 +46,6 @@ def _notch_for_requested_range(high_hz: float) -> float | None:
 def _spectral_cache_identity(low_hz: float, high_hz: float, notch_hz: float | None = None) -> str:
     notch = "off" if notch_hz is None else f"{notch_hz:g}"
     return f"{ANALYSIS_CONTRACT['algorithm_version']}:bandpass={low_hz:g}-{high_hz:g}Hz:notch={notch}"
-
-
-class _ServiceSpectralGateway(ScientificSpectralGateway):
-    """Default adapter retaining the historical preprocess monkeypatch seam."""
-
-    def preprocess(
-        self,
-        data: np.ndarray,
-        sfreq_hz: float,
-        *,
-        low_hz: float | None = None,
-        high_hz: float | None = None,
-        notch_hz: float | None | object = _AUTO_NOTCH,
-        notch_q: float = POWERLINE_NOTCH_Q,
-    ) -> np.ndarray:
-        # Keep the established two-argument monkeypatch seam for the frozen
-        # default contract. Non-default ranges must use the explicit contract.
-        default_low, default_high = (float(value) for value in ANALYSIS_CONTRACT["bandpass_hz"])
-        if low_hz == default_low and high_hz == default_high and notch_hz is None:
-            return preprocess_offline(data, sfreq_hz)
-        return preprocess_offline(
-            data, sfreq_hz, low_hz=low_hz, high_hz=high_hz,
-            notch_hz=notch_hz, notch_q=notch_q,
-        )
 
 
 def _configured_provenance(payload: dict[str, object], *, mode: str, requested_time: dict[str, float], actual_start: float, actual_end: float, config_hash: str, quality: dict[str, object]) -> dict[str, object]:
@@ -105,7 +79,7 @@ class SpectralAnalysisService:
     def __init__(self, recordings: Any, preprocess_cache: AnalysisPreprocessCache, spectral_gateway: ScientificSpectralGateway | None = None):
         self.recordings = recordings
         self.preprocess_cache = preprocess_cache
-        self.spectral_gateway = spectral_gateway or _ServiceSpectralGateway()
+        self.spectral_gateway = spectral_gateway or DEFAULT_SPECTRAL_GATEWAY
 
     def _preprocessed_recording(self, recording, low_hz, high_hz, notch_hz,
                                 execution_context, channels=None):
