@@ -78,7 +78,13 @@ public static class RecordingMontageCatalog
             }
         }
 
-        foreach (var profile in currentProfiles
+        // Official presets are generated, not stored with user profiles. Use
+        // the recorded channel snapshot so current device edits cannot replace
+        // this recording's source mapping; all candidates still pass validation.
+        var systemProfiles = recordingSnapshot is null
+            ? Array.Empty<MontageProfile>()
+            : SystemMontageProfileFactory.Create(recordingSnapshot);
+        foreach (var profile in systemProfiles.Concat(currentProfiles)
                      .Where(profile => profile is not null)
                      .GroupBy(profile => profile.Id, StringComparer.Ordinal)
                      .Select(group => group.First()))

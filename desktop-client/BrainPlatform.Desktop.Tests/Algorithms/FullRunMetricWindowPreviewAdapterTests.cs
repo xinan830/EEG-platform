@@ -11,14 +11,19 @@ public sealed class FullRunMetricWindowPreviewAdapterTests
     {
         var run = Run(JsonSerializer.SerializeToElement(new
         {
+            result_contract_version = "official-algorithm-result-v1",
             metric = new
             {
-                output = new { unit = "Hz" },
+                mode = "dynamic", result_contract_version = "dynamic-analysis-frame-v6",
+                actual_range = new { start_s = 0d, end_s = 30d },
+                output = new { value = (double?)null, unit = "Hz" },
                 series = new[]
                 {
                     new
                     {
-                        time_s = 5d, window_start_s = 0d, window_end_s = 5d, value = 10d,
+                        time_s = 5d, window_start_s = 0d, window_end_s = 5d,
+                        result_contract_version = "dynamic-analysis-frame-v6",
+                        output = new { value = 10d, unit = "Hz" },
                         analysis_state = "Complete", quality = new { status = "clean" },
                         calculation_trace = new { formula = "peak" },
                         official = new { algorithm_id = "peak_frequency", peak_frequency_evidence = new { selected_power_v2_per_hz = 2d } },
@@ -43,14 +48,19 @@ public sealed class FullRunMetricWindowPreviewAdapterTests
     {
         var run = Run(JsonSerializer.SerializeToElement(new
         {
+            result_contract_version = "official-algorithm-result-v1",
             metric = new
             {
-                output = new { unit = "ratio" },
+                mode = "dynamic", result_contract_version = "dynamic-analysis-frame-v6",
+                actual_range = new { start_s = 0d, end_s = 30d },
+                output = new { value = (double?)null, unit = "ratio" },
                 series = new[]
                 {
                     new
                     {
-                        time_s = 5d, window_start_s = 0d, window_end_s = 5d, value = (double?)null,
+                        time_s = 5d, window_start_s = 0d, window_end_s = 5d,
+                        result_contract_version = "dynamic-analysis-frame-v6",
+                        output = new { value = (double?)null, unit = "ratio" },
                         analysis_state = "Complete", quality = new { status = "clean" },
                         band_values = new { delta = 0.1, theta = 0.2, alpha = 0.3, beta = 0.25, gamma = 0.15 },
                     },
@@ -70,14 +80,19 @@ public sealed class FullRunMetricWindowPreviewAdapterTests
     {
         var run = Run(JsonSerializer.SerializeToElement(new
         {
+            result_contract_version = "official-algorithm-result-v1",
             metric = new
             {
-                output = new { unit = "ratio" },
+                mode = "dynamic", result_contract_version = "dynamic-analysis-frame-v6",
+                actual_range = new { start_s = 0d, end_s = 30d },
+                output = new { value = (double?)null, unit = "ratio" },
                 series = new[]
                 {
                     new
                     {
                         time_s = 5d, window_start_s = 0d, window_end_s = 5d,
+                        result_contract_version = "dynamic-analysis-frame-v6",
+                        output = new { value = (double?)null, unit = "ratio" },
                         analysis_state = "Complete", quality = new { status = "clean" },
                         band_values = new { delta = 0.1, theta = (double?)null, alpha = 0.3, beta = 0.25, gamma = 0.15 },
                     },
@@ -97,14 +112,19 @@ public sealed class FullRunMetricWindowPreviewAdapterTests
     {
         var run = Run(JsonSerializer.SerializeToElement(new
         {
+            result_contract_version = "official-algorithm-result-v1",
             metric = new
             {
-                output = new { unit = "Hz" },
+                mode = "dynamic", result_contract_version = "dynamic-analysis-frame-v6",
+                actual_range = new { start_s = 0d, end_s = 30d },
+                output = new { value = (double?)null, unit = "Hz" },
                 series = new[]
                 {
                     new
                     {
-                        time_s = 5d, window_start_s = 0d, window_end_s = 5d, value = (double?)null,
+                        time_s = 5d, window_start_s = 0d, window_end_s = 5d,
+                        result_contract_version = "dynamic-analysis-frame-v6",
+                        output = new { value = (double?)null, unit = "Hz" },
                         analysis_state = "Rejected", quality = new { status = "gate_failed" },
                         failure = new { code = "QUALITY", message = "rejected" },
                     },

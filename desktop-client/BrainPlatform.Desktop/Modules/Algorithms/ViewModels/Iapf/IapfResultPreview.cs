@@ -36,6 +36,8 @@ public sealed partial record IapfResultPreview(
 
     public static IapfResultPreview? Parse(JsonElement? summary)
     {
+        if (summary is { ValueKind: JsonValueKind.Object } current)
+            BrainPlatform.Desktop.Modules.Algorithms.Contracts.CurrentAlgorithmResult.Require(current);
         if (summary is not { ValueKind: JsonValueKind.Object } root ||
             !root.TryGetProperty("metric", out var metric) || metric.ValueKind != JsonValueKind.Object ||
             !metric.TryGetProperty("official", out var official) ||
@@ -70,7 +72,7 @@ public sealed partial record IapfResultPreview(
         var evidence = Evidence(point);
         var state = Text(point, "analysis_state");
         return new IapfResultPoint(time.Value, start.Value, end.Value,
-            state == "Complete" ? Number(point, "value") : null,
+            state == "Complete" ? Number(point.GetProperty("output"), "value") : null,
             state, Quality(point), Failure(point), Text(evidence, "source"),
             Number(evidence, "peak_hz"), Number(evidence, "cog_hz"), Number(evidence, "model_r2"));
     }

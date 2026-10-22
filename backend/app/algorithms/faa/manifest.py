@@ -1,5 +1,5 @@
-from app.algorithm_runtime.contracts import AlgorithmManifest, DynamicAnalysisPolicy
-from app.algorithms.capabilities import official_dynamic_capabilities, official_result_graph
+from app.algorithm_runtime.contracts import AlgorithmManifest, DynamicAnalysisPolicy, SignalRequirements
+from app.algorithms.capabilities import declared_output_contract, official_dynamic_capabilities, official_result_graph
 
 
 MANIFEST = AlgorithmManifest(
@@ -11,6 +11,7 @@ MANIFEST = AlgorithmManifest(
     is_current_version=True,
     implementation_identity="faa-runtime-v2",
     supported_modes=["static", "dynamic"],
+    signal_requirements=SignalRequirements(input_roles=["F3", "F4"], representation="time_series", source_shape="paired", preprocessing_scope="configured_continuous_before_slice"),
     dynamic_capabilities=official_dynamic_capabilities(
         full_to_preview=False,
         combined_evidence=["backend/tests/test_official_combined_strategies.py", "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"],
@@ -30,4 +31,9 @@ MANIFEST = AlgorithmManifest(
         "references": ["docs/algorithms/04-spectral-metrics.md"],
     },
     execution_kind="official_composite_run_adapter",
+)
+
+MANIFEST.output_contract = declared_output_contract(
+    MANIFEST, static_result_type="scalar", dynamic_result_type="series",
+    evidence_fields=["faa_evidence", "paired_epoch_quality", "preprocessing_range"],
 )

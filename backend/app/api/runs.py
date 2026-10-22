@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.api_contract import error_response
 from app.models.run import RunCreateRequest
+from app.models.run_read import AnalysisRunRead
 from app.services.analysis_provenance import serialize_analysis_run
 from app.services.runs import RunConflictError, RunService
 
@@ -19,7 +20,7 @@ def _service(request: Request) -> RunService:
     return request.app.state.run_service
 
 
-@router.post("", status_code=status.HTTP_202_ACCEPTED)
+@router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=AnalysisRunRead, response_model_exclude_unset=True)
 def create_run(payload: RunCreateRequest, request: Request):
     try:
         service = _service(request)
@@ -43,7 +44,7 @@ def create_run(payload: RunCreateRequest, request: Request):
     return serialize_analysis_run(run)
 
 
-@router.post("/ensure", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/ensure", status_code=status.HTTP_202_ACCEPTED, response_model=AnalysisRunRead, response_model_exclude_unset=True)
 def ensure_run(payload: RunCreateRequest, request: Request):
     """Return a matching completed/in-flight Run or enqueue exactly one new Run."""
     try:
@@ -69,12 +70,12 @@ def ensure_run(payload: RunCreateRequest, request: Request):
     return serialize_analysis_run(run)
 
 
-@router.get("")
+@router.get("", response_model=list[AnalysisRunRead], response_model_exclude_unset=True)
 def list_runs(request: Request, recording_id: str | None = None, limit: int = Query(100, ge=1, le=1000)):
     return [serialize_analysis_run(item) for item in _service(request).list(recording_id, limit)]
 
 
-@router.get("/{run_id}")
+@router.get("/{run_id}", response_model=AnalysisRunRead, response_model_exclude_unset=True)
 def get_run(run_id: str, request: Request):
     try:
         return serialize_analysis_run(_service(request).get(run_id))

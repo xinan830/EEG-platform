@@ -15,6 +15,7 @@ from .contracts import (
 from .errors import UnsupportedAlgorithmModeError
 from .execution_control import ExecutionControl
 from .evidence import with_sample_coordinate
+from .result_validation import validate_algorithm_result
 
 
 class AlgorithmRuntime:
@@ -48,6 +49,7 @@ class AlgorithmRuntime:
         inputs.execution_context = execution_context
         if typed_config.mode == "static":
             result = module.execute_static(inputs, typed_config)
+            validate_algorithm_result(result, module.manifest, "static", module.requested_channels(typed_config))
             result.evidence = self._with_sample_coordinate(
                 result.evidence, result.actual_range, inputs.sfreq_hz,
             )
@@ -55,6 +57,7 @@ class AlgorithmRuntime:
             return result
         result = module.execute_dynamic(inputs, typed_config)
         if isinstance(result, AlgorithmStructuredSeriesResult):
+            validate_algorithm_result(result, module.manifest, "dynamic", module.requested_channels(typed_config))
             result.evidence = AlgorithmEvidence.model_validate(
                 self._with_sample_coordinate(result.evidence, result.actual_range, inputs.sfreq_hz)
             ).model_dump(mode="json")
@@ -67,18 +70,7 @@ class AlgorithmRuntime:
                     )
                 ).model_dump(mode="json")
             return result
-        # Keep the legacy warmup flags for historical readers, but make the
-        # versioned state enum the canonical runtime representation. Older
-        # modules may omit states, so only those results are derived from the
-        # compatibility flags.
-        if len(result.states) != len(result.values):
-            result.states = [
-                "Rejected" if failure is not None and quality == "gate_failed"
-                else "Unavailable" if failure is not None
-                else "Partial" if warmup
-                else "Complete"
-                for quality, failure, warmup in zip(result.quality, result.failures, result.warmups)
-            ]
+        validate_algorithm_result(result, module.manifest, "dynamic", module.requested_channels(typed_config))
         result.point_evidence = [
             AlgorithmEvidence.model_validate(
                 self._with_sample_coordinate(

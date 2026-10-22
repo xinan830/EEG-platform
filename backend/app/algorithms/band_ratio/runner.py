@@ -97,5 +97,7 @@ class BandRatioAlgorithm(ScalarDynamicWindowCapability):
                 ))
         return AlgorithmSeriesResult(values=[item.value for item in results], time_s=[frame.time_s for frame in frames], unit="ratio", channel=inputs.channel,
                                      windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames], quality=[item.quality for item in results],
-                                     failures=[item.failure for item in results], warmups=[frame.warmup for frame in frames], point_evidence=[item.evidence for item in results],
+                                     failures=[item.failure for item in results],
+                                     states=["Rejected" if item.failure and item.quality == "gate_failed" else "Unavailable" if item.failure else frame.state for frame, item in zip(frames, results, strict=True)],
+                                     point_evidence=[item.evidence for item in results],
                                      evidence={"points": len(results), "numerator_band_hz": [config.numerator_low_hz, config.numerator_high_hz], "denominator_band_hz": [config.denominator_low_hz, config.denominator_high_hz]})

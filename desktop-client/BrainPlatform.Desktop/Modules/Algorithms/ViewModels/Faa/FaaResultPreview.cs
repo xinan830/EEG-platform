@@ -46,12 +46,14 @@ public sealed record FaaResultPreview(string Channel, FaaResultPoint? StaticPoin
 
     public static FaaResultPreview? Parse(JsonElement? summary)
     {
+        if (summary is { ValueKind: JsonValueKind.Object } current)
+            BrainPlatform.Desktop.Modules.Algorithms.Contracts.CurrentAlgorithmResult.Require(current);
         if (summary is not { ValueKind: JsonValueKind.Object } root || !root.TryGetProperty("metric", out var metric) || metric.ValueKind != JsonValueKind.Object || !metric.TryGetProperty("official", out var official) || Text(official, "algorithm_id") != "faa" || !metric.TryGetProperty("output", out var output) || Text(output, "unit") != "dimensionless") return null;
         var channel = Text(metric, "channel");
         if (metric.TryGetProperty("series", out var series) && series.ValueKind == JsonValueKind.Array)
             return new FaaResultPreview(channel, null, series.EnumerateArray().Select(ParsePoint).Where(point => point is not null).Cast<FaaResultPoint>().OrderBy(point => point.EndSeconds).ToArray());
         var range = metric.TryGetProperty("actual_range", out var actual) ? actual : default;
-        var value = Number(output, "value") ?? Number(metric, "value");
+        var value = Number(output, "value");
         return new FaaResultPreview(channel, new FaaResultPoint(double.NaN, Number(range, "start_s") ?? double.NaN, Number(range, "end_s") ?? double.NaN, value, value is null ? "Unavailable" : "Complete", Quality(metric), Failure(metric), Evidence(official)), []);
     }
 
@@ -60,7 +62,7 @@ public sealed record FaaResultPreview(string Channel, FaaResultPoint? StaticPoin
         var time = Number(point, "time_s"); var start = Number(point, "window_start_s"); var end = Number(point, "window_end_s");
         if (time is null || start is null || end is null || end <= start) return null;
         var state = Text(point, "analysis_state");
-        return new FaaResultPoint(time.Value, start.Value, end.Value, state == "Complete" ? Number(point, "value") : null, state, Quality(point), Failure(point), Evidence(point));
+        return new FaaResultPoint(time.Value, start.Value, end.Value, state == "Complete" ? Number(point.GetProperty("output"), "value") : null, state, Quality(point), Failure(point), Evidence(point));
     }
 
     private static FaaEvidence Evidence(JsonElement point)

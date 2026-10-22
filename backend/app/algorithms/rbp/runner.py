@@ -91,12 +91,10 @@ class RbpAlgorithm(RbpWindowCapability):
         qualities: list[str] = []
         failures: list[AlgorithmFailure | None] = []
         windows: list[dict[str, float]] = []
-        warmups: list[bool] = []
         evidence: list[dict[str, Any]] = []
         for frame in controlled_frames(frames, inputs.execution_context):
             sample_range = SampleRange.from_seconds(frame.window_start_s, frame.window_end_s, inputs.sfreq_hz)
             windows.append({"start_s": frame.window_start_s, "end_s": frame.window_end_s})
-            warmups.append(frame.warmup)
             result = self._execute_frame(inputs, frame.window_start_s, frame.window_end_s)
             values.append(result.value)
             qualities.append(result.quality)
@@ -105,8 +103,8 @@ class RbpAlgorithm(RbpWindowCapability):
             evidence.append(result.evidence)
         return AlgorithmSeriesResult(
             values=values, time_s=[frame.time_s for frame in frames], unit="ratio", channel=inputs.channel,
-            windows=windows, quality=qualities, failures=failures, warmups=warmups,
-            states=["Rejected" if failure and quality == "gate_failed" else "Unavailable" if failure else "Partial" if frame.warmup else "Complete" for frame, failure, quality in zip(frames, failures, qualities)],
+            windows=windows, quality=qualities, failures=failures,
+            states=["Rejected" if failure and quality == "gate_failed" else "Unavailable" if failure else frame.state for frame, failure, quality in zip(frames, failures, qualities)],
             point_evidence=evidence, output_values=output_values,
             evidence={"bands": [name for name, *_ in RBP_BANDS], "window_s": window_s, "step_s": step_s},
         )

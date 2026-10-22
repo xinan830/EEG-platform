@@ -1,4 +1,7 @@
+from dataclasses import replace
+
 import numpy as np
+import pytest
 
 from app.services.analysis_preprocess_cache import (
     AnalysisPreprocessCache,
@@ -35,3 +38,29 @@ def test_lookup_rejects_unverifiable_legacy_entry_when_contract_is_required():
     result = cache.lookup("recording", "identity", source_contract())
     assert result.value is None
     assert result.miss_reason == "contract_unavailable"
+
+
+@pytest.mark.parametrize("field,value", [
+    ("sample_rate_hz", 250.0),
+    ("prepared_end_sample", 3999),
+    ("channel_names", ("F7",)),
+    ("channel_units", ("uV",)),
+    ("preprocessing_manifest", "other-filter-contract"),
+    ("filter_phase", "causal"),
+    ("reference_semantics", "average_reference"),
+    ("gap_policy", "reject"),
+    ("boundary_policy", "padded"),
+    ("implementation_identity", "other-build"),
+])
+def test_contract_change_is_a_cache_miss(field, value):
+    cache = AnalysisPreprocessCache()
+    expected = source_contract()
+    cache.put("recording", "identity", PreprocessedRecording(
+        np.zeros((4000, 1)), 200.0, ("F3",), contract=expected,
+    ))
+    changes = {field: value}
+    if field == "prepared_end_sample":
+        changes["valid_end_sample"] = value
+    result = cache.lookup("recording", "identity", replace(expected, **changes))
+    assert result.value is None
+    assert result.miss_reason == "contract_mismatch"

@@ -10,9 +10,12 @@ from .official import compute_faa
 from .config import FaaConfig
 from .manifest import MANIFEST
 from .window import FaaWindowCapability
+from .signal_source import load_faa_source
+from .provenance import project_provenance
 
 
 class FaaAlgorithm(FaaWindowCapability):
+    project_provenance = staticmethod(project_provenance)
     manifest = MANIFEST
     on_demand_default_enabled = True
     config_model = FaaConfig
@@ -46,7 +49,6 @@ class FaaAlgorithm(FaaWindowCapability):
                 "artifact_peak_uv": 150.0, "reasons": ["non_finite", "amplitude_threshold"],
             },
         )
-
     def resolve_inputs(self, recording: Any, config: FaaConfig) -> AlgorithmInputs:
         labels = list(getattr(recording, "channel_names", getattr(recording, "channels", [])))
         lookup = {str(item).casefold(): str(item) for item in labels}
@@ -55,8 +57,9 @@ class FaaAlgorithm(FaaWindowCapability):
         return AlgorithmInputs(recording_id=str(getattr(recording, "id", "unknown")), channel=lookup[config.channel.casefold()], sfreq_hz=float(getattr(recording, "sfreq_hz", 1.0)), duration_s=float(getattr(recording, "duration_s", config.end_s)), payload=recording)
 
     def execute_static(self, inputs: AlgorithmInputs, config: FaaConfig) -> AlgorithmResult:
-        f3, f4, sfreq, source = inputs.payload.load_faa_signals(start_s=config.start_s, end_s=config.end_s, f3_channel=inputs.channel, f4_channel=config.f4_channel, low_hz=config.low_hz, high_hz=config.high_hz, notch_hz=config.notch_hz)
-        report = compute_faa(f3, f4, sfreq)
+        source_data = load_faa_source(inputs, config, config.start_s, config.end_s)
+        report = compute_faa(source_data.values_v[:, 0], source_data.values_v[:, 1], source_data.sfreq_hz)
+        source = source_data.provenance
         quality = {"clean_segments": report["clean_epochs"], "total_segments": report["total_epochs"], "clean_ratio": report["clean_ratio"], "gate_failed": report["reason"] or None, "rejected_reasons": [report["reason"]] if report["reason"] else []}
         left_channel, right_channel = source["channels"]
         evidence = {
@@ -102,7 +105,6 @@ class FaaAlgorithm(FaaWindowCapability):
             windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames],
             quality=[item.quality for item in results],
             failures=[item.failure for item in results],
-            warmups=[False for _ in frames],
             states=["Rejected" if item.failure is not None else "Complete" for item in results],
             point_evidence=[item.evidence for item in results],
             evidence={"window_s": window_s, "step_s": step_s, "paired_epoch": True},

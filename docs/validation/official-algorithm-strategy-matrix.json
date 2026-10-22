@@ -6,7 +6,7 @@
     "band_ratio": {
       "scientific_version": "official-band-ratio-v1",
       "implementation_identity": "band-ratio-runtime-v2-frequency-contract",
-      "manifest_sha256": "d8f343f0b377fbc9f16a717c8ee191a6bbe231a929a2b41ee48bf94774e36f2b",
+      "manifest_sha256": "7be1f58eaa98472350750c4363ee8f9999cc541b21c22734e475bc717c06b19e",
       "parameter_schema_sha256": "ffea6132a618e9c8547de3a3c0db54319f4455b8dcd81d8fd2a9112ced39c51f",
       "output_schema_sha256": "79914734c5843be1535c9b7b6de6c1c75542ace70090cb840fffe4bb38190268",
       "supported_modes": [
@@ -17,7 +17,7 @@
     "brainbeat": {
       "scientific_version": "official-brainbeat-v1",
       "implementation_identity": "brainbeat-runtime-v1",
-      "manifest_sha256": "4c495b596bac90521a6f9f60b2078a410d271bbb675fdf85e576e4a1abeb4a44",
+      "manifest_sha256": "630b2f5351ad817733a94e34a9acc4746ea8fb3e19d1accd4b5be04319d166cc",
       "parameter_schema_sha256": "29a27f951c645c93236641cc63a8e8b4ccb71e9a40bed675604172a54c9a5706",
       "output_schema_sha256": "3d678590301e64d35eb2976eddcafdd9ffe679e511b55bcaf5c7b2cf4cef1494",
       "supported_modes": [
@@ -28,7 +28,7 @@
     "faa": {
       "scientific_version": "official-faa-v2",
       "implementation_identity": "faa-runtime-v2",
-      "manifest_sha256": "ac68c2860d554a2118a77ed93c398c923e36152ef27e51f0b6bd4459b1b2f209",
+      "manifest_sha256": "52ab58ac2dadf67bbeda9349b0e9dad662f7f349a2cfecd1351784a733f0294b",
       "parameter_schema_sha256": "b40b57565e25b2dd8821d693ff2b002151631e1b868b262a6e9f8a82b0d7fc7e",
       "output_schema_sha256": "423bdd833b5e5687246e1f8f968207b1170c967ed05c81ec9ae1264bd4cda109",
       "supported_modes": [
@@ -39,7 +39,7 @@
     "iapf": {
       "scientific_version": "official-iapf-v2",
       "implementation_identity": "iapf-runtime-v3",
-      "manifest_sha256": "06afa6c51692f76c9666dc6a56ad96e3263228b8ead3d2d0d46d4b23c147f99b",
+      "manifest_sha256": "a6fdfbd93338dc3830a624e464c9a56d7d154bfb713e52251ec51d9d0485931e",
       "parameter_schema_sha256": "225dae1352a22e3023c86d72094d91f103e465e8d348f659e7bdfa08b54f9462",
       "output_schema_sha256": "7255731ece9fdd7acbc59321b99efb0a22c47ad99ed89d1c6dd2689753591e6f",
       "supported_modes": [
@@ -50,7 +50,7 @@
     "peak_frequency": {
       "scientific_version": "official-peak-frequency-v1",
       "implementation_identity": "peak-frequency-runtime-v2-frequency-contract",
-      "manifest_sha256": "4169a587a85dfa11ceb4048d0d3c7f517362b098875c026d331fd15282e72b15",
+      "manifest_sha256": "9ccb754ca9aede99cab4aee4a6d7f3b9d65ce1ad49ecfbf0f5e2b73b2fb8d88c",
       "parameter_schema_sha256": "87a512aa6382d03cfc8b8f4660c14a123632271d3842b6c347ab7c504a6ab511",
       "output_schema_sha256": "fbedac20cfc59f606b1043a217bfa7a26f8ef70b842b4d4efcdc4622a6003ebc",
       "supported_modes": [
@@ -61,7 +61,7 @@
     "psd": {
       "scientific_version": "offline-spectral-v3",
       "implementation_identity": "psd-runtime-v3-explicit-filters",
-      "manifest_sha256": "86d0f48ba42135d32b08c445c175755a67a1c4a82507ff952065c0bf3c6994aa",
+      "manifest_sha256": "731dac6b75a2aa31fb6773e25936a41008e1f834108462a3ada9b3e327a6d025",
       "parameter_schema_sha256": "daf6d0a736bf2f6f539d9a980b9cf2c992d8cece05c6e50d1b84335c3e63a948",
       "output_schema_sha256": "28f67460d17414333eb209bbd8b59b28d0e4e15e9b99fc22004bdfda8c3cc095",
       "supported_modes": [
@@ -72,7 +72,7 @@
     "rbp": {
       "scientific_version": "official-rbp-v2",
       "implementation_identity": "rbp-runtime-v2-five-band",
-      "manifest_sha256": "eb4dbdfd788ed1cf6e175d4e321749944b57c37da56b72229f2b3d12134aaeb2",
+      "manifest_sha256": "c551c1f71a5f8ea062b4256d77d61af2741b6103e2d6417b055652f9ffac7dd7",
       "parameter_schema_sha256": "d7d52676acc1a894e186d7a35e822b12da47d32abd984a7308045dda112f3d07",
       "output_schema_sha256": "f0859ac76bfd84af34c05d5de706d77c664b9c54b149dcf7f37fb80bdfa8f536",
       "supported_modes": [
@@ -83,7 +83,7 @@
     "stft": {
       "scientific_version": "spectrogram-v2",
       "implementation_identity": "stft-runtime-v4-relative-window-times",
-      "manifest_sha256": "553ca5a642dd49b6b352c6a430edeb50483e599ab4837f15729fb3405a4558bd",
+      "manifest_sha256": "7e4dc8ebaa52f86b2f0853ed9ee74eb3a2c3fcef70c8d404e28920d2d7ef4b3f",
       "parameter_schema_sha256": "6c633b8e08bf0d1bbc706b593927d3eb87ed1be4b7afa5eac23e336666ca01be",
       "output_schema_sha256": "0bc3780ab29d3e15cbf895a089a0299a2bc63b2ab797aade33bd6ffd33921624",
       "supported_modes": [
@@ -94,7 +94,7 @@
     "theta_beta": {
       "scientific_version": "official-theta-beta-v2",
       "implementation_identity": "theta-beta-runtime-v1",
-      "manifest_sha256": "fa37e54192b259f38f0c3d31c90e3b3ca02efe2aa469aa06203f37bcccc3a379",
+      "manifest_sha256": "7cb88d64a36768ea86e11cb402936e5d05676b94726fea3ceefd22e4cfdd4517",
       "parameter_schema_sha256": "225dae1352a22e3023c86d72094d91f103e465e8d348f659e7bdfa08b54f9462",
       "output_schema_sha256": "126d1f3f7a0c6ec788fa3d48b9ab09e5d82afaea2956d2a14e76bb2a616a8925",
       "supported_modes": [

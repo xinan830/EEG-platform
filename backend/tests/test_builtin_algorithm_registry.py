@@ -47,6 +47,19 @@ def test_builtin_manifests_have_complete_runtime_contracts_and_runners() -> None
         assert manifest.supported_modes
         assert set(manifest.supported_modes) <= {"static", "dynamic"}
         assert manifest.output_schema.get("fields"), manifest.algorithm_id
+        output_contract = manifest.output_contract
+        assert output_contract is not None, manifest.algorithm_id
+        assert output_contract.channel_role_order == manifest.signal_requirements.input_roles
+        assert [field.name for field in output_contract.fields] == [
+            field["name"] for field in manifest.output_schema["fields"]
+        ]
+        assert all(field.unit and field.meaning for field in output_contract.fields)
+        assert set(output_contract.quality_values) >= {"clean", "gate_failed", "unavailable"}
+        assert output_contract.failure_semantics
+        assert {"source_quality", "spectral_evidence", "calculation_trace"} <= set(
+            output_contract.evidence_fields
+        )
+        assert output_contract.dynamic_states == ["Partial", "Complete", "Rejected", "Unavailable"]
         assert manifest.definition_persistence is not None, manifest.algorithm_id
         assert manifest.definition_persistence.name.startswith("Official ")
         assert manifest.definition_persistence.version

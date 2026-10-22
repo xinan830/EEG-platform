@@ -18,7 +18,7 @@ from app.algorithm_runtime.on_demand_planning import plan_policy_window
 from app.scientific.quality import SpectralQualityGateError
 
 from .config import StftConfig
-from .evidence import window_evidence
+from .evidence import window_evidence, window_provenance
 from .manifest import MANIFEST
 
 
@@ -108,19 +108,16 @@ class StftWindowCapability:
                 array_units={"power_linear": "V^2/Hz", "power_db": "dB re 1 uV^2/Hz"},
                 quality="clean",
                 evidence=window_evidence(payload, valid_count=int(times.size)),
-                provenance={
-                    "preprocessing_scope": "whole_recording_before_window_slice",
-                    "spectrogram_contract_version": payload["spectrogram_contract_version"],
-                    "segment_s": float(payload["segment_s"]),
-                    "step_s": float(payload["step_s"]),
-                    "outer_window": {"start_s": plan.start_s, "end_s": plan.end_s},
-                    "inner_time_axis": "relative_window_time_center_s",
-                    "source_channel": inputs.channel,
-                    "frequency_range_hz": payload.get("frequency_range_hz"),
-                    "filter_frequency_range_hz": payload.get("filter_frequency_range_hz"),
-                    "notch_hz": payload.get("notch_hz", config.notch_hz),
-                    "analysis_state": "Partial" if plan.end_s - plan.start_s < expected_window - 1e-9 else "Complete",
-                },
+                provenance=window_provenance(
+                    payload,
+                    start_s=plan.start_s,
+                    end_s=plan.end_s,
+                    source_channel=inputs.channel,
+                    analysis_state=(
+                        "Partial" if plan.end_s - plan.start_s < expected_window - 1e-9
+                        else "Complete"
+                    ),
+                ),
             )
         except SpectralQualityGateError as exc:
             return DynamicWindowResult(

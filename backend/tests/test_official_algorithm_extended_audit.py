@@ -372,5 +372,5 @@ class TestPsdAndStftAdapters:
         assert frames
         assert frames[0].window_start_s == 0.0
         assert frames[0].window_end_s == 4.0
-        assert frames[0].warmup is True
+        assert frames[0].state == "Partial"
         assert frames[-1].window_end_s == 5.0

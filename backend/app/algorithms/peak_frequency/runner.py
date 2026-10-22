@@ -104,5 +104,7 @@ class PeakFrequencyAlgorithm(ScalarDynamicWindowCapability):
                 ))
         return AlgorithmSeriesResult(values=[item.value for item in results], time_s=[frame.time_s for frame in frames], unit="Hz", channel=inputs.channel,
                                      windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames], quality=[item.quality for item in results],
-                                     failures=[item.failure for item in results], warmups=[frame.warmup for frame in frames], point_evidence=[item.evidence for item in results],
+                                     failures=[item.failure for item in results],
+                                     states=["Rejected" if item.failure and item.quality == "gate_failed" else "Unavailable" if item.failure else frame.state for frame, item in zip(frames, results, strict=True)],
+                                     point_evidence=[item.evidence for item in results],
                                      evidence={"points": len(results), "band_hz": [config.low_hz, config.high_hz]})

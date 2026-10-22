@@ -43,6 +43,8 @@ public sealed partial record ThetaBetaResultPreview(
 
     public static ThetaBetaResultPreview? Parse(JsonElement? summary)
     {
+        if (summary is { ValueKind: JsonValueKind.Object } current)
+            BrainPlatform.Desktop.Modules.Algorithms.Contracts.CurrentAlgorithmResult.Require(current);
         if (summary is not { ValueKind: JsonValueKind.Object } root ||
             !root.TryGetProperty("metric", out var metric) || metric.ValueKind != JsonValueKind.Object ||
             !metric.TryGetProperty("official", out var official) || Text(official, "algorithm_id") != "theta_beta" ||
@@ -58,7 +60,7 @@ public sealed partial record ThetaBetaResultPreview(
         }
 
         var range = metric.TryGetProperty("actual_range", out var actual) ? actual : default;
-        var value = Number(output, "value") ?? Number(metric, "value");
+        var value = Number(output, "value");
         return new ThetaBetaResultPreview(channel, new ThetaBetaResultPoint(
             double.NaN, Number(range, "start_s") ?? double.NaN, Number(range, "end_s") ?? double.NaN,
             value, value is null ? "Unavailable" : "Complete", Quality(metric), Failure(metric), Evidence(official)), []);
@@ -72,7 +74,7 @@ public sealed partial record ThetaBetaResultPreview(
         if (time is null || start is null || end is null || end <= start) return null;
         var state = Text(point, "analysis_state");
         return new ThetaBetaResultPoint(time.Value, start.Value, end.Value,
-            state == "Complete" ? Number(point, "value") : null,
+            state == "Complete" ? Number(point.GetProperty("output"), "value") : null,
             state, Quality(point), Failure(point), Evidence(point));
     }
 

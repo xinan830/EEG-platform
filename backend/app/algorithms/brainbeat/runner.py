@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from app.algorithm_runtime.contracts import (
@@ -15,6 +14,7 @@ from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 from .compute import compute_brainbeat
 from .config import BrainbeatConfig
 from .manifest import MANIFEST
+from .signal_source import load_brainbeat_spectrum
 from .window import BrainbeatWindowCapability
 
 
@@ -60,14 +60,11 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
             duration_s=float(getattr(recording, "duration_s", config.end_s)), payload=recording,
         )
 
-    @staticmethod
-    def _load(recording: Any, *, fz_channel: str, pz_channel: str, start_s: float, window_s: float) -> Any:
-        loader: Callable[..., Any] = getattr(recording, "load_spectrum")
-        return loader(start_s=start_s, window_s=window_s, channels=[fz_channel, pz_channel])
-
     def execute_static(self, inputs: AlgorithmInputs, config: BrainbeatConfig) -> AlgorithmResult:
-        duration = config.end_s - config.start_s
-        spectrum = self._load(inputs.payload, fz_channel=inputs.channel, pz_channel=config.pz_channel, start_s=config.start_s, window_s=duration)
+        spectrum = load_brainbeat_spectrum(
+            inputs, fz_channel=inputs.channel, pz_channel=config.pz_channel,
+            start_s=config.start_s, end_s=config.end_s,
+        )
         return compute_brainbeat(spectrum, fz_channel=inputs.channel, pz_channel=config.pz_channel,
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
             actual_range={"start_s": config.start_s, "end_s": config.end_s})
@@ -82,8 +79,10 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
         for frame in controlled_frames(frames, inputs.execution_context):
             requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
             try:
-                spectrum = self._load(inputs.payload, fz_channel=inputs.channel, pz_channel=config.pz_channel,
-                    start_s=frame.window_start_s, window_s=frame.actual_window_s)
+                spectrum = load_brainbeat_spectrum(
+                    inputs, fz_channel=inputs.channel, pz_channel=config.pz_channel,
+                    start_s=frame.window_start_s, end_s=frame.window_end_s,
+                )
                 results.append(compute_brainbeat(spectrum, fz_channel=inputs.channel, pz_channel=config.pz_channel,
                     requested_range=requested_range, actual_range=requested_range))
             except SpectralQualityGateError as exc:
@@ -94,6 +93,6 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
                     evidence={"source_quality": quality, "spectral_evidence": dict(quality.get("evidence", {}))}))
         return AlgorithmSeriesResult(values=[item.value for item in results], time_s=[frame.time_s for frame in frames], unit="ratio",
             channel=f"{inputs.channel}/{config.pz_channel}", windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames],
-            quality=[item.quality for item in results], failures=[item.failure for item in results], warmups=[frame.warmup for frame in frames],
+            quality=[item.quality for item in results], failures=[item.failure for item in results],
             states=["Rejected" if item.failure is not None else "Complete" for item in results], point_evidence=[item.evidence for item in results],
             evidence={"points": len(results), "independent_windows": True, "cross_window_ema": False})

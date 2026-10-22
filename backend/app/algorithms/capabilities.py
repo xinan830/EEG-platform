@@ -1,7 +1,49 @@
 """Construct explicit official dynamic strategy/reuse declarations."""
 
-from app.algorithm_runtime.contracts import CapabilityEvidenceStatus, DynamicStrategyCapabilities
+from app.algorithm_runtime.contracts import (
+    AlgorithmManifest,
+    AlgorithmOutputContract,
+    AlgorithmOutputField,
+    CapabilityEvidenceStatus,
+    DynamicStrategyCapabilities,
+)
 from app.algorithms.rbp.official import RBP_BANDS
+
+
+def declared_output_contract(
+    manifest: AlgorithmManifest,
+    *,
+    static_result_type: str,
+    dynamic_result_type: str,
+    evidence_fields: list[str],
+) -> AlgorithmOutputContract:
+    """Build a typed declaration from module-owned output and signal metadata."""
+    requirements = manifest.signal_requirements
+    if requirements is None:
+        raise ValueError(f"{manifest.algorithm_id} must declare signal roles before output contract")
+    schema = manifest.output_schema
+    window_shapes = schema.get("window_shapes", {})
+    fields = [
+        AlgorithmOutputField(
+            name=item["name"], unit=item["unit"], meaning=item["meaning"],
+            shape=list(window_shapes[item["name"]]),
+        )
+        for item in schema["fields"]
+    ]
+    return AlgorithmOutputContract(
+        static_result_type=static_result_type,
+        dynamic_result_type=dynamic_result_type,
+        channel_role_order=list(requirements.input_roles),
+        fields=fields,
+        axes=list(schema.get("window_axes", [])),
+        quality_values=["clean", "gate_failed", "unavailable", "insufficient_data", "partial"],
+        dynamic_states=["Partial", "Complete", "Rejected", "Unavailable"],
+        failure_semantics=(
+            "Failed, rejected, or unavailable outputs carry null values or unavailable array rows "
+            "and an explicit failure; zero is never substituted."
+        ),
+        evidence_fields=["source_quality", "spectral_evidence", "calculation_trace", *evidence_fields],
+    )
 
 
 def official_dynamic_capabilities(

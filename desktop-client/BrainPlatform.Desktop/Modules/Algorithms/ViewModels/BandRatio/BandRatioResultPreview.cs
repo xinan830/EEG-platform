@@ -15,12 +15,14 @@ public sealed partial record BandRatioResultPreview(string Channel, BandRatioRes
     public IReadOnlyList<BandRatioResultPoint> VisibleThrough(double cursor) => IsDynamic ? DynamicPoints.Where(point => point.EndSeconds <= cursor + 1e-9).ToArray() : [];
     public static BandRatioResultPreview? Parse(JsonElement? summary)
     {
+        if (summary is { ValueKind: JsonValueKind.Object } current)
+            BrainPlatform.Desktop.Modules.Algorithms.Contracts.CurrentAlgorithmResult.Require(current);
         if (summary is not { ValueKind: JsonValueKind.Object } root || !root.TryGetProperty("metric", out var metric) || metric.ValueKind != JsonValueKind.Object || !metric.TryGetProperty("official", out var official) || Text(official, "algorithm_id") != "band_ratio") return null;
         var channel = Text(metric, "channel");
         if (metric.TryGetProperty("series", out var series) && series.ValueKind == JsonValueKind.Array)
             return new(channel, null, series.EnumerateArray().Select(ParsePoint).Where(point => point is not null).Cast<BandRatioResultPoint>().OrderBy(point => point.EndSeconds).ToArray());
         var range = metric.TryGetProperty("actual_range", out var actual) ? actual : default;
-        var value = Number(metric.TryGetProperty("output", out var output) ? output : default, "value") ?? Number(metric, "value");
+        var value = Number(metric.TryGetProperty("output", out var output) ? output : default, "value");
         return new(channel, new(double.NaN, Number(range, "start_s") ?? double.NaN, Number(range, "end_s") ?? double.NaN, value, value is null ? "Unavailable" : "Complete", Quality(metric), Failure(metric), Evidence(metric)), []);
     }
     private static BandRatioResultPoint? ParsePoint(JsonElement point)
@@ -28,7 +30,7 @@ public sealed partial record BandRatioResultPreview(string Channel, BandRatioRes
         var time = Number(point, "time_s"); var start = Number(point, "window_start_s"); var end = Number(point, "window_end_s");
         if (time is null || start is null || end is null || end <= start) return null;
         var state = Text(point, "analysis_state");
-        return new(time.Value, start.Value, end.Value, state == "Complete" ? Number(point, "value") : null, state, Quality(point), Failure(point), Evidence(point));
+        return new(time.Value, start.Value, end.Value, state == "Complete" ? Number(point.GetProperty("output"), "value") : null, state, Quality(point), Failure(point), Evidence(point));
     }
     private static BandRatioEvidence Evidence(JsonElement point)
     {

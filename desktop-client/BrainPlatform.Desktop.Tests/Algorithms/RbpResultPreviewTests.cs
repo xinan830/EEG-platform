@@ -17,7 +17,7 @@ public sealed class RbpResultPreviewTests
     public void Static_UsesBackendSharesInDeclaredBandOrder()
     {
         var preview = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"clean"},"band_values":{"gamma":0.1,"beta":0.2,"alpha":0.3,"theta":0.2,"delta":0.2}}}
+            {"metric":{"quality":{"status":"clean"},"band_values":{"gamma":0.1,"beta":0.2,"alpha":0.3,"theta":0.2,"delta":0.2},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """));
 
         Assert.Equal([0.2, 0.2, 0.3, 0.2, 0.1], preview.BandsAt(0).Select(band => band.Share));
@@ -29,7 +29,7 @@ public sealed class RbpResultPreviewTests
     public void CurrentVersion_UsesFiveBackendSharesIncludingGamma()
     {
         var preview = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"clean"},"band_values":{"gamma":0.3,"beta":0.2,"alpha":0.2,"theta":0.2,"delta":0.1}}}
+            {"metric":{"quality":{"status":"clean"},"band_values":{"gamma":0.3,"beta":0.2,"alpha":0.2,"theta":0.2,"delta":0.1},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """, "official-rbp-v2"));
 
         Assert.Equal(5, preview.BandsAt(0).Count);
@@ -42,7 +42,7 @@ public sealed class RbpResultPreviewTests
     public void CurrentVersion_MissingGammaDoesNotDisplayFourBandSharesAsFiveBandResult()
     {
         var preview = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4}}}
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """, "official-rbp-v2"));
 
         Assert.All(preview.BandsAt(0), band => Assert.Null(band.Share));
@@ -52,7 +52,7 @@ public sealed class RbpResultPreviewTests
     public void RetiredVersion_IsNotInterpretedOrDisplayed()
     {
         var preview = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4}}}
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """, "official-rbp-v1"));
 
         Assert.Empty(preview.BandsAt(10));
@@ -62,7 +62,7 @@ public sealed class RbpResultPreviewTests
     public void CurrentVersion_InvalidGammaMakesTheFiveBandMeasurementUnavailableAsASet()
     {
         var preview = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4,"gamma":1.1}}}
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4,"gamma":1.1},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """, "official-rbp-v2"));
 
         Assert.All(preview.BandsAt(0), band => Assert.Null(band.Share));
@@ -72,11 +72,7 @@ public sealed class RbpResultPreviewTests
     public void Dynamic_RespectsCursorAndPreservesRejectedWindowAsGap()
     {
         var preview = RbpResultPreview.Parse(Run("""
-            {"metric":{"series":[
-              {"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.3,"gamma":0.1}},
-              {"time_s":5,"window_start_s":1,"window_end_s":5,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["PSD_QUALITY_GATE_FAILED"]},"band_values":{"delta":null,"theta":null,"alpha":null,"beta":null}},
-              {"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.3,"gamma":0.1}}
-            ]}}
+            {"metric":{"series":[{"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":5,"window_start_s":1,"window_end_s":5,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["PSD_QUALITY_GATE_FAILED"]},"band_values":{"delta":null,"theta":null,"alpha":null,"beta":null},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
             """));
 
         Assert.True(preview.IsDynamic);
@@ -91,10 +87,10 @@ public sealed class RbpResultPreviewTests
     public void InvalidOrRejectedShares_NeverBecomeZero()
     {
         var rejected = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"gate_failed"},"band_values":{"delta":0.5,"theta":0.5,"alpha":0,"beta":0,"gamma":0}}}
+            {"metric":{"quality":{"status":"gate_failed"},"band_values":{"delta":0.5,"theta":0.5,"alpha":0,"beta":0,"gamma":0},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """));
         var missing = RbpResultPreview.Parse(Run("""
-            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4,"gamma":null}}}
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4,"gamma":null},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """));
 
         Assert.All(rejected.BandsAt(0), band => Assert.Null(band.Share));
@@ -151,9 +147,7 @@ public sealed class RbpResultPreviewTests
             try
             {
                 var run = Run("""
-                    {"metric":{"series":[
-                      {"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.2,"beta":0.2,"gamma":0.3}}
-                    ]}}
+                    {"metric":{"series":[{"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.2,"beta":0.2,"gamma":0.3},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
                     """, "official-rbp-v2");
                 var preview = RbpResultPreview.Parse(run);
                 var chart = new RbpChart { IsTrend = true, Bands = preview.BandsAt(5), Windows = preview.Windows };
@@ -170,11 +164,7 @@ public sealed class RbpResultPreviewTests
     }
 
     private static AnalysisRunResponse DynamicRun() => Run("""
-        {"metric":{"series":[
-          {"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.3,"gamma":0.1}},
-          {"time_s":5,"window_start_s":1,"window_end_s":5,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["RBP_WINDOW_QUALITY_GATE_FAILED"]},"band_values":{"delta":null,"theta":null,"alpha":null,"beta":null}},
-          {"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.3,"gamma":0.1}}
-        ]}}
+        {"metric":{"series":[{"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":5,"window_start_s":1,"window_end_s":5,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["RBP_WINDOW_QUALITY_GATE_FAILED"]},"band_values":{"delta":null,"theta":null,"alpha":null,"beta":null},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
         """);
 
     private static AnalysisRunResponse Run(string summary, string scientificVersion = "official-rbp-v2") => new(

@@ -171,7 +171,7 @@ def test_faa_real_recording_api_matches_every_full_dynamic_window(tmp_path):
             assert window["quality"] == frame["quality"]["status"]
             assert window["state"] == "ready"
             result = window["result"]
-            np.testing.assert_allclose(result["arrays"]["faa"], [frame["value"]], rtol=1e-12, atol=1e-12)
+            np.testing.assert_allclose(result["arrays"]["faa"], [frame["output"]["value"]], rtol=1e-12, atol=1e-12)
             assert result["array_units"]["faa"] == "dimensionless"
             assert result["axes"]["time_s"] == [frame["window_end_s"]]
             assert result["evidence"]["source_quality"] == frame["official"]["source_quality"]

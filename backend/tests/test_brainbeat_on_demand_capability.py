@@ -25,6 +25,18 @@ class FakeRecording:
     def __init__(self, gate_failed: str | None = None):
         self.gate_failed = gate_failed
         self.calls: list[dict[str, object]] = []
+        self.requests = []
+
+    def signal_source_identity(self):
+        return "raw-recording:brainbeat-window-test", "source"
+
+    def load_spectral_source(self, request, *, role_to_channel):
+        self.requests.append((request, dict(role_to_channel)))
+        return self.load_spectrum(
+            start_s=request.start_sample / request.expected_sfreq_hz,
+            window_s=(request.end_sample - request.start_sample) / request.expected_sfreq_hz,
+            channels=[role_to_channel[role] for role in request.roles],
+        )
 
     def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str]):
         self.calls.append({"start_s": start_s, "window_s": window_s, "channels": channels})
@@ -93,6 +105,10 @@ def test_brainbeat_window_matches_existing_dynamic_point_and_keeps_pair_order():
     assert result.state == "ready"
     assert result.arrays["brainbeat"][0] == pytest.approx(full.values[0], rel=1e-12, abs=1e-12)
     assert recording.calls[-1]["channels"] == ["Fz", "Pz"]
+    request, role_map = recording.requests[-1]
+    assert request.roles == ("Fz", "Pz")
+    assert role_map == {"Fz": "Fz", "Pz": "Pz"}
+    assert request.representation == "spectrum"
     assert result.evidence["extensions"]["brainbeat_evidence"]["fz_channel"] == "Fz"
     assert result.evidence["extensions"]["brainbeat_evidence"]["pz_channel"] == "Pz"
     assert result.provenance["independent_windows"] is True
@@ -171,11 +187,11 @@ def test_brainbeat_real_recording_api_matches_each_full_dynamic_window(tmp_path)
             expected_state = "rejected" if frame["failure"] is not None else "ready"
             assert window["state"] == expected_state
             result = window["result"]
-            if frame["value"] is None:
+            if frame["output"]["value"] is None:
                 assert result is None or result["arrays"]["brainbeat"][0] is None
             else:
                 np.testing.assert_allclose(
-                    result["arrays"]["brainbeat"], [frame["value"]], rtol=1e-12, atol=1e-12,
+                    result["arrays"]["brainbeat"], [frame["output"]["value"]], rtol=1e-12, atol=1e-12,
                 )
             if result is not None:
                 assert result["array_units"]["brainbeat"] == "ratio"

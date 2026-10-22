@@ -16,6 +16,8 @@ def test_old_schema_upgrade_preserves_run_and_request_identity(tmp_path, previou
     run = queue.enqueue(_request(recording_id, "old-request"))
     final = queue.process_next()
     with closing(sqlite3.connect(queue.repository.database_path)) as connection:
+        # This table did not exist in the schema being reconstructed.
+        connection.execute("DROP TABLE analysis_montage_snapshots")
         connection.execute("DROP TABLE run_request_keys")
         connection.execute("ALTER TABLE analysis_runs DROP COLUMN execution_lane")
         if previous_version == 10:
@@ -32,8 +34,9 @@ def test_old_schema_upgrade_preserves_run_and_request_identity(tmp_path, previou
     assert len(repository.list_artifacts(run.run_id)) == 1
 
 
-def test_historical_faa_v1_is_readable_without_reexecution_or_relabelling(tmp_path):
+def test_retired_faa_result_is_rejected_without_reexecution_or_mutation(tmp_path, monkeypatch):
     from app.services.analysis_provenance import serialize_analysis_run
+    from app.services.current_algorithm_result import InvalidCurrentResultError
     queue, recording_id = _queue(tmp_path)
     run = queue.enqueue(_request(recording_id))
     final = queue.process_next()
@@ -49,7 +52,19 @@ def test_historical_faa_v1_is_readable_without_reexecution_or_relabelling(tmp_pa
     assert historical.scientific_version == "official-faa-v1"
     assert historical.definition_version == "1.0.0"
     assert historical.result_summary == final.result_summary
-    serialized = serialize_analysis_run(historical)
-    assert serialized["scientific_version"] == "official-faa-v1"
+    artifacts = queue.list_artifacts(run.run_id)
+    saved_arrays = [(queue.base.artifacts.root / item.relative_path).read_bytes() for item in artifacts]
+    saved_database = queue.repository.database_path.read_bytes()
+
+    def unexpected_execution(*args, **kwargs):
+        pytest.fail("Unsupported result reads must not execute science or decode arrays")
+
+    monkeypatch.setattr(queue, "process_next", unexpected_execution)
+    monkeypatch.setattr(queue.base.artifacts, "read_npz", unexpected_execution)
+    with pytest.raises(InvalidCurrentResultError, match="current official algorithm contract"):
+        serialize_analysis_run(historical)
+
+    assert queue.repository.database_path.read_bytes() == saved_database
+    assert queue.get(run.run_id).model_dump() == historical.model_dump()
     assert historical.filters == legacy_filters
-    assert queue.base.artifacts.read_npz(queue.list_artifacts(run.run_id)[0])
+    assert [(queue.base.artifacts.root / item.relative_path).read_bytes() for item in artifacts] == saved_arrays

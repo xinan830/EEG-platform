@@ -290,7 +290,11 @@ class OfflineWindowReuse:
                     arrays=payload_arrays,
                     array_units={name: str((structured.get("arrays") or {}).get(name, {}).get("unit", "")) for name in payload_arrays},
                     quality=quality, failure=failure, evidence=evidence,
-                    provenance={"execution_mode": "full", "producer_mode": "full", "result_scope": "window",
+                    # Keep algorithm-owned scientific provenance from the
+                    # full result when publishing its windows. The transport
+                    # fields below describe who produced this reusable copy.
+                    provenance={**dict(item.get("provenance") or {}),
+                                "execution_mode": "full", "producer_mode": "full", "result_scope": "window",
                                 "served_from": "full_computation", "scientific_cache_key": run.cache_key,
                                 "provenance_id": provenance_id},
                 )

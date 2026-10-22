@@ -140,7 +140,7 @@ def compare_preview(preview, summary, arrays):
         assert result["quality"] == frame["quality"]["status"]
         outputs = frame.get("band_values") or None
         for key, values in result["arrays"].items():
-            wanted = outputs[key] if outputs is not None else frame["value"]
+            wanted = outputs[key] if outputs is not None else frame["output"]["value"]
             compare_arrays({key: values}, {key: [wanted]})
         for key in ("source_quality", "spectral_evidence", "calculation_trace"):
             assert result["evidence"].get(key, {}) == frame[key]

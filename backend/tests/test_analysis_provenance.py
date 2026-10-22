@@ -36,7 +36,7 @@ def _run(*, dynamic: bool = False, failed: bool = False) -> AnalysisRun:
                 "time_s": 15.0,
                 "window_start_s": 5.0,
                 "window_end_s": 15.0,
-                "value": 0.5,
+                "output": {"value": 0.5, "unit": "dimensionless"},
                 "quality": {"status": "clean"},
                 "inputs": {"theta": {"feature": "theta_power", "value": 2.0, "unit": "uV^2", "channel": "F3"}},
                 "source_quality": evidence["quality"],
@@ -90,7 +90,10 @@ def test_failed_run_provenance_keeps_missing_evidence_null():
 
 def test_faa_provenance_keeps_paired_quality_evidence():
     run = _run()
+    run.analysis_type = "official_algorithm"
+    run.config["algorithm_id"] = "faa"
     run.result_summary = {
+        "result_contract_version": "official-algorithm-result-v1",
         "metric": {
             "channel": "F3/F4",
             "actual_range": {"start_s": 0.0, "end_s": 30.0},

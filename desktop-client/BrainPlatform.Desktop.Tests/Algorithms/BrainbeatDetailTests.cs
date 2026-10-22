@@ -26,10 +26,7 @@ public sealed class BrainbeatDetailTests
         catalog.SelectedAnalysisMode = "动态";
 
         var run = Run(JsonDocument.Parse("""
-            {"metric":{"output":{"unit":"ratio"},"channel":"Fz/Pz","series":[
-              {"time_s":5,"window_start_s":0,"window_end_s":5,"value":0.4,"analysis_state":"Complete","quality":{"status":"clean"}},
-              {"time_s":6,"window_start_s":1,"window_end_s":6,"value":null,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"message":"当前窗口未通过 PSD 质量门"}}
-            ]}}
+            {"metric":{"output":{"unit":"ratio","value":null},"channel":"Fz/Pz","series":[{"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","quality":{"status":"clean"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":0.4,"unit":"ratio"}},{"time_s":6,"window_start_s":1,"window_end_s":6,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"message":"当前窗口未通过 PSD 质量门"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}}],"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
             """).RootElement.Clone());
         // Run orchestration publishes LastRun before delegating the timeline projection.
         typeof(AlgorithmListViewModel).GetProperty(nameof(AlgorithmListViewModel.LastRun))!.SetValue(catalog, run);

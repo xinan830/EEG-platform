@@ -129,7 +129,7 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
             windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames],
             quality=[result.quality for result in results],
             failures=[result.failure for result in results],
-            warmups=[frame.warmup for frame in frames],
+            states=["Rejected" if result.failure and result.quality == "gate_failed" else "Unavailable" if result.failure else frame.state for frame, result in zip(frames, results, strict=True)],
             point_evidence=[result.evidence for result in results],
             evidence={"points": len(results)},
         )

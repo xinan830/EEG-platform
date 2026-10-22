@@ -20,7 +20,8 @@ CapabilityValidationStatus = Literal["validated", "unvalidated", "not_applicable
 # Persisted dynamic points carry this independently from an algorithm's
 # scientific version.  Altering point timing or evidence requires a new value
 # so older cached summaries cannot be rendered as the current contract.
-DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION = "dynamic-analysis-frame-v5"
+OFFICIAL_ALGORITHM_RESULT_CONTRACT_VERSION = "official-algorithm-result-v1"
+DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION = "dynamic-analysis-frame-v6"
 DynamicAnalysisState = Literal["Partial", "Complete", "Rejected", "Unavailable"]
 
 
@@ -129,6 +130,52 @@ class DynamicStrategyCapabilities(BaseModel):
     on_demand_result_to_full: CapabilityEvidenceStatus
 
 
+class SignalRequirements(BaseModel):
+    """Module-owned declaration of source roles and preprocessing scope."""
+
+    input_roles: list[str] = Field(min_length=1)
+    representation: Literal["time_series", "spectrum", "spectrogram"]
+    source_shape: Literal["single", "paired"]
+    preprocessing_scope: Literal[
+        "configured_continuous_before_slice",
+        "fixed_continuous_before_slice",
+        "module_defined",
+    ]
+    missing_sample_policy: Literal["preserve_nan", "reject"] = "preserve_nan"
+
+
+class AlgorithmOutputField(BaseModel):
+    """A public algorithm output with explicit units and array shape."""
+
+    name: str = Field(min_length=1)
+    unit: str = Field(min_length=1)
+    meaning: str = Field(min_length=1)
+    shape: list[str | int] = Field(default_factory=list)
+
+
+class AlgorithmOutputContract(BaseModel):
+    """Module-owned declaration consumed by runtime validation and catalogs."""
+
+    static_result_type: Literal["scalar", "structured"]
+    dynamic_result_type: Literal["series", "structured_series"]
+    channel_role_order: list[str] = Field(min_length=1)
+    fields: list[AlgorithmOutputField] = Field(min_length=1)
+    axes: list[dict[str, Any]] = Field(default_factory=list)
+    quality_values: list[str] = Field(min_length=1)
+    dynamic_states: list[DynamicAnalysisState] = Field(default_factory=list)
+    failure_semantics: str = Field(min_length=1)
+    evidence_fields: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_declarations(self) -> "AlgorithmOutputContract":
+        names = [field.name for field in self.fields]
+        if len(names) != len(set(names)):
+            raise ValueError("algorithm output field names must be unique")
+        if len(self.channel_role_order) != len(set(self.channel_role_order)):
+            raise ValueError("algorithm output channel role order must be unique")
+        return self
+
+
 class AlgorithmManifest(BaseModel):
     algorithm_id: str = Field(min_length=1)
     display_name_zh: str = Field(min_length=1)
@@ -141,6 +188,7 @@ class AlgorithmManifest(BaseModel):
     implementation_identity: str = Field(min_length=1)
     supported_modes: list[AlgorithmMode] = Field(default_factory=lambda: ["static"])
     output_schema: dict[str, Any] = Field(min_length=1)
+    output_contract: AlgorithmOutputContract | None = None
     dynamic_policy: DynamicAnalysisPolicy = Field(default_factory=DynamicAnalysisPolicy)
     dynamic_capabilities: DynamicStrategyCapabilities | None = None
     # This nested record is persistence provenance, not scientific metadata.
@@ -150,6 +198,7 @@ class AlgorithmManifest(BaseModel):
     availability: Literal["shadow_validation", "available", "deprecated"] = "available"
     is_runnable: bool = True
     required_channel_roles: list[str] = Field(default_factory=list)
+    signal_requirements: SignalRequirements | None = None
 
 
 class AlgorithmInputs(BaseModel):
@@ -281,6 +330,8 @@ class AlgorithmStructuredSeriesResult(BaseModel):
 
 
 class AlgorithmSeriesResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     values: list[float | None]
     time_s: list[float]
     unit: str
@@ -288,8 +339,7 @@ class AlgorithmSeriesResult(BaseModel):
     windows: list[dict[str, float]]
     quality: list[str]
     failures: list[AlgorithmFailure | None]
-    warmups: list[bool] = Field(default_factory=list)
-    states: list[DynamicAnalysisState] = Field(default_factory=list)
+    states: list[DynamicAnalysisState]
     point_evidence: list[dict[str, Any]] = Field(default_factory=list)
     output_values: list[dict[str, float | None]] = Field(default_factory=list)
     evidence: dict[str, Any] = Field(default_factory=dict)

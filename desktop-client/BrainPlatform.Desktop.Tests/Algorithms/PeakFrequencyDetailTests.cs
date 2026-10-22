@@ -19,14 +19,14 @@ public sealed class PeakFrequencyDetailTests
     public void StaticResult_UsesBackendFrequencyAndPeakPower()
     {
         var preview = PeakFrequencyResultPreview.Parse(Json("""
-            {"metric":{"official":{"algorithm_id":"peak_frequency","peak_frequency_evidence":{"selected_bin_hz":10.5,"selected_power_v2_per_hz":2e-12}},"output":{"unit":"Hz","value":10.5},"channel":"O1","actual_range":{"start_s":2,"end_s":20},"quality":{"status":"clean"}}}
+            {"metric":{"official":{"algorithm_id":"peak_frequency","peak_frequency_evidence":{"selected_bin_hz":10.5,"selected_power_v2_per_hz":2e-12}},"output":{"unit":"Hz","value":10.5},"channel":"O1","actual_range":{"start_s":2,"end_s":20},"quality":{"status":"clean"}},"result_contract_version":"official-algorithm-result-v1"}
             """));
         Assert.NotNull(preview);
         Assert.Equal("O1", preview.Channel);
         Assert.Equal(10.5, preview.StaticPoint?.ValueHz);
         Assert.Equal(2e-12, preview.StaticPoint?.PeakPowerV2PerHz);
         Assert.Equal(2, preview.StaticPoint?.StartSeconds);
-        Assert.Null(PeakFrequencyResultPreview.Parse(Json("""{"metric":{"official":{"algorithm_id":"iapf"},"output":{"unit":"Hz","value":10}}}""")));
+        Assert.Null(PeakFrequencyResultPreview.Parse(Json("""{"metric":{"official":{"algorithm_id":"iapf"},"output":{"unit":"Hz","value":10},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}""")));
     }
 
     [Fact]
@@ -98,11 +98,7 @@ public sealed class PeakFrequencyDetailTests
         new DynamicAnalysisPolicy(4, [10], 10, 1, true), "available", true, null, null, null);
 
     private static JsonElement DynamicSummary() => Json("""
-        {"metric":{"official":{"algorithm_id":"peak_frequency"},"output":{"unit":"Hz"},"channel":"O1","series":[
-          {"time_s":10,"window_start_s":0,"window_end_s":10,"value":10,"analysis_state":"Complete","quality":{"status":"clean"},"official":{"peak_frequency_evidence":{"selected_power_v2_per_hz":2e-12}}},
-          {"time_s":11,"window_start_s":1,"window_end_s":11,"value":null,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["PSD_QUALITY_GATE_FAILED"]},"failure":{"code":"PSD_QUALITY_GATE_FAILED","message":"当前窗口未通过 PSD 质量门"}},
-          {"time_s":12,"window_start_s":2,"window_end_s":12,"value":11,"analysis_state":"Complete","quality":{"status":"clean"}}
-        ]}}
+        {"metric":{"official":{"algorithm_id":"peak_frequency"},"output":{"unit":"Hz","value":null},"channel":"O1","series":[{"time_s":10,"window_start_s":0,"window_end_s":10,"analysis_state":"Complete","quality":{"status":"clean"},"official":{"peak_frequency_evidence":{"selected_power_v2_per_hz":2e-12}},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":10,"unit":"Hz"}},{"time_s":11,"window_start_s":1,"window_end_s":11,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["PSD_QUALITY_GATE_FAILED"]},"failure":{"code":"PSD_QUALITY_GATE_FAILED","message":"当前窗口未通过 PSD 质量门"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"Hz"}},{"time_s":12,"window_start_s":2,"window_end_s":12,"analysis_state":"Complete","quality":{"status":"clean"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":11,"unit":"Hz"}}],"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
         """);
 
     private static JsonElement Json(string value) => JsonDocument.Parse(value).RootElement.Clone();

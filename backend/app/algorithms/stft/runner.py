@@ -126,6 +126,7 @@ class StftAlgorithm(StftWindowCapability):
                 "frequency_range_hz": payload.get("frequency_range_hz", {"low_hz": config.low_hz, "high_hz": config.high_hz}),
                 "filter_frequency_range_hz": payload.get("filter_frequency_range_hz", {"low_hz": config.low_hz, "high_hz": config.high_hz}),
                 "notch_hz": payload.get("notch_hz", config.notch_hz),
+                "typed_source_request": payload.get("typed_source_request"),
                 "window_quality_rows": windows,
             },
         }

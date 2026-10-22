@@ -3,6 +3,16 @@
   "strong_review_lines": 600,
   "critical_lines": 1000,
   "reviews": {
+    "backend/tests/test_official_algorithm_runs.py": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "当前 446 行，集中验证官方 Run 的执行、持久化和请求身份。本章仅将结果夹具改为当前版本及显式状态；不增加兼容读取。新增的结果 schema、旧格式拒绝和九算法读取/导出证据已放入独立 test_current_algorithm_result_contract.py，保留本文件完整的 Run 生命周期测试。"
+    },
+    "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs": {
+      "decision": "keep",
+      "max_lines": 490,
+      "reason": "当前 483 行，验证离线算法选择、完成结果和预览协调。本章同步现有模拟后端结果的当前版本、单位、窗口状态，不扩展页面职责。通用当前格式与不支持格式的验证另置 CurrentAlgorithmResultTests.cs；保留同一交互夹具，避免为少量超线拆散选择流程。"
+    },
     "backend/app/services/on_demand_dynamic.py": {
       "decision": "keep",
       "max_lines": 490,
@@ -116,12 +126,12 @@
     "backend/app/services/runs.py": {
       "decision": "keep",
       "max_lines": 500,
-      "reason": "RunService 是单一的分析运行生命周期边界，统一负责请求解析、缓存键、状态持久化、结果摘要和 artifact 关联；科学公式、SQL repository 和队列执行器已分别下沉到专属边界。当前迁移只增加了退休用户算法的公共入口保护，拆分会复制运行状态语义。"
+      "reason": "当前 401 行。RunService 保留请求解析、运行身份、状态持久化和 artifact 关联的生命周期边界；科学公式、SQL repository、队列执行及 typed result 校验/序列化已分离。本次整理接入专属序列化边界和统一结果错误，不再让生命周期层解释算法科学输出；继续拆散会复制同一状态流转语义。"
     },
     "backend/app/services/run_queue.py": {
       "decision": "keep",
       "max_lines": 450,
-      "reason": "持久队列仍是 Run 状态、完整窗口覆盖门禁、幂等复用和 artifact manifest 校验的单一事务边界；worker 执行、科学模块和 repository 已分离。本轮只增加导出所依赖的完整性门禁，不机械拆分事务状态。",
+      "reason": "持久队列仍是 Run 状态、完整窗口覆盖门禁、幂等复用和 artifact manifest 校验的单一事务边界；worker 执行、科学模块和 repository 已分离。结果边界整理复核：当前 435 行，本章仅增加输出契约错误码的持久化映射；验证器和结果序列化已归专属模块，不机械拆分事务状态。",
       "follow_up": "在 durable single-flight 与受控公平调度单独实现时，抽取队列策略和覆盖校验协作者，保持状态迁移唯一。"
     },
     "frontend/src/App.vue": {

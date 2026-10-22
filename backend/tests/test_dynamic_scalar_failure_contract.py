@@ -41,6 +41,6 @@ def test_dynamic_peak_frequency_preserves_backend_failure_per_window(tmp_path: P
     series = completed.result_summary["metric"]["series"]
     rejected = [point for point in series if point["analysis_state"] == "Rejected"]
     assert rejected
-    assert all(point["value"] is None for point in rejected)
+    assert all(point["output"]["value"] is None for point in rejected)
     assert all(point["failure"]["code"] == "PSD_QUALITY_GATE_FAILED" for point in rejected)
     assert all(point["failure"]["message"] for point in rejected)

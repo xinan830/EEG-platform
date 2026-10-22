@@ -142,7 +142,7 @@ public sealed class AlgorithmListViewModelTests
     public void DynamicScalarPreview_PreservesNullAndWindowState()
     {
         var run = new AnalysisRunResponse("run", "recording", "official_algorithm", "completed", "v1", null, null,
-            JsonDocument.Parse("{\"metric\":{\"output\":{\"unit\":\"Hz\"},\"series\":[{\"time_s\":5,\"value\":10.25,\"analysis_state\":\"Complete\",\"quality\":{\"status\":\"clean\"}},{\"time_s\":6,\"value\":null,\"analysis_state\":\"Unavailable\",\"quality\":{\"status\":\"unavailable\"}}]}}").RootElement,
+            JsonDocument.Parse("{\"metric\":{\"output\":{\"unit\":\"Hz\",\"value\":null},\"series\":[{\"time_s\":5,\"analysis_state\":\"Complete\",\"quality\":{\"status\":\"clean\"},\"result_contract_version\":\"dynamic-analysis-frame-v6\",\"output\":{\"value\":10.25,\"unit\":\"Hz\"},\"window_start_s\":0,\"window_end_s\":5},{\"time_s\":6,\"analysis_state\":\"Unavailable\",\"quality\":{\"status\":\"unavailable\"},\"result_contract_version\":\"dynamic-analysis-frame-v6\",\"output\":{\"value\":null,\"unit\":\"Hz\"},\"window_start_s\":1,\"window_end_s\":6}],\"actual_range\":{\"start_s\":0,\"end_s\":30},\"mode\":\"dynamic\",\"result_contract_version\":\"dynamic-analysis-frame-v6\"},\"result_contract_version\":\"official-algorithm-result-v1\"}").RootElement,
             null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
         var points = DynamicResultPreview.ParseScalar(run);
@@ -340,7 +340,7 @@ public sealed class AlgorithmListViewModelTests
     public void RbpSummary_FormatsBackendBandValuesWithoutRecomputing()
     {
         var run = new AnalysisRunResponse("run-rbp", "recording", "official_algorithm", "completed", "offline-spectral-v3", null, null,
-            JsonDocument.Parse("{\"metric\":{\"output\":{\"value\":null,\"unit\":\"ratio\"},\"band_values\":{\"delta\":0.4,\"theta\":0.1,\"alpha\":0.3,\"beta\":0.2},\"channel\":\"O1\",\"quality\":\"clean\"}}").RootElement,
+            JsonDocument.Parse("{\"metric\":{\"output\":{\"value\":null,\"unit\":\"ratio\"},\"band_values\":{\"delta\":0.4,\"theta\":0.1,\"alpha\":0.3,\"beta\":0.2},\"channel\":\"O1\",\"quality\":\"clean\",\"actual_range\":{\"start_s\":0,\"end_s\":30}},\"result_contract_version\":\"official-algorithm-result-v1\"}").RootElement,
             null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
         var summary = AlgorithmResultFormatter.BuildResultSummary(run);
@@ -354,7 +354,7 @@ public sealed class AlgorithmListViewModelTests
     public void DynamicSummary_UsesLatestUsableWindowInsteadOfRejectedFirstWindow()
     {
         var run = new AnalysisRunResponse("run-rbp-dynamic", "recording", "official_algorithm", "completed", "offline-spectral-v3", null, null,
-            JsonDocument.Parse("{\"metric\":{\"output\":{\"value\":null,\"unit\":\"ratio\"},\"series\":[{\"time_s\":4,\"value\":null,\"analysis_state\":\"Rejected\",\"quality\":{\"status\":\"gate_failed\"}},{\"time_s\":10,\"band_values\":{\"delta\":0.4,\"theta\":0.1,\"alpha\":0.3,\"beta\":0.2},\"analysis_state\":\"Complete\",\"quality\":{\"status\":\"clean\"}}]}}").RootElement,
+            JsonDocument.Parse("{\"metric\":{\"output\":{\"value\":null,\"unit\":\"ratio\"},\"series\":[{\"time_s\":4,\"analysis_state\":\"Rejected\",\"quality\":{\"status\":\"gate_failed\"},\"result_contract_version\":\"dynamic-analysis-frame-v6\",\"output\":{\"value\":null,\"unit\":\"ratio\"},\"window_start_s\":0,\"window_end_s\":4},{\"time_s\":10,\"band_values\":{\"delta\":0.4,\"theta\":0.1,\"alpha\":0.3,\"beta\":0.2},\"analysis_state\":\"Complete\",\"quality\":{\"status\":\"clean\"},\"result_contract_version\":\"dynamic-analysis-frame-v6\",\"output\":{\"value\":null,\"unit\":\"ratio\"},\"window_start_s\":5,\"window_end_s\":10}],\"actual_range\":{\"start_s\":0,\"end_s\":30},\"mode\":\"dynamic\",\"result_contract_version\":\"dynamic-analysis-frame-v6\"},\"result_contract_version\":\"official-algorithm-result-v1\"}").RootElement,
             null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
         var summary = AlgorithmResultFormatter.BuildResultSummary(run);

@@ -238,7 +238,7 @@ def test_runtime_attaches_canonical_sample_coordinate_without_replacing_display_
     }
 
 
-def test_dynamic_result_state_contract_is_versioned_and_legacy_warmup_is_retained() -> None:
+def test_dynamic_result_requires_current_explicit_states() -> None:
     from app.algorithm_runtime.contracts import AlgorithmSeriesResult, DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
 
     result = AlgorithmSeriesResult(
@@ -246,25 +246,22 @@ def test_dynamic_result_state_contract_is_versioned_and_legacy_warmup_is_retaine
         windows=[{"start_s": 0.0, "end_s": 4.0}, {"start_s": 1.0, "end_s": 5.0}],
         quality=["gate_failed", "clean"], failures=[
             AlgorithmFailure(code="GAP", message="缺口"), None,
-        ], warmups=[True, False], states=["Rejected", "Complete"],
+        ], states=["Rejected", "Complete"],
     )
-    assert DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION == "dynamic-analysis-frame-v5"
+    assert DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION == "dynamic-analysis-frame-v6"
     assert result.states == ["Rejected", "Complete"]
-    assert result.warmups == [True, False]
+    assert "warmups" not in result.model_dump()
 
 
-def test_window_planner_uses_state_as_source_of_truth_and_exposes_legacy_warmup_view() -> None:
+def test_window_planner_uses_only_canonical_state() -> None:
     from app.algorithm_runtime.windows import build_dynamic_analysis_frames, build_playback_windows
 
     planned = build_playback_windows(0, 12, duration_s=20, window_s=10, step_s=1)
     assert planned[0].state == "Partial"
-    assert planned[0].warmup is True
     assert planned[-1].state == "Complete"
-    assert planned[-1].warmup is False
 
     frames = build_dynamic_analysis_frames(0, 12, duration_s=20, window_s=10, step_s=1)
     assert [frame.state for frame in frames] == ["Partial"] * 6 + ["Complete"] * 3
-    assert [frame.warmup for frame in frames] == [True] * 6 + [False] * 3
 
 
 def test_latest_dynamic_frame_never_selects_a_future_endpoint() -> None:

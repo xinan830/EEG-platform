@@ -21,6 +21,7 @@ from app.algorithm_runtime.on_demand_planning import plan_policy_window
 from .config import FaaConfig
 from .manifest import MANIFEST
 from .official import compute_faa
+from .signal_source import load_faa_source
 
 
 class FaaWindowCapability:
@@ -60,20 +61,13 @@ class FaaWindowCapability:
         if check_cancelled is not None:
             check_cancelled()
         try:
-            f3, f4, sfreq, source = inputs.payload.load_faa_signals(
-                start_s=plan.start_s,
-                end_s=plan.end_s,
-                f3_channel=inputs.channel,
-                f4_channel=config.f4_channel,
-                low_hz=config.low_hz,
-                high_hz=config.high_hz,
-                notch_hz=config.notch_hz,
-            )
+            source_data = load_faa_source(inputs, config, plan.start_s, plan.end_s)
+            source = source_data.provenance
             if check_cancelled is not None:
                 check_cancelled()
             if inputs.execution_context is not None:
                 inputs.execution_context.source_preparation_completed()
-            report = compute_faa(f3, f4, sfreq)
+            report = compute_faa(source_data.values_v[:, 0], source_data.values_v[:, 1], source_data.sfreq_hz)
             if check_cancelled is not None:
                 check_cancelled()
             quality = {

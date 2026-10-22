@@ -21,22 +21,21 @@ public static class DynamicResultPreview
 {
     public static IReadOnlyList<DynamicSeriesPoint> ParseScalar(AnalysisRunResponse run)
     {
+        CurrentAlgorithmResult.Require(run);
         if (run.ResultSummary is not { } summary ||
             !summary.TryGetProperty("metric", out var metric) ||
             !metric.TryGetProperty("series", out var series) ||
             series.ValueKind != JsonValueKind.Array)
             return [];
 
-        var unit = metric.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Object &&
-                   output.TryGetProperty("unit", out var unitElement)
-            ? unitElement.GetString() ?? ""
-            : "";
         return series.EnumerateArray().Select(point =>
         {
             var time = Number(point, "time_s");
+            var output = point.GetProperty("output");
+            var unit = output.GetProperty("unit").GetString()!;
             var value = point.TryGetProperty("band_values", out var bands) && bands.ValueKind == JsonValueKind.Object
                 ? string.Join("；", bands.EnumerateObject().Select(item => $"{item.Name}={FormatValue(item.Value)}"))
-                : point.TryGetProperty("value", out var valueElement) ? FormatValue(valueElement) : "不可用";
+                : output.TryGetProperty("value", out var valueElement) ? FormatValue(valueElement) : "不可用";
             var state = point.TryGetProperty("analysis_state", out var stateElement) ? stateElement.GetString() ?? "未知" : "未知";
             var quality = point.TryGetProperty("quality", out var qualityElement) ? FormatQuality(qualityElement) : "未提供";
             return new DynamicSeriesPoint(time, value, unit, state, quality);
@@ -75,7 +74,6 @@ public static class DynamicResultPreview
 
     private static string FormatQuality(JsonElement value)
     {
-        if (value.ValueKind == JsonValueKind.String) return value.GetString() ?? "未提供";
         if (value.ValueKind != JsonValueKind.Object) return "未提供";
         var status = String(value, "status");
         return status switch

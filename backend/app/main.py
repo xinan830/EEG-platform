@@ -46,6 +46,7 @@ from app.core.api_contract import (
     validation_exception_handler,
 )
 from app.core.logging_setup import configure_logging
+from app.services.current_algorithm_result import InvalidCurrentResultError, invalid_current_result_handler
 
 
 configure_logging(STORAGE_DIR)
@@ -66,6 +67,7 @@ app = FastAPI(title="Brain Platform API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(RequestContextMiddleware)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(InvalidCurrentResultError, invalid_current_result_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 app.add_middleware(
     CORSMiddleware,

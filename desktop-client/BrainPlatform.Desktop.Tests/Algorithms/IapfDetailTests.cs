@@ -21,7 +21,7 @@ public sealed class IapfDetailTests
     public void StaticResult_UsesBackendValueAndMethodWithoutInventingUnavailableValue()
     {
         var valid = IapfResultPreview.Parse(Json("""
-            {"metric":{"official":{"algorithm_id":"iapf","iapf_evidence":{"source":"cog","peak_hz":9.5,"cog_hz":10.2,"model_r2":0.86}},"output":{"unit":"Hz","value":10.2},"channel":"O1","actual_range":{"start_s":2,"end_s":20},"quality":{"status":"clean"}}}
+            {"metric":{"official":{"algorithm_id":"iapf","iapf_evidence":{"source":"cog","peak_hz":9.5,"cog_hz":10.2,"model_r2":0.86}},"output":{"unit":"Hz","value":10.2},"channel":"O1","actual_range":{"start_s":2,"end_s":20},"quality":{"status":"clean"}},"result_contract_version":"official-algorithm-result-v1"}
             """));
         Assert.NotNull(valid);
         Assert.Equal("O1", valid.Channel);
@@ -30,11 +30,11 @@ public sealed class IapfDetailTests
         Assert.Equal(0.86, valid.StaticPoint?.ModelR2);
 
         var unavailable = IapfResultPreview.Parse(Json("""
-            {"metric":{"official":{"algorithm_id":"iapf"},"output":{"unit":"Hz","value":null},"quality":{"status":"gate_failed"},"failure":{"code":"IAPF_UNAVAILABLE","message":"无法得到有效 IAPF"}}}
+            {"metric":{"official":{"algorithm_id":"iapf"},"output":{"unit":"Hz","value":null},"quality":{"status":"gate_failed"},"failure":{"code":"IAPF_UNAVAILABLE","message":"无法得到有效 IAPF"},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """));
         Assert.Null(unavailable?.StaticPoint?.ValueHz);
         Assert.Equal("无法得到有效 IAPF", unavailable?.StaticPoint?.Failure);
-        Assert.Null(IapfResultPreview.Parse(Json("""{"metric":{"official":{"algorithm_id":"peak_frequency"},"output":{"unit":"Hz","value":10}}}""")));
+        Assert.Null(IapfResultPreview.Parse(Json("""{"metric":{"official":{"algorithm_id":"peak_frequency"},"output":{"unit":"Hz","value":10},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}""")));
     }
 
     [Fact]
@@ -172,12 +172,7 @@ public sealed class IapfDetailTests
     }
 
     private static JsonElement DynamicSummary() => Json("""
-        {"metric":{"official":{"algorithm_id":"iapf"},"output":{"unit":"Hz"},"channel":"O1","series":[
-          {"time_s":4,"window_start_s":0,"window_end_s":4,"value":9.5,"analysis_state":"Partial","quality":{"status":"clean"}},
-          {"time_s":10,"window_start_s":0,"window_end_s":10,"value":10,"analysis_state":"Complete","quality":{"status":"clean"},"official":{"iapf_evidence":{"source":"peak","peak_hz":10,"cog_hz":9.8,"model_r2":0.9}}},
-          {"time_s":11,"window_start_s":1,"window_end_s":11,"value":null,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"code":"PSD_QUALITY_GATE_FAILED","message":"质量门未通过"}},
-          {"time_s":12,"window_start_s":2,"window_end_s":12,"value":11,"analysis_state":"Complete","quality":{"status":"clean"},"official":{"iapf_evidence":{"source":"cog","peak_hz":10.5,"cog_hz":11}}}
-        ]}}
+        {"metric":{"official":{"algorithm_id":"iapf"},"output":{"unit":"Hz","value":null},"channel":"O1","series":[{"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":9.5,"unit":"Hz"}},{"time_s":10,"window_start_s":0,"window_end_s":10,"analysis_state":"Complete","quality":{"status":"clean"},"official":{"iapf_evidence":{"source":"peak","peak_hz":10,"cog_hz":9.8,"model_r2":0.9}},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":10,"unit":"Hz"}},{"time_s":11,"window_start_s":1,"window_end_s":11,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"code":"PSD_QUALITY_GATE_FAILED","message":"质量门未通过"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"Hz"}},{"time_s":12,"window_start_s":2,"window_end_s":12,"analysis_state":"Complete","quality":{"status":"clean"},"official":{"iapf_evidence":{"source":"cog","peak_hz":10.5,"cog_hz":11}},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":11,"unit":"Hz"}}],"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
         """);
 
     private static JsonElement Json(string value) => JsonDocument.Parse(value).RootElement.Clone();

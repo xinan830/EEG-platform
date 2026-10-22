@@ -195,6 +195,7 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
         }
 
         var result = await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
+        if (result is AnalysisRunResponse run) CurrentAlgorithmResult.Require(run);
         return result ?? throw new AlgorithmApiException(
             response.StatusCode, "EMPTY_RESPONSE", "算法服务返回了空响应。");
         }

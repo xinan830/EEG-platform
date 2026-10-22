@@ -253,16 +253,19 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
                 "full-run-1", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,
                 JsonSerializer.SerializeToElement(new
                 {
+                    result_contract_version = "official-algorithm-result-v1",
                     metric = new
                     {
-                        output = new { unit = "ratio" },
+                        mode = "dynamic", result_contract_version = "dynamic-analysis-frame-v6",
+                        actual_range = new { start_s = 0d, end_s = 30d },
+                        output = new { value = (double?)null, unit = "ratio" },
                         series = new[]
                         {
-                            new { time_s = 5d, window_start_s = 0d, window_end_s = 5d, value = (double?)null,
-                                analysis_state = "Complete", quality = new { status = "clean" },
+                            new { time_s = 5d, window_start_s = 0d, window_end_s = 5d, result_contract_version = "dynamic-analysis-frame-v6",
+                                output = new { value = (double?)null, unit = "ratio" }, analysis_state = "Complete", quality = new { status = "clean" },
                                 band_values = new { delta = 0.1, theta = 0.2, alpha = 0.3, beta = 0.25, gamma = 0.15 } },
-                            new { time_s = 10d, window_start_s = 5d, window_end_s = 10d, value = (double?)null,
-                                analysis_state = "Complete", quality = new { status = "clean" },
+                            new { time_s = 10d, window_start_s = 5d, window_end_s = 10d, result_contract_version = "dynamic-analysis-frame-v6",
+                                output = new { value = (double?)null, unit = "ratio" }, analysis_state = "Complete", quality = new { status = "clean" },
                                 band_values = new { delta = 0.2, theta = 0.2, alpha = 0.2, beta = 0.2, gamma = 0.2 } },
                         },
                     },
@@ -297,17 +300,22 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
                 "full-run-iapf", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,
                 JsonSerializer.SerializeToElement(new
                 {
+                    result_contract_version = "official-algorithm-result-v1",
                     metric = new
                     {
                         channel = "F3",
                         official = new { algorithm_id = "iapf" },
-                        output = new { unit = "Hz" },
+                        mode = "dynamic", result_contract_version = "dynamic-analysis-frame-v6",
+                        actual_range = new { start_s = 0d, end_s = 30d },
+                        output = new { value = (double?)null, unit = "Hz" },
                         series = new[]
                         {
                             new { time_s = 5d, window_start_s = 0d, window_end_s = 5d,
-                                value = 9.5, analysis_state = "Complete", quality = new { status = "clean" } },
+                                result_contract_version = "dynamic-analysis-frame-v6",
+                                output = new { value = 9.5, unit = "Hz" }, analysis_state = "Complete", quality = new { status = "clean" } },
                             new { time_s = 10d, window_start_s = 5d, window_end_s = 10d,
-                                value = 10.25, analysis_state = "Complete", quality = new { status = "clean" } },
+                                result_contract_version = "dynamic-analysis-frame-v6",
+                                output = new { value = 10.25, unit = "Hz" }, analysis_state = "Complete", quality = new { status = "clean" } },
                         },
                     },
                 }),

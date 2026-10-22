@@ -1,5 +1,7 @@
 # 按需动态算法分析实施索引
 
+> 历史实施计划。下文阶段、开关和验收数字记录 2026-10-13 时点；当前能力以 [官方算法管理基线](../algorithms/official-algorithm-management.md) 为准。本计划中的旧结果兼容承诺已被 `clarify-algorithm-execution-boundaries` 第 4 章取代：当前官方结果只支持当前契约，不提供旧格式读取、转换或专属展示；存储字节保持不变。见 [当前结果契约验证](../validation/current-algorithm-result-contract-validation.md)。
+
 状态更新：2026-10-13。P0/P1 已完成自动化与资源验证，PSD 的 Review/详情接入已实现。
 真实文件 114 窗口等价、小时资源、backend 604 项和 WPF 611 项通过；P3 GUI 待验收，
 P4 其他 8 种算法未迁移，生产默认关闭。正式行为与阶段编号以
@@ -154,8 +156,8 @@ latest-only binding 和页面订阅释放；通过 `BRAIN_WPF_ON_DEMAND_PSD=1` �
 单窗口科学结果与 provenance，不返回 EEG 原始数组。
 
 当前已决定使用独立 session/window/attempt/subscription 表和不可变窗口产物，
-不往旧 completed Run/result_summary/artifact 追加。旧 Run 与既有接口始终可读；
-新增能力关闭时使用旧完整 Run 功能，而不是错误地显示空结果。
+不往已完成 Run/result_summary/artifact 追加。当前契约下的 Run 与窗口接口可读；
+新增能力关闭时使用当前完整 Run 功能。旧格式结果不提供读取或转换路径。
 
 ## 8. 阶段与退出条件
 

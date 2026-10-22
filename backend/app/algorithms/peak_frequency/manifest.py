@@ -1,5 +1,5 @@
-from app.algorithm_runtime.contracts import AlgorithmManifest
-from app.algorithms.capabilities import official_dynamic_capabilities, official_result_graph
+from app.algorithm_runtime.contracts import AlgorithmManifest, SignalRequirements
+from app.algorithms.capabilities import declared_output_contract, official_dynamic_capabilities, official_result_graph
 
 
 MANIFEST = AlgorithmManifest(
@@ -11,6 +11,7 @@ MANIFEST = AlgorithmManifest(
     is_current_version=True,
     implementation_identity="peak-frequency-runtime-v2-frequency-contract",
     supported_modes=["static", "dynamic"],
+    signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="single", preprocessing_scope="module_defined"),
     dynamic_capabilities=official_dynamic_capabilities(
         full_to_preview=True,
         combined_evidence=["backend/tests/test_official_combined_strategies.py", "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"],
@@ -28,4 +29,9 @@ MANIFEST = AlgorithmManifest(
         "references": ["docs/algorithms/04-spectral-metrics.md"],
     },
     execution_kind="generic_research_primitives",
+)
+
+MANIFEST.output_contract = declared_output_contract(
+    MANIFEST, static_result_type="scalar", dynamic_result_type="series",
+    evidence_fields=["peak_frequency_evidence", "sample_coordinate"],
 )

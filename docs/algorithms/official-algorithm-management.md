@@ -52,9 +52,9 @@
 
 ## 新算法接入清单
 
-1. **冻结科学契约**：在 OpenSpec 写明算法 ID、科学版本、输入/输出单位、频率轴或标量含义、通道角色、预处理、窗口/质量语义、provenance 和容差。参考 [官方算法接入约定](../../.agents/skills/brain-research-platform/references/official-algorithm-development.md)；提交前运行 `openspec validate <change> --strict`。
+1. **冻结科学契约**：在 OpenSpec 写明算法 ID、科学版本、输入/输出单位、频率轴或标量含义、通道角色、预处理、窗口/质量语义、provenance 和容差。参考仓库内的 [官方算法接入指南](official-algorithm-development.md)；提交前运行 `openspec validate <change> --strict`。
 2. **实现算法包**：在 `backend/app/algorithms/<id>/` 增加 manifest、config、runner 和必要的 compute/window/evidence 文件；公式和算法专属质量逻辑留在该包。每个公式变更需添加独立数值参考或边界测试。
-3. **声明身份与策略**：manifest 明确 scientific version/current、implementation identity、output schema、supported modes、capability implementation/validation/evidence；full→preview 与 on-demand→full 分方向申报，缺少专项证据时保留 `unvalidated`。
+3. **声明身份与策略**：manifest 明确 scientific version/current、implementation identity、`SignalRequirements`、`AlgorithmOutputContract`、output schema、supported modes、capability implementation/validation/evidence。输入走 typed source adapter；结果由 Runtime 和当前格式读取边界校验，公共层不加算法 ID 科学分支。full→preview 与 on-demand→full 分方向申报，缺少专项证据时保留 `unvalidated`。
 4. **注册后端一次**：在 `backend/app/algorithms/builtin_modules.py` 加入唯一工厂；参数 schema 和运行时配置由模块提供。运行 `python -m pytest backend/tests/test_builtin_algorithm_registry.py backend/tests/test_algorithms_catalog_api.py backend/tests/test_algorithm_runtime_architecture.py -q`，检查目录与 manifest parity、current 唯一性、科学实现边界和注册缺口。可运行 manifest 缺少 runtime module 或目录身份/输出契约不一致时，API 必须返回 `OFFICIAL_ALGORITHM_CATALOG_UNAVAILABLE`，不得拼出默认参数或动态策略。
 5. **接入 WPF 两个进程内注册点**：在 `AlgorithmUiRegistry.cs` 注册 detail factory/presentation；在 `AlgorithmRunResultHandlerRegistry.cs` 注册结果 handler，并完成参数序列化、输出绑定、状态/null/failure/provenance 展示。不能仅凭后端 catalog 声称桌面支持完整。
 6. **补契约与行为测试**：后端测试覆盖配置边界、科学输出、状态、范围与 identity；WPF 测试覆盖 catalog JSON 的 identity、参数、能力、输出 schema 解码，以及 handler、请求、显示、窗口投影及错误。运行 `dotnet test desktop-client/BrainPlatform.Desktop.Tests`。注册完整性由 `official_registration_report()` 检查 UI、handler、detail 和已声明的 on-demand/full→preview 支持。Catalog parity 由 `backend/tests/test_algorithms_catalog_api.py` 验证；WPF wire contract 由 `AlgorithmCatalogCapabilityTests` 验证。
@@ -79,6 +79,8 @@ Run 将配置 id/revision/fingerprint、角色到输出、源通道映射及公�
 
 ## 兼容策略清理
 
-官方算法只维护当前 scientific version。旧 FAA evidence 不再被重新解释，缺少当前 FAA contract 的历史结果不会被投影为当前 provenance；缺少动态 coverage provenance 的旧全量 Run 不再导出。频谱服务使用当前 ScientificSpectralGateway，不保留历史 monkeypatch/facade 入口。数据库 schema migration 仍保留，因为它负责数据库启动和结构升级，不执行旧科学算法。
+官方算法只维护当前 scientific version。当前完整 Run 的结果根版本为 `official-algorithm-result-v1`，标量动态摘要和点版本为 `dynamic-analysis-frame-v6`。数值只从 `output.value` 读取；动态点显式提供 `analysis_state`，结构化窗口显式提供 `state`。不再输出或解析重复顶层 `value`、`warmup`，也不从质量字段推导缺失状态。后端发布、读取、预览、provenance、导出和 WPF 消费者使用同一当前格式；不合格式的已完成官方结果统一报 `ALGORITHM_RESULT_INVALID`，不转换、不重新执行。历史存储字节不迁移、不删除。
+
+旧 FAA evidence 不再被重新解释；当前动态全量 Run 导出仍须通过 coverage 校验。频谱服务使用当前 ScientificSpectralGateway，不保留历史 monkeypatch/facade 入口。数据库 schema migration 仍保留，因为它负责数据库启动和结构升级，不执行旧科学算法。`allow_warmup` 是当前 Partial 窗口规划策略，与已删除的结果兼容字段不同。证据与覆盖范围见 [当前结果契约验证](../validation/current-algorithm-result-contract-validation.md)。
 
 退役清理后，旧实时频谱、shadow 包与脚本、旧三通道指标组合、graph/formula 执行器和测试 provider 旧签名适配均已删除。当前 Definition 校验归入 `backend/app/definitions/validation.py`；Brainbeat 纯公式归入自己的算法包。WPF 两条完整结果预览路径只使用后端保存的 STFT 窗口证据，缺失或不符合当前契约时返回 `FULL_WINDOW_CONTRACT_UNAVAILABLE` 并要求重新计算，不补造 provenance。

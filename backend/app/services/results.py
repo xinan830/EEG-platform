@@ -16,6 +16,7 @@ from app.core.recording_time import cursor_sample_from_seconds
 from app.models.result_window import SavedResultWindow, WindowSelection
 from app.services.result_window_index import SavedWindowIndex
 from app.services.analysis_provenance import serialize_analysis_run
+from app.services.current_algorithm_result import require_current_result
 from app.services.run_queue import PersistentRunQueue
 from app.services.validations import ValidationService
 
@@ -45,6 +46,7 @@ class ResultService:
             raise ValueError("preview cell limit is outside the allowed range")
         run = self.runs.get(run_id)
         summary = run.result_summary or {}
+        require_current_result(run)
         structured = summary.get("structured")
         if not isinstance(structured, dict):
             raise ValueError("run does not contain a structured result")
@@ -101,6 +103,7 @@ class ResultService:
             raise ValueError("provide exactly one cursor coordinate")
         run = self.runs.get(run_id)
         structured = (run.result_summary or {}).get("structured")
+        require_current_result(run)
         if not isinstance(structured, dict) or not isinstance(structured.get("windows"), list):
             raise ValueError("run does not contain saved dynamic windows")
         recording = self.runs.recordings.require_recording(run.recording_id)
@@ -192,6 +195,7 @@ class ResultService:
 
     def export(self, run_id: str, validation_id: str | None = None) -> bytes:
         run = self.runs.get(run_id)
+        require_current_result(run)
         # A queued/running Run is not stable enough to export. Terminal
         # failures and quality-gated results remain exportable as historical
         # evidence with their structured null/error state.

@@ -37,7 +37,7 @@ public sealed class FaaDetailTests
     public void StaticResult_PreservesPairedEvidence()
     {
         var preview = Assert.IsType<FaaResultPreview>(FaaResultPreview.Parse(Json("""
-            {"metric":{"official":{"algorithm_id":"faa","faa_evidence":{"source_channels":{"left":"F3","right":"F4"},"p_f3":0.000000000001,"p_f4":0.000000000002,"clean_epochs":12,"total_epochs":14,"band":[8,13],"formula":"ln(P_right_alpha) - ln(P_left_alpha)"}},"output":{"unit":"dimensionless","value":0.693},"channel":"F3/F4","quality":{"status":"clean"}}}
+            {"metric":{"official":{"algorithm_id":"faa","faa_evidence":{"source_channels":{"left":"F3","right":"F4"},"p_f3":1e-12,"p_f4":2e-12,"clean_epochs":12,"total_epochs":14,"band":[8,13],"formula":"ln(P_right_alpha) - ln(P_left_alpha)"}},"output":{"unit":"dimensionless","value":0.693},"channel":"F3/F4","quality":{"status":"clean"},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """)));
         Assert.Equal("F3/F4", preview.Channel);
         Assert.Equal("F3", preview.StaticPoint?.Evidence.LeftChannel);
@@ -51,10 +51,7 @@ public sealed class FaaDetailTests
     public void DynamicResult_ReleasesRejectedPointWithoutInventingValue()
     {
         var preview = Assert.IsType<FaaResultPreview>(FaaResultPreview.Parse(Json("""
-            {"metric":{"official":{"algorithm_id":"faa"},"output":{"unit":"dimensionless"},"channel":"F3/F4","series":[
-              {"time_s":20,"window_start_s":0,"window_end_s":20,"value":0.2,"analysis_state":"Complete","quality":{"status":"clean"}},
-              {"time_s":21,"window_start_s":1,"window_end_s":21,"value":null,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"message":"当前范围未达到 FAA 成对 epoch 质量要求"}}
-            ]}}
+            {"metric":{"official":{"algorithm_id":"faa"},"output":{"unit":"dimensionless","value":null},"channel":"F3/F4","series":[{"time_s":20,"window_start_s":0,"window_end_s":20,"analysis_state":"Complete","quality":{"status":"clean"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":0.2,"unit":"dimensionless"}},{"time_s":21,"window_start_s":1,"window_end_s":21,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"message":"当前范围未达到 FAA 成对 epoch 质量要求"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"dimensionless"}}],"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
             """)));
         Assert.Equal(0.2, preview.CurrentAt(20)?.Value);
         Assert.Null(preview.CurrentAt(21)?.Value);

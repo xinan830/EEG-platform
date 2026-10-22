@@ -23,10 +23,7 @@ public sealed class ThetaBetaDetailTests
             new DynamicAnalysisPolicy(4, [10], 10, 1, true), "available", true, null, null, null);
         catalog.SelectedAnalysisMode = "动态";
         ThetaBetaRunResultHandler.ApplyDynamicWindows(catalog, Run(Json("""
-            {"metric":{"official":{"algorithm_id":"theta_beta"},"output":{"unit":"dimensionless"},"channel":"O1","series":[
-              {"time_s":5,"window_start_s":0,"window_end_s":5,"value":0.4,"analysis_state":"Complete","quality":{"status":"clean"}},
-              {"time_s":6,"window_start_s":1,"window_end_s":6,"value":null,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"message":"质量门未通过"}}
-            ]}}
+            {"metric":{"official":{"algorithm_id":"theta_beta"},"output":{"unit":"dimensionless","value":null},"channel":"O1","series":[{"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","quality":{"status":"clean"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":0.4,"unit":"dimensionless"}},{"time_s":6,"window_start_s":1,"window_end_s":6,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"message":"质量门未通过"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"dimensionless"}}],"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
             """)));
         Assert.True(catalog.HasDynamicPreview);
         Assert.Equal(5, catalog.DynamicPreviewCursorSeconds);
@@ -39,7 +36,7 @@ public sealed class ThetaBetaDetailTests
     public void StaticResult_PreservesBackendEvidenceAndDoesNotRecompute()
     {
         var preview = Assert.IsType<ThetaBetaResultPreview>(ThetaBetaResultPreview.Parse(Json("""
-            {"metric":{"official":{"algorithm_id":"theta_beta","theta_beta_evidence":{"iapf_hz":10.2,"theta_range_hz":[4.2,8.2],"beta_range_hz":[12.2,30],"theta_power_uv2":1.25,"beta_power_uv2":2.5}},"output":{"unit":"dimensionless","value":0.5},"channel":"O1","quality":{"status":"clean"},"calculation_trace":{"formula":"个体化 Theta 功率 ÷ 个体化 Beta 功率"}}}
+            {"metric":{"official":{"algorithm_id":"theta_beta","theta_beta_evidence":{"iapf_hz":10.2,"theta_range_hz":[4.2,8.2],"beta_range_hz":[12.2,30],"theta_power_uv2":1.25,"beta_power_uv2":2.5}},"output":{"unit":"dimensionless","value":0.5},"channel":"O1","quality":{"status":"clean"},"calculation_trace":{"formula":"个体化 Theta 功率 ÷ 个体化 Beta 功率"},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """)));
         Assert.Equal("O1", preview.Channel);
         Assert.Equal(0.5, preview.StaticPoint?.Value);
@@ -53,10 +50,7 @@ public sealed class ThetaBetaDetailTests
     public void DynamicResult_ReleasesRejectedWindowsAsGaps()
     {
         var preview = Assert.IsType<ThetaBetaResultPreview>(ThetaBetaResultPreview.Parse(Json("""
-            {"metric":{"official":{"algorithm_id":"theta_beta"},"output":{"unit":"dimensionless"},"channel":"O1","series":[
-              {"time_s":5,"window_start_s":0,"window_end_s":5,"value":0.4,"analysis_state":"Complete","quality":{"status":"clean"},"official":{"algorithm_id":"theta_beta","theta_beta_evidence":{"iapf_hz":10,"theta_range_hz":[4,8],"beta_range_hz":[12,30]}}},
-              {"time_s":6,"window_start_s":1,"window_end_s":6,"value":null,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"code":"PSD_QUALITY_GATE_FAILED","message":"当前窗口未通过 PSD 质量门"}}
-            ]}}
+            {"metric":{"official":{"algorithm_id":"theta_beta"},"output":{"unit":"dimensionless","value":null},"channel":"O1","series":[{"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","quality":{"status":"clean"},"official":{"algorithm_id":"theta_beta","theta_beta_evidence":{"iapf_hz":10,"theta_range_hz":[4,8],"beta_range_hz":[12,30]}},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":0.4,"unit":"dimensionless"}},{"time_s":6,"window_start_s":1,"window_end_s":6,"analysis_state":"Rejected","quality":{"status":"gate_failed"},"failure":{"code":"PSD_QUALITY_GATE_FAILED","message":"当前窗口未通过 PSD 质量门"},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"dimensionless"}}],"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
             """)));
         Assert.Equal(2, preview.DynamicPoints.Count);
         Assert.Equal(0.4, preview.CurrentAt(5)?.Value);

@@ -54,7 +54,7 @@ def test_iapf_dynamic_emits_warmup_candidates_after_one_clean_welch_segment(monk
         config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 9, "window_s": 10, "step_s": 1},
     )
     assert result.time_s == [4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
-    assert result.warmups == [True, True, True, True, True, True]
+    assert result.states == ["Partial"] * 6
     assert result.values == [10.0] * 6
 
 
@@ -79,7 +79,7 @@ def test_iapf_dynamic_uses_the_shared_ten_second_sliding_window_after_warmup(mon
         {"start_s": 1.0, "end_s": 11.0},
         {"start_s": 2.0, "end_s": 12.0},
     ]
-    assert result.warmups == [True] * 6 + [False, False, False]
+    assert result.states == ["Partial"] * 6 + ["Complete"] * 3
     assert calls[-3:] == [(0.0, 10.0), (1.0, 10.0), (2.0, 10.0)]
 
 
@@ -123,7 +123,7 @@ def test_iapf_dynamic_keeps_a_rejected_window_and_continues(monkeypatch) -> None
 
 def test_later_generic_catchup_never_restarts_warmup_from_a_trailing_boundary() -> None:
     windows = build_playback_windows(2, 16, duration_s=30, window_s=10, step_s=1)
-    assert [(item.start_s, item.end_s, item.warmup) for item in windows] == [
-        (2.0, 12.0, False), (3.0, 13.0, False), (4.0, 14.0, False),
-        (5.0, 15.0, False), (6.0, 16.0, False),
+    assert [(item.start_s, item.end_s, item.state) for item in windows] == [
+        (2.0, 12.0, "Complete"), (3.0, 13.0, "Complete"), (4.0, 14.0, "Complete"),
+        (5.0, 15.0, "Complete"), (6.0, 16.0, "Complete"),
     ]

@@ -18,6 +18,7 @@ internal static class FullRunMetricWindowPreviewAdapter
         out DynamicWindowResponse response)
     {
         response = null!;
+        CurrentAlgorithmResult.Require(run);
         if (run.Status != "completed" ||
             samplingRateHz is not > 0 || !double.IsFinite(samplingRateHz.Value) ||
             run.ResultSummary is not { ValueKind: JsonValueKind.Object } summary ||
@@ -68,13 +69,7 @@ internal static class FullRunMetricWindowPreviewAdapter
 
         var output = point.TryGetProperty("output", out var outputElement) &&
             outputElement.ValueKind == JsonValueKind.Object ? outputElement : default;
-        var metricOutput = metric.TryGetProperty("output", out var metricOutputElement) &&
-            metricOutputElement.ValueKind == JsonValueKind.Object ? metricOutputElement : default;
-        // Depending on the backend serializer, a unit may be attached to each
-        // point or only to metric.output. Preserve the declared value either way.
         var unit = Text(output, "unit");
-        if (unit.Length == 0)
-            unit = Text(metricOutput, "unit");
         var outputKind = multiMetricFields is { Count: > 0 } ? "multi_metric_series" : "scalar_series";
         var arrays = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
         var units = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -92,12 +87,12 @@ internal static class FullRunMetricWindowPreviewAdapter
                     return true;
                 }
                 arrays[field] = JsonSerializer.SerializeToElement(new[] { value.Clone() });
-                units[field] = unit.Length == 0 ? "ratio" : unit;
+                units[field] = unit;
             }
         }
         else
         {
-            if (!point.TryGetProperty("value", out var value) || !Finite(value)) return false;
+            if (!output.TryGetProperty("value", out var value) || !Finite(value)) return false;
             arrays[valueField] = JsonSerializer.SerializeToElement(new[] { value.Clone() });
             units[valueField] = unit;
         }
@@ -175,7 +170,7 @@ internal static class FullRunMetricWindowPreviewAdapter
         var message = Text(failure, "message");
         return new DynamicWindowFailure(code.Length == 0 ? "FULL_WINDOW_UNAVAILABLE" : code,
             message.Length == 0 ? "完整结果窗口不可用" : message,
-            failure.TryGetProperty("details", out var details) ? details.Clone() : null);
+            failure.TryGetProperty("detail", out var details) ? details.Clone() : null);
     }
 
     private static string Quality(JsonElement point) =>

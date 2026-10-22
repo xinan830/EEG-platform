@@ -122,14 +122,14 @@ def test_official_dynamic_iapf_uses_the_shared_dynamic_window_contract(tmp_path:
     assert series[0]["window_start_s"] == 0.0
     assert series[0]["window_end_s"] == 4.0
     assert series[0]["time_s"] == 4.0
-    assert series[0]["warmup"] is True
+    assert "warmup" not in series[0]
     assert series[0]["analysis_state"] == "Partial"
     assert series[6]["window_start_s"] == 0.0
     assert series[6]["window_end_s"] == 10.0
-    assert series[6]["warmup"] is False
+    assert "warmup" not in series[6]
     assert series[6]["analysis_state"] == "Complete"
-    assert all("value" in point and "quality" in point for point in series)
-    assert all(point["value"] == point["output"]["value"] for point in series)
+    assert all("value" in point["output"] and "quality" in point for point in series)
+    assert all("value" not in point and "value" in point["output"] for point in series)
     provenance = serialize_analysis_run(completed)["analysis_provenance"]
     assert provenance["sfreq_hz"] == 100.0
     assert provenance["welch"] == {"segment_s": 4.0, "window": "hann", "overlap_fraction": 0.5, "step_s": 2.0}
@@ -383,7 +383,7 @@ def test_official_dynamic_faa_keeps_paired_quality_per_window(tmp_path: Path):
     assert len(series) == 11
     assert series[0]["analysis_state"] == "Complete"
     assert series[0]["channel"] == "F3/F4"
-    assert series[0]["value"] == pytest.approx(np.log(4.0), abs=0.15)
+    assert series[0]["output"]["value"] == pytest.approx(np.log(4.0), abs=0.15)
     assert series[0]["official"]["faa_evidence"]["channels"] == ["F3", "F4"]
     assert completed.filters == {
         "operation": "continuous_preprocess_then_per_epoch_mean_removal",

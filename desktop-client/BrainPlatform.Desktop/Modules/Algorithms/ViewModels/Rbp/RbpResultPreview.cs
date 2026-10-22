@@ -51,6 +51,7 @@ public sealed partial class RbpResultPreview
 
     public static RbpResultPreview Parse(AnalysisRunResponse? run)
     {
+        if (run is not null) CurrentAlgorithmResult.Require(run);
         var isCurrentVersion = run?.ScientificVersion == "official-rbp-v2";
         var bands = isCurrentVersion ? CurrentBands : [];
         var unavailable = new double?[bands.Length];

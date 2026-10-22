@@ -72,12 +72,13 @@ public sealed class BrainbeatResultPreview
 
     public static BrainbeatResultPreview? Parse(AnalysisRunResponse? run)
     {
+        if (run is not null) CurrentAlgorithmResult.Require(run);
         if (run?.ResultSummary is not { ValueKind: JsonValueKind.Object } summary ||
             !summary.TryGetProperty("metric", out var metric) || metric.ValueKind != JsonValueKind.Object)
             return null;
         var channel = Text(metric, "channel");
         var unit = metric.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Object
-            ? Text(output, "unit") : "ratio";
+            ? Text(output, "unit") : "";
         if (metric.TryGetProperty("series", out var series) && series.ValueKind == JsonValueKind.Array)
         {
             var points = series.EnumerateArray().Select(point =>
@@ -85,23 +86,17 @@ public sealed class BrainbeatResultPreview
                 var time = Number(point, "time_s");
                 var start = Number(point, "window_start_s");
                 var end = Number(point, "window_end_s");
-                // Older result payloads only exposed the window end time.
-                // Keep the timeline usable without inventing a scientific value.
-                if (!double.IsFinite(end)) end = time;
-                if (!double.IsFinite(start)) start = double.NaN;
-                return new BrainbeatPoint(time, NumberOrNull(point, "value"), Text(point, "analysis_state"),
+                return new BrainbeatPoint(time, NumberOrNull(point.GetProperty("output"), "value"), Text(point, "analysis_state"),
                     Quality(point), Failure(point), start, end);
             }).ToArray();
             return new BrainbeatResultPreview(null, unit, points, channel);
         }
-        var value = metric.TryGetProperty("value", out var direct) ? NumberOrNull(direct) :
-            metric.TryGetProperty("output", out var result) && result.ValueKind == JsonValueKind.Object && result.TryGetProperty("value", out var nested)
-                ? NumberOrNull(nested) : null;
+        var value = NumberOrNull(metric.GetProperty("output"), "value");
         return new BrainbeatResultPreview(value, unit, [], channel);
     }
 
     private static string Quality(JsonElement point) => point.TryGetProperty("quality", out var quality)
-        ? quality.ValueKind == JsonValueKind.Object ? Text(quality, "status") : quality.GetString() ?? "未提供" : "未提供";
+        ? Text(quality, "status") : "未提供";
     private static string Failure(JsonElement point) => point.TryGetProperty("failure", out var failure) && failure.ValueKind == JsonValueKind.Object
         ? Text(failure, "message") : "";
     private static string Text(JsonElement value, string name) => value.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.String ? element.GetString() ?? "" : "";

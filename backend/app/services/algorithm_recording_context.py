@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 from app.scientific.primitives import SpectralEstimate
 from app.algorithm_runtime.execution_control import ExecutionControl
+from app.algorithm_runtime.signal_source import SignalSourceData, SignalSourceRequest, SpectralSourceRequest
 from app.services.mapped_preprocessing import mapped_preprocess
 
 class _RecordingAlgorithmContext:
@@ -28,8 +29,131 @@ class _RecordingAlgorithmContext:
             self._reader.close()
             self._reader = None
 
+    def signal_source_identity(self) -> tuple[str, str]:
+        """Bind a source request to its immutable raw or montage identity."""
+        source = self._recordings.analysis_signal_provenance(self._recording)
+        montage_id = source.get("montage_id")
+        fingerprint = source.get("montage_fingerprint") or source.get("snapshot_sha256")
+        if montage_id and fingerprint:
+            return str(montage_id), str(fingerprint)
+        return (
+            f"raw-recording:{self._recording.id}",
+            str(getattr(self._recording, "source_sha256", None) or self._recording.id),
+        )
+
+    def load_spectral_source(
+        self,
+        request: SpectralSourceRequest,
+        *,
+        role_to_channel: dict[str, str],
+    ) -> SpectralEstimate:
+        """Resolve a typed spectral request through the existing Welch service."""
+        if request.representation != "spectrum":
+            raise ValueError("Welch loader requires a spectrum request")
+        self._validate_spectral_request(request, role_to_channel)
+        start_s = request.start_sample / self.sfreq_hz
+        window_s = (request.end_sample - request.start_sample) / self.sfreq_hz
+        channels = [role_to_channel[role] for role in request.roles]
+        payload = self._recordings.load_spectrum(
+            self._recording, start_s, window_s, channels,
+            filter_low_hz=request.filter_low_hz,
+            filter_high_hz=request.filter_high_hz,
+            output_low_hz=request.output_low_hz,
+            output_high_hz=request.output_high_hz,
+            notch_hz=request.notch_hz,
+            execution_context=self.execution_context,
+        )
+        estimate = self._spectral_estimate(payload)
+        estimate.evidence["typed_source_request"] = self._spectral_request_evidence(request, channels)
+        return estimate
+
+    def load_spectrogram_source(
+        self,
+        request: SpectralSourceRequest,
+        *,
+        role_to_channel: dict[str, str],
+    ) -> dict[str, object]:
+        """Resolve a typed spectrogram request through the existing STFT service."""
+        if request.representation != "spectrogram":
+            raise ValueError("spectrogram loader requires a spectrogram request")
+        self._validate_spectral_request(request, role_to_channel)
+        start_s = request.start_sample / self.sfreq_hz
+        window_s = (request.end_sample - request.start_sample) / self.sfreq_hz
+        channels = [role_to_channel[role] for role in request.roles]
+        payload = self._recordings.load_spectrogram(
+            self._recording, start_s, window_s, channels,
+            low_hz=request.filter_low_hz,
+            high_hz=request.filter_high_hz,
+            output_low_hz=request.output_low_hz,
+            output_high_hz=request.output_high_hz,
+            notch_hz=request.notch_hz,
+            execution_context=self.execution_context,
+        )
+        payload["typed_source_request"] = self._spectral_request_evidence(request, channels)
+        return payload
+
+    def _validate_spectral_request(
+        self,
+        request: SpectralSourceRequest,
+        role_to_channel: dict[str, str],
+    ) -> None:
+        if set(role_to_channel) != set(request.roles):
+            raise ValueError("spectral source roles must resolve to exactly the requested channels")
+        if not np.isclose(request.expected_sfreq_hz, self.sfreq_hz, rtol=0.0, atol=1e-12):
+            raise ValueError("spectral source sampling rate changed after request planning")
+        identity = self.signal_source_identity()
+        if (request.montage_id, request.montage_fingerprint) != identity:
+            raise ValueError("spectral source montage identity changed after request planning")
+        if request.start_sample < 0 or request.end_sample > int(round(self.duration_s * self.sfreq_hz)):
+            raise ValueError("spectral source sample bounds exceed the recording")
+
+    @staticmethod
+    def _spectral_request_evidence(
+        request: SpectralSourceRequest,
+        channels: list[str],
+    ) -> dict[str, Any]:
+        return {
+            "roles": list(request.roles), "channel_order": channels,
+            "start_sample": request.start_sample, "end_sample": request.end_sample,
+            "sfreq_hz": request.expected_sfreq_hz,
+            "signal_input_unit": "V",
+            "service_density_unit": "uV^2/Hz",
+            "algorithm_density_unit": "V^2/Hz",
+            "montage_id": request.montage_id,
+            "montage_fingerprint": request.montage_fingerprint,
+            "preprocessing_scope": request.preprocessing_scope,
+            "filter_low_hz": request.filter_low_hz,
+            "filter_high_hz": request.filter_high_hz,
+            "output_low_hz": request.output_low_hz,
+            "output_high_hz": request.output_high_hz,
+            "notch_hz": request.notch_hz,
+            "representation": request.representation,
+        }
+
     def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 30.0, notch_hz: float | None = None, filter_low_hz: float | None = None, filter_high_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None) -> SpectralEstimate:
-        payload = self._recordings.load_spectrum(self._recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, execution_context=self.execution_context)
+        sfreq = self.sfreq_hz
+        start_sample = max(0, int(np.floor(start_s * sfreq)))
+        end_sample = min(
+            int(round(self.duration_s * sfreq)),
+            start_sample + int(round(window_s * sfreq)),
+        )
+        filter_low = low_hz if filter_low_hz is None else filter_low_hz
+        filter_high = high_hz if filter_high_hz is None else filter_high_hz
+        output_low = filter_low if output_low_hz is None else output_low_hz
+        output_high = filter_high if output_high_hz is None else output_high_hz
+        montage_id, montage_fingerprint = self.signal_source_identity()
+        request = SpectralSourceRequest(
+            roles=tuple(channels), start_sample=start_sample, end_sample=end_sample,
+            expected_sfreq_hz=sfreq, montage_id=montage_id,
+            montage_fingerprint=montage_fingerprint,
+            filter_low_hz=float(filter_low), filter_high_hz=float(filter_high),
+            output_low_hz=float(output_low), output_high_hz=float(output_high),
+            notch_hz=notch_hz,
+        )
+        return self.load_spectral_source(request, role_to_channel=dict(zip(channels, channels)))
+
+    @staticmethod
+    def _spectral_estimate(payload: dict[str, Any]) -> SpectralEstimate:
         ordered = list(payload["channels"])
         selected = ordered[0]
         evidence = {
@@ -61,17 +185,24 @@ class _RecordingAlgorithmContext:
         )
 
     def load_spectrogram(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 50.0, notch_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None) -> dict[str, object]:
-        """Load the frozen spectrogram contract through the recording service boundary."""
-        return self._recordings.load_spectrogram(
-            self._recording,
-            start_s=start_s,
-            window_s=window_s,
-            channels=channels,
-            low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-            output_low_hz=output_low_hz if output_low_hz is not None else low_hz,
-            output_high_hz=output_high_hz if output_high_hz is not None else high_hz,
-            execution_context=self.execution_context,
+        """Build a typed sample-bounded request for the frozen STFT service."""
+        sfreq = self.sfreq_hz
+        start_sample = max(0, int(np.floor(start_s * sfreq)))
+        end_sample = min(
+            int(round(self.duration_s * sfreq)),
+            start_sample + int(round(window_s * sfreq)),
         )
+        montage_id, montage_fingerprint = self.signal_source_identity()
+        request = SpectralSourceRequest(
+            roles=tuple(channels), start_sample=start_sample, end_sample=end_sample,
+            expected_sfreq_hz=sfreq, montage_id=montage_id,
+            montage_fingerprint=montage_fingerprint,
+            filter_low_hz=float(low_hz), filter_high_hz=float(high_hz),
+            output_low_hz=float(output_low_hz if output_low_hz is not None else low_hz),
+            output_high_hz=float(output_high_hz if output_high_hz is not None else high_hz),
+            notch_hz=notch_hz, representation="spectrogram",
+        )
+        return self.load_spectrogram_source(request, role_to_channel=dict(zip(channels, channels)))
 
     def load_faa_signals(self, *, start_s: float, end_s: float, f3_channel: str, f4_channel: str, low_hz: float | None = None, high_hz: float | None = None, notch_hz: float | None = None) -> tuple[np.ndarray, np.ndarray, float, dict[str, Any]]:
         """Slice the pair after whole-recording continuous preprocessing."""
@@ -123,3 +254,52 @@ class _RecordingAlgorithmContext:
             },
         }
         return pair[:, 0], pair[:, 1], float(sfreq), evidence
+
+    def load_signal_source(
+        self,
+        request: SignalSourceRequest,
+        *,
+        role_to_channel: dict[str, str],
+    ) -> SignalSourceData:
+        """Resolve FAA's paired sample request into the typed source contract."""
+        if request.preprocessing_scope != "configured_continuous_before_slice":
+            raise ValueError("FAA source requires configured continuous preprocessing")
+        if set(role_to_channel) != set(request.roles) or len(request.roles) != 2:
+            raise ValueError("FAA source roles must resolve to exactly two declared channels")
+        if not np.isclose(request.expected_sfreq_hz, self.sfreq_hz, rtol=0.0, atol=1e-12):
+            raise ValueError("signal source sampling rate changed after request planning")
+        montage_id, montage_fingerprint = self.signal_source_identity()
+        if (request.montage_id, request.montage_fingerprint) != (montage_id, montage_fingerprint):
+            raise ValueError("signal source montage identity changed after request planning")
+        start_s = request.start_sample / self.sfreq_hz
+        end_s = request.end_sample / self.sfreq_hz
+        ordered_channels = [role_to_channel[role] for role in request.roles]
+        left, right, sfreq, evidence = self.load_faa_signals(
+            start_s=start_s,
+            end_s=end_s,
+            f3_channel=ordered_channels[0],
+            f4_channel=ordered_channels[1],
+            low_hz=request.low_hz,
+            high_hz=request.high_hz,
+            notch_hz=request.notch_hz,
+        )
+        values = np.column_stack((left, right)).astype(np.float64, copy=False)
+        actual_start = int(np.floor(start_s * sfreq))
+        actual_end = min(int(round(self.duration_s * sfreq)), int(round(end_s * sfreq)))
+        if values.shape[0] != actual_end - actual_start:
+            raise ValueError("FAA source returned sample count inconsistent with its actual bounds")
+        return SignalSourceData(
+            values_v=values,
+            role_to_output={role: channel for role, channel in zip(request.roles, ordered_channels)},
+            channel_order=tuple(ordered_channels),
+            sfreq_hz=float(sfreq),
+            start_sample=actual_start,
+            end_sample=actual_end,
+            unit="V",
+            missing_sample_policy=request.missing_sample_policy,
+            montage_id=montage_id,
+            montage_fingerprint=montage_fingerprint,
+            preprocessing_scope=request.preprocessing_scope,
+            preprocessing={"low_hz": request.low_hz, "high_hz": request.high_hz, "notch_hz": request.notch_hz},
+            provenance=evidence,
+        )

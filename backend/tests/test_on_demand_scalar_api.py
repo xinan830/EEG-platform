@@ -65,7 +65,7 @@ def test_scalar_real_file_api_matches_each_full_run_point(
             assert window["quality"] == frame["quality"]["status"]
             if window["state"] == "ready":
                 result = window["result"]
-                np.testing.assert_allclose(result["arrays"][field], [frame["value"]],
+                np.testing.assert_allclose(result["arrays"][field], [frame["output"]["value"]],
                                            rtol=1e-12, atol=1e-12)
                 assert result["array_units"][field] == unit == frame["output"]["unit"]
                 assert result["axes"]["time_s"] == [frame["window_end_s"]]
@@ -77,7 +77,7 @@ def test_scalar_real_file_api_matches_each_full_run_point(
                 assert result["provenance"]["analysis_state"] == frame["analysis_state"]
             else:
                 assert window["result"] is None
-                assert frame["value"] is None
+                assert frame["output"]["value"] is None
                 assert window["failure"]["code"] == frame["failure"]["code"]
                 assert window["failure"]["details"] == frame["failure"]["detail"]
             client.delete(f"/api/analysis-windows/subscriptions/{ensured.json()['subscription_id']}")

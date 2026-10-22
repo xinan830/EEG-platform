@@ -18,7 +18,19 @@ class FakeRecording:
 
     def __init__(self, *, gate_failed: str | None = None):
         self.calls: list[dict[str, object]] = []
+        self.requests = []
         self.gate_failed = gate_failed
+
+    def signal_source_identity(self):
+        return "raw-recording:brainbeat-test", "source"
+
+    def load_spectral_source(self, request, *, role_to_channel):
+        self.requests.append((request, dict(role_to_channel)))
+        return self.load_spectrum(
+            start_s=request.start_sample / request.expected_sfreq_hz,
+            window_s=(request.end_sample - request.start_sample) / request.expected_sfreq_hz,
+            channels=[role_to_channel[role] for role in request.roles],
+        )
 
     def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str]):
         self.calls.append({"start_s": start_s, "window_s": window_s, "channels": channels})
@@ -59,6 +71,10 @@ def test_static_brainbeat_uses_explicit_fz_pz_and_preserves_ratio_result():
     assert result.value is not None and result.value > 0
     assert result.channel == "FZ/PZ"
     assert recording.calls == [{"start_s": 0.0, "window_s": 10.0, "channels": ["FZ", "PZ"]}]
+    request, role_map = recording.requests[0]
+    assert request.roles == ("Fz", "Pz")
+    assert role_map == {"Fz": "FZ", "Pz": "PZ"}
+    assert (request.start_sample, request.end_sample) == (0, 1000)
     assert result.evidence["extensions"]["brainbeat_evidence"]["formula"] == "relative_theta(Fz) / relative_alpha(Pz)"
 
 

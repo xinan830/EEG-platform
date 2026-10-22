@@ -1,5 +1,6 @@
 import io
 import json
+import sqlite3
 import zipfile
 
 import numpy as np
@@ -85,12 +86,17 @@ def test_result_export_rejects_new_dynamic_run_with_incomplete_coverage(tmp_path
             "high_hz": 30.0,
         },
     ))
-    queue.repository.update_status(run.run_id, RunStatus.RUNNING)
-    queue.repository.update_status(
-        run.run_id,
-        RunStatus.COMPLETED,
-        result_summary={"execution_provenance": {"coverage": {"state": "partial", "planned_windows": 1, "terminal_windows": 0}}},
-    )
+    completed = queue.process_next()
+    assert completed.status is RunStatus.COMPLETED
+    summary = completed.result_summary
+    summary["execution_provenance"]["coverage"] = {
+        "state": "partial", "planned_windows": 1, "terminal_windows": 0,
+    }
+    # Corrupt only coverage in an otherwise valid current result. Terminal Runs
+    # cannot be rewritten through the lifecycle API.
+    with sqlite3.connect(queue.repository.database_path) as connection:
+        connection.execute("UPDATE analysis_runs SET result_summary_json = ? WHERE run_id = ?",
+                           (json.dumps(summary), run.run_id))
 
     with pytest.raises(ResultExportUnavailable, match="覆盖校验"):
         ResultService(queue, ValidationService(queue.repository.database_path)).export(run.run_id)

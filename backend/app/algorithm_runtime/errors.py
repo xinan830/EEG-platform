@@ -34,6 +34,10 @@ class UnsupportedAlgorithmModeError(AlgorithmRuntimeError):
     code = "ALGORITHM_MODE_UNSUPPORTED"
 
 
+class InvalidAlgorithmResultError(AlgorithmRuntimeError, ValueError):
+    code = "ALGORITHM_RESULT_INVALID"
+
+
 class UnsupportedDynamicWindowCapabilityError(AlgorithmRuntimeError):
     code = "ON_DEMAND_CAPABILITY_UNSUPPORTED"
 

@@ -4,6 +4,72 @@ namespace BrainPlatform.Desktop.Tests.Review;
 
 public sealed class RecordingMontageCatalogTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BuildIncludesSystemPresetsWithoutDependingOnUserProfileStorage(bool includeCurrentPresets)
+    {
+        var configuration = AntConfiguration();
+        var presets = SystemMontageProfileFactory.Create(configuration);
+        var acquisition = presets.Single(profile => profile.Id == "system-ant-ref");
+        var manifest = Manifest(configuration, JsonSerializer.Serialize(acquisition), includeChannelSnapshot: true);
+
+        var result = RecordingMontageCatalog.Build(manifest, includeCurrentPresets ? presets : []);
+
+        Assert.Equal(presets.Select(profile => profile.Id).Order(),
+            result.CompatibleViewingMontages.Select(item => item.Profile.Id).Order());
+        Assert.Same(result.AcquisitionMontage,
+            result.CompatibleViewingMontages.Single(item => item.Profile.Id == acquisition.Id).Profile);
+        Assert.All(result.CompatibleViewingMontages, item => Assert.Equal(
+            ChannelConfigurationFingerprint.Create(configuration), item.Profile.ChannelConfigurationFingerprint));
+    }
+
+    [Fact]
+    public void BuildGeneratesSystemPresetsFromRecordedMappingInsteadOfCurrentDeviceMapping()
+    {
+        var recorded = AntConfiguration();
+        var current = recorded with
+        {
+            Channels = recorded.Channels.Select(channel => channel with
+            {
+                NativeChannelIndex = channel.NativeChannelIndex + 1,
+            }).ToArray(),
+        };
+
+        var result = RecordingMontageCatalog.Build(
+            Manifest(recorded, includeChannelSnapshot: true), SystemMontageProfileFactory.Create(current));
+
+        Assert.Equal(6, result.CompatibleViewingMontages.Count);
+        Assert.All(result.CompatibleViewingMontages, item => Assert.Equal(
+            ChannelConfigurationFingerprint.Create(recorded), item.Profile.ChannelConfigurationFingerprint));
+        Assert.Empty(result.Incompatible);
+    }
+
+    [Fact]
+    public void BuildStillChecksSystemPresetDependenciesAgainstActualRecordedChannels()
+    {
+        var configuration = AntConfiguration();
+        var manifest = Manifest(configuration, includeChannelSnapshot: true);
+        manifest = manifest with { Channels = manifest.Channels.Where(channel => channel.Label != "M1").ToArray() };
+
+        var result = RecordingMontageCatalog.Build(manifest, []);
+
+        Assert.DoesNotContain(result.CompatibleViewingMontages,
+            item => item.Profile.Id is "system-ant-average" or "system-ant-m1-m2");
+        Assert.Contains(result.Incompatible,
+            item => item.ProfileId == "system-ant-m1-m2" && item.Reason.Contains("M1"));
+        Assert.Contains(result.CompatibleViewingMontages,
+            item => item.Profile.Id == "system-ant-longitudinal-bipolar");
+    }
+
+    [Fact]
+    public void BuildDoesNotGenerateSystemPresetsWithoutRecordedChannelSnapshot()
+    {
+        var result = RecordingMontageCatalog.Build(Manifest(AntConfiguration()), []);
+
+        Assert.Empty(result.CompatibleViewingMontages);
+    }
+
     [Fact]
     public void BuildUsesEmbeddedAcquisitionSnapshotAndExcludesMissingSources()
     {
@@ -164,6 +230,14 @@ public sealed class RecordingMontageCatalogTests
         Assert.Empty(result.CompatibleViewingMontages);
         Assert.Contains("实际源通道", Assert.Single(result.Incompatible).Reason);
     }
+
+    private static ChannelConfigurationProfile AntConfiguration() =>
+        ChannelConfiguration("Fp1", "Fp2", "F7", "F3", "Fz", "F4", "F8", "T3", "C3", "Cz", "C4", "T4",
+            "M1", "T5", "P3", "Pz", "P4", "T6", "M2", "O1", "O2") with
+        {
+            Id = "system-ant-standard-28-input",
+            Source = ChannelConfigurationSource.System,
+        };
 
     private static LocalRawRecordingManifest Manifest(
         ChannelConfigurationProfile channelConfiguration,

@@ -7,6 +7,7 @@ internal static class AlgorithmResultFormatter
 {
     internal static string BuildDynamicSeriesSummary(AnalysisRunResponse run)
     {
+        CurrentAlgorithmResult.Require(run);
         if (run.ResultSummary is not { } summary || !summary.TryGetProperty("metric", out var metric) || metric.ValueKind != JsonValueKind.Object)
             return "动态结果未返回可展示的时间序列。";
         if (!metric.TryGetProperty("series", out var series) || series.ValueKind != JsonValueKind.Array)
@@ -23,6 +24,7 @@ internal static class AlgorithmResultFormatter
 
     internal static string BuildResultSummary(AnalysisRunResponse run)
     {
+        CurrentAlgorithmResult.Require(run);
         if (run.ResultSummary is not { } summary || summary.ValueKind != JsonValueKind.Object)
             return "后端未返回结果摘要；结果保持不可用。";
 
@@ -45,7 +47,7 @@ internal static class AlgorithmResultFormatter
                     $"{FormatBandName(item.Name)}：{FormatJsonValue(item.Value)}"));
                 return $"动态结果：{points.Length} 个窗口；{windowText}；{bandText}；单位：ratio；状态：{status}";
             }
-            var latestValue = latest.ValueKind == JsonValueKind.Object && latest.TryGetProperty("value", out var latestValueElement)
+            var latestValue = latest.ValueKind == JsonValueKind.Object && latest.GetProperty("output").TryGetProperty("value", out var latestValueElement)
                 ? FormatJsonValue(latestValueElement)
                 : "不可用";
             var latestUnit = metric.TryGetProperty("output", out var dynamicOutput) && dynamicOutput.ValueKind == JsonValueKind.Object &&
@@ -218,7 +220,7 @@ internal static class AlgorithmResultFormatter
     private static bool HasUsableDynamicValue(JsonElement point)
     {
         if (point.ValueKind != JsonValueKind.Object) return false;
-        if (point.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.Number &&
+        if (point.GetProperty("output").TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.Number &&
             value.TryGetDouble(out var scalar) && double.IsFinite(scalar)) return true;
         return point.TryGetProperty("band_values", out var bands) && bands.ValueKind == JsonValueKind.Object &&
                bands.EnumerateObject().Any(item => item.Value.ValueKind == JsonValueKind.Number &&
@@ -227,8 +229,6 @@ internal static class AlgorithmResultFormatter
 
     private static string FormatQuality(JsonElement value)
     {
-        if (value.ValueKind == JsonValueKind.String)
-            return FormatQualityStatus(value.GetString());
         if (value.ValueKind != JsonValueKind.Object)
             return FormatJsonValue(value);
         var status = value.TryGetProperty("status", out var statusElement) ? statusElement.GetString() : null;

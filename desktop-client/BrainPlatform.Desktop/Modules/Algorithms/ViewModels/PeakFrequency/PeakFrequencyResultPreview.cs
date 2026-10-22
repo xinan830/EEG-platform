@@ -21,6 +21,8 @@ public sealed partial record PeakFrequencyResultPreview(string Channel, PeakFreq
 
     public static PeakFrequencyResultPreview? Parse(JsonElement? summary)
     {
+        if (summary is { ValueKind: JsonValueKind.Object } current)
+            BrainPlatform.Desktop.Modules.Algorithms.Contracts.CurrentAlgorithmResult.Require(current);
         if (summary is not { ValueKind: JsonValueKind.Object } root ||
             !root.TryGetProperty("metric", out var metric) || metric.ValueKind != JsonValueKind.Object ||
             !metric.TryGetProperty("official", out var official) || Text(official, "algorithm_id") != "peak_frequency" ||
@@ -53,7 +55,7 @@ public sealed partial record PeakFrequencyResultPreview(string Channel, PeakFreq
         var state = Text(point, "analysis_state");
         var official = point.TryGetProperty("official", out var evidence) ? evidence : default;
         return new PeakFrequencyResultPoint(time.Value, start.Value, end.Value,
-            state == "Complete" ? Number(point, "value") : null,
+            state == "Complete" ? Number(point.GetProperty("output"), "value") : null,
             state, Quality(point), Failure(point), PeakPower(official));
     }
 

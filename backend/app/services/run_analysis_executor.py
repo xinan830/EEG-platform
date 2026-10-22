@@ -6,137 +6,28 @@ This class deliberately owns only the pre-existing analysis dispatch paths.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import numpy as np
+from pydantic import ValidationError
 
 from app.services.algorithm_recording_context import _RecordingAlgorithmContext
 from app.algorithm_runtime.contracts import (
-    DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
-    AlgorithmEvidence,
+    OFFICIAL_ALGORITHM_RESULT_CONTRACT_VERSION,
     AlgorithmResult,
     AlgorithmStructuredResult,
     AlgorithmStructuredSeriesResult,
 )
 from app.algorithm_runtime.executor import AlgorithmRuntime
+from app.algorithm_runtime.errors import InvalidAlgorithmResultError
 from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
-
-
-
-
-def _public_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
-    """Expose common evidence plus named extensions without leaking a generic bag."""
-    parsed = AlgorithmEvidence.model_validate(evidence)
-    return {
-        "source_quality": parsed.source_quality,
-        "spectral_evidence": parsed.spectral_evidence,
-        "calculation_trace": parsed.calculation_trace,
-        **parsed.extensions,
-    }
-
-
-def _serialize_algorithm_result(result: AlgorithmResult, algorithm_id: str, label: str) -> dict[str, object]:
-    evidence = _public_evidence(result.evidence)
-    quality = {"status": result.quality, "reasons": [result.failure.code] if result.failure else []}
-    payload: dict[str, object] = {
-        "output": {"id": algorithm_id, "label": label, "value": result.value, "unit": result.unit, "quality": quality},
-        "channel": result.channel,
-        "actual_range": result.actual_range,
-        "requested_range": result.requested_range,
-        "source_quality": evidence["source_quality"],
-        "spectral_evidence": evidence["spectral_evidence"],
-        "calculation_trace": evidence["calculation_trace"],
-        "official": {"algorithm_id": algorithm_id, **evidence},
-        "chart": {"kind": "none"},
-        "value": result.value,
-        "quality": quality,
-        "failure": result.failure.model_dump(mode="json") if result.failure else None,
-    }
-    if result.output_values is not None:
-        payload["band_values"] = result.output_values
-        payload["chart"] = {"kind": "band_share", "values": result.output_values, "unit": result.unit}
-    return payload
-
-
-def _serialize_structured_result(result: AlgorithmStructuredResult, algorithm_id: str, label: str) -> tuple[dict[str, object], dict[str, np.ndarray]]:
-    """Keep structured axes/arrays in the artifact boundary, not JSON."""
-    evidence = _public_evidence(result.evidence)
-    arrays = {name: np.asarray(value) for name, value in result.arrays.items()}
-    array_units = dict(result.array_units)
-    axis_metadata: dict[str, object] = {}
-    for name, value in result.axes.items():
-        axis = np.asarray(value)
-        key = f"axis_{name}"
-        arrays[key] = axis
-        array_units[key] = result.axis_units[name]
-        axis_metadata[name] = {
-            "array_key": key,
-            "unit": result.axis_units[name],
-            "length": int(axis.size),
-        }
-    quality = {"status": result.quality, "reasons": [result.failure.code] if result.failure else []}
-    return {
-        "output": {"id": algorithm_id, "label": label, "kind": result.output_kind, "quality": quality},
-        "channel_order": result.channel_order,
-        "requested_range": result.requested_range,
-        "actual_range": result.actual_range,
-        "axes": axis_metadata,
-        "arrays": {
-            name: {"unit": array_units[name], "shape": list(value.shape)}
-            for name, value in arrays.items()
-        },
-        "source_quality": evidence["source_quality"],
-        "spectral_evidence": evidence["spectral_evidence"],
-        "calculation_trace": evidence["calculation_trace"],
-        "official": {"algorithm_id": algorithm_id, **evidence},
-        "quality": quality,
-        "failure": result.failure.model_dump(mode="json") if result.failure else None,
-    }, arrays
-
-
-def _serialize_structured_series_result(
-    result: AlgorithmStructuredSeriesResult,
-    algorithm_id: str,
-    label: str,
-) -> tuple[dict[str, object], dict[str, np.ndarray]]:
-    """Persist dynamic matrices while keeping window evidence out of arrays."""
-    evidence = _public_evidence(result.evidence)
-    arrays = {name: np.asarray(value) for name, value in result.arrays.items()}
-    array_units = dict(result.array_units)
-    arrays["window_evidence_json"] = np.asarray(json.dumps(
-        [window.evidence for window in result.windows], ensure_ascii=False, sort_keys=True,
-    ))
-    array_units["window_evidence_json"] = "json"
-    axis_metadata: dict[str, object] = {}
-    for name, value in result.axes.items():
-        axis = np.asarray(value)
-        key = f"axis_{name}"
-        arrays[key] = axis
-        array_units[key] = result.axis_units[name]
-        axis_metadata[name] = {"array_key": key, "unit": result.axis_units[name], "length": int(axis.size)}
-    quality = {"status": result.quality, "reasons": [result.failure.code] if result.failure else []}
-    state_counts: dict[str, int] = {}
-    for window in result.windows:
-        state_counts[window.state] = state_counts.get(window.state, 0) + 1
-    return {
-        "output": {"id": algorithm_id, "label": label, "kind": result.output_kind, "mode": "dynamic", "quality": quality},
-        "channel_order": result.channel_order,
-        "requested_range": result.requested_range,
-        "actual_range": result.actual_range,
-        "axes": axis_metadata,
-        "arrays": {name: {"unit": array_units[name], "shape": list(value.shape)} for name, value in arrays.items()},
-        "windows": [window.model_dump(mode="json", exclude={"evidence"}) for window in result.windows],
-        "window_state_counts": state_counts,
-        "source_quality": evidence["source_quality"],
-        "spectral_evidence": evidence["spectral_evidence"],
-        "calculation_trace": evidence["calculation_trace"],
-        "official": {"algorithm_id": algorithm_id, **evidence},
-        "quality": quality,
-        "failure": result.failure.model_dump(mode="json") if result.failure else None,
-    }, arrays
+from app.models.current_algorithm_result import CurrentAlgorithmResultSummary
+from app.services.run_result_serialization import (
+    _serialize_algorithm_result, _serialize_algorithm_series,
+    _serialize_structured_result, _serialize_structured_series_result,
+)
 
 
 class RunAnalysisExecutor:
@@ -151,10 +42,15 @@ class RunAnalysisExecutor:
     def execute(self, analysis_type: str, recording: Any, resolved: dict[str, Any]):
         if analysis_type == "official_algorithm":
             payload, arrays, unit = self._execute_official_algorithm(recording, resolved)
+            payload["result_contract_version"] = OFFICIAL_ALGORITHM_RESULT_CONTRACT_VERSION
             payload["implementation_identity"] = resolved.get("implementation_identity") or self.algorithm_runtime.registry.get(
                 OfficialAlgorithmRunConfig.model_validate(resolved["config"]).algorithm_id,
                 resolved["scientific_version"],
             ).manifest.implementation_identity
+            try:
+                CurrentAlgorithmResultSummary.model_validate(payload)
+            except ValidationError as exc:
+                raise InvalidAlgorithmResultError("Serialized algorithm result violates its current contract") from exc
             return payload, arrays, unit
 
         config = AnalysisConfigRequest.model_validate(resolved["config"])
@@ -211,29 +107,4 @@ class RunAnalysisExecutor:
             if result.output_values is not None:
                 arrays["band_share_values"] = np.asarray(list(result.output_values.values()), dtype=float)
             return {"metric": point}, arrays, result.unit
-        points = []
-        values = []
-        for index, (value, time_s, window, quality, failure) in enumerate(zip(result.values, result.time_s, result.windows, result.quality, result.failures)):
-            evidence = _public_evidence(result.point_evidence[index]) if index < len(result.point_evidence) else _public_evidence({})
-            warmup = result.warmups[index] if index < len(result.warmups) else False
-            analysis_state = result.states[index] if index < len(result.states) else (
-                "Rejected" if failure is not None and quality == "gate_failed"
-                else "Unavailable" if failure is not None
-                else "Partial" if warmup else "Complete"
-            )
-            point = {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION,
-                     "time_s": time_s, "window_start_s": window["start_s"], "window_end_s": window["end_s"], "value": value,
-                     "quality": {"status": quality, "reasons": [failure.code] if failure else []},
-                     "output": {"id": config.algorithm_id, "label": label, "value": value, "unit": result.unit, "quality": {"status": quality, "reasons": [failure.code] if failure else []}},
-                     "channel": result.channel, "source_quality": evidence.get("source_quality", {}),
-                     "spectral_evidence": evidence.get("spectral_evidence", {}), "warmup": warmup, "analysis_state": analysis_state,
-                     "failure": failure.model_dump(mode="json") if failure else None,
-                     "calculation_trace": evidence.get("calculation_trace", {}),
-                     "official": {"algorithm_id": config.algorithm_id, **evidence}, "chart": {"kind": "none"}}
-            if index < len(result.output_values):
-                point["band_values"] = result.output_values[index]
-            points.append(point)
-            values.append(np.nan if value is None else float(value))
-        first = points[0] if points else {"output": {"id": config.algorithm_id, "label": label, "unit": result.unit}, "channel": result.channel}
-        latest_evidence = _public_evidence(result.point_evidence[-1]) if result.point_evidence else _public_evidence({})
-        return {"metric": {"result_contract_version": DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION, "mode": "dynamic", "output": first["output"], "channel": result.channel, "actual_range": {"start_s": config.time.start_s, "end_s": config.time.end_s}, "dynamic_contract": {"window_s": config.dynamic_window_s, "step_s": config.refresh_step_s, "alignment": "window_end"}, "series": points, "source_quality": latest_evidence.get("source_quality", {}), "spectral_evidence": latest_evidence.get("spectral_evidence", {}), "official": {"algorithm_id": config.algorithm_id}, "chart": {"kind": "metric_trend", "x_axis": {"label": "时间", "unit": "s", "field": "time_s"}, "y_axis": {"label": label, "unit": result.unit}}}}, {"metric_time_s": np.asarray(result.time_s, dtype=float), "metric_values": np.asarray(values, dtype=float)}, result.unit
+        return _serialize_algorithm_series(result, config, label)

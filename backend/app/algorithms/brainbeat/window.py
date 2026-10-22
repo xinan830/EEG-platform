@@ -22,6 +22,7 @@ from app.scientific.quality import SpectralQualityGateError
 from .compute import compute_brainbeat
 from .config import BrainbeatConfig
 from .manifest import MANIFEST
+from .signal_source import load_brainbeat_spectrum
 
 
 class BrainbeatWindowCapability:
@@ -67,10 +68,12 @@ class BrainbeatWindowCapability:
         if check_cancelled is not None:
             check_cancelled()
         try:
-            spectrum = inputs.payload.load_spectrum(
+            spectrum = load_brainbeat_spectrum(
+                inputs,
+                fz_channel=inputs.channel,
+                pz_channel=config.pz_channel,
                 start_s=plan.start_s,
-                window_s=plan.end_s - plan.start_s,
-                channels=[inputs.channel, config.pz_channel],
+                end_s=plan.end_s,
             )
             if check_cancelled is not None:
                 check_cancelled()

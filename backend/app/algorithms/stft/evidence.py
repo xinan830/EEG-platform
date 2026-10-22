@@ -17,6 +17,7 @@ def window_evidence(payload: dict[str, Any], *, valid_count: int) -> dict[str, A
             "frequency_range_hz": payload.get("frequency_range_hz"),
             "filter_frequency_range_hz": payload.get("filter_frequency_range_hz"),
             "notch_hz": payload.get("notch_hz"),
+            "typed_source_request": payload.get("typed_source_request"),
         },
     }
 
@@ -41,5 +42,6 @@ def window_provenance(
         "frequency_range_hz": payload.get("frequency_range_hz"),
         "filter_frequency_range_hz": payload.get("filter_frequency_range_hz"),
         "notch_hz": payload.get("notch_hz"),
+        "typed_source_request": payload.get("typed_source_request"),
         "analysis_state": analysis_state,
     }

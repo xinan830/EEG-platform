@@ -33,6 +33,7 @@ def _official_items(request: Request) -> list[dict[str, object]]:
             or manifest.purpose_zh != official.purpose_zh
             or manifest.supported_modes != official.supported_modes
             or manifest.output_schema != official.output_schema
+            or manifest.output_contract is None
             or manifest.definition_persistence is None
         ):
             raise AlgorithmRuntimeError("official catalog/runtime manifest mismatch")
@@ -46,6 +47,7 @@ def _official_items(request: Request) -> list[dict[str, object]]:
             "parameters": [item.model_dump(mode="json") for item in module.parameter_schema().parameters],
             "modes": list(manifest.supported_modes),
             "output_schema": manifest.output_schema,
+            "output_contract": manifest.output_contract.model_dump(mode="json"),
             "dynamic_policy": manifest.dynamic_policy.model_dump(mode="json"),
             "dynamic_capabilities": (
                 manifest.dynamic_capabilities.model_dump(mode="json")

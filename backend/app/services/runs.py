@@ -20,7 +20,8 @@ from app.algorithm_runtime.offline_execution import (
     scientific_configuration_sha256,
     scientific_context_snapshot,
 )
-from app.algorithm_runtime.errors import RetiredAlgorithmVersionError
+from app.algorithm_runtime.errors import InvalidAlgorithmResultError, RetiredAlgorithmVersionError
+from app.algorithm_runtime.contracts import OFFICIAL_ALGORITHM_RESULT_CONTRACT_VERSION
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, ANALYSIS_ALGORITHM_VERSION
 from app.scientific.quality import SpectralQualityGateError
 from app.algorithms.catalog import ensure_official_definitions, official_definition_identity
@@ -149,7 +150,7 @@ class RunService:
                     "quality": quality,
                 } if is_gate else None,
                 error=StructuredRunError(
-                    code="QUALITY_GATE_FAILED" if is_gate else "ANALYSIS_INPUT_INVALID",
+                    code=exc.code if isinstance(exc, InvalidAlgorithmResultError) else "QUALITY_GATE_FAILED" if is_gate else "ANALYSIS_INPUT_INVALID",
                     message=str(exc),
                     stage="analysis",
                     details={"quality": quality} if quality is not None else {},
@@ -394,7 +395,7 @@ class RunService:
                 implementation_identity=definition["implementation_identity"],
             ) if request.analysis_type == "official_algorithm" and config.get("mode") == "dynamic" else sha256_json({
                 **definition,
-                "result_contract_version": "official-algorithm-result-evidence-v2",
+                "result_contract_version": OFFICIAL_ALGORITHM_RESULT_CONTRACT_VERSION,
             }) if request.analysis_type == "official_algorithm" else sha256_json(definition),
             "scientific_version": scientific_version,
         }

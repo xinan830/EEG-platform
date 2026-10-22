@@ -24,6 +24,8 @@ def test_mapping_migration_clears_active_recording_values(tmp_path):
     database = tmp_path / "catalog.sqlite3"
     migrate_database(database)
     with sqlite3.connect(database) as connection:
+        # Reconstruct schema 7 without a table introduced by migration 22.
+        connection.execute("DROP TABLE analysis_montage_snapshots")
         connection.execute(
             "INSERT INTO recordings (id, original_name, stored_name, extension, created_at, channels_json, mapping_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
             ("r1", "sample.edf", "r1.edf", ".edf", "now", "[]", '{"fz":"Fz","pz":"Pz","oz":"Oz"}'),

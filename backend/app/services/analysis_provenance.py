@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.models.run import AnalysisRun
+from app.bootstrap.builtin_registry import build_builtin_registry
 from app.algorithm_runtime.offline_execution import OFFLINE_EXECUTION_CONTRACT_VERSION
 
 
@@ -59,36 +60,6 @@ def _frequency(evidence: dict[str, Any]) -> dict[str, object] | None:
     return {"low_hz": frequencies[0], "high_hz": frequencies[-1], "point_count": len(frequencies)}
 
 
-def _faa_provenance_fields(faa: dict[str, Any]) -> dict[str, object]:
-    """Project only the current paired-epoch FFT contract."""
-    contract = _as_dict(faa.get("faa_contract"))
-    required = ("epoch_s", "overlap_fraction", "step_s", "frequency_resolution_hz", "alpha_band_hz")
-    if any(key not in contract for key in required):
-        return {}
-    try:
-        epoch_s = float(contract["epoch_s"])
-        overlap = float(contract["overlap_fraction"])
-        step_s = float(contract["step_s"])
-        resolution = float(contract["frequency_resolution_hz"])
-        band = [float(item) for item in contract["alpha_band_hz"]]
-        if len(band) != 2 or epoch_s <= 0 or resolution <= 0:
-            raise ValueError("invalid current FAA contract")
-    except (TypeError, ValueError):
-        return {}
-    preprocessing = {"kind": "per_epoch_demean", "label_zh": "每个成对 Epoch 独立去均值；未做软件带通"}
-    if contract.get("software_bandpass"):
-        scope = faa.get("preprocessing_scope")
-        preprocessing = {
-            "kind": "continuous_recording_then_epoch_demean" if scope == "whole_recording_before_window_slice" else "window_filter_then_epoch_demean",
-            "label_zh": "整条记录连续滤波后截取分析窗口，再逐 Epoch 去均值" if scope == "whole_recording_before_window_slice" else "分析窗口独立滤波，再逐 Epoch 去均值",
-        }
-    return {
-        "method": {"kind": "faa_paired_epoch_fft", "label_zh": "成对 Epoch FFT 密度谱", "detail_zh": f"{epoch_s:g} s Hann，{overlap * 100:g}% Epoch overlap（{step_s:g} s 步进）"},
-        "preprocessing": preprocessing,
-        "frequency": {"label_zh": "Alpha 积分频段", "low_hz": band[0], "high_hz": band[1], "point_count": int(round((band[1] - band[0]) / resolution)) + 1, "resolution_hz": resolution},
-        "quality_label_zh": "成对 Epoch 质量门",
-    }
-
 
 def _extensions(metric: dict[str, Any], point: dict[str, Any], evidence: dict[str, Any]) -> list[dict[str, object]]:
     extensions: list[dict[str, object]] = []
@@ -101,43 +72,31 @@ def _extensions(metric: dict[str, Any], point: dict[str, Any], evidence: dict[st
         })
 
     inputs = point.get("inputs", metric.get("inputs"))
-    output = _as_dict(metric.get("output"))
+    output = _as_dict(point.get("output"))
     if isinstance(inputs, dict) and output:
-        if "value" in point:
-            output = {**output, "value": point.get("value"), "quality": point.get("quality")}
         extensions.append({"kind": "metric_inputs_output", "data": {"inputs": inputs, "output": output}})
     trace = point.get("calculation_trace", metric.get("calculation_trace"))
     if isinstance(trace, dict) and isinstance(trace.get("inputs"), list):
         extensions.append({"kind": "algorithm_calculation", "data": trace})
-    official = _as_dict(point.get("official") or metric.get("official"))
-    faa = _as_dict(official.get("faa_evidence"))
-    if faa:
-        contract = _as_dict(faa.get("faa_contract"))
-        channels = faa.get("channels") if isinstance(faa.get("channels"), list) else []
-        extensions.append({"kind": "faa_paired_quality", "data": {
-            **faa,
-            "source_channels": faa.get("source_channels") or {
-                "left": channels[0] if len(channels) > 0 else None,
-                "right": channels[1] if len(channels) > 1 else None,
-            },
-            "faa_contract": {
-                **contract,
-                "minimum_clean_epochs": contract.get("minimum_clean_epochs", 10),
-                "artifact_peak_uv": contract.get("artifact_peak_uv", faa.get("artifact_uv")),
-            },
-        }})
     return extensions
 
 
 def build_analysis_provenance(run: AnalysisRun) -> dict[str, object]:
-    """Project persisted run/result evidence without calculating scientific values."""
+    """Project current persisted evidence without calculating scientific values."""
+    from app.services.current_algorithm_result import require_current_result
+
+    require_current_result(run)
     summary = _as_dict(run.result_summary)
     metric, point = _metric_context(run)
     evidence = _as_dict(point.get("spectral_evidence") or metric.get("spectral_evidence") or summary)
     official = _as_dict(point.get("official") or metric.get("official"))
-    faa_evidence = _as_dict(official.get("faa_evidence"))
-    if faa_evidence:
-        evidence = {**evidence, **faa_evidence}
+    projection = {}
+    if run.analysis_type == "official_algorithm":
+        module = build_builtin_registry().get_current(run.config["algorithm_id"])
+        projector = getattr(module, "project_provenance", None)
+        if callable(projector):
+            projection = projector(official)
+    evidence = {**evidence, **_as_dict(projection.get("evidence"))}
     mode = str(metric.get("mode") or run.config.get("mode") or "static")
     actual_range = _range({"start_s": point.get("window_start_s"), "end_s": point.get("window_end_s")})
     actual_range = actual_range or _range(metric.get("actual_range")) or _range(run.actual_range)
@@ -146,7 +105,7 @@ def build_analysis_provenance(run: AnalysisRun) -> dict[str, object]:
     sample_coordinate = _as_dict(official.get("sample_coordinate")) or None
     channel = point.get("channel") or metric.get("channel") or run.config.get("channel")
 
-    faa_fields = _faa_provenance_fields(faa_evidence) if faa_evidence else {}
+    module_fields = _as_dict(projection.get("fields"))
     official_identity = None
     if run.analysis_type == "official_algorithm":
         official_identity = {
@@ -179,18 +138,18 @@ def build_analysis_provenance(run: AnalysisRun) -> dict[str, object]:
         "analysis_reference": evidence.get("analysis_reference", run.reference),
         "sfreq_hz": evidence.get("sfreq_hz"),
         "filter": evidence.get("filter_contract", run.filters) or None,
-        "preprocessing": faa_fields.get("preprocessing"),
-        "method": faa_fields.get("method"),
+        "preprocessing": module_fields.get("preprocessing"),
+        "method": module_fields.get("method"),
         "welch": _welch(evidence),
-        "frequency": faa_fields.get("frequency") or _frequency(evidence),
-        "quality_label_zh": faa_fields.get("quality_label_zh"),
+        "frequency": module_fields.get("frequency") or _frequency(evidence),
+        "quality_label_zh": module_fields.get("quality_label_zh"),
         "quality": quality_payload,
-        "extensions": _extensions(metric, point, evidence),
+        "extensions": [*_extensions(metric, point, evidence), *projection.get("extensions", [])],
     }
 
 
 def serialize_analysis_run(run: AnalysisRun) -> dict[str, object]:
-    """Serialize a Run while preserving its legacy fields and adding evidence."""
+    """Serialize the current Run contract and its backend-authored evidence."""
     payload = run.model_dump(mode="json")
     payload["analysis_provenance"] = build_analysis_provenance(run)
     return payload

@@ -22,6 +22,9 @@ class _RecordingStub:
         assert recording_id == self.recording.id
         return self.recording
 
+    def analysis_signal_provenance(self, _recording):
+        return {"analysis_reference": "original", "signal_mode": "raw"}
+
     def load_spectrum(self, _recording, start_s=0, window_s=0, channels=None, **_kwargs):
         frequencies = PsdAlgorithm._frequency_axis(200, 1, 50)
         return {

@@ -31,11 +31,6 @@ class AnalysisWindow:
     center_s: float
     state: WindowState = "Complete"
 
-    @property
-    def warmup(self) -> bool:
-        """Legacy view retained for callers that have not migrated yet."""
-        return self.state == "Partial"
-
 
 @dataclass(frozen=True)
 class DynamicAnalysisFrame:
@@ -51,11 +46,6 @@ class DynamicAnalysisFrame:
     window_end_s: float
     requested_window_s: float
     state: WindowState
-
-    @property
-    def warmup(self) -> bool:
-        """Legacy view retained for algorithm adapters and old serializers."""
-        return self.state == "Partial"
 
     @property
     def actual_window_s(self) -> float:

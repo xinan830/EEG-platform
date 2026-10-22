@@ -20,6 +20,10 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
     assert by_id["peak_frequency"]["output_schema"]["fields"][0]["unit"] == "Hz"
     assert by_id["peak_frequency"]["output_schema"]["fields"][0]["name"] == "peak_frequency_hz"
     assert by_id["band_ratio"]["output_schema"]["fields"][0]["unit"] == "ratio"
+    assert by_id["faa"]["output_contract"]["channel_role_order"] == ["F3", "F4"]
+    assert by_id["psd"]["output_contract"]["static_result_type"] == "structured"
+    assert by_id["psd"]["output_contract"]["dynamic_result_type"] == "structured_series"
+    assert "faa_evidence" in by_id["faa"]["output_contract"]["evidence_fields"]
     assert next(item for item in by_id["band_ratio"]["parameters"] if item["key"] == "denominator_high_hz")["unit"] == "Hz"
     assert by_id["iapf"]["dynamic_policy"] == {
         "minimum_window_s": 4.0,

@@ -19,7 +19,7 @@ public sealed class RecordingTimeChartModeTests
         var start = DateTimeOffset.UtcNow;
         var context = new RecordingTimeDisplayContext(new RecordingTimeDisplaySettings(), start);
         var run = new AnalysisRunResponse("run", "recording", "official_algorithm", "completed", "official-rbp-v2", null, null,
-            Json("""{"metric":{"series":[{"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.2,"gamma":0.2}}]}}"""),
+            Json("""{"metric":{"series":[{"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.2,"gamma":0.2},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"},"quality":{"status":"clean"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}"""),
             null, null, start, start);
         var preview = RbpResultPreview.Parse(run);
         var chart = new RbpChart { IsTrend = true, Bands = preview.BandsAt(5), Windows = preview.Windows };

@@ -21,6 +21,7 @@ from app.persistence.repositories.run import RunRepository
 from app.services.runs import RunService
 from app.services.run_execution_context import RunCancelledError, RunExecutionContext
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+from app.algorithm_runtime.errors import InvalidAlgorithmResultError
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.services.run_worker import RunWorker
 from app.services.offline_window_reuse import OfflineWindowReuse
@@ -232,7 +233,7 @@ class PersistentRunQueue:
             return self.repository.update_status(
                 run.run_id, RunStatus.GATE_FAILED if is_gate else RunStatus.FAILED, actual_range=actual_range,
                 result_summary={"psd": None, "band_power": None, "relative_band_power": None, "quality": exc.quality} if is_gate else None,
-                error=StructuredRunError(code="QUALITY_GATE_FAILED" if is_gate else "ANALYSIS_INPUT_INVALID", message=str(exc),
+                error=StructuredRunError(code=exc.code if isinstance(exc, InvalidAlgorithmResultError) else "QUALITY_GATE_FAILED" if is_gate else "ANALYSIS_INPUT_INVALID", message=str(exc),
                                          stage="analysis", details={"quality": exc.quality} if is_gate else {}),
             )
         except Exception as exc:

@@ -1,5 +1,5 @@
-from app.algorithm_runtime.contracts import AlgorithmManifest
-from app.algorithms.capabilities import official_dynamic_capabilities, official_result_graph
+from app.algorithm_runtime.contracts import AlgorithmManifest, SignalRequirements
+from app.algorithms.capabilities import declared_output_contract, official_dynamic_capabilities, official_result_graph
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 
@@ -14,6 +14,7 @@ MANIFEST = AlgorithmManifest(
     # frame schedule with every other playback metric.
     implementation_identity="iapf-runtime-v3",
     supported_modes=["static", "dynamic"],
+    signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="single", preprocessing_scope="module_defined"),
     dynamic_capabilities=official_dynamic_capabilities(
         full_to_preview=True,
         combined_evidence=["backend/tests/test_official_combined_strategies.py", "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"],
@@ -35,4 +36,9 @@ MANIFEST = AlgorithmManifest(
         "references": ["docs/algorithms/04-spectral-metrics.md"],
     },
     execution_kind="official_composite_run_adapter",
+)
+
+MANIFEST.output_contract = declared_output_contract(
+    MANIFEST, static_result_type="scalar", dynamic_result_type="series",
+    evidence_fields=["iapf_evidence", "peak_hz", "cog_hz", "estimate_source"],
 )
