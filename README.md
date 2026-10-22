@@ -1,20 +1,27 @@
-# 脑电分析平台
+# 脑电科研平台
 
-面向 BDF/EDF 文件的离线脑电导入、分析与可视化平台。第一阶段不连接实时硬件设备。
+本地单用户 EEG 科研工作站，包含 WPF 桌面端和 Python/FastAPI 后端。桌面端负责设备采集、原始记录、阅图和交互；后端负责数据校验、导联投影、分析预处理及科学计算。支持 BDF/EDF 导入和已完成的 WPF 采集记录分析。
+
+当前九个官方算法：PSD、STFT、RBP、Band Ratio、Peak Frequency、IAPF、Theta/Beta、FAA、离线 Brainbeat。运行管理统一，公式和专属质量门由各算法模块独立维护。动态分析提供全量、按需及组合方式；具体复用方向见[管理基线](docs/algorithms/official-algorithm-management.md)。
 
 ## 启动
 
-Windows 下可直接双击根目录的 `start_brain_platform.bat`，该入口只启动后端终端窗口，
-不会启动 WPF。它优先使用 `dist\BrainPlatform-Release\backend\brain_backend.exe`，
-没有便携版时回退到 `backend\.venv` 的 Python 环境，并检查 `http://127.0.0.1:8000/api/health`。
-如果 8000 端口已经被本项目后端占用，脚本会复用并提示；如果属于其他项目，则不会强制关闭。
+在 Windows 双击 `start_brain_desktop.bat`：构建当前 WPF 源码，启动匹配的后端与桌面窗口。需要 .NET 10 SDK 和已安装项目依赖的 Python 环境。脚本不使用旧桌面发布包。
 
-需要同时启动后端和 WPF 桌面客户端时，使用 `start_brain_desktop.bat`。该脚本会先构建当前 WPF
-源码，再用 `dotnet` 加载最新 DLL；它不会启动便携发布包或旧的桌面 EXE。脚本会分别打开后端
-终端窗口和 WPF 前端窗口；关闭 WPF 后只会关闭它本次启动的后端。
+仅启动后端可使用 `start_brain_platform.bat`；该脚本优先使用打包后端，开发当前源码时应使用桌面启动脚本，或在 `backend` 目录执行：
 
-启动后在“算法列表 → 动态 → 分析方式”下拉框选择“全量分析”或“按需分析”，无需输入环境变量命令。
-已验收的九个算法均提供这两个选项，初始选择全量分析；选择按需后，结果随游标目标窗口加载。
+```powershell
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
 
-后端 API 文档地址为 `http://127.0.0.1:8000/docs`。如果需要单独启动后端，可在 `backend`
-目录执行 `uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`。
+API 文档：<http://127.0.0.1:8000/docs>。
+
+## 阅读入口
+
+- [文档导航](docs/README.md)：当前说明和验证证据入口。
+- [交接说明](HANDOFE.md)：当前基线、边界和排查顺序。
+- [工程开发契约](docs/工程开发契约.md)：修改和审查要求。
+- [算法接入指南](docs/algorithms/official-algorithm-development.md)：新增算法流程。
+- [采集与阅图架构](docs/architecture/desktop-acquisition-review.md)：设备、存储、滤波和播放边界。
+
+原始记录只读；导联和分析处理产生派生输入。官方算法仅维护当前科学版本及结果格式。工程验证不等同于临床验证。构建产物、运行缓存、数据库和真实 EEG 不纳入 Git。

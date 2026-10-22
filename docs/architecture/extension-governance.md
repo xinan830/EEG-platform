@@ -13,7 +13,7 @@ Manifest 支持三种来源：`local_official`、`research_template`、`user_pri
 
 当前执行模式只有：
 
-- `closed_definition_graph`：只能指向现有的闭集算法定义图；
+- `closed_definition_graph`：描述现有闭集 Definition 图的元数据引用；不启用图执行；
 - `metadata_only`：只描述信息，不能声明权限。
 
 “权限”仅用于未来审计和设计讨论，当前不授予运行时能力。允许的声明是读取 recording 元数据或读写派生 artifact；它们不等价于文件系统权限。
@@ -22,7 +22,7 @@ Manifest 支持三种来源：`local_official`、`research_template`、`user_pri
 
 当前接口不会安装、持久化或执行第三方模块。它拒绝未知字段，因此不能接受 `python_source`、脚本路径、网络 URL 或命令。以下能力均为 `false`：任意 Python、网络访问、子进程、文件系统访问、签名插件、市场、多租户和组织权限。
 
-这不是一项技术缺失，而是本地科研工作台的安全边界。现有算法继续由后端的闭集节点和不可变定义版本执行。
+现有官方算法由独立算法模块和共享 Runtime 执行；Definition 只提供不可变元数据与校验，不能因 manifest 的执行模式名称而重新接通已退休图执行器。
 
 ## 未来 Python 插件的前置条件
 

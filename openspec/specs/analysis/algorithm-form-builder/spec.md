@@ -1,5 +1,7 @@
 # analysis/algorithm-form-builder Specification
 
+> 状态：历史浏览器工作台规范，不能作为当前 WPF 已实现功能清单。下方表单/JSON 双编辑、开发者详情及 scalar preview 条款描述已退役工作台；图/公式执行已由 [退役实现移除规范](../retired-algorithm-removal/spec.md)明确排除。Definition 元数据校验仍保留，当前官方模块和 typed 执行边界见 [算法 Runtime](../algorithm-runtime/spec.md)及[当前接入指南](../../../../docs/algorithms/official-algorithm-development.md)。此次仅标注适用状态，不变更接口或科学行为。
+
 ## Purpose
 Provide local research users a safe, traceable way to author and inspect
 algorithm definitions without duplicating scientific validation or EEG math in

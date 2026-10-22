@@ -19,6 +19,10 @@ retain their existing behavior.
   validation. A montage must remain separate from recorded raw channels.
 - `Modules/Projects`, `Modules/Events`, and `Modules/Review` own their
   respective project, annotation, and review concerns.
+- `Modules/Algorithms` owns algorithm selection, detail views, request
+  serialization, Run/window coordination and result presentation. Scientific
+  formulas remain in the Python backend. UI/detail and result-handler
+  registrations are separate explicit composition points.
 - `Shared` contains only cross-module, non-business code: MVVM primitives,
   notifications, display calibration, reusable controls, dialogs, and styles.
 - `Infrastructure` contains external-system boundaries such as backend HTTP

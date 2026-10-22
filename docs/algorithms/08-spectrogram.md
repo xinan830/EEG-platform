@@ -1,58 +1,21 @@
-# 时频图算法与数据契约
+# STFT 与时频数据
 
-## 版本边界
+STFT 属独立算法模块；通过 typed spectrogram 请求进入共享记录和预处理服务，不应把其输出当成 Welch 平均谱。参数、科学版本与输出声明由 `backend/app/algorithms/stft/` 提供。
 
-- 数学预处理基线：`offline-spectral-v3`。
-- 时频数据契约：`spectrogram-v2`。
-- 可配置接口标识：`spectrogram-v2-configurable`。
+## 坐标与数组
 
-`spectrogram-v2` 修改的是时间坐标、矩阵、单位和质量状态的表达，不代表 v3 的滤波、PSD 或频段积分发生变化。
+时间、频率轴和矩阵形状必须一起读取。基础时频矩阵按时间与频率组织，动态外层还包含分析窗口；以输出声明和 artifact 轴元数据为准。时间中心、窗口起点、内部相对时间及录制绝对时间不能混用。
 
-## 计算步骤
+共享基础契约使用 4 s Hann 内部段、1 s 步长。若有效区间为 10–40 s 且采用该参数，完整内部窗为 10–14、11–15 至 36–40，共 27 行，中心为 12–38 s。可配置频率输出与预滤波分别声明；不能将这个示例当成所有请求固定 1–30 Hz。
 
-```text
-整段原始 EEG (V)
-  → offline-spectral-v3 整段 1–30 Hz 零相位预处理
-  → 截取请求的实际时间范围
-  → 4 s 窗口，以 1 s 步长滑动
-  → 每窗去均值、Hann 加窗、rFFT
-  → 单边 PSD density 归一化
-  → 保留 1–30 Hz
-  → V^2/Hz 转 uV^2/Hz
-```
+## 数值与失败
 
-长度为 `T` 秒时，完整窗口数是 `floor((T-4)/1)+1`。例如 10–40 s 共 30 s，窗口为 10–14、11–15，直到 36–40，共 27 个时间 bin。
+线性功率与 dB 各带单位；`uV^2/Hz` 线性功率的 dB 表示为 `10*log10(P/(1 uV^2/Hz))`。不能对已经是 V²/Hz 的数组直接套用显示 dB 标尺。
 
-## 时间轴和矩阵
+同一预处理信号、样本、去均值、窗函数与归一化下，单个 FFT 行可以与相同单段 PSD 比较；Welch 多段平均与任意时频行通常不等价。
 
-时间坐标是窗口中心，不是窗口起点。10–14 s 的中心为 12 s。响应矩阵按 `time × frequency` 组织，`matrix_shape = [time_bins, frequency_bins]`，每个通道各有一份矩阵。
+坏窗和缺样要保留真实坐标与状态，不删除时间轴后挪动后续窗口，不以零功率填补。JSON 中不可用值与 artifact 中非有限数组的表达分别服从结果契约。
 
-质量失败的窗口不会被删除：时间中心保留，对应功率使用 NaN/非有限值，`quality.windows` 给出 `bad` 及原因。这样热力图不会因为坏窗而把后续时间向左移动。共享质量原因包括 `non_finite`、`amplitude_threshold`、`flatline`、`clipping` 和 `missing_samples`；阈值和实现身份随 Run provenance 记录。质量失败不得伪装为零功率。
+## WPF 消费
 
-## 单窗校验
-
-时频窗在 FFT 前执行 constant detrend（逐通道去均值），与 `offline-spectral-v3` 的单个 4 s Welch segment 一致。因而对同一预处理信号、同一通道和同一时间范围：
-
-```text
-spectrogram row @ 12.000 s
-  = static PSD @ 10.000–14.000 s
-```
-
-两者都保留 1.00–30.00 Hz 的 117 个原始线性 PSD 点。校验界面从后端分别获取矩阵行和静态单窗口 PSD，再报告最大绝对/相对误差；允许 IEEE 浮点舍入误差，但不允许算法参数、去均值、窗函数或频率轴差异被当作 PASS。
-
-## 两种功率表示
-
-- `power_linear`：`uV^2/Hz`，用于积分、验证和定量读取。
-- `power_db`：`dB re 1 uV^2/Hz`，只用于更易读的显示。
-
-若线性数值已经以 `uV^2/Hz` 表示，则：
-
-```text
-P_db = 10 × log10(P_linear)
-```
-
-其完整含义是 `10×log10(P / (1 uV^2/Hz))`。频段趋势由后端对每个时间窗的线性 PSD 做频率积分，单位 `uV^2`；前端不从热力图重新计算趋势。
-
-## 显示与数学分离
-
-前端可只展示 Delta、Theta、Alpha、Beta 或自定义 1–30 Hz 子区间，但后端保留完整频率矩阵。轴刻度抽稀、色标、hover、高亮和 ECharts 渲染不改变算法结果。
+WPF 只投影后端数组、时间与质量证据。完整 Run 窗口若缺少当前内部时间轴或预处理范围证据，返回 `FULL_WINDOW_CONTRACT_UNAVAILABLE`，要求重新计算，不补造 provenance。色标、缩放和显示抽点不改变科学数组。详见[结果指南](official-algorithm-development.md)。

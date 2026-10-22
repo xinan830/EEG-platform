@@ -19,8 +19,8 @@ The system has one source of truth for each responsibility:
 | Analysis provenance and scientific artifacts | backend persistence | desktop SQLite writes |
 
 The WPF client is the product owner for the Windows acquisition, review, and
-offline official-algorithm workspace. The Vue application is retained as a
-validation and contract-inspection surface only. WPF obtains the backend
+offline official-algorithm workspace. There is no current Vue frontend source
+tree in this repository. WPF obtains the backend
 algorithm catalog and submits completed recordings through HTTP; it never
 duplicates scientific formulas or writes backend persistence directly.
 
@@ -340,10 +340,13 @@ manual device checks are in
 
 For completed WPF recordings, the desktop registers an analysis view with
 `POST /api/recordings/register-wpf` and `signal_mode=acquisition_montage`.
-Its channel choices are the acquisition montage's saved outputs, in saved
-display order, not every raw EEG input. For example, a recording acquired with
-`F7-REF` and `F3-REF` exposes exactly those two analysis choices even when the
-device wrote more raw channels.
+The acquisition montage is the default analysis source. Algorithm details also
+offer official presets generated from the recording's saved ANT channel
+snapshot and compatible current user profiles. Candidates are deduplicated
+without replacing recorded mappings, then independently validated by the
+backend and saved as immutable analysis snapshots. Available outputs and
+ordered algorithm-role choices follow the selected snapshot; an unrecorded
+source channel cannot be invented.
 
 `acquisition_analysis_signals.py` verifies the immutable channel/montage
 snapshots against actual native inputs, labels, kinds, V units and hardware
@@ -352,11 +355,13 @@ specified-pair signals before continuous preprocessing. NaN gaps survive;
 missing or conflicting metadata returns `ACQUISITION_MONTAGE_UNVERIFIABLE`
 instead of guessing or silently exposing raw inputs.
 
-Review display-montage changes do not alter this analysis view. Runs persist
-source formulas, mapping, snapshot digest and reference mode; the source view
-also participates in cache identity. Raw files and historical raw-mode Runs
-remain unchanged. API callers omitting `signal_mode` retain legacy raw mode;
-the desktop does not currently expose an advanced raw-mode selector.
+Review display-montage changes do not alter the algorithm's analysis selection.
+Changing the algorithm montage does update the request, typed input, cache
+identity and provenance. Runs persist formulas, mapping, snapshot identity and
+reference mode. Raw files remain unchanged. API callers omitting `signal_mode`
+use the explicit raw registration mode; the desktop does not expose an
+advanced raw-mode selector. Current selection behavior is described in
+[the montage guide](../algorithms/03-montage.md).
 
 ## 9. Verification checklist
 

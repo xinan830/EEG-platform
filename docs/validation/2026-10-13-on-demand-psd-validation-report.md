@@ -12,7 +12,7 @@ P4 逐算法迁移，GUI 留到最后统一验收；不因此宣称整体已验�
 沿用旧路径的 NaN 传播行为，不能将“完整路径等价”解释为“gap 两侧都有有效结果”。
 若改变分段滤波规则，必须另建科学契约变更和数值对照，不能作为本次性能补丁。
 
-范围来自 [OpenSpec 设计](../../openspec/changes/on-demand-dynamic-analysis/design.md)。
+范围来自 [OpenSpec 设计](../../openspec/changes/archive/2026-10-16-on-demand-dynamic-analysis/design.md)。
 仅 PSD 声明按需能力，其他 8 种算法维持旧完整 Run。原始文件只读，全部诊断数据库、
 完整 Run 对照产物和新窗口产物在临时目录创建，测试结束清理，不写入真实源目录。
 

@@ -1,32 +1,23 @@
-# EEG 算法归档
+# 算法与数据处理文档
 
-本目录是项目算法的可追溯索引。文档只描述当前代码已经实现的事实；“计划”与“建议”必须明确标注，不能当作当前结果。
+本文档组描述当前实现。先按问题选择入口，避免将历史验证报告当成当前参数说明。
 
-## 文档索引
+| 问题 | 阅读入口 |
+| --- | --- |
+| 新增算法、维护与排查 | [官方算法接入指南](official-algorithm-development.md) |
+| 谁管理什么、三种策略、复用能力 | [管理基线](official-algorithm-management.md) |
+| 九算法模块、输入和输出归属 | [执行清单](official-algorithm-execution-inventory.md) |
+| 按需能力及验证入口 | [按需能力矩阵](on-demand-dynamic-capability-matrix.md) |
+| 原始数据到算法 | [数据链路](01-data-pipeline.md) |
+| 显示滤波与分析滤波 | [显示滤波](02-display-filter.md) |
+| 导联配置与分析导联联动 | [导联](03-montage.md) |
+| 频谱及各指标 | [频谱与离线指标](04-spectral-metrics.md) |
+| 采集、回放与离线分析边界 | [实时与离线](05-realtime-vs-offline.md) |
+| 独立参考、回归与证据 | [验证](06-validation.md) |
+| 后端/WPF 代码路径 | [实现地图](07-implementation-map.md) |
+| 时频轴、矩阵及功率 | [STFT](08-spectrogram.md) |
+| 静态、动态与窗口时间 | [运行方式](09-analysis-modes-and-time.md) |
+| 波形、游标与渲染 | [播放渲染](10-playback-rendering.md) |
+| API、版本和单位 | [接口边界](11-api-contracts-and-units.md) |
 
-1. [数据契约与处理流水线](01-data-pipeline.md)
-2. [显示滤波](02-display-filter.md)
-3. [Montage 与参考导联](03-montage.md)
-4. [频谱与离线指标](04-spectral-metrics.md)
-5. [实时分析与回放差异](05-realtime-vs-offline.md)
-6. [验证、复现与黄金值](06-validation.md)
-7. [实现地图与风险清单](07-implementation-map.md)
-8. [时频图算法与数据契约](08-spectrogram.md)
-9. [静态、动态与时间刷新语义](09-analysis-modes-and-time.md)
-10. [波形播放与覆盖式扫屏](10-playback-rendering.md)
-11. [API、版本与单位契约](11-api-contracts-and-units.md)
-12. [官方算法统一管理与新增算法清单](official-algorithm-management.md)
-
-## 版本原则
-
-- 显示滤波与离线分析是两个不同算法契约，不能用一个版本号代替另一个。
-- 原始 BDF/EDF 只读保存；滤波、参考和指标均产生派生数据。
-- 逐点电压比较必须同时固定采样率、滤波器类型、阶数、相位、边界处理、参考和处理顺序。
-- 当前验证状态是工程验证，尚未完成临床验证或医疗器械合规验证。
-
-## 阅读路径
-
-- 核对一个数值如何得到：先读 01、04，再读 06。
-- 核对静态/动态分析为何在某时刻刷新：读 09。
-- 核对时频矩阵、时间中心或 dB：读 08、11。
-- 核对播放页、缩放、擦除带：读 10。播放渲染不参与任何分析数值。
+公共行为以当前 OpenSpec 为准；人工说明发现冲突时应修订或记录差异。原始记录不可变，官方算法仅维护当前版本。数值验证和 GUI 验收分别记录，工程通过不代表临床有效性。

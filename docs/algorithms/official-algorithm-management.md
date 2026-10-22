@@ -34,7 +34,7 @@
 
 矩阵按当前 manifest 与专项证据核对。九算法 combined 由 `test_official_combined_strategies.py` 的真实队列/窗口服务合成集成测试及 WPF `OfficialCombinedStrategyTests` 验证；覆盖数值、状态、质量、范围、provenance 和双向取消隔离。PSD/STFT 的 on-demand→full 由 `test_official_directional_reuse.py` 对照无缓存全量，并检查损坏证据重算。其余复用方向的 unsupported 声明不变。能力构造器缺省仍为 unvalidated，新算法必须显式提交自己的证据。
 
-这些 validated 状态限定为可重跑的工程验证，不代表九算法已完成真实长记录压力或临床验证。真实记录组合压力证据仍仅明确覆盖 PSD（`docs/validation/2026-10-17-background-full-orchestration-real-psd.md`）。
+这些 validated 状态限定为可重跑的工程验证，不代表所有真实长记录、导联与滤波组合均通过压力或临床验证。2026-10-21 的九算法真实记录服务测量见 `docs/validation/2026-10-21-official-algorithm-real-recording-pressure.json`，仅证明该记录与环境。专门的真实记录组合调度压力报告见 PSD 的 `docs/validation/2026-10-17-background-full-orchestration-real-psd.md`；不能将其推广为九算法的完整组合压力结论。
 
 可机读、由回归测试核对的当前策略和契约矩阵见
 [official-algorithm-strategy-matrix.json](../validation/official-algorithm-strategy-matrix.json)。它冻结九个模块的 manifest、参数 schema、输出 schema 指纹，并逐条标出验证测试；只有共享生命周期证据的路径不能据此宣称算法专属数值等价。
@@ -72,7 +72,7 @@ Retired versions remain identifiable when their stored metadata is present, so a
 
 ## 历史导联选择与 Run 联动
 
-算法详情提供两个选择器。“导联配置”默认采用采集配置，并包含当前设置中与记录实际 native 通道映射兼容的 profile；候选经桌面筛选后，仍必须由后端校验设备、完整通道映射、硬件 REF/GND、公式依赖和 V 单位。后端按 recording 保存独立内容寻址快照；后续全局 profile 修改不会改变记录快照，原始采集 manifest/chunk 保持不变。“分析导联”由选定快照和算法输入角色生成。切换配置会保留角色并更新输出名称及 Run 科学配置修订。单通道算法映射其声明的角色；FAA、Brainbeat 等多输入算法逐角色映射并保留输入顺序，缺少角色时结构化拒绝。
+算法详情提供两个选择器。“导联配置”默认采用采集配置，合并基于记录保存的官方 ANT 通道快照生成的预设，以及兼容的当前用户 profile；生成预设不依赖用户目录是否已持久化，同 ID 的当前配置不得覆盖记录映射。候选经桌面筛选后，仍必须由后端校验设备、完整通道映射、硬件 REF/GND、公式依赖和 V 单位。后端按 recording 保存独立内容寻址快照；后续全局 profile 修改不会改变记录快照，原始采集 manifest/chunk 保持不变。“分析导联”由选定快照和算法输入角色生成。切换配置会保留角色并更新输出名称及 Run 科学配置修订。单通道算法映射其声明的角色；FAA、Brainbeat 等多输入算法逐角色映射并保留输入顺序，缺少角色时结构化拒绝。
 
 Run 将配置 id/revision/fingerprint、角色到输出、源通道映射及公式纳入请求身份、缓存身份和 provenance。后端从原始采集样本按所选且已验证的历史/分析快照投影，算法包仍负责自己的科学计算。原始数据只读。阅图显示导联独立于分析导联，显示设置改变不会改变算法请求或触发重算。旧记录可在重新注册并通过兼容性校验后获得当前 profile 的独立分析快照；不允许以当前配置静默推断未提交的导联。
 

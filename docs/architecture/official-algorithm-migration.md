@@ -1,91 +1,13 @@
-# Official Algorithm Migration (Historical Record)
+# 官方算法版本与执行边界
 
-This is a historical decision record. The shadow implementations and CLI
-examples below are retired and no longer runnable. Current execution and
-validation follow [official algorithm management](../algorithms/official-algorithm-management.md).
+更新日期：2026-10-22。本文件保留目录元数据引用的稳定路径，内容为当前边界；早期 shadow 迁移草案已由本说明替换。
 
-## Scope
+官方算法通过独立模块和共享 Runtime 执行，不通过 Definition 图执行器。九算法由 `backend/app/algorithms/builtin_modules.py` 组合，manifest 负责科学版本、实现身份与显式 current；当前每个官方 ID 只允许一个 current。
 
-Change 04 originally introduced immutable official-definition records and
-backend-only shadow comparisons. Later bounded changes enabled traceable
-offline Runs for IAPF, Theta/Beta, RBP and FAA; they did not switch public
-spectrum, spectrogram, Viewer, or legacy realtime output to a definition
-executor.
-`PASS` means that the compared numerical contract agrees under its stated
-engineering tolerance.  It is not evidence of clinical validity.
+版本升级后不执行或解释退休科学版本，不添加历史结果 reader、转换器、双写或专属 UI。保存的原始数据、Run/artifact 字节不因此删除；保留字节不意味着当前应用能解释退休格式。
 
-## Official definitions
+Definition 版本和 digest 是不可变存储元数据，与科学版本、实现身份、结果格式分别管理。不能通过版本字符串排序或读取旧 Definition graph 来选择当前算法。
 
-On demand, `ensure_official_definitions()` stores and publishes `1.0.0`
-records owned by `platform-official`.  The RBP definition is a normal graph of
-closed primitives. FAA and BrainBeat use an explicitly declared
-`official_composite_shadow_only` boundary because the generic graph engine
-cannot faithfully express all of their semantics yet. IAPF and Theta/Beta use
-the separate `official_composite_run_adapter` path: they remain composite
-algorithms, but run through their owned backend modules rather than a
-simplified generic graph.
+历史 shadow 模块、实时 Brainbeat EMA、旧多通道指标组合及其比较 CLI 已退休，不能按历史报告中的命令运行。
 
-| Metric | Current contract | Migration boundary |
-| --- | --- | --- |
-| RBP | `offline-spectral-v3` PSD, interpolated bands, 1-30 Hz denominator | executable static runtime; four returned band shares |
-| Theta/Beta | IAPF-relative bands for one explicitly selected raw channel | executable composite adapter; no Fz/Pz/Oz mapping prerequisite |
-| FAA | explicit raw F3/F4 sources, exact requested absolute range, 2 s paired epochs, 50% overlap, min 10 clean epochs | executable static runtime; paired quality |
-| BrainBeat | legacy realtime 2 s Welch plus three-frame log-domain EMA warmup | formula and EMA shadow separately; not an offline Run |
-| IAPF | 3-30 Hz log10 1/f OLS excluding 7-13 Hz; residual Peak then COG | executable composite adapter |
-
-No definition graph is allowed to silently change a composite metric into a
-different static calculation. IAPF and Theta/Beta have separate adapter
-evidence; FAA and BrainBeat still require their own future cutover evidence.
-
-## Shadow evidence
-
-`backend/app/eeg_core/official_algorithms/validation/` is deliberately
-backend-only. The candidate implementations do not call production helpers
-for the calculation being verified:
-
-- RBP uses typed primitive composition against the legacy band integrals.
-- FAA performs its own paired 2 s Hann FFT and alpha integration.
-- BrainBeat performs independent inclusive integrations and separately models
-  the log-domain EMA state machine.
-- IAPF uses an independent least-squares fit and residual Peak/COG decision.
-- Theta/Beta uses independent interpolated-boundary integration and does not
-  reuse the BrainBeat ratio.
-
-`backend/scripts/run_official_algorithm_shadows.py` persists finite comparisons
-as `ValidationRun` records. It stores only recording identity hashes, sizes,
-configuration digests, summaries, tolerances, and environment. It never stores
-source filename or EEG samples. Example:
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe scripts\run_official_algorithm_shadows.py <recording_id> --start-s 0 --window-s 30
-```
-
-The **legacy shadow script** evaluates its historical Fz/Pz/Oz bundle and
-therefore needs a logical `Oz` mapping. If the recording does not already
-contain one, the command must receive an explicit raw source choice:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\run_official_algorithm_shadows.py <recording_id> --posterior-source Oz
-```
-
-The legacy shadow script never treats `O2`, a third selected channel, or a
-similarly named label as `Oz` without that explicit mapping. This does not
-apply to the executable Theta/Beta v2 Run, which analyses its one selected raw
-channel directly. Neither rule claims the electrodes are interchangeable.
-
-## Tolerances and cutover rule
-
-Default numerical comparison tolerance is `rtol=1e-7`, `atol=1e-9` in the
-metric's native unit. Unavailable/gate-failed values remain unavailable with a
-reason; they are never converted to zero merely to create a comparison array.
-
-Current outputs retain their existing implementation identity:
-
-- offline spectral results: `offline-spectral-v3`;
-- legacy realtime BrainBeat: `realtime-eegprocessor-v1`.
-
-This change therefore establishes migration evidence, not a public result-path
-cutover. A future change may switch one metric only after it has matching
-synthetic and appropriately mapped local-data evidence for the exact pipeline
-being replaced.
+当前接入步骤见[作者指南](../algorithms/official-algorithm-development.md)，能力见[管理基线](../algorithms/official-algorithm-management.md)，数值与验收范围见[验证索引](../validation/README.md)。新的公式变更需独立冻结科学契约与验证，不能混入文档整理。

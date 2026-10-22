@@ -2,10 +2,9 @@
 
 ## Scope
 
-Change 06 turns the local analysis Run resource into a persistent single-worker
-queue and adds a non-identifying research hierarchy. It preserves the Viewer,
-configured PSD, Spectrogram, and legacy analysis endpoints. This is a local
-single-user workstation feature, not multi-tenant research data management.
+The backend provides a persistent single-worker Run queue and a non-identifying
+research hierarchy. These APIs support a local single-user workstation; their
+presence does not imply every workflow has a dedicated WPF screen.
 
 ## Local Research Hierarchy
 
@@ -15,7 +14,7 @@ birthdates, addresses, or other participant identity data. `Condition` is an
 optional project-scoped experimental label. `Session` connects a Project,
 Subject, existing immutable Recording, and optional Condition.
 
-The BDF/EDF source remains in the global recording store. A Session references
+The registered source remains in its recording store. A Session references
 its stable recording ID and never moves, copies, or overwrites source data.
 Project text and local codes are not added to artifact filenames or scientific
 configuration digests.
@@ -66,4 +65,5 @@ cancellation and retry delegate to the child Run lifecycle.
 
 The queue has one local worker by design. There is no browser execution,
 distributed scheduler, PII storage, arbitrary Python, multi-user permission
-model, or clinical conclusion. Outputs and exports remain Change 07.
+model, or clinical conclusion. Current result and export behavior is described
+in [Results, Validation, and Export](results-validation-and-export.md).

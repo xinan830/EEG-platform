@@ -64,9 +64,11 @@ Welch 使用 4 s Hann 窗、50% 重叠、2 s 步长，仅平均通过质量检�
 
 | 证据 | 路径 | SHA-256 |
 | --- | --- | --- |
-| E1：158 次全通道运行及逐输出误差 | [all_channels_all_algorithms.json](../../_verify/all_channels_all_algorithms.json) | 4b26173511ef064cee143b76adb2ead3fa2fbfa8568837c84bc4856e559f32cf |
-| E2：18 次默认通道全段运行 | [all_algorithms_full_recording.json](../../_verify/all_algorithms_full_recording.json) | 094f656ca5afc4b328f381fbe841dbbec25a4d79e54b85098073ae2076f5a981 |
-| E3：18 次前 30 s 复核 | [all_algorithms_30s_reference.json](../../_verify/all_algorithms_30s_reference.json) | 96945c39f4bc30abe1f108f80a755a38fdec315d757116184c15a8deec218362 |
+| E1：158 次全通道运行及逐输出误差 | `all_channels_all_algorithms.json` | 4b26173511ef064cee143b76adb2ead3fa2fbfa8568837c84bc4856e559f32cf |
+| E2：18 次默认通道全段运行 | `all_algorithms_full_recording.json` | 094f656ca5afc4b328f381fbe841dbbec25a4d79e54b85098073ae2076f5a981 |
+| E3：18 次前 30 s 复核 | `all_algorithms_30s_reference.json` | 96945c39f4bc30abe1f108f80a755a38fdec315d757116184c15a8deec218362 |
+
+上述 `_verify` 文件属于当时的本机证据，当前仓库未包含；表中保留历史文件名与 checksum，不能据此声称当前可直接重放。下方命令也依赖当时的本机脚本。
 
 E1/E2 支持本次“默认角色动态及全部导联静态数值一致”的结论；E3 与旧参考脚本解释 PSD 差异来源。数据流为：原始文件/采集快照 -> 导联投影 -> 连续预处理 -> 质量筛选 -> 算法 -> Run/Artifact -> 独立比较。临时目录中的 Run 数据库和完整 Artifact 验证后自动清理，报告保留比较结果、参数和校验摘要。
 

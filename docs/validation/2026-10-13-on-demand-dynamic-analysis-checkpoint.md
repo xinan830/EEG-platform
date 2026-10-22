@@ -4,7 +4,7 @@
 
 以下原有章节是同日较早的检查点，不代表当前缺口。最新证据见
 [PSD 验证报告](2026-10-13-on-demand-psd-validation-report.md) 与
-[OpenSpec tasks](../../openspec/changes/on-demand-dynamic-analysis/tasks.md)。
+[OpenSpec tasks](../../openspec/changes/archive/2026-10-16-on-demand-dynamic-analysis/tasks.md)。
 
 截至最后一轮：backend 604/604，WPF 611/611，Release 0 errors（6 个既有 NU1701），
 strict/file-size/diff 均通过。retry generation、真实 OS kill/restart 自主恢复、详情 target

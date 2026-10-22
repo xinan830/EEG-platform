@@ -62,10 +62,10 @@ $env:BRAIN_WPF_ON_DEMAND_BRAINBEAT="1"
 
 ## 关联证据与维护范围
 
-- [实施任务](../../openspec/changes/on-demand-dynamic-analysis/tasks.md)：保留未验证项。
+- [实施任务](../../openspec/changes/archive/2026-10-16-on-demand-dynamic-analysis/tasks.md)：保留该阶段未验证项的记录。
 - [算法能力矩阵](../algorithms/on-demand-dynamic-capability-matrix.md)：科学边界和当前状态。
 - [2026-10-14 自动化报告](2026-10-14-on-demand-dynamic-analysis-final.md)：历史测试与构建证据，不改写其日期或数字。
-- [PSD 共享身份任务](../../openspec/changes/share-offline-scientific-window-identity/tasks.md)、[STFT 共享身份任务](../../openspec/changes/share-stft-offline-scientific-window-identity/tasks.md)：后续自动化及跨模式复用证据。
+- [PSD 共享身份任务](../../openspec/changes/archive/2026-10-16-share-offline-scientific-window-identity/tasks.md)、[STFT 共享身份任务](../../openspec/changes/archive/2026-10-16-share-stft-offline-scientific-window-identity/tasks.md)：后续自动化及跨模式复用证据。
 
 最初仅文档同步时没有重跑后端/WPF 全量测试。后续默认开放改动的回归、构建和验证边界独立记录于
 [下拉选择验证](2026-10-15-offline-analysis-dropdown.md)，不把自动化回归写成人工数值或性能结论。

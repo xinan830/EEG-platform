@@ -254,15 +254,6 @@ def test_retired_calculators_are_not_imported_by_product_code() -> None:
         assert "offline_analysis" not in path.read_text(encoding="utf-8"), path
 
 
-def test_audit_documents_legacy_deletion_gate() -> None:
-    document = ROOT.parent / "docs" / "architecture" / "algorithm-runtime-reset-audit.md"
-    text = document.read_text(encoding="utf-8")
-    assert "Historical Run retrieval" in text
-    assert "ChannelMapping" in text
-    assert "forwarding adapters had moved" in text
-    assert "machine-checked" in text
-
-
 def test_generic_run_services_do_not_import_algorithm_science_implementations() -> None:
     services = ROOT / "app" / "services"
     for path in services.glob("*.py"):

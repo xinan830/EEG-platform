@@ -1,38 +1,24 @@
-# 实现地图与风险清单
+# 算法实现地图
 
-## 关键代码
+所有路径相对仓库根目录。目录参数 `<id>` 表示具体算法包，不是通配加载或插件入口。
 
-- Recording 导入、身份与阅图窗口：`backend/app/services/recordings.py`
-- 离线 PSD、时频图与配置分析编排：`backend/app/services/spectral_analysis.py`
-- AnalysisRun、Artifact 与持久队列：`backend/app/services/runs.py`、`backend/app/services/run_queue.py`
-- SQLite 连接与迁移：`backend/app/persistence/database.py`、`backend/app/persistence/migrations.py`
-- 回放会话：`backend/app/services/waveform_playback.py`
-- 显示滤波：`backend/app/services/waveform_filter.py`
-- Montage：`backend/app/services/montage.py`
-- API 模型：`backend/app/models/montage.py`
-- 离线预处理与 PSD：`backend/app/scientific/primitives/spectral.py`
-- IAPF、Theta/Beta 与其他官方算法：`backend/app/algorithms/<id>/`
-- FAA：`backend/app/algorithms/faa/official.py`
-- 当前科学契约：`backend/app/scientific/contracts/analysis.py`
-- Definition 校验：`backend/app/definitions/validation.py`（不执行图或公式）
-- 配置分析请求模型：`backend/app/models/analysis_config.py`
-- 频谱/时频 API 路由：`backend/app/api/recordings.py`
-- 静态/动态频谱状态：`frontend/src/composables/useSpectrum.ts`
-- PSD 图与频段图：`frontend/src/components/SpectrumPsdChart.vue`、`BandPowerChart.vue`
-- 时频图与趋势图：`frontend/src/components/SpectrogramChart.vue`、`BandPowerTrendChart.vue`
-- 波形播放渲染：`frontend/src/workers/waveformRenderer.worker.ts`
-- 时间分页与缩放纯函数：`frontend/src/utils/waveformViewport.ts`
+| 职责 | 路径 |
+| --- | --- |
+| 九算法身份、参数和独立计算 | `backend/app/algorithms/<id>/` |
+| 唯一后端组合表 | `backend/app/algorithms/builtin_modules.py` |
+| typed 输入/结果、能力及校验 | `backend/app/algorithm_runtime/` |
+| 记录到算法输入的适配 | `backend/app/services/algorithm_recording_context.py` |
+| 连续预处理与谱服务 | `backend/app/services/spectral_analysis.py` |
+| 共享谱计算及 band power | `backend/app/scientific/primitives/spectral.py` |
+| Run 入口和生命周期 | `backend/app/api/runs.py`、`backend/app/services/runs.py` |
+| 按需窗口 HTTP | `backend/app/api/analysis_windows.py` |
+| 通用结果序列化 | `backend/app/services/run_result_serialization.py` |
+| 当前结果格式边界 | `backend/app/models/current_algorithm_result.py` |
+| WPF 算法工作区 | `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/` |
+| WPF UI/detail 注册 | `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Shared/AlgorithmUiRegistry.cs` |
+| WPF Run handler 注册 | `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Shared/AlgorithmRunResultHandlerRegistry.cs` |
+| 基于记录的导联候选 | `desktop-client/BrainPlatform.Desktop/Modules/Review/Montages/RecordingMontageCatalog.cs` |
 
-## 已知风险
+新增算法遵循[作者指南](official-algorithm-development.md)，不在通用层加入按 ID 分支的公式。出现新输入来源或结果形状时，单独扩展 typed 契约。
 
-1. `custom_bipolar` ID 名称历史遗留，后续可迁移为 `custom_linear`，需兼容旧客户端。
-2. 显示因果滤波与离线零相位滤波数值不应混比。
-3. AVG 排除集合若未随结果返回，用户无法复现数值；API 应持续返回完整设置快照。
-4. 当前算法版本是工程验证版，不是临床验证或合规声明。
-5. 400 行是软上限；超过阈值按 `docs/code-size-policy.json` 登记职责评估，不机械拆分。
-6. 旧实时频谱、shadow 比较和旧三通道指标组合已删除；核对当前结果请使用各算法 manifest、科学实现与独立数值基线。
-7. 覆盖式扫屏保留的上一页像素只用于视觉背景；若未来加入测量或 tooltip，必须只访问当前页真实样本。
-
-## 变更要求
-
-算法参数、调用顺序、单位、参考集合或质量门发生变化时，必须建立 OpenSpec change，同步当前规格、测试和版本身份。历史 `docs/archive/change-notes/` 只用于排查既往背景。
+排查依次核对：请求/Run/window → 源 checksum → 导联快照与角色顺序 → 样本范围/滤波身份 → 模块中间量与质量门 → artifact 与 WPF 投影。历史报告中的旧路径不作为当前入口。

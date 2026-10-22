@@ -1,5 +1,7 @@
 # analysis/official-algorithm-migration Specification
 
+> 状态：历史迁移阶段规范。下方 shadow 比较条款记录当时的切换门槛，已由 [退役实现移除规范](../retired-algorithm-removal/spec.md)取代，不再要求提供 shadow 计算器或旧版本。当前输入/结果边界见 [算法 Runtime](../algorithm-runtime/spec.md)；空间角色、不可伪造数值等仍有效的约束按当前规范执行。此次仅补充状态导航，不重新启用或修改科学行为。
+
 ## Purpose
 Migrate official algorithms by auditable shadow computation without changing
 current official results before metric-specific validation passes.

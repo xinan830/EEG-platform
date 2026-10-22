@@ -1,45 +1,35 @@
-# API、版本与单位契约
+# 算法 API、版本与单位
 
-## 可配置请求
+## 入口分工
 
-`POST /api/recordings/{recording_id}/spectrum/configured` 与 `/spectrogram/configured` 使用同一请求模型：
+| 入口 | 责任 |
+| --- | --- |
+| `GET /api/algorithms` | 当前算法身份、参数与能力目录 |
+| `POST /api/runs` | 持久化并排队执行完整 Run |
+| `GET /api/runs/{run_id}` | 生命周期与结果摘要 |
+| `GET /api/runs/{run_id}/result` | 经当前格式校验的结果视图 |
+| `POST /api/analysis-windows/ensure` | 按游标及模块能力获取单窗 |
+| `POST /api/recordings/{recording_id}/spectrum/configured`、`/spectrogram/configured` | 记录级可配置谱端点；不是九算法 Run 的统一请求 schema |
 
-```json
-{
-  "mode": "static",
-  "channels": ["F3", "Fz", "Pz"],
-  "time": { "start_s": 10.0, "end_s": 40.0 },
-  "dynamic_window_s": 10,
-  "refresh_step_s": 1
-}
-```
+请求字段和约束以当前 Pydantic schema、模块 config 与 OpenAPI 为准，不复制一份可能漂移的通用 JSON 模板。动态窗口规则不能从某个记录级谱端点推导到所有算法。
 
-`mode` 可为 `static`、`dynamic`、`spectrogram`；通道非空、去首尾空格后不得重复；分析区间至少为 4 s，且不得超过录音实际时长，没有固定最大秒数。动态窗口和刷新步长由所选算法的 `dynamic_policy` 决定，不继承分析区间上限。`custom_frequency_range` 仅用于 spectrogram，且必须在 1–30 Hz 内、上限大于下限。
+## 身份与格式
 
-## 版本字段
+科学版本、模块实现身份、Definition 不可变版本/digest、处理契约和结果格式是不同身份。配置 hash 不能代替源文件 checksum。官方版本由显式 current 解析，不按版本字符串猜“最新”。
 
-| 字段 | 含义 |
-|---|---|
-| `analysis_algorithm_version` | 滤波、PSD、Band Power、RBP 数学基线，当前为 `offline-spectral-v3` |
-| `spectrogram_contract_version` | 时频时间轴、矩阵、单位和质量语义，当前为 `spectrogram-v2` |
-| `algorithm_version` | 当前端点/配置包装版本，例如 `offline-spectral-v4-configurable` 或 `spectrogram-v2-configurable` |
-| `analysis_config_hash` | 规范化请求配置 SHA-256 的前 12 位大写摘要，用于追踪，不是数据文件哈希 |
-
-配置端点返回 `requested_config` 和 `execution_config`，并回显 requested/actual 时间范围、采样率、通道顺序、算法参数和质量统计。调用方应展示 actual range，不能假设请求范围一定原样执行。
+完整官方结果为 `official-algorithm-result-v1`；标量动态为 `dynamic-analysis-frame-v6`。只消费当前 canonical 输出和显式状态，不解析退休格式。不合法的已完成官方结果按 `ALGORITHM_RESULT_INVALID` 失败，不自动转换。
 
 ## 单位
 
-| 数据 | 内部单位 | API/显示单位 |
-|---|---|---|
-| 原始与预处理 EEG | V | 波形 `uV` |
-| PSD density | `V^2/Hz` | `uV^2/Hz` |
-| 频段积分功率 | `V^2` | `uV^2` |
-| RBP | 比值 | 0–1，界面可格式化为 % |
-| Spectrogram dB | 不作为计算主值 | `dB re 1 uV^2/Hz` |
-| FAA | 对数功率差 | 无量纲 |
+| 数据 | 契约 |
+| --- | --- |
+| 时序算法输入 | V/float64，samples × channels |
+| 波形 API/显示 | 显式声明 µV，不能再重复乘 10⁶ |
+| 科学 PSD / band power | V²/Hz / V²；服务或展示可能声明 µV²/Hz / µV² |
+| RBP、比值、FAA | 按模块声明的无量纲值；百分比只是格式化 |
+| 频率、采样率 | Hz |
+| 时频 dB | 显式参考值，如 dB re 1 µV²/Hz |
 
-单位转换只在 API 边界执行一次：`V → uV` 乘 `10^6`，`V^2 → uV^2` 乘 `10^12`。前端只格式化，不重算 EEG 数学结果。
+换算只在有声明的边界做一次：V→µV 为 10⁶，功率单位为 10¹²。不能因所有字段都来自 API 就假定单位相同。范围/通道/轴顺序随结果保留，不可用科学值用 null 与原因表示。
 
-## 错误与边界
-
-静态范围越过文件末尾返回结构化 422，不应默默扩展或把不足区间报成完整区间。误差不超过一个采样周期的末端请求可按实际样本边界容忍并回显 actual range。错误响应依靠稳定 `code` 和 `request_id`，前端不得解析中文错误文本做控制流。
+HTTP 状态码、错误 code、request_id 与业务状态分别消费；不按中文消息做控制流。边界与取整规则按各请求契约精确核对，不添加通用的“一样本误差忽略”规则。
