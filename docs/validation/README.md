@@ -10,6 +10,7 @@
 - [九算法组合策略](2026-10-21-official-combined-strategies.md)：合成输入的数值、状态、范围、provenance 与取消隔离。
 - [九算法真实记录服务测量](2026-10-21-official-algorithm-real-recording-pressure.json)：该记录和环境的测量数据，不代表全部配置、长时间或硬件验收。
 - [PSD 真实记录组合调度压力](2026-10-17-background-full-orchestration-real-psd.md)：不可推广成九算法所有组合路径的压力证据。
+- [真实记录回归](real-recording-regression.md)：固定授权记录的 REF/AVG、九算法静态及动态重放、独立参考与不可覆盖基线。
 
 ## 受控冻结件
 

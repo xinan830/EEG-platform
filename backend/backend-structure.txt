@@ -1,0 +1,395 @@
+Backend: D:\AI\Work\brain-platform\backend
+
+|-- app
+|   |-- algorithm_runtime
+|   |   |-- __init__.py
+|   |   |-- contracts.py
+|   |   |-- errors.py
+|   |   |-- evidence.py
+|   |   |-- execution_control.py
+|   |   |-- executor.py
+|   |   |-- offline_execution.py
+|   |   |-- on_demand_lifecycle.py
+|   |   |-- on_demand_planning.py
+|   |   |-- on_demand_registry.py
+|   |   |-- on_demand_result_validation.py
+|   |   |-- on_demand.py
+|   |   |-- parameter_schema.py
+|   |   |-- registry.py
+|   |   |-- result_validation.py
+|   |   |-- scalar_window.py
+|   |   |-- signal_source.py
+|   |   |-- windows.py
+|   |-- algorithms
+|   |   |-- band_ratio
+|   |   |   |-- __init__.py
+|   |   |   |-- compute.py
+|   |   |   |-- config.py
+|   |   |   |-- manifest.py
+|   |   |   |-- runner.py
+|   |   |-- brainbeat
+|   |   |   |-- __init__.py
+|   |   |   |-- compute.py
+|   |   |   |-- config.py
+|   |   |   |-- manifest.py
+|   |   |   |-- official.py
+|   |   |   |-- runner.py
+|   |   |   |-- signal_source.py
+|   |   |   |-- window.py
+|   |   |-- faa
+|   |   |   |-- __init__.py
+|   |   |   |-- config.py
+|   |   |   |-- manifest.py
+|   |   |   |-- official.py
+|   |   |   |-- provenance.py
+|   |   |   |-- runner.py
+|   |   |   |-- signal_source.py
+|   |   |   |-- window.py
+|   |   |-- iapf
+|   |   |   |-- __init__.py
+|   |   |   |-- compute.py
+|   |   |   |-- config.py
+|   |   |   |-- manifest.py
+|   |   |   |-- official.py
+|   |   |   |-- runner.py
+|   |   |-- peak_frequency
+|   |   |   |-- __init__.py
+|   |   |   |-- compute.py
+|   |   |   |-- config.py
+|   |   |   |-- manifest.py
+|   |   |   |-- runner.py
+|   |   |-- psd
+|   |   |   |-- __init__.py
+|   |   |   |-- config.py
+|   |   |   |-- manifest.py
+|   |   |   |-- runner.py
+|   |   |-- rbp
+|   |   |   |-- __init__.py
+|   |   |   |-- config.py
+|   |   |   |-- manifest.py
+|   |   |   |-- official.py
+|   |   |   |-- runner.py
+|   |   |   |-- window.py
+|   |   |-- stft
+|   |   |   |-- __init__.py
+|   |   |   |-- config.py
+|   |   |   |-- evidence.py
+|   |   |   |-- manifest.py
+|   |   |   |-- runner.py
+|   |   |   |-- window.py
+|   |   |-- theta_beta
+|   |   |   |-- __init__.py
+|   |   |   |-- compute.py
+|   |   |   |-- config.py
+|   |   |   |-- manifest.py
+|   |   |   |-- runner.py
+|   |   |-- user_definition
+|   |   |-- __init__.py
+|   |   |-- builtin_modules.py
+|   |   |-- capabilities.py
+|   |   |-- catalog_contracts.py
+|   |   |-- catalog.py
+|   |   |-- completeness.py
+|   |   |-- spectral_snapshot.py
+|   |-- api
+|   |   |-- __init__.py
+|   |   |-- algorithm_presets.py
+|   |   |-- algorithms.py
+|   |   |-- analysis_windows.py
+|   |   |-- audit.py
+|   |   |-- batch_runs.py
+|   |   |-- events.py
+|   |   |-- extensions.py
+|   |   |-- live_filters.py
+|   |   |-- playback.py
+|   |   |-- projects.py
+|   |   |-- recordings.py
+|   |   |-- reports.py
+|   |   |-- results.py
+|   |   |-- runs.py
+|   |   |-- validations.py
+|   |-- bootstrap
+|   |   |-- __init__.py
+|   |   |-- builtin_registry.py
+|   |-- core
+|   |   |-- __init__.py
+|   |   |-- api_contract.py
+|   |   |-- config.py
+|   |   |-- logging_setup.py
+|   |   |-- provenance.py
+|   |   |-- recording_time.py
+|   |-- definitions
+|   |   |-- __init__.py
+|   |   |-- validation.py
+|   |-- eeg_core
+|   |   |-- official_algorithms
+|   |   |   |-- validation
+|   |   |-- primitives
+|   |   |   |-- __init__.py
+|   |   |   |-- compositions.py
+|   |   |   |-- math_nodes.py
+|   |   |   |-- registry.py
+|   |   |   |-- signal_nodes.py
+|   |   |   |-- spectral_nodes.py
+|   |   |   |-- types.py
+|   |   |   |-- units.py
+|   |   |-- __init__.py
+|   |-- legacy
+|   |-- models
+|   |   |-- __init__.py
+|   |   |-- algorithm_definition.py
+|   |   |-- algorithm_preset.py
+|   |   |-- analysis_config.py
+|   |   |-- analysis.py
+|   |   |-- batch_run.py
+|   |   |-- current_algorithm_result.py
+|   |   |-- extension_manifest.py
+|   |   |-- montage.py
+|   |   |-- official_algorithm_run.py
+|   |   |-- recording.py
+|   |   |-- research_project.py
+|   |   |-- result_window.py
+|   |   |-- run_read.py
+|   |   |-- run.py
+|   |   |-- spectral_validation.py
+|   |   |-- wpf_recording.py
+|   |-- persistence
+|   |   |-- repositories
+|   |   |   |-- __init__.py
+|   |   |   |-- algorithm_preset.py
+|   |   |   |-- definition.py
+|   |   |   |-- dynamic_attempt.py
+|   |   |   |-- dynamic_records.py
+|   |   |   |-- dynamic_window.py
+|   |   |   |-- run.py
+|   |   |-- __init__.py
+|   |   |-- analysis_montage_migration.py
+|   |   |-- clock.py
+|   |   |-- database.py
+|   |   |-- dynamic_identity_migration.py
+|   |   |-- migrations.py
+|   |   |-- on_demand_migrations.py
+|   |-- processing
+|   |   |-- __init__.py
+|   |-- scientific
+|   |   |-- contracts
+|   |   |   |-- __init__.py
+|   |   |   |-- analysis.py
+|   |   |   |-- types.py
+|   |   |-- primitives
+|   |   |   |-- __init__.py
+|   |   |   |-- block_filter.py
+|   |   |   |-- fourier.py
+|   |   |   |-- gateway.py
+|   |   |   |-- spectral.py
+|   |   |-- quality
+|   |   |   |-- __init__.py
+|   |   |   |-- spectral.py
+|   |   |-- __init__.py
+|   |   |-- authority_manifest.json
+|   |-- services
+|   |   |-- __init__.py
+|   |   |-- acquisition_analysis_signals.py
+|   |   |-- algorithm_presets.py
+|   |   |-- algorithm_recording_context.py
+|   |   |-- analysis_input_validation.py
+|   |   |-- analysis_montage_snapshots.py
+|   |   |-- analysis_preprocess_cache.py
+|   |   |-- analysis_provenance.py
+|   |   |-- artifacts.py
+|   |   |-- audit.py
+|   |   |-- batch_runs.py
+|   |   |-- current_algorithm_result.py
+|   |   |-- definitions.py
+|   |   |-- dynamic_window_artifacts.py
+|   |   |-- dynamic_window_identity.py
+|   |   |-- dynamic_window_resources.py
+|   |   |-- events.py
+|   |   |-- extension_governance.py
+|   |   |-- filter_checkpoint_cache.py
+|   |   |-- independent_spectral_reference.py
+|   |   |-- live_filter.py
+|   |   |-- mapped_preprocessing.py
+|   |   |-- montage.py
+|   |   |-- offline_window_reuse.py
+|   |   |-- on_demand_dynamic.py
+|   |   |-- on_demand_worker.py
+|   |   |-- prepared_source_contract.py
+|   |   |-- prepared_source_identity.py
+|   |   |-- projects.py
+|   |   |-- recording_identity.py
+|   |   |-- recording_samples.py
+|   |   |-- recordings.py
+|   |   |-- reports.py
+|   |   |-- result_window_index.py
+|   |   |-- results.py
+|   |   |-- run_analysis_executor.py
+|   |   |-- run_execution_context.py
+|   |   |-- run_queue.py
+|   |   |-- run_result_serialization.py
+|   |   |-- run_worker.py
+|   |   |-- runs.py
+|   |   |-- scientific_compute_coordinator.py
+|   |   |-- spectral_analysis.py
+|   |   |-- validations.py
+|   |   |-- waveform_filter.py
+|   |   |-- waveform_playback.py
+|   |   |-- waveform_wire.py
+|   |   |-- wpf_recording.py
+|   |-- __init__.py
+|   |-- main.py
+|   |-- server_entry.py
+|-- brain_platform_backend.egg-info
+|   |-- dependency_links.txt
+|   |-- PKG-INFO
+|   |-- requires.txt
+|   |-- SOURCES.txt
+|   |-- top_level.txt
+|-- scripts
+|   |-- audit_recording_algorithms.py
+|   |-- benchmark_spectral.py
+|   |-- check_file_sizes.py
+|   |-- recording_audit_reference.py
+|   |-- regression_recording.py
+|   |-- regression_reference.py
+|   |-- regression_store.py
+|   |-- summarize_strategy_validation.py
+|   |-- validate_combined_orchestration.py
+|   |-- validate_display_filter_independent.py
+|   |-- validate_montage_independent.py
+|   |-- validate_official_algorithms_hour_scale.py
+|   |-- validate_on_demand_metrics.py
+|   |-- validate_on_demand_psd.py
+|   |-- validate_on_demand_stft.py
+|   |-- validate_run_execution.py
+|   |-- validate_spectrum_reference.py
+|-- tests
+|   |-- fixtures
+|   |   |-- algorithm_runtime_baseline.json
+|   |-- combined_strategy_support.py
+|   |-- on_demand_fixtures.py
+|   |-- on_demand_process_probe.py
+|   |-- result_boundary_support.py
+|   |-- test_acquisition_analysis_signals.py
+|   |-- test_algorithm_frequency_contracts.py
+|   |-- test_algorithm_presets.py
+|   |-- test_algorithm_result_boundary.py
+|   |-- test_algorithm_robustness_audit.py
+|   |-- test_algorithm_runtime_architecture.py
+|   |-- test_algorithm_runtime_contracts.py
+|   |-- test_algorithm_runtime_registry.py
+|   |-- test_algorithms_catalog_api.py
+|   |-- test_analysis_config.py
+|   |-- test_analysis_input_validation.py
+|   |-- test_analysis_montage_snapshots.py
+|   |-- test_analysis_provenance.py
+|   |-- test_analysis_spectral_contract.py
+|   |-- test_api_contract.py
+|   |-- test_audit.py
+|   |-- test_batch_runs.py
+|   |-- test_block_preprocessing.py
+|   |-- test_brainbeat_algorithm.py
+|   |-- test_brainbeat_on_demand_capability.py
+|   |-- test_builtin_algorithm_registry.py
+|   |-- test_current_algorithm_result_contract.py
+|   |-- test_definition_repository.py
+|   |-- test_definition_validation.py
+|   |-- test_dynamic_attempt_admission.py
+|   |-- test_dynamic_scalar_failure_contract.py
+|   |-- test_dynamic_window_repository.py
+|   |-- test_events.py
+|   |-- test_execution_migrations.py
+|   |-- test_extension_governance.py
+|   |-- test_faa_continuous.py
+|   |-- test_faa_on_demand_capability.py
+|   |-- test_file_size_policy.py
+|   |-- test_filter_checkpoint_cache.py
+|   |-- test_filter_contract_regression.py
+|   |-- test_fourier_primitive.py
+|   |-- test_health.py
+|   |-- test_iapf_algorithm_module.py
+|   |-- test_independent_spectral_reference_validation.py
+|   |-- test_live_filter_api.py
+|   |-- test_live_filter_service.py
+|   |-- test_logging_setup.py
+|   |-- test_mapping_retirement.py
+|   |-- test_migrations.py
+|   |-- test_montage.py
+|   |-- test_official_algorithm_boundary_conditions.py
+|   |-- test_official_algorithm_extended_audit.py
+|   |-- test_official_algorithm_independent_references.py
+|   |-- test_official_algorithm_module_boundaries.py
+|   |-- test_official_algorithm_numeric_reference_audit.py
+|   |-- test_official_algorithm_runs.py
+|   |-- test_official_combined_strategies.py
+|   |-- test_official_definition_metadata.py
+|   |-- test_official_directional_reuse.py
+|   |-- test_official_strategy_validation_matrix.py
+|   |-- test_offline_execution_cancellation_isolation.py
+|   |-- test_offline_execution.py
+|   |-- test_offline_window_reuse.py
+|   |-- test_on_demand_admission.py
+|   |-- test_on_demand_availability.py
+|   |-- test_on_demand_dynamic_service.py
+|   |-- test_on_demand_failure_injection.py
+|   |-- test_on_demand_lifecycle.py
+|   |-- test_on_demand_migration.py
+|   |-- test_on_demand_output_schema.py
+|   |-- test_on_demand_process_recovery.py
+|   |-- test_on_demand_psd_api.py
+|   |-- test_on_demand_rbp_api.py
+|   |-- test_on_demand_registry.py
+|   |-- test_on_demand_resource_budgets.py
+|   |-- test_on_demand_scalar_api.py
+|   |-- test_on_demand_source_contracts.py
+|   |-- test_on_demand_window_contracts.py
+|   |-- test_peak_frequency_band_ratio.py
+|   |-- test_prepared_source_cache.py
+|   |-- test_prepared_source_contract.py
+|   |-- test_prepared_source_identity.py
+|   |-- test_preview_window.py
+|   |-- test_projects_api.py
+|   |-- test_provenance.py
+|   |-- test_psd_frequency_contract.py
+|   |-- test_psd_on_demand_capability.py
+|   |-- test_rbp_five_band_contract.py
+|   |-- test_rbp_on_demand_capability.py
+|   |-- test_recording_audit_reference.py
+|   |-- test_recording_service.py
+|   |-- test_reports.py
+|   |-- test_research_primitives.py
+|   |-- test_result_boundary_baseline.py
+|   |-- test_result_window_index.py
+|   |-- test_results_export.py
+|   |-- test_retired_algorithm_removal.py
+|   |-- test_retired_metric_playback.py
+|   |-- test_review_performance_report.py
+|   |-- test_run_api.py
+|   |-- test_run_controls.py
+|   |-- test_run_foundation.py
+|   |-- test_run_queue.py
+|   |-- test_runtime_algorithm_catalog.py
+|   |-- test_scalar_on_demand_capabilities.py
+|   |-- test_scientific_compute_coordinator.py
+|   |-- test_scientific_contracts.py
+|   |-- test_shared_compute_topology.py
+|   |-- test_signal_source_contract.py
+|   |-- test_spectral_quality.py
+|   |-- test_spectrum_api.py
+|   |-- test_spectrum_service.py
+|   |-- test_stft_frequency_ranges.py
+|   |-- test_stft_offline_reuse.py
+|   |-- test_stft_on_demand_capability.py
+|   |-- test_synthetic_recording_generator.py
+|   |-- test_theta_beta_v2.py
+|   |-- test_waveform_playback.py
+|   |-- test_waveform_wire.py
+|   |-- test_window_artifact_fallback.py
+|   |-- test_windowed_artifacts.py
+|   |-- test_wpf_recording.py
+|-- tools
+|   |-- generate_synthetic_24h_recording.py
+|   |-- generate_synthetic_stress_recording.py
+|-- brain_backend.spec
+|-- pyproject.toml
+|-- uv.lock
