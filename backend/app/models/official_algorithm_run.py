@@ -7,13 +7,23 @@ from pydantic import BaseModel, Field, model_validator
 from app.models.analysis_config import AnalysisTimeRange
 
 
+OfficialAlgorithmId = Literal[
+    "iapf", "theta_beta", "rbp", "faa", "brainbeat", "peak_frequency", "band_ratio", "psd", "stft",
+    "tnk_biofeedback",
+]
+
+
 class OfficialAlgorithmRunConfig(BaseModel):
-    algorithm_id: Literal["iapf", "theta_beta", "rbp", "faa", "brainbeat", "peak_frequency", "band_ratio", "psd", "stft"]
+    algorithm_id: OfficialAlgorithmId
     scientific_version: str | None = Field(default=None, min_length=1, max_length=160)
     time: AnalysisTimeRange
     channel: str | None = Field(default=None, min_length=1, max_length=160)
     f4_channel: str | None = Field(default=None, min_length=1, max_length=160)
     secondary_channel: str | None = Field(default=None, min_length=1, max_length=160)
+    tertiary_channel: str | None = Field(default=None, min_length=1, max_length=160)
+    fourth_channel: str | None = Field(default=None, min_length=1, max_length=160)
+    fifth_channel: str | None = Field(default=None, min_length=1, max_length=160)
+    tnk_role_mapping: dict[str, str] | None = None
     mode: Literal["static", "dynamic"] = "static"
     dynamic_window_s: float = Field(default=10, gt=0)
     refresh_step_s: float = Field(default=1, gt=0)
@@ -31,7 +41,15 @@ class OfficialAlgorithmRunConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_contract(self) -> "OfficialAlgorithmRunConfig":
-        if self.algorithm_id == "faa":
+        if self.algorithm_id == "tnk_biofeedback":
+            roles = {"Fz", "Pz", "Oz", "F3", "F4"}
+            mapping = self.tnk_role_mapping or {}
+            if set(mapping) != roles or any(not value.strip() for value in mapping.values()):
+                raise ValueError("TNK 脑指标组需要显式映射 Fz、Pz、Oz、F3、F4 五个通道角色")
+            channels = [mapping[role].casefold() for role in ("Fz", "Pz", "Oz", "F3", "F4")]
+            if len(set(channels)) != len(channels):
+                raise ValueError("TNK 五个脑电角色必须映射到不同的来源通道")
+        elif self.algorithm_id == "faa":
             if not self.channel or not self.f4_channel:
                 raise ValueError("FAA requires explicit F3 and F4 source channels")
             if self.channel.casefold() == self.f4_channel.casefold():
@@ -73,11 +91,13 @@ class OfficialAlgorithmRunConfig(BaseModel):
 
     def runtime_config(self) -> dict[str, Any]:
         config: dict[str, Any] = {
-            "channel": str(self.channel), "mode": self.mode,
+            "channel": str((self.tnk_role_mapping or {}).get("Fz") if self.algorithm_id == "tnk_biofeedback" else self.channel), "mode": self.mode,
             "start_s": float(self.time.start_s), "end_s": float(self.time.end_s),
             "window_s": float(self.dynamic_window_s), "step_s": float(self.refresh_step_s),
         }
-        if self.algorithm_id == "faa":
+        if self.algorithm_id == "tnk_biofeedback":
+            config["role_mapping"] = dict(self.tnk_role_mapping or {})
+        elif self.algorithm_id == "faa":
             config["f4_channel"] = str(self.f4_channel)
         if self.algorithm_id == "brainbeat":
             config["secondary_channel"] = str(self.secondary_channel)

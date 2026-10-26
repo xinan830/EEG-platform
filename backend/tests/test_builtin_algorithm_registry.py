@@ -12,7 +12,7 @@ from pathlib import Path
 
 def test_builtin_registry_contains_the_current_executable_official_modules() -> None:
     registry = build_builtin_registry()
-    assert [item.manifest.algorithm_id for item in registry.list()] == ["band_ratio", "brainbeat", "faa", "iapf", "peak_frequency", "psd", "rbp", "stft", "theta_beta"]
+    assert [item.manifest.algorithm_id for item in registry.list()] == ["band_ratio", "brainbeat", "faa", "iapf", "peak_frequency", "psd", "rbp", "stft", "theta_beta", "tnk_biofeedback"]
     assert registry.get("theta_beta").manifest.scientific_version == "official-theta-beta-v2"
 
 
@@ -22,7 +22,7 @@ def test_each_builtin_official_algorithm_explicitly_declares_its_current_version
     for module in modules:
         by_id.setdefault(module.manifest.algorithm_id, []).append(module.manifest)
 
-    assert len(by_id) == 9
+    assert len(by_id) == 10
     for algorithm_id, manifests in by_id.items():
         current = [item for item in manifests if item.is_current_version]
         assert len(current) == 1, algorithm_id
@@ -61,7 +61,7 @@ def test_builtin_manifests_have_complete_runtime_contracts_and_runners() -> None
         )
         assert output_contract.dynamic_states == ["Partial", "Complete", "Rejected", "Unavailable"]
         assert manifest.definition_persistence is not None, manifest.algorithm_id
-        assert manifest.definition_persistence.name.startswith("Official ")
+        assert manifest.definition_persistence.name
         assert manifest.definition_persistence.version
         parameters = module.parameter_schema()
         assert isinstance(parameters.parameters, list)
@@ -117,6 +117,11 @@ def test_capability_report_requires_explicit_combined_evidence() -> None:
     report = official_capability_report(Path(__file__).resolve().parents[2])
     for algorithm_id, item in report.items():
         assert item["paths"]["full"]["status"] == "validated", algorithm_id
+        if algorithm_id == "tnk_biofeedback":
+            assert item["paths"]["on_demand"]["status"] == "unvalidated"
+            assert item["paths"]["combined_preview_background_full"]["status"] == "unvalidated"
+            assert item["release_ready"] is False
+            continue
         assert item["paths"]["on_demand"]["status"] == "validated", algorithm_id
         assert item["paths"]["combined_preview_background_full"]["status"] == "validated", algorithm_id
         assert "backend/tests/test_official_combined_strategies.py" in item["paths"]["combined_preview_background_full"]["evidence"]

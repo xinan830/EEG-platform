@@ -128,7 +128,7 @@ public sealed partial class RecordingReviewViewModelTests
     }
 
     [Fact]
-    public async Task Playback_and_track_click_use_the_same_centered_follow_policy()
+    public async Task Playback_keeps_playhead_centered_while_viewport_follows()
     {
         var configuration = Configuration();
         var profile = Profile("采集导联", configuration);
@@ -146,5 +146,12 @@ public sealed partial class RecordingReviewViewModelTests
         vm.TickPlayback();
         Assert.Equal(51, vm.PositionSeconds);
         Assert.Equal(46, vm.ViewportStartSeconds);
+        Assert.Equal(0.5, (vm.PositionSeconds - vm.ViewportStartSeconds) / vm.VisibleDurationSeconds, 6);
+
+        now = 3;
+        vm.TickPlayback();
+        Assert.Equal(53, vm.PositionSeconds);
+        Assert.Equal(48, vm.ViewportStartSeconds);
+        Assert.Equal(0.5, (vm.PositionSeconds - vm.ViewportStartSeconds) / vm.VisibleDurationSeconds, 6);
     }
 }

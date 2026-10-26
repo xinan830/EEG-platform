@@ -95,6 +95,67 @@ public sealed class AlgorithmRunModuleTests
     }
 
     [Fact]
+    public void TnkGroup_SerializesOneCanonicalRoleMapping()
+    {
+        var algorithm = AlgorithmParameterValidationTests.Catalog() with
+        {
+            Id = "tnk_biofeedback",
+        };
+        var roleChannels = new Dictionary<string, string>
+        {
+            ["Fz"] = "Fz-AVG", ["Pz"] = "Pz-AVG", ["Oz"] = "Oz-AVG", ["F3"] = "F3-AVG", ["F4"] = "F4-AVG",
+        };
+
+        var config = AlgorithmRunConfiguration.BuildRunConfig(
+            algorithm, "Fp1-REF", new TimeRange(0, 10), "static", roleChannels: roleChannels);
+
+        Assert.Equal("Fz-AVG", config.GetProperty("channel").GetString());
+        Assert.Equal("Pz-AVG", config.GetProperty("tnk_role_mapping").GetProperty("Pz").GetString());
+        Assert.Equal(roleChannels, AlgorithmRunResultHandlerRegistry.For("tnk_biofeedback")
+            .ParseParameters(Inputs() with
+            {
+                Channel = "Fp1-REF", Channels = roleChannels.Values.ToArray(), RoleChannels = roleChannels,
+            }).RoleChannels);
+        Assert.Equal("Fz-AVG", AlgorithmRunResultHandlerRegistry.For("tnk_biofeedback")
+            .ParseParameters(Inputs() with
+            {
+                Channel = string.Empty, Channels = roleChannels.Values.ToArray(), RoleChannels = roleChannels,
+            }).PrimaryChannel);
+    }
+
+    [Fact]
+    public void TnkRoleChannelSelection_AppliesOnlyTheExplicitlyResolvedDefault()
+    {
+        var resolved = new TnkRoleChannelSelection("secondary_channel", "Oz 分析通道", "Oz-REF");
+        var unresolved = new TnkRoleChannelSelection("secondary_channel", "Oz 分析通道", string.Empty);
+
+        Assert.Equal("Oz-REF", resolved.SelectedChannel);
+        Assert.Equal(string.Empty, unresolved.SelectedChannel);
+    }
+
+    [Fact]
+    public void TnkGroup_RejectsRepeatedOrUnavailableRoleMappingsBeforeSubmission()
+    {
+        var inputs = Inputs() with
+        {
+            Channel = "Fz-REF",
+            Channels = ["Fz-REF", "Pz-REF", "Oz-REF", "F3-REF", "F4-REF"],
+            RoleChannels = new Dictionary<string, string>
+            {
+                ["Fz"] = "Fz-REF", ["Pz"] = "Fz-REF", ["Oz"] = "Oz-REF", ["F3"] = "F3-REF", ["F4"] = "F4-REF",
+            },
+        };
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            AlgorithmRunResultHandlerRegistry.For("tnk_biofeedback").ParseParameters(inputs));
+        Assert.Contains("不同于其他角色", error.Message, StringComparison.Ordinal);
+        Assert.Contains("分析参数", error.Message, StringComparison.Ordinal);
+
+        Assert.Throws<InvalidOperationException>(() => AlgorithmRunResultHandlerRegistry.For("tnk_biofeedback")
+            .ParseParameters(inputs with { RoleChannels = new Dictionary<string, string>() }));
+    }
+
+    [Fact]
     public void Stft_RejectsShortRangeWithoutChangingOtherAlgorithms()
     {
         var inputs = Inputs() with { Range = new TimeRange(0, 3) };

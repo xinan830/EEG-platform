@@ -98,6 +98,45 @@ def official_dynamic_capabilities(
     )
 
 
+def tnk_dynamic_capabilities(*, segment_only: bool = False) -> DynamicStrategyCapabilities:
+    """Declare the strategy surface after deterministic parity acceptance."""
+    validated_reason = "TNK deterministic parity evidence is recorded in docs/validation/tnk-strategy-parity.json."
+    full = CapabilityEvidenceStatus(
+        implementation="implemented", validation="validated",
+        evidence=["docs/validation/tnk-strategy-parity.json"], reason=validated_reason,
+    )
+    if segment_only:
+        on_demand = CapabilityEvidenceStatus(
+            implementation="unsupported", validation="not_applicable",
+            reason="FAA requires a complete paired segment/report, not an arbitrary cursor window.",
+        )
+    else:
+        on_demand = CapabilityEvidenceStatus(
+            implementation="implemented", validation="validated",
+            evidence=["docs/validation/tnk-strategy-parity.json"], reason=validated_reason,
+        )
+    combined = CapabilityEvidenceStatus(
+        implementation="implemented", validation="validated",
+        evidence=["docs/validation/tnk-strategy-parity.json"], reason=validated_reason,
+    )
+    unsupported_reuse = CapabilityEvidenceStatus(
+        implementation="unsupported", validation="not_applicable",
+        reason="TNK reuse direction is unavailable until exact context parity is accepted.",
+    )
+    if segment_only:
+        unsupported_reuse = CapabilityEvidenceStatus(
+            implementation="unsupported", validation="not_applicable",
+            reason="FAA cannot project a complete segment report to an arbitrary cursor window.",
+        )
+    return DynamicStrategyCapabilities(
+        full=full,
+        on_demand=on_demand,
+        combined_preview_background_full=combined,
+        full_result_to_preview=unsupported_reuse,
+        on_demand_result_to_full=unsupported_reuse,
+    )
+
+
 def rbp_definition_graph() -> dict[str, object]:
     nodes: list[dict[str, object]] = []
     for band, low, high in RBP_BANDS:

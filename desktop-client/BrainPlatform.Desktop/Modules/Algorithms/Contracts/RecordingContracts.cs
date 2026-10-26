@@ -35,4 +35,5 @@ public sealed record HistoricalMontageDescriptor(
     [property: JsonPropertyName("is_acquisition_default")] bool IsAcquisitionDefault,
     [property: JsonPropertyName("available")] bool Available,
     [property: JsonPropertyName("unavailable_reason")] string? UnavailableReason,
-    [property: JsonPropertyName("outputs")] IReadOnlyList<HistoricalMontageOutput> Outputs);
+    [property: JsonPropertyName("outputs")] IReadOnlyList<HistoricalMontageOutput> Outputs,
+    [property: JsonPropertyName("source_profile_id")] string? SourceProfileId = null);

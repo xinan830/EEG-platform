@@ -1,43 +1,69 @@
-# 项目交接说明
+# Brain Platform Handover
 
-更新日期：2026-10-22。本文说明当前实现；旧阶段计划和历史结论不作为当前待办。
+Updated: 2026-10-26 (Asia/Shanghai)
 
-## 当前基线
+This note is for a new session with no chat context. Treat repository source and the current OpenSpec artifacts as authoritative; this file summarizes the present troubleshooting state and must not be read as proof that the latest UI has been manually accepted.
 
-算法执行边界整理与官方导联预设修复已由用户验收，提交为 `861ba46`。对应变更 `clarify-algorithm-execution-boundaries` 为 22/22，主规范已同步，变更记录尚未归档。该提交的完整后端 1,049 项、WPF 917 项测试通过；这是该提交的验收证据，不是后续任意版本的自动保证。详见[验收报告](docs/validation/algorithm-boundary-cleanup-acceptance.md)。
+## Current Task
 
-本轮文档整理使用 `refresh-current-project-documentation`，其进度以 [tasks](openspec/changes/refresh-current-project-documentation/tasks.md) 为准。
+The user is fixing bugs in the TNK dynamic-analysis workbench one at a time. The immediate unresolved report is from the latest screenshot: the BrainBeat line has a value (`0.31 ratio`), while BrainBeat Flat is present in the legend but reads `当前窗口不可用`; the chart appears to show only one curve. The user said one value did not appear. Do not infer that the whole algorithm or recording is missing data.
 
-## 架构与责任
+The user also clarified the RBP time-axis intent in the previous issue: labels should be about every 10 seconds at the default view and become denser, down to every second, when zoomed in.
 
-- WPF/.NET 10：设备集成、采集、原始存储、阅图、参数与结果展示。
-- FastAPI/Python：记录读取适配、导联投影、分析预处理、算法执行与验证、Run/artifact 持久化。
-- 九个算法包位于 `backend/app/algorithms/`，由 `builtin_modules.py` 唯一组合。公式和算法专属质量门属于算法包。
-- `algorithm_runtime/` 定义输入/输出和校验；`services/` 协调队列、窗口、缓存、取消与 provenance。WPF 有独立 UI 和结果 handler 注册点。
-- 当前 Definition 图仅作元数据与拓扑校验，不执行自定义公式或图。扩展 manifest 校验不等于插件安装或执行。
+## What Was Completed Earlier
 
-## 数据与导联
+- RBP stacked chart display was adjusted after screenshots showed nonzero backend percentages but degenerate red-only Fz/F4 plots. The current source updates stacked band series together and reapplies the explicit 0-100 percent Y range after `ZoomExtents()`. Time ticks were returned to SciChart adaptive ticks. These changes have focused tests and strict OpenSpec validation recorded in change `migrate-tnk-biofeedback-algorithms`, task 5.14.
+- On-demand score-state display was added for the four Composite Meditation score bands: `<55`, `55-65`, `65-75`, `>75`. The UI projection uses returned composite score points and their recording timestamps, breaks accumulation at unavailable points, and refreshes when owned dynamic windows complete. The focused `TnkWorkbenchTests` were reported passing 13/13; OpenSpec strict validation and `git diff --check` passed at that point.
+- These are source/test validations, not visual acceptance on a real recording. The project change still has unrelated open tasks for independent scientific parity (5.2), manual WPF acceptance (5.4), and final project validation/docs (5.5). Do not mark the whole change complete.
 
-内部时序为 V/float64、`(samples, channels)`；通道顺序、采样率、录制相对绝对样本范围和单位必须显式保存。录制时间、游标、分析窗口与显示历史不能混用。
+## Current Diagnosis: BrainBeat Flat
 
-算法详情先选择“导联配置”，再按算法角色选择“分析导联”。候选来自采集快照、基于记录通道快照生成的官方预设，以及兼容的当前用户配置；后端校验并固化独立分析快照。切换后更新输入身份、选项、计算和追溯。源通道不足不能补造。阅图显示导联与算法分析选择分开管理，原始样本不修改。
+Confirmed source facts:
 
-滤波和频率输出范围分别声明；不能把截取 1–30 Hz 频谱当成已经预滤波。统一输入契约不要求 FAA、STFT、Brainbeat 等使用相同科学计算。
+- `backend/app/algorithms/tnk/group.py` orders `tnk_aperiodic` before `tnk_brainbeat_flat` in `_CHILD_ORDER`.
+- Dynamic BrainBeat Flat follows the ordinary 4-second window / 1-second frame cadence, while IAPF, HAI, and aperiodic use a 30-second rolling window and 5-second cadence (`_dynamic_child_range`).
+- When a child is not due, `_execute_children` inserts a scheduled placeholder into `first_result` with no fitted offsets/exponents.
+- When executing BrainBeat Flat, `_execute_children` reads only `first_result["tnk_aperiodic"]` from the current frame and copies its fit evidence into `aperiodic_fit_by_role`. It does not visibly retrieve the most recent earlier valid aperiodic fit.
+- `BrainbeatFlatModule.compute` returns `TNK_FIT_INVALID`/unavailable when either required role has no fit evidence.
+- The latest screenshot confirms BrainBeat has data (`0.31 ratio`) while BrainBeat Flat does not have a current value.
 
-## 版本与验证边界
+High-confidence hypothesis, not yet confirmed from the actual response: on Flat frames where aperiodic is not due, the scheduled placeholder supplies no fit, so Flat returns unavailable despite having a valid earlier fit. The dependency may also be absent on a due frame if the fit itself is unavailable or rejected. Obtain the actual `tnk_aperiodic` and `tnk_brainbeat_flat` child rows, quality, failure code, actual ranges, and fit provenance from the same window before selecting a fix.
 
-官方算法只解析显式 current。完整结果根格式为 `official-algorithm-result-v1`，标量动态格式为 `dynamic-analysis-frame-v6`，状态显式返回。不提供退休算法/结果 reader、转换器或专属 UI；已保存 Run/artifact 字节不迁移、不删除。
+Important design decision remains open: should Flat reuse the most recent valid aperiodic fit, and if so, how should its actual fit time/config/quality be represented in provenance and when must it be invalidated? Do not silently copy a stale fit or change scientific scheduling without an explicit tested contract. Avoid WPF-side formula or scientific recomputation.
 
-不能据此称全项目“零兼容”：数据库结构迁移、通用 API 错误封装及少量 WPF 命名空间适配是不同边界。
+Likely files to inspect:
 
-三种运行策略和方向性复用的工程证据见[管理基线](docs/algorithms/official-algorithm-management.md)。真实长记录、合成独立参考、GUI 验收和临床验证不可相互替代。历史报告保留原日期与范围，统一从[验证索引](docs/validation/README.md)阅读。
+- `backend/app/algorithms/tnk/group.py` (`_execute_children`, `_dynamic_child_range`, fit evidence transfer)
+- `backend/app/algorithms/tnk/stateful.py` (`BrainbeatFlatModule.compute`)
+- `backend/tests/test_tnk_group.py`, `backend/tests/test_tnk_modules.py`, `backend/tests/test_tnk_strategy_parity.py`
+- `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Shared/TnkResultChartProjection.cs` (backend result projection only)
+- `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Shared/TnkWindowChartHistory.cs` (on-demand chart history)
+- `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Shared/TnkWorkbenchPresentation.cs` (tab series selection)
 
-## 维护入口
+## Current Workspace State And Cautions
 
-1. 修改前读 [工程开发契约](docs/工程开发契约.md)和相关当前 OpenSpec。
-2. 新增算法按[作者指南](docs/algorithms/official-algorithm-development.md)接入，不在公共层复制公式。
-3. 排查先固定 request_id、Run/window、导联快照、通道顺序、样本范围和处理身份，再查模块数值，最后查 WPF 投影。
-4. tasks 随工作更新；验证命令、结果及限制写入对应 change。
-5. 提交前核对 diff、规模策略与相关测试；不纳入 `.artifacts`、bin/obj、DLL/PDB、日志、ZIP、数据库或真实 EEG。
+- The repository worktree is heavily modified and contains user work. Never reset, checkout, or clean unrelated files. Inspect exact diffs before touching overlapping files.
+- `HANDOFE.md` was absent/deleted at the beginning of this handoff request; this document has now been recreated at the user's explicit request. Check git status before assuming it is tracked.
+- Prior targeted desktop test/build attempts were affected by a running `BrainPlatform.Desktop.exe` locking the apphost. At handoff time, process PID 49820 was observed running from `desktop-client/BrainPlatform.Desktop/bin/Debug/net10.0-windows/BrainPlatform.Desktop.exe`. Confirm current PID before building. Do not kill a newly running user process without checking; earlier permission to close the desktop app was given, but the latest owner is uncertain.
+- There are legacy-package compatibility warnings (NU1701) and an SDK preview notice. Record them but distinguish warnings from failures.
+- A previous assistant briefly tried score-duration accumulation in WPF, which conflicts with the project's rule that state-duration statistics are backend-owned. Review the current uncommitted `TnkOnDemandScoreStateProjection.cs` and `TnkWorkbenchSidebar.cs` changes carefully. If retaining this behavior, move authoritative calculation to the backend and keep WPF as a renderer; alternatively clearly scope the feature if existing project architecture explicitly permits display projection. Do not repeat the earlier claim that backend calculation was implemented unless source proves it.
+- The last test command for the score percentage assertion initially failed due exact floating-point comparison; the assertion was changed to round to 8 decimals. A later no-build run reported 13/13, but ensure a clean current build/test after resolving the running app lock.
 
-文档过时应更新或删除；旧草案从 Git 恢复，不另建平行计划树。带日期的证据不自动升级为当前行为说明。
+## Next Steps
+
+1. Read `AGENTS.md`, `docs/工程开发契约.md`, the brain-research-platform skill's `wpf-algorithm-acceptance.md`, and OpenSpec task instructions for `migrate-tnk-biofeedback-algorithms` before code edits.
+2. Check git status and inspect diffs for `group.py`, the score-state view-model/helper, RBP plot, tests, and current OpenSpec. Preserve unrelated pre-existing edits.
+3. Capture or inspect the actual on-demand window response for a time where BrainBeat has a value but Flat is unavailable. Compare child quality/failure, actual ranges, `aperiodic_fit_by_role`, and the recording cursor with the screenshot.
+4. Confirm the intended scientific dependency semantics from `docs/algorithms/tnk-source-ledger.md` and the relevant OpenSpec design/spec. If reuse of a prior fit is not defined, update the change artifacts before implementing it.
+5. Add backend regression tests for due and not-due fit frames, missing/rejected fits, cache/context identity, and provenance. Keep frontend tests focused on rendering the returned value or explicit unavailable reason.
+6. Rebuild/test with no EXE lock; run focused backend and desktop tests, `openspec validate migrate-tnk-biofeedback-algorithms --strict`, and `git diff --check`. Then reopen the desktop client and manually verify the same recording/window.
+7. Report facts, hypothesis, tests, and remaining real-data UI acceptance separately. Do not mark outstanding OpenSpec tasks complete without their required evidence.
+
+## Project Invariants
+
+- Scientific calculations and quality decisions belong to the FastAPI backend; WPF binds returned values and formats display only.
+- Times are recording-relative seconds unless an explicit contract says otherwise. Preserve actual window ranges and channel role/source mapping.
+- Missing/rejected results remain null/gaps with structured reasons; never fill them with zero or interpolate.
+- The TNK group exposes dynamic analysis; each child retains independent quality, failure, state, and provenance.
+- Check the 400-line soft target and existing `docs/code-size-policy.json` before adding substantial code.
+- OpenSpec current contract files, not old chat statements or stale docs, govern behavior.

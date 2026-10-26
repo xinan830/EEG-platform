@@ -4,6 +4,11 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 
 public interface IAlgorithmClient
 {
+    Task<TnkWorkbenchSummary> GetTnkWorkbenchSummaryAsync(string runId, double cursorSeconds, CancellationToken token) =>
+        throw new NotSupportedException("当前客户端不支持 TNK 状态统计。");
+    Task<BrainPlatform.Desktop.Shared.Waveform.SignalPreviewResponse> GetSignalPreviewAsync(
+        string recordingId, BrainPlatform.Desktop.Shared.Waveform.SignalPreviewRequest request, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前客户端不支持波形预览。");
     Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken);
 
     Task<AnalysisRunResponse> CreateRunAsync(

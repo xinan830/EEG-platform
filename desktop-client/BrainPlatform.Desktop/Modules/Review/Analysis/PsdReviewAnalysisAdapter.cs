@@ -1,24 +1,28 @@
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Review.Analysis;
 
 /// <summary>PSD's review adapter. Scientific values remain backend-owned.</summary>
-public sealed class PsdReviewAnalysisProvider : IReviewAnalysisProvider
+public sealed class PsdReviewAnalysisAdapter : IReviewAlgorithmAdapter
 {
     private static readonly TimeSpan RunPollInterval = TimeSpan.FromMilliseconds(500);
     private readonly IAlgorithmClient client;
     private readonly bool? enableOnDemand;
     private readonly DynamicWindowTargetCoordinator targets;
 
-    public PsdReviewAnalysisProvider(IAlgorithmClient client, bool? enableOnDemand = null)
+    public PsdReviewAnalysisAdapter(IAlgorithmClient client, bool? enableOnDemand = null)
     {
         this.client = client ?? throw new ArgumentNullException(nameof(client));
         this.enableOnDemand = enableOnDemand;
         targets = new DynamicWindowTargetCoordinator(client);
     }
     public string AlgorithmId => "psd";
+    public string DisplayName => "PSD";
 
     // Review and the algorithm catalog share the accepted PSD availability policy.
     public bool SupportsOnDemandWindows =>
@@ -27,9 +31,10 @@ public sealed class PsdReviewAnalysisProvider : IReviewAnalysisProvider
     public async Task<AlgorithmCatalogItem> GetAlgorithmAsync(CancellationToken cancellationToken) =>
         (await client.ListAlgorithmsAsync(cancellationToken)).Single(item => item.Id == AlgorithmId && item.IsRunnable);
 
-    public Task<RegisteredRecording> RegisterAsync(string directory, CancellationToken cancellationToken) =>
+    public Task<RegisteredRecording> RegisterAsync(string directory, CancellationToken cancellationToken,
+        IReadOnlyList<MontageProfile>? montageProfiles = null) =>
         (client as IRecordingRegistrationClient ?? throw new InvalidOperationException("算法客户端不支持记录注册。"))
-        .RegisterWpfRecordingAsync(directory, cancellationToken);
+        .RegisterWpfRecordingAsync(directory, cancellationToken, montageProfiles);
 
     public async Task<AnalysisRunResponse> EnsureRunAsync(
         AnalysisRunRequest request,
@@ -103,6 +108,23 @@ public sealed class PsdReviewAnalysisProvider : IReviewAnalysisProvider
         return ToWindowPreview(response, recordingId, cursorSample);
     }
 
+    public async Task<WindowPreviewResponse> LoadOnDemandAsync(string recordingId,
+        ReviewAnalysisSnapshot snapshot, long cursorSample, CancellationToken cancellationToken,
+        IProgress<DynamicWindowResponse>? progress)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (!string.Equals(snapshot.AlgorithmId, AlgorithmId, StringComparison.Ordinal))
+            throw new ArgumentException("分析快照不是 PSD 配置。", nameof(snapshot));
+        if (!string.Equals(snapshot.RecordingId, recordingId, StringComparison.Ordinal))
+            throw new ArgumentException("分析快照不属于当前回溯记录。", nameof(snapshot));
+        if (cursorSample < 0) throw new ArgumentOutOfRangeException(nameof(cursorSample));
+        var request = new DynamicWindowRequest(recordingId, AlgorithmId, null, null,
+            snapshot.Configuration, cursorSample, null, Guid.NewGuid().ToString("N"));
+        var response = await targets.LoadAsync(request, cancellationToken, progress);
+        ValidateSnapshotIdentity(response, snapshot);
+        return ToWindowPreview(response, recordingId, cursorSample);
+    }
+
     public Task ReleaseOnDemandAsync(CancellationToken cancellationToken = default) =>
         targets.ResetAsync().WaitAsync(cancellationToken);
 
@@ -165,6 +187,27 @@ public sealed class PsdReviewAnalysisProvider : IReviewAnalysisProvider
             arrays,
             metadata,
             identity.TryGetProperty("scientific_version", out var science) ? science.GetString() : null,
-            identity.TryGetProperty("implementation_identity", out var implementation) ? implementation.GetString() : null);
+            identity.TryGetProperty("implementation_identity", out var implementation) ? implementation.GetString() : null,
+            identity.Clone(), response.ScientificConfigurationJson);
     }
+
+    private static void ValidateSnapshotIdentity(DynamicWindowResponse response, ReviewAnalysisSnapshot snapshot)
+    {
+        if (response.Identity is not { ValueKind: JsonValueKind.Object } identity ||
+            !Matches(identity, "recording_id", snapshot.RecordingId) ||
+            !Matches(identity, "source_sha256", snapshot.SourceSha256) ||
+            !Matches(identity, "algorithm_id", snapshot.AlgorithmId))
+            throw new InvalidOperationException("按需响应身份与不可变分析快照不一致，已拒绝绑定。");
+
+        var canonical = response.ScientificConfigurationJson;
+        if (string.IsNullOrWhiteSpace(canonical) ||
+            !identity.TryGetProperty("configuration_sha256", out var digest) ||
+            digest.ValueKind != JsonValueKind.String)
+            throw new InvalidOperationException("按需响应缺少可核验的科学配置快照或摘要，已拒绝绑定。");
+        _ = snapshot.BindScientificConfiguration(canonical, digest.GetString()!);
+    }
+
+    private static bool Matches(JsonElement identity, string name, string expected) =>
+        identity.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String &&
+        string.Equals(value.GetString(), expected, StringComparison.Ordinal);
 }

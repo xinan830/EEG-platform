@@ -3,18 +3,16 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 public sealed partial class RecordingReviewViewModel
 {
     private Task? prefetchTask;
+    private bool isDisposing;
     private Task? playbackLoadTask;
     private readonly LatestThrottledTask viewportLoader = new(TimeSpan.FromMilliseconds(50));
     private bool isTimelineDragging;
-    private bool resumePlaybackAfterDrag;
     private double? pendingPreviewViewportStart;
 
     public void BeginTimelineDrag()
     {
         if (isTimelineDragging) return;
         isTimelineDragging = true;
-        resumePlaybackAfterDrag = playback.IsPlaying;
-        if (resumePlaybackAfterDrag) playback.Pause();
         RaisePlaybackPropertiesChanged();
     }
 
@@ -22,8 +20,7 @@ public sealed partial class RecordingReviewViewModel
     {
         if (!isTimelineDragging) return;
         isTimelineDragging = false;
-        if (resumePlaybackAfterDrag && !playback.IsCompleted) playback.Play();
-        resumePlaybackAfterDrag = false;
+        analysisBinding?.OnCursorDragCompleted(PositionSeconds);
         RaisePlaybackPropertiesChanged();
     }
 
@@ -52,7 +49,7 @@ public sealed partial class RecordingReviewViewModel
         // Keep the chart viewport on the last complete frame while dragging.
         // Moving the axis before the replacement frame is ready exposes the
         // old frame only over its overlap and leaves the rest blank.
-        SetPreviewPositionCore(positionSeconds, updateViewport: false);
+        SetPreviewPositionCore(positionSeconds, updateViewport: false, requestAnalysis: false);
         pendingPreviewViewportStart = targetViewportStart;
         if (session.PreviewNavigationTarget(targetViewportStart, playback.PositionSeconds))
         {
@@ -66,8 +63,7 @@ public sealed partial class RecordingReviewViewModel
 
     public void TogglePlayback()
     {
-        if (isTimelineDragging) resumePlaybackAfterDrag = !resumePlaybackAfterDrag;
-        else if (playback.IsPlaying) playback.Pause();
+        if (playback.IsPlaying) playback.Pause();
         else playback.Play();
         RaisePlaybackPropertiesChanged();
     }
@@ -81,12 +77,15 @@ public sealed partial class RecordingReviewViewModel
 
     public void TickPlayback()
     {
-        if (isTimelineDragging || !playback.Update()) return;
+        if (isDisposing || !playback.Update()) return;
         UpdateViewportStart(GetFollowViewportStart(playback.PositionSeconds));
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         RaisePlaybackPropertiesChanged();
-        analysisBinding?.PreviewAtSeconds(PositionSeconds);
+        // Property notifications can close the view before this tick resumes.
+        if (isDisposing) return;
+        analysisBinding?.OnPlaybackCursorAdvanced(PositionSeconds);
+        if (isDisposing) return;
         if (!session.ContainsViewport(ViewportStartSeconds) &&
             !session.TryActivateCachedViewport(ViewportStartSeconds, playback.PositionSeconds))
             StartPlaybackLoad();
@@ -132,7 +131,7 @@ public sealed partial class RecordingReviewViewModel
 
     private void SetPreviewPosition(double positionSeconds) => SetPreviewPositionCore(positionSeconds, true);
 
-    private void SetPreviewPositionCore(double positionSeconds, bool updateViewport)
+    private void SetPreviewPositionCore(double positionSeconds, bool updateViewport, bool requestAnalysis = true)
     {
         playback.Seek(positionSeconds);
         if (updateViewport)
@@ -140,7 +139,7 @@ public sealed partial class RecordingReviewViewModel
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         RaisePlaybackPropertiesChanged();
-        analysisBinding?.PreviewAtSeconds(PositionSeconds);
+        if (requestAnalysis) analysisBinding?.OnCursorPositionSelected(PositionSeconds);
     }
 
     private double GetFollowViewportStart(double positionSeconds) => Math.Clamp(

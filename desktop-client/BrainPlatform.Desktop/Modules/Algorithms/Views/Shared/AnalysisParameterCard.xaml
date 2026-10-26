@@ -124,8 +124,17 @@
    <Border Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="3" HorizontalAlignment="Left" Margin="0,0,0,14">
        <StackPanel Orientation="Horizontal">
            <Button Content="静态分析"
-                   Command="{Binding SelectStaticModeCommand}"
-                   Style="{StaticResource StaticSegmentButtonStyle}" />
+                   Command="{Binding SelectStaticModeCommand}">
+               <Button.Style>
+                   <Style TargetType="Button" BasedOn="{StaticResource StaticSegmentButtonStyle}">
+                       <Style.Triggers>
+                           <DataTrigger Binding="{Binding SupportsStaticMode}" Value="False">
+                               <Setter Property="Visibility" Value="Collapsed" />
+                           </DataTrigger>
+                       </Style.Triggers>
+                   </Style>
+               </Button.Style>
+           </Button>
            <Button Content="动态分析"
                    Command="{Binding SelectDynamicModeCommand}"
                    IsEnabled="{Binding IsDynamicModeAvailable}"
@@ -460,7 +469,7 @@
                             </Grid>
                         </Border>
 
-                        <!-- Row 6: 计算通道 -->
+                        <!-- TNK uses its role mapping as the only channel configuration. -->
                         <Border Padding="0,4">
                             <Border.Style>
                                 <Style TargetType="Border">
@@ -470,6 +479,9 @@
                                             <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsBrainbeatSelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Catalog.IsTnkSelected}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -494,6 +506,45 @@
                                 <TextBlock Grid.Column="5" Text="用于当前算法分析的信号导联" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
                             </Grid>
                         </Border>
+
+                        <!-- TNK role channels are the canonical sources for the whole group. -->
+                        <ItemsControl Margin="0,4,0,0" ItemsSource="{Binding Catalog.TnkRoleChannels}">
+                            <ItemsControl.Style>
+                                <Style TargetType="ItemsControl">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Catalog.IsTnkSelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ItemsControl.Style>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Height="40" Margin="0,2,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="130" />
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="50" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <ComboBox Grid.Column="1" Width="104" Style="{StaticResource TableParamComboBoxStyle}"
+                                                  ItemsSource="{Binding DataContext.Catalog.RegisteredChannels, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                  SelectedItem="{Binding SelectedChannel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  ToolTip="请选择该角色的实际来源通道；系统不会根据名称或通道顺序自动替代。" />
+                                        <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <TextBlock Grid.Column="3" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <Border Grid.Column="4" Background="#FEF3C7" BorderBrush="#FDE68A" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="必选且不可重复" FontSize="11" Foreground="#92400E" FontWeight="Medium" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Grid.Column="5" Text="请选择有效来源通道；此角色没有精确默认映射时需手动指定。" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
 
                         <!-- Brainbeat has an explicit second source channel (Pz). -->
                         <Border Padding="0,4">

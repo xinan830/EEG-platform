@@ -3,6 +3,11 @@
   "strong_review_lines": 600,
   "critical_lines": 1000,
   "reviews": {
+    "backend/app/algorithms/tnk/group.py": {
+      "decision": "keep",
+      "max_lines": 460,
+      "reason": "当前 452 行，超过 400 行软目标但仍低于 600 行高风险线；单一 TNK 组适配器拥有 manifest、角色分发、子结果聚合及静态/全量封装，按需 replay 已独立为 group_window.py，科学公式在各子模块。本次只增加独立的按需检查点与并发保护，不扩展此文件职责。继续增加功能前应评估抽离 manifest/输出契约构造；禁止将显示或事件报告计算加入组编排。"
+    },
     "backend/tests/test_official_algorithm_runs.py": {
       "decision": "keep",
       "max_lines": 450,
@@ -15,8 +20,8 @@
     },
     "backend/app/services/on_demand_dynamic.py": {
       "decision": "keep",
-      "max_lines": 490,
-      "reason": "历史与当前兼容导联快照接入：当前 487 行，按 recording 目录校验所选身份，并将后端权威来源、profile ID、映射和公式冻结进科学上下文；未加入导联数值计算。调度、任务执行、恢复、离线复用和 artifact 校验已有独立边界。保留同一准入流程，避免为行数拆散请求校验，仍低于 600 行高风险线。"
+      "max_lines": 530,
+      "reason": "当前 522 行；本轮将显式 replay context identity 和 reset/context range 接入已有动态 session/plan 响应，使其与 full Run 共用 scientific context 身份。算法调度仍不含 TNK ID 分支。窗口准入、调度、恢复和 artifact 校验仍属此服务职责；后续继续扩展前应先拆出独立响应映射器，文件仍低于 600 行高风险线。"
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
@@ -49,9 +54,9 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
-      "max_lines": 480,
-      "reason": "Review-only trace decimation and gap/time projection now have a focused owner in ReviewWaveformTraceProjection. The canvas remains a cohesive 476-line owner of chart binding, layout, viewport and overlays. This defect fix preserves unrelated local viewport changes, raw sampling, filters and montage mapping.",
-      "follow_up": "Extract event/lifecycle marker rendering into a focused overlay owner before adding further waveform annotation features."
+      "max_lines": 520,
+      "reason": "Review-only trace decimation and gap/time projection live in ReviewWaveformTraceProjection. Event and lifecycle marker visuals now have the focused ReviewEventMarkerLayer owner; the canvas remains responsible for chart binding, layout and viewport. This defect fix preserves local playback, raw sampling, filters and montage mapping.",
+      "follow_up": "Split chart binding and viewport concerns from the canvas only when a concrete review behavior needs another owner."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/Views/MontageDetailView.xaml": {
       "decision": "keep",
@@ -106,7 +111,7 @@
     "backend/app/services/recordings.py": {
       "decision": "keep",
       "max_lines": 570,
-      "reason": "算法导联选择：当前 563 行，负责 recording 注册入口、目录身份和样本读取器委派；兼容 profile 校验及内容寻址快照由 analysis_montage_snapshots.py 负责，信号投影由 acquisition_analysis_signals.py 负责。职责仍集中在 recording 生命周期和数据访问，尚低于 600 行高风险线；继续增长时应评估将注册/目录查询拆到独立服务。"
+      "reason": "算法导联选择及 TNK 波形预览：当前 569 行，负责 recording 注册、目录身份和读取器委派；预览只增加连续预处理缓存的窄委派，校验、裁剪、单位转换和显示步长由 recording_signal_preview.py 负责。导联快照和信号投影仍由独立模块拥有。低于 600 行高风险线；继续增长应将注册/目录查询拆为独立服务，不在本文件加入显示或公式。"
     },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",
@@ -236,6 +241,12 @@
       "max_lines": 720,
       "reason": "算法专属参数检查、完成结果分发和标量窗口解析已移入算法目录的运行适配器；主类保留目录选择、自动执行、共享请求协调与状态通知。本轮仅增加后台 Full 观察者生命周期字段，继续按职责拆分。",
       "follow_up": "继续抽离自动执行协调；PSD/STFT 预览状态与公共参数面板的算法接入仍需独立评估。运行适配器登记见 refactor-wpf-algorithm-run-adapters。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Catalog/AlgorithmListViewModel.OnDemand.cs": {
+      "decision": "split",
+      "max_lines": 448,
+      "reason": "按需目标协调、全量结果窗口适配、缓存与释放生命周期集中在同一工作流 partial；本次只增加 owned completion 的 UI 派发与当前上下文判定，不增加科学处理职责。",
+      "follow_up": "将全量窗口本地适配与通用按需 coordinator 生命周期分离到职责明确的 partial/owner；保持单一动态请求状态和现有最新游标保护。"
     }
   }
 }

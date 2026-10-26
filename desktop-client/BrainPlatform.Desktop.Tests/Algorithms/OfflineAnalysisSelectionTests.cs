@@ -461,12 +461,12 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
     public void Review_shares_psd_availability_and_preserves_injected_override()
     {
         var client = new OnDemandDetailClient();
-        Assert.True(new PsdReviewAnalysisProvider(client).SupportsOnDemandWindows);
+        Assert.True(new PsdReviewAnalysisAdapter(client).SupportsOnDemandWindows);
         Environment.SetEnvironmentVariable(Flag("psd"), "0");
-        Assert.False(new PsdReviewAnalysisProvider(client).SupportsOnDemandWindows);
-        Assert.True(new PsdReviewAnalysisProvider(client, enableOnDemand: true).SupportsOnDemandWindows);
+        Assert.False(new PsdReviewAnalysisAdapter(client).SupportsOnDemandWindows);
+        Assert.True(new PsdReviewAnalysisAdapter(client, enableOnDemand: true).SupportsOnDemandWindows);
         Environment.SetEnvironmentVariable(Flag("psd"), "1");
-        Assert.False(new PsdReviewAnalysisProvider(client, enableOnDemand: false).SupportsOnDemandWindows);
+        Assert.False(new PsdReviewAnalysisAdapter(client, enableOnDemand: false).SupportsOnDemandWindows);
     }
 
     [Fact]
@@ -476,7 +476,7 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         Environment.SetEnvironmentVariable(Flag("future"), "1");
         Assert.True(OfflineAnalysisAvailability.IsOnDemandEnabled("future"));
         Environment.SetEnvironmentVariable(Flag("psd"), "");
-        Assert.True(new PsdReviewAnalysisProvider(new OnDemandDetailClient()).SupportsOnDemandWindows);
+        Assert.True(new PsdReviewAnalysisAdapter(new OnDemandDetailClient()).SupportsOnDemandWindows);
     }
 
     private static string Flag(string id) => $"BRAIN_WPF_ON_DEMAND_{id.ToUpperInvariant()}";

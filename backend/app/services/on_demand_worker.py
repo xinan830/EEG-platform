@@ -119,6 +119,12 @@ def execute_window_job(
                         window_id, attempt_id, (time.perf_counter() - started) * 1000)
     try:
         check()
+        if resource_policy is not None:
+            resource_policy.check_replay_budget(
+                context_start_sample=plan.context_start_sample,
+                context_end_sample=plan.context_end_sample,
+                replay_window_count=plan.replay_window_count,
+            )
         repository.update_attempt_window(attempt_id, worker_id, token, "preparing_source")
         heartbeat_thread.start()
         control = WindowExecutionControl(check, prepared, resource_policy, compute_coordinator)
@@ -127,6 +133,22 @@ def execute_window_job(
             inputs.payload.execution_context = control
         control.window_started()
         result = capability.execute_window(inputs, config, plan, identity, check_cancelled=check)
+        result.provenance = {
+            **result.provenance,
+            "runtime_context": {
+                "reset_origin_sample": plan.session_identity.reset_origin_sample,
+                "context_identity": plan.context_identity,
+                "context_range_samples": {
+                    "start_sample": plan.context_start_sample,
+                    "end_sample": plan.context_end_sample,
+                },
+                "target_range_samples": {
+                    "start_sample": plan.start_sample,
+                    "end_sample": plan.end_sample,
+                },
+                "replay_window_count": plan.replay_window_count,
+            },
+        }
         result.evidence = AlgorithmEvidence.model_validate(with_sample_coordinate(
             result.evidence, {"start_s": plan.start_s, "end_s": plan.end_s}, inputs.sfreq_hz,
         )).model_dump(mode="json")

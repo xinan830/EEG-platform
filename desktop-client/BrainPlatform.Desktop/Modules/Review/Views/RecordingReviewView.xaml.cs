@@ -10,6 +10,7 @@ namespace BrainPlatform.Desktop.Modules.Review.Views;
 public partial class RecordingReviewView : UserControl
 {
     private readonly DispatcherTimer playbackTimer;
+    private readonly ReviewPlaybackTickDiagnostics playbackTickDiagnostics = new();
     private ReviewResourceMonitor? resourceMonitor;
 
     public RecordingReviewView()
@@ -112,12 +113,15 @@ public partial class RecordingReviewView : UserControl
 
     private void OnPlaybackTimerTick(object? sender, EventArgs e)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         if (ViewModel is not { IsPlaying: true } viewModel)
         {
+            playbackTickDiagnostics.Reset();
             return;
         }
 
         viewModel.TickPlayback();
+        playbackTickDiagnostics.Record(started, System.Diagnostics.Stopwatch.GetTimestamp(), viewModel.PositionSeconds);
     }
 
     private void OnPlayClick(object sender, RoutedEventArgs e)

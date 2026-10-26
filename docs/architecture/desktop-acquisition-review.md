@@ -179,6 +179,56 @@ chunk builds, retain a small frame LRU, and prefetch nearby chunks. A review
 frame is committed only after its complete target data is ready. Keep the prior
 frame visible during a target build.
 
+### Algorithm review adapters
+
+Algorithm review shares the review session's sample cursor; it does not create
+another clock. While playback runs, the desktop submits the current cursor once
+per algorithm-declared refresh step (one second when the policy says one
+second), independently of waveform loading. The backend remains authoritative
+for eligible scientific windows and identity-based work reuse. Analysis latency
+is represented as queued/computing/lag; only a backend terminal
+`insufficient_data` response means the scientific target has insufficient
+data. Any retained result remains labeled with its returned cursor and actual
+range.
+
+Timeline dragging updates cursor and waveform navigation without drag-originated
+analysis requests. Playback remains active during a drag and its own refresh
+cadence continues; release submits the exact final cursor sample once. Drag
+requests are not quantized to playback refresh steps.
+
+`IReviewAlgorithmAdapter` owns each algorithm's review request mapping,
+typed result projection, units, quality and provenance presentation.
+`ReviewAnalysisCoordinator` owns only target lifecycle and stale-response
+fencing. A catalog entry alone does not register a review adapter. Unsupported
+algorithms remain unavailable until their on-demand capability and presenter
+are accepted. PSD scientific calculation remains backend-owned; the review
+layer does not fall back to a full Run when its on-demand adapter is unavailable.
+
+PSD review registration submits the recording's compatible montage snapshots
+to the backend. The analysis channel is selected by electrode role from the
+currently displayed montage, and each request carries that montage's immutable
+ID, revision, fingerprint, and output mapping. A montage change invalidates the
+bound PSD result and requests a new window; an unregistered montage is an
+explicit error, never a fallback to the acquisition reference.
+
+Review request snapshots now bind the registered recording ID and source
+checksum to the algorithm request. The PSD adapter compares both values and
+the algorithm ID with the backend's returned identity before projecting a
+window. The typed target also freezes the integer cursor, config and catalog
+definition/implementation identity. The coordinator compares those catalog
+versions to backend identity, checks the identity range against the projected
+window, and pins backend definition/build/configuration/window-policy identity
+across targets in the same binding. The desktop does not reconstruct the
+backend-resolved montage, reference, preprocessing or quality context. The API
+returns that normalized scientific configuration as canonical
+`scientific_configuration_json` together with its `configuration_sha256`; the
+PSD adapter verifies the exact UTF-8 bytes and confirms the submitted config is
+represented before binding the immutable snapshot. This closes the
+snapshot-to-digest API gap for the registered PSD adapter. The per-algorithm
+backend window contracts, WPF registration status and acceptance checklist are
+maintained in the [review adapter onboarding inventory](../algorithms/review-adapter-onboarding.md);
+backend window support alone does not expose an algorithm in review.
+
 ## 7. Navigator and playback
 
 The timeline has two intentionally different paths:
@@ -212,6 +262,14 @@ visible thumb to an unloaded target or show an empty transient series.
 Playback has a high-frequency clock independent of loading. It activates a
 cached frame immediately and starts one bounded foreground load when crossing a
 cache edge; it must not reread the visible range on every render tick.
+
+During playback, the viewport follows the playhead so it stays centered while
+the viewport can still move. At the recording boundaries, the viewport clamps
+to the recording range and the playhead moves from or toward the center. This is
+distinct from drag preview, which keeps the last complete frame visible until
+the requested frame is ready. Optional display-level reads are not restarted on
+each playback tick; the bounded source frame stays authoritative while the
+playback axis moves, and a display-level refresh resumes after playback pauses.
 
 Review time remains sample-counter based. Preserve explicit recording gaps.
 The operating-system clock may label recording wall time and diagnose latency,
@@ -363,6 +421,17 @@ use the explicit raw registration mode; the desktop does not expose an
 advanced raw-mode selector. Current selection behavior is described in
 [the montage guide](../algorithms/03-montage.md).
 
+For dynamic PSD review, the selected compatible review montage also selects the
+PSD analysis montage. The desktop registers compatible immutable profile
+snapshots with the backend, maps the current PSD electrode role to the selected
+montage output, and submits that snapshot identity and output mapping with the
+PSD channel. Switching montage invalidates the old result and starts a new
+request; backend processing still independently resolves and computes the
+selected projection from the immutable raw recording. Low-pass, high-pass,
+notch and dynamic-window settings are also explicit PSD inputs. Sensitivity,
+paper speed, timebase and viewport width affect chart presentation only and are
+absent from the PSD request.
+
 ## 9. Verification checklist
 
 For desktop acquisition changes:
@@ -380,6 +449,19 @@ For review changes:
    thumb drag, and track click.
 2. Verify that old frames remain visible until a complete target frame exists.
 3. Run OpenSpec strict validation and `git diff --check`.
+
+Review overlay rendering creates event and lifecycle marker visuals when
+annotations or time display settings change; during playback it repositions
+existing WPF elements instead of rebuilding the overlay each tick.
+
+For irregular playback stalls with an analysis chart open, set
+`BRAIN_REVIEW_PERF_DIAGNOSTICS=1` before launching the desktop client. The log
+then reports five-second `review_playback_tick_perf` summaries (dispatcher tick
+gaps and synchronous tick work) and per-update `review_psd_chart_apply`
+durations. Large tick gaps with short tick work point to dispatcher/render
+scheduling pressure; long PSD apply durations point to synchronous chart
+binding work. These measurements do not report GPU completion time, so normal
+values do not rule out a render-engine or driver stall.
 
 Passing unit tests is evidence for contracts, not evidence that a physical
 amplifier or GPU has been accepted.

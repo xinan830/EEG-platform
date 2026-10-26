@@ -7,6 +7,7 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 public sealed partial class RecordingReviewViewModel
 {
     private Task? analysisParameterLoadTask;
+    private bool hasUnresolvedAnalysisMontage;
     private readonly LatestDelayedTask analysisUpdater = new();
     public Task PrepareDefaultPsdAsync() => PreparePsdAsync(analysisLifetime.Token);
 
@@ -21,38 +22,22 @@ public sealed partial class RecordingReviewViewModel
             await EnsurePsdParametersLoadedAsync();
             cancellationToken.ThrowIfCancellationRequested();
             var registered = analysisRecording ?? throw new InvalidOperationException("PSD 记录注册未完成。");
+            if (hasUnresolvedAnalysisMontage)
+                throw new InvalidOperationException("当前回溯导联没有对应的后端分析快照，已停止计算以避免沿用旧导联结果。");
             var request = new AnalysisRunRequest(registered.Id, "official_algorithm",
                 PsdParameters.BuildConfig(registered.DurationSeconds ?? DurationSeconds,
                     registered.SamplingRateHz ?? samplingRateHz,
-                    new ReviewAnalysisSettingsSnapshot(HighPassHz, LowPassHz, NotchHz, AnalysisSettings.WindowSeconds)));
+                    new ReviewAnalysisSettingsSnapshot(HighPassHz, LowPassHz, NotchHz, AnalysisSettings.WindowSeconds),
+                    PsdParameters.Montage));
             revision = analysisConfigurationRevision;
             await DetachAnalysisAsync();
-            if (analysisCoordinator.SupportsOnDemandWindows)
-            {
-                await AttachOnDemandAnalysisAsync(request, cancellationToken);
-                if (cancellationToken.IsCancellationRequested || revision != analysisConfigurationRevision) return;
-                PsdPreparationText = CurrentAnalysisWindow is null
-                    ? AnalysisStatusText
-                    : "PSD 按需窗口已准备，正在跟随回溯游标。";
-                return;
-            }
-            var run = await EnsurePsdAnalysisAsync(request, status =>
-            {
-                if (revision != analysisConfigurationRevision) return;
-                PsdPreparationText = status.Status switch
-                {
-                    "queued" => "PSD 排队中…",
-                    "running" when status.ProgressTotal is > 0 => $"PSD 分析中：{status.ProgressText}",
-                    "running" => "PSD 分析中…",
-                    _ => PsdPreparationText,
-                };
-            }, cancellationToken, revision);
+            if (!analysisCoordinator.SupportsOnDemandWindows)
+                throw new NotSupportedException("PSD 尚未通过回溯按需适配验收；此页面不会回退到完整 Run 计算。");
+            await AttachOnDemandAnalysisAsync(request, cancellationToken);
             if (cancellationToken.IsCancellationRequested || revision != analysisConfigurationRevision) return;
-            PsdPreparationText = run.Status == "gate_failed"
-                ? "PSD 质量门未通过，已显示失败原因。"
-                : CurrentAnalysisWindow is null
-                    ? analysisBinding?.StatusText ?? "当前游标暂无可用 PSD 窗口。"
-                    : "PSD 已准备，正在跟随回溯游标。";
+            PsdPreparationText = CurrentAnalysisWindow is null
+                ? AnalysisStatusText
+                : "PSD 按需窗口已准备，正在跟随回溯游标。";
         }
         catch (Exception exception)
         {
@@ -82,9 +67,14 @@ public sealed partial class RecordingReviewViewModel
             throw new InvalidOperationException("当前回溯记录不支持算法注册。");
         if (analysisRecording is not null && PsdParameters.Channels.Count > 0) return;
 
-        var registered = await analysisCoordinator.RegisterAsync(analysisRecordingDirectory, analysisLifetime.Token);
+        var registered = await analysisCoordinator.RegisterAsync(analysisRecordingDirectory, analysisLifetime.Token,
+            CompatibleViewingMontages.ToArray());
         var algorithm = await analysisCoordinator.GetAlgorithmAsync(analysisLifetime.Token);
-        PsdParameters.Initialize(registered, algorithm);
+        var selectedMontage = ResolveAnalysisMontage(registered, CurrentViewingMontage);
+        hasUnresolvedAnalysisMontage = CurrentViewingMontage is not null && selectedMontage is null;
+        if (hasUnresolvedAnalysisMontage)
+            throw new InvalidOperationException("后端没有登记当前回溯导联配置，不能安全地计算 PSD。");
+        PsdParameters.Initialize(registered, algorithm, selectedMontage);
         AnalysisSettings.Initialize(algorithm.DynamicPolicy);
         analysisRecording = registered;
         PsdPreparationText = "PSD 参数已加载。";
@@ -117,8 +107,18 @@ public sealed partial class RecordingReviewViewModel
 
     private void OnAnalysisConfigurationChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ReviewPsdParameters.Channel) or nameof(ReviewAnalysisSettings.WindowSeconds))
+        if (e.PropertyName is nameof(ReviewPsdParameters.Channel) or nameof(ReviewPsdParameters.Montage) or
+            nameof(ReviewAnalysisSettings.WindowSeconds))
             InvalidateAnalysisConfiguration();
+    }
+
+    private static HistoricalMontageDescriptor? ResolveAnalysisMontage(
+        RegisteredRecording recording, MontageProfile? selected)
+    {
+        if (selected is null) return null;
+        return recording.MontageCatalogue?.FirstOrDefault(item =>
+            string.Equals(item.Id, selected.Id, StringComparison.Ordinal) ||
+            string.Equals(item.SourceProfileId, selected.Id, StringComparison.Ordinal));
     }
 
     private void InvalidateAnalysisConfiguration()

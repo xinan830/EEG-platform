@@ -42,22 +42,24 @@ public sealed partial class AlgorithmListViewModel
         {
             throw new InvalidOperationException("请先注册一条已完成的 WPF 记录。");
         }
-        if (string.IsNullOrWhiteSpace(SelectedChannel) || !RegisteredChannels.Contains(SelectedChannel))
-            throw new InvalidOperationException("请选择注册记录返回的有效分析通道。");
         var durationSeconds = RegisteredRecording.DurationSeconds ?? throw new InvalidOperationException("注册记录没有可用的时长。");
         var requestedRange = AlgorithmRunConfiguration.ParseStaticRangeOrThrow(StartSecondsText, EndSecondsText, durationSeconds);
         var runInputs = new AlgorithmRunInputs(requestedRange, SelectedChannel, SelectedF4Channel,
             RegisteredChannels, RegisteredRecording.SamplingRateHz, LowFrequencyText, HighFrequencyText,
             NumeratorLowFrequencyText, NumeratorHighFrequencyText, DenominatorLowFrequencyText,
-            DenominatorHighFrequencyText, SelectedNotchFrequency);
+            DenominatorHighFrequencyText, SelectedNotchFrequency,
+            TnkRoleChannels.ToDictionary(role => role.Key, role => role.SelectedChannel, StringComparer.OrdinalIgnoreCase));
         var runParameters = resultHandler.ParseParameters(runInputs);
+        var runChannel = runParameters.PrimaryChannel ?? SelectedChannel;
+        if (string.IsNullOrWhiteSpace(runChannel) || !RegisteredChannels.Contains(runChannel))
+            throw new InvalidOperationException("请选择注册记录返回的有效分析通道。");
         var stepSeconds = dynamic ? AlgorithmRunConfiguration.ParsePositiveSecondsOrThrow(DynamicStepText, "刷新步长") : 0;
         if (dynamic && SelectedDynamicWindowSeconds < algorithm.DynamicPolicy.MinimumWindowSeconds)
             throw new InvalidOperationException($"动态窗口不能小于 {algorithm.DynamicPolicy.MinimumWindowSeconds:0.###} 秒。");
         var preservedDynamicCursorSeconds = dynamic && HasDynamicPreview
             ? DynamicPreviewCursorSeconds
             : (double?)null;
-        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, SelectedChannel, requestedRange, dynamic ? "dynamic" : "static", runParameters.FrequencyBand, runParameters.RatioBands, runParameters.F4Channel, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0, SelectedMontageProfile);
+        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, runChannel, requestedRange, dynamic ? "dynamic" : "static", runParameters.FrequencyBand, runParameters.RatioBands, runParameters.F4Channel, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0, SelectedMontageProfile, runParameters.RoleChannels);
         AlgorithmParameterValidation.ValidateOrThrow(algorithm, config);
         ClearPreviews();
         // Backend atomically merges active scientific configurations. New attempts

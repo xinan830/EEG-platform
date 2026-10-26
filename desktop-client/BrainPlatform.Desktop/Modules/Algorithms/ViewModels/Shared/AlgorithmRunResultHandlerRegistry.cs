@@ -24,7 +24,11 @@ internal static class AlgorithmRunResultHandlerRegistry
             new BrainbeatRunResultHandler(),
             new FaaRunResultHandler(),
             new ThetaBetaRunResultHandler(),
-        }.ToDictionary(handler => handler.AlgorithmId, StringComparer.OrdinalIgnoreCase);
+        }.Concat(new[]
+        {
+            (IAlgorithmRunResultHandler)new TnkShadowRunResultHandler("tnk_biofeedback"),
+        })
+        .ToDictionary(handler => handler.AlgorithmId, StringComparer.OrdinalIgnoreCase);
 
     internal static IAlgorithmRunResultHandler For(string algorithmId) =>
         handlers.TryGetValue(algorithmId, out var handler)

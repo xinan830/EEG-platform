@@ -24,7 +24,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     private readonly Grid labels = new();
     private readonly Grid chartHost = new();
     private readonly Grid rootLayout = WaveformPlotLayout.CreateRootGrid();
-    private readonly Canvas eventMarkers = new();
+    private readonly ReviewEventMarkerLayer eventMarkers;
     private readonly ReviewPlaybackCursor playbackCursor = new();
     private readonly TextBlock emptyMessage = new()
     {
@@ -54,12 +54,13 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     public RecordingReviewSciChartCanvas()
     {
         ConfigureSurface();
+        eventMarkers = new ReviewEventMarkerLayer(surface, chartHost);
         var layout = rootLayout;
         labels.HorizontalAlignment = HorizontalAlignment.Stretch;
         Grid.SetColumn(labels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
-        chartHost.Children.Add(eventMarkers);
+        chartHost.Children.Add(eventMarkers.Canvas);
         chartHost.Children.Add(playbackCursor);
         chartHost.SizeChanged += (_, _) =>
         {
@@ -179,14 +180,12 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         }
         else if (e.PropertyName == nameof(RecordingReviewViewModel.RecordingEvents))
         {
-            UpdateEventMarkers(sender as RecordingReviewViewModel);
-            UpdateLifecycleBoundaries(sender as RecordingReviewViewModel);
+            eventMarkers.Rebuild(sender as RecordingReviewViewModel);
         }
         else if (e.PropertyName == nameof(RecordingReviewViewModel.TimeDisplay))
         {
             UpdateTimePresentation(sender as RecordingReviewViewModel);
-            UpdateEventMarkers(sender as RecordingReviewViewModel);
-            UpdateLifecycleBoundaries(sender as RecordingReviewViewModel);
+            eventMarkers.Rebuild(sender as RecordingReviewViewModel);
         }
         else if (e.PropertyName == nameof(RecordingReviewViewModel.PositionSeconds))
         {
@@ -199,10 +198,19 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         }
         else if (e.PropertyName == nameof(RecordingReviewViewModel.ViewportStartSeconds))
         {
-            UpdateVisibleRange(sender as RecordingReviewViewModel);
-            UpdatePlaybackCursor(sender as RecordingReviewViewModel);
-            UpdateEventMarkers(sender as RecordingReviewViewModel);
-            UpdateLifecycleBoundaries(sender as RecordingReviewViewModel);
+            var viewModel = sender as RecordingReviewViewModel;
+            UpdateVisibleRange(viewModel);
+            UpdatePlaybackCursor(viewModel);
+            eventMarkers.Update(viewModel);
+            // Playback moves the axis every render tick. Do not cancel and
+            // restart an optional display-level read for each tick; the
+            // bounded source frame remains the authoritative smooth path.
+            if (viewModel?.IsPlaying != true)
+                StartDisplayFrameLoad(viewModel);
+        }
+        else if (e.PropertyName == nameof(RecordingReviewViewModel.IsPlaying) &&
+                 (sender as RecordingReviewViewModel)?.IsPlaying != true)
+        {
             StartDisplayFrameLoad(sender as RecordingReviewViewModel);
         }
     }
@@ -223,7 +231,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             renderedFrame = null;
             renderedDisplayFrame = null;
             CancelDisplayFrameLoad();
-            eventMarkers.Children.Clear();
+            eventMarkers.Clear();
             playbackCursor.Visibility = Visibility.Collapsed;
             return;
         }
@@ -256,8 +264,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         }
 
         UpdatePlaybackCursor(viewModel);
-        UpdateEventMarkers(viewModel);
-        UpdateLifecycleBoundaries(viewModel);
+        eventMarkers.Rebuild(viewModel);
         if (renderedDisplayFrame is { } display &&
             ReferenceEquals(displayAttemptFrame, frame) &&
             Math.Abs(display.WindowStartSeconds - (viewModel?.ViewportStartSeconds ?? double.NaN)) < 0.000_001)
@@ -470,108 +477,6 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         // bidirectional drags do not leave it stranded at an old edge.
         playbackCursor.Visibility = Visibility.Visible;
     }
-
-    private void UpdateEventMarkers(RecordingReviewViewModel? viewModel)
-    {
-        eventMarkers.Children.Clear();
-        if (viewModel is null || chartHost.ActualWidth <= 0 || chartHost.ActualHeight <= 0)
-            return;
-
-        var start = viewModel.ViewportStartSeconds;
-        var end = Math.Min(viewModel.DurationSeconds, start + viewModel.VisibleDurationSeconds);
-        var duration = Math.Max(0.001, end - start);
-        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
-        var plotOrigin = surface.TranslatePoint(plotArea.TopLeft, chartHost);
-        foreach (var item in viewModel.RecordingEvents)
-        {
-            if (!item.IsDisplayable)
-            {
-                continue;
-            }
-
-            var itemStart = RecordingTimeMapper.ToElapsedSeconds(item.StartSample, viewModel.SamplingRateHz);
-            var itemEnd = item.IsInterval
-                ? RecordingTimeMapper.ToElapsedSeconds(item.EndSampleExclusive, viewModel.SamplingRateHz)
-                : itemStart;
-            if (itemEnd < start || itemStart > end) continue;
-            var left = plotOrigin.X + Math.Clamp((itemStart - start) / duration, 0, 1) * plotArea.Width;
-            var right = plotOrigin.X + Math.Clamp((itemEnd - start) / duration, 0, 1) * plotArea.Width;
-            var color = ParseColor(item.DefinitionSnapshot.Color);
-            eventMarkers.Children.Add(new Border
-            {
-                ToolTip = RecordingEventDisplayTime.FormatMarker(item, viewModel.RecordingStartUtc, viewModel.SamplingRateHz),
-                IsHitTestVisible = !item.IsInterval,
-                Width = item.IsInterval ? Math.Max(2, right - left) : 2,
-                Height = plotArea.Height,
-                Background = item.IsInterval
-                    ? new SolidColorBrush(Color.FromArgb(32, color.R, color.G, color.B))
-                    : new SolidColorBrush(color),
-                BorderBrush = item.IsInterval ? new SolidColorBrush(Color.FromArgb(150, color.R, color.G, color.B)) : null,
-                BorderThickness = item.IsInterval ? new Thickness(1, 0, 1, 0) : new Thickness(0),
-                Margin = new Thickness(left, plotOrigin.Y, 0, 0),
-            });
-            WaveformEventTimeLabel.Add(
-                eventMarkers,
-                left,
-                plotOrigin.Y + 3,
-                viewModel.TimeDisplay.FormatPoint(itemStart),
-                color,
-                RecordingEventDisplayTime.FormatMarker(item, viewModel.RecordingStartUtc, viewModel.SamplingRateHz));
-        }
-    }
-
-    private static Color ParseColor(string value)
-    {
-        try { return (Color)ColorConverter.ConvertFromString(value); }
-        catch { return Color.FromRgb(37, 99, 235); }
-    }
-
-    private void UpdateLifecycleBoundaries(RecordingReviewViewModel? viewModel)
-    {
-        foreach (var line in eventMarkers.Children.OfType<Line>().ToArray())
-        {
-            eventMarkers.Children.Remove(line);
-        }
-
-        if (viewModel is null || chartHost.ActualWidth <= 0 || chartHost.ActualHeight <= 0)
-            return;
-
-        var start = viewModel.ViewportStartSeconds;
-        var end = Math.Min(viewModel.DurationSeconds, start + viewModel.VisibleDurationSeconds);
-        var duration = Math.Max(0.001, end - start);
-        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
-        foreach (var boundary in viewModel.LifecycleBoundaries)
-        {
-            var relativeSample = boundary.SampleCounter - viewModel.RecordingFirstSampleCounter;
-            var seconds = relativeSample / (double)viewModel.SamplingRateHz;
-            if (seconds < start || seconds > end) continue;
-            var x = plotArea.Left + Math.Clamp((seconds - start) / duration, 0, 1) * plotArea.Width;
-            eventMarkers.Children.Add(new Line
-            {
-                X1 = x, X2 = x, Y1 = plotArea.Top, Y2 = plotArea.Bottom,
-                Stroke = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
-                StrokeThickness = 1.2,
-                StrokeDashArray = new DoubleCollection { 3, 2 },
-                IsHitTestVisible = false,
-            });
-            WaveformEventTimeLabel.Add(
-                eventMarkers,
-                x,
-                plotArea.Top + 3,
-                viewModel.TimeDisplay.FormatPoint(seconds),
-                Color.FromRgb(51, 65, 85),
-                BoundaryText(boundary.Kind));
-        }
-    }
-
-    private static string BoundaryText(RecordingLifecycleBoundaryKind kind) => kind switch
-    {
-        RecordingLifecycleBoundaryKind.Started => "开始记录",
-        RecordingLifecycleBoundaryKind.Paused => "暂停记录",
-        RecordingLifecycleBoundaryKind.Resumed => "恢复记录",
-        RecordingLifecycleBoundaryKind.Stopped => "结束记录",
-        _ => kind.ToString(),
-    };
 
     private void UpdateVisibleRange(RecordingReviewViewModel? viewModel)
     {

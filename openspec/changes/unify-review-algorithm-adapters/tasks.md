@@ -1,30 +1,33 @@
 ## 1. Contracts and Baseline
 
-- [ ] 1.1 Add desktop contract tests capturing current PSD playback, drag, release, cancellation and stale-response behavior before changing orchestration.
-- [ ] 1.2 Define a typed immutable review analysis snapshot for recording identity, cursor sample, analysis montage/reference, complete algorithm config, preprocessing, and policy/version identity.
-- [ ] 1.3 Define the algorithm-neutral review adapter and presentation contracts, including an explicit unsupported-capability result.
+- [x] 1.1 Add desktop contract tests capturing current PSD playback, drag, release, cancellation and stale-response behavior before changing orchestration.
+- [x] 1.2 Define a typed immutable review analysis snapshot for recording identity, cursor sample, analysis montage/reference, complete algorithm config, preprocessing, and policy/version identity. (The response exposes canonical `scientific_configuration_json` plus its SHA-256; the review snapshot parses and freezes normalized config/context after digest verification.)
+- [x] 1.3 Define the algorithm-neutral review adapter and presentation contracts, including an explicit unsupported-capability result.
 
 ## 2. Trigger and Target Coordination
 
-- [ ] 2.1 Separate playback advancement, drag movement and drag completion events in review coordination; keep drag navigation immediate while suppressing analysis requests during movement.
-- [ ] 2.2 Submit the latest eligible cursor target immediately on drag release and deduplicate it against matching in-flight or ready work.
-- [ ] 2.3 Preserve playback refresh semantics through backend-planned window identity, ensure playback is never blocked by analysis, and display queued/computing/insufficient/missed target states accurately.
-- [ ] 2.4 Reject stale responses by recording, immutable configuration snapshot, adapter/algorithm identity, target revision and backend window identity; detach only this consumer's subscription on replacement or close.
+- [x] 2.1 Separate playback advancement, drag movement and drag completion events in review coordination; keep drag navigation immediate while suppressing analysis requests during movement.
+- [x] 2.2 Submit the latest eligible cursor target immediately on drag release and deduplicate it against matching in-flight or ready work.
+- [x] 2.3 Submit the current cursor once per playback refresh interval (one second), let backend-planned identity deduplicate reusable work, keep playback running during analysis and drag, and distinguish queued/computing/lag from true insufficient data.
+- [x] 2.4 Reject stale responses by recording, immutable configuration snapshot, adapter/algorithm identity, target revision and backend window identity; detach only this consumer's subscription on replacement or close. (The adapter verifies canonical scientific-config bytes against `configuration_sha256` and rejects config mismatches; coordinator continues to enforce source, catalog, target revision and window/session identity.)
 
 ## 3. PSD Adapter and Regression
 
-- [ ] 3.1 Move PSD request construction and typed result parsing/presentation behind the PSD review adapter without changing scientific parameters, preprocessing, units or returned values.
-- [ ] 3.2 Verify display montage/filter changes do not alter scientific identity unless explicitly represented by the PSD scientific contract; verify analysis montage/filter changes do.
-- [ ] 3.3 Run focused tests for playback, drag release, same-target reuse, backward seek, stale completion ordering, panel close and recording switch.
+- [x] 3.1 Move PSD request construction and typed result parsing/presentation behind the PSD review adapter without changing scientific parameters, preprocessing, units or returned values.
+- [x] 3.2 Verify the selected review montage and mapped PSD channel are captured as scientific identity, while chart-scale settings stay presentation-only and submitted filter settings alter the request configuration. (PSD review binds the selected montage snapshot and corresponding output role.)
+- [x] 3.3 Run focused tests for playback, drag release, same-target reuse, backward seek, stale completion ordering, panel close and recording switch.
+- [x] 3.4 Reduce PSD on-demand result discovery delay with status-aware polling and opt-in request-to-ready/result-binding timings; preserve request cancellation, subscription ownership and scientific result identity. (Initial probing stays at 100 ms; subsequent intervals are queued 500 ms, source preparation 250 ms and computation 150 ms, backing off to 750 ms after three seconds in one state. Diagnostics correlate request/window state and result binding without logging signal data.)
 
 ## 4. Algorithm Adoption and Validation
 
-- [ ] 4.1 Inventory each algorithm's backend on-demand window capability, complete request config, continuous preprocessing contract, output shape, quality and provenance requirements.
-- [ ] 4.2 Register each additional algorithm only after its backend window path and algorithm-owned presenter pass scientific-equivalence and review contract acceptance; keep unsupported algorithms explicitly unavailable.
-- [ ] 4.3 Perform WPF manual acceptance of playback and drag-release behavior for each registered adapter, including missing data, quality rejection, execution failure and rapid target replacement.
+- [x] 4.1 Inventory each algorithm's backend on-demand window capability, complete request config, continuous preprocessing contract, output shape, quality and provenance requirements. (Recorded per algorithm from current manifest/config/window declarations in `docs/algorithms/review-adapter-onboarding.md`; explicitly distinguishes backend support from WPF registration.)
+- [x] 4.2 Register each additional algorithm only after its backend window path and algorithm-owned presenter pass scientific-equivalence and review contract acceptance; keep unsupported algorithms explicitly unavailable. (The onboarding inventory confirms that no additional algorithm currently meets the backend evidence, typed presenter, and review acceptance gate. No extra adapter was registered; unsupported algorithms remain explicitly unavailable.)
+- [ ] 4.3 Perform WPF manual acceptance of playback and drag-release behavior for each registered adapter, including missing data, quality rejection, execution failure and rapid target replacement. (PSD REF-to-average montage switching was manually accepted: the waveform and PSD analysis channel update together, the prior result is invalidated, and a new result is computed. Playback/drag-release and failure-state scenarios remain to be accepted.)
+- [x] 4.4 Preserve centered playback follow with viewport clamping at recording boundaries; avoid repeated display-frame work during playback viewport motion and reuse the PSD chart series across one-second result updates. (Playback follow tests cover center positioning and short-recording/endpoint clamping; playback viewport updates skip optional display-frame reloads; the PSD chart retains its SciChart data series and replaces its points in place. Focused WPF verification passed 13 tests.)
+- [x] 4.5 Bind PSD review requests to the selected compatible montage snapshot; map the selected electrode role to that montage's output, invalidate the previous result, and recalculate after montage changes. (Registration sends compatible immutable montage profiles; the PSD request includes the selected profile identity/output mapping and recalculates on change. Regression tests cover role mapping and snapshot payload.)
 
 ## 5. Documentation and Quality Gates
 
-- [ ] 5.1 Update current review architecture documentation and adapter onboarding instructions to match the accepted contracts and ownership boundaries.
-- [ ] 5.2 Review affected file sizes and update `docs/code-size-policy.json` for any changed business file above 400 lines; document justified split boundaries.
-- [ ] 5.3 Run applicable WPF build/tests, any affected backend tests, `openspec validate --strict --change unify-review-algorithm-adapters`, and `git diff --check`.
+- [x] 5.1 Update current review architecture documentation and adapter onboarding instructions to match the accepted contracts and ownership boundaries. (Architecture and onboarding now document the canonical normalized scientific configuration response and desktop verification boundary.)
+- [x] 5.2 Review affected file sizes and update `docs/code-size-policy.json` for any changed business file above 400 lines; document justified split boundaries. (Updated registry for `on_demand_dynamic.py` at 505/510 due to response-contract serialization; `RecordingReviewViewModel.cs` 679/831 and `MainWindow.xaml.cs` 439/445 remain registered. The dynamic service should be split into a response mapper before further expansion.)
+- [x] 5.3 Run applicable WPF build/tests, any affected backend tests, `openspec validate unify-review-algorithm-adapters --strict`, and `git diff --check`. (Focused WPF build/tests pass: 13 tests; affected backend regression suite passes: 43 tests; strict OpenSpec validation and `git diff --check` pass. The backend failures were caused by excluding display-only `montage_label` only from the on-demand scientific context while the full-Run context retained it. The shared `scientific_context_snapshot` now excludes that label in both paths, with a regression test proving it does not alter scientific identity. WPF manual playback/drag-release/failure-state acceptance remains open under 4.3.)

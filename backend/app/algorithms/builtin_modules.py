@@ -20,6 +20,7 @@ from app.algorithms.psd.runner import PsdAlgorithm
 from app.algorithms.rbp.runner import RbpAlgorithm
 from app.algorithms.stft.runner import StftAlgorithm
 from app.algorithms.theta_beta.runner import ThetaBetaAlgorithm
+from app.algorithms.tnk.runtime import build_tnk_runtime_adapters
 
 
 BUILTIN_ALGORITHM_FACTORIES: tuple[Callable[[], AlgorithmModule], ...] = (
@@ -36,9 +37,9 @@ BUILTIN_ALGORITHM_FACTORIES: tuple[Callable[[], AlgorithmModule], ...] = (
 
 
 def build_builtin_modules() -> tuple[AlgorithmModule, ...]:
-    return tuple(factory() for factory in BUILTIN_ALGORITHM_FACTORIES)
+    return tuple(factory() for factory in BUILTIN_ALGORITHM_FACTORIES) + build_tnk_runtime_adapters()
 
 
 BUILTIN_ALGORITHM_MANIFESTS: tuple[AlgorithmManifest, ...] = tuple(
-    factory().manifest for factory in BUILTIN_ALGORITHM_FACTORIES
+    module.manifest for module in build_builtin_modules()
 )

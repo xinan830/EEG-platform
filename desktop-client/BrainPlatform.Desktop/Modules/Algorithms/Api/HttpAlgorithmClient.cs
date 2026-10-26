@@ -5,10 +5,11 @@ using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Montages.Domain;
+using BrainPlatform.Desktop.Shared.Waveform;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 
-public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrationClient
+public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrationClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -16,6 +17,10 @@ public sealed class HttpAlgorithmClient : IAlgorithmClient, IRecordingRegistrati
     };
 
     private readonly HttpClient httpClient;
+
+    public Task<SignalPreviewResponse> GetSignalPreviewAsync(string recordingId, SignalPreviewRequest request, CancellationToken cancellationToken) =>
+        SendAsync<SignalPreviewResponse>(HttpMethod.Post,
+            $"api/recordings/{Uri.EscapeDataString(RequireId(recordingId))}/signal-preview", request, cancellationToken);
 
     public HttpAlgorithmClient(HttpClient httpClient)
     {

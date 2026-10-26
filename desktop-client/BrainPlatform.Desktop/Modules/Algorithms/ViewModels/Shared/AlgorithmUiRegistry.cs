@@ -42,6 +42,7 @@ internal static class AlgorithmUiRegistry
             ["band_ratio"] = new("band_ratio", AlgorithmDetailKind.BandRatio, "频段比通道", catalog => new BandRatioDetailViewModel(catalog), 6, HasBandRatioParameters: true),
             ["theta_beta"] = new("theta_beta", AlgorithmDetailKind.ThetaBeta, "Theta/Beta 通道", catalog => new ThetaBetaDetailViewModel(catalog), 7),
             ["brainbeat"] = new("brainbeat", AlgorithmDetailKind.Brainbeat, "Brainbeat Fz 通道", catalog => new BrainbeatDetailViewModel(catalog), 8, "Fz", "Pz"),
+            ["tnk_biofeedback"] = new("tnk_biofeedback", AlgorithmDetailKind.Scalar, "TNK 来源通道映射", catalog => new TnkDetailViewModel(catalog, "tnk_biofeedback"), 100),
         };
 
     internal static bool TryGet(string? algorithmId, out AlgorithmUiDescriptor descriptor)

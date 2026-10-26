@@ -45,6 +45,61 @@ public sealed class ReviewSharedAnalysisSettingsTests
     }
 
     [Fact]
+    public void Psd_request_config_has_no_waveform_display_montage_or_scale_fields()
+    {
+        var parameters = new ReviewPsdParameters();
+        parameters.Initialize(Recording(), Algorithm());
+        var config = parameters.BuildConfig(100, 500,
+            new ReviewAnalysisSettingsSnapshot(1, 30, 50, 5));
+
+        Assert.False(config.TryGetProperty("viewing_montage", out _));
+        Assert.False(config.TryGetProperty("sensitivity", out _));
+        Assert.False(config.TryGetProperty("paper_speed", out _));
+        Assert.Equal("F3", config.GetProperty("channel").GetString());
+    }
+
+    [Fact]
+    public void Psd_scientific_channel_and_filter_changes_change_the_request_config()
+    {
+        var parameters = new ReviewPsdParameters();
+        parameters.Initialize(Recording() with { Channels = ["F3", "F4"] }, Algorithm());
+        var baseline = parameters.BuildConfig(100, 500, new ReviewAnalysisSettingsSnapshot(1, 30, 50, 5));
+
+        parameters.Channel = "F4";
+        var channelChanged = parameters.BuildConfig(100, 500, new ReviewAnalysisSettingsSnapshot(1, 30, 50, 5));
+        var filterChanged = parameters.BuildConfig(100, 500, new ReviewAnalysisSettingsSnapshot(1, 40, 50, 5));
+
+        Assert.NotEqual(baseline.GetRawText(), channelChanged.GetRawText());
+        Assert.Equal("F4", channelChanged.GetProperty("channel").GetString());
+        Assert.NotEqual(channelChanged.GetRawText(), filterChanged.GetRawText());
+        Assert.Equal(40, filterChanged.GetProperty("high_hz").GetDouble());
+    }
+
+    [Fact]
+    public void Switching_review_montage_maps_psd_channel_role_and_binds_snapshot()
+    {
+        var refMontage = Montage("ref", "f-ref", "Fp1-REF", "Fp2-REF");
+        var averageMontage = Montage("average", "f-average", "Fp1-AVG", "Fp2-AVG");
+        var recording = Recording() with
+        {
+            MontageCatalogue = [refMontage, averageMontage],
+        };
+        var parameters = new ReviewPsdParameters();
+        parameters.Initialize(recording, Algorithm(), refMontage);
+        parameters.Channel = "Fp2-REF";
+
+        parameters.SelectMontage(recording, averageMontage);
+        var config = parameters.BuildConfig(100, 500,
+            new ReviewAnalysisSettingsSnapshot(1, 30, 50, 5));
+
+        Assert.Equal("Fp2-AVG", parameters.Channel);
+        Assert.Equal("average", config.GetProperty("analysis_montage_id").GetString());
+        Assert.Equal("f-average", config.GetProperty("analysis_montage_fingerprint").GetString());
+        Assert.Equal("Fp2-AVG", config.GetProperty("channel").GetString());
+        Assert.Equal("Fp2", config.GetProperty("analysis_montage_outputs")[0].GetProperty("role").GetString());
+    }
+
+    [Fact]
     public void Window_choices_and_fallback_are_from_backend_policy()
     {
         var settings = new ReviewAnalysisSettings();
@@ -84,6 +139,11 @@ public sealed class ReviewSharedAnalysisSettingsTests
     internal static AlgorithmCatalogItem Algorithm() => new("official", "psd", "v1", "功率谱密度",
         "PSD", "", [], ["dynamic"], JsonSerializer.SerializeToElement(new { }),
         new DynamicAnalysisPolicy(5, [5, 10], 5, 1, false), "available", true, null, null, "test");
+
+    private static HistoricalMontageDescriptor Montage(string id, string fingerprint, params string[] channels) =>
+        new(id, "acquisition-montage-v1", fingerprint, id, id == "ref", true, null,
+            channels.Select(channel => new HistoricalMontageOutput(channel, channel,
+                channel[..channel.IndexOf('-')], "V", true, null)).ToArray(), id);
 }
 
 public sealed partial class RecordingReviewViewModelTests
@@ -121,13 +181,14 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.Equal(5, provider.Request.Config.GetProperty("dynamic_window_s").GetDouble());
     }
 
-    private sealed class PendingReviewProvider : IReviewAnalysisProvider
+    private sealed class PendingReviewProvider : IReviewAlgorithmAdapter
     {
         public string AlgorithmId => "psd";
         public TaskCompletionSource Started { get; } = new();
         public TaskCompletionSource<AnalysisRunResponse> Completed { get; } = new();
         public AnalysisRunRequest? Request { get; private set; }
-        public Task<RegisteredRecording> RegisterAsync(string directory, CancellationToken cancellationToken) =>
+        public Task<RegisteredRecording> RegisterAsync(string directory, CancellationToken cancellationToken,
+            IReadOnlyList<BrainPlatform.Desktop.Modules.Montages.Domain.MontageProfile>? montageProfiles = null) =>
             Task.FromResult(ReviewSharedAnalysisSettingsTests.Recording());
         public Task<AlgorithmCatalogItem> GetAlgorithmAsync(CancellationToken cancellationToken) =>
             Task.FromResult(ReviewSharedAnalysisSettingsTests.Algorithm());

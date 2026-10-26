@@ -9,6 +9,29 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 
 public sealed class HttpAlgorithmClientTests
 {
+    [Fact]
+    public async Task SignalPreviewPostsMontageChannelsAndAbsoluteTime()
+    {
+        using var client = new HttpClient(new StubHandler(request =>
+        {
+            Assert.Equal("/api/recordings/source/signal-preview", request.RequestUri!.AbsolutePath);
+            Assert.Equal(HttpMethod.Post, request.Method);
+            using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            Assert.Equal(20, body.RootElement.GetProperty("start_s").GetDouble());
+            Assert.Equal("montage", body.RootElement.GetProperty("montage_id").GetString());
+            Assert.Equal("Pz-AVG", body.RootElement.GetProperty("channels")[0].GetString());
+            Assert.Equal(2, body.RootElement.GetProperty("low_hz").GetDouble());
+            Assert.Equal(20, body.RootElement.GetProperty("high_hz").GetDouble());
+            Assert.Equal(50, body.RootElement.GetProperty("notch_hz").GetDouble());
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new
+            { recording_id = "source", montage_id = "montage", unit = "uV", filter = "continuous_zero_phase", low_hz=2d,high_hz=20d,notch_hz=50d,
+              elapsed_s = new[] {20d,20.001}, channels = new Dictionary<string,double[]> { ["Pz-AVG"] = [1,2] } }) };
+        })) { BaseAddress = new Uri("http://localhost/") };
+        var result = await new HttpAlgorithmClient(client).GetSignalPreviewAsync("source", new(20,10,"montage",["Pz-AVG"],LowHz:2,HighHz:20,NotchHz:50),CancellationToken.None);
+        Assert.Equal("uV", result.Unit);
+        Assert.Equal(20, result.TimeSeconds[0]);
+        Assert.Equal(2,result.LowHz); Assert.Equal(20,result.HighHz); Assert.Equal(50,result.NotchHz);
+    }
     [Theory]
     [InlineData("{\"detail\":\"分析范围无效\"}", "分析范围无效")]
     [InlineData("{\"detail\":[{\"loc\":[\"config\",\"high_hz\"],\"msg\":\"maximum 30\"}]}", "high_hz")]

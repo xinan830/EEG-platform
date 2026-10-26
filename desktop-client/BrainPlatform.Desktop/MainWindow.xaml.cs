@@ -306,7 +306,7 @@ public partial class MainWindow : Window
         }
         var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
         var analysisCoordinator = (DataContext as DesktopWorkspaceViewModel) is { } workspace
-            ? new ReviewAnalysisCoordinator(new PsdReviewAnalysisProvider(workspace.Algorithms))
+            ? new ReviewAnalysisCoordinator(new PsdReviewAnalysisAdapter(workspace.Algorithms))
             : null;
         var viewModel = new RecordingReviewViewModel(
             loadedRecording.Reader,

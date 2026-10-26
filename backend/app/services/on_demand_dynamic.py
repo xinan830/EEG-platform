@@ -30,6 +30,7 @@ from app.algorithm_runtime.offline_execution import (
     OFFLINE_EXECUTION_CONTRACT_VERSION,
     scientific_cache_key,
     scientific_configuration_sha256,
+    scientific_configuration_json,
     scientific_context_snapshot,
 )
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
@@ -176,10 +177,13 @@ class DynamicWindowService:
                         "signal_mode": "unverifiable",
                         "analysis_reference": "unverifiable_source_metadata",
                         "error_type": type(exc).__name__,
-                        "error_message": str(exc),
                     }
             else:
                 signal_source = {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}
+            # A display label can contain operator-entered text and is not part
+            # of the signal calculation. Keep it out of the scientific identity
+            # snapshot and the public canonical configuration payload.
+            signal_source = {key: value for key, value in signal_source.items() if key != "montage_label"}
             execution_snapshot = module.execution_snapshot(typed_config)
             channel_mapping = {
                 "channels": module.requested_channels(typed_config),
@@ -197,6 +201,8 @@ class DynamicWindowService:
                 window=execution_snapshot.window,
                 window_policy_version=capability.window_policy_version,
             )
+            replay_context = scientific_context["replay_context"]
+            context_identity = str(replay_context["context_identity"])
             scientific_config_sha256 = scientific_configuration_sha256(config, scientific_context)
             session_identity = DynamicSessionIdentity(
                 project_scope=payload.project_id,
@@ -208,6 +214,8 @@ class DynamicWindowService:
                 implementation_identity=module.manifest.implementation_identity,
                 configuration_sha256=scientific_config_sha256,
                 window_policy_version=capability.window_policy_version,
+                reset_origin_sample=0,
+                context_identity=context_identity,
             )
             if recovering is not None:
                 previous_session = self.repository.get_session(recovering.session_id)
@@ -252,7 +260,8 @@ class DynamicWindowService:
                 window.window_id, window.state, (time.perf_counter() - started) * 1000,
             )
             return self._response(session.session_id, window, plan, request_id, result=result, subscription_id=subscription_id,
-                                  scientific_cache_key=self._session_cache_key(session))
+                                  scientific_cache_key=self._session_cache_key(session),
+                                  scientific_configuration_json=self._session_scientific_configuration_json(session))
         if plan.state != "planned":
             window = self.repository.transition_window(
                 window.window_id, "insufficient_data", quality="insufficient_data",
@@ -262,7 +271,8 @@ class DynamicWindowService:
                 window.window_id, request_id, project_id=payload.project_id,
             ).subscription_id
             return self._response(session.session_id, window, plan, request_id, subscription_id=subscription_id,
-                                  scientific_cache_key=self._session_cache_key(session))
+                                  scientific_cache_key=self._session_cache_key(session),
+                                  scientific_configuration_json=self._session_scientific_configuration_json(session))
         # Fence leases left by a crashed process. The current ensure request
         # supplies the immutable inputs needed to submit the recovery attempt.
         self.repository.recover_expired_attempts()
@@ -293,7 +303,8 @@ class DynamicWindowService:
                 current.window_id, request_id, project_id=payload.project_id,
             ).subscription_id
             return self._response(session.session_id, current, plan, request_id, result=result, subscription_id=subscription_id,
-                                  scientific_cache_key=self._session_cache_key(session))
+                                  scientific_cache_key=self._session_cache_key(session),
+                                  scientific_configuration_json=self._session_scientific_configuration_json(session))
         subscription_id = None if recovering is not None else self.repository.create_subscription(
             window.window_id, request_id, project_id=payload.project_id,
         ).subscription_id
@@ -312,7 +323,8 @@ class DynamicWindowService:
                         window.window_id, attempt.attempt_id, window.state,
                     )
         return self._response(session.session_id, window, plan, request_id, subscription_id=subscription_id,
-                              scientific_cache_key=self._session_cache_key(session))
+                              scientific_cache_key=self._session_cache_key(session),
+                              scientific_configuration_json=self._session_scientific_configuration_json(session))
 
     def _recover_loop(self) -> None:
         while not self._stop.wait(1):
@@ -354,7 +366,8 @@ class DynamicWindowService:
         plan = self._plan_from_records(session, window)
         result = self._read_artifact(window.result_artifact_id) if window.state == "ready" else None
         return self._response(session.session_id, window, plan, result=result,
-                              scientific_cache_key=self._session_cache_key(session))
+                              scientific_cache_key=self._session_cache_key(session),
+                              scientific_configuration_json=self._session_scientific_configuration_json(session))
 
     def subscribe(self, window_id: str, request_id: str, *, project_id: str | None = None) -> dict[str, Any]:
         return self.repository.create_subscription(window_id, request_id, project_id=project_id).__dict__
@@ -452,25 +465,40 @@ class DynamicWindowService:
 
     @staticmethod
     def _plan_from_records(session: Any, window: DynamicWindowRecord) -> DynamicWindowPlan:
+        replay_context = (session.configuration.get("_scientific_context") or {}).get("replay_context", {})
+        context_identity = str(replay_context.get("context_identity", ""))
         identity = DynamicSessionIdentity(
             project_scope=session.project_id, recording_id=session.recording_id, source_sha256=session.source_sha256,
             algorithm_id=session.algorithm_id, definition_id=session.definition_id, definition_version=session.definition_version,
             definition_sha256=session.definition_sha256, implementation_build=session.implementation_build,
             scientific_version=session.scientific_version, implementation_identity=session.implementation_identity,
             configuration_sha256=session.configuration_sha256, window_policy_version=session.window_policy_version,
+            reset_origin_sample=int(replay_context.get("reset_origin_sample", 0)),
+            context_identity=context_identity,
         )
         return DynamicWindowPlan(session_identity=identity, cursor_sample=window.end_sample,
                                  cursor_s=window.end_s,
                                  start_sample=window.start_sample, end_sample=window.end_sample,
                                  start_s=window.start_s, end_s=window.end_s,
+                                 context_start_sample=int(replay_context.get("reset_origin_sample", 0)),
+                                 context_end_sample=window.end_sample,
+                                 context_identity=context_identity,
                                  state="planned" if window.state not in {"insufficient_data", "unavailable"} else "insufficient_data",
                                  reason=window.failure.get("message") if window.failure else None)
+
+    @staticmethod
+    def _session_scientific_configuration_json(session: Any) -> str:
+        stored = dict(session.configuration)
+        context = stored.pop("_scientific_context")
+        return scientific_configuration_json(stored, context)
 
     @staticmethod
     def _response(session_id: str, window: DynamicWindowRecord, plan: DynamicWindowPlan,
                   request_id: str | None = None, result: dict[str, Any] | None = None,
                   subscription_id: str | None = None,
-                  scientific_cache_key: str | None = None) -> dict[str, Any]:
+                  scientific_cache_key: str | None = None,
+                  *,
+                  scientific_configuration_json: str) -> dict[str, Any]:
         identity = {
             **plan.session_identity.model_dump(mode="json"),
             "start_sample": window.start_sample,
@@ -481,6 +509,7 @@ class DynamicWindowService:
                 "subscription_id": subscription_id,
                 "execution_mode": "on_demand",
                 "scientific_cache_key": scientific_cache_key,
+                "scientific_configuration_json": scientific_configuration_json,
                 "identity": {**identity, "generation": window.generation},
                 "plan": plan.model_dump(mode="json"), "range": {"start_sample": window.start_sample, "end_sample": window.end_sample,
                 "start_s": window.start_s, "end_s": window.end_s}, "quality": window.quality,

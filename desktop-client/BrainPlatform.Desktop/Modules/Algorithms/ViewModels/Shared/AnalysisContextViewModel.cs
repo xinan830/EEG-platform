@@ -43,6 +43,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
     public bool IsOnDemandExecutionModeSelected => Catalog.IsOnDemandExecutionModeSelected;
     public bool IsCombinedExecutionModeSelected => Catalog.IsCombinedExecutionModeSelected;
     public bool IsDynamicMode => Catalog.IsDynamicMode;
+    public bool SupportsStaticMode => Catalog.SupportsStaticMode;
     public bool IsDynamicModeAvailable => Catalog.IsDynamicModeAvailable;
     public bool IsDynamicPreviewPlaying => Catalog.IsDynamicPreviewPlaying;
     public double DynamicPreviewCursorSeconds => Catalog.DynamicPreviewCursorSeconds;
@@ -173,6 +174,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
             or nameof(AlgorithmListViewModel.EndSecondsText)
             or nameof(AlgorithmListViewModel.SelectedAnalysisMode)
             or nameof(AlgorithmListViewModel.IsDynamicMode)
+            or nameof(AlgorithmListViewModel.SupportsStaticMode)
             or nameof(AlgorithmListViewModel.IsDynamicModeAvailable)
             or nameof(AlgorithmListViewModel.DynamicWindowOptions)
             or nameof(AlgorithmListViewModel.DynamicStepOptions)
@@ -257,6 +259,7 @@ public sealed class AnalysisContextViewModel : ObservableObject
             RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
             RaisePropertyChanged(nameof(IsCombinedExecutionModeSelected));
             RaisePropertyChanged(nameof(IsDynamicMode));
+            RaisePropertyChanged(nameof(SupportsStaticMode));
             RaisePropertyChanged(nameof(IsDynamicModeAvailable));
             RaisePropertyChanged(nameof(IsDynamicPreviewPlaying));
             RaisePropertyChanged(nameof(DynamicPreviewCursorSeconds));

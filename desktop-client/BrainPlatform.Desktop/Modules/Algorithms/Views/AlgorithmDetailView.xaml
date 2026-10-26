@@ -10,6 +10,7 @@
              xmlns:ratio="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.BandRatio"
              xmlns:theta="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.ThetaBeta"
              xmlns:brainbeat="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Brainbeat"
+             xmlns:sharedvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared"
              xmlns:psdvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd"
              xmlns:stftvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft"
              xmlns:rbpvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp"
@@ -34,6 +35,7 @@
         <DataTemplate DataType="{x:Type ratiovm:BandRatioDetailViewModel}"><ratio:BandRatioDetailView /></DataTemplate>
         <DataTemplate DataType="{x:Type thetavm:ThetaBetaDetailViewModel}"><theta:ThetaBetaDetailView /></DataTemplate>
         <DataTemplate DataType="{x:Type brainbeatvm:BrainbeatDetailViewModel}"><brainbeat:BrainbeatDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type sharedvm:TnkDetailViewModel}"><shared:TnkDetailView /></DataTemplate>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <Grid Margin="16,12,16,20">
@@ -91,15 +93,33 @@
                 </DockPanel>
             </StackPanel>
 
-            <shared:AnalysisTargetCard Grid.Row="1" DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
-            <shared:AnalysisParameterCard Grid.Row="2" DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
-            <Grid Grid.Row="3" Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="1*" MinWidth="440"/><ColumnDefinition Width="16"/><ColumnDefinition Width="1*" MinWidth="440"/></Grid.ColumnDefinitions><shared:AnalysisExecutionCard Grid.Column="0" DataContext="{Binding AlgorithmWorkspace.Detail.Context}"/><shared:QualityStatusCard Grid.Column="2" DataContext="{Binding AlgorithmWorkspace.Detail.Quality}" /></Grid>
+            <StackPanel Grid.Row="1">
+                <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
+                    <DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Context.Catalog.IsTnkSelected}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                </Style.Triggers></Style></StackPanel.Style>
+                <shared:AnalysisTargetCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                <shared:AnalysisParameterCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="1*" MinWidth="440"/><ColumnDefinition Width="16"/><ColumnDefinition Width="1*" MinWidth="440"/></Grid.ColumnDefinitions><shared:AnalysisExecutionCard Grid.Column="0" DataContext="{Binding AlgorithmWorkspace.Detail.Context}"/><shared:QualityStatusCard Grid.Column="2" DataContext="{Binding AlgorithmWorkspace.Detail.Quality}" /></Grid>
+            </StackPanel>
+            <Expander Grid.Row="2" Header="记录、导联与运行设置" IsExpanded="False" Margin="0,0,0,10">
+                <Expander.Style><Style TargetType="Expander"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers>
+                    <DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Context.Catalog.IsTnkSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                </Style.Triggers></Style></Expander.Style>
+                <StackPanel>
+                    <shared:AnalysisTargetCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                    <shared:AnalysisParameterCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                    <shared:AnalysisExecutionCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}"/>
+                </StackPanel>
+            </Expander>
             <!-- Row 4: PSD 结果和结果溯源分成两个完整宽度区块 -->
             <StackPanel Grid.Row="4">
                 <!-- Left: Card 6 PSD 结果 View -->
                 <ContentControl Content="{Binding AlgorithmWorkspace.Detail.CurrentModule}" />
 
-                <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="1.05*" MinWidth="430"/><ColumnDefinition Width="14"/><ColumnDefinition Width="1.45*" MinWidth="620"/></Grid.ColumnDefinitions><shared:ResultProvenanceCard Grid.Column="0" DataContext="{Binding AlgorithmWorkspace.Detail.Context.Provenance}"/><shared:DynamicResultCard Grid.Column="2" DataContext="{Binding AlgorithmWorkspace.Detail.Context}" /></Grid>
+                <Grid Margin="0,14,0,0">
+                    <Grid.Style><Style TargetType="Grid"><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Context.Catalog.IsTnkSelected}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Grid.Style>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="1.05*" MinWidth="430"/><ColumnDefinition Width="14"/><ColumnDefinition Width="1.45*" MinWidth="620"/></Grid.ColumnDefinitions><shared:ResultProvenanceCard Grid.Column="0" DataContext="{Binding AlgorithmWorkspace.Detail.Context.Provenance}"/><shared:DynamicResultCard Grid.Column="2" DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                </Grid>
             </StackPanel>
         </Grid>
     </ScrollViewer>

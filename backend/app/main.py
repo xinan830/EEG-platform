@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.recordings import router as recordings_router
+from app.api.recording_signal_preview import router as signal_preview_router
+from app.api.tnk_workbench import router as tnk_workbench_router
 from app.api.playback import router as playback_router
 from app.api.audit import router as audit_router
 from app.api.events import router as events_router
@@ -116,6 +118,8 @@ app.state.dynamic_window_service = DynamicWindowService(
     compute_coordinator=app.state.scientific_compute_coordinator,
 )
 app.include_router(recordings_router)
+app.include_router(signal_preview_router)
+app.include_router(tnk_workbench_router)
 app.include_router(playback_router)
 app.include_router(audit_router)
 app.include_router(events_router)

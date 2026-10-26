@@ -139,6 +139,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     public ICommand ResetDynamicPreviewCommand { get; }
     public ProjectWorkspaceViewModel? Projects { get; }
     public ObservableCollection<string> RegisteredChannels { get; } = [];
+    public ObservableCollection<TnkRoleChannelSelection> TnkRoleChannels { get; } = [];
     public ObservableCollection<HistoricalMontageDescriptor> MontageProfiles { get; } = [];
     public HistoricalMontageDescriptor? SelectedMontageProfile
     {
@@ -162,6 +163,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
                 string.Equals(output.Role, previousSecondaryRole, StringComparison.OrdinalIgnoreCase))?.Id;
             if (!string.IsNullOrWhiteSpace(previousSecondaryRole))
                 SelectedF4Channel = mappedSecondary ?? string.Empty;
+            RefreshTnkRoleChannels();
             RaisePropertyChanged(nameof(HasRegisteredChannels));
             RaisePropertyChanged(nameof(AnalysisMontageText));
             ScheduleAutomaticRun();
@@ -253,7 +255,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
             if (!SetProperty(ref selectedAlgorithm, value)) return;
             selectedAlgorithmId = value?.Id;
             ClearPreviews();
-            SelectedAnalysisMode = "静态";
+            SelectedAnalysisMode = value?.Modes.Contains("static", StringComparer.OrdinalIgnoreCase) == true ? "静态" : "动态";
             SelectedDynamicExecutionMode = "全量分析";
             SelectedDynamicWindowSeconds = value?.DynamicPolicy.DefaultWindowSeconds ?? 5.0;
             DynamicStepText = value?.DynamicPolicy.RefreshStepSeconds.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) ?? "1";
@@ -268,8 +270,10 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
             RaisePropertyChanged(nameof(IsIapfSelected));
             RaisePropertyChanged(nameof(IsThetaBetaSelected));
             RaisePropertyChanged(nameof(IsBrainbeatSelected));
+            RaisePropertyChanged(nameof(IsTnkSelected));
             RaisePropertyChanged(nameof(ChannelLabel));
             RaisePropertyChanged(nameof(IsDynamicModeAvailable));
+            RaisePropertyChanged(nameof(SupportsStaticMode));
             RaisePropertyChanged(nameof(DynamicWindowOptions));
             RaisePropertyChanged(nameof(DynamicStepOptions));
             RaisePropertyChanged(nameof(DynamicExecutionModes));
@@ -277,6 +281,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
             RaisePropertyChanged(nameof(IsCombinedExecutionModeSelected));
             RaisePropertyChanged(nameof(SelectedDynamicStepSeconds));
             ApplyAlgorithmChannelDefaults();
+            RefreshTnkRoleChannels();
             ApplyAlgorithmParameterDefaults();
             ScheduleAutomaticRun();
         }
@@ -291,6 +296,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     public bool IsIapfSelected => IsSelected("iapf");
     public bool IsThetaBetaSelected => IsSelected("theta_beta");
     public bool IsBrainbeatSelected => IsSelected("brainbeat");
+    public bool IsTnkSelected => IsSelected("tnk_biofeedback");
     public string ChannelLabel => AlgorithmUiRegistry.For(SelectedAlgorithm?.Id ?? string.Empty).ChannelLabel;
     public string LowFrequencyText { get => lowFrequencyText; set { if (!SetProperty(ref lowFrequencyText, value)) return; if (!applyingBandPreset) SelectedPeakBandPreset = "自定义"; ScheduleAutomaticRun(); } }
     public string HighFrequencyText { get => highFrequencyText; set { if (!SetProperty(ref highFrequencyText, value)) return; if (!applyingBandPreset) SelectedPeakBandPreset = "自定义"; ScheduleAutomaticRun(); } }
@@ -358,6 +364,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
         get => selectedAnalysisMode;
         set
         {
+            if (value == "静态" && !SupportsStaticMode) value = "动态";
             if (!SetProperty(ref selectedAnalysisMode, value)) return;
             ClearPreviews();
             RaisePropertyChanged(nameof(IsDynamicMode));
@@ -368,6 +375,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
         }
     }
     public bool IsDynamicMode => SelectedAnalysisMode == "动态";
+    public bool SupportsStaticMode => SelectedAlgorithm?.Modes.Contains("static", StringComparer.OrdinalIgnoreCase) == true;
     public IReadOnlyList<string> DynamicExecutionModes
     {
         get
@@ -510,7 +518,17 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     }
 
     internal void SetStructuredPreviewTextForModule(string text) => StructuredPreviewText = text;
+
+    internal void SetRunResultTextForModule(string summary, string provenance, string dynamicSeries) =>
+        (ResultSummaryText, ProvenanceText, DynamicSeriesText) = (summary, provenance, dynamicSeries);
     internal void SeekDynamicPreviewSecondsForModule(double seconds) => SeekDynamicPreviewSeconds(seconds);
+    internal void QueueDynamicPreviewSecondsForPlayback(double seconds)
+    {
+        if (!IsOnDemandAnalysis || !HasDynamicPreview) return;
+        DynamicPreviewCursorSeconds = Math.Clamp(seconds, 0, DynamicPlaybackEndSeconds);
+        QueuePlaybackWindowAtCursor();
+        RaiseDynamicPreviewProperties();
+    }
 
     public sealed record FrequencyBandPreset(string Name, double? LowHz, double? HighHz);
     public sealed record BandRatioPreset(string Name, double? NumeratorLowHz, double? NumeratorHighHz, double? DenominatorLowHz, double? DenominatorHighHz);

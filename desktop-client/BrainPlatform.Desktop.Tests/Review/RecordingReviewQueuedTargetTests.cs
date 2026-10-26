@@ -1,9 +1,49 @@
 using System.Collections.Concurrent;
+using System.Reflection;
+using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Review.Analysis;
 
 namespace BrainPlatform.Desktop.Tests.Review;
 
 public sealed class RecordingReviewQueuedTargetTests
 {
+    [Fact]
+    public async Task Drag_suppresses_intermediate_analysis_and_requests_final_cursor_on_release()
+    {
+        using var reader = new ControlledReviewReader();
+        await using var vm = new RecordingReviewViewModel(reader, ControlledReviewReader.Catalog);
+        await vm.InitializeAsync();
+        var requestedSamples = new ConcurrentQueue<long>();
+        var finalRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var coordinator = new ReviewAnalysisCoordinator((runId, sample, _, _) =>
+        {
+            var requested = sample!.Value;
+            requestedSamples.Enqueue(requested);
+            finalRequested.TrySetResult();
+            return Task.FromResult(new WindowPreviewResponse(runId, "recording", requested,
+                requested / (double)reader.Manifest.SamplingRateHz, "available", [],
+                new WindowPreviewWindow("window", 0, 0, 1, "Complete", "valid", []),
+                false, null, null, new Dictionary<string, JsonElement>(),
+                new Dictionary<string, JsonElement>(), new Dictionary<string, JsonElement>(),
+                new Dictionary<string, JsonElement>(), "test", "test"));
+        });
+        var binding = new ReviewAnalysisBinding(coordinator, "recording", reader.Manifest.SamplingRateHz,
+            checked((long)(reader.DurationSeconds * reader.Manifest.SamplingRateHz)));
+        binding.AttachRun("run");
+        typeof(RecordingReviewViewModel).GetField("analysisBinding", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(vm, binding);
+
+        vm.BeginTimelineDrag();
+        vm.PreviewSeek(105);
+        vm.PreviewSeek(205);
+        Assert.Empty(requestedSamples);
+
+        vm.EndTimelineDrag();
+        await finalRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal([checked((long)(205 * reader.Manifest.SamplingRateHz))], requestedSamples);
+    }
+
     [Fact]
     public async Task Playback_ticks_reuse_a_pending_cold_block_without_cancelling_it()
     {

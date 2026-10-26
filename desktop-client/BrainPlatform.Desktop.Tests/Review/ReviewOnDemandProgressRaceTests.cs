@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
@@ -92,17 +94,40 @@ public sealed class ReviewOnDemandProgressRaceTests
         await using var binding = CreateBinding(provider);
         binding.AttachOnDemand(RequestWithStep());
 
-        binding.PreviewAtSeconds(4.1);
-        binding.PreviewAtSeconds(4.2);
-        binding.PreviewAtSeconds(4.9);
+        binding.OnPlaybackCursorAdvanced(4.1);
+        binding.OnPlaybackCursorAdvanced(4.2);
+        binding.OnPlaybackCursorAdvanced(4.9);
 
         Assert.Single(provider.Calls);
         Assert.Equal(400, binding.TargetCursorSample);
         Assert.True(binding.IsLoading);
     }
 
+    [Fact]
+    public async Task Backend_configuration_identity_change_is_rejected_within_one_snapshot()
+    {
+        var provider = new ControlledProvider();
+        await using var binding = CreateBinding(provider);
+        binding.AttachOnDemand(Request());
+
+        var first = binding.LoadAtSampleAsync(100);
+        provider.Calls[0].Complete();
+        await first;
+        Assert.NotNull(binding.CurrentWindow);
+
+        provider.ConfigurationHashOverride = "changed-config";
+        var second = binding.LoadAtSampleAsync(200);
+        provider.Calls[1].Complete();
+        await second;
+
+        Assert.Null(binding.CurrentWindow);
+        Assert.Contains("配置摘要、实现身份或窗口策略", binding.StatusText);
+    }
+
     private static ReviewAnalysisBinding CreateBinding(ControlledProvider provider) =>
-        new(new ReviewAnalysisCoordinator(provider), "recording", 100, 1_000);
+        new(new ReviewAnalysisCoordinator(provider), "recording", 100, 1_000,
+            new RegisteredRecording("recording", "fixture", ".edf", "now", 100, 10,
+                ["F3", "F7"], "fixture-source-sha256"));
 
     private static AnalysisRunRequest Request(string channel = "F3") => new(
         "recording", "official_algorithm",
@@ -152,22 +177,25 @@ public sealed class ReviewOnDemandProgressRaceTests
         }
     }
 
-    private sealed class ControlledProvider : IReviewAnalysisProvider
+    private sealed class ControlledProvider : IReviewAlgorithmAdapter
     {
         public string AlgorithmId => "psd";
+        public string DisplayName => "PSD";
         public bool SupportsOnDemandWindows => true;
         public List<Call> Calls { get; } = [];
+        public string? ConfigurationHashOverride { get; set; }
 
         public Task<WindowPreviewResponse> LoadOnDemandAsync(string recordingId, AnalysisRunRequest request,
             long cursorSample, CancellationToken cancellationToken, IProgress<DynamicWindowResponse>? progress)
         {
             // Deliberately ignore cancellation to model a late transport response.
-            var call = new Call(request, cursorSample, progress);
+            var call = new Call(request, cursorSample, progress, () => ConfigurationHashOverride);
             Calls.Add(call);
             return call.Result.Task;
         }
 
-        public Task<RegisteredRecording> RegisterAsync(string directory, CancellationToken cancellationToken) =>
+        public Task<RegisteredRecording> RegisterAsync(string directory, CancellationToken cancellationToken,
+            IReadOnlyList<BrainPlatform.Desktop.Modules.Montages.Domain.MontageProfile>? montageProfiles = null) =>
             throw new NotSupportedException();
         public Task<AlgorithmCatalogItem> GetAlgorithmAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -178,7 +206,8 @@ public sealed class ReviewOnDemandProgressRaceTests
             long cursorSample, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class Call(AnalysisRunRequest request, long sample, IProgress<DynamicWindowResponse>? progress)
+    private sealed class Call(AnalysisRunRequest request, long sample, IProgress<DynamicWindowResponse>? progress,
+        Func<string?> configurationHashOverride)
     {
         public AnalysisRunRequest Request { get; } = request;
         public TaskCompletionSource<WindowPreviewResponse> Result { get; } =
@@ -187,10 +216,30 @@ public sealed class ReviewOnDemandProgressRaceTests
         public void Report(string state) => progress?.Report(new DynamicWindowResponse(
             "session", $"window-{sample}", "request", state, null, null, null, null, null, null));
 
-        public void Complete() => Result.SetResult(new WindowPreviewResponse(
-            "window-run", "recording", sample, sample / 100d, "available", [],
-            new WindowPreviewWindow($"window-{sample}", 0, 0, sample, "Complete", "valid", []),
-            false, null, null, new Dictionary<string, JsonElement>(), new Dictionary<string, JsonElement>(),
-            new Dictionary<string, JsonElement>(), new Dictionary<string, JsonElement>(), "test", "test"));
+        public void Complete()
+        {
+            var canonical = JsonSerializer.Serialize(new
+            {
+                scientific_configuration_contract = "scientific-config-v1",
+                config = Request.Config,
+                context = new { },
+            });
+            var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+            Result.SetResult(new WindowPreviewResponse(
+                "window-run", "recording", sample, sample / 100d, "available", [],
+                new WindowPreviewWindow($"window-{sample}", 0, 0, sample, "Complete", "valid", []),
+                false, null, null, new Dictionary<string, JsonElement>(), new Dictionary<string, JsonElement>(),
+                new Dictionary<string, JsonElement>(), new Dictionary<string, JsonElement>(), "v1", "test",
+                JsonSerializer.SerializeToElement(new
+                {
+                    project_scope = (string?)null,
+                    recording_id = "recording", source_sha256 = "fixture-source-sha256", algorithm_id = "psd",
+                    definition_id = "official-psd", definition_version = "1", definition_sha256 = "definition-hash",
+                    implementation_build = "build-1", scientific_version = "v1", implementation_identity = "test",
+                    configuration_sha256 = configurationHashOverride() ?? digest,
+                    window_policy_version = "psd-dynamic-window-v1",
+                    start_sample = 0, end_sample = sample, generation = 0,
+                }), canonical));
+        }
     }
 }

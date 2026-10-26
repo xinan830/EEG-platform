@@ -21,15 +21,22 @@ public sealed partial class AlgorithmListViewModel
     private bool dynamicWindowRequestPending;
     private bool dynamicPreviewSeeking;
     private long lastRequestedWindowSample = -1;
+    private long lastPlaybackWindowSample = -1;
     private string displayedWindowSource = "按需窗口";
     private string? fullWindowCacheRunId;
     private Task<StructuredPreviewResponse?>? fullWindowCacheTask;
     private CancellationTokenSource? fullWindowCacheCancellation;
     private readonly Dictionary<(string RunId, long CursorSample), WindowPreviewResponse> fullWindowPreviewCache = [];
     private TaskCompletionSource<Task>? pendingRequestFlush;
+    internal event Action<DynamicWindowRequest, DynamicWindowResponse>? OwnedWindowCompleted;
     internal Task CurrentWindowLoad { get; private set; } = Task.CompletedTask;
     public bool IsOnDemandAnalysis => windowRequest is not null;
     public DynamicWindowResponse? DisplayedAnalysisWindow => displayedWindow;
+    internal bool IsCurrentDynamicRequest(DynamicWindowRequest request) => windowRequest is { } current &&
+        windowHandler is { } handler && request.RecordingId == current.RecordingId &&
+        request.AlgorithmId == handler.AlgorithmId && request.DefinitionId is null &&
+        request.DefinitionVersion is null && request.ProjectId is null &&
+        request.Config.GetRawText() == current.Config.GetRawText();
     internal TimeRange? WindowRequestedRange => windowRequest is { } request &&
         request.Config.TryGetProperty("start_s", out var start) &&
         request.Config.TryGetProperty("end_s", out var end)
@@ -38,7 +45,11 @@ public sealed partial class AlgorithmListViewModel
     private async Task BeginWindowAnalysisAsync(AnalysisRunRequest request,
         IAlgorithmRunResultHandler handler, double initialCursor)
     {
-        windowTargets ??= new DynamicWindowTargetCoordinator(client);
+        if (windowTargets is null)
+        {
+            windowTargets = new DynamicWindowTargetCoordinator(client);
+            windowTargets.WindowCompleted += PublishOwnedWindowCompleted;
+        }
         windowRequest = request;
         windowHandler = handler;
         dynamicWindowRequestTimer.Stop();
@@ -46,11 +57,21 @@ public sealed partial class AlgorithmListViewModel
         pendingRequestFlush?.TrySetResult(Task.CompletedTask);
         pendingRequestFlush = null;
         lastRequestedWindowSample = -1;
+        lastPlaybackWindowSample = -1;
         DynamicPreviewCursorSeconds = Math.Clamp(initialCursor, 0, DynamicPreviewDurationSeconds);
         RaiseDynamicPreviewProperties();
         RaisePropertyChanged(nameof(IsOnDemandAnalysis));
         RequestWindowAtCursor(force: true);
         await CurrentWindowLoad;
+    }
+
+    private void PublishOwnedWindowCompleted(DynamicWindowRequest request, DynamicWindowResponse response)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null) return;
+        void Publish() => OwnedWindowCompleted?.Invoke(request, response);
+        if (dispatcher.CheckAccess()) Publish();
+        else _ = dispatcher.BeginInvoke(Publish);
     }
 
     private void RequestWindowAtCursor(bool force = false)
@@ -75,6 +96,38 @@ public sealed partial class AlgorithmListViewModel
         var target = new DynamicWindowRequest(request.RecordingId, handler.AlgorithmId,
             null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"));
         CurrentWindowLoad = LoadWindowTargetAsync(target, handler, revision, windowWait);
+    }
+
+    internal void QueuePlaybackWindowAtCursor()
+    {
+        if (windowRequest is not { } request || windowHandler is not { } handler ||
+            RegisteredRecording is not { } recording || windowTargets is null) return;
+        if (recording.SamplingRateHz is not > 0 || recording.DurationSeconds is not > 0) return;
+        var samplingRate = recording.SamplingRateHz.Value;
+        if (!double.IsFinite(samplingRate) || samplingRate != Math.Truncate(samplingRate)) return;
+        var samplingRateInteger = checked((int)samplingRate);
+        var rawCursor = RecordingTimeMapper.ToCursorSample(DynamicPreviewCursorSeconds,
+            samplingRateInteger, checked((long)Math.Round(recording.DurationSeconds.Value * samplingRate)));
+        var cursor = QuantizeWindowCursor(request, rawCursor, samplingRateInteger);
+        if (cursor == lastPlaybackWindowSample) return;
+        lastPlaybackWindowSample = cursor;
+        var target = new DynamicWindowRequest(request.RecordingId, handler.AlgorithmId,
+            null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"));
+        _ = ObservePlaybackTargetAsync(target);
+    }
+
+    private async Task ObservePlaybackTargetAsync(DynamicWindowRequest target)
+    {
+        try
+        {
+            await windowTargets!.LoadSequentialAsync(target, CancellationToken.None);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error)
+        {
+            AlgorithmWindowPerformanceDiagnostics.Record(target, target.AlgorithmId, null,
+                AlgorithmWindowPerformanceSource.OnDemand, "queue_limited", null, 0, error.Message);
+        }
     }
 
     private static long QuantizeWindowCursor(AnalysisRunRequest request, long rawCursor, int samplingRateHz)
@@ -390,6 +443,7 @@ public sealed partial class AlgorithmListViewModel
         pendingRequestFlush = null;
         dynamicPreviewSeeking = false;
         lastRequestedWindowSample = -1;
+        lastPlaybackWindowSample = -1;
         windowRevision++;
         windowWait?.Cancel();
         windowWait = null;

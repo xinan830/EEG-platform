@@ -8,6 +8,7 @@ Review currently follows the recording cursor but its analysis binding and panel
 - Make playback request policy explicit: during playback, request eligible windows as the cursor advances using backend policy; during timeline dragging, defer analysis requests and submit the final cursor target on release.
 - Bind every request and result to a snapshot of recording identity, integer cursor sample, analysis montage/reference, algorithm parameters, preprocessing settings and backend-resolved window identity/range.
 - Preserve backend ownership of algorithms, preprocessing, window boundaries, quality and provenance. Reuse existing full Runs and on-demand window sessions rather than creating a Run for each cursor tick.
+- Return the backend-normalized scientific configuration alongside its digest so the desktop can verify and bind the response without reconstructing backend scientific context.
 - Stage algorithm adoption in review, beginning with the existing PSD path and enabling additional algorithms only after their window capability and review presentation pass explicit acceptance.
 
 ## Capabilities
@@ -22,6 +23,6 @@ Review currently follows the recording cursor but its analysis binding and panel
 ## Impact
 
 - WPF review cursor/navigation state, review analysis coordinator/binding, algorithm-owned review adapters and presenters, and their tests.
-- Backend API and scientific algorithms are intended to remain unchanged; the plan reuses existing full Run and backend-planned on-demand window contracts. Any discovered need for a public API change must be separately specified before implementation.
+- Scientific formulas and window planning remain unchanged. The on-demand window response gains canonical normalized scientific configuration JSON plus its digest; this additive contract is required for desktop snapshot verification and exposes neither local paths nor raw exception text.
 - No raw recording mutation, migration of stored Runs/artifacts, new result compatibility layer, or clinical validation is included.
 - The change alters user-observable request timing during dragging: analysis is requested on release, while playback continues to follow the backend-defined eligible-window policy.

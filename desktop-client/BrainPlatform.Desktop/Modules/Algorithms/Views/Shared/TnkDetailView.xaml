@@ -1,0 +1,106 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Shared.TnkDetailView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"
+ xmlns:wave="clr-namespace:BrainPlatform.Desktop.Shared.Waveform" Background="#F0F0F0">
+ <UserControl.Resources>
+  <Style TargetType="GroupBox"><Setter Property="Margin" Value="0,0,0,8"/><Setter Property="Padding" Value="8"/><Setter Property="BorderBrush" Value="#DEDEDE"/></Style>
+  <Style x:Key="ActionButton" TargetType="Button">
+   <Setter Property="Padding" Value="12,6"/><Setter Property="Margin" Value="2"/><Setter Property="Background" Value="#1769BD"/>
+   <Setter Property="Foreground" Value="White"/><Setter Property="BorderThickness" Value="0"/><Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+ </UserControl.Resources>
+ <Grid Margin="6">
+  <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="326"/></Grid.ColumnDefinitions>
+  <StackPanel>
+  <GroupBox Header="EEG 波形预览" Padding="0" Margin="0,0,0,6" Height="500">
+   <Grid Background="White">
+    <Grid.RowDefinitions><RowDefinition Height="420"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <wave:SignalWaveformView x:Name="WaveformView" Signal="{Binding Waveform}" PositionSeconds="{Binding WaveformPosition}" LaneMicrovolts="{Binding WaveformLaneMicrovolts}"/>
+    <Slider x:Name="WaveformPositionSlider" Grid.Row="1" Minimum="0" Maximum="{Binding RecordingDuration}"
+     Value="{Binding WaveformPosition, Mode=TwoWay}" Margin="12,4"/>
+    <TextBlock Grid.Row="2" Text="{Binding WaveformStatus}" FontSize="10" Foreground="#687582" Margin="12,2,12,6"/>
+   </Grid>
+  </GroupBox>
+  <TabControl ItemsSource="{Binding AnalysisTabs}" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+   Background="#FAFAFA" BorderBrush="#E0E0E0" Padding="8">
+   <TabControl.ItemTemplate><DataTemplate><TextBlock Text="{Binding Title}" FontSize="12" Padding="4,1"/></DataTemplate></TabControl.ItemTemplate>
+   <TabControl.ContentTemplate>
+    <DataTemplate>
+     <ItemsControl ItemsSource="{Binding DataContext.ActivePlots, RelativeSource={RelativeSource AncestorType=UserControl}}">
+      <ItemsControl.ItemTemplate><DataTemplate>
+       <local:TnkAnalysisPlotView Panel="{Binding}" PositionSeconds="{Binding DataContext.WaveformPosition, RelativeSource={RelativeSource AncestorType=UserControl}}" Loaded="OnPlotLoaded" Unloaded="OnPlotUnloaded" Margin="0,0,0,8"/>
+      </DataTemplate></ItemsControl.ItemTemplate>
+     </ItemsControl>
+    </DataTemplate>
+   </TabControl.ContentTemplate>
+  </TabControl>
+  </StackPanel>
+  <StackPanel Grid.Column="2">
+   <GroupBox Header="记录回放">
+    <StackPanel>
+     <TextBlock Text="{Binding CurrentTimeText}" FontSize="15" FontWeight="SemiBold" Margin="2,0,0,6"/>
+     <UniformGrid Columns="3">
+      <Button Content="{Binding PlaybackButtonText}" Command="{Binding TogglePlaybackCommand}" Style="{StaticResource ActionButton}"/>
+      <Button Content="重播" Command="{Binding RestartPlaybackCommand}" Background="#F57C00" Foreground="White" Margin="2" BorderThickness="0"/>
+      <ComboBox ItemsSource="{Binding PlaybackSpeeds}" SelectedItem="{Binding PlaybackSpeed, Mode=TwoWay}" Margin="2" VerticalContentAlignment="Center"/>
+     </UniformGrid>
+     <UniformGrid Columns="3" Margin="0,5,0,0">
+      <Button Content="上一窗" Command="{Binding PreviousWaveformCommand}" Padding="4" Margin="2"/>
+      <Button Content="下一窗" Command="{Binding NextWaveformCommand}" Padding="4" Margin="2"/>
+      <Button Content="定位" Command="{Binding LoadWaveformCommand}" Padding="4" Margin="2"/>
+     </UniformGrid>
+     <DockPanel Margin="2,6,2,0"><TextBlock Text="轨道间距 (µV)" VerticalAlignment="Center"/><ComboBox ItemsSource="{Binding WaveformScales}" SelectedItem="{Binding WaveformLaneMicrovolts, Mode=TwoWay}" Width="90" HorizontalAlignment="Right"/></DockPanel>
+     <Expander Header="波形显示滤波" Margin="2,6,2,0">
+      <StackPanel>
+       <UniformGrid Columns="3">
+        <StackPanel Margin="0,0,4,0"><TextBlock Text="低切 Hz" FontSize="10"/><TextBox Text="{Binding Catalog.LowFrequencyText, UpdateSourceTrigger=LostFocus}"/></StackPanel>
+        <StackPanel Margin="0,0,4,0"><TextBlock Text="高切 Hz" FontSize="10"/><TextBox Text="{Binding Catalog.HighFrequencyText, UpdateSourceTrigger=LostFocus}"/></StackPanel>
+        <StackPanel><TextBlock Text="陷波 Hz" FontSize="10"/><ComboBox ItemsSource="{Binding Catalog.NotchFrequencyOptions}" SelectedItem="{Binding Catalog.SelectedNotchFrequency, Mode=TwoWay}"/></StackPanel>
+       </UniformGrid>
+       <TextBlock Text="这些设置作用于显示波形；TNK 科学分析当前固定 1–30 Hz。" FontSize="10" Foreground="#718096" TextWrapping="Wrap" Margin="0,5,0,0"/>
+      </StackPanel>
+     </Expander>
+    </StackPanel>
+   </GroupBox>
+   <GroupBox Header="综合冥想指数">
+    <StackPanel>
+     <Grid Margin="0,12">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="128"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <TextBlock Text="{Binding CompositeValue}" Foreground="#42A5F5" FontSize="40" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+      <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0">
+       <TextBlock Text="{Binding CompositeQuality}" Foreground="#667580" TextWrapping="Wrap"/>
+       <TextBlock Text="当前游标对应窗口" Foreground="#8A939B" FontSize="11" Margin="0,6,0,0"/>
+      </StackPanel>
+     </Grid>
+     <ProgressBar Value="{Binding CompositeProgress, Mode=OneWay}" Maximum="100" Height="10" Foreground="#42A5F5" Background="#E4E8EB" BorderThickness="0"/>
+     <TextBlock Text="窗口无效时显示 —，不沿用上一次分数" FontSize="10" Foreground="#8A939B" Margin="0,6,0,4"/>
+     <ItemsControl ItemsSource="{Binding ScoreStates}"><ItemsControl.ItemTemplate><DataTemplate>
+      <StackPanel Margin="0,6"><DockPanel><TextBlock Text="{Binding DurationText}" DockPanel.Dock="Right" FontSize="11"/><TextBlock Text="{Binding Label}" Foreground="{Binding Color}" FontWeight="SemiBold" FontSize="11"/></DockPanel>
+       <ProgressBar Value="{Binding Percent, Mode=OneWay}" Maximum="100" Height="10" Foreground="{Binding Color}" Background="#E4E8EB" BorderThickness="0" Margin="0,4,0,0"/>
+      </StackPanel>
+     </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+     <TextBlock Text="{Binding ScoreStateStatus}" FontSize="10" Foreground="#8A939B" TextWrapping="Wrap"/>
+     <GroupBox Header="当前窗口 / 最近有效结果" Margin="0,8,0,0" Padding="3,10">
+      <UniformGrid Columns="3">
+       <StackPanel><TextBlock Text="IAPF" FontWeight="SemiBold" HorizontalAlignment="Center"/><TextBlock Text="{Binding IapfValue}" FontSize="20" FontWeight="Bold" Foreground="#1769BD" HorizontalAlignment="Center" Margin="0,8,0,0"/><TextBlock Text="{Binding IapfValueStatus}" FontSize="9" Foreground="#718096" TextWrapping="Wrap" TextAlignment="Center" Margin="2,4,2,0"/></StackPanel>
+       <StackPanel><TextBlock Text="皮质兴奋/抑制" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/><TextBlock Text="{Binding CorticalValue}" FontSize="21" FontWeight="Bold" Foreground="#00897B" HorizontalAlignment="Center" Margin="0,8,0,0"/><TextBlock Text="{Binding CorticalValueStatus}" FontSize="9" Foreground="#718096" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="90" ToolTip="{Binding CorticalSource}"/></StackPanel>
+       <StackPanel><TextBlock Text="脑负荷指数" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/><TextBlock Text="{Binding BrainbeatValue}" FontSize="21" FontWeight="Bold" Foreground="#9966CC" HorizontalAlignment="Center" Margin="0,8,0,0"/></StackPanel>
+      </UniformGrid>
+     </GroupBox>
+    </StackPanel>
+   </GroupBox>
+   <GroupBox Header="来源与质量">
+    <StackPanel>
+     <TextBlock Text="{Binding RoleMappingText}" FontSize="11" Foreground="#62707D" TextWrapping="Wrap"/>
+     <ItemsControl ItemsSource="{Binding ChildResults}" Margin="0,8,0,0"><ItemsControl.ItemTemplate><DataTemplate>
+      <Grid Margin="0,2"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <TextBlock Text="{Binding DisplayName}" FontSize="11" TextTrimming="CharacterEllipsis"/>
+       <TextBlock Grid.Column="1" Text="{Binding QualityText}" Foreground="#718096" FontSize="11" Margin="6,0,0,0" ToolTip="{Binding FailureText}"/>
+      </Grid>
+     </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+     <Expander Header="运行证据" Margin="0,8,0,0"><TextBlock Text="{Binding ResultContextText}" Foreground="#718096" FontSize="10" TextWrapping="Wrap"/></Expander>
+    </StackPanel>
+   </GroupBox>
+  </StackPanel>
+ </Grid>
+</UserControl>

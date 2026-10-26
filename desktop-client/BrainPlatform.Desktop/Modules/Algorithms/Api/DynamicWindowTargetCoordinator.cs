@@ -6,16 +6,21 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 /// <summary>One owned observation and one replaceable target; never plans scientific windows.</summary>
 public sealed class DynamicWindowTargetCoordinator
 {
+    internal const int MaximumSequentialPendingTargets = 16;
     private readonly object gate = new();
     private readonly Func<DynamicWindowRequest, CancellationToken, Task<DynamicWindowResponse>>? observe;
     private readonly IAlgorithmClient? client;
     private readonly TimeSpan cadence;
     private Work? active;
     private Work? pending;
+    private readonly Queue<Work> sequentialPending = new();
     private (string Key, DynamicWindowResponse Response)? cached;
     private string? contextKey;
     private long generation;
     private TaskCompletionSource? drained;
+
+    /// <summary>Raised for an owned result even when its cursor waiter has been superseded.</summary>
+    public event Action<DynamicWindowRequest, DynamicWindowResponse>? WindowCompleted;
 
     public DynamicWindowTargetCoordinator(IAlgorithmClient client)
     {
@@ -45,6 +50,9 @@ public sealed class DynamicWindowTargetCoordinator
                 ResetOwnedWork();
                 contextKey = context;
             }
+            // An explicit seek supersedes queued playback targets, including
+            // the case where it rejoins the currently active target.
+            DropSequentialPending();
             var key = $"{context}|{request.CursorSample}|{request.Retry}|{request.RetryOfWindowId}";
             if (cached is { } hit && hit.Key == key)
             {
@@ -79,6 +87,46 @@ public sealed class DynamicWindowTargetCoordinator
         return result.WaitAsync(waiterToken);
     }
 
+    /// <summary>Queues contiguous playback targets; direct seeks supersede this bounded queue.</summary>
+    public Task<DynamicWindowResponse> LoadSequentialAsync(DynamicWindowRequest request, CancellationToken waiterToken)
+    {
+        waiterToken.ThrowIfCancellationRequested();
+        Task<DynamicWindowResponse> result;
+        lock (gate)
+        {
+            var context = ContextKey(request);
+            if (contextKey != context)
+            {
+                ResetOwnedWork();
+                contextKey = context;
+            }
+            var key = $"{context}|{request.CursorSample}|{request.Retry}|{request.RetryOfWindowId}";
+            if (cached is { } hit && hit.Key == key)
+                result = Task.FromResult(hit.Response);
+            else if (active is { } current && current.Key == key && current.Generation == generation)
+                result = current.Result.Task;
+            else if (pending is { } next && next.Key == key)
+                result = next.Result.Task;
+            else if (sequentialPending.FirstOrDefault(work => work.Key == key) is { } queued)
+                result = queued.Result.Task;
+            else if (sequentialPending.Count >= MaximumSequentialPendingTargets)
+                result = Task.FromException<DynamicWindowResponse>(new InvalidOperationException(
+                    $"Playback analysis queue reached its {MaximumSequentialPendingTargets}-target limit."));
+            else
+            {
+                var work = new Work(key, request, generation);
+                sequentialPending.Enqueue(work);
+                result = work.Result.Task;
+                if (drained is null)
+                {
+                    drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _ = Task.Run(PumpAsync);
+                }
+            }
+        }
+        return result.WaitAsync(waiterToken);
+    }
+
     public Task ResetAsync()
     {
         lock (gate)
@@ -96,13 +144,13 @@ public sealed class DynamicWindowTargetCoordinator
             Work work;
             lock (gate)
             {
-                if (pending is null)
+                if (pending is null && sequentialPending.Count == 0)
                 {
                     drained!.TrySetResult();
                     drained = null;
                     return;
                 }
-                work = pending;
+                work = pending ?? sequentialPending.Dequeue();
                 pending = null;
                 active = work;
             }
@@ -113,6 +161,7 @@ public sealed class DynamicWindowTargetCoordinator
                     ? await observe!(work.Request, work.Cancellation.Token).ConfigureAwait(false)
                     : await new DynamicWindowObserver(client).ObserveAsync(work.Request, work.Cancellation.Token,
                         response => ReportStatus(work, response)).ConfigureAwait(false);
+                var publishCompleted = false;
                 lock (gate)
                 {
                     if (work.Generation != generation || work.Cancellation.IsCancellationRequested)
@@ -120,9 +169,11 @@ public sealed class DynamicWindowTargetCoordinator
                     else
                     {
                         if (response.State == "ready") cached = (work.Key, response);
-                        work.Result.TrySetResult(response);
+                        publishCompleted = true;
                     }
                 }
+                if (publishCompleted) PublishCompleted(work.Request, response);
+                work.Result.TrySetResult(response);
             }
             catch (OperationCanceledException) { work.Result.TrySetCanceled(); }
             catch (Exception error) { work.Result.TrySetException(error); }
@@ -148,11 +199,27 @@ public sealed class DynamicWindowTargetCoordinator
         }
     }
 
+    private void PublishCompleted(DynamicWindowRequest request, DynamicWindowResponse response)
+    {
+        var handlers = WindowCompleted;
+        if (handlers is null) return;
+        foreach (Action<DynamicWindowRequest, DynamicWindowResponse> handler in handlers.GetInvocationList())
+        {
+            try { handler(request, response); }
+            catch (Exception error)
+            {
+                BrainPlatform.Desktop.Infrastructure.Diagnostics.DesktopLog.Warning(
+                    $"window_completion_observer_failed type={error.GetType().Name}");
+            }
+        }
+    }
+
     private void ResetOwnedWork()
     {
         generation++;
         cached = null;
         DropPending();
+        DropSequentialPending();
         if (active is { } work)
         {
             work.Result.TrySetCanceled();
@@ -177,6 +244,16 @@ public sealed class DynamicWindowTargetCoordinator
         pending = null;
         work.Result.TrySetCanceled();
         work.Cancellation.Dispose();
+    }
+
+    private void DropSequentialPending()
+    {
+        while (sequentialPending.Count > 0)
+        {
+            var work = sequentialPending.Dequeue();
+            work.Result.TrySetCanceled();
+            work.Cancellation.Dispose();
+        }
     }
 
     private static string ContextKey(DynamicWindowRequest request) =>

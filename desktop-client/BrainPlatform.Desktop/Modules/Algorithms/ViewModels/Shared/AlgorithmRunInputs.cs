@@ -6,10 +6,13 @@ internal sealed record AlgorithmRunInputs(
     TimeRange Range, string Channel, string F4Channel, IReadOnlyCollection<string> Channels,
     double? SamplingRateHz, string LowFrequencyText, string HighFrequencyText,
     string NumeratorLowText, string NumeratorHighText, string DenominatorLowText,
-    string DenominatorHighText, string NotchFrequency);
+    string DenominatorHighText, string NotchFrequency,
+    IReadOnlyDictionary<string, string>? RoleChannels = null);
 
 internal sealed record AlgorithmRunParameters(
     AlgorithmRunConfiguration.FrequencyBand? FrequencyBand = null,
     AlgorithmRunConfiguration.BandRatioBands? RatioBands = null,
     string? F4Channel = null,
-    double? NotchHz = null);
+    double? NotchHz = null,
+    IReadOnlyDictionary<string, string>? RoleChannels = null,
+    string? PrimaryChannel = null);

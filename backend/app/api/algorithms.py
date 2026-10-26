@@ -58,6 +58,7 @@ def _official_items(request: Request) -> list[dict[str, object]]:
             "definition_id": official.definition_id,
             "definition_version": official.definition_version,
             "implementation_identity": manifest.implementation_identity,
+            "group": manifest.catalog_group,
         })
     return items
 

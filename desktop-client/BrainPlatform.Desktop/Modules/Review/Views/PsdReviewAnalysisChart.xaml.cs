@@ -1,8 +1,13 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Diagnostics;
+using System.Globalization;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
+using BrainPlatform.Desktop.Modules.Review.Diagnostics;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
+using SciChart.Charting.Visuals;
 using SciChart.Charting.ChartModifiers;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals.Axes;
@@ -17,6 +22,8 @@ namespace BrainPlatform.Desktop.Modules.Review.Views;
 /// </summary>
 public partial class PsdReviewAnalysisChart : UserControl
 {
+    private readonly XyDataSeries<double, double> dataSeries = new() { SeriesName = "PSD" };
+    private readonly FastLineRenderableSeries lineSeries;
     public static readonly DependencyProperty WindowProperty = DependencyProperty.Register(
         nameof(Window), typeof(WindowPreviewResponse), typeof(PsdReviewAnalysisChart),
         new PropertyMetadata(null, OnWindowChanged));
@@ -48,8 +55,16 @@ public partial class PsdReviewAnalysisChart : UserControl
         InitializeComponent();
         Surface.Background = Brushes.White;
         Surface.ShowLicensingWarnings = false;
+        Surface.RenderPriority = RenderPriority.Low;
         Surface.XAxes.Add(xAxis);
         Surface.YAxes.Add(yAxis);
+        lineSeries = new FastLineRenderableSeries
+        {
+            DataSeries = dataSeries,
+            Stroke = Color.FromRgb(37, 99, 235),
+            StrokeThickness = 2,
+        };
+        Surface.RenderableSeries.Add(lineSeries);
         Surface.ChartModifier = new RolloverModifier
         {
             IsEnabled = true,
@@ -69,7 +84,25 @@ public partial class PsdReviewAnalysisChart : UserControl
 
     private void RenderWindow(WindowPreviewResponse? response)
     {
-        Surface.RenderableSeries.Clear();
+        if (!ReviewPerformanceDiagnostics.Enabled)
+        {
+            RenderWindowCore(response);
+            return;
+        }
+
+        var started = Stopwatch.GetTimestamp();
+        try { RenderWindowCore(response); }
+        finally
+        {
+            DesktopLog.Info(string.Create(CultureInfo.InvariantCulture,
+                $"review_psd_chart_apply cursor_sample={response?.CursorSample.ToString() ?? "none"}" +
+                $" status={response?.Status ?? "none"}" +
+                $" elapsed_ms={Stopwatch.GetElapsedTime(started).TotalMilliseconds:0.0}"));
+        }
+    }
+
+    private void RenderWindowCore(WindowPreviewResponse? response)
+    {
         if (response is null)
         {
             ShowEmpty("未绑定 PSD 结果");
@@ -97,14 +130,11 @@ public partial class PsdReviewAnalysisChart : UserControl
         var frequencies = projection.Frequencies;
         var values = projection.Values;
 
-        var series = new XyDataSeries<double, double> { SeriesName = "PSD" };
-        series.Append(frequencies, values);
-        Surface.RenderableSeries.Add(new FastLineRenderableSeries
+        using (dataSeries.SuspendUpdates())
         {
-            DataSeries = series,
-            Stroke = Color.FromRgb(37, 99, 235),
-            StrokeThickness = 2,
-        });
+            dataSeries.Clear();
+            dataSeries.Append(frequencies, values);
+        }
         EmptyState.Visibility = Visibility.Collapsed;
         xAxis.VisibleRange = new DoubleRange(frequencies[0], frequencies[^1]);
         var min = values.Min();
@@ -115,6 +145,7 @@ public partial class PsdReviewAnalysisChart : UserControl
 
     private void ShowEmpty(string message)
     {
+        dataSeries.Clear();
         StatusText.Text = message;
         EmptyState.Visibility = Visibility.Visible;
     }

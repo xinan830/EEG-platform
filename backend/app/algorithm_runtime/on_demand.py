@@ -49,6 +49,10 @@ class DynamicSessionIdentity(BaseModel):
     implementation_identity: str = Field(min_length=1)
     configuration_sha256: str = Field(min_length=1)
     window_policy_version: str = Field(min_length=1)
+    # Replay identity is separate from the target range: a stateful module
+    # must never reuse a result prepared from a different reset/history.
+    reset_origin_sample: StrictInt = Field(default=0, ge=0)
+    context_identity: str = ""
 
 
 class DynamicWindowIdentity(DynamicSessionIdentity):
@@ -92,6 +96,10 @@ class DynamicWindowPlan(BaseModel):
     end_sample: StrictInt = Field(gt=0)
     start_s: float = Field(ge=0)
     end_s: float = Field(gt=0)
+    context_start_sample: StrictInt | None = Field(default=None, ge=0)
+    context_end_sample: StrictInt | None = Field(default=None, gt=0)
+    context_identity: str = ""
+    replay_window_count: StrictInt = Field(default=1, ge=1)
     state: Literal["planned", "insufficient_data", "unavailable"] = "planned"
     reason: str | None = None
 
@@ -103,6 +111,20 @@ class DynamicWindowPlan(BaseModel):
             raise ValueError("dynamic window seconds must have a positive range")
         if self.state != "planned" and not self.reason:
             raise ValueError("an unavailable window plan requires a reason")
+        if self.context_start_sample is None:
+            object.__setattr__(self, "context_start_sample", self.start_sample)
+        if self.context_end_sample is None:
+            object.__setattr__(self, "context_end_sample", self.end_sample)
+        if self.context_identity == "" and self.session_identity.context_identity:
+            object.__setattr__(self, "context_identity", self.session_identity.context_identity)
+        if self.context_end_sample <= self.context_start_sample:
+            raise ValueError("replay context must use a positive half-open sample range")
+        if self.context_start_sample < self.session_identity.reset_origin_sample:
+            raise ValueError("replay context cannot precede its declared reset origin")
+        if self.context_start_sample > self.start_sample or self.context_end_sample < self.end_sample:
+            raise ValueError("replay context must contain the target window")
+        if self.context_identity and self.context_identity != self.session_identity.context_identity:
+            raise ValueError("plan replay context identity must match session identity")
         return self
 
 
@@ -178,10 +200,16 @@ class DynamicWindowResult(BaseModel):
                     numeric = np.asarray(value, dtype=float)
                     if numeric.size == 0:
                         raise ValueError(f"window payload {name!r} is empty")
-                    if not np.isfinite(numeric).all():
-                        raise ValueError(f"window payload {name!r} contains non-finite values")
+                    if np.isinf(numeric).any():
+                        raise ValueError(f"window payload {name!r} contains infinite values")
+                    if np.isnan(numeric).any() and (
+                        self.quality != "partial" or not self.evidence.get("extensions")
+                    ):
+                        raise ValueError(
+                            f"window payload {name!r} contains unavailable values without partial evidence"
+                        )
                 except (TypeError, ValueError) as exc:
-                    if "contains non-finite" in str(exc):
+                    if "contains infinite" in str(exc) or "unavailable values" in str(exc):
                         raise
                     raise ValueError(f"window payload {name!r} is not numeric") from exc
         return self
@@ -213,6 +241,7 @@ class DynamicWindowResponse(BaseModel):
     subscription_id: str | None = None
     execution_mode: Literal["on_demand"] = "on_demand"
     scientific_cache_key: str | None = None
+    scientific_configuration_json: str = Field(min_length=1)
 
     @model_validator(mode="after")
     def validate_state_payload(self) -> "DynamicWindowResponse":

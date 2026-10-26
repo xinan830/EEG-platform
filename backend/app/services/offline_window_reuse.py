@@ -28,6 +28,9 @@ class OfflineWindowReuse:
     @staticmethod
     def _session_identity(run: Any, resolved: dict[str, Any], module: Any, source_sha256: str) -> DynamicSessionIdentity:
         config = dict(resolved["config"])
+        window_policy_version = getattr(module, "window_policy_version", "")
+        replay_context = resolved["scientific_context"].get("replay_context", {})
+        context_identity = str(replay_context.get("context_identity", ""))
         return DynamicSessionIdentity(
             project_scope=run.project_id, recording_id=run.recording_id, source_sha256=source_sha256,
             algorithm_id=module.manifest.algorithm_id, definition_id=resolved["definition_id"],
@@ -35,7 +38,9 @@ class OfflineWindowReuse:
             implementation_build=run.implementation_version, scientific_version=resolved["scientific_version"],
             implementation_identity=module.manifest.implementation_identity,
             configuration_sha256=scientific_configuration_sha256(config, resolved["scientific_context"]),
-            window_policy_version=getattr(module, "window_policy_version", ""),
+            window_policy_version=window_policy_version,
+            reset_origin_sample=int(replay_context.get("reset_origin_sample", 0)),
+            context_identity=context_identity,
         )
 
     def provider(
@@ -152,6 +157,8 @@ class OfflineWindowReuse:
                     implementation_identity=session.implementation_identity,
                     configuration_sha256=session.configuration_sha256,
                     window_policy_version=session.window_policy_version,
+                    reset_origin_sample=session_identity.reset_origin_sample,
+                    context_identity=session_identity.context_identity,
                     generation=row.generation,
                     start_sample=row.start_sample,
                     end_sample=row.end_sample,

@@ -1,5 +1,6 @@
 from app.algorithm_runtime.offline_execution import (
     scientific_cache_key,
+    scientific_configuration_json,
     scientific_configuration_sha256,
     scientific_context_snapshot,
 )
@@ -31,6 +32,25 @@ def test_scientific_configuration_identity_includes_value_context():
         ("window_policy_version", "psd-dynamic-window-v2"),
     ):
         assert scientific_configuration_sha256(config, _context(**{key: changed})) != baseline
+
+
+def test_display_montage_label_does_not_change_scientific_context_identity():
+    signal_mapping = {
+        "channels": ["F3-REF"],
+        "signal_source": {"signal_mode": "acquisition_montage", "montage_label": "Operator label"},
+    }
+
+    normalized = _context(signal_mapping=signal_mapping)
+
+    assert normalized["signal_mapping"]["signal_source"] == {"signal_mode": "acquisition_montage"}
+
+
+def test_scientific_configuration_json_is_the_exact_hashed_input():
+    config = {"algorithm_id": "psd", "channel": "F3-REF", "mode": "dynamic"}
+    serialized = scientific_configuration_json(config, _context())
+    import hashlib
+    assert hashlib.sha256(serialized.encode("utf-8")).hexdigest() == scientific_configuration_sha256(config, _context())
+    assert '"signal_mapping"' in serialized
 
 
 def test_scientific_cache_key_changes_with_normalized_scientific_config():

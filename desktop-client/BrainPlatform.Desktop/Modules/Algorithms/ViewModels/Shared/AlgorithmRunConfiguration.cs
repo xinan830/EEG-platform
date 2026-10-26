@@ -76,8 +76,9 @@ internal static class AlgorithmRunConfiguration
         double? windowSeconds = null,
         double? stepSeconds = null,
         double? notchHz = 50.0,
-        HistoricalMontageDescriptor? montage = null) =>
-        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds, notchHz, montage));
+        HistoricalMontageDescriptor? montage = null,
+        IReadOnlyDictionary<string, string>? roleChannels = null) =>
+        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds, notchHz, montage, roleChannels));
 
     internal static bool IsSupportedAlgorithm(AlgorithmCatalogItem? algorithm) =>
         algorithm is { IsRunnable: true } &&
@@ -113,7 +114,8 @@ internal static class AlgorithmRunConfiguration
         double? windowSeconds,
         double? stepSeconds,
         double? notchHz,
-        HistoricalMontageDescriptor? montage)
+        HistoricalMontageDescriptor? montage,
+        IReadOnlyDictionary<string, string>? roleChannels)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -136,10 +138,15 @@ internal static class AlgorithmRunConfiguration
         };
 
         AlgorithmRunResultHandlerRegistry.For(algorithm.Id)
-            .ApplyConfigFields(payload, channel, f4Channel);
+            .ApplyConfigFields(payload, channel, f4Channel, roleChannels);
 
-        var selectedOutputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { channel };
+        var selectedOutputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            (string)payload["channel"]!,
+        };
         if (!string.IsNullOrWhiteSpace(f4Channel)) selectedOutputs.Add(f4Channel);
+        foreach (var roleChannel in roleChannels?.Values ?? [])
+            if (!string.IsNullOrWhiteSpace(roleChannel)) selectedOutputs.Add(roleChannel);
         payload["analysis_montage_outputs"] = montage?.Outputs?
             .Where(output => output.Available && selectedOutputs.Contains(output.Id))
             .Select(output => new { role = output.Role, output = output.Id, unit = output.Unit })

@@ -89,3 +89,53 @@ def test_public_official_catalog_matches_builtin_module_declarations() -> None:
         expected_parameters = [parameter.model_dump(mode="json") for parameter in module.parameter_schema().parameters]
         assert item["parameters"] == expected_parameters
         assert item["implementation_identity"] == module.manifest.implementation_identity
+
+
+def test_tnk_catalog_exposes_one_group_and_keeps_children_internal() -> None:
+    from app.algorithms.builtin_modules import build_builtin_modules
+
+    modules = build_builtin_modules()
+    tnk = [module for module in modules if module.manifest.algorithm_id.startswith("tnk_")]
+    assert [module.manifest.algorithm_id for module in tnk] == ["tnk_biofeedback"]
+    assert all(module.manifest.is_current_version for module in tnk)
+    response = TestClient(app).get("/api/algorithms")
+    by_id = {item["id"]: item for item in response.json()["algorithms"]}
+    item = by_id["tnk_biofeedback"]
+    assert item["group"] == "TNK 脑指标"
+    assert item["availability"] == "available"
+    assert item["is_runnable"] is True
+    assert item["modes"] == ["static", "dynamic"]
+    assert item["output_contract"]["channel_role_order"] == ["Fz", "Pz", "Oz", "F3", "F4"]
+    assert {field["name"] for field in item["output_contract"]["fields"]} >= {"metric_index", "tnk_iapf", "tnk_faa"}
+    assert all(child_id not in by_id for child_id in {"tnk_iapf", "tnk_faa", "tnk_rbp"})
+
+
+def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> None:
+    from app.algorithms.builtin_modules import build_builtin_modules
+
+    expected = {
+        "band_ratio": ("official-band-ratio-v1", "band-ratio-runtime-v2-frequency-contract"),
+        "brainbeat": ("official-brainbeat-v1", "brainbeat-runtime-v1"),
+        "faa": ("official-faa-v2", "faa-runtime-v2"),
+        "iapf": ("official-iapf-v2", "iapf-runtime-v3"),
+        "peak_frequency": ("official-peak-frequency-v1", "peak-frequency-runtime-v2-frequency-contract"),
+        "psd": ("offline-spectral-v3", "psd-runtime-v3-explicit-filters"),
+        "rbp": ("official-rbp-v2", "rbp-runtime-v2-five-band"),
+        "stft": ("spectrogram-v2", "stft-runtime-v4-relative-window-times"),
+        "theta_beta": ("official-theta-beta-v2", "theta-beta-runtime-v1"),
+    }
+    modules = {module.manifest.algorithm_id: module for module in build_builtin_modules()}
+    assert set(expected).issubset(modules)
+    assert all(not algorithm_id.startswith("tnk_") for algorithm_id in expected)
+    for algorithm_id, (version, implementation) in expected.items():
+        manifest = modules[algorithm_id].manifest
+        assert manifest.is_current_version
+        assert (manifest.scientific_version, manifest.implementation_identity) == (version, implementation)
+
+
+def test_tnk_runtime_no_longer_uses_shadow_rejection() -> None:
+    from app.algorithms.builtin_modules import build_builtin_modules
+
+    module = next(item for item in build_builtin_modules() if item.manifest.algorithm_id == "tnk_biofeedback")
+    assert module.manifest.is_runnable is True
+    assert module.manifest.supported_modes == ["static", "dynamic"]

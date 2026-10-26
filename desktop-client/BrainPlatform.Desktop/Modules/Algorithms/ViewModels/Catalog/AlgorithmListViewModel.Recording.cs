@@ -90,6 +90,7 @@ public sealed partial class AlgorithmListViewModel
             SelectedChannel = RegisteredChannels[0];
         SelectedF4Channel = RegisteredChannels.Count > 1 ? RegisteredChannels[1] : string.Empty;
         ApplyAlgorithmChannelDefaults();
+        RefreshTnkRoleChannels();
         EndSecondsText = RegisteredRecording.DurationSeconds.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
         StatusText = $"已注册记录：{RegisteredRecording.OriginalName}，{RegisteredRecording.DurationSeconds.Value:0.###} 秒。请选择分析导联和范围。";
     }
@@ -98,6 +99,15 @@ public sealed partial class AlgorithmListViewModel
     {
         if (RegisteredChannels.Count == 0)
             return;
+
+        if (SelectedAlgorithm?.Id.StartsWith("tnk_", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            var primaryRole = SelectedAlgorithm.Parameters.FirstOrDefault(parameter => parameter.Key == "channel")?.LabelZh
+                .Replace(" 分析通道", string.Empty, StringComparison.Ordinal).Trim();
+            var tnkPrimary = FindRegisteredChannel(primaryRole);
+            if (tnkPrimary is not null)
+                SelectedChannel = tnkPrimary;
+        }
 
         var descriptor = AlgorithmUiRegistry.For(SelectedAlgorithm?.Id ?? string.Empty);
         var primary = FindRegisteredChannel(descriptor.PreferredPrimaryChannel);
@@ -133,5 +143,28 @@ public sealed partial class AlgorithmListViewModel
             string.Equals(channel, preferred, StringComparison.OrdinalIgnoreCase))
             ?? RegisteredChannels.FirstOrDefault(channel =>
                 string.Equals(channel, preferred + "-REF", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void RefreshTnkRoleChannels()
+    {
+        TnkRoleChannels.Clear();
+        if (!string.Equals(SelectedAlgorithm?.Id, "tnk_biofeedback", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        foreach (var role in new[] { "Fz", "Pz", "Oz", "F3", "F4" })
+        {
+            var preferredChannel = SelectedMontageProfile?.Outputs.FirstOrDefault(output => output.Available &&
+                string.Equals(output.Role, role, StringComparison.OrdinalIgnoreCase))?.Id;
+            preferredChannel ??= RegisteredChannels.FirstOrDefault(channel =>
+                string.Equals(channel, role, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(channel, role + "-REF", StringComparison.OrdinalIgnoreCase));
+            var selection = new TnkRoleChannelSelection(role, $"{role} 来源通道", preferredChannel ?? string.Empty);
+            selection.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(TnkRoleChannelSelection.SelectedChannel))
+                    ScheduleAutomaticRun();
+            };
+            TnkRoleChannels.Add(selection);
+        }
     }
 }

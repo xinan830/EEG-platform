@@ -23,7 +23,8 @@ public sealed record AlgorithmCatalogItem(
     [property: JsonPropertyName("definition_id")] string? DefinitionId,
     [property: JsonPropertyName("definition_version")] string? DefinitionVersion,
     [property: JsonPropertyName("implementation_identity")] string? ImplementationIdentity,
-    [property: JsonPropertyName("dynamic_capabilities")] JsonElement DynamicCapabilities = default)
+    [property: JsonPropertyName("dynamic_capabilities")] JsonElement DynamicCapabilities = default,
+    [property: JsonPropertyName("group")] string? Group = null)
 {
     public bool SupportsDeclaredOnDemand =>
         HasDeclaredImplementation("on_demand");
@@ -227,7 +228,9 @@ public sealed record WindowPreviewResponse(
     [property: JsonPropertyName("arrays")] IReadOnlyDictionary<string, JsonElement>? Arrays,
     [property: JsonPropertyName("array_metadata")] IReadOnlyDictionary<string, JsonElement>? ArrayMetadata,
     [property: JsonPropertyName("scientific_version")] string? ScientificVersion,
-    [property: JsonPropertyName("implementation_version")] string? ImplementationVersion);
+    [property: JsonPropertyName("implementation_version")] string? ImplementationVersion,
+    [property: JsonIgnore] JsonElement? BackendIdentity = null,
+    [property: JsonIgnore] string? ScientificConfigurationJson = null);
 
 /// <summary>
 /// Backend-planned request for one dynamic analysis window. The desktop sends
@@ -291,7 +294,8 @@ public sealed record DynamicWindowResponse(
     [property: JsonPropertyName("quality")] string? Quality,
     [property: JsonPropertyName("failure")] DynamicWindowFailure? Failure,
     [property: JsonPropertyName("result")] DynamicWindowResultResponse? Result,
-    [property: JsonPropertyName("subscription_id")] string? SubscriptionId = null);
+    [property: JsonPropertyName("subscription_id")] string? SubscriptionId = null,
+    [property: JsonPropertyName("scientific_configuration_json")] string? ScientificConfigurationJson = null);
 
 public sealed record DynamicSubscriptionResponse(
     [property: JsonPropertyName("subscription_id")] string SubscriptionId,

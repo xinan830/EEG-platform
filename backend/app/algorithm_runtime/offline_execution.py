@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from app.algorithm_runtime.contracts import DYNAMIC_ANALYSIS_RESULT_CONTRACT_VERSION
-from app.core.provenance import sha256_json
+from app.core.provenance import canonical_json, sha256_bytes, sha256_json
 
 
 OfflineExecutionMode = Literal["full", "on_demand"]
@@ -22,6 +22,7 @@ def scientific_context_snapshot(
     quality_rules: dict[str, Any],
     window: dict[str, Any],
     window_policy_version: str = "",
+    reset_origin_sample: int = 0,
 ) -> dict[str, Any]:
     """Return the normalized execution context that affects EEG values.
 
@@ -30,15 +31,33 @@ def scientific_context_snapshot(
     window semantics all change the scientific meaning of the same parameters.
     """
 
-    return {
+    normalized_signal_mapping = dict(signal_mapping)
+    signal_source = normalized_signal_mapping.get("signal_source")
+    if isinstance(signal_source, dict):
+        normalized_signal_mapping["signal_source"] = {
+            key: value for key, value in signal_source.items() if key != "montage_label"
+        }
+
+    context = {
         "sampling_rate_hz": float(sampling_rate_hz),
-        "signal_mapping": dict(signal_mapping),
+        "signal_mapping": normalized_signal_mapping,
         "reference": dict(reference),
         "filters": dict(filters),
         "quality_rules": dict(quality_rules),
         "window": dict(window),
         "window_policy_version": str(window_policy_version),
     }
+    if type(reset_origin_sample) is not int or reset_origin_sample < 0:
+        raise ValueError("reset origin must be a non-negative integer sample")
+    context["replay_context"] = {
+        "reset_origin_sample": reset_origin_sample,
+        "context_identity": sha256_json({
+            "reset_origin_sample": reset_origin_sample,
+            "scientific_context": context,
+            "window_policy_version": str(window_policy_version),
+        }),
+    }
+    return context
 
 
 def scientific_configuration_sha256(
@@ -46,12 +65,20 @@ def scientific_configuration_sha256(
 ) -> str:
     """Hash normalized algorithm parameters together with their value context."""
 
+    return sha256_bytes(scientific_configuration_json(config, context).encode("utf-8"))
+
+
+def scientific_configuration_json(
+    config: dict[str, Any], context: dict[str, Any],
+) -> str:
+    """Return the canonical, auditable input whose bytes define the digest."""
+
     # Implementation identity is persisted as an audit snapshot, while the
     # resolved Definition digest already binds it into the scientific cache key.
     # Exclude that duplicate metadata so full and on-demand callers with the
     # same scientific parameters share one configuration identity.
     normalized_config = {key: value for key, value in config.items() if key != "implementation_identity"}
-    return sha256_json({
+    return canonical_json({
         "scientific_configuration_contract": "scientific-config-v1",
         "config": normalized_config,
         "context": dict(context),

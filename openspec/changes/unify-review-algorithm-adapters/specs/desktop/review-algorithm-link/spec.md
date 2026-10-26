@@ -5,13 +5,17 @@ Offline analysis panels SHALL consume the recording-relative review cursor.
 They SHALL NOT run an independent playback clock or use viewport boundaries
 as the scientific cursor. Playback and seeking SHALL NOT create scientific Runs
 per cursor update. The review coordinator SHALL apply distinct trigger policies
-for playback and timeline dragging: playback follows eligible backend-planned
-targets as the cursor advances, while drag movement does not submit analysis
-requests until drag completion, which submits the final cursor target.
+for playback and timeline dragging: playback submits the current integer cursor
+on each one-second refresh interval and backend-planned identity governs reuse;
+drag movement does not submit drag-originated requests until drag completion,
+which submits the final cursor target. Drag suppression does not block playback
+refreshes.
 
-#### Scenario: Playback advances into a new eligible window
-- **WHEN** playback advances to a cursor whose policy-resolved target differs from the active target
-- **THEN** review requests or observes that backend-defined window without blocking waveform playback
+#### Scenario: Playback refresh interval elapses
+- **WHEN** the one-second refresh interval elapses during playback
+- **THEN** review submits or observes the current backend-defined target even when identity is unchanged
+- **AND** identical ready/in-flight work may be deduplicated by identity
+- **AND** waveform playback is not blocked by the request
 - **AND** it does not create a full AnalysisRun for the playback tick
 
 #### Scenario: Drag ends at a new target
@@ -57,8 +61,8 @@ Review SHALL keep timeline and waveform navigation responsive while coalescing
 obsolete targets and deduplicating cached/in-flight result reads. During an
 active timeline drag it SHALL update the navigation cursor but defer analysis
 requests; on release it SHALL target the final cursor position. Playback SHALL
-follow its configured/backend-validated refresh policy rather than issuing a
-request for every render tick. A request MAY reuse cached work only when its
+submit the current target once per one-second refresh interval rather than on
+every render tick. A request MAY reuse cached work only when its
 complete scientific and source identity matches.
 
 #### Scenario: Drag changes cursor repeatedly
@@ -81,10 +85,14 @@ complete scientific and source identity matches.
 
 ### Requirement: Bind immutable analysis input snapshots to results
 Each review analysis target SHALL be associated with an immutable snapshot of
-recording identity, integer cursor sample, selected analysis montage/reference,
+recording identity, integer cursor sample, selected analysis source/reference,
 algorithm configuration, algorithm-owned preprocessing configuration, and
-window policy. Display montage and display-only filtering SHALL remain separate
-from scientific inputs. A result SHALL be presented only when its recording,
+window policy. Chart-only scale settings SHALL remain separate from scientific
+inputs. For PSD review, the selected compatible review montage SHALL also be
+bound as the analysis montage snapshot; the PSD channel SHALL map by electrode
+role to an output in that snapshot. PSD's selected analysis channel and its
+explicitly submitted filter settings SHALL be captured as scientific inputs. A
+result SHALL be presented only when its recording,
 configuration revision, algorithm identity, and backend-resolved window identity
 match the active target; provenance SHALL retain the backend-returned values.
 
@@ -93,10 +101,21 @@ match the active target; provenance SHALL retain the backend-returned values.
 - **THEN** the new request uses a new immutable snapshot and configuration revision
 - **AND** the old response cannot replace the new target or be presented as its result
 
-#### Scenario: Display settings change without scientific input change
-- **WHEN** the user changes only waveform display montage or display filter
-- **THEN** the scientific target identity remains unchanged unless that setting is explicitly part of the algorithm's scientific configuration
-- **AND** display processing is not silently substituted for backend analysis preprocessing
+#### Scenario: PSD review montage changes
+- **WHEN** the user changes the selected review montage while the PSD panel is open
+- **THEN** PSD maps the previously selected electrode role to the corresponding output in the selected montage snapshot
+- **AND** the previous result is invalidated and a new request carries the selected montage identity and output mapping
+- **AND** an unregistered montage is reported as unavailable instead of falling back to the prior analysis montage
+
+#### Scenario: Chart scale changes without scientific input change
+- **WHEN** the user changes only sensitivity, paper speed or timebase
+- **THEN** the PSD scientific target identity remains unchanged
+- **AND** chart presentation does not change the PSD analysis channel or filter configuration
+
+#### Scenario: PSD scientific source or shared filter changes
+- **WHEN** the user changes the PSD analysis channel or a filter setting included in the PSD request
+- **THEN** the new immutable request configuration has a different scientific identity
+- **AND** the previous response cannot be presented as belonging to the new target
 
 ### Requirement: Module ownership is independent from review composition
 Review SHALL coordinate algorithm-neutral cursor triggers, target identity,
@@ -123,3 +142,14 @@ review-supported solely because it appears in the algorithm catalog.
 - **THEN** its subscriptions and foreground reads are released
 - **AND** waveform review remains operational
 - **AND** immutable Runs and shared backend work are not blindly deleted or cancelled.
+
+### Requirement: Validate request identity against resolved scientific identity
+The review adapter SHALL bind each backend result to the immutable request snapshot and the canonical backend-resolved scientific configuration. It SHALL reject a response when its canonical configuration digest, normalized algorithm request fields, recording/source identity, algorithm identity, or backend window identity does not match the active snapshot. The API response SHALL NOT expose local file paths or raw exception text as scientific context.
+
+#### Scenario: Response has a different configuration digest
+- **WHEN** an on-demand response's canonical scientific configuration does not hash to its declared `configuration_sha256`
+- **THEN** the adapter rejects it before projecting values for presentation.
+
+#### Scenario: Backend-normalized request differs
+- **WHEN** any submitted algorithm config property differs from the corresponding property in the backend-normalized config
+- **THEN** the adapter rejects the response without replacing the current result.

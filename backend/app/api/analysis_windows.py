@@ -1,6 +1,8 @@
 """HTTP resources for opt-in, single dynamic-analysis windows."""
 
 import logging
+import math
+from typing import Any
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 from uuid import uuid4
@@ -12,6 +14,24 @@ from app.core.api_contract import error_response
 
 router = APIRouter(prefix="/api/analysis-windows", tags=["analysis-windows"])
 logger = logging.getLogger("brain_platform.dynamic_window")
+
+
+def _json_safe(value: Any) -> Any:
+    """Project unavailable numeric values to JSON null at the HTTP boundary.
+
+    Scientific artifacts keep NaN internally to preserve array shape and
+    unavailable masks. JSON has no NaN value, so API responses must expose
+    those points as null without changing the persisted numeric artifact.
+    """
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    return value
 
 
 def _service(request: Request):
@@ -50,13 +70,14 @@ def ensure_window(payload: DynamicWindowRequest, request: Request):
             "algorithm_id": payload.algorithm_id, "project_id": payload.project_id,
             "configuration_sha256": value["identity"]["configuration_sha256"],
             "state": value["state"], "cursor_sample": payload.cursor_sample})
-    return JSONResponse(value, status_code=status.HTTP_200_OK if value.get("state") == "ready" else status.HTTP_202_ACCEPTED)
+    return JSONResponse(_json_safe(value), status_code=status.HTTP_200_OK if value.get("state") == "ready" else status.HTTP_202_ACCEPTED)
 
 
 @router.get("/{window_id}")
 def get_window(window_id: str, request: Request):
     try:
-        return _service(request).get(window_id, project_id=request.query_params.get("project_id"))
+        value = _service(request).get(window_id, project_id=request.query_params.get("project_id"))
+        return _json_safe(value)
     except KeyError:
         return error_response(request, 404, "WINDOW_NOT_FOUND", "分析窗口不存在")
     except ValueError as exc:

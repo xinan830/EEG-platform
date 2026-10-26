@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
@@ -11,7 +13,7 @@ public sealed class ReviewOnDemandAnalysisTests
     public async Task Provider_maps_ready_backend_arrays_and_units_without_recomputing()
     {
         var client = new FakeClient(ReadyResponse());
-        var provider = new PsdReviewAnalysisProvider(client, enableOnDemand: true);
+        var provider = new PsdReviewAnalysisAdapter(client, enableOnDemand: true);
         var request = new AnalysisRunRequest(
             "recording", "official_algorithm",
             JsonSerializer.SerializeToElement(new { algorithm_id = "psd", scientific_version = "v1" }));
@@ -28,10 +30,79 @@ public sealed class ReviewOnDemandAnalysisTests
     }
 
     [Fact]
+    public async Task Snapshot_overload_rejects_backend_identity_from_another_source()
+    {
+        var response = ReadyResponse() with
+        {
+            Identity = JsonSerializer.SerializeToElement(new
+            {
+                recording_id = "recording", source_sha256 = "different-source", algorithm_id = "psd"
+            })
+        };
+        var provider = new PsdReviewAnalysisAdapter(new FakeClient(response), enableOnDemand: true);
+        using var config = JsonDocument.Parse("{\"algorithm_id\":\"psd\"}");
+        var snapshot = new ReviewAnalysisSnapshot("recording", "expected-source", "psd", 500,
+            config.RootElement.Clone(), null);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.LoadOnDemandAsync("recording", snapshot, 500, CancellationToken.None, null));
+
+        Assert.Contains("身份与不可变分析快照不一致", exception.Message);
+    }
+
+    [Fact]
+    public async Task Snapshot_overload_rejects_scientific_configuration_that_differs_from_request()
+    {
+        const string scientificJson = "{\"config\":{\"algorithm_id\":\"psd\",\"channel\":\"F7-REF\",\"scientific_version\":\"v1\"},\"context\":{},\"scientific_configuration_contract\":\"scientific-config-v1\"}";
+        var response = SnapshotResponse(scientificJson);
+        var provider = new PsdReviewAnalysisAdapter(new FakeClient(response), enableOnDemand: true);
+        using var config = JsonDocument.Parse("{\"algorithm_id\":\"psd\",\"channel\":\"F3-REF\",\"scientific_version\":\"v1\"}");
+        var snapshot = new ReviewAnalysisSnapshot("recording", "source", "psd", 500,
+            config.RootElement.Clone(), null);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.LoadOnDemandAsync("recording", snapshot, 500, CancellationToken.None, null));
+        Assert.Contains("科学配置与不可变分析快照不一致", exception.Message);
+    }
+
+    [Fact]
+    public async Task Snapshot_overload_rejects_scientific_configuration_digest_mismatch()
+    {
+        var response = SnapshotResponse("{\"config\":{\"algorithm_id\":\"psd\"},\"context\":{},\"scientific_configuration_contract\":\"scientific-config-v1\"}") with
+        {
+            Identity = JsonSerializer.SerializeToElement(new
+            {
+                recording_id = "recording", source_sha256 = "source", algorithm_id = "psd",
+                configuration_sha256 = "incorrect-digest"
+            })
+        };
+        var provider = new PsdReviewAnalysisAdapter(new FakeClient(response), enableOnDemand: true);
+        using var config = JsonDocument.Parse("{\"algorithm_id\":\"psd\"}");
+        var snapshot = new ReviewAnalysisSnapshot("recording", "source", "psd", 500,
+            config.RootElement.Clone(), null);
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            provider.LoadOnDemandAsync("recording", snapshot, 500, CancellationToken.None, null));
+        Assert.Contains("摘要校验失败", exception.Message);
+    }
+
+    private static DynamicWindowResponse SnapshotResponse(string scientificJson)
+    {
+        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(scientificJson))).ToLowerInvariant();
+        return ReadyResponse() with
+        {
+            ScientificConfigurationJson = scientificJson,
+            Identity = JsonSerializer.SerializeToElement(new
+            {
+                recording_id = "recording", source_sha256 = "source", algorithm_id = "psd",
+                configuration_sha256 = digest
+            })
+        };
+    }
+
+    [Fact]
     public async Task Provider_polls_inflight_window_and_cancels_page_subscription()
     {
         var client = new FakeClient(QueuedResponse(), ReadyResponse());
-        var provider = new PsdReviewAnalysisProvider(client, enableOnDemand: true);
+        var provider = new PsdReviewAnalysisAdapter(client, enableOnDemand: true);
         var request = new AnalysisRunRequest(
             "recording", "official_algorithm",
             JsonSerializer.SerializeToElement(new { algorithm_id = "psd", scientific_version = "v1" }));
@@ -51,7 +122,7 @@ public sealed class ReviewOnDemandAnalysisTests
             Failure = new DynamicWindowFailure("QUALITY_GATE", "质量门未通过")
         };
         var client = new FakeClient(rejected);
-        var provider = new PsdReviewAnalysisProvider(client, enableOnDemand: true);
+        var provider = new PsdReviewAnalysisAdapter(client, enableOnDemand: true);
         var request = new AnalysisRunRequest(
             "recording", "official_algorithm",
             JsonSerializer.SerializeToElement(new { algorithm_id = "psd", scientific_version = "v1" }));
@@ -70,7 +141,7 @@ public sealed class ReviewOnDemandAnalysisTests
     public async Task Provider_preserves_each_terminal_state_and_reason(string state)
     {
         var response = Response(state, null) with { Failure = new DynamicWindowFailure("REASON", "具体原因") };
-        var provider = new PsdReviewAnalysisProvider(new FakeClient(response), enableOnDemand: true);
+        var provider = new PsdReviewAnalysisAdapter(new FakeClient(response), enableOnDemand: true);
         var request = new AnalysisRunRequest("recording", "official_algorithm",
             JsonSerializer.SerializeToElement(new { algorithm_id = "psd", scientific_version = "v1" }));
         var result = await provider.LoadOnDemandAsync("recording", request, 500, CancellationToken.None);
@@ -105,7 +176,7 @@ public sealed class ReviewOnDemandAnalysisTests
     public async Task Scientific_version_is_not_sent_as_definition_version()
     {
         var client = new FakeClient(ReadyResponse());
-        var provider = new PsdReviewAnalysisProvider(client, enableOnDemand: true);
+        var provider = new PsdReviewAnalysisAdapter(client, enableOnDemand: true);
         var request = new AnalysisRunRequest("recording", "official_algorithm",
             JsonSerializer.SerializeToElement(new { algorithm_id = "psd", scientific_version = "v1" }));
         await provider.LoadOnDemandAsync("recording", request, 500, CancellationToken.None);
@@ -136,7 +207,7 @@ public sealed class ReviewOnDemandAnalysisTests
     {
         var client = new FakeClient(QueuedResponse(), Response("preparing_source", null),
             Response("computing_window", null), ReadyResponse());
-        var provider = new PsdReviewAnalysisProvider(client, enableOnDemand: true);
+        var provider = new PsdReviewAnalysisAdapter(client, enableOnDemand: true);
         var statuses = new StatusCollector();
         var request = new AnalysisRunRequest("recording", "official_algorithm",
             JsonSerializer.SerializeToElement(new { algorithm_id = "psd", scientific_version = "v1" }));

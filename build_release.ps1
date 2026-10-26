@@ -97,6 +97,8 @@ Write-Host "SDK packaged -> $SdkOutDir\eego-SDK.dll" -ForegroundColor Green
 Step "Step 1/3 - PyInstaller: package Python backend"
 
 $PyiWork = Join-Path $Root "dist\_pyibuild"
+$PyiModuleWork = Join-Path $PyiWork "brain_backend"
+New-Item -ItemType Directory -Force -Path $PyiModuleWork | Out-Null
 
 Push-Location $BackendDir
 try {

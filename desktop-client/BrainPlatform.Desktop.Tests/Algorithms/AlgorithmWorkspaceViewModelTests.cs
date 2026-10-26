@@ -14,6 +14,7 @@ public sealed class AlgorithmWorkspaceViewModelTests
     [InlineData("band_ratio", AlgorithmDetailKind.BandRatio)]
     [InlineData("theta_beta", AlgorithmDetailKind.ThetaBeta)]
     [InlineData("brainbeat", AlgorithmDetailKind.Brainbeat)]
+    [InlineData("tnk_biofeedback", AlgorithmDetailKind.Scalar)]
     public void Detail_UsesAlgorithmSpecificPresentationKind(string id, AlgorithmDetailKind expected)
     {
         var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter());
@@ -70,6 +71,24 @@ public sealed class AlgorithmWorkspaceViewModelTests
     }
 
     [Fact]
+    public void DynamicOnlyTnkGroup_SelectsDynamicModeAndHidesStaticModeCapability()
+    {
+        var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter());
+        var context = new AnalysisContextViewModel(catalog);
+
+        catalog.SelectedAlgorithm = Algorithm("tnk_biofeedback") with
+        {
+            Modes = ["dynamic"],
+            DynamicPolicy = new DynamicAnalysisPolicy(4, [4], 4, 1, true),
+        };
+
+        Assert.True(context.IsDynamicMode);
+        Assert.False(context.SupportsStaticMode);
+        context.SelectStaticModeCommand.Execute(null);
+        Assert.True(context.IsDynamicMode);
+    }
+
+    [Fact]
     public void CatalogFiltersUseBackendMetadataWithoutChangingItems()
     {
         var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter());
@@ -103,6 +122,47 @@ public sealed class AlgorithmWorkspaceViewModelTests
 
         Assert.Single(catalog.VisibleItems);
         Assert.Equal("psd", catalog.VisibleItems[0].Id);
+    }
+
+    [Fact]
+    public void TnkCatalogItemUsesIndependentShadowDetail()
+    {
+        var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter());
+        catalog.SelectedAlgorithm = Algorithm("tnk_biofeedback") with
+        {
+            Group = "TNK 脑指标",
+            Availability = "available",
+            IsRunnable = true,
+        };
+
+        Assert.Equal("TNK 脑指标", catalog.SelectedAlgorithm.Group);
+        Assert.Equal("可用", catalog.SelectedAlgorithm.StatusDisplay);
+        Assert.Equal(AlgorithmDetailKind.Scalar, new AlgorithmWorkspaceViewModel(catalog).Detail.DetailKind);
+    }
+
+    [Fact]
+    public void TnkGroupIsTheOnlySelectableTnkDetail()
+    {
+        var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter());
+        var workspace = new AlgorithmWorkspaceViewModel(catalog);
+
+        catalog.SelectedAlgorithm = Algorithm("tnk_biofeedback") with { Group = "TNK 脑指标", Availability = "available", IsRunnable = true };
+        Assert.True(workspace.Detail.HasAlgorithm);
+        Assert.Equal(AlgorithmDetailKind.Scalar, workspace.Detail.DetailKind);
+        Assert.Equal("tnk_biofeedback", workspace.Detail.Algorithm!.Id);
+
+        catalog.SelectedAlgorithm = Algorithm("tnk_iapf") with { Group = "TNK 脑指标", Availability = "available", IsRunnable = true };
+        Assert.False(AlgorithmRunConfiguration.IsSupportedAlgorithm(catalog.SelectedAlgorithm));
+    }
+
+    [Fact]
+    public void TnkChildrenHaveNoUserFacingRunHandlers()
+    {
+        foreach (var childId in new[] { "tnk_iapf", "tnk_faa", "tnk_rbp" })
+        {
+            Assert.False(AlgorithmRunResultHandlerRegistry.Contains(childId));
+            Assert.Throws<InvalidOperationException>(() => AlgorithmRunResultHandlerRegistry.For(childId));
+        }
     }
 
     private static AlgorithmCatalogItem Algorithm(string id) => new(

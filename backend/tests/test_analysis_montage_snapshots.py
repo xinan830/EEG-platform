@@ -140,6 +140,14 @@ def test_dynamic_window_projects_selected_snapshot_and_isolates_default_cache(tm
                       "analysis_montage_outputs": [{"role": "F3", "output": output["id"], "unit": "V"}]}
             response = service.ensure(DynamicWindowRequest(recording_id=recording.id, algorithm_id="psd",
                 cursor_sample=2000, request_id=profile["id"], config=config))
+            import hashlib
+            from app.core.provenance import canonical_json
+            scientific_input = json.loads(response["scientific_configuration_json"])
+            assert response["identity"]["configuration_sha256"] == hashlib.sha256(
+                canonical_json(scientific_input).encode("utf-8")).hexdigest()
+            assert scientific_input["config"]["analysis_montage_id"] == profile["id"]
+            assert "error_message" not in response["scientific_configuration_json"]
+            assert str(root) not in response["scientific_configuration_json"]
             deadline = time.monotonic() + 10
             while response["state"] in {"queued", "preparing_source", "computing_window"} and time.monotonic() < deadline:
                 time.sleep(0.02)

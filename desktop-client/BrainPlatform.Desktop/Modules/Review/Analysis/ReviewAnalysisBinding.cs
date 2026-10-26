@@ -1,4 +1,6 @@
 using System.ComponentModel;
+using System.Diagnostics;
+using BrainPlatform.Desktop.Modules.Algorithms.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Review.Analysis;
@@ -11,11 +13,12 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
 {
     private readonly ReviewAnalysisCoordinator coordinator;
     private readonly string recordingId;
+    private readonly RegisteredRecording? registeredRecording;
     private readonly int samplingRateHz;
     private readonly long durationSamples;
     private CancellationTokenSource? loadCancellation;
     private string? runId;
-    private AnalysisRunRequest? onDemandRequest;
+    private ReviewAnalysisSnapshot? onDemandSnapshot;
     private long lastRequestedSample = -1;
     private WindowPreviewResponse? currentWindow;
     private bool isLoading;
@@ -29,12 +32,16 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         ReviewAnalysisCoordinator coordinator,
         string recordingId,
         int samplingRateHz,
-        long durationSamples)
+        long durationSamples,
+        RegisteredRecording? registeredRecording = null)
     {
         this.coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         this.recordingId = string.IsNullOrWhiteSpace(recordingId)
             ? throw new ArgumentException("记录 ID 不能为空。", nameof(recordingId))
             : recordingId;
+        if (registeredRecording is not null && !string.Equals(registeredRecording.Id, this.recordingId, StringComparison.Ordinal))
+            throw new ArgumentException("注册记录与回溯记录身份不匹配。", nameof(registeredRecording));
+        this.registeredRecording = registeredRecording;
         if (samplingRateHz <= 0) throw new ArgumentOutOfRangeException(nameof(samplingRateHz));
         if (durationSamples < 0) throw new ArgumentOutOfRangeException(nameof(durationSamples));
         this.samplingRateHz = samplingRateHz;
@@ -87,7 +94,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
 
     public string? RunId => runId;
 
-    public bool IsOnDemandAttached => onDemandRequest is not null;
+    public bool IsOnDemandAttached => onDemandSnapshot is not null;
 
     public void AttachRun(string value)
     {
@@ -97,15 +104,15 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
         runId = value;
-        onDemandRequest = null;
+        onDemandSnapshot = null;
         onDemandRefreshStepSamples = null;
         lastRequestedSample = -1;
         TargetCursorSample = -1;
         CurrentWindow = null;
-        StatusText = "已绑定 PSD 结果，等待游标。";
+        StatusText = $"已绑定 {coordinator.AlgorithmDisplayName} 结果，等待游标。";
     }
 
-    public void AttachOnDemand(AnalysisRunRequest request)
+    public void AttachOnDemand(AnalysisRunRequest request, AlgorithmCatalogItem? algorithm = null)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(request);
@@ -113,12 +120,14 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
         runId = null;
-        onDemandRequest = request;
-        onDemandRefreshStepSamples = ReadRefreshStepSamples(request);
+        onDemandSnapshot = ReviewAnalysisSnapshot.From(request,
+            registeredRecording ?? throw new InvalidOperationException("按需分析必须绑定已注册记录身份。"),
+            0, algorithm);
+        onDemandRefreshStepSamples = ReadRefreshStepSamples(onDemandSnapshot.Configuration);
         lastRequestedSample = -1;
         TargetCursorSample = -1;
         CurrentWindow = null;
-        StatusText = "已绑定按需 PSD，等待游标。";
+        StatusText = $"已绑定按需 {coordinator.AlgorithmDisplayName}，等待游标。";
     }
 
     public void DetachRun()
@@ -128,7 +137,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
         runId = null;
-        onDemandRequest = null;
+        onDemandSnapshot = null;
         onDemandRefreshStepSamples = null;
         lastRequestedSample = -1;
         TargetCursorSample = -1;
@@ -149,7 +158,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
     public async Task LoadAtSampleAsync(long sample, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        if (runId is null && onDemandRequest is null)
+        if (runId is null && onDemandSnapshot is null)
         {
             StatusText = "未绑定分析结果。";
             return;
@@ -161,9 +170,10 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         loadCancellation = linked;
         var generation = Interlocked.Increment(ref loadGeneration);
+        var loadStarted = Stopwatch.GetTimestamp();
         TargetCursorSample = sample;
         IsLoading = true;
-        StatusText = "正在读取 PSD 窗口…";
+        StatusText = $"正在读取 {coordinator.AlgorithmDisplayName} 窗口…";
         try
         {
             var progress = new Progress<DynamicWindowResponse>(status =>
@@ -172,26 +182,30 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
                 StatusText = status.State switch
                 {
                     "preparing_source" => "正在准备连续预处理源…",
-                    "computing_window" => "正在计算当前 PSD 窗口…",
-                    "queued" => "当前 PSD 窗口等待计算…",
+                    "computing_window" => $"正在计算当前 {coordinator.AlgorithmDisplayName} 窗口…",
+                    "queued" => $"当前 {coordinator.AlgorithmDisplayName} 窗口等待计算…",
                     _ => StatusText,
                 };
             });
-            var result = onDemandRequest is { } request
-                ? await coordinator.LoadOnDemandAtSampleAsync(recordingId, request, sample, linked.Token, progress)
+            var result = onDemandSnapshot is { } snapshot
+                ? await coordinator.LoadOnDemandAtSampleAsync(recordingId,
+                    snapshot with { CursorSample = sample }, sample, linked.Token, progress)
                 : await coordinator.LoadAtSampleAsync(recordingId, runId!, sample, linked.Token);
             linked.Token.ThrowIfCancellationRequested();
             if (result is null || !IsCurrent(generation, linked)) return;
             CurrentWindow = result;
+            AlgorithmWindowPerformanceDiagnostics.RecordResultBound(
+                recordingId, coordinator.AlgorithmId, result.Window?.WindowId, sample,
+                AlgorithmWindowPerformanceDiagnostics.ElapsedMilliseconds(loadStarted));
             StatusText = result.Status switch
             {
-                "available" => "PSD 窗口已更新。",
+                "available" => $"{coordinator.AlgorithmDisplayName} 窗口已更新。",
                 "insufficient_data" => "当前窗口数据不足。",
-                "rejected" => "当前窗口被质量规则拒绝。",
-                "cancelled" => "当前窗口已取消。",
-                "failed" => "当前窗口计算失败。",
-                "unavailable" => "当前窗口不可用。",
-                _ => $"PSD 窗口状态：{result.Status}",
+                "rejected" => $"当前 {coordinator.AlgorithmDisplayName} 窗口被质量规则拒绝。",
+                "cancelled" => $"当前 {coordinator.AlgorithmDisplayName} 窗口已取消。",
+                "failed" => $"当前 {coordinator.AlgorithmDisplayName} 窗口计算失败。",
+                "unavailable" => $"当前 {coordinator.AlgorithmDisplayName} 窗口不可用。",
+                _ => $"{coordinator.AlgorithmDisplayName} 窗口状态：{result.Status}",
             };
         }
         catch (OperationCanceledException) when (linked.IsCancellationRequested)
@@ -201,7 +215,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         {
             if (!IsCurrent(generation, linked)) return;
             CurrentWindow = null;
-            StatusText = $"PSD 结果读取失败：{exception.Message}";
+            StatusText = $"{coordinator.AlgorithmDisplayName} 结果读取失败：{exception.Message}";
         }
         finally
         {
@@ -213,13 +227,40 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         }
     }
 
-    public void PreviewAtSeconds(double seconds)
+    public void OnPlaybackCursorAdvanced(double seconds)
     {
-        if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandRequest is null)) return;
+        if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandSnapshot is null)) return;
+        if (!double.IsFinite(seconds)) return;
+        var sample = RecordingTimeMapper.ToCursorSample(
+            Math.Clamp(seconds, 0, durationSamples / (double)samplingRateHz), samplingRateHz, durationSamples);
+        var refreshStep = onDemandRefreshStepSamples ?? samplingRateHz;
+        sample = sample / refreshStep * refreshStep;
+        RequestPreviewAtSample(sample);
+    }
+
+    public void OnCursorPositionSelected(double seconds) => RequestPreviewAtSeconds(seconds);
+
+    public void OnCursorDragCompleted(double seconds)
+    {
+        if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandSnapshot is null)) return;
+        if (!double.IsFinite(seconds)) return;
+        var sample = RecordingTimeMapper.ToCursorSample(
+            Math.Clamp(seconds, 0, durationSamples / (double)samplingRateHz), samplingRateHz, durationSamples);
+        RequestPreviewAtSample(sample);
+    }
+
+    private void RequestPreviewAtSeconds(double seconds)
+    {
+        if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandSnapshot is null)) return;
         if (!double.IsFinite(seconds)) return;
         var sample = RecordingTimeMapper.ToCursorSample(
             Math.Clamp(seconds, 0, durationSamples / (double)samplingRateHz), samplingRateHz, durationSamples);
         sample = QuantizeOnDemandPreviewSample(sample);
+        RequestPreviewAtSample(sample);
+    }
+
+    private void RequestPreviewAtSample(long sample)
+    {
         if (sample == lastRequestedSample) return;
         lastRequestedSample = sample;
         _ = LoadAtSampleAsync(sample);
@@ -232,7 +273,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
         runId = null;
-        onDemandRequest = null;
+        onDemandSnapshot = null;
         onDemandRefreshStepSamples = null;
         CurrentWindow = null;
         await coordinator.ReleaseOnDemandAsync();
@@ -245,9 +286,9 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         return sample / step * step;
     }
 
-    private long? ReadRefreshStepSamples(AnalysisRunRequest request)
+    private long? ReadRefreshStepSamples(System.Text.Json.JsonElement config)
     {
-        if (!request.Config.TryGetProperty("refresh_step_s", out var stepElement) ||
+        if (!config.TryGetProperty("refresh_step_s", out var stepElement) ||
             stepElement.ValueKind != System.Text.Json.JsonValueKind.Number ||
             !stepElement.TryGetDouble(out var stepSeconds) ||
             !double.IsFinite(stepSeconds) || stepSeconds <= 0)

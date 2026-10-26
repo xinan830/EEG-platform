@@ -171,8 +171,11 @@
                                 <Border Grid.ColumnSpan="8" Style="{StaticResource AppTableRowDividerStyle}" />
 
                                 <!-- Column 0: Chinese Name -->
-                                <TextBlock Grid.Column="0" Style="{StaticResource AppTableCellTextStyle}"
-                                           Text="{Binding DisplayNameZh}" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Style="{StaticResource AppTableCellTextStyle}"
+                                               Text="{Binding DisplayNameZh}" FontWeight="SemiBold" Foreground="#0F172A" />
+                                    <TextBlock Text="{Binding Group}" FontSize="10" Foreground="#64748B" />
+                                </StackPanel>
 
                                 <!-- Column 1: Algorithm Code / Abbreviation -->
                                 <TextBlock Grid.Column="1" Style="{StaticResource AppTableCellTextStyle}"

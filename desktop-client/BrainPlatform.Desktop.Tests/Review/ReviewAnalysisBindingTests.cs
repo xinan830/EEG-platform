@@ -18,7 +18,7 @@ public sealed class ReviewAnalysisBindingTests
 
         Assert.Equal("run", binding.RunId);
         Assert.Equal(250, binding.CurrentWindow!.CursorSample);
-        Assert.Equal("PSD 窗口已更新。", binding.StatusText);
+        Assert.Equal("分析 窗口已更新。", binding.StatusText);
         Assert.False(binding.IsLoading);
     }
 
@@ -26,7 +26,7 @@ public sealed class ReviewAnalysisBindingTests
     public async Task Provider_rejects_a_window_from_another_recording()
     {
         var client = new FakeAlgorithmClient(Response("run", "other-recording", 10));
-        var provider = new PsdReviewAnalysisProvider(client);
+        var provider = new PsdReviewAnalysisAdapter(client);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             provider.LoadAsync("recording", "run", 10, CancellationToken.None));
@@ -62,6 +62,38 @@ public sealed class ReviewAnalysisBindingTests
         Assert.Equal(500, binding.TargetCursorSample);
         Assert.Equal(400, binding.DisplayedCursorSample);
         Assert.False(binding.IsTargetDisplayed);
+    }
+
+    [Fact]
+    public async Task Playback_refreshes_at_one_second_cursor_intervals_and_release_uses_exact_sample()
+    {
+        var requested = new System.Collections.Concurrent.ConcurrentQueue<long>();
+        await using var binding = new ReviewAnalysisBinding(
+            new ReviewAnalysisCoordinator((runId, sample, _, _) =>
+            {
+                requested.Enqueue(sample!.Value);
+                return Task.FromResult(Response(runId, "recording", sample.Value));
+            }), "recording", 100, 10_000);
+        binding.AttachRun("run");
+
+        binding.OnPlaybackCursorAdvanced(1.2);
+        binding.OnPlaybackCursorAdvanced(1.9);
+        binding.OnPlaybackCursorAdvanced(2.1);
+        await WaitUntilAsync(() => requested.Count >= 2);
+        binding.OnCursorDragCompleted(2.9);
+        await WaitUntilAsync(() => requested.Contains(290));
+
+        Assert.Contains(100, requested);
+        Assert.Contains(200, requested);
+        Assert.Contains(290, requested);
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> predicate)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+        while (!predicate() && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
+        Assert.True(predicate(), "Expected analysis target was not submitted.");
     }
 
     private static WindowPreviewResponse Response(string runId, string recordingId, long sample) => new(

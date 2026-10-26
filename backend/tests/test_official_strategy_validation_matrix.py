@@ -97,6 +97,7 @@ def test_dynamic_window_identity_rejects_changed_source_config_and_sample_bounds
                   definition_sha256="digest-a", implementation_build="build-a", scientific_version="v1",
                   implementation_identity="psd-runtime-v3", configuration_sha256="config-a",
                   window_policy_version="psd-dynamic-window-v1", generation=0,
+                  reset_origin_sample=0, context_identity="context-a",
                   start_sample=1000, end_sample=2000)
     baseline = DynamicWindowIdentity(**common)
     variants = [
@@ -105,6 +106,8 @@ def test_dynamic_window_identity_rejects_changed_source_config_and_sample_bounds
         {**common, "start_sample": 1001},
         {**common, "end_sample": 2001},
         {**common, "implementation_identity": "psd-runtime-v4"},
+        {**common, "context_identity": "context-b"},
+        {**common, "reset_origin_sample": 100},
     ]
     assert all(DynamicWindowIdentity(**item) != baseline for item in variants)
 

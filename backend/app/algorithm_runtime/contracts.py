@@ -12,8 +12,8 @@ from .execution_control import ExecutionControl
 
 
 AlgorithmMode = Literal["static", "dynamic"]
-StructuredOutputKind = Literal["frequency_series", "time_frequency"]
-DynamicStructuredOutputKind = Literal["frequency_series", "time_frequency"]
+StructuredOutputKind = Literal["frequency_series", "time_frequency", "algorithm_group"]
+DynamicStructuredOutputKind = Literal["frequency_series", "time_frequency", "algorithm_group"]
 CapabilityImplementationStatus = Literal["implemented", "unsupported"]
 CapabilityValidationStatus = Literal["validated", "unvalidated", "not_applicable"]
 
@@ -199,6 +199,7 @@ class AlgorithmManifest(BaseModel):
     is_runnable: bool = True
     required_channel_roles: list[str] = Field(default_factory=list)
     signal_requirements: SignalRequirements | None = None
+    catalog_group: str | None = None
 
 
 class AlgorithmInputs(BaseModel):

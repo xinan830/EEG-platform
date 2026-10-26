@@ -247,8 +247,10 @@ internal static class AlgorithmResultFormatter
     {
         "clean" => "良好",
         "partial" => "部分完成",
+        "degraded" => "降级结果",
         "gate_failed" => "未通过质量门",
         "unavailable" => "不可用",
+        "insufficient_data" => "数据不足",
         _ => string.IsNullOrWhiteSpace(status) ? "未提供" : status,
     };
 

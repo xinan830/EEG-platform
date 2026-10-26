@@ -370,7 +370,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
             analysisCoordinator,
             analysisRecording?.Id ?? recordingId,
             samplingRateHz,
-            checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)));
+            checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)),
+            analysisRecording);
         analysisBinding.PropertyChanged += OnAnalysisBindingChanged;
         analysisBinding.AttachRun(runId);
         isAnalysisStale = false;
@@ -391,9 +392,11 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
             analysisCoordinator,
             analysisRecording?.Id ?? recordingId,
             samplingRateHz,
-            checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)));
+            checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)),
+            analysisRecording);
         analysisBinding.PropertyChanged += OnAnalysisBindingChanged;
-        analysisBinding.AttachOnDemand(request);
+        analysisBinding.AttachOnDemand(request,
+            await analysisCoordinator.GetAlgorithmAsync(cancellationToken));
         isAnalysisStale = false;
         RaiseAnalysisPropertiesChanged();
         await analysisBinding.LoadAtSecondsAsync(PositionSeconds, cancellationToken);
@@ -562,6 +565,9 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public async ValueTask DisposeAsync()
     {
+        if (isDisposing) return;
+        isDisposing = true;
+        playback.Pause();
         analysisLifetime.Cancel();
         analysisUpdater.Dispose();
         PsdParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
@@ -579,6 +585,18 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     {
         RaisePropertyChanged(nameof(AcquisitionMontageText));
         RaisePropertyChanged(nameof(CurrentViewingMontage));
+        if (analysisRecording is { } registered)
+        {
+            var selectedMontage = ResolveAnalysisMontage(registered, CurrentViewingMontage);
+            var wasUnresolved = hasUnresolvedAnalysisMontage;
+            hasUnresolvedAnalysisMontage = CurrentViewingMontage is not null && selectedMontage is null;
+            if (hasUnresolvedAnalysisMontage)
+            {
+                if (!wasUnresolved) InvalidateAnalysisConfiguration();
+            }
+            else
+                PsdParameters.SelectMontage(registered, selectedMontage);
+        }
         if (!ReferenceEquals(publishedFrame, session.CurrentFrame))
         {
             // A drag preview keeps the previous chart viewport until the

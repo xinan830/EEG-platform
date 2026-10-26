@@ -324,6 +324,12 @@ class RecordingService:
             "events": events,
         }
 
+    def prepare_signal_preview(self, recording, low_hz, high_hz, notch_hz, channels):
+        """Reuse continuous scientific preparation; display requests never refilter a cropped window."""
+        from app.services.recording_signal_preview import PreviewPreparationControl
+        return self._spectral_analysis._preprocessed_recording(
+            recording, low_hz, high_hz, notch_hz, PreviewPreparationControl(), channels=channels)
+
     def load_spectrum(
         self,
         recording: RecordingSummary,

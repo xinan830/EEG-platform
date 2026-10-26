@@ -77,6 +77,50 @@ public sealed class DynamicWindowTargetCoordinatorTests
     }
 
     [Fact]
+    public async Task Sequential_playback_targets_keep_order_when_observation_is_slower_than_playback()
+    {
+        var observer = new ControlledObserver();
+        var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.Zero);
+        try
+        {
+            var first = coordinator.LoadSequentialAsync(Request(100), CancellationToken.None);
+            var second = coordinator.LoadSequentialAsync(Request(200), CancellationToken.None);
+            var third = coordinator.LoadSequentialAsync(Request(300), CancellationToken.None);
+            var active = await observer.NextAsync();
+            Assert.Equal(100, active.Request.CursorSample);
+            active.Complete();
+            (await observer.NextAsync()).Complete();
+            (await observer.NextAsync()).Complete();
+            await Task.WhenAll(first, second, third);
+            Assert.Equal(3, observer.Count);
+        }
+        finally { await coordinator.ResetAsync(); }
+    }
+
+    [Fact]
+    public async Task Direct_seek_cancels_queued_playback_targets_but_keeps_active_work()
+    {
+        var observer = new ControlledObserver();
+        var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.Zero);
+        try
+        {
+            var activeTask = coordinator.LoadSequentialAsync(Request(100), CancellationToken.None);
+            var active = await observer.NextAsync();
+            var queued = coordinator.LoadSequentialAsync(Request(200), CancellationToken.None);
+            var seek = coordinator.LoadAsync(Request(900), CancellationToken.None);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued);
+            Assert.False(active.Token.IsCancellationRequested);
+            active.Complete();
+            await activeTask;
+            var replacement = await observer.NextAsync();
+            Assert.Equal(900, replacement.Request.CursorSample);
+            replacement.Complete();
+            await seek;
+        }
+        finally { await coordinator.ResetAsync(); }
+    }
+
+    [Fact]
     public async Task Cancelling_a_cursor_wait_does_not_cancel_owned_observation()
     {
         var observer = new ControlledObserver();
@@ -93,6 +137,34 @@ public sealed class DynamicWindowTargetCoordinatorTests
         Assert.Same(result, await coordinator.LoadAsync(Request(100), CancellationToken.None));
         Assert.Equal(1, observer.Count);
         await coordinator.ResetAsync();
+    }
+
+    [Fact]
+    public async Task Completed_superseded_target_is_published_for_display_history()
+    {
+        var observer = new ControlledObserver();
+        var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.Zero);
+        var completed = new TaskCompletionSource<(DynamicWindowRequest Request, DynamicWindowResponse Response)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.WindowCompleted += (request, response) => completed.TrySetResult((request, response));
+        using var firstWaiter = new CancellationTokenSource();
+        try
+        {
+            var first = coordinator.LoadAsync(Request(100), firstWaiter.Token);
+            var active = await observer.NextAsync();
+            firstWaiter.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+
+            var latest = coordinator.LoadAsync(Request(200), CancellationToken.None);
+            active.Complete();
+            var late = await completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(100, late.Request.CursorSample);
+            Assert.Equal("ready", late.Response.State);
+            var next = await observer.NextAsync();
+            next.Complete();
+            await latest;
+        }
+        finally { await coordinator.ResetAsync(); }
     }
 
     [Fact]
@@ -120,6 +192,8 @@ public sealed class DynamicWindowTargetCoordinatorTests
     {
         var observer = new ControlledObserver(ignoreCancellation: true);
         var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.Zero);
+        var completedCount = 0;
+        coordinator.WindowCompleted += (_, _) => completedCount++;
         var first = coordinator.LoadAsync(Request(100), CancellationToken.None);
         var active = await observer.NextAsync();
         var changed = field switch
@@ -138,6 +212,7 @@ public sealed class DynamicWindowTargetCoordinatorTests
         replacement.Complete();
         await next;
         Assert.Equal(1, observer.MaximumConcurrent);
+        Assert.Equal(1, completedCount);
         await coordinator.ResetAsync();
     }
 

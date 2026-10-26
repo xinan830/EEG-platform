@@ -16,14 +16,14 @@ The existing `review-algorithm-link` contract includes throttled drag reads, whi
 - Change any algorithm formula, scientific preprocessing, backend window planner, or backend API in the first implementation phase.
 - Change acquisition data, raw recordings, montage snapshots, full Run semantics, or stored artifact formats.
 - Make every catalog algorithm automatically available for review.
-- Guarantee a result for every wall-clock second when the backend's algorithm policy cannot yet produce a complete eligible window. The UI must report pending/insufficient state rather than claim unverified one-second output.
+- Change backend scientific window policy to force a result for every cursor tick. A one-second target refresh is not a guarantee that a newly computed scientific result exists or completes within one second.
 - Treat engineering verification as clinical validation.
 
 ## Decisions
 
 ### One trigger owner, three explicit input events
 
-The review ViewModel remains the source of the recording cursor and reports three distinct events to an algorithm-neutral review coordinator: playback sample advancement, drag movement, and drag completion. Drag movement updates navigation/waveform state but does not submit analysis targets. Drag completion submits the current integer cursor sample once. Playback submits only when the backend policy's target identity changes. The coordinator deduplicates identical targets and routes the target through the active adapter.
+The review ViewModel remains the source of the recording cursor and reports three distinct events to an algorithm-neutral review coordinator: playback sample advancement, drag movement, and drag completion. Drag movement updates navigation/waveform state but does not submit drag-originated analysis targets. Drag completion submits the current integer cursor sample once. While playback is active, each one-second refresh tick submits the then-current integer cursor sample even if the backend resolves it to an already-known window; the coordinator/adapter may deduplicate identical ready or in-flight identities. Playback cadence is independent of waveform loads and drag analysis suppression. The backend remains authoritative for whether a policy-eligible scientific window exists.
 
 Alternative considered: retain a time-based throttle during dragging. Rejected because it produces scientific requests for transient pointer positions and conflicts with the user's chosen interaction. The trade-off is that a long drag displays the last result as historical until release; the UI must label the actual result range and pending final target clearly.
 
@@ -35,7 +35,7 @@ Alternative considered: place a `switch(algorithm_id)` in the review coordinator
 
 ### Snapshot analysis inputs and keep display processing separate
 
-Each adapter creates an immutable snapshot containing `recording_id`, recording source identity supplied by the backend, integer cursor sample, analysis montage/reference identity, complete normalized algorithm config, algorithm-owned preprocessing config, definition/scientific/implementation identity when available, and window policy version. Display montage/filter state is not included unless the specific algorithm contract explicitly declares that it changes science. Backend-returned actual range, cursor, quality and provenance are the displayed source of truth.
+Each adapter creates an immutable snapshot containing `recording_id`, registered source checksum, integer cursor sample, analysis montage/reference identity, complete normalized algorithm config, algorithm-owned preprocessing config, definition/scientific/implementation identity when available, and window policy version. Display montage/filter state is not included unless the specific algorithm contract explicitly declares that it changes science. Backend-returned actual range, cursor, quality and provenance are the displayed source of truth. The client must not claim complete snapshot validation until all required identities are present and compared with the backend response.
 
 Alternative considered: reuse the review waveform's filtered chunks or current display montage as analysis input. Rejected because the review rendering pipeline is disposable/display-oriented and would risk changing scientific input identity. Any mismatch between current API metadata and the snapshot requirements is recorded as a blocker requiring a separately specified backend contract change, not a silent client guess.
 
@@ -52,7 +52,7 @@ First adapt existing PSD review behavior to the generic contract and establish t
 ## Risks / Trade-offs
 
 - [Release-only drag update can feel delayed on long gestures] → Keep cursor and waveform immediate, label the previous result's actual range, show the final target as pending, and request immediately on release.
-- [One-second playback expectation may conflict with per-algorithm window eligibility or compute latency] → Treat one second as target cadence, not guaranteed completion; measure request-to-ready latency and expose queued/computing/missed-target state without showing stale values as current.
+- [One-second playback target may conflict with per-algorithm window eligibility or compute latency] → Submit the current cursor on every one-second target tick, let backend policy resolve the eligible window, and expose queued/computing/lag separately from true insufficient data. Keep old results labeled by their returned range.
 - [Snapshot lacks enough source identity in the current desktop model] → Use backend returned identity and explicit immutable config; if required identity cannot be obtained, block reuse and specify an API change before implementation.
 - [Algorithm result shapes differ] → Keep typed parsers and presenters in algorithm-owned adapters; reject malformed axes/units/provenance rather than coercing them in generic code.
 - [Sharing cancellation could stop another panel's work] → Cancel only this consumer's subscription and foreground read; preserve backend shared work under its current subscription contract.
@@ -66,7 +66,7 @@ First adapt existing PSD review behavior to the generic contract and establish t
 4. Register further algorithms individually only after their backend on-demand window capability and review presenter pass the declared acceptance criteria.
 5. Rollback consists of disabling/unregistering the new review adapter path and restoring the prior PSD review route; backend windows, completed Runs, artifacts, and raw recordings require no migration or deletion.
 
-No database migration or external API change is planned. Existing persisted Runs and window artifacts remain untouched and retain their current provenance. If implementation proves a backend capability or source identity contract must change, pause that part and create/update a separately reviewed API delta before coding it.
+The on-demand window API now returns `scientific_configuration_json`: canonical UTF-8 JSON containing the backend-normalized algorithm config and resolved scientific context used to produce `configuration_sha256`. This is an additive response contract change consumed by the WPF review adapter. The context is limited to calculation inputs and provenance; unstable exception text is excluded. The desktop verifies the SHA-256 over the exact canonical bytes and confirms the submitted config is contained with equal JSON values before binding results. Persisted Runs and window artifacts remain untouched.
 
 ## Validation Strategy
 
