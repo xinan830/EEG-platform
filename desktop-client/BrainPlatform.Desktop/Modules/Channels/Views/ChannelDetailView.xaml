@@ -1,6 +1,7 @@
 <UserControl x:Class="BrainPlatform.Desktop.Modules.Channels.Views.ChannelDetailView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Channels.Views"
              Background="#F8FAFC">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -300,8 +301,9 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" /> <!-- 0. 面包屑与顶部操作栏 -->
                     <RowDefinition Height="Auto" /> <!-- 1. 配置基本信息卡片 -->
-                    <RowDefinition Height="*" />    <!-- 2. 通道映射列表卡片 -->
-                    <RowDefinition Height="Auto" /> <!-- 3. 底部通道数统计 -->
+                    <RowDefinition Height="Auto" /> <!-- 2. 标准电极位置示意 -->
+                    <RowDefinition Height="*" />    <!-- 3. 通道映射列表卡片 -->
+                    <RowDefinition Height="Auto" /> <!-- 4. 底部通道数统计 -->
                 </Grid.RowDefinitions>
 
                 <!-- 0. 面包屑与顶部标题及操作按钮 -->
@@ -500,8 +502,20 @@
                     </StackPanel>
                 </Border>
 
-                <!-- 2. 通道映射列表卡片 -->
-                <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="0">
+                <!-- 2. 电极位置图悬浮窗口入口 -->
+                <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                    <DockPanel>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="电极位置图" FontSize="15" FontWeight="Bold" Foreground="#0F172A" />
+                            <TextBlock Text="打开可悬浮的大图；选中自定义通道后可在图上拖放位置。" FontSize="12" Foreground="#64748B" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Button DockPanel.Dock="Right" Content="打开电极位置图" Click="OnOpenElectrodePositionMapClick"
+                                Style="{StaticResource OutlineBlueButton}" Height="36" Padding="14,0" Margin="18,0,0,0" />
+                    </DockPanel>
+                </Border>
+
+                <!-- 3. 通道映射列表卡片 -->
+                <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="0">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -523,6 +537,9 @@
                                 <Button Content="全部关闭" Command="{Binding ChannelConfigurations.HideAllDraftChannelsCommand}"
                                         Style="{StaticResource OutlineBlueButton}" Height="32" Padding="12,0" Margin="0,0,12,0"
                                         ToolTip="关闭当前通道配置中的全部 EEG 通道显示" />
+                                <Button Content="解析标准位置" Command="{Binding ChannelConfigurations.ResolveElectrodeLocationsCommand}"
+                                        Style="{StaticResource OutlineBlueButton}" Height="32" Padding="12,0" Margin="0,0,12,0"
+                                        ToolTip="使用 MNE standard_1020 查询标准模板位置；不是患者或电极帽实测坐标" />
                                 <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Height="32" Width="220" Padding="8,0">
                                     <Grid VerticalAlignment="Center">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -549,6 +566,7 @@
                                             <ColumnDefinition Width="1.0*" />
                                             <ColumnDefinition Width="1.4*" />
                                             <ColumnDefinition Width="1.0*" />
+                                            <ColumnDefinition Width="1.3*" />
                                             <ColumnDefinition Width="1.0*" />
                                             <ColumnDefinition Width="1.0*" />
                                         </Grid.ColumnDefinitions>
@@ -562,7 +580,8 @@
                                             <TextBlock Text="显示单位" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" /><TextBlock Text="*" Foreground="#EF4444" Margin="2,0,0,0" VerticalAlignment="Center" />
                                         </StackPanel>
                                         <TextBlock Grid.Column="5" Text="是否显示" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                        <TextBlock Grid.Column="6" Text="当前状态" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="6" Text="标准模板位置" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="7" Text="当前状态" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" Margin="6,0,0,0" />
                                     </Grid>
                                 </Border>
 
@@ -590,6 +609,7 @@
                                                     <ColumnDefinition Width="1.0*" />
                                                     <ColumnDefinition Width="1.4*" />
                                                     <ColumnDefinition Width="1.0*" />
+                                                    <ColumnDefinition Width="1.3*" />
                                                     <ColumnDefinition Width="1.0*" />
                                                     <ColumnDefinition Width="1.0*" />
                                                 </Grid.ColumnDefinitions>
@@ -603,7 +623,8 @@
                                                     </Grid>
                                                 </Border>
                                                 <CheckBox Grid.Column="5" IsChecked="{Binding IsEnabled, Mode=TwoWay}" IsEnabled="{Binding IsEegInput}" Style="{StaticResource ModernToggleSwitch}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                                <Border Grid.Column="6" CornerRadius="10" Padding="10,2" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,0">
+                                                <TextBlock Grid.Column="6" Text="{Binding LocationText}" FontSize="11" Foreground="#64748B" VerticalAlignment="Center" Margin="6,0,4,0" ToolTip="MNE standard_1020；坐标单位 m，坐标系 mri" />
+                                                <Border Grid.Column="7" CornerRadius="10" Padding="10,2" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,0">
                                                     <Border.Style>
                                                         <Style TargetType="Border">
                                                             <Setter Property="Background" Value="#DCFCE7" />

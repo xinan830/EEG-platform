@@ -64,6 +64,11 @@ public partial class App : Application
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(15),
         });
+        var electrodeLocationClient = new Modules.Channels.Api.HttpElectrodeLocationClient(new HttpClient
+        {
+            BaseAddress = backendEndpoint,
+            Timeout = TimeSpan.FromSeconds(5),
+        });
         var montageStore = new MontageProfileStore();
         workspace = new DesktopWorkspaceViewModel(
             healthClient,
@@ -71,7 +76,8 @@ public partial class App : Application
             notifications,
             eventDefinitionService,
             algorithmClient,
-            montageStore: montageStore);
+            montageStore: montageStore,
+            electrodeLocationClient: electrodeLocationClient);
         var reviewFilterClient = new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
         {
             BaseAddress = backendEndpoint,

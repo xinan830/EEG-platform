@@ -1,5 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using BrainPlatform.Desktop.Modules.Channels.Api;
+using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Channels.Services;
+using BrainPlatform.Desktop.Modules.Channels.Views;
 
 namespace BrainPlatform.Desktop.Modules.Channels.ViewModels;
 
@@ -9,6 +13,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     private readonly ChannelMappingViewModel mapping;
     private readonly ChannelConfigurationProfileStore store;
     private readonly ChannelConfigurationReferencePolicy referencePolicy;
+    private readonly IElectrodeLocationClient? electrodeLocationClient;
     private readonly DeviceSessionManager? deviceSession;
     private readonly OperationNotificationCenter? notifications;
     private ChannelConfigurationProfile? selectedProfile;
@@ -44,15 +49,18 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         ChannelConfigurationProfileStore? store = null,
         DeviceSessionManager? deviceSession = null,
         MontageProfileStore? montageStore = null,
-        OperationNotificationCenter? notifications = null)
+        OperationNotificationCenter? notifications = null,
+        IElectrodeLocationClient? electrodeLocationClient = null)
     {
         this.mapping = mapping;
         this.store = store ?? new ChannelConfigurationProfileStore();
         referencePolicy = new ChannelConfigurationReferencePolicy(montageStore);
         this.deviceSession = deviceSession;
         this.notifications = notifications;
+        this.electrodeLocationClient = electrodeLocationClient;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, ReportCommandError);
         SaveDraftCommand = new AsyncRelayCommand(SaveDraftAsync, ReportCommandError);
+        ResolveElectrodeLocationsCommand = new AsyncRelayCommand(ResolveElectrodeLocationsAsync, ReportCommandError);
         CloseDraftCommand = new AsyncRelayCommand(() => { CloseDraft(); return Task.CompletedTask; }, ReportCommandError);
         ConfirmDeviceSelectionCommand = new AsyncRelayCommand(
             () => { ConfirmPendingDeviceSelection(); return Task.CompletedTask; },
@@ -149,6 +157,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 
     public ICommand SaveDraftCommand { get; }
 
+    public ICommand ResolveElectrodeLocationsCommand { get; }
+
     public ICommand CloseDraftCommand { get; }
 
     public ICommand ConfirmDeviceSelectionCommand { get; }
@@ -192,6 +202,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     public bool CanCreateVersionSelected => SelectedProfile?.CanCreateVersion == true;
 
     public ObservableCollection<ChannelConfigurationDraftRow> DraftRows { get; } = [];
+
+    public ElectrodeMapLandmarkDraft DraftHardwareLandmarks { get; } = new();
 
     public ObservableCollection<ChannelConfigurationDraftRow> FilteredDraftRows { get; } = [];
 
@@ -346,6 +358,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         DraftDescription = string.Empty;
         DraftReferenceElectrodeLocation = "REF";
         DraftGroundElectrodeLocation = "GND";
+        ResetDraftMapPositionsToDefaults();
         DraftDevice = null;
         DraftRows.Clear();
         IsDraftOpen = true;
@@ -373,6 +386,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         DraftDescription = profile.Description;
         DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
         DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
+        DraftHardwareLandmarks.Load(profile);
         DraftDevice = null;
         DraftRows.Clear();
         IsDraftOpen = true;
@@ -407,6 +421,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         DraftDescription = profile.Description;
         DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
         DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
+        DraftHardwareLandmarks.Load(profile);
         DraftDevice = null;
         DraftRows.Clear();
         IsDraftOpen = true;
@@ -428,6 +443,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         DraftDescription = profile.Description;
         DraftReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF");
         DraftGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND");
+        DraftHardwareLandmarks.Load(profile);
         DraftDevice = null;
         DraftRows.Clear();
         ChannelSearchText = string.Empty;
@@ -462,6 +478,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         draftCreatedAtUtc = null;
         DraftReferenceElectrodeLocation = "REF";
         DraftGroundElectrodeLocation = "GND";
+        ResetDraftMapPositionsToDefaults();
         RaiseDraftModePropertiesChanged();
     }
 
@@ -469,9 +486,15 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     {
         var selectedId = SelectedProfile?.Id;
         var referenceCounts = await referencePolicy.GetReferenceCountsAsync(CancellationToken.None);
+        string? systemLocationStatus = null;
         Profiles.Clear();
         if (mapping.TryCreateDefaultSystemProfile(out var systemProfile))
         {
+            var locationResolution = await AntSystemChannelLocationResolver.TryResolveAsync(
+                systemProfile, electrodeLocationClient, CancellationToken.None);
+            systemProfile = locationResolution.Profile;
+            systemLocationStatus = locationResolution.Warning;
+
             var systemReferenceCount = SystemMontageProfileFactory.Create(systemProfile).Count;
             Profiles.Add(PrepareForCurrentDevice(
                 systemProfile,
@@ -498,6 +521,11 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         StatusText = mapping.HasLoadedDevice
             ? $"已载入 {Profiles.Count} 个通道配置。当前设备有 {mapping.ActualEegInputCount} 个可标注 EEG 输入。"
             : "请先连接放大器；系统只会向导联配置提供与当前设备兼容的通道配置。";
+        if (systemLocationStatus is not null)
+        {
+            StatusText = AntSystemChannelLocationResolver.AppendWarning(StatusText, systemLocationStatus);
+            notifications?.PublishWarning(systemLocationStatus);
+        }
         RaisePropertyChanged(nameof(CanCreateProfile));
         RaisePropertyChanged(nameof(CanCreateVersionSelected));
         ProfilesChanged?.Invoke(this, EventArgs.Empty);
@@ -644,7 +672,9 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
                 label,
                 enabled,
                 entry?.DisplayOrder ?? capability.NativeChannelIndex,
-                isEeg);
+                isEeg,
+                entry?.ElectrodeLocation);
+            row.SetManualMapPosition(entry?.ManualMapPosition);
             row.PropertyChanged += OnDraftRowPropertyChanged;
             DraftRows.Add(row);
         }
@@ -733,6 +763,11 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         notifications?.PublishSuccess(StatusText);
     }
 
+    public void ResetDraftMapPositionsToDefaults()
+    {
+        DraftHardwareLandmarks.Reset();
+    }
+
     public void CancelDeviceSelection()
     {
         PendingDeviceSelection = null;
@@ -771,7 +806,9 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             Enum.Parse<AcquisitionChannelKind>(row.Role),
             row.ElectrodeLabel.Trim(),
             row.IsEnabled,
-            row.DisplayOrder)).ToArray();
+            row.DisplayOrder,
+            row.ElectrodeLocation,
+            row.ManualMapPosition)).ToArray();
         var profile = new ChannelConfigurationProfile(
             draftProfileId ?? Guid.NewGuid().ToString("N"),
             name,
@@ -785,7 +822,9 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             AcquisitionDeviceCompatibility.NormalizeDriverId(DraftDevice.DriverId),
             DraftDevice.Model ?? string.Empty,
             NormalizeLocation(DraftReferenceElectrodeLocation),
-            NormalizeLocation(DraftGroundElectrodeLocation));
+            NormalizeLocation(DraftGroundElectrodeLocation),
+            DraftHardwareLandmarks.ReferencePosition,
+            DraftHardwareLandmarks.GroundPosition);
         ChannelConfigurationValidation.Validate(profile);
         if (draftSourceProfile is { Source: ChannelConfigurationSource.User } original &&
             string.Equals(original.Id, profile.Id, StringComparison.Ordinal))
@@ -800,6 +839,51 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         IsDraftOpen = false;
         StatusText = $"已保存通道配置“{profile.Name}”。";
         notifications?.PublishSuccess($"已保存通道配置“{profile.Name}”。请点击“应用”后用于采集。");
+    }
+
+    private async Task ResolveElectrodeLocationsAsync()
+    {
+        if (electrodeLocationClient is null)
+        {
+            throw new InvalidOperationException("标准位置解析服务尚未连接，请确认后端已启动。通道配置仍可正常使用。");
+        }
+
+        var rows = DraftRows.Where(row => row.IsEegInput).ToArray();
+        var labels = rows.Select(row => row.ElectrodeLabel).ToArray();
+        var revisions = rows.Select(row => row.ElectrodeLabelRevision).ToArray();
+        var results = await electrodeLocationClient.ResolveAsync(labels, CancellationToken.None);
+        if (results.Count != rows.Length)
+        {
+            throw new InvalidOperationException("标准位置解析响应数量与请求通道数不一致。");
+        }
+
+        for (var index = 0; index < rows.Length; index++)
+        {
+            var row = rows[index];
+            var result = results[index];
+            if (!string.Equals(result.RequestedLabel, labels[index], StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("标准电极位置解析响应的通道顺序与请求不一致。");
+            }
+            if (result.Status is not ("available" or "unavailable"))
+            {
+                throw new InvalidOperationException("标准电极位置解析响应包含未知状态。");
+            }
+            if (row.ElectrodeLabelRevision != revisions[index] ||
+                !string.Equals(row.ElectrodeLabel, labels[index], StringComparison.Ordinal))
+            {
+                continue;
+            }
+            row.SetElectrodeLocation(result.Status == "available" &&
+                                     result.CanonicalSite is not null &&
+                                     result.Coordinates is { Length: 3 } xyz &&
+                                     result.CoordinateFrame == "mri" && result.CoordinateUnit == "m"
+                ? new ElectrodeLocationSnapshot(
+                    result.CanonicalSite, xyz[0], xyz[1], xyz[2], "mri", "m", result.SourceId, result.SourceVersion)
+                : null);
+        }
+
+        StatusText = "已按 MNE standard_1020 更新可识别通道的位置；不可识别标签保持不可用。";
     }
 
     private static bool IsEeg(AcquisitionChannelCapability capability) =>

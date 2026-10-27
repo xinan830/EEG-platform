@@ -4,9 +4,15 @@
 
 The desktop SHALL keep the continuous review waveform as the default display and SHALL provide a user-controlled point-and-line mode. When enabled, the desktop SHALL draw markers only at actual samples in the current bounded, montage-projected review frame, and SHALL hide the markers when the horizontal distance between adjacent samples is below 5 device-independent pixels (DIP). Hiding markers SHALL NOT remove or alter the continuous waveform. Markers SHALL preserve the frame's recording-time coordinates, output-channel order, and V/float64 values mapped through the existing display scale. Missing samples and recorded gaps SHALL remain unmarked and SHALL NOT be bridged.
 
+The review workspace SHALL provide subsecond timebase choices of 0.1, 0.25, and 0.5 seconds per screen, in addition to its existing wider timebases, so users can zoom in far enough to inspect individual samples. Timebase selection SHALL affect only the visible review window.
+
 #### Scenario: Point-and-line mode is off by default
 - **WHEN** a recording is opened in the review workspace
 - **THEN** the review waveform SHALL show continuous lines without sample markers
+
+#### Scenario: User zooms in to reveal sample markers
+- **WHEN** the user selects a subsecond timebase and enables point-and-line mode
+- **THEN** the review viewport SHALL narrow to the selected timebase and display markers whenever actual samples are at least 5 DIP apart
 
 #### Scenario: Markers appear when samples are visually separated
 - **WHEN** the user enables point-and-line mode and adjacent samples are at least 5 DIP apart horizontally

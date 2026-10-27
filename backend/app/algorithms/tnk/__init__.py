@@ -11,9 +11,17 @@ from .stateless import build_stateless_modules
 from .stateful import build_stateful_modules
 from .segment import CompositeMeditationModule, FaaModule
 from .artifacts import TnkArtifactDescriptor, describe_arrays
+from .playback_event import TnkPlaybackFrameEvent
+from .playback_delivery import (
+    TnkPlaybackDiscontinuity,
+    TnkPlaybackEventBatch,
+    TnkPlaybackEventBuffer,
+)
 
 __all__ = [
     "TNK_ALGORITHM_IDS", "TnkConfig", "TnkManifest", "TnkSpectralWindow",
     "build_stateless_modules", "build_stateful_modules", "FaaModule", "CompositeMeditationModule",
     "TnkArtifactDescriptor", "describe_arrays",
+    "TnkPlaybackFrameEvent",
+    "TnkPlaybackDiscontinuity", "TnkPlaybackEventBatch", "TnkPlaybackEventBuffer",
 ]

@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
+using BrainPlatform.Desktop.Modules.Algorithms.Diagnostics;
 using System.Windows.Input;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
@@ -14,7 +17,10 @@ public sealed partial class TnkDetailViewModel
     private bool workbenchActive;
     private bool historyRefreshQueued;
     private readonly object historyProjectionGate = new();
-    private IReadOnlyList<TnkChildResultDisplay>? pendingHistoryProjection;
+    private IReadOnlyList<TnkChildResultDisplay>? pendingHistorySource;
+    private string pendingHistoryWindowId = "unknown";
+    private long? pendingHistoryWindowEndSample;
+    private long historyProjectionRevision;
     private readonly HashSet<TnkRoleChannelSelection> observedRoles = [];
     private bool hasSelectedTime;
     private string? withheldRunId;
@@ -107,6 +113,8 @@ public sealed partial class TnkDetailViewModel
         if (workbenchActive) return;
         workbenchActive = true;
         Catalog.OwnedWindowCompleted += OnOwnedWindowCompleted;
+        Catalog.OwnedTnkPlaybackGap += OnOwnedTnkPlaybackGap;
+        Catalog.OwnedTnkPlaybackRecoveryFailed += OnOwnedTnkPlaybackRecoveryFailed;
         Catalog.TnkRoleChannels.CollectionChanged += OnRolesChanged;
         ObserveRoles();
         RefreshSelectedMetric();
@@ -120,12 +128,37 @@ public sealed partial class TnkDetailViewModel
         DeactivateSidebar();
         workbenchActive = false;
         historyRefreshQueued = false;
-        lock (historyProjectionGate) pendingHistoryProjection = null;
+        lock (historyProjectionGate)
+        {
+            pendingHistorySource = null;
+            pendingHistoryWindowId = "unknown";
+            pendingHistoryWindowEndSample = null;
+            historyProjectionRevision++;
+        }
         Catalog.OwnedWindowCompleted -= OnOwnedWindowCompleted;
+        Catalog.OwnedTnkPlaybackGap -= OnOwnedTnkPlaybackGap;
+        Catalog.OwnedTnkPlaybackRecoveryFailed -= OnOwnedTnkPlaybackRecoveryFailed;
         Catalog.TnkRoleChannels.CollectionChanged -= OnRolesChanged;
         foreach (var role in observedRoles) role.PropertyChanged -= OnRoleChanged;
         observedRoles.Clear();
         waveformRevision++; waveformRequest?.Cancel(); waveformRequest?.Dispose(); waveformRequest = null;
+    }
+
+    private void OnOwnedTnkPlaybackGap(TnkPlaybackGap gap)
+    {
+        if (!workbenchActive || !Catalog.IsOnDemandAnalysis || Algorithm is null ||
+            !string.Equals(Catalog.ActivePlaybackDeliveryId, gap.DeliveryId, StringComparison.Ordinal)) return;
+        windowHistory.AddGap(gap);
+        windowHistory.BeginReconciliation();
+        QueueHistoryProjection(childResults ?? [], "gap", gap.AffectedEndSample);
+    }
+
+    private void OnOwnedTnkPlaybackRecoveryFailed(string deliveryId)
+    {
+        if (!workbenchActive || !Catalog.IsOnDemandAnalysis ||
+            !string.Equals(Catalog.ActivePlaybackDeliveryId, deliveryId, StringComparison.Ordinal)) return;
+        windowHistory.MarkReconciliationFailed();
+        RaisePropertyChanged(nameof(HistoryCoverageText));
     }
 
     private void OnOwnedWindowCompleted(DynamicWindowRequest request, DynamicWindowResponse response)
@@ -136,35 +169,85 @@ public sealed partial class TnkDetailViewModel
             return;
 
         var returned = TnkResultChartProjection.ReadWindow(response, Algorithm.OutputSchema);
-        windowHistory.Add(response, returned);
-        var projected = windowHistory.Project(returned, Catalog.SelectedDynamicStepSeconds);
-        lock (historyProjectionGate) pendingHistoryProjection = projected;
-        // The event owns trend history only. Rebuild the display projection at
-        // system idle so a completed request cannot preempt the playback timer.
-        if (historyRefreshQueued) return;
-        historyRefreshQueued = true;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null)
+        if (!windowHistory.Add(response, returned)) return;
+        QueueHistoryProjection(returned, response.WindowId, response.Range?.EndSample);
+    }
+
+    private void QueueHistoryProjection(IReadOnlyList<TnkChildResultDisplay> source,
+        string windowId, long? windowEndSample)
+    {
+        lock (historyProjectionGate)
         {
-            historyRefreshQueued = false;
-            return;
+            pendingHistorySource = source;
+            pendingHistoryWindowId = windowId;
+            pendingHistoryWindowEndSample = windowEndSample;
+            historyProjectionRevision++;
+            if (historyRefreshQueued) return;
+            historyRefreshQueued = true;
         }
-        _ = dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() =>
+        _ = DrainHistoryProjectionAsync();
+    }
+
+    private async Task DrainHistoryProjectionAsync()
+    {
+        while (true)
         {
-            IReadOnlyList<TnkChildResultDisplay>? next;
+            IReadOnlyList<TnkChildResultDisplay>? source;
+            string sourceWindowId;
+            long? sourceWindowEndSample;
+            long revision;
             lock (historyProjectionGate)
             {
-                next = pendingHistoryProjection;
-                pendingHistoryProjection = null;
-                historyRefreshQueued = false;
+                source = pendingHistorySource;
+                pendingHistorySource = null;
+                sourceWindowId = pendingHistoryWindowId;
+                sourceWindowEndSample = pendingHistoryWindowEndSample;
+                pendingHistoryWindowId = "unknown";
+                pendingHistoryWindowEndSample = null;
+                revision = historyProjectionRevision;
+                if (source is null)
+                {
+                    historyRefreshQueued = false;
+                    return;
+                }
             }
-            if (!workbenchActive) return;
-            if (next is null) return;
-            childResults = next;
-            RaisePropertyChanged(nameof(ChildResults));
-            RefreshSelectedMetric();
-            RefreshScoreStates();
-        }));
+            var projectionStarted = Stopwatch.GetTimestamp();
+            var projected = await Task.Run(() => windowHistory.Project(source,
+                Catalog.SelectedDynamicStepSeconds)).ConfigureAwait(false);
+            var projectionElapsed = Stopwatch.GetElapsedTime(projectionStarted).TotalMilliseconds;
+            if (AlgorithmWindowPerformanceDiagnostics.Enabled)
+                DesktopLog.Info($"tnk_playback_history_projection window_id={sourceWindowId}" +
+                    $" window_end_sample={sourceWindowEndSample?.ToString() ?? "unknown"}" +
+                    $" source_metrics={source.Count} projected_metrics={projected.Count}" +
+                    $" elapsed_ms={projectionElapsed:0.0}");
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher is null)
+            {
+                lock (historyProjectionGate) historyRefreshQueued = false;
+                return;
+            }
+            var dispatcherQueuedAt = Stopwatch.GetTimestamp();
+            _ = dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() =>
+            {
+                lock (historyProjectionGate)
+                    if (revision != historyProjectionRevision) return;
+                if (!workbenchActive) return;
+                var applyStarted = Stopwatch.GetTimestamp();
+                childResults = projected;
+                RaisePropertyChanged(nameof(ChildResults));
+                RaisePropertyChanged(nameof(LatestAnalysisWindowText));
+                RaisePropertyChanged(nameof(AnalysisLagText));
+                RaisePropertyChanged(nameof(HistoryCoverageText));
+                RefreshSelectedMetric();
+                RefreshScoreStates();
+                if (AlgorithmWindowPerformanceDiagnostics.Enabled)
+                    DesktopLog.Info($"tnk_playback_history_applied window_id={sourceWindowId}" +
+                        $" window_end_sample={sourceWindowEndSample?.ToString() ?? "unknown"}" +
+                        $" dispatcher_wait_ms={Stopwatch.GetElapsedTime(dispatcherQueuedAt).TotalMilliseconds:0.0}" +
+                        $" apply_ms={Stopwatch.GetElapsedTime(applyStarted).TotalMilliseconds:0.0}" +
+                        $" total_ms={Stopwatch.GetElapsedTime(projectionStarted).TotalMilliseconds:0.0}");
+            }));
+        }
     }
 
     private void OnRolesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs args)

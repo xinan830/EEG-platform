@@ -30,6 +30,10 @@ Each event represents one completed canonical TNK frame and carries its existing
 
 **Alternative considered:** Publish one mutable rolling array or only the newest scalar. Rejected because it obscures which windows were analyzed and cannot represent gaps, quality rejection, or late results faithfully.
 
+#### Verified storage fit (2026-10-27)
+
+The current SQLite model can represent each canonical intermediate frame as a separate immutable window without a schema migration. `DynamicWindowIdentity` carries the full session/configuration/implementation identity plus a half-open sample range and retry generation; `dynamic_analysis_windows` is unique on `(session_id, start_sample, end_sample, generation)`, and each READY row references one immutable checksummed artifact. `latest_windows(session_id)` returns the newest generation for each range in sample order, and exact-window `get_window(window_id)` reads the matching artifact. The existing `POST /api/analysis-windows/ensure` plans a canonical target from the supplied cursor sample, and the same-range ensure returns the existing row/artifact. Thus reconciliation can enumerate canonical cursor positions and resolve each through the existing ensure/read path. Current TNK replay only returns the target result, so intermediate publication is still implementation work; persistence shape is not the blocker. No schema migration is planned.
+
 ### 2. Keep state replay sequential; optimize delivery separately
 
 The group capability remains responsible for checkpoint-compatible restoration and ordered replay of every state transition through the target. It will expose intermediate frame outputs produced by that replay to the playback delivery layer. Latest-target coalescing can reduce obsolete requests that have not started, but it cannot skip a transition needed by stateful TNK modules. Stateless modules may share the same frame schedule for consistency; formula-specific shortcuts are out of scope.
@@ -47,6 +51,12 @@ The interactive projection follows the newest completed window and reports its l
 Represent delivery with a resumable, ordered subscription contract. Start by extending the existing window-observation/polling path if its measured delivery latency and request load meet the playback budget. Change to SSE or another push transport only if baseline measurements show polling is a material bottleneck; do not add WebSocket as a presumed compute optimization. Any transport must support close/cancel, resume from sequence, bounded buffering, and explicit gaps.
 
 **Alternative considered:** Introduce WebSocket immediately. Rejected because it adds connection lifecycle and recovery work without reducing scientific computation, and current evidence does not establish transport as the bottleneck.
+
+#### Diagnostic and bounded-history contract
+
+Playback diagnostics are opt-in and metadata-only. A TNK event carries a monotonic delivery sequence, session/window identity, sample bounds, and publication timestamp; diagnostic samples additionally carry recording/session/configuration identity, queue depth and active/newest cursor samples, replayed-frame count, stage duration (`queue_wait`, `source_prepare`, `state_replay`, `compute`, `publish`, `delivery`, `projection`, `chart_update`), latest completed window end sample, current playback sample, and playback tick interval/handler duration. Result lag is computed from the difference between playback sample and the event's actual `end_sample`, divided by the recording sampling frequency; result time is never inferred from publication time. Logs and diagnostic buffers must not contain EEG arrays or parameter payloads.
+
+The resumable event ring retains at most 2,048 complete, single-window event payloads per active playback session. This is necessary because current checkpoint replay persists the requested target window, but not every intermediate frame it computes; retaining only metadata would make a reconnect unable to replay those values. Each event is one TNK metric point with bounded child evidence, while raw EEG arrays remain outside the event contract. When the ring evicts an unacknowledged sequence, delivery reports the first/last missing sequence and affected sample range. The client marks coverage `incomplete`/`reconciling` and enumerates canonical windows through the existing ensure/read path; it may report `complete` only after every expected frame through the acknowledged target is represented, including explicit rejected/unavailable states. The ring size is an initial engineering cap, not a measured latency guarantee; paired desktop measurements must verify memory use, overflow behavior, and recovery before enabling the capability. Diagnostics retain at most 512 playback tick samples per five-second reporting interval and 256 recent samples per other diagnostic stage and emit aggregate summaries every five seconds; they are disabled unless `BRAIN_REVIEW_PERF_DIAGNOSTICS=1`.
 
 ### 5. Keep desktop chart work incremental and bounded
 
@@ -70,11 +80,11 @@ After the event path is measured, profile repeated source preparation and overla
 
 ## Migration Plan
 
-1. Capture waveform-only and current waveform-plus-TNK baselines with the same local recording, playback speed, selected roles, and plotting configuration.
-2. Add the event contract and backend replay publication behind an opt-in TNK playback capability; retain the current target-only observer as fallback.
-3. Integrate desktop ordered history, stale-session rejection, explicit lag/coverage, and bounded chart updates.
-4. Validate stateful parity and navigation/cancellation cases; run paired performance measurements and desktop acceptance.
-5. Enable the new path only after acceptance. Rollback by disabling the capability and returning to target-only observation; no raw recording or historical Run migration is required.
+1. Add the event contract and backend replay publication behind an opt-in TNK playback capability; retain the current target-only observer as fallback.
+2. Integrate desktop ordered history, stale-session rejection, explicit lag/coverage, and bounded chart updates.
+3. Before enabling the new path, capture paired waveform-only and current waveform-plus-TNK baselines with the same local recording, playback speed, selected roles, and plotting configuration; set measurable thresholds from those results.
+4. Validate stateful parity, transport load, and navigation/cancellation cases; repeat the paired performance measurements and complete manual desktop acceptance.
+5. Enable the new path only after the baseline thresholds and acceptance checks pass. Rollback by disabling the capability and returning to target-only observation; no raw recording or historical Run migration is required.
 
 No schema migration is planned. Before implementation, verify that the existing immutable window identity and repository can safely publish/reconcile every intermediate canonical frame. If that requires a persistence schema change or unbounded retention, stop and revise the proposal before coding.
 

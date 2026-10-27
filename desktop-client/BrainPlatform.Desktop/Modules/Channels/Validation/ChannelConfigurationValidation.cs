@@ -11,10 +11,15 @@ public static class ChannelConfigurationValidation
         {
             throw new InvalidOperationException("通道配置必须包含设备返回的 EEG 输入。");
         }
+        if (!IsValidMapPosition(profile.ReferenceMapPosition) || !IsValidMapPosition(profile.GroundMapPosition))
+        {
+            throw new InvalidOperationException("REF/GND 图示位置必须是头部圆形范围内的有限归一化坐标。");
+        }
 
         var nativeIndexes = new HashSet<int>();
         var displayOrders = new HashSet<int>();
         var labels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var canonicalSites = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var displayedCount = 0;
         foreach (var channel in profile.Channels)
         {
@@ -36,6 +41,27 @@ public static class ChannelConfigurationValidation
             {
                 throw new InvalidOperationException($"电极标签不能重复：{label}。");
             }
+            if (channel.ElectrodeLocation is { } location)
+            {
+                if (!string.Equals(label, location.CanonicalSite, StringComparison.OrdinalIgnoreCase) ||
+                    location.CoordinateFrame != "mri" || location.CoordinateUnit != "m" ||
+                    location.SourceId != "mne.standard_1020" ||
+                    string.IsNullOrWhiteSpace(location.SourceVersion) ||
+                    !double.IsFinite(location.X) || !double.IsFinite(location.Y) || !double.IsFinite(location.Z))
+                {
+                    throw new InvalidOperationException($"设备输入 {channel.NativeChannelIndex} 的标准电极位置与通道标签或坐标契约不一致。");
+                }
+                if (!canonicalSites.Add(location.CanonicalSite))
+                {
+                    throw new InvalidOperationException($"标准电极位置重复：{location.CanonicalSite}。");
+                }
+            }
+            if (channel.ManualMapPosition is { } mapPosition &&
+                (!double.IsFinite(mapPosition.X) || !double.IsFinite(mapPosition.Y) ||
+                 Math.Abs(mapPosition.X) > 1 || Math.Abs(mapPosition.Y) > 1))
+            {
+                throw new InvalidOperationException($"设备输入 {channel.NativeChannelIndex} 的手动示意位置超出头部图范围。");
+            }
             if (!channel.IsSelectedForDisplay)
             {
                 continue;
@@ -52,4 +78,9 @@ public static class ChannelConfigurationValidation
             throw new InvalidOperationException("请至少选择一个显示通道。");
         }
     }
+
+    private static bool IsValidMapPosition(ElectrodeMapPosition? position) => position is null ||
+        double.IsFinite(position.X) && double.IsFinite(position.Y) &&
+        position.X is >= -1 and <= 1 && position.Y is >= -1 and <= 1 &&
+        position.X * position.X + position.Y * position.Y <= 1;
 }

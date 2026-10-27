@@ -210,6 +210,41 @@ def test_group_on_demand_replays_full_run_target_and_preserves_partial_children(
     assert replay_children["tnk_faa"][0]["failure"]["code"] == "TNK_SEGMENT_REQUIRED"
 
 
+def test_group_replay_exposes_canonical_frame_results_in_order_without_changing_target():
+    group = _group()
+    config = _config("dynamic")
+    inputs = group.resolve_inputs(SyntheticRecording(), config)
+    full = group.execute_dynamic(inputs, config)
+    target_index = min(5, len(full.windows) - 1)
+    target = full.windows[target_index]
+    session = _session(group)
+    plan = group.plan_window(inputs, config, int(round(target.end_s * inputs.sfreq_hz)), session)
+    identity = DynamicWindowIdentity(
+        **session.model_dump(), start_sample=plan.start_sample, end_sample=plan.end_sample,
+    )
+    replayed = []
+
+    result = group.execute_window_with_replayed_frames(
+        inputs, config, plan, identity,
+        on_frame_result=lambda frame_identity, frame_result: replayed.append((frame_identity, frame_result)),
+    )
+
+    assert len(replayed) == target_index + 1
+    assert [frame.start_sample for frame, _ in replayed] == [
+        int(round(window.start_s * inputs.sfreq_hz)) for window in full.windows[:target_index + 1]
+    ]
+    assert [frame.end_sample for frame, _ in replayed] == [
+        int(round(window.end_s * inputs.sfreq_hz)) for window in full.windows[:target_index + 1]
+    ]
+    for name, values in full.arrays.items():
+        np.testing.assert_allclose(result.arrays[name], values[target_index], rtol=0, atol=0, equal_nan=True)
+        for frame_index, (_, frame_result) in enumerate(replayed):
+            np.testing.assert_allclose(
+                frame_result.arrays[name], values[frame_index], rtol=0, atol=0, equal_nan=True,
+            )
+    assert replayed[-1][1].identity == identity
+
+
 def _run_group_target(group, recording, config, session, target_index):
     inputs = group.resolve_inputs(recording, config)
     target_end = config.start_s + (config.window_s or 10.0) + target_index * (config.step_s or 1.0)

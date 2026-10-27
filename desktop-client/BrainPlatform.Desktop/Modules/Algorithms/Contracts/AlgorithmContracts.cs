@@ -246,7 +246,48 @@ public sealed record DynamicWindowRequest(
     [property: JsonPropertyName("project_id")] string? ProjectId = null,
     [property: JsonPropertyName("request_id")] string? RequestId = null,
     [property: JsonPropertyName("retry")] bool Retry = false,
-    [property: JsonPropertyName("retry_of_window_id")] string? RetryOfWindowId = null);
+    [property: JsonPropertyName("retry_of_window_id")] string? RetryOfWindowId = null,
+    [property: JsonPropertyName("playback_delivery")] bool PlaybackDelivery = false,
+    [property: JsonPropertyName("playback_delivery_id")] string? PlaybackDeliveryId = null);
+
+public sealed record TnkPlaybackFrameEventResponse(
+    [property: JsonPropertyName("delivery_sequence")] long DeliverySequence,
+    [property: JsonPropertyName("session_id")] string SessionId,
+    [property: JsonPropertyName("delivery_id")] string DeliveryId,
+    [property: JsonPropertyName("window_id")] string WindowId,
+    [property: JsonPropertyName("window_id_kind")] string WindowIdKind,
+    [property: JsonPropertyName("identity")] JsonElement Identity,
+    [property: JsonPropertyName("window_start_s")] double WindowStartSeconds,
+    [property: JsonPropertyName("window_end_s")] double WindowEndSeconds,
+    [property: JsonPropertyName("sampling_rate_hz")] double SamplingRateHz,
+      [property: JsonPropertyName("result")] DynamicWindowResultResponse Result,
+      [property: JsonPropertyName("published_at_utc")] DateTimeOffset? PublishedAtUtc = null);
+
+public sealed record TnkPlaybackDiscontinuityResponse(
+    [property: JsonPropertyName("first_missing_sequence")] long FirstMissingSequence,
+    [property: JsonPropertyName("last_missing_sequence")] long LastMissingSequence,
+    [property: JsonPropertyName("affected_start_sample")] long AffectedStartSample,
+    [property: JsonPropertyName("affected_end_sample")] long AffectedEndSample,
+    [property: JsonPropertyName("sample_range_exact")] bool SampleRangeExact);
+
+public sealed record TnkPlaybackGap(
+    long FirstMissingSequence,
+    long LastMissingSequence,
+    long AffectedStartSample,
+    long AffectedEndSample,
+    double StartSeconds,
+    double EndSeconds,
+    bool SampleRangeExact,
+    string? DeliveryId = null);
+
+public sealed record TnkPlaybackEventBatchResponse(
+    [property: JsonPropertyName("delivery_id")] string DeliveryId,
+    [property: JsonPropertyName("events")] IReadOnlyList<TnkPlaybackFrameEventResponse> Events,
+    [property: JsonPropertyName("next_sequence")] long NextSequence,
+    [property: JsonPropertyName("latest_sequence")] long LatestSequence,
+    [property: JsonPropertyName("has_more")] bool HasMore,
+    [property: JsonPropertyName("coverage")] string Coverage,
+    [property: JsonPropertyName("discontinuity")] TnkPlaybackDiscontinuityResponse? Discontinuity);
 
 public sealed record DynamicWindowPlanResponse(
     [property: JsonPropertyName("cursor_sample")] long CursorSample,

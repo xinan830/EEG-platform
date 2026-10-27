@@ -7,6 +7,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.recordings import router as recordings_router
 from app.api.recording_signal_preview import router as signal_preview_router
+from app.api.electrode_locations import router as electrode_locations_router
 from app.api.tnk_workbench import router as tnk_workbench_router
 from app.api.playback import router as playback_router
 from app.api.audit import router as audit_router
@@ -119,6 +120,7 @@ app.state.dynamic_window_service = DynamicWindowService(
 )
 app.include_router(recordings_router)
 app.include_router(signal_preview_router)
+app.include_router(electrode_locations_router)
 app.include_router(tnk_workbench_router)
 app.include_router(playback_router)
 app.include_router(audit_router)

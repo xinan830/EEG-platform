@@ -3,7 +3,7 @@
 import logging
 import math
 from typing import Any
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
 from uuid import uuid4
 
@@ -82,6 +82,31 @@ def get_window(window_id: str, request: Request):
         return error_response(request, 404, "WINDOW_NOT_FOUND", "分析窗口不存在")
     except ValueError as exc:
         return error_response(request, 409, "WINDOW_RESULT_CORRUPT", str(exc))
+
+
+@router.get("/playback/{delivery_id}/events")
+def playback_events(delivery_id: str, request: Request,
+                    after_sequence: int = Query(default=0, ge=0),
+                    limit: int = Query(default=256, ge=1, le=512),
+                    project_id: str | None = None):
+    try:
+        return _service(request).playback_events(
+            delivery_id, after_sequence=after_sequence, limit=limit, project_id=project_id,
+        )
+    except KeyError as exc:
+        return error_response(request, 404, "TNK_PLAYBACK_DELIVERY_NOT_FOUND", str(exc))
+    except ValueError as exc:
+        return error_response(request, 422, "TNK_PLAYBACK_CURSOR_INVALID", str(exc))
+
+
+@router.delete("/playback/{delivery_id}/events")
+def close_playback_events(delivery_id: str, request: Request,
+                          project_id: str | None = None):
+    try:
+        _service(request).close_playback_delivery(delivery_id, project_id=project_id)
+        return {"delivery_id": delivery_id, "state": "closed"}
+    except KeyError as exc:
+        return error_response(request, 404, "TNK_PLAYBACK_DELIVERY_NOT_FOUND", str(exc))
 
 
 @router.post("/{window_id}/subscriptions", status_code=status.HTTP_201_CREATED)

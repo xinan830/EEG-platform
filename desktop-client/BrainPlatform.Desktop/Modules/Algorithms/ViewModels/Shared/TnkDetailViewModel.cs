@@ -32,6 +32,13 @@ public sealed partial class TnkDetailViewModel : AlgorithmSpecificDetailViewMode
     private IReadOnlyList<TnkChildResultDisplay>? childResults;
     private readonly TnkWindowChartHistory windowHistory = new();
     public IReadOnlyList<TnkChildResultDisplay> ChildResults => childResults ??= BuildResults();
+    public string LatestAnalysisWindowText => windowHistory.LatestCompletedEndSeconds is double end
+        ? $"最近返回分析窗口：{end:0.###} s" : "最近返回分析窗口：暂无";
+    public string AnalysisLagText => windowHistory.LatestCompletedEndSeconds is double end
+        ? WaveformPosition >= end ? $"算法滞后：{WaveformPosition - end:0.###} s"
+            : $"分析结果领先游标：{end - WaveformPosition:0.###} s"
+        : "算法滞后：等待首个结果";
+    public string HistoryCoverageText => windowHistory.CoverageText;
 
     private IReadOnlyList<TnkChildResultDisplay> BuildResults()
     {
@@ -79,6 +86,9 @@ public sealed partial class TnkDetailViewModel : AlgorithmSpecificDetailViewMode
                 RaisePropertyChanged(nameof(ChildResults));
             }
             RaisePropertyChanged(nameof(ResultContextText));
+            RaisePropertyChanged(nameof(LatestAnalysisWindowText));
+            RaisePropertyChanged(nameof(AnalysisLagText));
+            RaisePropertyChanged(nameof(HistoryCoverageText));
             RefreshSelectedMetric();
             summaryTarget = "";
             RefreshScoreStates();

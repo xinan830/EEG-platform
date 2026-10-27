@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Diagnostics;
+using System.Globalization;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 using SciChart.Charting.ChartModifiers;
 using SciChart.Charting.Model.DataSeries;
@@ -15,6 +18,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
 /// <summary>ANT chart families rendered exclusively by SciChart from returned metric arrays.</summary>
 public sealed class TnkAnalysisPlotView : UserControl
 {
+    private static readonly TimeSpan PlaybackCursorRefreshInterval = TimeSpan.FromMilliseconds(100);
     private readonly SciChartSurface surface = new() { Background = Brushes.White, ShowLicensingWarnings = false };
     private readonly TextBlock title = new() { FontWeight = FontWeights.SemiBold, FontSize = 13, Margin = new(2, 6, 0, 3) };
     private readonly WrapPanel legend = new() { Margin = new(0, 0, 0, 3) };
@@ -25,6 +29,10 @@ public sealed class TnkAnalysisPlotView : UserControl
     private string? structureKey;
     private NumericAxis? xAxis;
     private NumericAxis? yAxis;
+    private long lastPlaybackCursorRefresh;
+    private long cursorDiagnosticsStarted;
+    private int cursorRefreshCount;
+    private int cursorRefreshSkippedCount;
     private readonly TextBlock empty = new() { Text = "暂无有效结果 · 请查看质量状态", Foreground = Brushes.SlateGray,
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     public static readonly DependencyProperty PanelProperty = DependencyProperty.Register(nameof(Panel), typeof(TnkPlotPanel),
@@ -68,24 +76,51 @@ public sealed class TnkAnalysisPlotView : UserControl
 
     private void Refresh()
     {
+        var started = DesktopLog.PerformanceDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0;
+        var updateKind = "unchanged";
         using (surface.SuspendUpdates())
         {
             if (Panel is not { } panel)
             {
                 ResetStructure();
-                return;
+                updateKind = "reset";
             }
-            empty.Text = string.IsNullOrWhiteSpace(panel.EmptyReason)
-                ? "暂无有效结果 · 请查看质量状态"
-                : panel.EmptyReason;
-            title.Text = panel.Title;
-            Height = panel.IsStacked ? 190 : 360;
-            var key = StructureKey(panel);
-            if (!string.Equals(structureKey, key, StringComparison.Ordinal)) BuildStructure(panel, key);
-            else UpdateSeries(panel);
-            empty.Visibility = panel.Chart.HasValues ? Visibility.Collapsed : Visibility.Visible;
-            UpdateCursor();
+            else
+            {
+                empty.Text = string.IsNullOrWhiteSpace(panel.EmptyReason)
+                    ? "暂无有效结果 · 请查看质量状态"
+                    : panel.EmptyReason;
+                title.Text = panel.Title;
+                Height = panel.IsStacked ? 190 : 360;
+                var key = StructureKey(panel);
+                if (!string.Equals(structureKey, key, StringComparison.Ordinal))
+                {
+                    BuildStructure(panel, key);
+                    updateKind = "structure";
+                }
+                else
+                {
+                    updateKind = UpdateSeries(panel);
+                }
+                empty.Visibility = panel.Chart.HasValues ? Visibility.Collapsed : Visibility.Visible;
+                UpdateCursor(force: true);
+            }
         }
+        if (started != 0) RecordChartUpdate(started, updateKind);
+    }
+
+    private void RecordChartUpdate(long started, string updateKind)
+    {
+        var panel = Panel;
+        var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        var pointCount = panel?.Chart.Series.Sum(series => series.Points.Count) ?? 0;
+        var latestWindowEnd = panel?.Chart.Series.SelectMany(series => series.Points)
+            .Select(point => point.X).DefaultIfEmpty(double.NaN).Max() ?? double.NaN;
+        DesktopLog.Info($"tnk_chart_update_perf scenario={DesktopLog.PerformanceScenario}" +
+            $" panel={panel?.Title ?? "none"} update={updateKind} series={panel?.Chart.Series.Count ?? 0}" +
+            $" points={pointCount.ToString(CultureInfo.InvariantCulture)}" +
+            $" window_end_s={(double.IsFinite(latestWindowEnd) ? latestWindowEnd.ToString("0.######", CultureInfo.InvariantCulture) : "unknown")}" +
+            $" elapsed_ms={elapsed.ToString("0.000", CultureInfo.InvariantCulture)}");
     }
 
     private static string StructureKey(TnkPlotPanel panel) =>
@@ -142,56 +177,72 @@ public sealed class TnkAnalysisPlotView : UserControl
         if (isPercentageChart) yAxis.VisibleRange = new DoubleRange(0, 100);
     }
 
-    private void UpdateSeries(TnkPlotPanel panel)
+    private string UpdateSeries(TnkPlotPanel panel)
     {
         if (panel.IsStacked)
         {
-            UpdateStackedSeries(panel);
-            return;
+            return UpdateStackedSeries(panel);
         }
+        var updated = false;
+        var rebuilt = false;
         for (var index = 0; index < panel.Chart.Series.Count; index++)
         {
             var points = panel.Chart.Series[index].Points;
             var previous = renderedPoints[index];
-            if (previous.SequenceEqual(points)) continue;
-            var appending = points.Count >= previous.Count && previous.SequenceEqual(points.Take(previous.Count));
+            var appendStart = TnkChartAppendPlanner.FindAppendStart(previous, points);
+            if (appendStart == -1) continue;
+            updated = true;
             var oldEnd = previous.Count > 0 ? previous[^1].X : double.NaN;
             var followsLatest = xAxis?.VisibleRange is DoubleRange range && double.IsFinite(oldEnd) && range.Max >= oldEnd - .001;
-            if (appending)
+            if (appendStart is int suffixStart)
             {
-                var suffix = points.Skip(previous.Count).ToArray();
+                var suffix = points.Skip(suffixStart).ToArray();
                 AppendAll(dataSeries[index], suffix);
                 if (followsLatest && suffix.Length > 0 && xAxis?.VisibleRange is DoubleRange visible)
                     xAxis.VisibleRange = new DoubleRange(visible.Min, Math.Max(visible.Max, suffix[^1].X));
             }
             else
             {
+                rebuilt = true;
                 dataSeries[index].Clear();
                 AppendAll(dataSeries[index], points);
             }
             renderedPoints[index] = points.ToArray();
         }
+        return !updated ? "unchanged" : rebuilt ? "line_rebuild" : "line_append";
     }
 
-    private void UpdateStackedSeries(TnkPlotPanel panel)
+    private string UpdateStackedSeries(TnkPlotPanel panel)
     {
         var previousEnd = renderedPoints.SelectMany(points => points).Select(point => point.X).DefaultIfEmpty(double.NaN).Max();
         var nextEnd = panel.Chart.Series.SelectMany(series => series.Points).Select(point => point.X).DefaultIfEmpty(double.NaN).Max();
         var hasChanges = false;
+        var rebuilt = false;
         for (var index = 0; index < panel.Chart.Series.Count; index++)
         {
             var points = panel.Chart.Series[index].Points;
-            if (renderedPoints[index].SequenceEqual(points)) continue;
-            var replacement = new XyDataSeries<double, double> { SeriesName = dataSeries[index].SeriesName };
-            AppendAll(replacement, points);
-            dataSeries[index] = replacement;
-            surface.RenderableSeries[index].DataSeries = replacement;
+            var previous = renderedPoints[index];
+            var appendStart = TnkChartAppendPlanner.FindAppendStart(previous, points);
+            if (appendStart == -1) continue;
+            if (appendStart is int suffixStart)
+                AppendAll(dataSeries[index], points.Skip(suffixStart).ToArray());
+            else
+            {
+                rebuilt = true;
+                // A late recovered window or bounded-history trim changed the prefix.
+                // Rebuild only for this explicit reconciliation/reset case.
+                var replacement = new XyDataSeries<double, double> { SeriesName = dataSeries[index].SeriesName };
+                AppendAll(replacement, points);
+                dataSeries[index] = replacement;
+                surface.RenderableSeries[index].DataSeries = replacement;
+            }
             renderedPoints[index] = points.ToArray();
             hasChanges = true;
         }
-        if (!hasChanges) return;
+        if (!hasChanges) return "unchanged";
         var advancedRange = TnkTimelineRange.AdvanceIfFollowing(xAxis?.VisibleRange as DoubleRange, previousEnd, nextEnd);
         if (advancedRange is not null) xAxis!.VisibleRange = advancedRange;
+        return rebuilt ? "stacked_rebuild" : "stacked_append";
     }
 
     private static void AppendAll(XyDataSeries<double, double> target, IReadOnlyList<TnkChartPoint> points)
@@ -207,9 +258,13 @@ public sealed class TnkAnalysisPlotView : UserControl
         xAxis = null; yAxis = null;
     }
 
-    private void UpdateCursor()
+    private void UpdateCursor(bool force = false)
     {
         if (Panel is not { } panel) return;
+        if (!force && !CanRefreshPlaybackCursor()) return;
+
+        lastPlaybackCursorRefresh = Stopwatch.GetTimestamp();
+        if (DesktopLog.PerformanceDiagnosticsEnabled) cursorRefreshCount++;
         cursor.X1 = PositionSeconds;
         valuesAtCursor.Text = string.Join("  |  ", panel.Chart.Series.Select(series =>
         {
@@ -222,6 +277,36 @@ public sealed class TnkAnalysisPlotView : UserControl
         }));
         if (panel.Chart.Series.Any() && panel.Chart.Series.All(series => series.Points.Count <= 1))
             valuesAtCursor.Text += "  · 仅一个已返回窗口；更多窗口返回后形成趋势";
+
+        RecordCursorRefreshDiagnostics();
+    }
+
+    private bool CanRefreshPlaybackCursor()
+    {
+        var now = Stopwatch.GetTimestamp();
+        if (DesktopLog.PerformanceDiagnosticsEnabled && cursorDiagnosticsStarted == 0) cursorDiagnosticsStarted = now;
+        if (lastPlaybackCursorRefresh == 0 || Stopwatch.GetElapsedTime(lastPlaybackCursorRefresh, now) >= PlaybackCursorRefreshInterval)
+            return true;
+        if (DesktopLog.PerformanceDiagnosticsEnabled)
+        {
+            cursorRefreshSkippedCount++;
+            RecordCursorRefreshDiagnostics(now);
+        }
+        return false;
+    }
+
+    private void RecordCursorRefreshDiagnostics(long now = 0)
+    {
+        if (!DesktopLog.PerformanceDiagnosticsEnabled) return;
+        now = now == 0 ? Stopwatch.GetTimestamp() : now;
+        if (cursorDiagnosticsStarted == 0) cursorDiagnosticsStarted = now;
+        if (Stopwatch.GetElapsedTime(cursorDiagnosticsStarted, now) < TimeSpan.FromSeconds(5)) return;
+
+        DesktopLog.Info($"tnk_chart_cursor_perf scenario={DesktopLog.PerformanceScenario}" +
+            $" panel={Panel?.Title ?? "none"} refreshed={cursorRefreshCount} throttled={cursorRefreshSkippedCount}" +
+            $" interval_ms={PlaybackCursorRefreshInterval.TotalMilliseconds:0}");
+        cursorDiagnosticsStarted = now;
+        cursorRefreshCount = cursorRefreshSkippedCount = 0;
     }
 
     private sealed class CategoryLabels(IReadOnlyList<TnkChartSeries> series) : SciChart.Charting.Visuals.Axes.LabelProviders.NumericLabelProvider
@@ -256,5 +341,18 @@ internal static class TnkTimelineRange
             return null;
         var shift = nextEnd - visible.Max;
         return new DoubleRange(visible.Min + shift, nextEnd);
+    }
+}
+
+internal static class TnkChartAppendPlanner
+{
+    /// <returns>-1 for unchanged data, the suffix offset for an append, or null when the prefix changed.</returns>
+    internal static int? FindAppendStart(IReadOnlyList<TnkChartPoint> previous, IReadOnlyList<TnkChartPoint> next)
+    {
+        if (previous.Count == next.Count && previous.SequenceEqual(next)) return -1;
+        if (next.Count < previous.Count) return null;
+        for (var index = 0; index < previous.Count; index++)
+            if (previous[index] != next[index]) return null;
+        return previous.Count;
     }
 }

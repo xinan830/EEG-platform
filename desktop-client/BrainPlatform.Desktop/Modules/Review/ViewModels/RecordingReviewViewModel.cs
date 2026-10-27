@@ -213,6 +213,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public double DurationSeconds => session.DurationSeconds;
 
     public int SamplingRateHz => samplingRateHz;
+    public string RecordingId => recordingId;
 
     public int SourceChannelCount => sourceChannelCount;
 

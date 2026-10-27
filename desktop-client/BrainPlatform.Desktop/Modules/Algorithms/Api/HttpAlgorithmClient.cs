@@ -137,6 +137,32 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
             cancellationToken);
     }
 
+    public Task<TnkPlaybackEventBatchResponse> GetTnkPlaybackEventsAsync(
+        string deliveryId, long afterSequence, string? projectId, CancellationToken cancellationToken)
+    {
+        if (afterSequence < 0) throw new ArgumentOutOfRangeException(nameof(afterSequence));
+        var query = $"after_sequence={afterSequence}&limit=256" +
+            (string.IsNullOrWhiteSpace(projectId) ? "" : $"&project_id={Uri.EscapeDataString(projectId)}");
+        return SendAsync<TnkPlaybackEventBatchResponse>(
+            HttpMethod.Get,
+            $"api/analysis-windows/playback/{Uri.EscapeDataString(RequireId(deliveryId))}/events?{query}",
+            null,
+            cancellationToken);
+    }
+
+    public async Task CloseTnkPlaybackEventsAsync(string deliveryId, string? projectId,
+        CancellationToken cancellationToken)
+    {
+        var query = string.IsNullOrWhiteSpace(projectId)
+            ? ""
+            : $"?project_id={Uri.EscapeDataString(projectId)}";
+        await SendAsync<JsonElement>(
+            HttpMethod.Delete,
+            $"api/analysis-windows/playback/{Uri.EscapeDataString(RequireId(deliveryId))}/events{query}",
+            null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public Task<DynamicSubscriptionResponse> SubscribeDynamicWindowAsync(
         string windowId,
         string requestId,

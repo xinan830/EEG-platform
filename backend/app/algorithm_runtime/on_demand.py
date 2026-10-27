@@ -143,6 +143,8 @@ class DynamicWindowRequest(BaseModel):
     request_id: str | None = Field(default=None, min_length=1)
     retry: bool = False
     retry_of_window_id: str | None = Field(default=None, min_length=1)
+    playback_delivery: bool = False
+    playback_delivery_id: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def validate_retry(self) -> "DynamicWindowRequest":

@@ -111,7 +111,9 @@ try {
         --clean `
         --log-level WARN `
         --collect-submodules app `
+        --collect-submodules mne `
         --collect-data app `
+        --collect-data mne `
         --hidden-import app.main `
         $EntryScript
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
@@ -138,18 +140,36 @@ $SmokeInfo.FileName = $BackendExe
 $SmokeInfo.WorkingDirectory = $BackendOutDir
 $SmokeInfo.UseShellExecute = $false
 $SmokeInfo.CreateNoWindow = $true
+$SmokeInfo.RedirectStandardOutput = $true
+$SmokeInfo.RedirectStandardError = $true
 $SmokeInfo.Environment["BRAIN_BACKEND_PORT"] = "$SmokePort"
 $BackendProcess = [System.Diagnostics.Process]::Start($SmokeInfo)
+$BackendStdoutTask = $BackendProcess.StandardOutput.ReadToEndAsync()
+$BackendStderrTask = $BackendProcess.StandardError.ReadToEndAsync()
 try {
     $healthy = $false
     $deadline = (Get-Date).AddSeconds(20)
     while ((Get-Date) -lt $deadline) {
+        if ($BackendProcess.HasExited) {
+            $BackendProcess.WaitForExit()
+            $stdout = $BackendStdoutTask.GetAwaiter().GetResult()
+            $stderr = $BackendStderrTask.GetAwaiter().GetResult()
+            throw "Packaged backend exited before becoming healthy (exit code $($BackendProcess.ExitCode)).`nstdout:`n$stdout`nstderr:`n$stderr"
+        }
         try {
             $response = Invoke-WebRequest -Uri "http://127.0.0.1:$SmokePort/api/health" -UseBasicParsing -TimeoutSec 2
             if ($response.StatusCode -eq 200) { $healthy = $true; break }
         } catch { Start-Sleep -Milliseconds 300 }
     }
-    if (-not $healthy) { throw "Packaged backend health check timed out" }
+    if (-not $healthy) {
+        if (-not $BackendProcess.HasExited) {
+            $BackendProcess.Kill()
+            $BackendProcess.WaitForExit()
+        }
+        $stdout = $BackendStdoutTask.GetAwaiter().GetResult()
+        $stderr = $BackendStderrTask.GetAwaiter().GetResult()
+        throw "Packaged backend health check timed out after 20 seconds.`nstdout:`n$stdout`nstderr:`n$stderr"
+    }
     Write-Host "Backend health check passed" -ForegroundColor Green
 } finally {
     if (-not $BackendProcess.HasExited) {

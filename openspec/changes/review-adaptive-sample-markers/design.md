@@ -9,6 +9,7 @@ The requested behavior is display-only. Sample values remain V/float64, channel 
 - Add a local view toggle whose initial state is off. Keep it on the waveform canvas as presentation state; it does not belong in the review session or persisted recording settings.
 - Keep each existing extrema-reduced line series. Add a separate marker series per channel populated from finite values in `RecordingReviewFrame.Segments`, using the same baseline and display-scale calculation as the line.
 - Compute sample spacing from sampling rate, the current visible time range, and plot width in WPF DIP. Show markers only at spacing >= 5 DIP. Re-evaluate visibility when mode, viewport, plot size, or recording frame changes.
+- Offer subsecond review timebase choices (0.1, 0.25, and 0.5 seconds per screen) so users can zoom far enough to see markers at typical EEG sampling rates; the existing paper-speed control remains separate.
 - Clip markers through the existing chart axes. Do not create markers for NaN values or sample-counter gaps. The display-level extrema frame never supplies marker values.
 - Avoid per-sample Ellipse WPF elements; use SciChart's native point-marker rendering and bounded source frames. At the 5 DIP threshold, the visible marker count is bounded by plot width/5 per channel.
 

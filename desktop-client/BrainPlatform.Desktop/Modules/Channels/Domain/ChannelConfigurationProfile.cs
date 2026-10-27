@@ -11,8 +11,8 @@ public enum ChannelConfigurationSource
 
 /// <summary>
 /// A named workstation preset. It stores user-confirmed labels, display
-/// choices, and operator-recorded hardware electrode locations. The amplifier
-/// remains authoritative for physical inputs and never supplies those locations.
+/// choices, and optional standard-template electrode locations. These
+/// coordinates are not measured hardware or patient-specific positions.
 /// </summary>
 public sealed record ChannelConfigurationProfile(
     string Id,
@@ -27,7 +27,9 @@ public sealed record ChannelConfigurationProfile(
     string DeviceDriverId = "",
     string DeviceModel = "",
     string HardwareReferenceElectrodeLocation = "REF",
-    string HardwareGroundElectrodeLocation = "GND")
+    string HardwareGroundElectrodeLocation = "GND",
+    ElectrodeMapPosition? ReferenceMapPosition = null,
+    ElectrodeMapPosition? GroundMapPosition = null)
 {
     public string SourceLabel => Source == ChannelConfigurationSource.System ? "系统默认" : "我的配置";
 
@@ -127,4 +129,26 @@ public sealed record ChannelConfigurationEntry(
     AcquisitionChannelKind ExpectedKind,
     string ElectrodeLabel,
     bool IsSelectedForDisplay,
-    int DisplayOrder);
+    int DisplayOrder,
+    ElectrodeLocationSnapshot? ElectrodeLocation = null,
+    ElectrodeMapPosition? ManualMapPosition = null);
+
+/// <summary>A user-placed 2D diagram coordinate, not a measured scalp coordinate.</summary>
+public sealed record ElectrodeMapPosition(double X, double Y);
+
+/// <summary>Default normalized diagram sites, not measured 3D coordinates.</summary>
+public static class ElectrodeMapDefaults
+{
+    public static ElectrodeMapPosition Reference { get; } = new(0.0036, 0.4514);
+    public static ElectrodeMapPosition Ground { get; } = new(0.0021, -0.7338);
+}
+
+public sealed record ElectrodeLocationSnapshot(
+    string CanonicalSite,
+    double X,
+    double Y,
+    double Z,
+    string CoordinateFrame,
+    string CoordinateUnit,
+    string SourceId,
+    string SourceVersion);

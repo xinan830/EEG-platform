@@ -62,7 +62,8 @@ public static class ReviewPerformanceDiagnostics
             if (!Enabled) return;
 
             DesktopLog.Info(
-                $"review_perf review_session_id={sample.ReviewSessionId:N}" +
+                $"review_perf scenario={DesktopLog.PerformanceScenario}" +
+                $" review_session_id={sample.ReviewSessionId:N}" +
                 $" recording_id={sample.RecordingSessionId:N}" +
                 $" stage={sample.Stage} source={sample.Source}" +
                 $" revision={sample.Revision?.ToString() ?? "none"}" +

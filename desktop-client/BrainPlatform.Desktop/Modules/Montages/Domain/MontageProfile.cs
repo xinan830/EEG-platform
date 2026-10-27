@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Globalization;
 using System.Text.Json.Serialization;
+using BrainPlatform.Desktop.Modules.Channels.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Montages.Domain;
 
@@ -159,6 +160,13 @@ public static class ChannelConfigurationFingerprint
 {
     /// <summary>Hashes semantic mapping fields only; timestamps and profile name are not signal identity.</summary>
     public static string Create(ChannelConfigurationProfile profile)
+        => CreateCore(profile, includeManualDiagramPosition: false);
+
+    /// <summary>Reads fingerprints written before manual diagram positions became display-only metadata.</summary>
+    internal static string CreateLegacyIncludingManualDiagramPosition(ChannelConfigurationProfile profile)
+        => CreateCore(profile, includeManualDiagramPosition: true);
+
+    private static string CreateCore(ChannelConfigurationProfile profile, bool includeManualDiagramPosition)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var canonical = new StringBuilder()
@@ -174,6 +182,32 @@ public static class ChannelConfigurationFingerprint
                 .Append(channel.ElectrodeLabel.Trim().ToUpperInvariant()).Append(':')
                 .Append(channel.IsSelectedForDisplay ? '1' : '0').Append(':')
                 .Append(channel.DisplayOrder);
+            if (channel.ElectrodeLocation is { } location)
+            {
+                canonical.Append(":LOC:")
+                    .Append(location.CanonicalSite.Trim().ToUpperInvariant()).Append(':')
+                    .Append(location.X.ToString("R", CultureInfo.InvariantCulture)).Append(':')
+                    .Append(location.Y.ToString("R", CultureInfo.InvariantCulture)).Append(':')
+                    .Append(location.Z.ToString("R", CultureInfo.InvariantCulture)).Append(':')
+                    .Append(location.CoordinateFrame).Append(':')
+                    .Append(location.CoordinateUnit).Append(':')
+                    .Append(location.SourceId).Append(':')
+                    .Append(location.SourceVersion);
+            }
+            else
+            {
+                canonical.Append(":LOC:UNAVAILABLE");
+            }
+            if (includeManualDiagramPosition && channel.ManualMapPosition is { } diagramPosition)
+            {
+                canonical.Append(":MAP:")
+                    .Append(diagramPosition.X.ToString("R", CultureInfo.InvariantCulture)).Append(':')
+                    .Append(diagramPosition.Y.ToString("R", CultureInfo.InvariantCulture));
+            }
+            else if (includeManualDiagramPosition)
+            {
+                canonical.Append(":MAP:UNSET");
+            }
         }
 
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString())))

@@ -1,0 +1,3 @@
+The montage editor already owns the current draft rows and the selected channel-configuration snapshot. The direction map is a view of those drafts, not a saved-profile preview. A pure projection resolves only selected source labels with valid standard-template or manual diagram positions, plus the snapshot's REF/GND landmark positions. Each montage formula expands to zero or more directed arrows from the positive label to its negative labels. Unresolved labels are omitted and disclosed in the floating window.
+
+This is a display-only projection. It does not infer a scalp potential from a bipolar output, display signal magnitude, change sample order/units, or modify acquisition/analysis reference semantics.

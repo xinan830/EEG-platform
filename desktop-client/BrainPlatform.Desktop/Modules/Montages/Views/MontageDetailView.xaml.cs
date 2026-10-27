@@ -5,9 +5,37 @@ namespace BrainPlatform.Desktop.Modules.Montages.Views;
 
 public partial class MontageDetailView : UserControl
 {
+    private MontageDirectionWindow? directionWindow;
+
     public MontageDetailView()
     {
         InitializeComponent();
+    }
+
+    private void OnOpenDirectionMapClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel workspace)
+        {
+            return;
+        }
+        if (directionWindow is { IsLoaded: true })
+        {
+            directionWindow.Close();
+        }
+        try
+        {
+            directionWindow = new MontageDirectionWindow(workspace.MontageConfigurations)
+            {
+                Owner = Window.GetWindow(this),
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            };
+            directionWindow.Closed += (_, _) => directionWindow = null;
+            directionWindow.Show();
+        }
+        catch (InvalidOperationException exception)
+        {
+            workspace.Notifications.PublishError(exception.Message);
+        }
     }
 
     private void OnBackToMontageListClick(object sender, RoutedEventArgs e)

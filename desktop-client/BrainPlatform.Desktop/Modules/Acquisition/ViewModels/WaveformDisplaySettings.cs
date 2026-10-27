@@ -65,7 +65,7 @@ public sealed class WaveformDisplaySettings : INotifyPropertyChanged
         get => timebaseSecondsPerScreen;
         set
         {
-            if (value is not (5d or 10d or 15d or 20d or 30d))
+            if (value is not (0.1d or 0.25d or 0.5d or 1d or 2d or 5d or 10d or 15d or 20d or 30d))
             {
                 throw new ArgumentOutOfRangeException(nameof(value));
             }

@@ -158,12 +158,12 @@ public sealed partial class TnkDetailViewModel
     {
         RefreshActivePlots();
         foreach (var name in new[] { nameof(CompositeValue), nameof(CompositeProgress), nameof(IapfValue),
-            nameof(IapfValueStatus), nameof(IapfUpdateStatus), nameof(CorticalValue), nameof(CorticalValueStatus), nameof(CorticalSource), nameof(BrainbeatValue), nameof(CurrentTimeText), nameof(CompositeQuality), nameof(RoleMappingText) })
+            nameof(IapfValueStatus), nameof(IapfUpdateStatus), nameof(CorticalValue), nameof(CorticalValueStatus), nameof(CorticalSource), nameof(BrainbeatValue), nameof(CurrentTimeText), nameof(CompositeQuality), nameof(RoleMappingText), nameof(AnalysisLagText) })
             RaisePropertyChanged(name);
     }
     private void NotifyCursorPresentation()
     {
         foreach (var name in new[] { nameof(CompositeValue), nameof(CompositeProgress), nameof(IapfValue), nameof(IapfValueStatus),
-            nameof(CorticalValue), nameof(CorticalValueStatus), nameof(IapfUpdateStatus), nameof(BrainbeatValue), nameof(CompositeQuality), nameof(CurrentTimeText) }) RaisePropertyChanged(name);
+            nameof(CorticalValue), nameof(CorticalValueStatus), nameof(IapfUpdateStatus), nameof(BrainbeatValue), nameof(CompositeQuality), nameof(CurrentTimeText), nameof(AnalysisLagText) }) RaisePropertyChanged(name);
     }
 }

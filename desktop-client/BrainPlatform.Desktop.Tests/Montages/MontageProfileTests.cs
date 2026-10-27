@@ -1,8 +1,26 @@
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 
+using BrainPlatform.Desktop.Modules.Channels.Domain;
+
 public sealed class MontageProfileTests
 {
+    [Fact]
+    public void ChannelConfigurationFingerprint_IncludesElectrodeLocationSnapshot()
+    {
+        var profile = CreateChannelConfiguration();
+        var original = ChannelConfigurationFingerprint.Create(profile);
+        var located = profile with
+        {
+            Channels = [profile.Channels[0] with
+            {
+                ElectrodeLocation = new ElectrodeLocationSnapshot("F3", -0.05, 0.04, 0.06, "mri", "m", "mne.standard_1020", "1.12.1"),
+            }, .. profile.Channels.Skip(1)],
+        };
+
+        Assert.NotEqual(original, ChannelConfigurationFingerprint.Create(located));
+    }
+
     [Fact]
     public void Validation_AcceptsOriginalSpecifiedChannelAndCommonAverageReference()
     {

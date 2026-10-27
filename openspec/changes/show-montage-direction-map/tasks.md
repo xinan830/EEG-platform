@@ -1,0 +1,5 @@
+- [x] Add a pure projection from draft montage equations to directed electrode-map arrows.
+- [x] Add a floating WPF map and a button on the montage configuration page.
+- [x] Add projection tests for hardware-reference, channel-reference, and average-reference directions.
+- [x] Validate the OpenSpec change and run the targeted desktop test suite.
+- [x] Build the WPF desktop client.

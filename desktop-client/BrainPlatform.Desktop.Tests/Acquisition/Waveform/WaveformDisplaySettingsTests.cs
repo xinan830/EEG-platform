@@ -33,6 +33,21 @@ public sealed class WaveformDisplaySettingsTests
     }
 
     [Theory]
+    [InlineData(0.1)]
+    [InlineData(0.25)]
+    [InlineData(0.5)]
+    public void TimebaseSupportsSubsecondReviewZoom(double secondsPerScreen)
+    {
+        var settings = new WaveformDisplaySettings
+        {
+            HorizontalTimeScaleMode = HorizontalTimeScaleMode.Timebase,
+            TimebaseSecondsPerScreen = secondsPerScreen,
+        };
+
+        Assert.Equal(secondsPerScreen, settings.GetVisibleSeconds(1500), precision: 12);
+    }
+
+    [Theory]
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(5)]

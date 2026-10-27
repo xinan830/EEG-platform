@@ -1,0 +1,65 @@
+using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Channels.ViewModels;
+
+namespace BrainPlatform.Desktop.Modules.Channels.Views;
+
+public readonly record struct ElectrodeMapPoint(string Label, double X, double Y, bool IsHardwareLandmark = false);
+
+/// <summary>Projects standard MRI/RAS electrode coordinates into a head-top view.</summary>
+public static class ElectrodeMapProjection
+{
+    private const double StandardHeadRadiusMeters = 0.12;
+    private const double StandardHeadCenterY = -0.014;
+    private const double StandardHeadDisplayScale = 0.9;
+
+    public static IReadOnlyList<ElectrodeMapPoint> Project(IEnumerable<ChannelConfigurationDraftRow> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        return rows
+            .Where(row => row.IsEegInput && row.IsEnabled && !string.IsNullOrWhiteSpace(row.ElectrodeLabel))
+            .Select(row => (Row: row, Position: row.ManualMapPosition ?? ResolvePosition(row.ElectrodeLabel, row.ElectrodeLocation)))
+            .Where(item => item.Position is not null)
+            .Select(item => new ElectrodeMapPoint(item.Row.ElectrodeLabel, item.Position!.X, item.Position.Y))
+            .ToArray();
+    }
+
+    public static IReadOnlyList<ElectrodeMapPoint> ProjectWithHardwareLandmarks(
+        IEnumerable<ChannelConfigurationDraftRow> rows,
+        ElectrodeMapPosition? referencePosition = null,
+        ElectrodeMapPosition? groundPosition = null)
+    {
+        var points = Project(rows).ToList();
+        var reference = referencePosition ?? ElectrodeMapDefaults.Reference;
+        var ground = groundPosition ?? ElectrodeMapDefaults.Ground;
+        if (IsValidMapPosition(reference))
+        {
+            points.Add(new ElectrodeMapPoint("REF", reference.X, reference.Y, true));
+        }
+        if (IsValidMapPosition(ground))
+        {
+            points.Add(new ElectrodeMapPoint("GND", ground.X, ground.Y, true));
+        }
+        return points;
+    }
+
+    private static bool IsValidMapPosition(ElectrodeMapPosition position) =>
+        double.IsFinite(position.X) && double.IsFinite(position.Y) &&
+        position.X is >= -1 and <= 1 && position.Y is >= -1 and <= 1 &&
+        position.X * position.X + position.Y * position.Y <= 1;
+
+    public static ElectrodeMapPosition? ResolvePosition(string label, ElectrodeLocationSnapshot? location)
+    {
+        if (!IsUsableLocation(label, location) || location is null) return null;
+
+        var projected = new ElectrodeMapPosition(
+            location.X / StandardHeadRadiusMeters * StandardHeadDisplayScale,
+            -(location.Y - StandardHeadCenterY) / StandardHeadRadiusMeters * StandardHeadDisplayScale);
+        return IsValidMapPosition(projected) ? projected : null;
+    }
+
+    private static bool IsUsableLocation(string label, ElectrodeLocationSnapshot? location) =>
+        location is { CoordinateFrame: "mri", CoordinateUnit: "m", SourceId: "mne.standard_1020" } &&
+        !string.IsNullOrWhiteSpace(location.SourceVersion) &&
+        string.Equals(label.Trim(), location.CanonicalSite, StringComparison.OrdinalIgnoreCase) &&
+        double.IsFinite(location.X) && double.IsFinite(location.Y) && double.IsFinite(location.Z);
+}

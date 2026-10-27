@@ -44,6 +44,13 @@ public interface IAlgorithmClient
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("当前算法客户端不支持按需动态窗口。");
 
+    Task<TnkPlaybackEventBatchResponse> GetTnkPlaybackEventsAsync(
+        string deliveryId, long afterSequence, string? projectId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持 TNK 逐窗回放事件。");
+
+    Task CloseTnkPlaybackEventsAsync(string deliveryId, string? projectId, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持关闭 TNK 逐窗回放事件。");
+
     Task<DynamicWindowResponse> GetDynamicWindowAsync(
         string windowId,
         string? projectId,

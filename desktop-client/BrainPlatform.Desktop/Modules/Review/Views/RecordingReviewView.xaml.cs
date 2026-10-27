@@ -121,7 +121,9 @@ public partial class RecordingReviewView : UserControl
         }
 
         viewModel.TickPlayback();
-        playbackTickDiagnostics.Record(started, System.Diagnostics.Stopwatch.GetTimestamp(), viewModel.PositionSeconds);
+        playbackTickDiagnostics.Record(viewModel.RecordingId, viewModel.SamplingRateHz,
+            viewModel.PlaybackSpeedText, started, System.Diagnostics.Stopwatch.GetTimestamp(),
+            viewModel.PositionSeconds);
     }
 
     private void OnPlayClick(object sender, RoutedEventArgs e)

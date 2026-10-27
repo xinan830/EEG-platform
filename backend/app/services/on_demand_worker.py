@@ -78,6 +78,7 @@ def execute_window_job(
     *, manifest_digest: Callable[[str], str], lease_seconds: float = 300,
     resource_policy: DynamicWindowResourcePolicy | None = None,
     compute_coordinator: Any | None = None,
+    on_replayed_frame: Callable[[DynamicWindowIdentity, Any], None] | None = None,
 ) -> None:
     """Compute outside SQLite; all window mutations are transactionally fenced."""
     # The application file handler is scoped to the ``brain_platform``
@@ -162,7 +163,35 @@ def execute_window_job(
             inputs.payload.execution_context = control
         control.window_started()
         stage = "algorithm_compute"
-        result = capability.execute_window(inputs, config, plan, identity, check_cancelled=check)
+        if on_replayed_frame is not None and hasattr(capability, "execute_window_with_replayed_frames"):
+            def publish_frame(frame_identity: DynamicWindowIdentity, frame_result: Any) -> None:
+                check()
+                frame_result.provenance = {
+                    **frame_result.provenance,
+                    "runtime_context": {
+                        "reset_origin_sample": plan.session_identity.reset_origin_sample,
+                        "context_identity": plan.context_identity,
+                        "target_range_samples": {
+                            "start_sample": frame_identity.start_sample,
+                            "end_sample": frame_identity.end_sample,
+                        },
+                        "replay_window_count": frame_result.provenance.get("replayed_window_count"),
+                    },
+                }
+                frame_result.evidence = AlgorithmEvidence.model_validate(with_sample_coordinate(
+                    frame_result.evidence,
+                    {"start_s": frame_identity.start_sample / inputs.sfreq_hz,
+                     "end_s": frame_identity.end_sample / inputs.sfreq_hz},
+                    inputs.sfreq_hz,
+                )).model_dump(mode="json")
+                validated = validate_window_result(frame_result, capability.manifest)
+                on_replayed_frame(frame_identity, validated)
+
+            result = capability.execute_window_with_replayed_frames(
+                inputs, config, plan, identity, on_frame_result=publish_frame, check_cancelled=check,
+            )
+        else:
+            result = capability.execute_window(inputs, config, plan, identity, check_cancelled=check)
         result.provenance = {
             **result.provenance,
             "runtime_context": {

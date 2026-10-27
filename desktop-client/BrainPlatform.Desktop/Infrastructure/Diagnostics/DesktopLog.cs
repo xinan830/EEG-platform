@@ -15,6 +15,21 @@ public static class DesktopLog
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "BrainPlatform", "logs");
 
+    public static string PerformanceScenario
+    {
+        get
+        {
+            var value = Environment.GetEnvironmentVariable("BRAIN_REVIEW_PERF_SCENARIO");
+            return !string.IsNullOrWhiteSpace(value) &&
+                   value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-')
+                ? value
+                : "unspecified";
+        }
+    }
+
+    public static bool PerformanceDiagnosticsEnabled => string.Equals(
+        Environment.GetEnvironmentVariable("BRAIN_REVIEW_PERF_DIAGNOSTICS"), "1", StringComparison.Ordinal);
+
     public static void Info(string message) => Write("INFO", message, null);
 
     public static void Warning(string message) => Write("WARN", message, null);

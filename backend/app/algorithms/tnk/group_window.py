@@ -104,16 +104,30 @@ class TnkGroupWindowCapability:
         self, inputs, config, plan: DynamicWindowPlan, identity: DynamicWindowIdentity,
         check_cancelled: Callable[[], None] | None = None,
     ) -> DynamicWindowResult:
+        return self.execute_window_with_replayed_frames(
+            inputs, config, plan, identity, on_frame_result=None,
+            check_cancelled=check_cancelled,
+        )
+
+    def execute_window_with_replayed_frames(
+        self, inputs, config, plan: DynamicWindowPlan, identity: DynamicWindowIdentity,
+        *, on_frame_result: Callable[[DynamicWindowIdentity, DynamicWindowResult], None] | None,
+        check_cancelled: Callable[[], None] | None = None,
+    ) -> DynamicWindowResult:
+        """Execute the target and optionally expose each replayed frame in order."""
         key = self._checkpoint_key(plan.session_identity)
         lock = self._execution_locks[int(key[:8], 16) % len(self._execution_locks)]
         with lock:
             if check_cancelled:
                 check_cancelled()
-            return self._execute_window_locked(inputs, config, plan, identity, check_cancelled)
+            return self._execute_window_locked(
+                inputs, config, plan, identity, check_cancelled, on_frame_result,
+            )
 
     def _execute_window_locked(
         self, inputs, config, plan: DynamicWindowPlan, identity: DynamicWindowIdentity,
         check_cancelled: Callable[[], None] | None,
+        on_frame_result: Callable[[DynamicWindowIdentity, DynamicWindowResult], None] | None,
     ) -> DynamicWindowResult:
         if plan.state != "planned":
             return DynamicWindowResult(
@@ -143,17 +157,30 @@ class TnkGroupWindowCapability:
         else:
             checkpoint_frame_index, children = checkpoint
             first_frame_index = checkpoint_frame_index + 1
-        target_results = None
+        target_result = None
         diagnostics: dict[str, int] = {}
         for frame_index in range(first_frame_index, target_index + 1):
             if check_cancelled:
                 check_cancelled()
             frame = frames[frame_index]
-            target_results = self._execute_children(
+            frame_results = self._execute_children(
                 inputs, config, frame.window_start_s, frame.window_end_s,
                 reset_state=False, children=children, diagnostics=diagnostics, dynamic_frame=True,
             )
             self._save_checkpoint(plan.session_identity, frame_index, children)
+            frame_identity = identity if frame_index == target_index else DynamicWindowIdentity(
+                **plan.session_identity.model_dump(),
+                generation=identity.generation,
+                start_sample=int(round(frame.window_start_s * inputs.sfreq_hz)),
+                end_sample=int(round(frame.window_end_s * inputs.sfreq_hz)),
+            )
+            frame_result = self._build_frame_result(
+                config, frame_identity, frame_results, replayed_window_count=frame_index + 1,
+            )
+            if on_frame_result is not None:
+                on_frame_result(frame_identity, frame_result.model_copy(deep=True))
+            if frame_index == target_index:
+                target_result = frame_result
         if check_cancelled:
             check_cancelled()
         actual_replayed_frames = target_index + 1 if checkpoint_frame_index is None else target_index - checkpoint_frame_index
@@ -164,15 +191,21 @@ class TnkGroupWindowCapability:
             diagnostics.get("spectrum_loads", 0), diagnostics.get("spectrum_cache_hits", 0),
             diagnostics.get("child_calculations", 0), (time.perf_counter() - started) * 1000,
         )
-        if target_results is None:
+        if target_result is None:
             raise ValueError("TNK group replay produced no target result")
 
-        values, evidence = self._metric_values(target_results)
+        return target_result
+
+    def _build_frame_result(
+        self, config, identity: DynamicWindowIdentity, child_results: dict[str, list[Any]],
+        *, replayed_window_count: int,
+    ) -> DynamicWindowResult:
+        values, evidence = self._metric_values(child_results)
         arrays = {
             name: np.asarray([np.nan if value is None else value], dtype=float)
             for name, value in values.items()
         }
-        quality = self._quality(target_results)
+        quality = self._quality(child_results)
         return DynamicWindowResult(
             identity=identity,
             state="ready",
@@ -187,7 +220,7 @@ class TnkGroupWindowCapability:
                 "preprocessing_scope": "configured_continuous_before_window_slice",
                 "analysis_state": self._analysis_state(quality),
                 "role_mapping": dict(config.role_mapping),
-                "replayed_window_count": target_index + 1,
+                "replayed_window_count": replayed_window_count,
             },
         )
 

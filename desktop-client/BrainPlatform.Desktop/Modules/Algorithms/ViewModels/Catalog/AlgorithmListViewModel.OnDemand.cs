@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Windows.Threading;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.Diagnostics;
@@ -29,6 +30,9 @@ public sealed partial class AlgorithmListViewModel
     private readonly Dictionary<(string RunId, long CursorSample), WindowPreviewResponse> fullWindowPreviewCache = [];
     private TaskCompletionSource<Task>? pendingRequestFlush;
     internal event Action<DynamicWindowRequest, DynamicWindowResponse>? OwnedWindowCompleted;
+    internal event Action<TnkPlaybackGap>? OwnedTnkPlaybackGap;
+    internal event Action<string>? OwnedTnkPlaybackRecoveryFailed;
+    internal string? ActivePlaybackDeliveryId => tnkPlaybackDeliveryId;
     internal Task CurrentWindowLoad { get; private set; } = Task.CompletedTask;
     public bool IsOnDemandAnalysis => windowRequest is not null;
     public DynamicWindowResponse? DisplayedAnalysisWindow => displayedWindow;
@@ -36,7 +40,8 @@ public sealed partial class AlgorithmListViewModel
         windowHandler is { } handler && request.RecordingId == current.RecordingId &&
         request.AlgorithmId == handler.AlgorithmId && request.DefinitionId is null &&
         request.DefinitionVersion is null && request.ProjectId is null &&
-        request.Config.GetRawText() == current.Config.GetRawText();
+        request.Config.GetRawText() == current.Config.GetRawText() &&
+        (request.PlaybackDeliveryId is null || request.PlaybackDeliveryId == tnkPlaybackDeliveryId);
     internal TimeRange? WindowRequestedRange => windowRequest is { } request &&
         request.Config.TryGetProperty("start_s", out var start) &&
         request.Config.TryGetProperty("end_s", out var end)
@@ -50,8 +55,18 @@ public sealed partial class AlgorithmListViewModel
             windowTargets = new DynamicWindowTargetCoordinator(client);
             windowTargets.WindowCompleted += PublishOwnedWindowCompleted;
         }
+        if (string.Equals(handler.AlgorithmId, "tnk_biofeedback", StringComparison.OrdinalIgnoreCase))
+            CloseTnkPlaybackDelivery();
         windowRequest = request;
         windowHandler = handler;
+        if (string.Equals(handler.AlgorithmId, "tnk_biofeedback", StringComparison.OrdinalIgnoreCase))
+        {
+            tnkPlaybackDeliveryId = Guid.NewGuid().ToString("N");
+            tnkPlaybackEventSequence = 0;
+            tnkPlaybackEventsCancellation = new CancellationTokenSource();
+            _ = ConsumeTnkPlaybackEventsAsync(null, tnkPlaybackDeliveryId,
+                tnkPlaybackEventsCancellation.Token);
+        }
         dynamicWindowRequestTimer.Stop();
         dynamicWindowRequestPending = false;
         pendingRequestFlush?.TrySetResult(Task.CompletedTask);
@@ -69,7 +84,16 @@ public sealed partial class AlgorithmListViewModel
     {
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is null) return;
-        void Publish() => OwnedWindowCompleted?.Invoke(request, response);
+        var queuedAt = Stopwatch.GetTimestamp();
+        void Publish()
+        {
+            if (AlgorithmWindowPerformanceDiagnostics.Enabled)
+                DesktopLog.Info($"tnk_playback_ui_dispatch request_id={request.RequestId ?? "none"}" +
+                    $" window_id={response.WindowId} state={response.State}" +
+                    $" window_end_sample={response.Range?.EndSample.ToString() ?? "unknown"}" +
+                    $" dispatch_wait_ms={Stopwatch.GetElapsedTime(queuedAt).TotalMilliseconds:0.0}");
+            OwnedWindowCompleted?.Invoke(request, response);
+        }
         if (dispatcher.CheckAccess()) Publish();
         else _ = dispatcher.BeginInvoke(Publish);
     }
@@ -88,13 +112,17 @@ public sealed partial class AlgorithmListViewModel
             samplingRateInteger,
             checked((long)Math.Round(recording.DurationSeconds.Value * samplingRate)));
         var cursor = QuantizeWindowCursor(request, rawCursor, samplingRateInteger);
+        ResetTnkPlaybackDeliveryForBackwardSeek(cursor);
         if (!force && cursor == lastRequestedWindowSample) return;
         lastRequestedWindowSample = cursor;
+        if (tnkPlaybackDeliveryId is not null) tnkPlaybackLastRequestedSample = cursor;
         windowWait?.Cancel();
         windowWait = new CancellationTokenSource();
         var revision = ++windowRevision;
         var target = new DynamicWindowRequest(request.RecordingId, handler.AlgorithmId,
-            null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"));
+            null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"),
+            PlaybackDelivery: tnkPlaybackDeliveryId is not null,
+            PlaybackDeliveryId: tnkPlaybackDeliveryId);
         CurrentWindowLoad = LoadWindowTargetAsync(target, handler, revision, windowWait);
     }
 
@@ -109,24 +137,41 @@ public sealed partial class AlgorithmListViewModel
         var rawCursor = RecordingTimeMapper.ToCursorSample(DynamicPreviewCursorSeconds,
             samplingRateInteger, checked((long)Math.Round(recording.DurationSeconds.Value * samplingRate)));
         var cursor = QuantizeWindowCursor(request, rawCursor, samplingRateInteger);
+        ResetTnkPlaybackDeliveryForBackwardSeek(cursor);
         if (cursor == lastPlaybackWindowSample) return;
         lastPlaybackWindowSample = cursor;
+        if (tnkPlaybackDeliveryId is not null) tnkPlaybackLastRequestedSample = cursor;
         var target = new DynamicWindowRequest(request.RecordingId, handler.AlgorithmId,
-            null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"));
+            null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"),
+            PlaybackDelivery: tnkPlaybackDeliveryId is not null,
+            PlaybackDeliveryId: tnkPlaybackDeliveryId);
+        if (AlgorithmWindowPerformanceDiagnostics.Enabled)
+            DesktopLog.Info($"tnk_playback_window_target request_id={target.RequestId}" +
+                $" recording_id={target.RecordingId} algorithm_id={target.AlgorithmId}" +
+                $" target_sample={cursor} target_second={cursor / samplingRateInteger}" +
+                $" delivery_id={target.PlaybackDeliveryId ?? "none"}");
         _ = ObservePlaybackTargetAsync(target);
     }
 
     private async Task ObservePlaybackTargetAsync(DynamicWindowRequest target)
     {
+        var started = Stopwatch.GetTimestamp();
         try
         {
-            await windowTargets!.LoadLatestAsync(target, CancellationToken.None);
+            var response = await windowTargets!.LoadLatestAsync(target, CancellationToken.None);
+            if (AlgorithmWindowPerformanceDiagnostics.Enabled)
+                DesktopLog.Info($"tnk_playback_window_observed request_id={target.RequestId ?? "none"}" +
+                    $" window_id={response.WindowId} state={response.State}" +
+                    $" target_sample={target.CursorSample} window_end_sample={response.Range?.EndSample.ToString() ?? "unknown"}" +
+                    $" elapsed_ms={Stopwatch.GetElapsedTime(started).TotalMilliseconds:0.0}");
         }
         catch (OperationCanceledException) { }
         catch (Exception error)
         {
             AlgorithmWindowPerformanceDiagnostics.Record(target, target.AlgorithmId, null,
                 AlgorithmWindowPerformanceSource.OnDemand, "queue_limited", null, 0, error.Message);
+            if (target.PlaybackDelivery && target.PlaybackDeliveryId is { } deliveryId)
+                PublishTnkPlaybackRecoveryFailed(deliveryId);
         }
     }
 
@@ -454,6 +499,10 @@ public sealed partial class AlgorithmListViewModel
         fullWindowCacheRunId = null;
         fullWindowCacheTask = null;
         fullWindowPreviewCache.Clear();
+        CloseTnkPlaybackDelivery();
+        tnkPlaybackDeliveryId = null;
+        tnkPlaybackEventSequence = 0;
+        tnkPlaybackLastRequestedSample = null;
         if (windowTargets is not null) await windowTargets.ResetAsync();
         RaisePropertyChanged(nameof(IsRunActive));
     }

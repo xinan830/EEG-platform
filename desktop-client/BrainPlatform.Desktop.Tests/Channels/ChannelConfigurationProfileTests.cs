@@ -1,8 +1,115 @@
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 
+using BrainPlatform.Desktop.Modules.Channels.Domain;
+
 public sealed class ChannelConfigurationProfileTests
 {
+    [Fact]
+    public async Task Store_RoundTripsElectrodeLocation_AndLegacyEntriesRemainUnavailable()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "profiles.json");
+        var location = new ElectrodeLocationSnapshot("Fp1", -0.0294367, 0.0839171, -0.00699, "mri", "m", "mne.standard_1020", "1.12.1");
+        var profile = new ChannelConfigurationProfile(
+            "profile-location", "位置", "test", ChannelConfigurationSource.User, "0:Reference",
+            [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "Fp1", true, 0, location)],
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var store = new ChannelConfigurationProfileStore(path);
+        await store.SaveAsync(profile, CancellationToken.None);
+        var loaded = Assert.Single(await store.LoadAsync(CancellationToken.None));
+
+        Assert.Equal(location, loaded.Channels.Single().ElectrodeLocation);
+        var legacyPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "legacy.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(legacyPath)!);
+        await File.WriteAllTextAsync(legacyPath, "[{\"Id\":\"old\",\"Name\":\"old\",\"Description\":\"\",\"Source\":1,\"DeviceSignature\":\"x\",\"Channels\":[{\"NativeChannelIndex\":0,\"ExpectedKind\":0,\"ElectrodeLabel\":\"Fp1\",\"IsSelectedForDisplay\":true,\"DisplayOrder\":0}],\"CreatedAtUtc\":\"2026-01-01T00:00:00+00:00\",\"UpdatedAtUtc\":\"2026-01-01T00:00:00+00:00\"}]");
+        var legacy = Assert.Single(await new ChannelConfigurationProfileStore(legacyPath).LoadAsync(CancellationToken.None));
+        Assert.Null(legacy.Channels.Single().ElectrodeLocation);
+    }
+
+    [Fact]
+    public async Task Store_RoundTripsManualDiagramPositionSeparatelyFromStandardCoordinates()
+    {
+        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "profiles.json");
+        var position = new ElectrodeMapPosition(0.25, -0.4);
+        var referencePosition = new ElectrodeMapPosition(0, 0.2);
+        var groundPosition = new ElectrodeMapPosition(0, -0.92);
+        var profile = new ChannelConfigurationProfile(
+            "manual-position", "自定义位置", "test", ChannelConfigurationSource.User, "0:Reference",
+            [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "MyRef", true, 0, ManualMapPosition: position)],
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
+            ReferenceMapPosition: referencePosition,
+            GroundMapPosition: groundPosition);
+        var store = new ChannelConfigurationProfileStore(path);
+
+        ChannelConfigurationValidation.Validate(profile);
+        await store.SaveAsync(profile, CancellationToken.None);
+        var loaded = Assert.Single(await store.LoadAsync(CancellationToken.None));
+
+        Assert.Equal(position, loaded.Channels.Single().ManualMapPosition);
+        Assert.Null(loaded.Channels.Single().ElectrodeLocation);
+        Assert.Equal(referencePosition, loaded.ReferenceMapPosition);
+        Assert.Equal(groundPosition, loaded.GroundMapPosition);
+    }
+
+    [Fact]
+    public void Validation_RejectsLocationThatContradictsConfiguredLabel()
+    {
+        var profile = new ChannelConfigurationProfile(
+            "profile-location", "位置", "test", ChannelConfigurationSource.User, "0:Reference",
+            [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "Fp1", true, 0,
+                new ElectrodeLocationSnapshot("Fp2", 0, 0, 0, "mri", "m", "mne.standard_1020", "1.12.1"))],
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+        var error = Assert.Throws<InvalidOperationException>(() => ChannelConfigurationValidation.Validate(profile));
+        Assert.Contains("位置", error.Message);
+    }
+
+    [Fact]
+    public void Validation_AllowsManualDiagramOverrideAlongsideStandardLocation()
+    {
+        var profile = new ChannelConfigurationProfile(
+            "profile-location", "位置", "test", ChannelConfigurationSource.User, "0:Reference",
+            [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "F3", true, 0,
+                new ElectrodeLocationSnapshot("F3", -0.03, 0.04, 0, "mri", "m", "mne.standard_1020", "1.12.1"),
+                new ElectrodeMapPosition(0.45, -0.2))],
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+        ChannelConfigurationValidation.Validate(profile);
+    }
+
+    [Fact]
+    public void Fingerprint_IncludesElectrodeLocationSnapshot()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        var location = new ElectrodeLocationSnapshot("Fp1", -0.029, 0.083, -0.006, "mri", "m", "mne.standard_1020", "1.12.1");
+        var withoutLocation = new ChannelConfigurationProfile(
+            "profile-location", "位置", "test", ChannelConfigurationSource.User, "0:Reference",
+            [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "Fp1", true, 0)], timestamp, timestamp);
+        var withLocation = withoutLocation with
+        {
+            Channels = [withoutLocation.Channels.Single() with { ElectrodeLocation = location }]
+        };
+
+        Assert.NotEqual(
+            ChannelConfigurationFingerprint.Create(withoutLocation),
+            ChannelConfigurationFingerprint.Create(withLocation));
+    }
+
+    [Fact]
+    public void Fingerprint_IgnoresManualDiagramPositionBecauseItIsDisplayOnly()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        var profile = new ChannelConfigurationProfile(
+            "manual-position", "自定义位置", "test", ChannelConfigurationSource.User, "0:Reference",
+            [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "MyRef", true, 0)], timestamp, timestamp);
+        var positioned = profile with
+        {
+            Channels = [profile.Channels.Single() with { ManualMapPosition = new ElectrodeMapPosition(0.2, -0.3) }]
+        };
+
+        Assert.Equal(ChannelConfigurationFingerprint.Create(profile), ChannelConfigurationFingerprint.Create(positioned));
+    }
+
     [Fact]
     public async Task Store_RoundTripsOnlyUserChannelConfigurationMetadata()
     {
@@ -351,6 +458,7 @@ public sealed class ChannelConfigurationProfileTests
         Assert.Equal(ChannelConfigurationSource.System, systemProfile.Source);
         Assert.Equal(6, systemProfile.MontageReferenceCount);
         Assert.Equal("已被 6 个导联引用 · 通道配置已锁定", systemProfile.ReferenceSummary);
+        Assert.Contains("标准电极位置服务尚未连接", workspace.StatusText);
     }
 
     private static ChannelConfigurationWorkspaceViewModel CreateWorkspace() => new(

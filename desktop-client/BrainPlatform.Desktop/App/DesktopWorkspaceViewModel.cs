@@ -2,6 +2,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.IO;
 using BrainPlatform.Desktop.Infrastructure.Backend;
+using BrainPlatform.Desktop.Modules.Channels.Api;
 
 namespace BrainPlatform.Desktop.ViewModels;
 
@@ -18,7 +19,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         IAlgorithmClient? algorithmClient = null,
         ResearchProjectStore? projectStore = null,
         ChannelConfigurationProfileStore? channelConfigurationStore = null,
-        MontageProfileStore? montageStore = null)
+        MontageProfileStore? montageStore = null,
+        IElectrodeLocationClient? electrodeLocationClient = null)
     {
         this.backendHealthClient = backendHealthClient;
         Notifications = notifications ?? new OperationNotificationCenter();
@@ -34,7 +36,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
             store: channelConfigurationStore,
             deviceSession: acquisition.DeviceSession,
             montageStore: montageStore,
-            notifications: Notifications);
+            notifications: Notifications,
+            electrodeLocationClient: electrodeLocationClient);
         MontageConfigurations = new MontageConfigurationWorkspaceViewModel(
             ChannelConfigurations,
             store: montageStore,

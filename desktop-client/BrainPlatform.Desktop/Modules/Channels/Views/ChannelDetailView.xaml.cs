@@ -6,6 +6,8 @@ namespace BrainPlatform.Desktop.Modules.Channels.Views;
 
 public partial class ChannelDetailView : UserControl
 {
+    private ElectrodePositionWindow? electrodePositionWindow;
+
     public ChannelDetailView()
     {
         InitializeComponent();
@@ -17,6 +19,24 @@ public partial class ChannelDetailView : UserControl
         {
             mainWindow.ShowChannelListView();
         }
+    }
+
+    private void OnOpenElectrodePositionMapClick(object sender, RoutedEventArgs e)
+    {
+        if (electrodePositionWindow is { IsLoaded: true })
+        {
+            electrodePositionWindow.Activate();
+            return;
+        }
+
+        electrodePositionWindow = new ElectrodePositionWindow
+        {
+            Owner = Window.GetWindow(this),
+            DataContext = DataContext,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+        };
+        electrodePositionWindow.Closed += (_, _) => electrodePositionWindow = null;
+        electrodePositionWindow.Show();
     }
 
     private void OnCancelDeviceSelectionClick(object sender, RoutedEventArgs e)

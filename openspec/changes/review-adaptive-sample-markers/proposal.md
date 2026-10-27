@@ -7,6 +7,7 @@ Review users need to inspect how a continuous EEG trace relates to its discrete 
 - Add a review toolbar toggle for point-and-line mode; continuous lines remain the default.
 - Render sample markers from the current bounded projected review samples, independently of the extrema-reduced line and display-level cache.
 - Automatically hide markers when adjacent real samples are closer than the display readability threshold, retaining the continuous waveform.
+- Provide subsecond review timebase choices so the user can zoom in enough for those markers to become visible.
 - Preserve existing gap handling, time coordinates, montage, filtering, raw samples, and analysis behavior.
 
 ## Capabilities

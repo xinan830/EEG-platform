@@ -65,6 +65,20 @@ public sealed class ReviewWaveformContinuityTests
     }
 
     [Fact]
+    public void Full_resolution_trace_uses_sample_coordinates_for_point_line_alignment()
+    {
+        var samples = new[] { 1e-6, 4e-6, -2e-6, 3e-6 };
+        var frame = Frame(Segment(0, samples));
+        var baseline = 0.5;
+        var scale = 0.01;
+        var trace = ReviewWaveformTraceProjection.Build(frame, 0, baseline, scale, int.MaxValue);
+        var markers = ReviewSampleMarkerProjection.Build(frame, 0);
+
+        Assert.Equal(markers.XSeconds, trace.X);
+        Assert.Equal(markers.ValuesVolts.Select(value => baseline + value * 1_000_000d * scale), trace.Y);
+    }
+
+    [Fact]
     public void Nonzero_sample_origin_keeps_recording_second_coordinates()
     {
         var frame = Frame(Segment(125_000, [1e-6, 2e-6]), Segment(125_002, [3e-6])) with

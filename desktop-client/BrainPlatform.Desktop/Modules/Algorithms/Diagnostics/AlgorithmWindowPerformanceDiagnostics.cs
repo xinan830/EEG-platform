@@ -38,7 +38,8 @@ public static class AlgorithmWindowPerformanceDiagnostics
         if (!Enabled) return;
 
         DesktopLog.Info(
-            $"algorithm_window_perf recording_id={request.RecordingId}" +
+            $"algorithm_window_perf scenario={DesktopLog.PerformanceScenario}" +
+            $" recording_id={request.RecordingId}" +
             $" algorithm_id={algorithmId}" +
             $" request_id={request.RequestId ?? "none"}" +
             $" run_id={runId ?? "none"}" +
@@ -62,7 +63,8 @@ public static class AlgorithmWindowPerformanceDiagnostics
         if (!Enabled) return;
 
         DesktopLog.Info(
-            $"review_analysis_observation recording_id={request.RecordingId}" +
+            $"review_analysis_observation scenario={DesktopLog.PerformanceScenario}" +
+            $" recording_id={request.RecordingId}" +
             $" algorithm_id={request.AlgorithmId}" +
             $" request_id={request.RequestId ?? "none"}" +
             $" window_id={windowId ?? "none"}" +
@@ -78,7 +80,8 @@ public static class AlgorithmWindowPerformanceDiagnostics
         if (!Enabled) return;
 
         DesktopLog.Info(
-            $"review_analysis_queue recording_id={request.RecordingId}" +
+            $"review_analysis_queue scenario={DesktopLog.PerformanceScenario}" +
+            $" recording_id={request.RecordingId}" +
             $" algorithm_id={request.AlgorithmId}" +
             $" request_id={request.RequestId ?? "none"}" +
             $" stage={stage} pending_count={pendingCount}" +
@@ -97,7 +100,8 @@ public static class AlgorithmWindowPerformanceDiagnostics
         if (!Enabled) return;
 
         DesktopLog.Info(
-            $"review_analysis_result_bound recording_id={recordingId}" +
+            $"review_analysis_result_bound scenario={DesktopLog.PerformanceScenario}" +
+            $" recording_id={recordingId}" +
             $" algorithm_id={algorithmId}" +
             $" window_id={windowId ?? "none"}" +
             $" cursor_sample={cursorSample}" +

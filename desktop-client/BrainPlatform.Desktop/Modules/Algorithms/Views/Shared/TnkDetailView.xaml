@@ -39,6 +39,9 @@
    <GroupBox Header="记录回放">
     <StackPanel>
      <TextBlock Text="{Binding CurrentTimeText}" FontSize="15" FontWeight="SemiBold" Margin="2,0,0,6"/>
+     <TextBlock Text="{Binding LatestAnalysisWindowText}" FontSize="11" Foreground="#526273" Margin="2,0,0,2"/>
+     <TextBlock Text="{Binding AnalysisLagText}" FontSize="11" Foreground="#526273" Margin="2,0,0,2"/>
+     <TextBlock Text="{Binding HistoryCoverageText}" FontSize="11" Foreground="#8A5A00" TextWrapping="Wrap" Margin="2,0,0,6"/>
      <UniformGrid Columns="3">
       <Button Content="{Binding PlaybackButtonText}" Command="{Binding TogglePlaybackCommand}" Style="{StaticResource ActionButton}"/>
       <Button Content="重播" Command="{Binding RestartPlaybackCommand}" Background="#F57C00" Foreground="White" Margin="2" BorderThickness="0"/>

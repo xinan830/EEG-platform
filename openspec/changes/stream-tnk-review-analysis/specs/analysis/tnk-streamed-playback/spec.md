@@ -16,6 +16,8 @@ The desktop SHALL advance and render the review waveform without waiting synchro
 ### Requirement: Publish TNK results as identified analysis-window events
 Each TNK result event SHALL carry the immutable window identity, recording/session and scientific-configuration identity, algorithm and implementation identity, half-open sample range, recording-relative start/end time, output units, quality state, and structured failure/evidence when applicable. Consumers SHALL order and deduplicate by window identity and analysis time, not by response arrival time or current cursor position.
 
+Ordered delivery SHALL be explicitly opted into on the existing on-demand ensure request. It SHALL use a separate playback delivery identity and a resumable event-read endpoint. Intermediate frames SHALL use a stable scientific identity key, explicitly distinguished from the persisted target `window_id` accepted by the existing window-read endpoint. Unsupported algorithms, delivery-session capacity, and asynchronous publication failure SHALL have structured outcomes. Requests without opt-in SHALL retain the existing response and execution behavior.
+
 #### Scenario: A result arrives after the cursor advances
 - **WHEN** a result for an earlier window arrives after the review cursor has moved forward
 - **THEN** the result is plotted at its own analysis-window time

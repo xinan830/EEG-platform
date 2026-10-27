@@ -43,6 +43,7 @@ from app.services.dynamic_window_identity import DynamicWindowIdentityResolver
 from app.services.projects import ProjectService
 from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
 from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
+from app.services.tnk_playback_delivery import TnkPlaybackDeliveryService
 
 
 class DynamicWindowService:
@@ -77,6 +78,7 @@ class DynamicWindowService:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="dynamic-window")
         self._lock = threading.RLock()
         self._pending: dict[str, Any] = {}
+        self.playback_delivery = TnkPlaybackDeliveryService(self.repository, self._logger)
         self._max_pending_windows = max_pending_windows
         self._stop = threading.Event()
         self._recovery_thread = threading.Thread(target=self._recover_loop, name="window-recovery", daemon=True)
@@ -255,6 +257,12 @@ class DynamicWindowService:
             **session_identity.model_dump(), generation=window.generation,
             start_sample=plan.start_sample, end_sample=plan.end_sample,
         )
+        delivery_state, frame_publisher = self.playback_delivery.prepare(
+            payload.playback_delivery, payload.playback_delivery_id or uuid4().hex,
+            session.session_id, identity, inputs.sfreq_hz,
+            capability, window.window_id,
+        )
+        response_delivery = delivery_state
         request_id = payload.request_id or uuid4().hex
         if recovering is not None and window.window_id != recovering.window_id:
             raise ValueError("recovery resolved a different window generation")
@@ -270,9 +278,12 @@ class DynamicWindowService:
                 window.state, (time.perf_counter() - started) * 1000,
                 input_resolution_ms, window_planning_ms,
             )
+            if delivery_state is not None and delivery_state["state"] == "enabled" and result is not None:
+                frame_publisher(identity, DynamicWindowResult.model_validate(result))
             return self._response(session.session_id, window, plan, request_id, result=result, subscription_id=subscription_id,
                                   scientific_cache_key=self._session_cache_key(session),
-                                  scientific_configuration_json=self._session_scientific_configuration_json(session))
+                                  scientific_configuration_json=self._session_scientific_configuration_json(session),
+                                  playback_delivery=response_delivery)
         if plan.state != "planned":
             window = self.repository.transition_window(
                 window.window_id, "insufficient_data", quality="insufficient_data",
@@ -283,7 +294,8 @@ class DynamicWindowService:
             ).subscription_id
             return self._response(session.session_id, window, plan, request_id, subscription_id=subscription_id,
                                   scientific_cache_key=self._session_cache_key(session),
-                                  scientific_configuration_json=self._session_scientific_configuration_json(session))
+                                  scientific_configuration_json=self._session_scientific_configuration_json(session),
+                                  playback_delivery=response_delivery)
         # Fence leases left by a crashed process. The current ensure request
         # supplies the immutable inputs needed to submit the recovery attempt.
         self.repository.recover_expired_attempts()
@@ -315,7 +327,8 @@ class DynamicWindowService:
             ).subscription_id
             return self._response(session.session_id, current, plan, request_id, result=result, subscription_id=subscription_id,
                                   scientific_cache_key=self._session_cache_key(session),
-                                  scientific_configuration_json=self._session_scientific_configuration_json(session))
+                                  scientific_configuration_json=self._session_scientific_configuration_json(session),
+                                  playback_delivery=response_delivery)
         subscription_id = None if recovering is not None else self.repository.create_subscription(
             window.window_id, request_id, project_id=payload.project_id,
         ).subscription_id
@@ -328,7 +341,7 @@ class DynamicWindowService:
                     future = self._executor.submit(
                         self._execute, window.window_id, session.session_id, capability,
                         typed_config, inputs, identity, plan, attempt.attempt_id,
-                        attempt_request_id)
+                        attempt_request_id, frame_publisher)
                     self._pending[attempt.attempt_id] = future
                     self._logger.info(
                         "dynamic_window_queued algorithm_id=%s recording_id=%s request_id=%s window_id=%s attempt_id=%s target_samples=%s:%s context_samples=%s:%s state=%s admission_ms=%.1f planning_ms=%.1f input_resolution_ms=%.1f window_planning_ms=%.1f",
@@ -340,7 +353,8 @@ class DynamicWindowService:
                     )
         return self._response(session.session_id, window, plan, request_id, subscription_id=subscription_id,
                               scientific_cache_key=self._session_cache_key(session),
-                              scientific_configuration_json=self._session_scientific_configuration_json(session))
+                              scientific_configuration_json=self._session_scientific_configuration_json(session),
+                              playback_delivery=response_delivery)
 
     def _recover_loop(self) -> None:
         while not self._stop.wait(1):
@@ -385,6 +399,15 @@ class DynamicWindowService:
                               scientific_cache_key=self._session_cache_key(session),
                               scientific_configuration_json=self._session_scientific_configuration_json(session))
 
+    def playback_events(self, delivery_id: str, *, after_sequence: int = 0,
+                        limit: int = 256, project_id: str | None = None) -> dict[str, Any]:
+        return self.playback_delivery.events(
+            delivery_id, after_sequence=after_sequence, limit=limit, project_id=project_id,
+        )
+
+    def close_playback_delivery(self, delivery_id: str, *, project_id: str | None = None) -> None:
+        self.playback_delivery.close(delivery_id, project_id=project_id)
+
     def subscribe(self, window_id: str, request_id: str, *, project_id: str | None = None) -> dict[str, Any]:
         return self.repository.create_subscription(window_id, request_id, project_id=project_id).__dict__
 
@@ -396,7 +419,8 @@ class DynamicWindowService:
 
     def _execute(self, window_id: str, session_id: str, capability: Any, config: Any,
                  inputs: Any, identity: DynamicWindowIdentity, plan: DynamicWindowPlan,
-                 attempt_id: str, request_id: str) -> None:
+                 attempt_id: str, request_id: str,
+                 on_replayed_frame: Any | None = None) -> None:
         try:
             execute_window_job(
                 self.repository, capability, config, inputs, identity, plan,
@@ -405,6 +429,7 @@ class DynamicWindowService:
                 manifest_digest=self._artifact_store.manifest_digest,
                 resource_policy=self.resource_policy,
                 compute_coordinator=self.compute_coordinator,
+                on_replayed_frame=on_replayed_frame,
             )
         finally:
             with self._lock:
@@ -514,7 +539,8 @@ class DynamicWindowService:
                   subscription_id: str | None = None,
                   scientific_cache_key: str | None = None,
                   *,
-                  scientific_configuration_json: str) -> dict[str, Any]:
+                  scientific_configuration_json: str,
+                  playback_delivery: dict[str, Any] | None = None) -> dict[str, Any]:
         identity = {
             **plan.session_identity.model_dump(mode="json"),
             "start_sample": window.start_sample,
@@ -529,4 +555,5 @@ class DynamicWindowService:
                 "identity": {**identity, "generation": window.generation},
                 "plan": plan.model_dump(mode="json"), "range": {"start_sample": window.start_sample, "end_sample": window.end_sample,
                 "start_s": window.start_s, "end_s": window.end_s}, "quality": window.quality,
-                "failure": window.failure, "result": result}
+                "failure": window.failure, "result": result,
+                **({"playback_delivery": playback_delivery} if playback_delivery is not None else {})}

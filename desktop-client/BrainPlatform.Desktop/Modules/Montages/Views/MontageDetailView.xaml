@@ -323,7 +323,10 @@
                                 <TextBlock Text="导联重参考列表" FontSize="16" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
                                 <TextBlock Text="{Binding MontageConfigurations.DraftRows.Count, StringFormat=（共 {0} 条导联）}" FontSize="14" Foreground="#64748B" Margin="6,0,0,0" VerticalAlignment="Center" />
                             </StackPanel>
-                            <TextBlock Grid.Column="1" Text="源通道和顺序由通道配置固定；本卡片仅配置软件重参考方式。" FontSize="12.5" Foreground="#64748B" VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="源通道和顺序由通道配置固定；本卡片仅配置软件重参考方式。" FontSize="12.5" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <Button Style="{StaticResource OutlineBlueButton}" Content="查看指向图" Click="OnOpenDirectionMapClick" />
+                            </StackPanel>
                         </Grid>
 
                         <!-- 表格主体 (表头与每一行使用完全一致的自适应列定义) -->
