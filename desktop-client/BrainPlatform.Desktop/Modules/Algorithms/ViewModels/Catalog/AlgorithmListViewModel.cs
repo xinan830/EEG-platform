@@ -88,7 +88,8 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
         automaticRunDebounceTimer.Tick += async (_, _) =>
         {
             automaticRunDebounceTimer.Stop();
-            if (disposed || detailSuspended || !automaticRunPending || IsRunActive ||
+            if (disposed || detailSuspended || !automaticRunPending ||
+                (IsRunActive && !runCoordinator.CanStartForeground(configurationRevision)) ||
                 RegisteredRecording is null || SelectedAlgorithm is null)
                 return;
             automaticRunPending = false;

@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-26
+goal: Superseded analysis runs stop promptly and the latest selected execution
+  mode starts without waiting for stale result polling.

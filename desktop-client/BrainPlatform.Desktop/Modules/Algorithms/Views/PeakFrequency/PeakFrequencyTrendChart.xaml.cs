@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.PeakFrequency;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
 using SciChart.Charting.ChartModifiers;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
@@ -28,6 +29,7 @@ public partial class PeakFrequencyTrendChart : UserControl
         DrawMajorBands = false, DrawMinorGridLines = false, FontSize = 12,
     };
     private readonly XyDataSeries<double, double> values = new() { SeriesName = "峰频率（Hz）" };
+    private readonly IncrementalTrendSeries<PeakFrequencyResultPoint> trend;
 
     public static readonly DependencyProperty PointsProperty = DependencyProperty.Register(
         nameof(Points), typeof(IEnumerable), typeof(PeakFrequencyTrendChart), new PropertyMetadata(null, OnDataChanged));
@@ -43,6 +45,7 @@ public partial class PeakFrequencyTrendChart : UserControl
     public PeakFrequencyTrendChart()
     {
         InitializeComponent();
+        trend = new(values, point => (point.TimeSeconds, point.HasValue ? point.ValueHz!.Value : double.NaN));
         surface.Background = Brushes.White;
         surface.ShowLicensingWarnings = false;
         surface.XAxes.Add(xAxis);
@@ -69,10 +72,8 @@ public partial class PeakFrequencyTrendChart : UserControl
 
     private void UpdateSeries()
     {
-        values.Clear();
         var points = Points?.Cast<PeakFrequencyResultPoint>().ToArray() ?? [];
-        foreach (var point in points)
-            values.Append(point.TimeSeconds, point.HasValue ? point.ValueHz!.Value : double.NaN);
+        trend.Update(points);
         xAxis.VisibleRange = new DoubleRange(StartSeconds, Math.Max(StartSeconds + 1, EndSeconds));
         EmptyState.Visibility = points.Any(point => point.HasValue) ? Visibility.Collapsed : Visibility.Visible;
     }

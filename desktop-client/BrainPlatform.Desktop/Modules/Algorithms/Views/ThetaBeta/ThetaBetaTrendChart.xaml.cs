@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.ThetaBeta;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
 using SciChart.Charting.ChartModifiers;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
@@ -18,6 +19,7 @@ public partial class ThetaBetaTrendChart : UserControl
     private readonly NumericAxis xAxis = new() { AxisTitle = "记录时间（s）", AutoRange = AutoRange.Never, DrawMajorBands = false, DrawMinorGridLines = false, FontSize = 12 };
     private readonly NumericAxis yAxis = new() { AxisAlignment = AxisAlignment.Left, AxisTitle = "Theta/Beta（无量纲）", AutoRange = AutoRange.Always, GrowBy = new DoubleRange(0.12, 0.12), DrawMajorBands = false, DrawMinorGridLines = false, FontSize = 12 };
     private readonly XyDataSeries<double, double> values = new() { SeriesName = "Theta/Beta" };
+    private readonly IncrementalTrendSeries<ThetaBetaResultPoint> trend;
 
     public static readonly DependencyProperty PointsProperty = DependencyProperty.Register(nameof(Points), typeof(IEnumerable), typeof(ThetaBetaTrendChart), new PropertyMetadata(null, OnDataChanged));
     public static readonly DependencyProperty StartSecondsProperty = DependencyProperty.Register(nameof(StartSeconds), typeof(double), typeof(ThetaBetaTrendChart), new PropertyMetadata(0d, OnDataChanged));
@@ -29,6 +31,7 @@ public partial class ThetaBetaTrendChart : UserControl
     public ThetaBetaTrendChart()
     {
         InitializeComponent();
+        trend = new(values, point => (point.TimeSeconds, point.HasValue ? point.Value!.Value : double.NaN));
         surface.Background = Brushes.White;
         surface.ShowLicensingWarnings = false;
         surface.XAxes.Add(xAxis);
@@ -44,9 +47,8 @@ public partial class ThetaBetaTrendChart : UserControl
 
     private void UpdateSeries()
     {
-        values.Clear();
         var points = Points?.Cast<ThetaBetaResultPoint>().ToArray() ?? [];
-        foreach (var point in points) values.Append(point.TimeSeconds, point.HasValue ? point.Value!.Value : double.NaN);
+        trend.Update(points);
         xAxis.VisibleRange = new DoubleRange(StartSeconds, Math.Max(StartSeconds + 1, EndSeconds));
         EmptyState.Visibility = points.Any(point => point.HasValue) ? Visibility.Collapsed : Visibility.Visible;
     }

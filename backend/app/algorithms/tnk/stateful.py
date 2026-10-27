@@ -99,31 +99,46 @@ class BrainbeatModule:
 class BrainbeatFlatModule(BrainbeatModule):
     manifest = TnkManifest(
         algorithm_id="tnk_brainbeat_flat", display_name_zh="TNK BrainBeat Flat",
-        scientific_version="tnk-brainbeat-flat-v1", implementation_identity="tnk-brainbeat-flat-module-v1",
+        scientific_version="tnk-brainbeat-flat-v2", implementation_identity="tnk-brainbeat-flat-current-window-fit-v2",
         channel_roles=["Fz", "Pz"], output_unit="ratio", stateful=True,
         failure_codes=["TNK_CHANNEL_ROLE_MISSING", "TNK_POWER_INVALID", "TNK_FIT_INVALID", "TNK_WARMUP"],
     )
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.last_valid_fits: dict[str, dict[str, object]] = {}
-
-    def reset(self) -> None:
-        super().reset()
-        self.last_valid_fits.clear()
 
     def compute(self, window: TnkSpectralWindow, config: StatefulConfig):
         failure = validate_window(self.manifest, window)
         if failure:
             return result(self.manifest, window, None, quality="unavailable", failure=failure)
-        supplied_fits = window.provenance.get("aperiodic_fit_by_role") or {}
-        for role, fit in supplied_fits.items():
-            if role in self.manifest.channel_roles and {"offset", "exponent"} <= fit.keys():
-                self.last_valid_fits[role] = dict(fit)
-        if any(role not in self.last_valid_fits for role in self.manifest.channel_roles):
-            return result(self.manifest, window, None, quality="unavailable", failure=_failure("TNK_FIT_INVALID", "TNK BrainBeat Flat 缺少逐通道非周期拟合"))
-        fits = {role: self.last_valid_fits[role] for role in self.manifest.channel_roles}
-        window.provenance["aperiodic_fit_by_role"] = fits
+        fits, offsets, fit_quality = {}, {}, {}
+        try:
+            from specparam import SpectralModel
+        except ImportError as exc:
+            return result(self.manifest, window, None, quality="unavailable",
+                          failure=_failure("TNK_FIT_INVALID", "TNK BrainBeat Flat 拟合依赖 specparam", {"error": str(exc)}))
+        for role in self.manifest.channel_roles:
+            psd = window.psd_by_role[role]
+            mask = (window.frequencies_hz >= 3.0) & (window.frequencies_hz <= 30.0) & (psd > 0)
+            if np.count_nonzero(mask) < 3:
+                continue
+            try:
+                model = SpectralModel(peak_width_limits=[1.0, 8.0], max_n_peaks=4, peak_threshold=1.5, verbose=False)
+                model.fit(window.frequencies_hz[mask], psd[mask], [3.0, 30.0])
+                params = model.results.params
+                fits[role] = {"offset": float(params.aperiodic._fit[0]),
+                              "exponent": float(params.aperiodic._fit[1])}
+                offsets[role] = fits[role]["offset"]
+                fit_quality[role] = {item.measure: float(item.result) for item in model.results.metrics.metrics}
+            except (KeyError, TypeError, ValueError, AttributeError):
+                continue
+        if any(role not in fits for role in self.manifest.channel_roles):
+            return result(self.manifest, window, None, quality="unavailable",
+                          failure=_failure("TNK_FIT_INVALID", "TNK BrainBeat Flat 当前窗口逐通道非周期拟合不可用",
+                                           {"available_roles": sorted(fits)}),
+                          evidence={"fit_range_hz": [3.0, 30.0], "offsets": offsets, "fit_quality": fit_quality})
+        window.provenance["aperiodic_fit_by_role"] = {
+            role: {**fits[role], "fit_start_s": window.start_sample / window.sfreq_hz,
+                   "fit_end_s": window.end_sample / window.sfreq_hz, "fit_quality": fit_quality.get(role)}
+            for role in self.manifest.channel_roles
+        }
         def residual(role: str) -> np.ndarray:
             fit = fits[role]
             f = window.frequencies_hz
@@ -144,8 +159,8 @@ class BrainbeatFlatModule(BrainbeatModule):
         if state == "rejected":
             return result(self.manifest, window, None, quality="unavailable", failure=_failure("TNK_POWER_INVALID", "TNK BrainBeat Flat 残差功率无效"), evidence={"state": state})
         return result(self.manifest, window, value, evidence={
-            "state": state, "raw_ratio": ratio,
-            "aperiodic_fit_reused": not bool(supplied_fits),
+            "state": state, "raw_ratio": ratio, "fit_range_hz": [3.0, 30.0],
+            "offsets": offsets, "fit_quality": fit_quality,
         })
 
 

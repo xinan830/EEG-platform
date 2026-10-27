@@ -7,7 +7,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 
 public sealed partial class TnkDetailViewModel
 {
-    private readonly DispatcherTimer workbenchTimer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(33) };
+    private readonly DispatcherTimer workbenchTimer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly Stopwatch playbackClock = new();
     private double playbackOrigin;
     private double playbackSpeed = 1;

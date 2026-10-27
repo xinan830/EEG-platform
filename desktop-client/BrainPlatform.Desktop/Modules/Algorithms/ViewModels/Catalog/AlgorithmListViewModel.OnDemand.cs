@@ -120,7 +120,7 @@ public sealed partial class AlgorithmListViewModel
     {
         try
         {
-            await windowTargets!.LoadSequentialAsync(target, CancellationToken.None);
+            await windowTargets!.LoadLatestAsync(target, CancellationToken.None);
         }
         catch (OperationCanceledException) { }
         catch (Exception error)

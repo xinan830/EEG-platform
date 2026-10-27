@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import threading
+from collections import OrderedDict
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,6 +23,9 @@ class AnalysisMontageSnapshots:
 
     def __init__(self, database_path: Path):
         self.database_path = database_path
+        self._resolved_views: OrderedDict[tuple[str, str, str, str], AcquisitionSignalView] = OrderedDict()
+        self._cache_lock = threading.Lock()
+        self._resolved_view_limit = 32
 
     def prepare(self, directory: str | Path, profiles_json: list[str]) -> list[tuple[str, str, str, str]]:
         captured = historical_montage_catalogue(directory)
@@ -75,11 +81,25 @@ class AnalysisMontageSnapshots:
             ).fetchone()
         if row is None:
             return read_acquisition_signal_view(directory, montage_id)
+        manifest_path = Path(directory) / "manifest.json"
+        manifest_digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        cache_key = (recording_id, str(Path(directory).resolve()), row["profile_json"], manifest_digest)
+        with self._cache_lock:
+            view = self._resolved_views.get(cache_key)
+            if view is not None:
+                self._resolved_views.move_to_end(cache_key)
         profile = json.loads(row["profile_json"])
-        view = read_acquisition_signal_view(directory, profile_snapshot=profile)
+        if view is None:
+            view = read_acquisition_signal_view(directory, profile_snapshot=profile)
         digest = view.provenance["snapshot_sha256"]
         if digest != row["snapshot_sha256"] or montage_id != f"analysis-montage-{digest}":
             raise WpfRecordingError("ANALYSIS_MONTAGE_INTEGRITY_FAILED", "分析导联快照或记录绑定已改变")
+        with self._cache_lock:
+            if cache_key not in self._resolved_views:
+                self._resolved_views[cache_key] = view
+                self._resolved_views.move_to_end(cache_key)
+                while len(self._resolved_views) > self._resolved_view_limit:
+                    self._resolved_views.popitem(last=False)
         return replace(view, provenance={
             **view.provenance,
             "snapshot_source": "analysis_configuration_snapshot",

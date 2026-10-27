@@ -36,10 +36,76 @@ public sealed class AlgorithmRunCoordinatorTests
         Assert.Equal(["queued", "completed"], observedStatuses);
     }
 
+    [Fact]
+    public async Task SupersededRunCreation_CancelsReturnedIdentityWithoutPublishingIt()
+    {
+        var client = new CoordinatorClient { PendingCreate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var coordinator = new AlgorithmRunCoordinator(client);
+        using var config = JsonDocument.Parse("{}");
+        var published = new List<string>();
+        var task = coordinator.CreateRunAndWaitAsync(
+            new AnalysisRunRequest("recording-1", "official_algorithm", config.RootElement),
+            run => published.Add(run.RunId), CancellationToken.None, generation: 1);
+
+        coordinator.SupersedeForeground(generation: 2);
+        client.PendingCreate.SetResult(new AnalysisRunResponse(
+            "run-1", "recording-1", "official_algorithm", "queued", "official-psd-v1", null, null,
+            null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+        await client.CancelCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(["run-1"], client.CancelledRunIds);
+        Assert.Empty(published);
+    }
+
+    [Fact]
+    public async Task SupersededPolling_ReleasesForegroundOwnerImmediately()
+    {
+        var client = new CoordinatorClient { PendingPoll = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var coordinator = new AlgorithmRunCoordinator(client);
+        using var config = JsonDocument.Parse("{}");
+        var task = coordinator.CreateRunAndWaitAsync(
+            new AnalysisRunRequest("recording-1", "official_algorithm", config.RootElement),
+            _ => { }, CancellationToken.None, generation: 1);
+        await client.PollStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        coordinator.SupersedeForeground(generation: 2);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+        await client.CancelCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(["run-1"], client.CancelledRunIds);
+    }
+
+    [Fact]
+    public async Task LatestForegroundRunStartsWhileSupersededPollingIsUnresolved()
+    {
+        var client = new CoordinatorClient { PendingPoll = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var coordinator = new AlgorithmRunCoordinator(client);
+        using var config = JsonDocument.Parse("{}");
+        var obsolete = coordinator.CreateRunAndWaitAsync(
+            new AnalysisRunRequest("recording-1", "official_algorithm", config.RootElement),
+            _ => { }, CancellationToken.None, generation: 1);
+        await client.PollStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        coordinator.SupersedeForeground(generation: 2);
+        var latest = await coordinator.CreateRunAndWaitAsync(
+            new AnalysisRunRequest("recording-1", "official_algorithm", config.RootElement),
+            _ => { }, CancellationToken.None, generation: 2);
+
+        Assert.Equal("completed", latest.Status);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => obsolete);
+        Assert.Equal(["run-1"], client.CancelledRunIds);
+    }
+
     private sealed class CoordinatorClient : IAlgorithmClient, IRecordingRegistrationClient
     {
         public string? RegisteredDirectory { get; private set; }
         public int PollCount { get; private set; }
+        public TaskCompletionSource<AnalysisRunResponse>? PendingCreate { get; init; }
+        public TaskCompletionSource<AnalysisRunResponse>? PendingPoll { get; init; }
+        public TaskCompletionSource PollStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CancelCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<string> CancelledRunIds { get; } = [];
 
         public Task<RegisteredRecording> RegisterWpfRecordingAsync(string sourceDirectory, CancellationToken cancellationToken,
             IReadOnlyList<BrainPlatform.Desktop.Modules.Montages.Domain.MontageProfile>? analysisMontageProfiles = null)
@@ -53,12 +119,24 @@ public sealed class AlgorithmRunCoordinatorTests
             throw new NotSupportedException();
 
         public Task<AnalysisRunResponse> CreateRunAsync(AnalysisRunRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(CreateRun("queued"));
+            PendingCreate?.Task ?? Task.FromResult(CreateRun("queued"));
 
         public Task<AnalysisRunResponse> GetRunAsync(string runId, CancellationToken cancellationToken)
         {
             PollCount++;
+            if (PendingPoll is not null && PollCount == 1)
+            {
+                PollStarted.TrySetResult();
+                return PendingPoll.Task.WaitAsync(cancellationToken);
+            }
             return Task.FromResult(CreateRun("completed"));
+        }
+
+        public Task<AnalysisRunResponse> CancelRunAsync(string runId, CancellationToken cancellationToken)
+        {
+            CancelledRunIds.Add(runId);
+            CancelCompleted.TrySetResult();
+            return Task.FromResult(CreateRun("cancelled"));
         }
 
         public Task<IReadOnlyList<RunArtifact>> ListArtifactsAsync(string runId, CancellationToken cancellationToken) =>

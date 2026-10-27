@@ -23,7 +23,7 @@ from app.algorithm_runtime.on_demand import (
 from app.algorithm_runtime.on_demand_planning import plan_policy_window
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("brain_platform.dynamic_window.tnk")
 _MAX_CHECKPOINT_SESSIONS = 32
 _MAX_CHECKPOINTS_PER_SESSION = 128
 _EXECUTION_LOCK_COUNT = 64

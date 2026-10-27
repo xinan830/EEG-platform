@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Windows;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
+using SciChart.Charting.Visuals.RenderableSeries;
 
 namespace BrainPlatform.Desktop.Tests.Review;
 
@@ -109,7 +110,8 @@ public sealed class ReviewWaveformContinuityTests
             var type = typeof(RecordingReviewSciChartCanvas);
             type.GetMethod("ApplyFrame", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(canvas, [frame, null]);
             var surface = (SciChartSurface)type.GetField("surface", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(canvas)!;
-            assert((XyDataSeries<double, double>)Assert.Single(surface.RenderableSeries).DataSeries);
+            var line = Assert.IsType<FastLineRenderableSeries>(surface.RenderableSeries[0]);
+            assert((XyDataSeries<double, double>)line.DataSeries);
         });
     }
 }

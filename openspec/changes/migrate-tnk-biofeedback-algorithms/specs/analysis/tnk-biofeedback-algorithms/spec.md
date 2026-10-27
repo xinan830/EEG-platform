@@ -48,18 +48,17 @@ History-dependent TNK calculations SHALL declare their reset point, state-update
 
 The IAPF family SHALL return `TNK_CONTEXT_WARMUP` before 30 seconds of reset-anchored data are available, then evaluate exactly the trailing 30-second window only at five-second cadence. A change to this schedule SHALL change the group implementation and dynamic-window-policy identities so results generated under the earlier schedule cannot be reused as current results.
 
-BrainBeat Flat SHALL retain the latest valid per-role aperiodic fit across its one-second frames until a newer valid fit for that role is supplied. Aperiodic fits are refreshed on the declared 30-second/5-second schedule; a not-due, failed, or role-missing fit SHALL NOT erase an earlier valid role fit during the same reset-anchored execution. Flat SHALL report each fit's source range and fit-quality evidence, and SHALL remain unavailable until both Fz and Pz have a valid fit. The fit cache SHALL reset with the Flat module and be included in replay checkpoints.
+BrainBeat Flat SHALL fit each current four-second Fz/Pz PSD independently over 3–30 Hz before calculating the residual spectrum. This fit is independent from the aperiodic child module's 30-second/5-second schedule. Flat SHALL report each fit's current source range and fit-quality evidence, and SHALL remain unavailable if either role's current-window fit fails. Only windows with both valid fits and valid residual powers SHALL advance Flat's independent warm-up and EMA state.
 
-#### Scenario: Compute Flat between aperiodic refreshes
-- **WHEN** aperiodic supplies valid Fz/Pz fits and a later BrainBeat Flat frame occurs before the next aperiodic cadence
-- **THEN** Flat uses the latest valid fits while calculating the current frame's residual PSD
-- **AND** its evidence identifies the actual source range of each fit
+#### Scenario: Compute Flat before the aperiodic module's first scheduled fit
+- **WHEN** a valid four-second BrainBeat Flat window occurs before 30 seconds of reset-anchored data are available
+- **THEN** Flat fits the current Fz/Pz PSD itself and calculates its residual powers
+- **AND** its evidence identifies the current source range of each fit
 - **AND** its EMA warm-up advances only for valid Flat calculations
 
-#### Scenario: Do not cross reset or role boundaries with a cached fit
-- **WHEN** a new module execution starts or one role has never received a valid fit
-- **THEN** no fit from a prior execution or another role is used
-- **AND** Flat remains unavailable until both required roles have valid fit evidence
+#### Scenario: Reject an incomplete current-window fit
+- **WHEN** either Fz or Pz has no valid current-window fit
+- **THEN** Flat returns a structured unavailable result without reusing another window's fit or advancing EMA state
 
 #### Scenario: Request a stateful target window on demand
 - **WHEN** an on-demand cursor targets a window for a stateful TNK algorithm

@@ -104,6 +104,9 @@ class DynamicWindowService:
 
     def _ensure_locked(self, payload: DynamicWindowRequest, *, recovering: DynamicWindowRecord | None = None) -> dict[str, Any]:
         started = time.perf_counter()
+        planning_started = started
+        input_resolution_ms = 0.0
+        window_planning_ms = 0.0
         requested_version = payload.config.get("scientific_version")
         module = self.registry.get_current(payload.algorithm_id)
         if requested_version is not None and requested_version != module.manifest.scientific_version:
@@ -160,7 +163,9 @@ class DynamicWindowService:
             recording = self.recordings.select_analysis_montage(recording, str(montage_snapshot["id"]))
         context = _RecordingAlgorithmContext(self.recordings, recording)
         try:
+            input_resolution_started = time.perf_counter()
             inputs = module.resolve_inputs(context, typed_config)
+            input_resolution_ms = (time.perf_counter() - input_resolution_started) * 1000
             max_cursor_sample = int(round(inputs.duration_s * inputs.sfreq_hz))
             if payload.cursor_sample > max_cursor_sample:
                 raise DynamicWindowCursorInvalidError("cursor sample exceeds recording duration")
@@ -226,9 +231,12 @@ class DynamicWindowService:
                 session_identity,
                 configuration={**config, "_scientific_context": scientific_context},
             )
+            window_planning_started = time.perf_counter()
             plan = capability.plan_window(inputs, typed_config, payload.cursor_sample, session_identity)
+            window_planning_ms = (time.perf_counter() - window_planning_started) * 1000
         finally:
             context.close()
+        planning_ms = (time.perf_counter() - planning_started) * 1000
 
         window = self.repository.ensure_window(
             session.session_id, start_sample=plan.start_sample, end_sample=plan.end_sample,
@@ -256,8 +264,11 @@ class DynamicWindowService:
                 window.window_id, request_id, project_id=payload.project_id,
             ).subscription_id
             self._logger.info(
-                "dynamic_window_cache_hit window_id=%s state=%s elapsed_ms=%.1f",
-                window.window_id, window.state, (time.perf_counter() - started) * 1000,
+                "dynamic_window_cache_hit algorithm_id=%s recording_id=%s request_id=%s window_id=%s target_samples=%s:%s context_samples=%s:%s state=%s admission_ms=%.1f input_resolution_ms=%.1f window_planning_ms=%.1f",
+                identity.algorithm_id, identity.recording_id, request_id, window.window_id,
+                plan.start_sample, plan.end_sample, plan.context_start_sample, plan.context_end_sample,
+                window.state, (time.perf_counter() - started) * 1000,
+                input_resolution_ms, window_planning_ms,
             )
             return self._response(session.session_id, window, plan, request_id, result=result, subscription_id=subscription_id,
                                   scientific_cache_key=self._session_cache_key(session),
@@ -316,11 +327,16 @@ class DynamicWindowService:
                 if attempt.attempt_id not in self._pending:
                     future = self._executor.submit(
                         self._execute, window.window_id, session.session_id, capability,
-                        typed_config, inputs, identity, plan, attempt.attempt_id)
+                        typed_config, inputs, identity, plan, attempt.attempt_id,
+                        attempt_request_id)
                     self._pending[attempt.attempt_id] = future
                     self._logger.info(
-                        "dynamic_window_queued window_id=%s attempt_id=%s state=%s",
-                        window.window_id, attempt.attempt_id, window.state,
+                        "dynamic_window_queued algorithm_id=%s recording_id=%s request_id=%s window_id=%s attempt_id=%s target_samples=%s:%s context_samples=%s:%s state=%s admission_ms=%.1f planning_ms=%.1f input_resolution_ms=%.1f window_planning_ms=%.1f",
+                        identity.algorithm_id, identity.recording_id, attempt_request_id,
+                        window.window_id, attempt.attempt_id, plan.start_sample, plan.end_sample,
+                        plan.context_start_sample, plan.context_end_sample, window.state,
+                        (time.perf_counter() - started) * 1000, planning_ms,
+                        input_resolution_ms, window_planning_ms,
                     )
         return self._response(session.session_id, window, plan, request_id, subscription_id=subscription_id,
                               scientific_cache_key=self._session_cache_key(session),
@@ -380,11 +396,11 @@ class DynamicWindowService:
 
     def _execute(self, window_id: str, session_id: str, capability: Any, config: Any,
                  inputs: Any, identity: DynamicWindowIdentity, plan: DynamicWindowPlan,
-                 attempt_id: str) -> None:
+                 attempt_id: str, request_id: str) -> None:
         try:
             execute_window_job(
                 self.repository, capability, config, inputs, identity, plan,
-                window_id, attempt_id, self._write_artifact,
+                window_id, attempt_id, request_id, self._write_artifact,
                 self._remove_artifact_if_unreferenced, self._stop,
                 manifest_digest=self._artifact_store.manifest_digest,
                 resource_policy=self.resource_policy,

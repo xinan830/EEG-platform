@@ -12,7 +12,83 @@ from app.bootstrap import build_builtin_registry
 from app.services.on_demand_dynamic import DynamicWindowService
 from app.services.recordings import RecordingService
 from app.services.wpf_recording import WpfRecordingError
+import app.services.analysis_montage_snapshots as snapshot_module
 from test_acquisition_analysis_signals import fixture_recording, compatible_average_profile, row
+
+
+def test_snapshot_resolution_cache_tracks_manifest_and_database_identity(tmp_path, monkeypatch):
+    root = tmp_path / "recording"
+    _, manifest = fixture_recording(root)
+    service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
+    recording = service.register_wpf_recording(
+        str(root), signal_mode="acquisition_montage",
+        analysis_montage_profiles=[compatible_average_profile(manifest)],
+    )
+    snapshot = next(item for item in recording.montage_catalogue
+                    if item.get("snapshot_source") == "analysis_configuration_snapshot")
+    snapshots = service._analysis_montage_snapshots
+    snapshots._resolved_views.clear()
+    original_resolve = snapshot_module.read_acquisition_signal_view
+    calls = 0
+
+    def counted_resolve(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_resolve(*args, **kwargs)
+
+    monkeypatch.setattr(snapshot_module, "read_acquisition_signal_view", counted_resolve)
+    first = snapshots.resolve(recording.id, root, snapshot["id"])
+    second = snapshots.resolve(recording.id, root, snapshot["id"])
+    assert calls == 1
+    assert first == second
+
+    (root / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    snapshots.resolve(recording.id, root, snapshot["id"])
+    assert calls == 2
+
+
+def test_registration_rebinds_missing_content_identical_source_before_catalogue(tmp_path):
+    original_root = tmp_path / "old-location"
+    _, manifest = fixture_recording(original_root)
+    profile = compatible_average_profile(manifest)
+    service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
+    original = service.register_wpf_recording(
+        str(original_root), signal_mode="acquisition_montage", analysis_montage_profiles=[profile],
+    )
+    snapshots = tuple(item for item in original.montage_catalogue
+                      if item["snapshot_source"] == "analysis_configuration_snapshot")
+    moved_root = tmp_path / "new-location"
+    original_root.rename(moved_root)
+
+    rebound = service.register_wpf_recording(
+        str(moved_root), signal_mode="acquisition_montage", analysis_montage_profiles=[profile],
+    )
+
+    assert rebound.id == original.id
+    assert tuple(item for item in rebound.montage_catalogue
+                 if item["snapshot_source"] == "analysis_configuration_snapshot") == snapshots
+    assert rebound.stored_name == f"wpf-montage:{moved_root}"
+    reader = service.open_sample_reader(rebound, analysis_montage_id=snapshots[0]["id"])
+    try:
+        assert reader.read(0, 1).shape[0] == 1
+    finally:
+        reader.close()
+
+
+def test_registration_keeps_existing_source_when_content_identical_copy_exists(tmp_path):
+    original_root = tmp_path / "canonical-location"
+    _, manifest = fixture_recording(original_root)
+    copied_root = tmp_path / "duplicate-location"
+    copied_root.mkdir()
+    for source in original_root.iterdir():
+        (copied_root / source.name).write_bytes(source.read_bytes())
+    service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
+    original = service.register_wpf_recording(str(original_root), signal_mode="acquisition_montage")
+
+    duplicate = service.register_wpf_recording(str(copied_root), signal_mode="acquisition_montage")
+
+    assert duplicate.id == original.id
+    assert duplicate.stored_name == f"wpf-montage:{original_root}"
 
 
 @pytest.mark.parametrize("invalid_field", ["device", "configuration_id", "mapping", "reference", "dependency", "revision"])

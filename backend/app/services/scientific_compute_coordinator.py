@@ -17,7 +17,7 @@ from typing import Callable, Literal
 
 
 ComputeLane = Literal["interactive", "batch"]
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("brain_platform.scientific_compute")
 
 
 class ScientificComputeCoordinatorClosed(RuntimeError):

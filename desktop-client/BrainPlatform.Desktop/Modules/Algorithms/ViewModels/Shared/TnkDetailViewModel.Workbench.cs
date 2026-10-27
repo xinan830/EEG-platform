@@ -13,6 +13,8 @@ public sealed partial class TnkDetailViewModel
     private double waveformPosition;
     private bool workbenchActive;
     private bool historyRefreshQueued;
+    private readonly object historyProjectionGate = new();
+    private IReadOnlyList<TnkChildResultDisplay>? pendingHistoryProjection;
     private readonly HashSet<TnkRoleChannelSelection> observedRoles = [];
     private bool hasSelectedTime;
     private string? withheldRunId;
@@ -118,6 +120,7 @@ public sealed partial class TnkDetailViewModel
         DeactivateSidebar();
         workbenchActive = false;
         historyRefreshQueued = false;
+        lock (historyProjectionGate) pendingHistoryProjection = null;
         Catalog.OwnedWindowCompleted -= OnOwnedWindowCompleted;
         Catalog.TnkRoleChannels.CollectionChanged -= OnRolesChanged;
         foreach (var role in observedRoles) role.PropertyChanged -= OnRoleChanged;
@@ -134,8 +137,10 @@ public sealed partial class TnkDetailViewModel
 
         var returned = TnkResultChartProjection.ReadWindow(response, Algorithm.OutputSchema);
         windowHistory.Add(response, returned);
+        var projected = windowHistory.Project(returned, Catalog.SelectedDynamicStepSeconds);
+        lock (historyProjectionGate) pendingHistoryProjection = projected;
         // The event owns trend history only. Rebuild the display projection at
-        // idle so a completed request cannot preempt the 33 ms playback timer.
+        // system idle so a completed request cannot preempt the playback timer.
         if (historyRefreshQueued) return;
         historyRefreshQueued = true;
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
@@ -144,15 +149,22 @@ public sealed partial class TnkDetailViewModel
             historyRefreshQueued = false;
             return;
         }
-        _ = dispatcher.BeginInvoke(() =>
+        _ = dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.SystemIdle, new Action(() =>
         {
-            historyRefreshQueued = false;
+            IReadOnlyList<TnkChildResultDisplay>? next;
+            lock (historyProjectionGate)
+            {
+                next = pendingHistoryProjection;
+                pendingHistoryProjection = null;
+                historyRefreshQueued = false;
+            }
             if (!workbenchActive) return;
-            childResults = null;
+            if (next is null) return;
+            childResults = next;
             RaisePropertyChanged(nameof(ChildResults));
             RefreshSelectedMetric();
             RefreshScoreStates();
-        }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }));
     }
 
     private void OnRolesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs args)

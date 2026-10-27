@@ -88,13 +88,21 @@ class SpectralAnalysisService:
         from app.services.prepared_source_identity import prepared_source_identity
 
         selected_channels = None
-        policy = getattr(execution_context, "preparation_resource_policy", None)
-        if policy is not None and channels:
-            sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
-            all_channel_bytes = sample_count * len(recording.channels) * np.dtype("float64").itemsize * 2
-            if all_channel_bytes > policy.max_preparation_bytes:
-                available = {name.casefold(): name for name in recording.channels}
-                selected_channels = tuple(available[item.casefold()] for item in channels)
+        if getattr(execution_context, "is_on_demand", False) and channels:
+            # A dynamic PSD target only consumes its requested channels. Keep
+            # its cold-start source bounded to that ordered projection; static
+            # analysis still prepares all channels so cross-channel requests
+            # can share one cache entry.
+            available = {name.casefold(): name for name in recording.channels}
+            selected_channels = tuple(available[item.casefold()] for item in channels)
+        elif channels:
+            policy = getattr(execution_context, "preparation_resource_policy", None)
+            if policy is not None:
+                sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
+                all_channel_bytes = sample_count * len(recording.channels) * np.dtype("float64").itemsize * 2
+                if all_channel_bytes > policy.max_preparation_bytes:
+                    available = {name.casefold(): name for name in recording.channels}
+                    selected_channels = tuple(available[item.casefold()] for item in channels)
         identity = prepared_source_identity(self.recordings, recording, low_hz=low_hz,
             high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
             channel_names=selected_channels)
@@ -144,7 +152,13 @@ class SpectralAnalysisService:
                     execution_context=execution_context)
             else:
                 data, sfreq, names, _events = self.recordings.load_data(recording)
-                filtered = self.spectral_gateway.preprocess(np.asarray(data, dtype=float), sfreq,
+                source = np.asarray(data, dtype=float)
+                if selected_channels is not None:
+                    available = {name.casefold(): index for index, name in enumerate(names)}
+                    indexes = [available[name.casefold()] for name in selected_channels]
+                    source = source[:, indexes]
+                    names = [names[index] for index in indexes]
+                filtered = self.spectral_gateway.preprocess(source, sfreq,
                     low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q)
                 cached = PreprocessedRecording(filtered, sfreq, tuple(names))
             if expected_contract is not None:
@@ -312,7 +326,9 @@ class SpectralAnalysisService:
         output_low = float(output_low_hz if output_low_hz is not None else low_hz)
         output_high = float(output_high_hz if output_high_hz is not None else high_hz)
         # Keep a lease throughout both estimates; another worker may evict the LRU entry.
-        cached = self._preprocessed_recording(recording, low_hz, high_hz, notch_hz, execution_context)
+        cached = self._preprocessed_recording(
+            recording, low_hz, high_hz, notch_hz, execution_context, channels=channels,
+        )
         payload = self.load_spectrum(
             recording, start_s=start_s, window_s=window_s, channels=channels,
             low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,

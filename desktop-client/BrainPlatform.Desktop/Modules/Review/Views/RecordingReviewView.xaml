@@ -57,6 +57,9 @@
                 <Border Grid.Row="0" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1" Padding="12,6" Background="#FFFFFF">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <controls:EegToolButton Content="波形浏览" Glyph="&#xE9D9;" ToolTip="浏览连续脑电波形" />
+                        <controls:EegToolButton x:Name="PointLineModeButton" Content="点线模式" Glyph="&#xE91B;"
+                                                Click="OnPointLineModeClick"
+                                                ToolTip="显示真实采样点；缩小视图下采样点过密时自动隐藏圆点" />
                         <controls:EegToolButton Content="标注" Glyph="&#xE70F;" Style="{StaticResource EegActiveToolButtonStyle}"
                                                 Command="{Binding MarkSelectedEventCommand}"
                                                 IsEnabled="{Binding CanEditSelectedEvent}"
@@ -233,7 +236,7 @@
         <views:EegWorkspaceShell.Waveform>
             <shared:AnalysisDockHost IsPanelOpen="{Binding IsPsdAnalysisPanelOpen}" PanelTitle="PSD 分析">
                 <shared:AnalysisDockHost.Waveform>
-                    <review:RecordingReviewSciChartCanvas />
+                    <review:RecordingReviewSciChartCanvas x:Name="ReviewWaveformCanvas" />
                 </shared:AnalysisDockHost.Waveform>
                 <shared:AnalysisDockHost.Panel>
                     <analysis:PsdReviewAnalysisPanel />

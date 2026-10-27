@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-26
+goal: Allow already registered WPF recordings to be registered from a moved
+  directory without stale-path failures.

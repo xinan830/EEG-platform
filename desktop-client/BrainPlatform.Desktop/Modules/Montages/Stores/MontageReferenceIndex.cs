@@ -23,7 +23,8 @@ internal sealed class MontageReferenceIndex
         IEnumerable<string>? roots = null)
     {
         var directory = recordingDirectory is null ? null : NormalizePath(recordingDirectory);
-        if (directory is not null && Recordings.TryGetValue(directory, out var expected) && !expected.SetEquals(ids))
+        if (directory is not null && Recordings.TryGetValue(directory, out var expected) &&
+            expected.Count > 0 && !expected.SetEquals(ids))
             throw new InvalidOperationException("记录导联引用与已登记信息不一致。");
         HistoricalIds.UnionWith(ids);
         ExistingIds.UnionWith(ids);

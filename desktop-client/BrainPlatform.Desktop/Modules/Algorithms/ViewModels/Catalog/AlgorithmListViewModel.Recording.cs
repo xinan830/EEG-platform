@@ -24,6 +24,7 @@ public sealed partial class AlgorithmListViewModel
     private void ScheduleAutomaticRun()
     {
         configurationRevision++;
+        runCoordinator.SupersedeForeground(configurationRevision);
         if (LastRun is { Status: "queued" or "running" } obsoleteRun)
             _ = CancelObsoleteRunAsync(obsoleteRun);
         InvalidateBackgroundFullRunDisplay();

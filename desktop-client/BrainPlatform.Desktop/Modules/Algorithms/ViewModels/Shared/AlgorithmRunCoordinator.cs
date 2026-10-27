@@ -9,6 +9,35 @@ internal sealed class AlgorithmRunCoordinator(IAlgorithmClient client)
     // The backend owns execution lifetime. Do not turn a still-running Run
     // into a false frontend failure because a fixed client timeout elapsed.
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(500);
+    private readonly object foregroundGate = new();
+    private CancellationTokenSource? foregroundLifetime;
+    private string? foregroundRunId;
+    private long foregroundGeneration;
+
+    internal bool CanStartForeground(long generation)
+    {
+        lock (foregroundGate)
+            return foregroundLifetime is null || foregroundGeneration < generation;
+    }
+
+    internal void SupersedeForeground(long generation)
+    {
+        CancellationTokenSource? previous;
+        string? runId;
+        lock (foregroundGate)
+        {
+            if (generation <= foregroundGeneration) return;
+            foregroundGeneration = generation;
+            previous = foregroundLifetime;
+            runId = foregroundRunId;
+            foregroundLifetime = null;
+            foregroundRunId = null;
+        }
+
+        previous?.Cancel();
+        previous?.Dispose();
+        if (runId is not null) _ = CancelSupersededRunAsync(runId);
+    }
 
     internal async Task<RegisteredRecording> RegisterRecordingAsync(
         string sourceDirectory,
@@ -23,11 +52,66 @@ internal sealed class AlgorithmRunCoordinator(IAlgorithmClient client)
     internal async Task<AnalysisRunResponse> CreateRunAndWaitAsync(
         AnalysisRunRequest request,
         Action<AnalysisRunResponse> onStatusChanged,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long generation = 0,
+        bool foreground = true)
     {
-        var run = await client.CreateRunAsync(request, cancellationToken);
-        onStatusChanged(run);
-        return await ObserveRunAndWaitAsync(run, onStatusChanged, cancellationToken);
+        if (!foreground)
+        {
+            var backgroundRun = await client.CreateRunAsync(request, cancellationToken);
+            onStatusChanged(backgroundRun);
+            return await ObserveRunAndWaitAsync(backgroundRun, onStatusChanged, cancellationToken);
+        }
+        var lifetime = new CancellationTokenSource();
+        CancellationTokenSource? previous;
+        lock (foregroundGate)
+        {
+            previous = foregroundLifetime;
+            foregroundLifetime = lifetime;
+            foregroundRunId = null;
+            foregroundGeneration = Math.Max(foregroundGeneration, generation);
+        }
+        previous?.Cancel();
+        previous?.Dispose();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
+        try
+        {
+            // Let creation return its durable Run ID even after supersession;
+            // cancelling this HTTP request could orphan a server-side Run.
+            var run = await client.CreateRunAsync(request, cancellationToken);
+            var isCurrent = false;
+            lock (foregroundGate)
+            {
+                isCurrent = ReferenceEquals(foregroundLifetime, lifetime) && foregroundGeneration == generation;
+                if (isCurrent) foregroundRunId = run.RunId;
+            }
+            if (!isCurrent)
+            {
+                _ = CancelSupersededRunAsync(run.RunId);
+                throw new OperationCanceledException("Run 已被更新的分析配置取代。", linked.Token);
+            }
+            onStatusChanged(run);
+            return await ObserveRunAndWaitAsync(run, onStatusChanged, linked.Token);
+        }
+        finally
+        {
+            lock (foregroundGate)
+            {
+                if (ReferenceEquals(foregroundLifetime, lifetime))
+                {
+                    foregroundLifetime = null;
+                    foregroundRunId = null;
+                }
+            }
+            lifetime.Dispose();
+        }
+    }
+
+    private async Task CancelSupersededRunAsync(string runId)
+    {
+        try { await client.CancelRunAsync(runId, CancellationToken.None); }
+        catch (AlgorithmApiException error) when (error.Code == "RUN_NOT_CANCELLABLE") { }
+        catch { }
     }
 
     internal async Task<AnalysisRunResponse> EnsureRunAndWaitAsync(

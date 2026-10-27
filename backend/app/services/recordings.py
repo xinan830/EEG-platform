@@ -29,6 +29,8 @@ class RecordingService:
         self._filter_checkpoints = FilterCheckpointCache()
         self._analysis_preprocess_cache = AnalysisPreprocessCache()
         self._spectral_analysis = SpectralAnalysisService(self, self._analysis_preprocess_cache)
+        from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
+        self._analysis_montage_snapshots = AnalysisMontageSnapshots(self.database_path)
         ensure_storage_directories()
         self._initialize_database()
 
@@ -101,14 +103,12 @@ class RecordingService:
             raise ValueError("analysis montage snapshots require acquisition_montage mode")
         prepared_snapshots = None
         if analysis_montage_profiles:
-            from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
             serialized = [json.dumps(profile, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
                           for profile in analysis_montage_profiles]
-            prepared_snapshots = AnalysisMontageSnapshots(self.database_path).prepare(source_directory, serialized)
+            prepared_snapshots = self._analysis_montage_snapshots.prepare(source_directory, serialized)
         registered = self._register_wpf_source(source_directory, signal_mode=signal_mode)
         if prepared_snapshots:
-            from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
-            AnalysisMontageSnapshots(self.database_path).save(registered.id, prepared_snapshots)
+            self._analysis_montage_snapshots.save(registered.id, prepared_snapshots)
             return self.require_recording(registered.id)
         return registered
 
@@ -130,10 +130,24 @@ class RecordingService:
             # Path identity keeps registration idempotent across hash-version
             # repairs, while the content hash still deduplicates moved copies.
             existing = connection.execute(
-                "SELECT id FROM recordings WHERE (source_sha256 = ? AND import_version = ?) OR stored_name = ?",
+                "SELECT id, stored_name, source_sha256, import_version FROM recordings "
+                "WHERE (source_sha256 = ? AND import_version = ?) OR stored_name = ?",
                 (facts.source_sha256, import_version, stored_name),
             ).fetchone()
             if existing is not None:
+                existing_name = str(existing["stored_name"])
+                existing_directory = existing_name.partition(":")[2]
+                if (existing_name.startswith(("wpf:", "wpf-montage:"))
+                        and existing["source_sha256"] == facts.source_sha256
+                        and existing["import_version"] == import_version
+                        and not Path(existing_directory).is_dir()):
+                    # Rebind only a content-identical recording with a stale
+                    # source path; snapshots remain attached to the same id.
+                    connection.execute(
+                        "UPDATE recordings SET stored_name = ?, original_name = ? WHERE id = ?",
+                        (stored_name, facts.root.name, existing["id"]),
+                    )
+                    connection.commit()
                 return self.require_recording(str(existing["id"]))
             try:
                 connection.execute(
@@ -181,8 +195,7 @@ class RecordingService:
                 catalogue = historical_montage_catalogue(directory)
             except Exception:
                 catalogue = ()
-            from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
-            snapshots = AnalysisMontageSnapshots(self.database_path).catalogue(summary.id, directory)
+            snapshots = self._analysis_montage_snapshots.catalogue(summary.id, directory)
             known_ids = {entry["id"] for entry in catalogue}
             combined = catalogue + tuple(entry for entry in snapshots if entry["id"] not in known_ids)
             return RecordingSummary(**{**summary.__dict__, "montage_catalogue": combined})
@@ -234,9 +247,8 @@ class RecordingService:
         if recording.extension == ".wpf":
             if recording.stored_name.startswith("wpf-montage:"):
                 from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader
-                from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
                 directory = recording.stored_name.removeprefix("wpf-montage:")
-                view = AnalysisMontageSnapshots(self.database_path).resolve(
+                view = self._analysis_montage_snapshots.resolve(
                     recording.id, directory, analysis_montage_id or recording.selected_montage_id,
                 )
                 return AcquisitionMontageSampleReader(WpfSampleReader(directory), view)
@@ -248,10 +260,8 @@ class RecordingService:
         """Validate a registered montage snapshot and bind its output channels."""
         if not recording.stored_name.startswith("wpf-montage:"):
             raise ValueError("ANALYSIS_MONTAGE_UNSUPPORTED: 该记录不支持采集导联投影")
-        from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
-
         directory = recording.stored_name.removeprefix("wpf-montage:")
-        view = AnalysisMontageSnapshots(self.database_path).resolve(recording.id, directory, montage_id)
+        view = self._analysis_montage_snapshots.resolve(recording.id, directory, montage_id)
         return RecordingSummary(**{
             **recording.__dict__,
             "channels": tuple(signal.name for signal in view.signals),
@@ -262,8 +272,7 @@ class RecordingService:
         if not hasattr(recording, "stored_name"):
             recording = self.require_recording(recording.id)
         if recording.stored_name.startswith("wpf-montage:"):
-            from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
-            return AnalysisMontageSnapshots(self.database_path).resolve(
+            return self._analysis_montage_snapshots.resolve(
                 recording.id, recording.stored_name.removeprefix("wpf-montage:"), recording.selected_montage_id,
             ).provenance
         return {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}

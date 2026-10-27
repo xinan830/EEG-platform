@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Brainbeat;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
 using SciChart.Charting.ChartModifiers;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
@@ -18,6 +19,7 @@ public partial class BrainbeatTrendChart : UserControl
     private readonly NumericAxis xAxis = new() { AxisTitle = "记录时间（s）", AutoRange = AutoRange.Never, DrawMajorBands = false, DrawMinorGridLines = false, FontSize = 12 };
     private readonly NumericAxis yAxis = new() { AxisAlignment = AxisAlignment.Left, AxisTitle = "Brainbeat（ratio）", AutoRange = AutoRange.Always, GrowBy = new DoubleRange(0.12, 0.12), DrawMajorBands = false, DrawMinorGridLines = false, FontSize = 12 };
     private readonly XyDataSeries<double, double> values = new() { SeriesName = "Brainbeat（ratio）" };
+    private readonly IncrementalTrendSeries<BrainbeatPoint> trend;
 
     public static readonly DependencyProperty PointsProperty = DependencyProperty.Register(nameof(Points), typeof(IEnumerable), typeof(BrainbeatTrendChart), new PropertyMetadata(null, OnDataChanged));
     public static readonly DependencyProperty StartSecondsProperty = DependencyProperty.Register(nameof(StartSeconds), typeof(double), typeof(BrainbeatTrendChart), new PropertyMetadata(0d, OnDataChanged));
@@ -29,6 +31,8 @@ public partial class BrainbeatTrendChart : UserControl
     public BrainbeatTrendChart()
     {
         InitializeComponent();
+        trend = new(values, point => (point.TimeSeconds,
+            point.Value is double value && point.State == "Complete" ? value : double.NaN));
         surface.Background = Brushes.White;
         surface.ShowLicensingWarnings = false;
         surface.XAxes.Add(xAxis); surface.YAxes.Add(yAxis);
@@ -42,9 +46,8 @@ public partial class BrainbeatTrendChart : UserControl
     private static void OnDataChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) => ((BrainbeatTrendChart)sender).UpdateSeries();
     private void UpdateSeries()
     {
-        values.Clear();
         var points = Points?.Cast<BrainbeatPoint>().ToArray() ?? [];
-        foreach (var point in points) values.Append(point.TimeSeconds, point.Value is double value && point.State == "Complete" ? value : double.NaN);
+        trend.Update(points);
         xAxis.VisibleRange = new DoubleRange(StartSeconds, Math.Max(StartSeconds + 1, EndSeconds));
         EmptyState.Visibility = points.Any(point => point.Value is not null && point.State == "Complete") ? Visibility.Collapsed : Visibility.Visible;
     }

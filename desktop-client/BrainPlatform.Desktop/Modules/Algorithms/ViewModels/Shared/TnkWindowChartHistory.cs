@@ -8,8 +8,16 @@ internal sealed class TnkWindowChartHistory
     internal const int MaximumWindows = 600;
     private string? sessionId;
     private readonly SortedDictionary<double, IReadOnlyList<TnkChildResultDisplay>> windows = [];
+    private readonly object gate = new();
 
-    internal void Clear() { sessionId = null; windows.Clear(); }
+    internal void Clear()
+    {
+        lock (gate)
+        {
+            sessionId = null;
+            windows.Clear();
+        }
+    }
 
     internal IReadOnlyList<TnkChildResultDisplay> Read(DynamicWindowResponse window,
         IReadOnlyList<TnkChildResultDisplay> current, double cadenceSeconds)
@@ -20,26 +28,35 @@ internal sealed class TnkWindowChartHistory
 
     internal void Add(DynamicWindowResponse window, IReadOnlyList<TnkChildResultDisplay> result)
     {
-        if (sessionId != window.SessionId) { Clear(); sessionId = window.SessionId; }
-        if (window.Range is not { } range || !double.IsFinite(range.EndSeconds)) return;
-        if (window.State is not ("ready" or "insufficient_data" or "rejected" or "unavailable" or "failed")) return;
-        windows[range.EndSeconds] = result;
-        while (windows.Count > MaximumWindows) windows.Remove(windows.First().Key);
+        lock (gate)
+        {
+            if (sessionId != window.SessionId)
+            {
+                sessionId = window.SessionId;
+                windows.Clear();
+            }
+            if (window.Range is not { } range || !double.IsFinite(range.EndSeconds)) return;
+            if (window.State is not ("ready" or "insufficient_data" or "rejected" or "unavailable" or "failed")) return;
+            windows[range.EndSeconds] = result;
+            while (windows.Count > MaximumWindows) windows.Remove(windows.First().Key);
+        }
     }
 
     internal IReadOnlyList<TnkChildResultDisplay> Project(
         IReadOnlyList<TnkChildResultDisplay> current, double cadenceSeconds)
     {
         cadenceSeconds = double.IsFinite(cadenceSeconds) && cadenceSeconds > 0 ? cadenceSeconds : 1;
+        KeyValuePair<double, IReadOnlyList<TnkChildResultDisplay>>[] snapshot;
+        lock (gate) snapshot = windows.ToArray();
         return current.Select(child =>
         {
-            var definitions = windows.Values.SelectMany(cards => cards.Where(card => card.AlgorithmId == child.AlgorithmId))
+            var definitions = snapshot.SelectMany(item => item.Value.Where(card => card.AlgorithmId == child.AlgorithmId))
                 .SelectMany(card => card.Chart.Series).DistinctBy(series => series.Name).ToArray();
             var series = definitions.Select(definition =>
             {
                 var points = new SortedDictionary<double, TnkChartPoint>();
                 double? previous = null;
-                foreach (var (end, cards) in windows)
+                foreach (var (end, cards) in snapshot)
                 {
                     if (previous is double last && end - last > cadenceSeconds * 1.5)
                         points[last + cadenceSeconds] = new(last + cadenceSeconds, null, "未计算区间");

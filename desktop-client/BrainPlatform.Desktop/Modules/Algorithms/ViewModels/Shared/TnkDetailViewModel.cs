@@ -71,8 +71,13 @@ public sealed partial class TnkDetailViewModel : AlgorithmSpecificDetailViewMode
             nameof(AlgorithmListViewModel.LastRun) or nameof(AlgorithmListViewModel.DisplayedAnalysisWindow) or
             nameof(AlgorithmListViewModel.IsOnDemandAnalysis) or nameof(AlgorithmListViewModel.BackgroundFullRun))
         {
-            childResults = null;
-            RaisePropertyChanged(nameof(ChildResults));
+            var retainProjectedHistory = args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow)
+                && Catalog.IsOnDemandAnalysis && workbenchActive && childResults is not null;
+            if (!retainProjectedHistory)
+            {
+                childResults = null;
+                RaisePropertyChanged(nameof(ChildResults));
+            }
             RaisePropertyChanged(nameof(ResultContextText));
             RefreshSelectedMetric();
             summaryTarget = "";

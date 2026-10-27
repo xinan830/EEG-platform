@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Algorithms.Diagnostics;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 
@@ -116,7 +117,54 @@ public sealed class DynamicWindowTargetCoordinator
             {
                 var work = new Work(key, request, generation);
                 sequentialPending.Enqueue(work);
+                AlgorithmWindowPerformanceDiagnostics.RecordQueueDepth(
+                    request, "enqueued", sequentialPending.Count,
+                    active?.Request.CursorSample,
+                    sequentialPending.LastOrDefault()?.Request.CursorSample);
                 result = work.Result.Task;
+                if (drained is null)
+                {
+                    drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _ = Task.Run(PumpAsync);
+                }
+            }
+        }
+        return result.WaitAsync(waiterToken);
+    }
+
+    /// <summary>
+    /// Queues a playback target while retaining only the newest target that has
+    /// not started. The active observation is allowed to finish so its result
+    /// can still enter bounded history; obsolete queued targets are cancelled.
+    /// </summary>
+    public Task<DynamicWindowResponse> LoadLatestAsync(DynamicWindowRequest request, CancellationToken waiterToken)
+    {
+        waiterToken.ThrowIfCancellationRequested();
+        Task<DynamicWindowResponse> result;
+        lock (gate)
+        {
+            var context = ContextKey(request);
+            if (contextKey != context)
+            {
+                ResetOwnedWork();
+                contextKey = context;
+            }
+            var key = $"{context}|{request.CursorSample}|{request.Retry}|{request.RetryOfWindowId}";
+            if (cached is { } hit && hit.Key == key)
+                result = Task.FromResult(hit.Response);
+            else if (active is { } current && current.Key == key && current.Generation == generation)
+                result = current.Result.Task;
+            else if (pending is { } next && next.Key == key)
+                result = next.Result.Task;
+            else
+            {
+                DropPending();
+                DropSequentialPending();
+                pending = new Work(key, request, generation);
+                AlgorithmWindowPerformanceDiagnostics.RecordQueueDepth(
+                    request, "latest_enqueued", sequentialPending.Count,
+                    active?.Request.CursorSample, request.CursorSample);
+                result = pending.Result.Task;
                 if (drained is null)
                 {
                     drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -153,6 +201,10 @@ public sealed class DynamicWindowTargetCoordinator
                 work = pending ?? sequentialPending.Dequeue();
                 pending = null;
                 active = work;
+                AlgorithmWindowPerformanceDiagnostics.RecordQueueDepth(
+                    work.Request, "started", sequentialPending.Count,
+                    work.Request.CursorSample,
+                    sequentialPending.LastOrDefault()?.Request.CursorSample);
             }
             var started = Stopwatch.GetTimestamp();
             try

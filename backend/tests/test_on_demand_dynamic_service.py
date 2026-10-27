@@ -46,7 +46,8 @@ class _RecordingStub:
         }
 
 
-def test_service_ensures_and_publishes_one_psd_window(tmp_path):
+def test_service_ensures_and_publishes_one_psd_window(tmp_path, caplog):
+    caplog.set_level("INFO", logger="brain_platform")
     database = tmp_path / "catalog.sqlite3"
     migrate_database(database)
     with sqlite3.connect(database) as connection:
@@ -75,6 +76,36 @@ def test_service_ensures_and_publishes_one_psd_window(tmp_path):
         assert current["state"] == "ready"
         assert current["result"]["sha256"]
         assert current["result"]["arrays"]["psd"]
+        messages = [record.getMessage() for record in caplog.records]
+        assert any(
+            "dynamic_window_queued" in message
+            and "algorithm_id=psd" in message
+            and "recording_id=recording" in message
+            and "request_id=request" in message
+            and "target_samples=0:800" in message
+            and "context_samples=0:800" in message
+            and "input_resolution_ms=" in message
+            for message in messages
+        )
+        assert any("scientific_compute_acquired" in message and "waited_ms=" in message for message in messages)
+        assert any(
+            "dynamic_window_source_prepared" in message
+            and "algorithm_id=psd" in message
+            and "recording_id=recording" in message
+            and "request_id=request" in message
+            and "target_samples=0:800" in message
+            and "context_samples=0:800" in message
+            and "compute_slot_wait_ms=" in message
+            for message in messages
+        )
+        assert any(
+            "dynamic_window_ready" in message
+            and "algorithm_id=psd" in message
+            and "recording_id=recording" in message
+            and "request_id=request" in message
+            and "artifact_write_ms=" in message
+            for message in messages
+        )
         validated = DynamicWindowResponse.model_validate(current)
         assert validated.state == "ready"
         artifact_id = service.repository.get_window(response["window_id"]).result_artifact_id

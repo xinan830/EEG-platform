@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
+from copy import copy, deepcopy
+from dataclasses import is_dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -70,7 +71,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
     on_demand_default_enabled = True
     # v2 separates the IAPF family's 30 s / 5 s schedule from the group's
     # one-second 4 s metric timeline; cached v1 timelines are not equivalent.
-    window_policy_version = "tnk-biofeedback-dynamic-window-v2"
+    window_policy_version = "tnk-biofeedback-dynamic-window-v3-flat-current-fit"
 
     def __init__(self, children: tuple[Any, ...]) -> None:
         super().__init__()
@@ -84,7 +85,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             algorithm_id="tnk_biofeedback", display_name_zh="TNK 脑指标",
             abbreviation="TNK", purpose_zh="统一来源通道映射的 TNK 脑指标组",
             scientific_version="tnk-biofeedback-group-v1", is_current_version=True,
-            implementation_identity="tnk-biofeedback-group-coordinator-v2-iapf-rolling-cadence",
+            implementation_identity="tnk-biofeedback-group-coordinator-v3-flat-current-window-fit",
             supported_modes=["dynamic"],
             dynamic_policy=DynamicAnalysisPolicy(
                 minimum_window_s=4.0,
@@ -222,22 +223,75 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
     def _child_inputs_and_window(
         self, inputs: Any, child: Any, child_config: Any, start_s: float, end_s: float,
         spectrum_cache: dict[tuple[Any, ...], Any], diagnostics: dict[str, int] | None = None,
+        shared_spectra: dict[tuple[int, int], Any] | None = None,
     ):
         child_inputs = child.resolve_inputs(inputs.payload, child_config)
         channels = tuple(channel.casefold() for channel in child.requested_channels(child_config))
-        cache_key = (
-            int(round(start_s * inputs.sfreq_hz)), int(round(end_s * inputs.sfreq_hz)), channels,
-        )
-        spectrum = spectrum_cache.get(cache_key)
-        if spectrum is None:
-            spectrum = child.load_window_spectrum(child_inputs, child_config, start_s, end_s)
-            spectrum_cache[cache_key] = spectrum
+        start_sample = int(round(start_s * inputs.sfreq_hz))
+        end_sample = int(round(end_s * inputs.sfreq_hz))
+        range_key = (start_sample, end_sample)
+        shared = (shared_spectra or {}).get(range_key)
+        if shared is not None:
+            shared_channels, shared_value = shared
+            if isinstance(shared_value, SpectralQualityGateError):
+                raise shared_value
+            shared_spectrum = shared_value
+            indexes = [shared_channels.index(channel) for channel in channels]
+            psd = shared_spectrum.psd[indexes]
+            if is_dataclass(shared_spectrum):
+                spectrum = replace(shared_spectrum, psd=psd)
+            else:
+                # Test and legacy recording adapters may return a mutable
+                # namespace instead of the scientific dataclass.
+                spectrum = copy(shared_spectrum)
+                spectrum.psd = psd
             if diagnostics is not None:
-                diagnostics["spectrum_loads"] = diagnostics.get("spectrum_loads", 0) + 1
-        elif diagnostics is not None:
-            diagnostics["spectrum_cache_hits"] = diagnostics.get("spectrum_cache_hits", 0) + 1
+                diagnostics["spectrum_cache_hits"] = diagnostics.get("spectrum_cache_hits", 0) + 1
+        else:
+            cache_key = (start_sample, end_sample, channels)
+            spectrum = spectrum_cache.get(cache_key)
+            if spectrum is None:
+                spectrum = child.load_window_spectrum(child_inputs, child_config, start_s, end_s)
+                spectrum_cache[cache_key] = spectrum
+                if diagnostics is not None:
+                    diagnostics["spectrum_loads"] = diagnostics.get("spectrum_loads", 0) + 1
+            elif diagnostics is not None:
+                diagnostics["spectrum_cache_hits"] = diagnostics.get("spectrum_cache_hits", 0) + 1
         window = child._window(child_inputs, child_config, start_s, end_s, spectrum=spectrum)
         return child_inputs, window
+
+    def _prewarm_shared_spectra(
+        self, inputs: Any, config: TnkGroupConfig,
+        ranges: set[tuple[float, float]], diagnostics: dict[str, int] | None = None,
+    ) -> dict[tuple[int, int], Any]:
+        """Load one mapped-channel spectrum per time range for all children.
+
+        TNK children use different role subsets, but they share the same
+        1-30 Hz source contract. Loading the five mapped channels once avoids
+        evicting separate one-, two-, and five-channel preprocessing entries
+        from the small process cache on every child calculation.
+        """
+        shared: dict[tuple[int, int], Any] = {}
+        channels = tuple(config.role_mapping[role] for role in _ROLES)
+        for start_s, end_s in sorted(ranges):
+            key = (
+                int(round(start_s * inputs.sfreq_hz)),
+                int(round(end_s * inputs.sfreq_hz)),
+            )
+            try:
+                spectrum = inputs.payload.load_spectrum(
+                    start_s=start_s, window_s=end_s - start_s,
+                    channels=list(channels), filter_low_hz=1.0,
+                    filter_high_hz=30.0, output_low_hz=1.0,
+                    output_high_hz=30.0,
+                )
+            except SpectralQualityGateError as exc:
+                shared[key] = (tuple(channel.casefold() for channel in channels), exc)
+                continue
+            shared[key] = (tuple(channel.casefold() for channel in channels), spectrum)
+            if diagnostics is not None:
+                diagnostics["spectrum_loads"] = diagnostics.get("spectrum_loads", 0) + 1
+        return shared
 
     def _fresh_children(self) -> tuple[Any, ...]:
         """Give each execution isolated state so concurrent strategies cannot cross-contaminate."""
@@ -256,6 +310,14 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                 if hasattr(child.module, "reset"):
                     child.module.reset()
         spectrum_cache: dict[tuple[Any, ...], Any] = {}
+        shared_spectra: dict[tuple[int, int], Any] = {}
+        if dynamic_frame:
+            ranges: set[tuple[float, float]] = set()
+            for child in active_children:
+                child_range = self._dynamic_child_range(child.manifest.algorithm_id, config, start_s, end_s)
+                if child_range is not None:
+                    ranges.add(child_range)
+            shared_spectra = self._prewarm_shared_spectra(inputs, config, ranges, diagnostics)
         for child in active_children:
             child_id = child.manifest.algorithm_id
             child_range = self._dynamic_child_range(child_id, config, start_s, end_s) if dynamic_frame else (start_s, end_s)
@@ -277,7 +339,8 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                 child_config = self._child_config(child, config, child_start_s, child_end_s, primary_role=role)
                 try:
                     child_inputs, window = self._child_inputs_and_window(
-                        inputs, child, child_config, child_start_s, child_end_s, spectrum_cache, diagnostics,
+                    inputs, child, child_config, child_start_s, child_end_s, spectrum_cache, diagnostics,
+                    shared_spectra,
                     )
                 except SpectralQualityGateError as exc:
                     child_rows.append(self._quality_rejected_result(
@@ -423,6 +486,8 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
         qualities = [row.quality for rows in results.values() for row in rows]
         if qualities and all(value == "clean" for value in qualities):
             return "clean"
+        if "gate_failed" in qualities:
+            return "partial"
         if qualities and all(value in {"gate_failed", "unavailable", "insufficient_data"} for value in qualities):
             return "unavailable"
         return "partial"

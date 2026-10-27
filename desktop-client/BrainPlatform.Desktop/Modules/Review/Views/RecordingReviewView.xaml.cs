@@ -131,6 +131,15 @@ public partial class RecordingReviewView : UserControl
 
     private void OnPlaybackSpeedClick(object sender, RoutedEventArgs e) => ViewModel?.CyclePlaybackSpeed();
 
+    private void OnPointLineModeClick(object sender, RoutedEventArgs e)
+    {
+        ReviewWaveformCanvas.IsPointLineModeEnabled = !ReviewWaveformCanvas.IsPointLineModeEnabled;
+        if (ReviewWaveformCanvas.IsPointLineModeEnabled)
+            PointLineModeButton.Style = (Style)FindResource("EegActiveToolButtonStyle");
+        else
+            PointLineModeButton.ClearValue(StyleProperty);
+    }
+
     private async void OnNavigateClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is null || sender is not Button { Tag: string tag })

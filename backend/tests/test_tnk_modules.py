@@ -102,10 +102,23 @@ def test_faa_requires_complete_segment_and_clean_epoch_count():
     assert complete.value == pytest.approx(0.0)
 
 
-def test_brainbeat_flat_requires_its_own_fit_and_composite_keeps_degraded_evidence():
+def test_brainbeat_flat_requires_current_fit_and_composite_keeps_degraded_evidence():
     flat = BrainbeatFlatModule()
     config = StatefulConfig(start_sample=0, end_sample=400, sfreq_hz=100)
-    missing = flat.compute(spectral_window(roles=("Fz", "Pz")), config)
+    fitted_window = spectral_window(roles=("Fz", "Pz"))
+    fitted_window.psd_by_role = {
+        role: np.maximum(fitted_window.frequencies_hz, 1.0) ** -1.5
+        + 5.0 * np.exp(-0.5 * ((fitted_window.frequencies_hz - 10) / 0.8) ** 2)
+        for role in ("Fz", "Pz")
+    }
+    fitted = flat.compute(fitted_window, config)
+    assert fitted.failure.code == "TNK_WARMUP"
+    fits = fitted.evidence["extensions"]["tnk_evidence"]["provenance"]["aperiodic_fit_by_role"]
+    assert set(fits) == {"Fz", "Pz"}
+    assert all(fit["fit_start_s"] == 0.0 and fit["fit_end_s"] == 4.0 for fit in fits.values())
+    invalid_window = spectral_window(roles=("Fz", "Pz"))
+    invalid_window.psd_by_role = {role: np.zeros_like(invalid_window.frequencies_hz) for role in ("Fz", "Pz")}
+    missing = flat.compute(invalid_window, config)
     assert missing.failure.code == "TNK_FIT_INVALID"
     composite = CompositeMeditationModule()
     window = spectral_window(roles=("dependencies",), provenance={

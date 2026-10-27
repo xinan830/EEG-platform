@@ -19,6 +19,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     private readonly SciChartSurface surface = new();
     private readonly NumericAxis xAxis = new();
     private readonly RecordingTimeLabelProvider recordingTimeLabels = new();
+    private readonly ReviewSampleMarkerLayer sampleMarkerLayer;
     private readonly WallClockSecondTickProvider wallClockTicks = new();
     private readonly NumericAxis yAxis = new();
     private readonly Grid labels = new();
@@ -50,10 +51,23 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     private double renderedPlotHeight;
     private double renderedSensitivity;
     private double renderedMillimetersPerDip;
+    private bool isPointLineModeEnabled;
+
+    public bool IsPointLineModeEnabled
+    {
+        get => isPointLineModeEnabled;
+        set
+        {
+            if (isPointLineModeEnabled == value) return;
+            isPointLineModeEnabled = value;
+            RefreshSampleMarkers(renderedFrame, DataContext as RecordingReviewViewModel);
+        }
+    }
 
     public RecordingReviewSciChartCanvas()
     {
         ConfigureSurface();
+        sampleMarkerLayer = new ReviewSampleMarkerLayer(surface);
         eventMarkers = new ReviewEventMarkerLayer(surface, chartHost);
         var layout = rootLayout;
         labels.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -67,6 +81,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             var viewModel = DataContext as RecordingReviewViewModel;
             viewModel?.UpdateViewportWidth(chartHost.ActualWidth);
             ApplyFrame(viewModel?.CurrentFrame, viewModel);
+            RefreshSampleMarkers(renderedFrame, viewModel);
         };
         Grid.SetColumn(chartHost, 2);
         chartHost.Margin = new Thickness(0);
@@ -202,6 +217,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             UpdateVisibleRange(viewModel);
             UpdatePlaybackCursor(viewModel);
             eventMarkers.Update(viewModel);
+            RefreshSampleMarkers(renderedFrame, viewModel);
             // Playback moves the axis every render tick. Do not cancel and
             // restart an optional display-level read for each tick; the
             // bounded source frame remains the authoritative smooth path.
@@ -263,6 +279,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             renderedMillimetersPerDip = screenScale.MillimetersPerDipY;
         }
 
+        RefreshSampleMarkers(frame, viewModel);
         UpdatePlaybackCursor(viewModel);
         eventMarkers.Rebuild(viewModel);
         if (renderedDisplayFrame is { } display &&
@@ -371,14 +388,23 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         }
     }
 
+    private void RefreshSampleMarkers(RecordingReviewFrame? frame, RecordingReviewViewModel? viewModel)
+    {
+        sampleMarkerLayer.Refresh(
+            frame, viewModel, xAxis.VisibleRange as DoubleRange,
+            WaveformPlotLayout.GetPlotArea(surface), screenScale, IsPointLineModeEnabled);
+    }
+
     private void EnsureTraceSeries(IReadOnlyList<string> names, IReadOnlyList<string>? colors)
     {
         if (activeLabels.SequenceEqual(names))
         {
             for (var index = 0; index < names.Count; index++)
             {
-                surface.RenderableSeries[index].Stroke = WaveformTraceColors.ToColor(colors?.ElementAtOrDefault(index), index);
+                var traceColor = WaveformTraceColors.ToColor(colors?.ElementAtOrDefault(index), index);
+                traceSeries[index].LineSeries.Stroke = traceColor;
             }
+            sampleMarkerLayer.UpdateColors(names, colors);
             return;
         }
 
@@ -391,14 +417,15 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         {
             var data = new XyDataSeries<double, double>();
             var traceColor = WaveformTraceColors.ToColor(colors?.ElementAtOrDefault(index), index);
-            surface.RenderableSeries.Add(new FastLineRenderableSeries
+            var lineSeries = new FastLineRenderableSeries
             {
                 DataSeries = data,
                 Stroke = traceColor,
                 StrokeThickness = 1,
                 DrawNaNAs = LineDrawMode.Gaps,
-            });
-            traceSeries.Add(new TraceSeries(data));
+            };
+            surface.RenderableSeries.Add(lineSeries);
+            traceSeries.Add(new TraceSeries(data, lineSeries));
             labels.RowDefinitions.Add(new RowDefinition());
             var label = new TextBlock
             {
@@ -414,6 +441,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             Grid.SetRow(label, index);
             labels.Children.Add(label);
         }
+        sampleMarkerLayer.EnsureSeries(names, colors);
     }
 
     private void UpdateSeries(TraceSeries series, RecordingReviewFrame frame, int traceIndex, int traceCount)
@@ -499,6 +527,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
     private void ClearSeries()
     {
+        sampleMarkerLayer.Clear();
         foreach (var series in traceSeries)
         {
             series.Data.Clear();
@@ -510,5 +539,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         WaveformPlotLayout.SyncLabelPlotArea(surface, labels, ref lastLabelPlotMargin);
     }
 
-    private sealed record TraceSeries(XyDataSeries<double, double> Data);
+    private sealed record TraceSeries(
+        XyDataSeries<double, double> Data,
+        FastLineRenderableSeries LineSeries);
 }

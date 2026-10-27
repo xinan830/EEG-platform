@@ -149,25 +149,23 @@ def test_iapf_uses_its_own_30_second_warmup_and_five_second_cadence():
     assert group._dynamic_child_range("tnk_iapf", config, 31.0, 35.0) == (5.0, 35.0)
 
 
-def test_brainbeat_flat_reuses_latest_valid_fit_between_aperiodic_updates():
+def test_brainbeat_flat_fits_its_current_window_before_independent_aperiodic_schedule():
     group = _group()
-    config = _config("dynamic").model_copy(update={"end_s": 40.0})
+    config = _config("dynamic").model_copy(update={"end_s": 12.0})
     recording = SyntheticRecording()
-    recording.duration_s = 40.0
     result = group.execute_dynamic(group.resolve_inputs(recording, config), config)
     points = result.evidence["extensions"]["tnk_evidence"]["points"]
     flat_results = [point["extensions"]["tnk_evidence"]["children"]["tnk_brainbeat_flat"][0]
                     for point in points]
-    computed = [row for row in flat_results if row["evidence"].get("extensions", {})
-                .get("tnk_evidence", {}).get("state") in {"warmup", "ready"}]
-
-    assert computed
-    ready = [row for row in computed if row["value"] is not None]
-    assert ready
-    fit_provenance = ready[-1]["evidence"]["extensions"]["tnk_evidence"]["provenance"]["aperiodic_fit_by_role"]
-    assert set(fit_provenance) == {"Fz", "Pz"}
-    assert all(fit["fit_end_s"] <= ready[-1]["actual_range"]["end_s"] for fit in fit_provenance.values())
-    assert any(fit["fit_end_s"] < ready[-1]["actual_range"]["end_s"] for fit in fit_provenance.values())
+    flat_fit_rows = [row for row in flat_results if row["evidence"].get("extensions", {})
+                     .get("tnk_evidence", {}).get("provenance", {}).get("aperiodic_fit_by_role")]
+    assert flat_fit_rows
+    assert all(row["actual_range"]["end_s"] < 30.0 for row in flat_fit_rows)
+    first_fit = flat_fit_rows[0]["evidence"]["extensions"]["tnk_evidence"]["provenance"]["aperiodic_fit_by_role"]
+    assert set(first_fit) == {"Fz", "Pz"}
+    assert all(fit["fit_end_s"] == flat_fit_rows[0]["actual_range"]["end_s"] for fit in first_fit.values())
+    assert flat_fit_rows[0]["failure"] is not None
+    assert flat_fit_rows[0]["failure"]["code"] == "TNK_WARMUP"
 
 
 def _session(group):
@@ -223,7 +221,7 @@ def _run_group_target(group, recording, config, session, target_index):
 
 
 def test_sequential_group_targets_restore_latest_checkpoint_and_share_frame_spectra(caplog):
-    caplog.set_level("INFO", logger="app.algorithms.tnk.group_window")
+    caplog.set_level("INFO", logger="brain_platform.dynamic_window.tnk")
     group = _group()
     config = _config("dynamic")
     recording = SyntheticRecording()
@@ -234,20 +232,20 @@ def test_sequential_group_targets_restore_latest_checkpoint_and_share_frame_spec
     calls_after_first = len(recording.spectrum_calls)
     second, plan = _run_group_target(group, recording, config, session, 6)
 
-    assert len(recording.spectrum_calls) - calls_after_first == 9
+    assert len(recording.spectrum_calls) - calls_after_first == 1
     assert plan.replay_window_count == 7  # The scientific context remains reset-origin anchored.
     log = [record.message for record in caplog.records
            if record.message.startswith("tnk_on_demand_execution")][-1]
     assert "checkpoint_frame=5" in log
     assert "replayed_frames=1" in log
-    assert "spectrum_cache_hits=7" in log
+    assert "spectrum_cache_hits=12" in log
     for name, values in full.arrays.items():
         np.testing.assert_allclose(second.arrays[name], values[6], rtol=0, atol=0, equal_nan=True)
     assert first.state == second.state == "ready"
 
 
 def test_group_random_seek_uses_nearest_compatible_checkpoint_and_identity_miss_replays_cold(caplog):
-    caplog.set_level("INFO", logger="app.algorithms.tnk.group_window")
+    caplog.set_level("INFO", logger="brain_platform.dynamic_window.tnk")
     group = _group()
     config = _config("dynamic")
     recording = SyntheticRecording()
@@ -257,7 +255,7 @@ def test_group_random_seek_uses_nearest_compatible_checkpoint_and_identity_miss_
     _run_group_target(group, recording, config, session, 6)
     calls_before_backward_seek = len(recording.spectrum_calls)
     backward, _ = _run_group_target(group, recording, config, session, 3)
-    assert len(recording.spectrum_calls) - calls_before_backward_seek == 9
+    assert len(recording.spectrum_calls) - calls_before_backward_seek == 1
     backward_log = next(record.message for record in caplog.records if "target_frame=3" in record.message)
     assert "checkpoint_frame=2" in backward_log
     assert "replayed_frames=1" in backward_log
@@ -267,7 +265,7 @@ def test_group_random_seek_uses_nearest_compatible_checkpoint_and_identity_miss_
     other_identity = session.model_copy(update={"configuration_sha256": "different-config"})
     calls_before_cold_seek = len(recording.spectrum_calls)
     cold, _ = _run_group_target(group, recording, config, other_identity, 6)
-    assert len(recording.spectrum_calls) - calls_before_cold_seek == 63
+    assert len(recording.spectrum_calls) - calls_before_cold_seek == 7
     cold_log = next(record.message for record in caplog.records if "target_frame=6" in record.message
                     and "checkpoint_frame=None" in record.message)
     assert "replayed_frames=7" in cold_log
@@ -377,7 +375,8 @@ def test_dynamic_group_records_quality_rejected_child_and_continues_later_window
     assert result.windows[0].state == "Partial"
     assert result.windows[0].quality == "partial"
     first_point = result.evidence["extensions"]["tnk_evidence"]["points"][0]
-    rejected = first_point["extensions"]["tnk_evidence"]["children"]["tnk_iapf"][0]
+    children = first_point["extensions"]["tnk_evidence"]["children"]
+    rejected = next(rows[0] for rows in children.values() if rows[0]["quality"] == "gate_failed")
     assert rejected["quality"] == "gate_failed"
     assert rejected["failure"]["code"] == "TNK_QUALITY_REJECTED"
     assert rejected["failure"]["detail"]["quality"]["evidence"]["amplitude"]["peak_uv"] == 364.3

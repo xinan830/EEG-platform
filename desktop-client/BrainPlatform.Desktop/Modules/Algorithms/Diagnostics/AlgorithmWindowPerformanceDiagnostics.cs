@@ -71,6 +71,22 @@ public static class AlgorithmWindowPerformanceDiagnostics
             $" elapsed_ms={elapsedMilliseconds}");
     }
 
+    public static void RecordQueueDepth(
+        DynamicWindowRequest request, string stage, int pendingCount,
+        long? activeCursorSample, long? newestPendingCursorSample)
+    {
+        if (!Enabled) return;
+
+        DesktopLog.Info(
+            $"review_analysis_queue recording_id={request.RecordingId}" +
+            $" algorithm_id={request.AlgorithmId}" +
+            $" request_id={request.RequestId ?? "none"}" +
+            $" stage={stage} pending_count={pendingCount}" +
+            $" active_cursor_sample={activeCursorSample?.ToString() ?? "none"}" +
+            $" newest_pending_cursor_sample={newestPendingCursorSample?.ToString() ?? "none"}" +
+            $" target_cursor_sample={request.CursorSample}");
+    }
+
     public static void RecordResultBound(
         string recordingId,
         string algorithmId,

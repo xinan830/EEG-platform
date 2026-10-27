@@ -812,14 +812,10 @@
     },
     "tnk_brainbeat_flat": {
       "full": {
-        "value": null,
+        "value": 0.9111059435004034,
         "output_values": null,
-        "quality": "unavailable",
-        "failure": {
-          "code": "TNK_FIT_INVALID",
-          "message": "TNK BrainBeat Flat 缺少逐通道非周期拟合",
-          "detail": {}
-        },
+        "quality": "clean",
+        "failure": null,
         "requested_range": {
           "start_s": 3.0,
           "end_s": 4.0
@@ -834,21 +830,59 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
+              },
+              "state": "ready",
+              "raw_ratio": 0.91175052417901,
+              "fit_range_hz": [
+                3.0,
+                30.0
+              ],
+              "offsets": {
+                "Fz": -9.605713496215087,
+                "Pz": -9.664148117290292
+              },
+              "fit_quality": {
+                "Fz": {
+                  "mae": 0.03542945095812484,
+                  "rsquared": 0.9755777726801678
+                },
+                "Pz": {
+                  "mae": 0.035504581360462764,
+                  "rsquared": 0.9772843330324368
+                }
               }
             }
           }
         }
       },
       "on_demand": {
-        "value": null,
+        "value": 0.9111059435004034,
         "output_values": null,
-        "quality": "unavailable",
-        "failure": {
-          "code": "TNK_FIT_INVALID",
-          "message": "TNK BrainBeat Flat 缺少逐通道非周期拟合",
-          "detail": {}
-        },
+        "quality": "clean",
+        "failure": null,
         "requested_range": {
           "start_s": 3.0,
           "end_s": 4.0
@@ -863,21 +897,59 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
+              },
+              "state": "ready",
+              "raw_ratio": 0.91175052417901,
+              "fit_range_hz": [
+                3.0,
+                30.0
+              ],
+              "offsets": {
+                "Fz": -9.605713496215087,
+                "Pz": -9.664148117290292
+              },
+              "fit_quality": {
+                "Fz": {
+                  "mae": 0.03542945095812484,
+                  "rsquared": 0.9755777726801678
+                },
+                "Pz": {
+                  "mae": 0.035504581360462764,
+                  "rsquared": 0.9772843330324368
+                }
               }
             }
           }
         }
       },
       "combined": {
-        "value": null,
+        "value": 0.9111059435004034,
         "output_values": null,
-        "quality": "unavailable",
-        "failure": {
-          "code": "TNK_FIT_INVALID",
-          "message": "TNK BrainBeat Flat 缺少逐通道非周期拟合",
-          "detail": {}
-        },
+        "quality": "clean",
+        "failure": null,
         "requested_range": {
           "start_s": 3.0,
           "end_s": 4.0
@@ -892,14 +964,56 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
+              },
+              "state": "ready",
+              "raw_ratio": 0.91175052417901,
+              "fit_range_hz": [
+                3.0,
+                30.0
+              ],
+              "offsets": {
+                "Fz": -9.605713496215087,
+                "Pz": -9.664148117290292
+              },
+              "fit_quality": {
+                "Fz": {
+                  "mae": 0.03542945095812484,
+                  "rsquared": 0.9755777726801678
+                },
+                "Pz": {
+                  "mae": 0.035504581360462764,
+                  "rsquared": 0.9772843330324368
+                }
               }
             }
           }
         }
       },
       "max_abs_error": 0.0,
-      "checksum": "2a3d33eb29e19e2a0a7c7ff0ca90400de4059009ce32a6f203c04b12020ccf0d"
+      "checksum": "dc959f265b6aa819819ba6737c4ace982c32f435e692307297ef0e38fac16d8b"
     },
     "tnk_fatigue": {
       "full": {
@@ -925,7 +1039,29 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
               },
               "states": {
                 "Fz": "ready",
@@ -960,7 +1096,29 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
               },
               "states": {
                 "Fz": "ready",
@@ -995,7 +1153,29 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
               },
               "states": {
                 "Fz": "ready",
@@ -1008,7 +1188,7 @@
         }
       },
       "max_abs_error": 0.0,
-      "checksum": "36009dafecd6ef01090bc652a32aaa948506bc5a6b5a06564e1099587e35616d"
+      "checksum": "88e0907c78f09ba616de8bf992134b8468ad9c4beb9c55980e3c8a5201fd4a5d"
     },
     "tnk_rhythm_stability": {
       "full": {
@@ -1030,7 +1210,29 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
               },
               "per_role": {
                 "Fz": 0.65,
@@ -1070,7 +1272,29 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
               },
               "per_role": {
                 "Fz": 0.65,
@@ -1110,7 +1334,29 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
               },
               "per_role": {
                 "Fz": 0.65,
@@ -1132,7 +1378,7 @@
         }
       },
       "max_abs_error": 0.0,
-      "checksum": "c8f3870bb04880245e142e69bf6db2b23d79779b37afe39c8626a73111aa3df7"
+      "checksum": "635ce9dc6325e604e90bf9430f8b64d5d337436127ca04cbfbdbd9f08b05e66f"
     },
     "tnk_composite_meditation": {
       "full": {
@@ -1158,7 +1404,29 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
               }
             }
           }
@@ -1187,7 +1455,29 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
               }
             }
           }
@@ -1216,14 +1506,36 @@
             "tnk_evidence": {
               "provenance": {
                 "segment_complete": false,
-                "clean_epochs": 12
+                "clean_epochs": 12,
+                "aperiodic_fit_by_role": {
+                  "Fz": {
+                    "offset": -9.605713496215087,
+                    "exponent": 0.23564776984115715,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.03542945095812484,
+                      "rsquared": 0.9755777726801678
+                    }
+                  },
+                  "Pz": {
+                    "offset": -9.664148117290292,
+                    "exponent": 0.1882015032484186,
+                    "fit_start_s": 3.0,
+                    "fit_end_s": 4.0,
+                    "fit_quality": {
+                      "mae": 0.035504581360462764,
+                      "rsquared": 0.9772843330324368
+                    }
+                  }
+                }
               }
             }
           }
         }
       },
       "max_abs_error": 0.0,
-      "checksum": "a52ee225e9608ec89ef9ceec549c431569600dfb5487e0e87f151ff58efbe076"
+      "checksum": "70855b8467d5fdbd883b657ae004dc49de2ce6a83cc84b68262e572b26f54a9a"
     },
     "tnk_faa": {
       "full": {

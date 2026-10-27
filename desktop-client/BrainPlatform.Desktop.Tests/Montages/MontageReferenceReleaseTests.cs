@@ -255,6 +255,29 @@ public sealed class MontageReferenceReleaseTests
         Assert.Equal(originalIndex, await File.ReadAllTextAsync($"{setup.Path}.references.json"));
     }
 
+    [Fact]
+    public async Task EmptyDiscoveredIdentityCanBeReconciledFromRecordingManifest()
+    {
+        var setup = await SetupAsync();
+        var directory = Path.Combine(setup.Root, "recordings", "one");
+        await WriteRecordingAsync(setup.Root, "recordings/one", setup.Profile);
+        var emptyIndex = new
+        {
+            Version = 2,
+            HistoricalIds = Array.Empty<string>(),
+            UnlocatedIds = Array.Empty<string>(),
+            Roots = new[] { Path.Combine(setup.Root, "recordings") },
+            Recordings = new Dictionary<string, string[]> { [directory] = [] },
+        };
+        await File.WriteAllTextAsync($"{setup.Path}.references.json", JsonSerializer.Serialize(emptyIndex));
+
+        await AssertProtectedAsync(new MontageProfileStore(setup.Path, setup.Projects), setup.Profile.Id);
+
+        using var persisted = JsonDocument.Parse(await File.ReadAllTextAsync($"{setup.Path}.references.json"));
+        Assert.Equal(setup.Profile.Id, Assert.Single(persisted.RootElement.GetProperty("Recordings")
+            .GetProperty(directory).EnumerateArray()).GetString());
+    }
+
     [Theory]
     [InlineData("{}")]
     [InlineData("{\"Version\":2,\"HistoricalIds\":[],\"UnlocatedIds\":[],\"Roots\":[],\"Recordings\":{\"C:/fixture\":[\"unknown-id\"]}}")]

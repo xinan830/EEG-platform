@@ -110,7 +110,8 @@ public sealed partial class AlgorithmListViewModel
                 ? await runCoordinator.CreateRunAndWaitAsync(
                     request,
                     updatedRun => PublishBackgroundFullRun(request, algorithmId, requestedRevision, owner, updatedRun),
-                    owner.Token)
+                    owner.Token,
+                    foreground: false)
                 : await runCoordinator.ObserveRunAndWaitAsync(
                     initialRun,
                     updatedRun => PublishBackgroundFullRun(request, algorithmId, requestedRevision, owner, updatedRun),

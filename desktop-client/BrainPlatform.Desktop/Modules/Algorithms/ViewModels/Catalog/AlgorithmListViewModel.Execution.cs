@@ -7,20 +7,32 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 public sealed partial class AlgorithmListViewModel
 {
     private bool isSubmittingRun;
+    private long submittingRunGeneration;
     private long configurationRevision;
     private readonly ConcurrentDictionary<string, byte> obsoleteRunCancellations = new(StringComparer.Ordinal);
 
     private async Task RunAsync()
     {
         if (disposed) return;
-        if (isSubmittingRun) return;
+        if (isSubmittingRun && !runCoordinator.CanStartForeground(configurationRevision)) return;
+        var runGeneration = configurationRevision;
         isSubmittingRun = true;
+        submittingRunGeneration = runGeneration;
         RaisePropertyChanged(nameof(IsRunActive));
         try { await ExecuteRunAsync(); }
+        catch (OperationCanceledException) when (runGeneration != configurationRevision || disposed)
+        {
+            // A newer configuration owns the next run. The obsolete-run
+            // cancellation path updates the durable backend status; this
+            // control-flow cancellation must not surface as a user error.
+        }
         finally
         {
-            isSubmittingRun = false;
-            RaisePropertyChanged(nameof(IsRunActive));
+            if (submittingRunGeneration == runGeneration)
+            {
+                isSubmittingRun = false;
+                RaisePropertyChanged(nameof(IsRunActive));
+            }
             if (!disposed && !detailSuspended && automaticRunPending) automaticRunDebounceTimer.Start();
         }
     }
@@ -87,7 +99,7 @@ public sealed partial class AlgorithmListViewModel
         var requestedRevision = configurationRevision;
         var run = await runCoordinator.CreateRunAndWaitAsync(
             request,
-            updatedRun =>
+                updatedRun =>
             {
                 if (RegisteredRecording?.Id != request.RecordingId || SelectedAlgorithm?.Id != algorithm.Id ||
                     configurationRevision != requestedRevision)
@@ -98,7 +110,8 @@ public sealed partial class AlgorithmListViewModel
                 RaisePropertyChanged(nameof(RunProgressText));
                 RaisePropertyChanged(nameof(IsRunActive));
             },
-            CancellationToken.None);
+            CancellationToken.None,
+            requestedRevision);
         if (RegisteredRecording?.Id != request.RecordingId || SelectedAlgorithm?.Id != algorithm.Id ||
             configurationRevision != requestedRevision)
             return;

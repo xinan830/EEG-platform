@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Iapf;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
 using SciChart.Charting.ChartModifiers;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
@@ -35,6 +36,7 @@ public partial class IapfTrendChart : UserControl
         FontSize = 12,
     };
     private readonly XyDataSeries<double, double> values = new() { SeriesName = "IAPF（Hz）" };
+    private readonly IncrementalTrendSeries<IapfResultPoint> trend;
 
     public static readonly DependencyProperty PointsProperty = DependencyProperty.Register(
         nameof(Points), typeof(IEnumerable), typeof(IapfTrendChart), new PropertyMetadata(null, OnDataChanged));
@@ -50,6 +52,7 @@ public partial class IapfTrendChart : UserControl
     public IapfTrendChart()
     {
         InitializeComponent();
+        trend = new(values, point => (point.TimeSeconds, point.HasValue ? point.ValueHz!.Value : double.NaN));
         surface.Background = Brushes.White;
         surface.ShowLicensingWarnings = false;
         surface.XAxes.Add(xAxis);
@@ -78,10 +81,8 @@ public partial class IapfTrendChart : UserControl
 
     private void UpdateSeries()
     {
-        values.Clear();
         var points = Points?.Cast<IapfResultPoint>().ToArray() ?? [];
-        foreach (var point in points)
-            values.Append(point.TimeSeconds, point.HasValue ? point.ValueHz!.Value : double.NaN);
+        trend.Update(points);
         xAxis.VisibleRange = new DoubleRange(StartSeconds, Math.Max(StartSeconds + 1, EndSeconds));
         EmptyState.Visibility = points.Any(point => point.HasValue) ? Visibility.Collapsed : Visibility.Visible;
     }
