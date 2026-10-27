@@ -151,4 +151,6 @@ public sealed record ElectrodeLocationSnapshot(
     string CoordinateFrame,
     string CoordinateUnit,
     string SourceId,
-    string SourceVersion);
+    string SourceVersion,
+    double? MapX = null,
+    double? MapY = null);

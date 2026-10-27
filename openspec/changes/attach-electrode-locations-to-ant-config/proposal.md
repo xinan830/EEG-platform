@@ -18,4 +18,4 @@ ANT's built-in 28-input channel configuration currently has electrode labels but
 
 ## Impact
 
-This affects the WPF channel-configuration refresh path and its montage snapshot consumer. It reuses the existing read-only `POST /api/electrode-locations/resolve` endpoint and MNE `standard_1020` source; no endpoint, persistence schema, EEG samples, channel ordering, or reference calculation changes are intended. Legacy configurations remain readable and unresolved labels remain spatially unavailable.
+This affects the WPF channel-configuration refresh path and its montage snapshot consumer. It reuses the read-only `POST /api/electrode-locations/resolve` endpoint and MNE `standard_1020` source, adding `map_coordinates` to its response. The desktop model accepts a missing field as unavailable so an older backend response does not invent positions; correct standard-map rendering requires deploying the backend and desktop together. Existing persisted XYZ-only snapshots remain readable but unprojected until explicitly resolved again. EEG samples, channel ordering, and reference calculation do not change.

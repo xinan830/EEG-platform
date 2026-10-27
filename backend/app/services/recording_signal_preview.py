@@ -8,6 +8,7 @@ from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
 class PreviewPreparationControl:
     preparation_resource_policy: DynamicWindowResourcePolicy = DynamicWindowResourcePolicy(
         max_preparation_bytes=512 * 1024**2)
+    select_requested_channels: bool = True
 
     def check_cancelled(self):
         pass

@@ -14,6 +14,8 @@ namespace BrainPlatform.Desktop;
 
 public partial class MainWindow : Window
 {
+    private bool isApprovedClose;
+    private bool isConfirmingChannelDraftExit;
     private AcquisitionPreparationView? acquisitionPreparationView;
     private DeviceOverviewView? overviewView;
     private ProjectListView? projectListView;
@@ -359,8 +361,59 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnNavigationClick(object sender, RoutedEventArgs e)
+    public async Task<bool> ConfirmChannelDraftLeaveAsync()
     {
+        if (DataContext is not DesktopWorkspaceViewModel workspace ||
+            !ReferenceEquals(MainContentHost.Content, channelDetailView) ||
+            !workspace.ChannelConfigurations.IsDraftOpen)
+        {
+            return true;
+        }
+
+        if (isConfirmingChannelDraftExit)
+        {
+            return false;
+        }
+
+        isConfirmingChannelDraftExit = true;
+        try
+        {
+            return await ChannelDraftLeaveGuard.ConfirmAndCloseAsync(this, workspace);
+        }
+        finally
+        {
+            isConfirmingChannelDraftExit = false;
+        }
+    }
+
+    private async void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (isApprovedClose || DataContext is not DesktopWorkspaceViewModel workspace ||
+            !ReferenceEquals(MainContentHost.Content, channelDetailView) ||
+            !workspace.ChannelConfigurations.IsDraftOpen)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        if (await ConfirmChannelDraftLeaveAsync())
+        {
+            isApprovedClose = true;
+            Close();
+        }
+    }
+
+    private async void OnNavigationClick(object sender, RoutedEventArgs e)
+    {
+        if (!await ConfirmChannelDraftLeaveAsync())
+        {
+            if (sender is RadioButton navigationItem)
+            {
+                SelectNavigationForCurrentView(navigationItem);
+            }
+            return;
+        }
+
         if (DataContext is DesktopWorkspaceViewModel activeWorkspace && activeWorkspace.Acquisition.CanStop)
         {
             ShowAcquisitionView();
@@ -399,6 +452,17 @@ public partial class MainWindow : Window
         {
             ShowUnavailableWorkspace((sender as RadioButton)?.ToolTip?.ToString() ?? "此功能");
         }
+    }
+
+    private void SelectNavigationForCurrentView(RadioButton attemptedNavigation)
+    {
+        if (ReferenceEquals(MainContentHost.Content, channelDetailView))
+        {
+            SelectNavigation(NavSettingsBtn);
+            return;
+        }
+
+        attemptedNavigation.IsChecked = false;
     }
 
     private void SelectNavigation(RadioButton navigationItem)

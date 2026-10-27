@@ -83,7 +83,7 @@ internal sealed class TnkWindowChartHistory
             if (window.Range is not { } range || !double.IsFinite(range.EndSeconds)) return false;
             if (window.State is not ("ready" or "partial" or "insufficient_data" or "rejected" or "unavailable" or "failed")) return false;
             var identityKey = window.Identity is { } identity
-                ? System.Text.Json.JsonSerializer.Serialize(identity)
+                ? CanonicalIdentityKey(identity)
                 : $"{range.StartSeconds:R}:{range.EndSeconds:R}";
             var key = (range.EndSeconds, range.StartSeconds, identityKey);
             var fingerprint = System.Text.Json.JsonSerializer.Serialize(new
@@ -131,6 +131,15 @@ internal sealed class TnkWindowChartHistory
         }
         if (gaps.Count == 0) reconciling = false;
     }
+
+    private static string CanonicalIdentityKey(System.Text.Json.JsonElement element) => element.ValueKind switch
+    {
+        System.Text.Json.JsonValueKind.Object => "{" + string.Join(",", element.EnumerateObject()
+            .OrderBy(property => property.Name, StringComparer.Ordinal)
+            .Select(property => $"{System.Text.Json.JsonSerializer.Serialize(property.Name)}:{CanonicalIdentityKey(property.Value)}")) + "}",
+        System.Text.Json.JsonValueKind.Array => "[" + string.Join(",", element.EnumerateArray().Select(CanonicalIdentityKey)) + "]",
+        _ => element.GetRawText(),
+    };
 
     internal IReadOnlyList<TnkChildResultDisplay> Project(
         IReadOnlyList<TnkChildResultDisplay> current, double cadenceSeconds)

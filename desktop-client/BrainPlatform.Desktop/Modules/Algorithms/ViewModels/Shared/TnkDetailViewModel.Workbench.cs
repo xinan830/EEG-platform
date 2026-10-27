@@ -12,6 +12,8 @@ public sealed partial class TnkDetailViewModel
     private SignalPreviewResponse? waveform;
     private CancellationTokenSource? waveformRequest;
     private long waveformRevision;
+    private bool waveformLoadInProgress;
+    private bool waveformReloadPending;
     private string waveformStatus = "选择记录后显示波形";
     private double waveformPosition;
     private bool workbenchActive;
@@ -93,7 +95,7 @@ public sealed partial class TnkDetailViewModel
     private void InitializeWorkbench()
     {
         InitializePlayback();
-        LoadWaveformCommand = new AsyncRelayCommand(LoadWaveformAsync, error => WaveformStatus = error.Message);
+        LoadWaveformCommand = new AsyncRelayCommand(RequestWaveformLoadAsync, error => WaveformStatus = error.Message);
         PreviousWaveformCommand = new RelayCommand(() => SeekFromChart(WaveformPosition - 10));
         NextWaveformCommand = new RelayCommand(() => SeekFromChart(WaveformPosition + 10));
     }
@@ -102,9 +104,13 @@ public sealed partial class TnkDetailViewModel
     {
         var id = SelectedMetric?.AlgorithmId;
         var seriesName = SelectedMetricSeries?.Name;
-        SelectedMetric = ChildResults.FirstOrDefault(child => child.AlgorithmId == id) ?? ChildResults.FirstOrDefault();
-        SelectedMetricSeries = SelectedMetric?.Chart.Series.FirstOrDefault(series => series.Name == seriesName)
-            ?? SelectedMetric?.Chart.Series.FirstOrDefault();
+        var nextMetric = ChildResults.FirstOrDefault(child => child.AlgorithmId == id) ?? ChildResults.FirstOrDefault();
+        selectedMetric = nextMetric;
+        selectedMetricSeries = nextMetric?.Chart.Series.FirstOrDefault(series => series.Name == seriesName)
+            ?? nextMetric?.Chart.Series.FirstOrDefault();
+        RaisePropertyChanged(nameof(SelectedMetric));
+        RaisePropertyChanged(nameof(SelectedMetricSeries));
+        RaisePropertyChanged(nameof(SelectedValueText));
         NotifyPresentation();
     }
 
@@ -142,6 +148,7 @@ public sealed partial class TnkDetailViewModel
         foreach (var role in observedRoles) role.PropertyChanged -= OnRoleChanged;
         observedRoles.Clear();
         waveformRevision++; waveformRequest?.Cancel(); waveformRequest?.Dispose(); waveformRequest = null;
+        waveformReloadPending = false;
     }
 
     private void OnOwnedTnkPlaybackGap(TnkPlaybackGap gap)
@@ -233,8 +240,10 @@ public sealed partial class TnkDetailViewModel
                     if (revision != historyProjectionRevision) return;
                 if (!workbenchActive) return;
                 var applyStarted = Stopwatch.GetTimestamp();
+                var previousCards = childResults;
                 childResults = projected;
-                RaisePropertyChanged(nameof(ChildResults));
+                if (!HasSameSidebarCards(previousCards, projected))
+                    RaisePropertyChanged(nameof(ChildResults));
                 RaisePropertyChanged(nameof(LatestAnalysisWindowText));
                 RaisePropertyChanged(nameof(AnalysisLagText));
                 RaisePropertyChanged(nameof(HistoryCoverageText));
@@ -249,6 +258,17 @@ public sealed partial class TnkDetailViewModel
             }));
         }
     }
+
+    private static bool HasSameSidebarCards(
+        IReadOnlyList<TnkChildResultDisplay>? previous,
+        IReadOnlyList<TnkChildResultDisplay> next) =>
+        previous is not null &&
+        previous.Count == next.Count &&
+        previous.Zip(next).All(pair =>
+            pair.First.AlgorithmId == pair.Second.AlgorithmId &&
+            pair.First.DisplayName == pair.Second.DisplayName &&
+            pair.First.QualityText == pair.Second.QualityText &&
+            pair.First.FailureText == pair.Second.FailureText);
 
     private void OnRolesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs args)
     {
@@ -288,7 +308,10 @@ public sealed partial class TnkDetailViewModel
 
     private void InvalidateWaveformSource(bool invalidateResults = false)
     {
-        waveformRevision++; waveformRequest?.Cancel(); Waveform = null;
+        // Let the current request finish and discard its result by revision. Cancelling
+        // here followed by an immediate replacement caused overlapping server-side
+        // preview work because the HTTP cancellation did not stop backend processing.
+        waveformRevision++; Waveform = null;
         RaisePropertyChanged(nameof(RoleMappingText));
         if (invalidateResults)
         {
@@ -303,17 +326,42 @@ public sealed partial class TnkDetailViewModel
 
     private void ReloadWaveform()
     {
-        if (workbenchActive) _ = LoadWaveformSafelyAsync();
+        if (!workbenchActive) return;
+        waveformReloadPending = true;
+        if (!waveformLoadInProgress) _ = LoadWaveformSafelyAsync();
     }
+
+    private Task RequestWaveformLoadAsync()
+    {
+        ReloadWaveform();
+        return Task.CompletedTask;
+    }
+
     private async Task LoadWaveformSafelyAsync()
     {
-        try { await LoadWaveformAsync(); } catch (Exception error)
+        if (!workbenchActive || waveformLoadInProgress) return;
+        waveformLoadInProgress = true;
+        try
         {
-            if (workbenchActive)
+            do
             {
-                WaveformStatus = error.Message;
-                StopWorkbenchPlayback();
+                waveformReloadPending = false;
+                try { await LoadWaveformAsync(); }
+                catch (Exception error)
+                {
+                    if (workbenchActive)
+                    {
+                        WaveformStatus = error.Message;
+                        StopWorkbenchPlayback();
+                    }
+                }
             }
+            while (workbenchActive && waveformReloadPending);
+        }
+        finally
+        {
+            waveformLoadInProgress = false;
+            if (workbenchActive && waveformReloadPending) _ = LoadWaveformSafelyAsync();
         }
     }
 

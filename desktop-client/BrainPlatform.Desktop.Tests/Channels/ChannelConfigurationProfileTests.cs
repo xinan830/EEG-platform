@@ -2,6 +2,7 @@
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 
 using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Channels.Views;
 
 public sealed class ChannelConfigurationProfileTests
 {
@@ -338,6 +339,128 @@ public sealed class ChannelConfigurationProfileTests
         Assert.Equal("F3", other.Channels.Single().ElectrodeLabel);
         Assert.True(original.Channels.Single().IsSelectedForDisplay);
         Assert.Equal(enabledBeforeToggle - 1, workspace.DraftEnabledCount);
+    }
+
+    [Fact]
+    public async Task DraftSaveVisibilityTracksDifferencesFromSavedBaseline()
+    {
+        var store = new ChannelConfigurationProfileStore(
+            Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "profiles.json"));
+        var workspace = new ChannelConfigurationWorkspaceViewModel(
+            new ChannelMappingViewModel(
+                new ChannelLabelMappingStore(Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.json"))),
+            store);
+        var device = CreateDefaultDevice();
+        var profile = new ChannelConfigurationProfile(
+            Guid.NewGuid().ToString("N"), "原配置", "原说明", ChannelConfigurationSource.User,
+            AcquisitionDeviceCompatibility.CreateSignature(device.DriverId, device.ChannelCapabilities),
+            device.ChannelCapabilities!.Select(capability => new ChannelConfigurationEntry(
+                capability.NativeChannelIndex,
+                capability.Kind,
+                capability.NativeChannelIndex == 0 ? "Fp1" : capability.Kind == AcquisitionChannelKind.Reference
+                    ? $"E{capability.NativeChannelIndex}"
+                    : string.Empty,
+                capability.Kind == AcquisitionChannelKind.Reference,
+                capability.NativeChannelIndex)).ToArray(),
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
+            device.DisplayName, AcquisitionDeviceCompatibility.NormalizeDriverId(device.DriverId));
+        await store.SaveAsync(profile, CancellationToken.None);
+        await workspace.RefreshAsync();
+        workspace.SelectedProfile = Assert.Single(workspace.Profiles);
+
+        workspace.BeginEditSelected();
+        workspace.DraftDevice = device;
+        Assert.False(workspace.HasUnsavedChanges);
+
+        workspace.DraftName = "新名称";
+        Assert.True(workspace.HasUnsavedChanges);
+        workspace.DraftName = "原配置";
+        Assert.False(workspace.HasUnsavedChanges);
+
+        workspace.DraftDescription = "修改说明";
+        await workspace.SaveDraftAsync();
+        Assert.False(workspace.HasUnsavedChanges);
+        Assert.True(workspace.IsDraftOpen);
+
+        workspace.DraftRows[0].ElectrodeLabel = "F3";
+        Assert.True(workspace.HasUnsavedChanges);
+        workspace.DraftRows[0].ElectrodeLabel = "Fp1";
+        Assert.False(workspace.HasUnsavedChanges);
+
+        workspace.DraftRows[0].SetManualMapPosition(new ElectrodeMapPosition(0.1, 0.1));
+        Assert.True(workspace.HasUnsavedChanges);
+        workspace.DraftRows[0].SetManualMapPosition(null);
+        Assert.False(workspace.HasUnsavedChanges);
+
+        workspace.DraftRows[0].IsEnabled = false;
+        Assert.True(workspace.HasUnsavedChanges);
+        workspace.DraftRows[0].IsEnabled = true;
+        Assert.False(workspace.HasUnsavedChanges);
+    }
+
+    [Theory]
+    [InlineData(System.Windows.MessageBoxResult.Yes, true, false)]
+    [InlineData(System.Windows.MessageBoxResult.No, false, false)]
+    [InlineData(System.Windows.MessageBoxResult.Cancel, false, true)]
+    public async Task LeavingDraft_AppliesSaveDiscardAndCancelChoices(
+        System.Windows.MessageBoxResult choice,
+        bool shouldSave,
+        bool shouldRemainOpen)
+    {
+        var saveCount = 0;
+        var closeCount = 0;
+        var errorCount = 0;
+
+        var canLeave = await ChannelDraftLeaveGuard.ConfirmAndCloseAsync(
+            true,
+            () => true,
+            () => choice,
+            () => { saveCount++; return Task.CompletedTask; },
+            () => closeCount++,
+            _ => errorCount++);
+
+        Assert.Equal(!shouldRemainOpen, canLeave);
+        Assert.Equal(shouldSave ? 1 : 0, saveCount);
+        Assert.Equal(shouldRemainOpen ? 0 : 1, closeCount);
+        Assert.Equal(0, errorCount);
+    }
+
+    [Fact]
+    public async Task LeavingDraft_SaveFailureKeepsDraftOpen()
+    {
+        var closeCount = 0;
+        var errorCount = 0;
+
+        var canLeave = await ChannelDraftLeaveGuard.ConfirmAndCloseAsync(
+            true,
+            () => true,
+            () => System.Windows.MessageBoxResult.Yes,
+            () => Task.FromException(new IOException("store unavailable")),
+            () => closeCount++,
+            _ => errorCount++);
+
+        Assert.False(canLeave);
+        Assert.Equal(0, closeCount);
+        Assert.Equal(1, errorCount);
+    }
+
+    [Fact]
+    public async Task LeavingUnchangedDraftClosesWithoutPrompt()
+    {
+        var promptCount = 0;
+        var closeCount = 0;
+
+        var canLeave = await ChannelDraftLeaveGuard.ConfirmAndCloseAsync(
+            true,
+            () => false,
+            () => { promptCount++; return System.Windows.MessageBoxResult.Cancel; },
+            () => Task.CompletedTask,
+            () => closeCount++,
+            _ => { });
+
+        Assert.True(canLeave);
+        Assert.Equal(0, promptCount);
+        Assert.Equal(1, closeCount);
     }
 
     [Fact]

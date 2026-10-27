@@ -7,18 +7,18 @@ namespace BrainPlatform.Desktop.Tests.Channels;
 public sealed class ElectrodeMapProjectionTests
 {
     [Fact]
-    public void ProjectsMriXyWithAnteriorUpAndPatientLeftOnViewerLeft()
+    public void UsesMneLayoutCoordinatesWithAnteriorUpAndPatientLeftOnViewerLeft()
     {
         var rows = new[]
         {
-            Row("Fp1", -0.03, 0.08),
-            Row("Fp2", 0.03, 0.08),
+            Row("Fp1", -0.0294367, 0.0839171, mapX: -0.23692115976907524, mapY: -0.8784912499825559),
+            Row("Fp2", 0.0298723, 0.0848959, mapX: 0.21796051838172326, mapY: -0.8849485427600987),
         };
 
         var points = ElectrodeMapProjection.Project(rows);
 
-        Assert.Equal(-0.225, points[0].X, 6);
-        Assert.Equal(-0.705, points[0].Y, 6);
+        Assert.Equal(-0.23692115976907524, points[0].X, 12);
+        Assert.Equal(-0.8784912499825559, points[0].Y, 12);
         Assert.True(points[0].X < 0);
         Assert.True(points[1].X > 0);
         Assert.True(points[0].Y < 0);
@@ -52,7 +52,7 @@ public sealed class ElectrodeMapProjectionTests
     [Fact]
     public void ManualDiagramPositionOverridesProjectionWithoutChangingStandardCoordinates()
     {
-        var row = Row("F3", -0.03, 0.04);
+        var row = Row("F3", -0.0502438, 0.0531112, mapX: -0.3324383412680769, mapY: -0.556242350679391);
         var standardLocation = row.ElectrodeLocation;
         row.SetManualMapPosition(new ElectrodeMapPosition(0.45, -0.2));
 
@@ -63,7 +63,7 @@ public sealed class ElectrodeMapProjectionTests
     [Fact]
     public void ResetToTemplatePositionRestoresStandardProjection()
     {
-        var row = Row("F3", -0.03, 0.04);
+        var row = Row("F3", -0.0502438, 0.0531112, mapX: -0.3324383412680769, mapY: -0.556242350679391);
         var standardPoint = ElectrodeMapProjection.Project([row]).Single();
         row.SetManualMapPosition(new ElectrodeMapPosition(0.45, -0.2));
 
@@ -88,7 +88,7 @@ public sealed class ElectrodeMapProjectionTests
     [Fact]
     public void ResettingAllRowsRestoresEveryStandardPositionAndRemovesCustomPosition()
     {
-        var standard = Row("F3", -0.03, 0.04);
+        var standard = Row("F3", -0.0502438, 0.0531112, mapX: -0.3324383412680769, mapY: -0.556242350679391);
         var custom = new ChannelConfigurationDraftRow(1, "EEG", "V", "µV", "Custom", true, 1, true,
             manualMapPosition: new ElectrodeMapPosition(0.25, -0.4));
         standard.SetManualMapPosition(new ElectrodeMapPosition(0.45, -0.2));
@@ -101,8 +101,8 @@ public sealed class ElectrodeMapProjectionTests
 
         var point = ElectrodeMapProjection.Project(rows).Single();
         Assert.Equal("F3", point.Label);
-        Assert.Equal(-0.225, point.X, 6);
-        Assert.Equal(-0.405, point.Y, 6);
+        Assert.Equal(-0.3324383412680769, point.X, 12);
+        Assert.Equal(-0.556242350679391, point.Y, 12);
         Assert.All(rows, row => Assert.Null(row.ManualMapPosition));
     }
 
@@ -130,7 +130,7 @@ public sealed class ElectrodeMapProjectionTests
     [Fact]
     public void OmitsPositionWhenChannelIsNotSelectedForDisplay()
     {
-        var row = Row("Fp1", -0.03, 0.08);
+        var row = Row("Fp1", -0.0294367, 0.0839171, mapX: -0.23692115976907524, mapY: -0.8784912499825559);
         row.IsEnabled = false;
 
         Assert.Empty(ElectrodeMapProjection.Project([row]));
@@ -188,7 +188,9 @@ public sealed class ElectrodeMapProjectionTests
         double y,
         bool isEeg = true,
         string frame = "mri",
-        string source = "mne.standard_1020") => new(
+        string source = "mne.standard_1020",
+        double mapX = 0,
+        double mapY = 0) => new(
             0, isEeg ? "EEG" : "REF", "V", "µV", label, true, 0, isEeg,
-            new ElectrodeLocationSnapshot(label, x, y, 0, frame, "m", source, "1.12.1"));
+            new ElectrodeLocationSnapshot(label, x, y, 0, frame, "m", source, "1.12.1", mapX, mapY));
 }

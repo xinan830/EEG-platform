@@ -68,8 +68,12 @@ public sealed partial class TnkDetailViewModel
     private void ApplyOnDemandScoreStates()
     {
         var series = ChildResults.FirstOrDefault(child => child.AlgorithmId == "tnk_composite_meditation")?.Chart.Series.FirstOrDefault();
-        ScoreStates = TnkOnDemandScoreStateProjection.Project(series, WaveformPosition);
-        RaisePropertyChanged(nameof(ScoreStates));
+        var nextStates = TnkOnDemandScoreStateProjection.Project(series, WaveformPosition);
+        if (!ScoreStates.SequenceEqual(nextStates))
+        {
+            ScoreStates = nextStates;
+            RaisePropertyChanged(nameof(ScoreStates));
+        }
         ScoreStateStatus = "按需分析暂显示已返回窗口累计 · 缺失窗口不累计";
     }
     private async Task LoadScoreStatesAsync(string runId, string recordingId, double cursor, CancellationToken token)

@@ -3,7 +3,7 @@
   "reference_id": "tnk-ant-reference-v1",
   "environment": {
     "python": "3.13.3",
-    "numpy": "2.5.3",
+    "numpy": "2.5.4",
     "scipy": "1.18.1",
     "specparam": "2.0.0rc7"
   },

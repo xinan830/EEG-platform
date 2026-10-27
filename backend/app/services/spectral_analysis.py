@@ -88,7 +88,10 @@ class SpectralAnalysisService:
         from app.services.prepared_source_identity import prepared_source_identity
 
         selected_channels = None
-        if getattr(execution_context, "is_on_demand", False) and channels:
+        if channels and (
+            getattr(execution_context, "is_on_demand", False)
+            or getattr(execution_context, "select_requested_channels", False)
+        ):
             # A dynamic PSD target only consumes its requested channels. Keep
             # its cold-start source bounded to that ordered projection; static
             # analysis still prepares all channels so cross-channel requests
@@ -138,15 +141,14 @@ class SpectralAnalysisService:
                 implementation_identity=implementation_version(),
             )
         lookup = self.preprocess_cache.lookup(recording.id, identity, expected_contract)
-        cached = lookup.value
         if not lookup.hit:
             logger.info(
                 "prepared_source_cache_miss recording_id=%s identity=%s reason=%s",
                 recording.id, identity, lookup.miss_reason,
             )
-        if cached is None:
+        def create_preprocessed() -> PreprocessedRecording:
             if getattr(self.recordings.load_data, "__func__", None) is RecordingService.load_data:
-                cached = mapped_preprocess(self.recordings, recording, low_hz=low_hz,
+                prepared = mapped_preprocess(self.recordings, recording, low_hz=low_hz,
                     high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
                     channels=list(selected_channels) if selected_channels is not None else None,
                     execution_context=execution_context)
@@ -160,10 +162,13 @@ class SpectralAnalysisService:
                     names = [names[index] for index in indexes]
                 filtered = self.spectral_gateway.preprocess(source, sfreq,
                     low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q)
-                cached = PreprocessedRecording(filtered, sfreq, tuple(names))
+                prepared = PreprocessedRecording(filtered, sfreq, tuple(names))
             if expected_contract is not None:
-                cached = replace(cached, contract=expected_contract)
-            self.preprocess_cache.put(recording.id, identity, cached)
+                prepared = replace(prepared, contract=expected_contract)
+            return prepared
+        cached = self.preprocess_cache.get_or_create(
+            recording.id, identity, create_preprocessed, expected_contract=expected_contract,
+        )
         completed = getattr(execution_context, "source_preparation_completed", None)
         if completed is not None:
             completed()

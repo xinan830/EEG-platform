@@ -95,7 +95,11 @@ public sealed partial class AlgorithmListViewModel
             OwnedWindowCompleted?.Invoke(request, response);
         }
         if (dispatcher.CheckAccess()) Publish();
-        else _ = dispatcher.BeginInvoke(Publish);
+        // Result delivery is background work from the playback clock's point of
+        // view.  Normal priority can run ahead of Render and let a replay burst
+        // delay waveform cursor ticks; keep the scientific event ordered but
+        // yield to the render pipeline.
+        else _ = dispatcher.BeginInvoke(DispatcherPriority.Background, Publish);
     }
 
     private void RequestWindowAtCursor(bool force = false)

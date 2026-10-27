@@ -41,6 +41,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     private int currentPage = 1;
     private string channelSearchText = string.Empty;
     private bool isBulkDisplayUpdate;
+    private ChannelConfigurationProfile? savedDraftBaseline;
     private readonly RelayCommand showAllDraftChannelsCommand;
     private readonly RelayCommand hideAllDraftChannelsCommand;
 
@@ -75,6 +76,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             () => SetAllDraftEegChannelsDisplayed(false),
             () => CanEditSignalDraft && DraftRows.Any(row => row.IsEegInput && row.IsEnabled));
         mapping.DisplayChannelsChanged += OnMappingChanged;
+        DraftHardwareLandmarks.PropertyChanged += OnHardwareLandmarksChanged;
     }
 
     public ObservableCollection<ChannelConfigurationProfile> Profiles { get; } = [];
@@ -258,6 +260,11 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
                         deviceSession.SelectDevice(value);
                     }
                     BuildDraftRows(deviceSession?.SelectedDevice ?? value, draftSourceProfile);
+                    if (savedDraftBaseline is null && (draftSourceProfile is null || isCreatingVersion))
+                    {
+                        savedDraftBaseline = CreateDraftProfile(DateTimeOffset.UtcNow);
+                        RaisePropertyChanged(nameof(HasUnsavedChanges));
+                    }
                 }
             }
         }
@@ -298,6 +305,9 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
 
     public bool CanEditDraft => IsDraftOpen && !isReadOnlyDraft;
 
+    public bool HasUnsavedChanges => CanEditDraft && savedDraftBaseline is not null &&
+                                     !IsDraftEquivalentTo(savedDraftBaseline);
+
     public bool CanEditSignalDraft => CanEditDraft && !isSignalLockedDraft;
 
     public bool IsSignalLockedDraft => isSignalLockedDraft;
@@ -313,13 +323,13 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     public string DraftName
     {
         get => draftName;
-        set => SetProperty(ref draftName, value);
+        set { if (SetProperty(ref draftName, value)) RaisePropertyChanged(nameof(HasUnsavedChanges)); }
     }
 
     public string DraftDescription
     {
         get => draftDescription;
-        set => SetProperty(ref draftDescription, value);
+        set { if (SetProperty(ref draftDescription, value)) RaisePropertyChanged(nameof(HasUnsavedChanges)); }
     }
 
     public int DraftEegInputCount => DraftRows.Count(row => row.IsEegInput);
@@ -330,14 +340,14 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     public string DraftReferenceElectrodeLocation
     {
         get => draftReferenceElectrodeLocation;
-        set => SetProperty(ref draftReferenceElectrodeLocation, value);
+        set { if (SetProperty(ref draftReferenceElectrodeLocation, value)) RaisePropertyChanged(nameof(HasUnsavedChanges)); }
     }
 
     /// <summary>Operator-recorded scalp location of the fixed hardware GND lead.</summary>
     public string DraftGroundElectrodeLocation
     {
         get => draftGroundElectrodeLocation;
-        set => SetProperty(ref draftGroundElectrodeLocation, value);
+        set { if (SetProperty(ref draftGroundElectrodeLocation, value)) RaisePropertyChanged(nameof(HasUnsavedChanges)); }
     }
 
     /// <summary>
@@ -361,6 +371,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         ResetDraftMapPositionsToDefaults();
         DraftDevice = null;
         DraftRows.Clear();
+        savedDraftBaseline = null;
         IsDraftOpen = true;
         PendingDeviceSelection = null;
         SetDevicePickerVisible(showDevicePicker);
@@ -400,6 +411,22 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         {
             BuildDraftRowsFromCurrentDevice(profile);
         }
+        savedDraftBaseline = profile.Source == ChannelConfigurationSource.User ? profile : null;
+        if (profile.Source == ChannelConfigurationSource.User && CanCreateProfileBaseline())
+        {
+            savedDraftBaseline = CreateDraftProfile(profile.UpdatedAtUtc) with
+            {
+                Name = profile.Name,
+                Description = profile.Description,
+                DeviceSignature = profile.DeviceSignature,
+                HardwareReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF"),
+                HardwareGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND"),
+                ReferenceMapPosition = profile.ReferenceMapPosition ?? ElectrodeMapDefaults.Reference,
+                GroundMapPosition = profile.GroundMapPosition ?? ElectrodeMapDefaults.Ground,
+                Channels = profile.Channels,
+            };
+        }
+        RaisePropertyChanged(nameof(HasUnsavedChanges));
     }
 
     public void BeginNewVersionSelected()
@@ -427,6 +454,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         IsDraftOpen = true;
         RaiseDraftModePropertiesChanged();
         BuildDraftRowsFromCurrentDevice(profile);
+        savedDraftBaseline = CanCreateProfileBaseline() ? CreateDraftProfile(DateTimeOffset.UtcNow) : null;
+        RaisePropertyChanged(nameof(HasUnsavedChanges));
         StatusText = $"已基于“{profile.Name}”创建可编辑的新版本草稿；原配置及其导联引用不会改变。";
     }
 
@@ -459,6 +488,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         {
             BuildDraftRowsFromCurrentDevice(profile);
         }
+        savedDraftBaseline = CanCreateProfileBaseline() ? CreateDraftProfile(DateTimeOffset.UtcNow) : null;
+        RaisePropertyChanged(nameof(HasUnsavedChanges));
 
         StatusText = $"已基于“{profile.Name}”创建副本草稿；保存后将成为独立的用户配置。";
     }
@@ -468,6 +499,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         SetDevicePickerVisible(false);
         PendingDeviceSelection = null;
         IsDraftOpen = false;
+        savedDraftBaseline = null;
         DraftDevice = null;
         DraftRows.Clear();
         draftSourceProfile = null;
@@ -680,10 +712,27 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         }
         RaiseDraftCounts();
         ApplyDraftRowFilter();
+        if (IsDraftOpen && profile is not null && profile.Source == ChannelConfigurationSource.User &&
+            savedDraftBaseline is null && !isCreatingVersion)
+        {
+            savedDraftBaseline = CreateDraftProfile(profile.UpdatedAtUtc) with
+            {
+                Name = profile.Name,
+                Description = profile.Description,
+                DeviceSignature = profile.DeviceSignature,
+                HardwareReferenceElectrodeLocation = DefaultLocation(profile.HardwareReferenceElectrodeLocation, "REF"),
+                HardwareGroundElectrodeLocation = DefaultLocation(profile.HardwareGroundElectrodeLocation, "GND"),
+                ReferenceMapPosition = profile.ReferenceMapPosition ?? ElectrodeMapDefaults.Reference,
+                GroundMapPosition = profile.GroundMapPosition ?? ElectrodeMapDefaults.Ground,
+                Channels = profile.Channels,
+            };
+            RaisePropertyChanged(nameof(HasUnsavedChanges));
+        }
     }
 
     private void OnDraftRowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs)
     {
+        RaisePropertyChanged(nameof(HasUnsavedChanges));
         if (eventArgs.PropertyName == nameof(ChannelConfigurationDraftRow.IsEnabled))
         {
             if (!isBulkDisplayUpdate && sender is ChannelConfigurationDraftRow row)
@@ -712,6 +761,64 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
                 ApplyDraftRowFilter();
             }
         }
+    }
+
+    private void OnHardwareLandmarksChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs) =>
+        RaisePropertyChanged(nameof(HasUnsavedChanges));
+
+    private bool CanCreateProfileBaseline() => DraftDevice is not null && DraftRows.Count > 0;
+
+    private bool IsDraftEquivalentTo(ChannelConfigurationProfile baseline)
+    {
+        if (DraftDevice is null || DraftRows.Count == 0)
+        {
+            return true;
+        }
+
+        var current = CreateDraftProfile(baseline.UpdatedAtUtc);
+        return current.Name == baseline.Name &&
+               current.Description == baseline.Description &&
+               current.DeviceSignature == baseline.DeviceSignature &&
+               current.HardwareReferenceElectrodeLocation == baseline.HardwareReferenceElectrodeLocation &&
+               current.HardwareGroundElectrodeLocation == baseline.HardwareGroundElectrodeLocation &&
+               current.ReferenceMapPosition == (baseline.ReferenceMapPosition ?? ElectrodeMapDefaults.Reference) &&
+               current.GroundMapPosition == (baseline.GroundMapPosition ?? ElectrodeMapDefaults.Ground) &&
+               current.Channels.SequenceEqual(baseline.Channels);
+    }
+
+    private ChannelConfigurationProfile CreateDraftProfile(DateTimeOffset updatedAt)
+    {
+        if (DraftDevice is null || DraftRows.Count == 0)
+        {
+            throw new InvalidOperationException("请先选择设备并读取设备通道。");
+        }
+
+        var name = DraftName.Trim();
+
+        var entries = DraftRows.Where(row => row.IsEegInput).Select(row => new ChannelConfigurationEntry(
+            row.NativeChannelIndex,
+            Enum.Parse<AcquisitionChannelKind>(row.Role),
+            row.ElectrodeLabel.Trim(),
+            row.IsEnabled,
+            row.DisplayOrder,
+            row.ElectrodeLocation,
+            row.ManualMapPosition)).ToArray();
+        return new ChannelConfigurationProfile(
+            draftProfileId ?? Guid.NewGuid().ToString("N"),
+            name,
+            DraftDescription.Trim(),
+            ChannelConfigurationSource.User,
+            AcquisitionDeviceCompatibility.CreateSignature(DraftDevice.DriverId, DraftDevice.ChannelCapabilities),
+            entries,
+            draftCreatedAtUtc ?? updatedAt,
+            updatedAt,
+            DraftDevice.DisplayName,
+            AcquisitionDeviceCompatibility.NormalizeDriverId(DraftDevice.DriverId),
+            DraftDevice.Model ?? string.Empty,
+            NormalizeLocation(DraftReferenceElectrodeLocation),
+            NormalizeLocation(DraftGroundElectrodeLocation),
+            DraftHardwareLandmarks.ReferencePosition,
+            DraftHardwareLandmarks.GroundPosition);
     }
 
     private void BuildDraftRowsFromCurrentDevice(ChannelConfigurationProfile profile)
@@ -795,36 +902,11 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         {
             throw new InvalidOperationException("请先选择设备并读取设备通道。");
         }
-        var name = DraftName.Trim();
-        if (string.IsNullOrWhiteSpace(name))
+        var profile = CreateDraftProfile(DateTimeOffset.UtcNow);
+        if (string.IsNullOrWhiteSpace(profile.Name))
         {
             throw new InvalidOperationException("配置名称不能为空。");
         }
-        var now = DateTimeOffset.UtcNow;
-        var entries = DraftRows.Where(row => row.IsEegInput).Select(row => new ChannelConfigurationEntry(
-            row.NativeChannelIndex,
-            Enum.Parse<AcquisitionChannelKind>(row.Role),
-            row.ElectrodeLabel.Trim(),
-            row.IsEnabled,
-            row.DisplayOrder,
-            row.ElectrodeLocation,
-            row.ManualMapPosition)).ToArray();
-        var profile = new ChannelConfigurationProfile(
-            draftProfileId ?? Guid.NewGuid().ToString("N"),
-            name,
-            DraftDescription.Trim(),
-            ChannelConfigurationSource.User,
-            AcquisitionDeviceCompatibility.CreateSignature(DraftDevice.DriverId, DraftDevice.ChannelCapabilities),
-            entries,
-            draftCreatedAtUtc ?? now,
-            now,
-            DraftDevice.DisplayName,
-            AcquisitionDeviceCompatibility.NormalizeDriverId(DraftDevice.DriverId),
-            DraftDevice.Model ?? string.Empty,
-            NormalizeLocation(DraftReferenceElectrodeLocation),
-            NormalizeLocation(DraftGroundElectrodeLocation),
-            DraftHardwareLandmarks.ReferencePosition,
-            DraftHardwareLandmarks.GroundPosition);
         ChannelConfigurationValidation.Validate(profile);
         if (draftSourceProfile is { Source: ChannelConfigurationSource.User } original &&
             string.Equals(original.Id, profile.Id, StringComparison.Ordinal))
@@ -836,7 +918,8 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
         SelectedProfile = Profiles.FirstOrDefault(item =>
             item.Id == profile.Id && item.Source == ChannelConfigurationSource.User)
             ?? throw new InvalidOperationException("保存后未找到用户通道配置。");
-        IsDraftOpen = false;
+        savedDraftBaseline = profile;
+        RaisePropertyChanged(nameof(HasUnsavedChanges));
         StatusText = $"已保存通道配置“{profile.Name}”。";
         notifications?.PublishSuccess($"已保存通道配置“{profile.Name}”。请点击“应用”后用于采集。");
     }
@@ -877,9 +960,12 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
             row.SetElectrodeLocation(result.Status == "available" &&
                                      result.CanonicalSite is not null &&
                                      result.Coordinates is { Length: 3 } xyz &&
+                                     result.MapCoordinates is { Length: 2 } map &&
+                                     map.All(double.IsFinite) && map.All(value => value is >= -1 and <= 1) &&
                                      result.CoordinateFrame == "mri" && result.CoordinateUnit == "m"
                 ? new ElectrodeLocationSnapshot(
-                    result.CanonicalSite, xyz[0], xyz[1], xyz[2], "mri", "m", result.SourceId, result.SourceVersion)
+                    result.CanonicalSite, xyz[0], xyz[1], xyz[2], "mri", "m", result.SourceId, result.SourceVersion,
+                    map[0], map[1])
                 : null);
         }
 
@@ -980,6 +1066,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
     private void RaiseDraftModePropertiesChanged()
     {
         RaisePropertyChanged(nameof(CanEditDraft));
+        RaisePropertyChanged(nameof(HasUnsavedChanges));
         RaisePropertyChanged(nameof(CanEditSignalDraft));
         RaisePropertyChanged(nameof(IsSignalLockedDraft));
         RaisePropertyChanged(nameof(DraftLockMessage));

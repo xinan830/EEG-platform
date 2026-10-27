@@ -70,6 +70,23 @@ After the event path is measured, profile repeated source preparation and overla
 
 **Alternative considered:** Rewrite every TNK algorithm as a sample-by-sample state machine in this change. Rejected because it broadens scientific risk and is unnecessary to prove incremental result delivery.
 
+### 7. Coalesce preview work before profiling scientific reuse
+
+The 2026-10-27 playback logs showed six concurrent `signal-preview` requests
+for one recording, each taking about 15 seconds. The desktop cancelled only its
+local wait and immediately started a replacement, while the backend continued
+processing the cancelled request. The preview path also entered the continuous
+preprocessing cache without an in-flight owner, so simultaneous misses could
+each read and filter the recording.
+
+The repair serializes waveform preview refreshes in the desktop, keeps only the
+latest pending refresh, selects only requested preview channels, and uses a
+single-flight cache for identical prepared-source identities. This changes
+request scheduling and resource contention only; it does not change TNK window
+boundaries, formulas, units, preprocessing parameters, or numeric reuse across
+windows. Paired desktop performance acceptance remains required before the
+streamed playback capability is declared accepted.
+
 ## Risks / Trade-offs
 
 - [Intermediate event publication increases payload and CPU/memory use] → Batch transport metadata while retaining per-window scientific identity; cap payload/history; include overflow and reconciliation tests.

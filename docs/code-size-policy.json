@@ -25,8 +25,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
-      "max_lines": 445,
-      "reason": "Existing window/session composition is 438 lines. It refreshes montage reference permissions on opening settings and registers externally opened historical snapshots before review. Persistence and locking remain in MontageProfileStore; no additional state machine or numerical work is added."
+      "max_lines": 510,
+      "reason": "The existing window/session composition owns navigation and top-level close interception. This change adds a small delegation to the channel-draft leave guard for navigation and window-close confirmation; prompt/save/discard behavior remains in the channel module. It stays below 600 lines and adds no persistence or scientific logic. Reassess extraction of top-level navigation handling before further growth."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Catalog/AlgorithmListViewModel.Previews.cs": {
       "decision": "split",
@@ -120,8 +120,8 @@
     },
     "backend/app/services/spectral_analysis.py": {
       "decision": "keep",
-      "max_lines": 521,
-      "reason": "退役清理复核：当前 521 行，本轮未改动该文件。职责是配置频谱请求的源数据租约、缓存与响应 provenance 编排；滤波和频谱数学已归入 ScientificSpectralGateway，分块读取和映射另有所有者。仍低于 600 行，保留共同数据租约的生命周期，避免为文档清理改动并发语义。"
+      "max_lines": 550,
+      "reason": "当前约 542 行，职责是配置频谱请求的源数据租约、缓存与响应 provenance 编排；滤波和频谱数学已归入 ScientificSpectralGateway，分块读取和映射另有所有者。本次增加请求通道投影和预处理 single-flight 协调，仍低于 600 行；继续扩展前应拆出独立的预处理生命周期协作者。"
     },
     "backend/app/persistence/repositories/dynamic_attempt.py": {
       "decision": "keep",

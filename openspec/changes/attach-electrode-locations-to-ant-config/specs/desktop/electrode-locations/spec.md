@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Channel settings disclose standard electrode locations
-The system SHALL resolve recognized electrode labels by exact case-insensitive matching after trimming outer whitespace against MNE `standard_1020`. It SHALL return XYZ in meters, coordinate frame `mri`, the MNE version, and source identifier. Results SHALL be identified as standard-template locations, not measured cap-specific or patient-specific sensor positions. Unsupported labels SHALL be explicitly unavailable; the system MUST NOT infer or alias nearby sites. Resolution SHALL use a typed read-only backend API and keep MNE objects internal to the backend. When the verified ANT default system channel configuration is generated, the desktop SHALL resolve its named scalp electrodes using this API and attach successful location snapshots to the corresponding channel entries; REF and GND remain separate landmarks, and unresolved positions remain unavailable.
+The system SHALL resolve recognized electrode labels by exact case-insensitive matching after trimming outer whitespace against MNE `standard_1020`. It SHALL return XYZ in meters, coordinate frame `mri`, the MNE version, and source identifier. Results SHALL be identified as standard-template locations, not measured cap-specific or patient-specific sensor positions. Unsupported labels SHALL be explicitly unavailable; the system MUST NOT infer or alias nearby sites. Resolution SHALL use a typed read-only backend API and keep MNE objects internal to the backend. The backend SHALL derive 2D head-map positions from MNE's public `mne.viz.plot_sensors(kind="topomap", sphere="eeglab")` sensor projection and return those positions with the XYZ snapshot; the desktop SHALL consume returned 2D positions and MUST NOT calculate a second projection from XYZ. Map coordinates SHALL orient anterior sites upward and posterior sites downward in the diagram, fit the standard 10–20 perimeter to 0.92 of the diagram radius, and constrain peripheral template points to that radius without changing their returned XYZ. When the verified ANT default system channel configuration is generated, the desktop SHALL resolve its named scalp electrodes using this API and attach successful location snapshots to corresponding channel entries; REF and GND remain separate landmarks, and unresolved positions remain unavailable. A legacy snapshot without MNE topomap coordinates SHALL remain unprojected until explicitly resolved again; the desktop MUST NOT fabricate or backfill a position from XYZ.
 
 #### Scenario: Recognized electrode label
 - **WHEN** a channel configuration contains a supported 10–20 electrode label
@@ -19,6 +19,14 @@ The system SHALL resolve recognized electrode labels by exact case-insensitive m
 - **WHEN** the user opens channel settings with resolved standard-template locations
 - **THEN** the page shows those sites on a head-top illustration with the anterior direction at the top, labels each site, and identifies the positions as standard-template estimates rather than measured placement
 - **AND** unresolved, reference, ground, or invalid snapshots are not assigned an invented map position
+
+#### Scenario: Use MNE's projected sensor positions
+- **WHEN** a recognized standard electrode location is resolved for the map
+- **THEN** the backend returns the MNE topomap sensor projection alongside its XYZ and MNE version
+- **AND** the desktop draws the returned position without deriving map coordinates from XYZ
+- **AND** occipital sites O1/O2/Oz appear posterior to Pz and near the back edge of the head diagram
+- **AND** peripheral points remain within the diagram radius while the MNE XYZ coordinates remain unchanged
+- **AND** older snapshots without returned map coordinates stay unavailable to the map until explicitly resolved again
 
 #### Scenario: Place a custom channel in a floating diagram
 - **WHEN** the user opens the modeless electrode-map window, selects a configured custom EEG label, and clicks or drags within the head outline

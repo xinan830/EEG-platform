@@ -25,6 +25,8 @@ public sealed class AntSystemChannelLocationResolverTests
         Assert.Equal(profile.Channels.Select(channel => channel.IsSelectedForDisplay),
             resolved.Channels.Select(channel => channel.IsSelectedForDisplay));
         Assert.Equal("Fp1", resolved.Channels[0].ElectrodeLocation?.CanonicalSite);
+        Assert.Equal(0.1, resolved.Channels[0].ElectrodeLocation?.MapX);
+        Assert.Equal(-0.2, resolved.Channels[0].ElectrodeLocation?.MapY);
         Assert.Null(resolved.Channels[1].ElectrodeLocation);
         Assert.Equal("F3", resolved.Channels[2].ElectrodeLocation?.CanonicalSite);
         Assert.Equal("REF", resolved.HardwareReferenceElectrodeLocation);
@@ -73,10 +75,10 @@ public sealed class AntSystemChannelLocationResolverTests
 
     private static ElectrodeLocationResolution Available(
         string label, string canonical, double x, double y, double z) =>
-        new(label, "available", canonical, [x, y, z], "mri", "m", "mne.standard_1020", "1.12.1");
+        new(label, "available", canonical, [x, y, z], [0.1, -0.2], "mri", "m", "mne.standard_1020", "1.12.1");
 
     private static ElectrodeLocationResolution Unavailable(string label) =>
-        new(label, "unavailable", null, null, null, null, "mne.standard_1020", "1.12.1");
+        new(label, "unavailable", null, null, null, null, null, "mne.standard_1020", "1.12.1");
 
     private sealed class StubLocationClient(
         Func<IReadOnlyList<string>, IReadOnlyList<ElectrodeLocationResolution>> resolve) : IElectrodeLocationClient

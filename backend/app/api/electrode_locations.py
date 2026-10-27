@@ -22,6 +22,7 @@ class ElectrodeLocationItem(BaseModel):
     status: Literal["available", "unavailable"]
     canonical_site: str | None
     coordinates: list[float] | None
+    map_coordinates: list[float] | None
     coordinate_frame: Literal["mri"] | None
     coordinate_unit: Literal["m"] | None
     source_id: Literal["mne.standard_1020"]

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using BrainPlatform.Desktop.Modules.Channels.ViewModels;
 
 namespace BrainPlatform.Desktop.Modules.Channels.Views;
 
@@ -13,9 +14,10 @@ public partial class ChannelDetailView : UserControl
         InitializeComponent();
     }
 
-    private void OnBackToChannelListClick(object sender, RoutedEventArgs e)
+    private async void OnBackToChannelListClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is MainWindow mainWindow &&
+            await mainWindow.ConfirmChannelDraftLeaveAsync())
         {
             mainWindow.ShowChannelListView();
         }

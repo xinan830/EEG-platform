@@ -359,7 +359,7 @@
                                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryBlueButton}">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ChannelConfigurations.CanEditDraft}" Value="True">
+                                            <DataTrigger Binding="{Binding ChannelConfigurations.HasUnsavedChanges}" Value="True">
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </DataTrigger>
                                         </Style.Triggers>

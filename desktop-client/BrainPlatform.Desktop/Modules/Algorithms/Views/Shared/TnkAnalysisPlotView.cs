@@ -78,33 +78,35 @@ public sealed class TnkAnalysisPlotView : UserControl
     {
         var started = DesktopLog.PerformanceDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0;
         var updateKind = "unchanged";
-        using (surface.SuspendUpdates())
+        if (Panel is not { } panel)
         {
-            if (Panel is not { } panel)
-            {
+            using (surface.SuspendUpdates())
                 ResetStructure();
-                updateKind = "reset";
+            updateKind = "reset";
+        }
+        else
+        {
+            empty.Text = string.IsNullOrWhiteSpace(panel.EmptyReason)
+                ? "暂无有效结果 · 请查看质量状态"
+                : panel.EmptyReason;
+            title.Text = panel.Title;
+            var targetHeight = panel.IsStacked ? 190 : 360;
+            if (Height != targetHeight) Height = targetHeight;
+            var key = StructureKey(panel);
+            if (!string.Equals(structureKey, key, StringComparison.Ordinal))
+            {
+                using (surface.SuspendUpdates())
+                    BuildStructure(panel, key);
+                updateKind = "structure";
             }
             else
             {
-                empty.Text = string.IsNullOrWhiteSpace(panel.EmptyReason)
-                    ? "暂无有效结果 · 请查看质量状态"
-                    : panel.EmptyReason;
-                title.Text = panel.Title;
-                Height = panel.IsStacked ? 190 : 360;
-                var key = StructureKey(panel);
-                if (!string.Equals(structureKey, key, StringComparison.Ordinal))
-                {
-                    BuildStructure(panel, key);
-                    updateKind = "structure";
-                }
-                else
-                {
-                    updateKind = UpdateSeries(panel);
-                }
-                empty.Visibility = panel.Chart.HasValues ? Visibility.Collapsed : Visibility.Visible;
-                UpdateCursor(force: true);
+                updateKind = UpdateSeries(panel);
             }
+            var targetVisibility = panel.Chart.HasValues ? Visibility.Collapsed : Visibility.Visible;
+            if (empty.Visibility != targetVisibility) empty.Visibility = targetVisibility;
+            if (updateKind != "unchanged")
+                UpdateCursor(force: true);
         }
         if (started != 0) RecordChartUpdate(started, updateKind);
     }
@@ -185,31 +187,40 @@ public sealed class TnkAnalysisPlotView : UserControl
         }
         var updated = false;
         var rebuilt = false;
-        for (var index = 0; index < panel.Chart.Series.Count; index++)
+        IDisposable? suspender = null;
+        try
         {
-            var points = panel.Chart.Series[index].Points;
-            var previous = renderedPoints[index];
-            var appendStart = TnkChartAppendPlanner.FindAppendStart(previous, points);
-            if (appendStart == -1) continue;
-            updated = true;
-            var oldEnd = previous.Count > 0 ? previous[^1].X : double.NaN;
-            var followsLatest = xAxis?.VisibleRange is DoubleRange range && double.IsFinite(oldEnd) && range.Max >= oldEnd - .001;
-            if (appendStart is int suffixStart)
+            for (var index = 0; index < panel.Chart.Series.Count; index++)
             {
-                var suffix = points.Skip(suffixStart).ToArray();
-                AppendAll(dataSeries[index], suffix);
-                if (followsLatest && suffix.Length > 0 && xAxis?.VisibleRange is DoubleRange visible)
-                    xAxis.VisibleRange = new DoubleRange(visible.Min, Math.Max(visible.Max, suffix[^1].X));
+                var points = panel.Chart.Series[index].Points;
+                var previous = renderedPoints[index];
+                var appendStart = TnkChartAppendPlanner.FindAppendStart(previous, points);
+                if (appendStart == -1) continue;
+                suspender ??= surface.SuspendUpdates();
+                updated = true;
+                var oldEnd = previous.Count > 0 ? previous[^1].X : double.NaN;
+                var followsLatest = xAxis?.VisibleRange is DoubleRange range && double.IsFinite(oldEnd) && range.Max >= oldEnd - .001;
+                if (appendStart is int suffixStart)
+                {
+                    var suffix = points.Skip(suffixStart).ToArray();
+                    AppendAll(dataSeries[index], suffix);
+                    if (followsLatest && suffix.Length > 0 && xAxis?.VisibleRange is DoubleRange visible)
+                        xAxis.VisibleRange = new DoubleRange(visible.Min, Math.Max(visible.Max, suffix[^1].X));
+                }
+                else
+                {
+                    rebuilt = true;
+                    dataSeries[index].Clear();
+                    AppendAll(dataSeries[index], points);
+                }
+                renderedPoints[index] = points.ToArray();
             }
-            else
-            {
-                rebuilt = true;
-                dataSeries[index].Clear();
-                AppendAll(dataSeries[index], points);
-            }
-            renderedPoints[index] = points.ToArray();
+            return !updated ? "unchanged" : rebuilt ? "line_rebuild" : "line_append";
         }
-        return !updated ? "unchanged" : rebuilt ? "line_rebuild" : "line_append";
+        finally
+        {
+            suspender?.Dispose();
+        }
     }
 
     private string UpdateStackedSeries(TnkPlotPanel panel)
@@ -218,31 +229,40 @@ public sealed class TnkAnalysisPlotView : UserControl
         var nextEnd = panel.Chart.Series.SelectMany(series => series.Points).Select(point => point.X).DefaultIfEmpty(double.NaN).Max();
         var hasChanges = false;
         var rebuilt = false;
-        for (var index = 0; index < panel.Chart.Series.Count; index++)
+        IDisposable? suspender = null;
+        try
         {
-            var points = panel.Chart.Series[index].Points;
-            var previous = renderedPoints[index];
-            var appendStart = TnkChartAppendPlanner.FindAppendStart(previous, points);
-            if (appendStart == -1) continue;
-            if (appendStart is int suffixStart)
-                AppendAll(dataSeries[index], points.Skip(suffixStart).ToArray());
-            else
+            for (var index = 0; index < panel.Chart.Series.Count; index++)
             {
-                rebuilt = true;
-                // A late recovered window or bounded-history trim changed the prefix.
-                // Rebuild only for this explicit reconciliation/reset case.
-                var replacement = new XyDataSeries<double, double> { SeriesName = dataSeries[index].SeriesName };
-                AppendAll(replacement, points);
-                dataSeries[index] = replacement;
-                surface.RenderableSeries[index].DataSeries = replacement;
+                var points = panel.Chart.Series[index].Points;
+                var previous = renderedPoints[index];
+                var appendStart = TnkChartAppendPlanner.FindAppendStart(previous, points);
+                if (appendStart == -1) continue;
+                suspender ??= surface.SuspendUpdates();
+                if (appendStart is int suffixStart)
+                    AppendAll(dataSeries[index], points.Skip(suffixStart).ToArray());
+                else
+                {
+                    rebuilt = true;
+                    // A late recovered window or bounded-history trim changed the prefix.
+                    // Rebuild only for this explicit reconciliation/reset case.
+                    var replacement = new XyDataSeries<double, double> { SeriesName = dataSeries[index].SeriesName };
+                    AppendAll(replacement, points);
+                    dataSeries[index] = replacement;
+                    surface.RenderableSeries[index].DataSeries = replacement;
+                }
+                renderedPoints[index] = points.ToArray();
+                hasChanges = true;
             }
-            renderedPoints[index] = points.ToArray();
-            hasChanges = true;
+            if (!hasChanges) return "unchanged";
+            var advancedRange = TnkTimelineRange.AdvanceIfFollowing(xAxis?.VisibleRange as DoubleRange, previousEnd, nextEnd);
+            if (advancedRange is not null) xAxis!.VisibleRange = advancedRange;
+            return rebuilt ? "stacked_rebuild" : "stacked_append";
         }
-        if (!hasChanges) return "unchanged";
-        var advancedRange = TnkTimelineRange.AdvanceIfFollowing(xAxis?.VisibleRange as DoubleRange, previousEnd, nextEnd);
-        if (advancedRange is not null) xAxis!.VisibleRange = advancedRange;
-        return rebuilt ? "stacked_rebuild" : "stacked_append";
+        finally
+        {
+            suspender?.Dispose();
+        }
     }
 
     private static void AppendAll(XyDataSeries<double, double> target, IReadOnlyList<TnkChartPoint> points)

@@ -9,7 +9,8 @@
         MinHeight="720"
         WindowStartupLocation="CenterScreen"
         Background="#F3F5F8"
-        Loaded="OnWindowLoaded">
+        Loaded="OnWindowLoaded"
+        Closing="OnWindowClosing">
 
     <Window.Resources>
         <ResourceDictionary>

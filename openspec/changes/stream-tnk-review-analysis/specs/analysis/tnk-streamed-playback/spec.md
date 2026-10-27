@@ -13,6 +13,12 @@ The desktop SHALL advance and render the review waveform without waiting synchro
 - **AND** the TNK display identifies the newest completed analysis window and its lag from the cursor
 - **AND** no old TNK value is labeled as if it were calculated at the current cursor
 
+#### Scenario: Waveform refreshes overlap with on-demand analysis
+- **WHEN** a seek, role change, or filter change occurs while a waveform preview request is still running
+- **THEN** the desktop coalesces pending refreshes and does not start a second preview request before the current one finishes
+- **AND** a stale response is discarded by its source revision
+- **AND** concurrent requests for the same continuous prepared source share one backend preprocessing operation
+
 ### Requirement: Publish TNK results as identified analysis-window events
 Each TNK result event SHALL carry the immutable window identity, recording/session and scientific-configuration identity, algorithm and implementation identity, half-open sample range, recording-relative start/end time, output units, quality state, and structured failure/evidence when applicable. Consumers SHALL order and deduplicate by window identity and analysis time, not by response arrival time or current cursor position.
 

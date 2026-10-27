@@ -18,6 +18,7 @@ See proposal.md for motivation. Channel entries already carry optional standard 
 
 - Resolve named ANT scalp labels through the existing typed backend endpoint while preparing the default configuration in the channel workspace. This keeps MNE as the sole standard-coordinate source; embedding constants or resolving independently inside the direction map would duplicate ownership.
 - Treat resolver failure as a display-metadata failure: preserve the ordinary ANT profile and channel functions, leave locations unavailable, and show a clear status. Do not cache a silent fallback or fail configuration loading.
+- Derive diagram coordinates from MNE's public `plot_sensors(kind="topomap", sphere="eeglab")` projection, not `make_eeg_layout`, whose box centers are intended for sensor layout and pull posterior sites inward for this head map. Fit the standard 10–20 perimeter to the diagram's 0.92 radius; constrain peripheral template points to that display radius while retaining their original MNE XYZ.
 - Keep direction as a projection of `DerivedMontageChannel` formula data and the selected channel snapshot. Do not persist arrows, because coordinates and formulas can change independently and would otherwise become stale.
 - Existing JSON remains compatible because location fields are optional. Regenerated read-only ANT profiles obtain locations at runtime; saved user profiles and historical montage snapshots retain their own existing immutable location metadata.
 

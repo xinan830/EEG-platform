@@ -160,6 +160,18 @@ public sealed class AnalysisContextViewModel : ObservableObject
             return;
         }
 
+        if (args.PropertyName is nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)
+            or nameof(AlgorithmListViewModel.DynamicPreviewCursorText)
+            or nameof(AlgorithmListViewModel.DynamicTimeProgressPercent)
+            or nameof(AlgorithmListViewModel.DynamicTimeProgressText)
+            or nameof(AlgorithmListViewModel.DynamicCurrentWindowText)
+            or nameof(AlgorithmListViewModel.IsDynamicPreviewPlaying)
+            or nameof(AlgorithmListViewModel.DynamicPreviewStatusText))
+        {
+            RaisePropertyChanged(args.PropertyName);
+            return;
+        }
+
         if (args.PropertyName is nameof(AlgorithmListViewModel.TimeDisplay)
             or nameof(AlgorithmListViewModel.SelectedProjectRecording)
             or nameof(AlgorithmListViewModel.SelectedAlgorithm)

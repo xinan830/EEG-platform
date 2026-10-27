@@ -9,6 +9,7 @@ public sealed record ElectrodeLocationResolution(
     string Status,
     string? CanonicalSite,
     double[]? Coordinates,
+    double[]? MapCoordinates,
     string? CoordinateFrame,
     string? CoordinateUnit,
     string SourceId,

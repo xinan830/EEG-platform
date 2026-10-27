@@ -96,7 +96,7 @@ public sealed partial class AlgorithmListViewModel
         if (dispatcher is null) return;
         void Publish() => OwnedTnkPlaybackGap?.Invoke(gap);
         if (dispatcher.CheckAccess()) Publish();
-        else _ = dispatcher.BeginInvoke(Publish);
+        else _ = dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, Publish);
     }
 
     private void PublishTnkPlaybackRecoveryFailed(string deliveryId)
@@ -110,7 +110,7 @@ public sealed partial class AlgorithmListViewModel
                 OwnedTnkPlaybackRecoveryFailed?.Invoke(deliveryId);
         }
         if (dispatcher.CheckAccess()) Publish();
-        else _ = dispatcher.BeginInvoke(Publish);
+        else _ = dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, Publish);
     }
 
     private void PublishTnkPlaybackFrame(TnkPlaybackFrameEventResponse item)

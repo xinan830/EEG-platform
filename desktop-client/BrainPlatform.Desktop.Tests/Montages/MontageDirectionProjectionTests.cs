@@ -55,16 +55,16 @@ public sealed class MontageDirectionProjectionTests
     }
 
     [Fact]
-    public void StandardO1AndO2CoordinatesProjectInsideTheScalpMap()
+    public void StandardO1AndO2UseMneLayoutCoordinatesInTheScalpMap()
     {
         var configuration = Configuration(
-            StandardChannel("O1", -0.0294134, -0.1124490, 0.008839),
-            StandardChannel("O2", 0.0298426, -0.1121560, 0.0088));
+            StandardChannel("O1", -0.0294134, -0.1124490, 0.008839, -0.20944567100473832, 0.5344564790544133),
+            StandardChannel("O2", 0.0298426, -0.1121560, 0.0088, 0.18317502629299898, 0.5325828772907352));
 
         var points = MontageDirectionProjection.CreatePoints(configuration);
 
-        Assert.Contains(points, point => point.Label == "O1" && point.Y > 0.7 && point.Y < 1);
-        Assert.Contains(points, point => point.Label == "O2" && point.Y > 0.7 && point.Y < 1);
+        Assert.Contains(points, point => point.Label == "O1" && point.X == -0.20944567100473832 && point.Y == 0.5344564790544133);
+        Assert.Contains(points, point => point.Label == "O2" && point.X == 0.18317502629299898 && point.Y == 0.5325828772907352);
     }
 
     private static ChannelConfigurationProfile Configuration(params ChannelConfigurationEntry[] channels) => new(
@@ -74,9 +74,9 @@ public sealed class MontageDirectionProjectionTests
     private static ChannelConfigurationEntry Channel(string label, ElectrodeMapPosition position) => new(
         0, AcquisitionChannelKind.Reference, label, true, 0, ManualMapPosition: position);
 
-    private static ChannelConfigurationEntry StandardChannel(string label, double x, double y, double z) => new(
+    private static ChannelConfigurationEntry StandardChannel(string label, double x, double y, double z, double mapX, double mapY) => new(
         0, AcquisitionChannelKind.Reference, label, true, 0,
-        new ElectrodeLocationSnapshot(label, x, y, z, "mri", "m", "mne.standard_1020", "1.12.1"));
+        new ElectrodeLocationSnapshot(label, x, y, z, "mri", "m", "mne.standard_1020", "1.12.1", mapX, mapY));
 
     private static MontageDraftRow Row(string positive, MontageNegativeKind kind, string? negative = null) => new(
         positive, 0, ["F3", "C3", "C4"], kind, negative, null, null, "AVG", "PAIR");

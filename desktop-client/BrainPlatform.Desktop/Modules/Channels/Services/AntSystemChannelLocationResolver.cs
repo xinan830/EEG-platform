@@ -85,14 +85,16 @@ public static class AntSystemChannelLocationResolver
     private static ElectrodeLocationSnapshot CreateSnapshot(ElectrodeLocationResolution result)
     {
         if (string.IsNullOrWhiteSpace(result.CanonicalSite) || result.Coordinates is not { Length: 3 } xyz ||
+            result.MapCoordinates is not { Length: 2 } map ||
             result.CoordinateFrame != "mri" || result.CoordinateUnit != "m" ||
             result.SourceId != "mne.standard_1020" || string.IsNullOrWhiteSpace(result.SourceVersion) ||
-            xyz.Any(value => !double.IsFinite(value)))
+            xyz.Any(value => !double.IsFinite(value)) || map.Any(value => !double.IsFinite(value)) ||
+            map.Any(value => value is < -1 or > 1))
         {
             throw new InvalidOperationException("ANT 标准位置解析响应不符合坐标来源、单位或数值契约。");
         }
 
         return new ElectrodeLocationSnapshot(result.CanonicalSite, xyz[0], xyz[1], xyz[2],
-            result.CoordinateFrame, result.CoordinateUnit, result.SourceId, result.SourceVersion);
+            result.CoordinateFrame, result.CoordinateUnit, result.SourceId, result.SourceVersion, map[0], map[1]);
     }
 }
