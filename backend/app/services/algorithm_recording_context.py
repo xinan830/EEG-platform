@@ -303,3 +303,56 @@ class _RecordingAlgorithmContext:
             preprocessing={"low_hz": request.low_hz, "high_hz": request.high_hz, "notch_hz": request.notch_hz},
             provenance=evidence,
         )
+
+    def load_time_series_source(
+        self,
+        *,
+        start_sample: int,
+        end_sample: int,
+        channels: list[str],
+        expected_sfreq_hz: float,
+        roles: list[str],
+    ) -> SignalSourceData:
+        """Read bounded raw V samples for modules that own preprocessing.
+
+        This boundary deliberately does not call the configured spectral or
+        display preprocessing path.  The caller supplies the explicit role
+        order; the legacy TNK modules then perform their fixed resampling and
+        causal filters themselves.
+        """
+        if len(channels) != len(roles) or len(channels) != 1 or roles != ["Fz"]:
+            raise ValueError("time-series source currently requires one explicit Fz channel")
+        if not np.isclose(expected_sfreq_hz, self.sfreq_hz, rtol=0.0, atol=1e-12):
+            raise ValueError("time-series source sampling rate changed after request planning")
+        if start_sample < 0 or end_sample <= start_sample or end_sample > int(round(self.duration_s * self.sfreq_hz)):
+            raise ValueError("time-series source sample bounds exceed the recording")
+        lookup = {name.casefold(): (index, name) for index, name in enumerate(self.channel_names)}
+        try:
+            indexes = [lookup[channel.casefold()][0] for channel in channels]
+            ordered_channels = [lookup[channel.casefold()][1] for channel in channels]
+        except KeyError as exc:
+            raise ValueError(f"time-series source channel does not exist: {exc.args[0]}") from exc
+        if self._reader is None:
+            self._reader = self._recordings.open_sample_reader(self._recording)
+        values = np.asarray(self._reader.read(start_sample, end_sample, indexes), dtype=np.float64)
+        if values.shape != (end_sample - start_sample, len(channels)):
+            raise ValueError("time-series source returned inconsistent sample bounds")
+        provenance = dict(self._recordings.analysis_signal_provenance(self._recording))
+        provenance.update({
+            "time_scope": "exact_requested_absolute_range",
+            "requested_range_s": {"start_s": start_sample / self.sfreq_hz, "end_s": end_sample / self.sfreq_hz},
+            "actual_range_s": {"start_s": start_sample / self.sfreq_hz, "end_s": end_sample / self.sfreq_hz},
+            "channels": ordered_channels, "channel_order": ordered_channels,
+            "sfreq_hz": self.sfreq_hz, "signal_input_unit": "V",
+            "preprocessing_scope": "module_defined", "preprocessing": "legacy_tnk_owned",
+        })
+        montage_id, montage_fingerprint = self.signal_source_identity()
+        return SignalSourceData(
+            values_v=values, role_to_output=dict(zip(roles, ordered_channels)),
+            channel_order=tuple(ordered_channels), sfreq_hz=self.sfreq_hz,
+            start_sample=start_sample, end_sample=end_sample, unit="V",
+            missing_sample_policy="reject", montage_id=montage_id,
+            montage_fingerprint=montage_fingerprint, preprocessing_scope="module_defined",
+            preprocessing={"low_hz": None, "high_hz": None, "notch_hz": None},
+            provenance=provenance,
+        )

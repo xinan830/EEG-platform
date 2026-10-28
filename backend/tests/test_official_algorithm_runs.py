@@ -171,14 +171,16 @@ def test_official_rbp_run_returns_all_five_backend_band_shares(tmp_path: Path):
     service, recording_id = _service(tmp_path, sfreq_hz=200.0)
     completed = service.create(_request(recording_id, "rbp"))
 
-    metric = completed.result_summary["metric"]
+    structured = completed.result_summary["structured"]
     assert completed.status is RunStatus.COMPLETED
-    assert metric["output"]["value"] is None
-    assert set(metric["band_values"]) == {"delta", "theta", "alpha", "beta", "gamma"}
-    assert sum(metric["band_values"].values()) == pytest.approx(1.0)
-    assert metric["chart"]["kind"] == "band_share"
-    assert completed.scientific_version == "official-rbp-v2"
-    assert completed.definition_version == "2.0.1"
+    assert structured["output"]["kind"] == "algorithm_group"
+    assert structured["channel_order"]
+    assert {"delta", "theta", "alpha", "beta", "gamma"}.issubset(structured["arrays"])
+    artifact = service.list_artifacts(completed.run_id)[0]
+    arrays = service.artifacts.read_npz(artifact)
+    assert sum(float(arrays[name][0]) for name in ("delta", "theta", "alpha", "beta", "gamma")) == pytest.approx(1.0)
+    assert completed.scientific_version == "official-rbp-v3"
+    assert completed.definition_version == "2.0.2"
     assert completed.filters["bandpass_hz"] == [1.0, 50.0]
     assert completed.filters["notch_hz"] == 50.0
 
@@ -188,12 +190,14 @@ def test_official_dynamic_rbp_returns_five_band_shares_per_window(tmp_path: Path
     completed = service.create(_request(recording_id, "rbp", dynamic=True))
 
     assert completed.status is RunStatus.COMPLETED
-    series = completed.result_summary["metric"]["series"]
+    structured = completed.result_summary["structured"]
+    series = structured["windows"]
     assert len(series) == 27
-    assert set(series[0]["band_values"]) == {"delta", "theta", "alpha", "beta", "gamma"}
-    assert sum(series[6]["band_values"].values()) == pytest.approx(1.0)
-    assert series[0]["analysis_state"] == "Partial"
-    assert series[6]["analysis_state"] == "Complete"
+    artifact = service.list_artifacts(completed.run_id)[0]
+    arrays = service.artifacts.read_npz(artifact)
+    assert sum(float(arrays[name][6, 0]) for name in ("delta", "theta", "alpha", "beta", "gamma")) == pytest.approx(1.0)
+    assert series[0]["state"] == "Partial"
+    assert series[6]["state"] == "Complete"
 
 
 def test_official_rbp_rejects_nyquist_at_50_hz(tmp_path: Path):
@@ -215,12 +219,14 @@ def test_official_rbp_matches_psd_five_band_shares_with_identical_preprocessing(
     assert rbp.status is psd.status is RunStatus.COMPLETED
     artifact = service.list_artifacts(psd.run_id)[0]
     psd_shares = service.artifacts.read_npz(artifact)["band_share"]
-    actual = rbp.result_summary["metric"]["band_values"]
+    rbp_artifact = service.list_artifacts(rbp.run_id)[0]
+    rbp_arrays = service.artifacts.read_npz(rbp_artifact)
+    actual = {name: float(rbp_arrays[name][0]) for name in ("delta", "theta", "alpha", "beta", "gamma")}
     np.testing.assert_allclose(
         [actual[band] for band in ("delta", "theta", "alpha", "beta", "gamma")],
         psd_shares, rtol=1e-10, atol=1e-12,
     )
-    evidence = rbp.result_summary["metric"]["spectral_evidence"]
+    evidence = rbp.result_summary["structured"]["spectral_evidence"]
     assert evidence["filter_contract"]["bandpass_hz"] == [1.0, 50.0]
     assert evidence["filter_contract"]["notch_hz"] == 50.0
     assert evidence["rbp_denominator_uv2"] == pytest.approx(sum(evidence["band_power"].values()))

@@ -11,34 +11,95 @@ public sealed record RbpBandPoint(string Key, string Label, string Range, double
 public sealed record RbpWindowPoint(double TimeSeconds, double StartSeconds, double EndSeconds,
     string State, string Quality, string Failure, double?[] Shares);
 
+public sealed record RbpChannelWindowPoint(string Channel, RbpWindowPoint Window);
+
 public sealed partial class RbpResultPreview
 {
     private static readonly (string Key, string Label, string Range, string Color)[] CurrentBands =
     [
-        ("delta", "δ Delta", "1–4 Hz", "#4D8BC8"),
-        ("theta", "θ Theta", "4–8 Hz", "#46A78B"),
-        ("alpha", "α Alpha", "8–13 Hz", "#D47B79"),
-        ("beta", "β Beta", "13–30 Hz", "#C49A48"),
+        ("delta", "δ Delta", "1–4 Hz", "#F04444"),
+        ("theta", "θ Theta", "4–8 Hz", "#F6C744"),
+        ("alpha", "α Alpha", "8–13 Hz", "#55A94F"),
+        ("beta", "β Beta", "13–30 Hz", "#4C83B8"),
         ("gamma", "γ Gamma", "30–50 Hz", "#8D73D1"),
     ];
 
     private readonly (string Key, string Label, string Range, string Color)[] bands;
 
     private RbpResultPreview((string Key, string Label, string Range, string Color)[] bands,
-        double?[] staticShares, RbpWindowPoint[] windows, string staticQuality, string staticFailure)
+        double?[] staticShares, RbpWindowPoint[] windows, string staticQuality, string staticFailure,
+        IReadOnlyList<RbpChannelWindowPoint>? channelWindows = null)
     {
         this.bands = bands;
         StaticShares = staticShares;
         Windows = windows;
         StaticQuality = staticQuality;
         StaticFailure = staticFailure;
+        ChannelWindows = channelWindows ?? [];
     }
 
     public double?[] StaticShares { get; }
     public RbpWindowPoint[] Windows { get; }
     public string StaticQuality { get; }
     public string StaticFailure { get; }
+    public IReadOnlyList<RbpChannelWindowPoint> ChannelWindows { get; }
     public bool IsDynamic => Windows.Length > 0;
+
+    public static IReadOnlyList<RbpBandPoint> BandDefinitions => CurrentBands.Select(band =>
+        new RbpBandPoint(band.Key, band.Label, band.Range, null, band.Color)).ToArray();
+
+    public static RbpResultPreview FromStructured(StructuredPreviewResponse preview)
+    {
+        if (preview.ScientificVersion != "official-rbp-v3" || preview.ChannelOrder is null || preview.ChannelOrder.Count == 0)
+            throw new InvalidOperationException("RBP 结构化结果缺少 v3 导联顺序。");
+        var channelWindows = new List<RbpChannelWindowPoint>();
+        var timeAxis = ReadVector(preview.Axes, "time_s");
+        var bandMatrices = CurrentBands.ToDictionary(band => band.Key, band => ReadMatrix(preview.Arrays, band.Key), StringComparer.Ordinal);
+        var windowsByEnd = preview.Windows.GroupBy(window => Number(window, "end_s"))
+            .ToDictionary(group => group.Key, group => group.First());
+        var channelIndexValues = ReadVector(preview.Axes, "channel_index");
+        if (channelIndexValues.Length != preview.ChannelOrder.Count || CurrentBands.Any(band =>
+                bandMatrices[band.Key].Length != timeAxis.Length || bandMatrices[band.Key].Any(row => row.Length != preview.ChannelOrder.Count)))
+            throw new InvalidOperationException("RBP 矩阵形状与窗口轴或导联顺序不一致。");
+        for (var channel = 0; channel < preview.ChannelOrder.Count; channel++)
+        for (var window = 0; window < timeAxis.Length; window++)
+        {
+            var shares = CurrentBands.Select(band => bandMatrices[band.Key][window][channel]).ToArray();
+            if (shares.Any(value => value is null || value < 0 || value > 1)) shares = new double?[CurrentBands.Length];
+            var end = timeAxis[window];
+            var metadata = windowsByEnd.GetValueOrDefault(end);
+            var start = metadata.ValueKind == JsonValueKind.Object ? Number(metadata, "start_s") : double.NaN;
+            var state = metadata.ValueKind != JsonValueKind.Object ? "Complete" : String(metadata, "state");
+            var quality = metadata.ValueKind != JsonValueKind.Object ? "clean" : String(metadata, "quality");
+            if (state is "Rejected" or "Unavailable" || quality is "failed" or "unavailable") shares = new double?[CurrentBands.Length];
+            channelWindows.Add(new RbpChannelWindowPoint(preview.ChannelOrder[channel], new RbpWindowPoint(end, start, end,
+                state, quality, metadata.ValueKind != JsonValueKind.Object ? "" : FailureText(metadata), shares)));
+        }
+        var primary = preview.ChannelOrder[0];
+        var points = channelWindows.Where(item => item.Channel == primary).Select(item => item.Window).OrderBy(item => item.EndSeconds).ToArray();
+        return new RbpResultPreview(CurrentBands, points.LastOrDefault()?.Shares ?? new double?[CurrentBands.Length], points,
+            preview.Quality?.ToString() ?? "", "", channelWindows);
+    }
+
+    private static double[] ReadVector(IReadOnlyDictionary<string, JsonElement> values, string key)
+    {
+        if (!values.TryGetValue(key, out var value) || value.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException($"RBP 结构化结果缺少 {key} 轴。");
+        return value.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.Number && item.TryGetDouble(out var number) ? number : double.NaN).ToArray();
+    }
+
+    private static double?[][] ReadMatrix(IReadOnlyDictionary<string, JsonElement> values, string key)
+    {
+        if (!values.TryGetValue(key, out var value) || value.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException($"RBP 结构化结果缺少 {key} 矩阵。");
+        return value.EnumerateArray().Select(row => row.ValueKind == JsonValueKind.Array
+            ? row.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.Number && item.TryGetDouble(out var number) && double.IsFinite(number) ? (double?)number : null).ToArray()
+            : []).ToArray();
+    }
+
+    private static string FailureText(JsonElement window) =>
+        window.TryGetProperty("failure", out var failure) && failure.ValueKind == JsonValueKind.Object
+            ? $"{String(failure, "code")}：{String(failure, "message")}" : "";
 
     public IReadOnlyList<RbpBandPoint> BandsAt(double cursorSeconds)
     {
@@ -52,7 +113,7 @@ public sealed partial class RbpResultPreview
     public static RbpResultPreview Parse(AnalysisRunResponse? run)
     {
         if (run is not null) CurrentAlgorithmResult.Require(run);
-        var isCurrentVersion = run?.ScientificVersion == "official-rbp-v2";
+        var isCurrentVersion = run?.ScientificVersion is "official-rbp-v2" or "official-rbp-v3";
         var bands = isCurrentVersion ? CurrentBands : [];
         var unavailable = new double?[bands.Length];
         if (!isCurrentVersion || run?.Status != "completed" || run.ResultSummary is not { } summary ||

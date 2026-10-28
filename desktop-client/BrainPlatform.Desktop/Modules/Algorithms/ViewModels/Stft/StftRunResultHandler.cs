@@ -14,7 +14,7 @@ internal sealed class StftRunResultHandler : IAlgorithmRunResultHandler
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
 
     public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
-        StftWindowPresenter.Apply(catalog.StftPreviewState, response);
+        StftWindowPresenter.Append(catalog.StftPreviewState, response);
 
     public AlgorithmRunParameters ParseParameters(AlgorithmRunInputs inputs)
     {

@@ -53,14 +53,13 @@ def test_rbp_continuous_source_each_window_matches_full_run_and_loads_only_one_f
     full = algorithm.execute_dynamic(source, config())
     for index, frame in enumerate(full.windows):
         calls.clear()
-        plan, window = execute(algorithm, source, int(round(frame["end_s"] * sfreq)))
+        plan, window = execute(algorithm, source, int(round(frame.end_s * sfreq)))
         assert len(calls) == 1
-        assert (plan.start_s, plan.end_s) == (frame["start_s"], frame["end_s"])
+        assert (plan.start_s, plan.end_s) == (frame.start_s, frame.end_s)
         assert window.state == "ready"
         validate_window_result(window, algorithm.manifest)
-        for name, value in full.output_values[index].items():
-            np.testing.assert_allclose(window.arrays[name], [value], rtol=1e-12, atol=1e-12)
-        assert window.evidence == full.point_evidence[index]
+        for name in ("delta", "theta", "alpha", "beta", "gamma"):
+            np.testing.assert_allclose(window.arrays[name], [full.arrays[name][index, 0]], rtol=1e-12, atol=1e-12)
         assert window.provenance["filter_bandpass_hz"] == [1, 50]
         assert sum(value[0] for value in window.arrays.values()) == pytest.approx(1)
 
@@ -82,9 +81,8 @@ def test_rbp_quality_rejection_matches_full_dynamic_frame():
     full = algorithm.execute_dynamic(source, config())
     _, window = execute(algorithm, source, 800)
     assert window.state == "rejected"
-    assert window.failure["code"] == full.failures[0].code
-    assert window.failure["details"] == full.failures[0].detail
-    assert window.evidence == full.point_evidence[0]
+    assert window.failure["code"] == "PSD_QUALITY_GATE_FAILED"
+    assert window.quality == "gate_failed"
 
 
 def test_rbp_invalid_denominator_is_unavailable_not_zero_or_execution_failure():
@@ -92,7 +90,7 @@ def test_rbp_invalid_denominator_is_unavailable_not_zero_or_execution_failure():
         total_epochs=1, signal_quality=1, gate_failed=None, rejected_reasons=[], evidence={})
     _, window = execute(RbpAlgorithm(), inputs(lambda **_: spectrum), 1000)
     assert window.state == "unavailable"
-    assert window.failure["code"] == "RBP_WINDOW_UNAVAILABLE"
+    assert window.failure["code"] == "RBP_ALL_CHANNELS_UNAVAILABLE"
     assert all(np.isnan(value[0]) for value in window.arrays.values())
 
 

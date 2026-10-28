@@ -12,6 +12,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly IAlgorithmClient client;
+    internal IAlgorithmClient Client => client;
     private readonly AlgorithmRunCoordinator runCoordinator;
     private readonly OperationNotificationCenter notifications;
     private readonly MontageProfileStore montageStore;
@@ -464,7 +465,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
 
     public IReadOnlyList<string> ModeFilters { get; } = ["全部", "静态", "动态"];
     public IReadOnlyList<string> AvailabilityFilters { get; } = ["全部", "可用", "不可运行", "验证中", "不可用"];
-    public IReadOnlyList<string> TypeFilters { get; } = ["全部", "频谱", "时频", "频段功率", "标量"];
+    public IReadOnlyList<string> TypeFilters { get; } = ["全部", "频谱", "时频", "频段功率", "TNK 指标", "标量"];
 
     public string SearchText
     {

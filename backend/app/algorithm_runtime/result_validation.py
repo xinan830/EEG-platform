@@ -57,7 +57,7 @@ def validate_algorithm_result(
 
     declared_fields = {field.name: field.unit for field in contract.fields}
     if requested_channels is not None:
-        if len(requested_channels) != len(contract.channel_role_order):
+        if not requested_channels or len(contract.channel_role_order) != 1:
             raise InvalidAlgorithmResultError("requested channels do not match declared source roles")
         if isinstance(result, (AlgorithmResult, AlgorithmSeriesResult)):
             matches = result.channel.casefold() == "/".join(requested_channels).casefold()
@@ -124,7 +124,8 @@ def validate_algorithm_result(
             if not shape or shape[0] != len(result.windows):
                 raise InvalidAlgorithmResultError("structured series must use windows as its first dimension")
             shape = shape[1:]
-        expected = next(field.shape for field in contract.fields if field.name == name)
+        shape_schema = contract.static_shapes if isinstance(result, AlgorithmStructuredResult) else contract.window_shapes
+        expected = shape_schema.get(name) or next(field.shape for field in contract.fields if field.name == name)
         if len(shape) != len(expected):
             raise InvalidAlgorithmResultError(f"structured field {name} rank differs from declaration")
         for length, dimension in zip(shape, expected, strict=True):

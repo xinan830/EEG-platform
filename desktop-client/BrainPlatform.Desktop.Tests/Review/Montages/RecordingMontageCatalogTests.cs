@@ -46,6 +46,28 @@ public sealed class RecordingMontageCatalogTests
     }
 
     [Fact]
+    public void BuildDeduplicatesLegacySystemPresetsWithDifferentIds()
+    {
+        var configuration = AntConfiguration();
+        var current = SystemMontageProfileFactory.Create(configuration);
+        var legacy = current
+            .Select(profile => profile with
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Source = MontageProfileSource.User,
+            })
+            .ToArray();
+
+        var result = RecordingMontageCatalog.Build(
+            Manifest(configuration, includeChannelSnapshot: true),
+            current.Concat(legacy));
+
+        Assert.Equal(current.Count, result.CompatibleViewingMontages.Count);
+        Assert.Equal(current.Select(profile => profile.Name).Order(),
+            result.CompatibleViewingMontages.Select(item => item.Profile.Name).Order());
+    }
+
+    [Fact]
     public void BuildStillChecksSystemPresetDependenciesAgainstActualRecordedChannels()
     {
         var configuration = AntConfiguration();

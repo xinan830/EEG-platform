@@ -70,6 +70,16 @@ class ResultService:
             for name, metadata in (structured.get("axes") or {}).items()
             if metadata.get("array_key") in arrays
         }
+        windows = structured.get("windows", [])
+        window_evidence = arrays.get("window_evidence_json")
+        if window_evidence is not None and isinstance(windows, list):
+            raw = np.asarray(window_evidence).item()
+            evidence_items = json.loads(str(raw))
+            if isinstance(evidence_items, list) and len(evidence_items) == len(windows):
+                windows = [
+                    {**window, "evidence": evidence}
+                    for window, evidence in zip(windows, evidence_items, strict=True)
+                ]
         return {
             "run_id": run.run_id,
             "artifact": artifact.model_dump(mode="json"),
@@ -81,7 +91,7 @@ class ResultService:
             "axis_metadata": structured.get("axes", {}),
             "arrays": preview_arrays,
             "array_metadata": structured.get("arrays", {}),
-            "windows": structured.get("windows", []),
+            "windows": windows,
             "window_state_counts": structured.get("window_state_counts", {}),
             "quality": structured.get("quality"),
             "spectral_evidence": structured.get("spectral_evidence", {}),

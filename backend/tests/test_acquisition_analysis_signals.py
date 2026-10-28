@@ -303,6 +303,27 @@ def test_historical_catalogue_projects_selected_profile_from_same_raw_channels(t
     assert {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in source_paths} == source_checksums
 
 
+def test_catalogue_hides_same_projection_written_under_different_ids(tmp_path):
+    root = tmp_path / "recording"
+    _, manifest = fixture_recording(root)
+    hardware = manifest["HardwareConfiguration"]
+    default = json.loads(hardware["montage_configuration_snapshot_json"])
+    default.update({"Name": "同一导联", "Revision": 1})
+    legacy = {**default, "Id": "legacy-duplicate-id"}
+    hardware["montage_configuration_snapshot_json"] = json.dumps(default)
+    hardware["montage_catalogue_snapshot_json"] = json.dumps([default, legacy])
+    (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
+    recording = service.register_wpf_recording(
+        str(root), signal_mode="acquisition_montage", analysis_montage_profiles=[legacy],
+    )
+
+    assert len(recording.montage_catalogue) == 1
+    assert recording.montage_catalogue[0]["id"] == default["Id"]
+    assert service.require_recording(recording.id).montage_catalogue == recording.montage_catalogue
+
+
 def compatible_average_profile(manifest):
     snapshot = json.loads(manifest["HardwareConfiguration"]["channel_configuration_snapshot_json"])
     return {

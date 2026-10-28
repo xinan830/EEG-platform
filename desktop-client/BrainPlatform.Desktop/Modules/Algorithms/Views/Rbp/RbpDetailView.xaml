@@ -31,6 +31,17 @@
                                     Windows="{Binding Trend}" />
                 </StackPanel>
             </Grid>
+            <ItemsControl ItemsSource="{Binding ChannelHistories}" Margin="0,20,0,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="0,0,0,20">
+                            <TextBlock Text="{Binding Channel}" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,8" />
+                            <local:RbpChart Height="320" MinHeight="280" IsStackedHistory="True"
+                                            Bands="{Binding Bands}" Windows="{Binding Windows}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </StackPanel>
     </Border>
 </UserControl>

@@ -30,6 +30,7 @@
   - [x] Implement unregistered RBP, HAI, relaxation, spatial-distribution, and aperiodic window modules.
   - [x] Implement explicit segment-only FAA and dependency-aware composite result modules.
   - [x] Keep source-window validation, units, sample bounds, provenance, and structured failures inside the module boundary.
+  - [x] Port the ANT-Amplify raw-Fz Crimson and Zenlite paths as internal time-series children, including fixed DSP, model artifact validation, unavailable semantics, and the original spectral-relaxation mapping.
 - [x] 3.3 Implement stateful TNK modules with deterministic replay, explicit warm-up/locking/smoothing state, and module-owned calculations.
   - [x] Implement resettable IAPF candidate/median lock state and BrainBeat/BrainBeat Flat log-EMA state.
   - [x] Implement per-channel fatigue EMA and ten-frame rhythm-stability history/readiness state.

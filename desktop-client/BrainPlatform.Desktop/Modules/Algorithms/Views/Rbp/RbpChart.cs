@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -16,6 +17,8 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp;
 public sealed class RbpChart : UserControl
 {
     private readonly SciChartSurface surface = new();
+    private readonly List<XyDataSeries<double, double>> stackedSeries = [];
+    private INotifyCollectionChanged? stackedWindowsSource;
     private readonly NumericAxis xAxis = new()
     {
         FontSize = 13, DrawMajorBands = false, DrawMajorGridLines = false,
@@ -35,10 +38,13 @@ public sealed class RbpChart : UserControl
         nameof(Windows), typeof(IReadOnlyList<RbpWindowPoint>), typeof(RbpChart), new PropertyMetadata(null, OnDataChanged));
     public static readonly DependencyProperty IsTrendProperty = DependencyProperty.Register(
         nameof(IsTrend), typeof(bool), typeof(RbpChart), new PropertyMetadata(false, OnDataChanged));
+    public static readonly DependencyProperty IsStackedHistoryProperty = DependencyProperty.Register(
+        nameof(IsStackedHistory), typeof(bool), typeof(RbpChart), new PropertyMetadata(false, OnDataChanged));
 
     public IReadOnlyList<RbpBandPoint>? Bands { get => (IReadOnlyList<RbpBandPoint>?)GetValue(BandsProperty); set => SetValue(BandsProperty, value); }
     public IReadOnlyList<RbpWindowPoint>? Windows { get => (IReadOnlyList<RbpWindowPoint>?)GetValue(WindowsProperty); set => SetValue(WindowsProperty, value); }
     public bool IsTrend { get => (bool)GetValue(IsTrendProperty); set => SetValue(IsTrendProperty, value); }
+    public bool IsStackedHistory { get => (bool)GetValue(IsStackedHistoryProperty); set => SetValue(IsStackedHistoryProperty, value); }
 
     public RbpChart()
     {
@@ -59,14 +65,110 @@ public sealed class RbpChart : UserControl
 
     private void Rebuild()
     {
+        if (stackedWindowsSource is not null)
+            stackedWindowsSource.CollectionChanged -= OnStackedWindowsChanged;
+        stackedWindowsSource = null;
+        stackedSeries.Clear();
         RecordingTimeAxisPresentation.SetAxis(this, null);
         surface.RenderableSeries.Clear();
+        if (IsStackedHistory)
+        {
+            BuildStackedHistory();
+            return;
+        }
         if (IsTrend)
         {
             BuildTrend();
             return;
         }
         BuildBars();
+    }
+
+    private void BuildStackedHistory()
+    {
+        var windows = Windows ?? [];
+        var bands = Bands ?? [];
+        xAxis.AxisTitle = "窗口结束时间（s）";
+        xAxis.LabelProvider = new NumericLabelProvider();
+        xAxis.AutoTicks = true;
+        xAxis.VisibleRange = windows.Count > 0
+            ? new DoubleRange(Math.Max(0, windows[0].StartSeconds), Math.Max(windows[0].StartSeconds + 1, windows[^1].EndSeconds + 0.5))
+            : new DoubleRange(0, 10);
+        RecordingTimeAxisPresentation.SetAxis(this, xAxis);
+        foreach (var (band, index) in bands.Select((value, index) => (value, index)))
+        {
+            var values = new XyDataSeries<double, double> { SeriesName = band.Label };
+            foreach (var window in windows)
+                values.Append(window.EndSeconds, window.Shares.ElementAtOrDefault(index) ?? double.NaN);
+            stackedSeries.Add(values);
+            surface.RenderableSeries.Add(new StackedMountainRenderableSeries
+            {
+                DataSeries = values,
+                Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(band.Color)),
+                Stroke = (Color)ColorConverter.ConvertFromString(band.Color),
+                StrokeThickness = 0,
+                StackedGroupId = "rbp-bands",
+                // RBP values are backend-computed shares that already sum to 1.
+                // Re-normalizing each timestamp can turn malformed/missing bands
+                // into a visually plausible but scientifically false 100% stack.
+                IsOneHundredPercent = false,
+                DrawNaNAs = SciChart.Charting.Visuals.RenderableSeries.LineDrawMode.Gaps,
+            });
+        }
+        stackedWindowsSource = Windows as INotifyCollectionChanged;
+        if (stackedWindowsSource is not null)
+            stackedWindowsSource.CollectionChanged += OnStackedWindowsChanged;
+    }
+
+    private void OnStackedWindowsChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        if (stackedSeries.Count == 0 || Bands is not { Count: > 0 } bands || Windows is not { Count: > 0 } windows)
+        {
+            Rebuild();
+            return;
+        }
+        if (args.Action == NotifyCollectionChangedAction.Add && args.NewStartingIndex == windows.Count - 1 &&
+            args.NewItems is { Count: 1 } added)
+        {
+            AppendStackedWindow((RbpWindowPoint)added[0]!);
+            return;
+        }
+        if (args.Action == NotifyCollectionChangedAction.Remove && args.OldStartingIndex == 0 &&
+            args.OldItems is { Count: 1 } && stackedSeries.All(series => series.Count == windows.Count + 1))
+        {
+            foreach (var series in stackedSeries) series.RemoveAt(0);
+            UpdateStackedRange(windows);
+            return;
+        }
+        if (args.Action == NotifyCollectionChangedAction.Replace && args.NewStartingIndex >= 0 &&
+            args.NewItems is { Count: 1 } replacement)
+        {
+            var window = (RbpWindowPoint)replacement[0]!;
+            for (var band = 0; band < stackedSeries.Count; band++)
+                stackedSeries[band].Update(args.NewStartingIndex, window.Shares.ElementAtOrDefault(band) ?? double.NaN);
+            return;
+        }
+        Rebuild();
+    }
+
+    private void AppendStackedWindow(RbpWindowPoint window)
+    {
+        if (stackedSeries.Count != Bands!.Count)
+        {
+            Rebuild();
+            return;
+        }
+        for (var band = 0; band < stackedSeries.Count; band++)
+            stackedSeries[band].Append(window.EndSeconds, window.Shares.ElementAtOrDefault(band) ?? double.NaN);
+        UpdateStackedRange(Windows!);
+    }
+
+    private void UpdateStackedRange(IReadOnlyList<RbpWindowPoint> windows)
+    {
+        xAxis.VisibleRange = windows.Count > 0
+            ? new DoubleRange(Math.Max(0, windows[0].StartSeconds),
+                Math.Max(windows[0].StartSeconds + 1, windows[^1].EndSeconds + 0.5))
+            : new DoubleRange(0, 10);
     }
 
     private void BuildBars()

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Review.Montages;
 
@@ -84,10 +85,8 @@ public static class RecordingMontageCatalog
         var systemProfiles = recordingSnapshot is null
             ? Array.Empty<MontageProfile>()
             : SystemMontageProfileFactory.Create(recordingSnapshot);
-        foreach (var profile in systemProfiles.Concat(currentProfiles)
-                     .Where(profile => profile is not null)
-                     .GroupBy(profile => profile.Id, StringComparer.Ordinal)
-                     .Select(group => group.First()))
+        foreach (var profile in MontageProfileCatalogue.Deduplicate(
+                     systemProfiles.Concat(currentProfiles).Where(profile => profile is not null)))
         {
             // The current configuration can have the same identity as the
             // recorded montage while differing in UI-only fields. The review

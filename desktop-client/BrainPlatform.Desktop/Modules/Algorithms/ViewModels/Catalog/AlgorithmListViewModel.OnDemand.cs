@@ -33,6 +33,7 @@ public sealed partial class AlgorithmListViewModel
     internal event Action<TnkPlaybackGap>? OwnedTnkPlaybackGap;
     internal event Action<string>? OwnedTnkPlaybackRecoveryFailed;
     internal string? ActivePlaybackDeliveryId => tnkPlaybackDeliveryId;
+    internal bool IsTnkPlaybackEventConsumerActive => tnkPlaybackEventsCancellation is not null;
     internal Task CurrentWindowLoad { get; private set; } = Task.CompletedTask;
     public bool IsOnDemandAnalysis => windowRequest is not null;
     public DynamicWindowResponse? DisplayedAnalysisWindow => displayedWindow;
@@ -59,13 +60,12 @@ public sealed partial class AlgorithmListViewModel
             CloseTnkPlaybackDelivery();
         windowRequest = request;
         windowHandler = handler;
+        if (string.Equals(handler.AlgorithmId, "stft", StringComparison.OrdinalIgnoreCase))
+            stftPreview.Clear();
         if (string.Equals(handler.AlgorithmId, "tnk_biofeedback", StringComparison.OrdinalIgnoreCase))
         {
             tnkPlaybackDeliveryId = Guid.NewGuid().ToString("N");
             tnkPlaybackEventSequence = 0;
-            tnkPlaybackEventsCancellation = new CancellationTokenSource();
-            _ = ConsumeTnkPlaybackEventsAsync(null, tnkPlaybackDeliveryId,
-                tnkPlaybackEventsCancellation.Token);
         }
         dynamicWindowRequestTimer.Stop();
         dynamicWindowRequestPending = false;
@@ -116,6 +116,9 @@ public sealed partial class AlgorithmListViewModel
             samplingRateInteger,
             checked((long)Math.Round(recording.DurationSeconds.Value * samplingRate)));
         var cursor = QuantizeWindowCursor(request, rawCursor, samplingRateInteger);
+        if (string.Equals(handler.AlgorithmId, "stft", StringComparison.OrdinalIgnoreCase) &&
+            lastRequestedWindowSample >= 0 && cursor < lastRequestedWindowSample)
+            stftPreview.Clear();
         ResetTnkPlaybackDeliveryForBackwardSeek(cursor);
         if (!force && cursor == lastRequestedWindowSample) return;
         lastRequestedWindowSample = cursor;
@@ -142,6 +145,7 @@ public sealed partial class AlgorithmListViewModel
             samplingRateInteger, checked((long)Math.Round(recording.DurationSeconds.Value * samplingRate)));
         var cursor = QuantizeWindowCursor(request, rawCursor, samplingRateInteger);
         ResetTnkPlaybackDeliveryForBackwardSeek(cursor);
+        EnsureTnkPlaybackDeliveryConsumer();
         if (cursor == lastPlaybackWindowSample) return;
         lastPlaybackWindowSample = cursor;
         if (tnkPlaybackDeliveryId is not null) tnkPlaybackLastRequestedSample = cursor;
@@ -162,7 +166,13 @@ public sealed partial class AlgorithmListViewModel
         var started = Stopwatch.GetTimestamp();
         try
         {
-            var response = await windowTargets!.LoadLatestAsync(target, CancellationToken.None);
+            // Playback is a stateful latest-only lane. If a replay takes longer
+            // than the cursor cadence, cancel the superseded observation at its
+            // next backend checkpoint instead of letting old work accumulate
+            // ahead of the cursor. Manual seeks keep the normal active-work
+            // completion semantics through LoadAsync.
+            var response = await windowTargets!.LoadLatestAsync(
+                target, CancellationToken.None, cancelActiveOnSupersede: true);
             if (AlgorithmWindowPerformanceDiagnostics.Enabled)
                 DesktopLog.Info($"tnk_playback_window_observed request_id={target.RequestId ?? "none"}" +
                     $" window_id={response.WindowId} state={response.State}" +
@@ -262,7 +272,8 @@ public sealed partial class AlgorithmListViewModel
     public void CommitDynamicPreviewSeek()
     {
         dynamicPreviewSeeking = false;
-        QueueWindowRequest(immediate: true);
+        RaisePropertyChanged(nameof(DynamicPreviewCursorSeconds));
+        ReleaseDynamicPreviewRows(immediateRequest: true);
     }
 
     private async Task LoadWindowTargetAsync(DynamicWindowRequest target,

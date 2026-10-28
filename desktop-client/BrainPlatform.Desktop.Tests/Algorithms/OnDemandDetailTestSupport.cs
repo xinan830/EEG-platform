@@ -59,13 +59,16 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
         var state = end < 4 ? "insufficient_data" : "ready";
         string[] names = ["delta", "theta", "alpha", "beta", "gamma"];
         double[] shares = [0.1, 0.1, 0.6, 0.15, 0.05];
-        var result = new DynamicWindowResultResponse(null, state, "multi_metric_series",
-            new Dictionary<string, JsonElement> { ["time_s"] = JsonSerializer.SerializeToElement(new[] { end }) },
-            new Dictionary<string, string> { ["time_s"] = "s" },
+        var result = new DynamicWindowResultResponse(null, state, "algorithm_group",
+            new Dictionary<string, JsonElement> {
+                ["time_s"] = JsonSerializer.SerializeToElement(new[] { end }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new[] { 0d }) },
+            new Dictionary<string, string> { ["time_s"] = "s", ["channel_index"] = "index" },
             names.Select((name, i) => (name, value: JsonSerializer.SerializeToElement(new[] { shares[i] })))
                 .ToDictionary(pair => pair.name, pair => pair.value),
-            names.ToDictionary(name => name, _ => "ratio"), "clean", null, null,
-            JsonSerializer.SerializeToElement(new { analysis_state = end < 5 ? "Partial" : "Complete" }));
+            names.ToDictionary(name => name, _ => "ratio"), "clean", null,
+            JsonSerializer.SerializeToElement(new { extensions = new { channel_order = new { channels = new[] { request.Config.TryGetProperty("channel", out var selected) ? selected.GetString() : "F3" } }, channel_failures = new { by_channel = new { } } } }),
+            JsonSerializer.SerializeToElement(new { analysis_state = "Partial" }));
         return new DynamicWindowResponse("session", $"window-{request.CursorSample}", request.RequestId!, state,
             JsonSerializer.SerializeToElement(new { recording_id = request.RecordingId }), null,
             new DynamicWindowRange(Math.Max(0, request.CursorSample - 1000), request.CursorSample, Math.Max(0, end - 5), end),
@@ -310,6 +313,48 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
             ],
             new Dictionary<string, int> { ["Complete"] = 3 },
             JsonSerializer.SerializeToElement("clean"), "fixture-v1", "fixture-v1");
+
+    internal static StructuredPreviewResponse FullRbpStructuredPreview() =>
+        new(
+            "full-run-1",
+            new RunArtifact("artifact", "full-run-1", "official_algorithm", "artifact.npz",
+                "application/npz", 1, "sha256", "ratio", new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+            JsonSerializer.SerializeToElement(new { kind = "algorithm_group", algorithm_id = "rbp" }),
+            ["F3", "F7"], new TimeRange(0, 30), new TimeRange(0, 30),
+            new Dictionary<string, JsonElement>
+            {
+                ["time_s"] = JsonSerializer.SerializeToElement(new[] { 5d, 10d, 15d }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new[] { 0d, 1d }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["time_s"] = JsonSerializer.SerializeToElement(new { unit = "s" }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new { unit = "index" }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["delta"] = JsonSerializer.SerializeToElement(new[] { new[] { .1, .2 }, new[] { .1, .2 }, new[] { .1, .2 } }),
+                ["theta"] = JsonSerializer.SerializeToElement(new[] { new[] { .1, .1 }, new[] { .1, .1 }, new[] { .1, .1 } }),
+                ["alpha"] = JsonSerializer.SerializeToElement(new[] { new[] { .6, .5 }, new[] { .6, .5 }, new[] { .6, .5 } }),
+                ["beta"] = JsonSerializer.SerializeToElement(new[] { new[] { .15, .15 }, new[] { .15, .15 }, new[] { .15, .15 } }),
+                ["gamma"] = JsonSerializer.SerializeToElement(new[] { new[] { .05, .05 }, new[] { .05, .05 }, new[] { .05, .05 } }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["delta"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+                ["theta"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+                ["alpha"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+                ["beta"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+                ["gamma"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+            },
+            Enumerable.Range(0, 3).Select(index => JsonSerializer.SerializeToElement(new
+            {
+                window_id = $"full-window-{index}", window_index = index, start_sample = index * 1000L,
+                end_sample = (index + 1) * 1000L, start_s = index * 5d, end_s = (index + 1) * 5d,
+                state = "Complete", quality = "clean",
+            })).ToArray(),
+            new Dictionary<string, int> { ["Complete"] = 3 }, JsonSerializer.SerializeToElement("clean"),
+            "official-rbp-v3", "rbp-runtime-v3-montage-multi-channel");
 
     private static AnalysisRunResponse CompletedFullRun(AnalysisRunRequest request) => new(
         "full-run-1", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,

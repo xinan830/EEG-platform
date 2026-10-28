@@ -14,6 +14,27 @@ The system SHALL implement each migrated ANT-derived scientific calculation as a
 - **AND** its metadata describes child modules and their required roles without making those children selectable
 - **AND** existing platform algorithm entries retain their existing identities and definitions
 
+### Requirement: Preserve ANT raw time-series semantics for the three Fz metrics
+
+The system SHALL implement Crimson meditation, Zenlite calmness, Zenlite awareness, and Zenlite spectral relaxation as internal TNK children backed by an explicit raw time-series source. The source SHALL declare recording/montage identity, half-open sample bounds, sampling rate, channel order, V/float64 units, and a reject-on-missing-sample policy. The modules SHALL own their fixed resampling/filter/FFT/model semantics and SHALL NOT consume the platform PSD as a substitute.
+
+#### Scenario: Run the raw-Fz children through the public group
+- **WHEN** a dynamic `tnk_biofeedback` request has an explicit Fz role mapping
+- **THEN** the group dispatches the four raw-Fz children through the time-series source while preserving the other child modules' spectral source contract
+- **AND** the child IDs appear only in group child metadata, evidence, and provenance
+- **AND** a missing Fz source, invalid bounds, non-finite samples, or an unavailable model produces a structured unavailable result for that child without fabricating zero
+
+#### Scenario: Validate the migrated model artifacts
+- **WHEN** the Crimson or Zenlite model is loaded
+- **THEN** the asset SHA-256, input/output shape, and float32 dtype are checked before inference
+- **AND** a validation or optional-runtime failure is reported as `TNK_MODEL_UNAVAILABLE`
+- **AND** the backend records the model identity and target sample rate in child evidence
+
+#### Scenario: Preserve the frozen legacy spectral relaxation formula
+- **WHEN** Zenlite spectral relaxation is computed
+- **THEN** the implementation uses the 1200-sample 256 Hz FFTPACK adjacent-pair amplitude layout, bands 0.5–4, 4–8, 8–12, 12–22, 22–32, and 32–56 Hz, the alpha/(low-beta+high-beta) ratio, the original `(ratio-0.1)/0.8*100` mapping, clipping to 0–100, and ten-point smoothing
+- **AND** it does not silently reuse TNK IAPF, Welch PSD, or the platform relaxation formula
+
 #### Scenario: Request unavailable TNK science
 - **WHEN** a Run requests a TNK identity that is not registered or is unavailable for its input contract
 - **THEN** the backend returns a structured error before persisting a successful result

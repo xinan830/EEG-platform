@@ -4,6 +4,8 @@ See proposal.md - Why. TNK playback calls the desktop `LoadLatestAsync` path. Th
 
 The backend remains the only scientific authority. This change must preserve the current five-role channel mapping, V/float64 internal signal contract, continuous preprocessing, algorithm identities/versions, actual sample windows, quality gates, and module state semantics. The Viewer pipeline and raw recording storage are outside this design.
 
+The viewer signal-preview endpoint is included only as a competing display workload and as a display-integrity boundary. Its existing uniform-stride arrays remain intact for compatibility. An additive min/max envelope summarizes each display bin per requested channel so narrow excursions are not erased by that stride; the envelope is display metadata in µV at bin-center times, not raw-sample timing or scientific output. Opt-in diagnostics correlate preview preparation, window validation, and display projection timings by request and recording IDs. HTTP middleware continues to provide total request duration.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -18,7 +20,7 @@ The backend remains the only scientific authority. This change must preserve the
 
 - Live acquisition analysis or real-time clinical feedback.
 - Changes to TNK formulas, scientific versions, preprocessing, units, channel mapping, window length/step, warm-up, or quality decisions.
-- Converting every algorithm to streaming or replacing backend science with desktop calculations.
+- Converting every algorithm to streaming or replacing backend science with desktop calculations. The migrated ANT time-series children are an explicit scoped exception: their existing module-defined preprocessing and model state run as a session-scoped incremental stream.
 - Replacing the transport with WebSocket/SSE solely because the feature is called streaming.
 - A new durable archive of every temporary playback event; existing immutable window artifacts remain the reconciliation source where available.
 
@@ -36,7 +38,7 @@ The current SQLite model can represent each canonical intermediate frame as a se
 
 ### 2. Keep state replay sequential; optimize delivery separately
 
-The group capability remains responsible for checkpoint-compatible restoration and ordered replay of every state transition through the target. It will expose intermediate frame outputs produced by that replay to the playback delivery layer. Latest-target coalescing can reduce obsolete requests that have not started, but it cannot skip a transition needed by stateful TNK modules. Stateless modules may share the same frame schedule for consistency; formula-specific shortcuts are out of scope.
+The group capability remains responsible for checkpoint-compatible restoration and ordered replay of every state transition through the target. It will expose intermediate frame outputs produced by that replay to the playback delivery layer. Latest-target coalescing can reduce obsolete requests that have not started. During continuous playback, a newer target may also cancel the active observation at its next cooperative checkpoint when the active replay has fallen behind the cursor. The replacement replay restores the nearest compatible checkpoint and still emits all required canonical transitions through the new target; cancellation therefore reduces stale work without silently skipping state. Stateless modules may share the same frame schedule for consistency; formula-specific shortcuts are out of scope.
 
 **Alternative considered:** Skip intermediate frames for all modules when the cursor advances. Rejected because it can change stateful outputs and makes module-state semantics implicit.
 
@@ -66,7 +68,7 @@ The view-model history projection accepts event batches off the playback-critica
 
 ### 6. Gate cross-window reuse on independent equivalence evidence
 
-After the event path is measured, profile repeated source preparation and overlapping-window spectra. Only then consider caches or incremental transforms, keyed by source identity, role/channel order, reference, preprocessing contract, filter settings, sample range, scientific version, and configuration. A replay-versus-reference test must cover state reset, sequential playback, backward seek, and configuration change before enabling reuse.
+After the event path is measured, profile repeated source preparation and overlapping-window spectra. The ANT time-series children already use a bounded session stream: one raw Fz chunk read advances separate Crimson and Zenlite preprocessing states, and the three Zenlite outputs share one model inference. Crimson and Zenlite retain their distinct sampling/filter contracts. Any broader cross-window reuse still requires independent equivalence evidence, keyed by source identity, role/channel order, reference, preprocessing contract, sample range, scientific version, and configuration. A replay-versus-reference test must cover state reset, sequential playback, backward seek, and configuration change before enabling additional reuse.
 
 **Alternative considered:** Rewrite every TNK algorithm as a sample-by-sample state machine in this change. Rejected because it broadens scientific risk and is unnecessary to prove incremental result delivery.
 
@@ -87,6 +89,25 @@ boundaries, formulas, units, preprocessing parameters, or numeric reuse across
 windows. Paired desktop performance acceptance remains required before the
 streamed playback capability is declared accepted.
 
+### 8. Preserve preview excursions and measure display preparation
+
+Uniform-stride preview samples are retained unchanged because they are part of the existing response contract, but they alone can omit a one-sample excursion between selected points. When the stride exceeds one, the backend adds per-channel minimum and maximum values for each same-sized display bin. It maps the summary to the bin's recording-relative center time; the response explicitly names it as an envelope, and the desktop draws vertical range segments behind the sampled line. When no samples are omitted, the optional envelope is absent. This is a display summary only and cannot be used for event timing or analysis.
+
+With `BRAIN_REVIEW_PERF_DIAGNOSTICS=1`, the signal-preview path records request/recording identity, source-preparation time, crop/validation time, display-projection time, selected channel count, source/output point counts, stride, and envelope-bin count. The existing HTTP middleware supplies total request duration and request ID. Logs contain metadata only. Existing cache-miss logs remain available to distinguish cold preparation from likely cache reuse; this first pass does not alter cache behavior or add a new cache policy.
+
+**Alternative considered:** Replace the legacy preview arrays with a new variable-time per-channel series. Rejected for this pass because it breaks the shared-time response contract and increases consumer migration risk. The additive envelope preserves visual extrema while keeping old consumers functional.
+
+### 9. Append on-demand STFT columns in the desktop projection
+
+The backend STFT window contract remains unchanged: each response contains a
+single outer window with relative inner time centers. The desktop converts
+those centers to recording-absolute time, keeps a context key from the window
+session/identity, and merges columns by the absolute time axis. Overlapping
+windows therefore append only unseen columns while preserving the earlier
+heatmap. A backward seek, incompatible identity, or new on-demand session
+clears the projection. This is a display projection change; it does not reuse
+FFT values, alter window boundaries, or move scientific work into WPF.
+
 ## Risks / Trade-offs
 
 - [Intermediate event publication increases payload and CPU/memory use] → Batch transport metadata while retaining per-window scientific identity; cap payload/history; include overflow and reconciliation tests.
@@ -94,6 +115,8 @@ streamed playback capability is declared accepted.
 - [Checkpoint identity omits a scientific input] → Reuse the existing complete dynamic-session identity and add tests that vary each source/configuration/version field; never expand reuse based only on cursor equality.
 - [Chart append can still scan or copy all prior points] → Measure projection and binding cost at increasing history lengths; optimize prefix tracking and stacked-series handling only against that evidence.
 - [Performance results vary by machine and recording] → Keep deterministic stage timers in automated tests and document real-desktop paired measurements separately; do not convert one machine's result into a universal latency promise.
+- [A range envelope can be mistaken for an event occurring exactly at the bin center] → Label it as a display-bin range, retain the sampled line, and do not expose the envelope as event or analysis data.
+- [Adding envelope arrays increases response size] → Emit them only when the source is actually decimated, bound the bin count by the existing `max_points`, and measure response size during paired desktop acceptance.
 
 ## Migration Plan
 

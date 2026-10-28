@@ -86,6 +86,34 @@ public sealed class StftOnDemandDetailTests : IDisposable
         Assert.Null(state.WindowPreview);
     }
 
+    [Fact]
+    public void Overlapping_windows_append_only_new_absolute_time_columns()
+    {
+        var first = Response(new DynamicWindowRequest("recording", "stft", null, null,
+            JsonSerializer.SerializeToElement(new { }), 1000, RequestId: "first"));
+        var second = Response(new DynamicWindowRequest("recording", "stft", null, null,
+            JsonSerializer.SerializeToElement(new { }), 1200, RequestId: "second"));
+        var state = new StftPreviewState();
+
+        StftWindowPresenter.Append(state, first);
+        StftWindowPresenter.Append(state, second);
+
+        Assert.Equal([2d, 3d, 4d], state.Result!.TimesSeconds);
+        Assert.Equal([1d, 1d, 1d], state.Result.PowerDb.Select(row => row[0]));
+    }
+
+    [Fact]
+    public void Incompatible_session_clears_the_stft_history()
+    {
+        var response = Response(new DynamicWindowRequest("recording", "stft", null, null,
+            JsonSerializer.SerializeToElement(new { }), 1000, RequestId: "first"));
+        var state = new StftPreviewState();
+        StftWindowPresenter.Append(state, response);
+        StftWindowPresenter.Append(state, response with { SessionId = "new-session" });
+
+        Assert.Equal([2d, 3d], state.Result!.TimesSeconds);
+    }
+
     [Theory]
     [InlineData(800, 0, 4, 2)]
     [InlineData(3000, 10, 15, 12)]

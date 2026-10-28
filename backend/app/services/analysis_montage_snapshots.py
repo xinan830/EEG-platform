@@ -12,7 +12,7 @@ from pathlib import Path
 
 from app.persistence import connect_database
 from app.services.acquisition_analysis_signals import (
-    AcquisitionSignalView, _catalogue_entry, _field,
+    AcquisitionSignalView, _catalogue_entry, _catalogue_projection_key, _field,
     historical_montage_catalogue, read_acquisition_signal_view,
 )
 from app.services.wpf_recording import WpfRecordingError
@@ -117,6 +117,7 @@ class AnalysisMontageSnapshots:
                 (recording_id,),
             ).fetchall()
         entries = []
+        seen = {_catalogue_projection_key(entry) for entry in historical_montage_catalogue(directory)}
         for row in rows:
             view = self.resolve(recording_id, directory, row["snapshot_id"])
             entry = _catalogue_entry(view)
@@ -127,5 +128,9 @@ class AnalysisMontageSnapshots:
                 "snapshot_source": "analysis_configuration_snapshot",
                 "source_profile_id": view.provenance["source_profile_id"],
             })
+            projection_key = _catalogue_projection_key(entry)
+            if projection_key in seen:
+                continue
+            seen.add(projection_key)
             entries.append(entry)
         return tuple(entries)

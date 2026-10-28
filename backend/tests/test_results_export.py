@@ -145,6 +145,37 @@ def test_structured_preview_verifies_artifact_and_converts_nan_to_null(tmp_path)
         service.structured_preview(run.run_id)
 
 
+def test_structured_preview_attaches_per_window_channel_failure_evidence(tmp_path):
+    queue, recording_id = _queue(tmp_path)
+    run = queue.enqueue(_request(recording_id))
+    window_evidence = [{"extensions": {"channel_failures": {"by_channel": {
+        "F4-Ref": {"code": "PSD_QUALITY_GATE_FAILED", "message": "quality gate"},
+    }}}}]
+    queue.base.artifacts.write_npz(
+        run.run_id,
+        "official_algorithm",
+        {"axis_time_s": np.array([4.0]), "window_evidence_json": np.asarray(json.dumps(window_evidence))},
+        "ratio",
+    )
+    queue.repository.update_status(run.run_id, RunStatus.RUNNING)
+    queue.repository.update_status(run.run_id, RunStatus.COMPLETED,
+        actual_range={"start_s": 0.0, "end_s": 4.0}, result_summary={"structured": {
+            "output": {"id": "rbp", "label": "RBP", "kind": "algorithm_group", "mode": "dynamic"},
+            "channel_order": ["F3-Ref", "F4-Ref"],
+            "requested_range": {"start_s": 0.0, "end_s": 4.0},
+            "actual_range": {"start_s": 0.0, "end_s": 4.0},
+            "axes": {"time_s": {"array_key": "axis_time_s", "unit": "s", "length": 1}},
+            "arrays": {"window_evidence_json": {"unit": "json", "shape": []}},
+            "windows": [{"start_sample": 0, "end_sample": 400, "start_s": 0.0, "end_s": 4.0,
+                         "state": "Partial", "quality": "partial"}],
+            "window_state_counts": {"Partial": 1}, "quality": "partial",
+        }})
+
+    preview = ResultService(queue, ValidationService(queue.repository.database_path)).structured_preview(run.run_id)
+
+    assert preview["windows"][0]["evidence"] == window_evidence[0]
+
+
 def test_window_preview_selects_saved_window_and_returns_derived_chunk(tmp_path):
     queue, recording_id = _queue(tmp_path)
     run = queue.enqueue(_request(recording_id))

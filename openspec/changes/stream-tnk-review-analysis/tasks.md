@@ -19,6 +19,14 @@
 - [x] 3.4 Append only new TNK chart points and coalesce dispatcher notifications without dropping accepted scientific results; bound retained history and implement explicit reconciliation when delivery exceeds capacity.
 - [x] 3.5 Measure line and stacked chart update costs at increasing history sizes; optimize any measured full-series replacement or prefix-scan hotspot without resetting the waveform or user chart range.
 - [x] 3.6 Add desktop tests for playback continuing during delayed analysis, ordered append, deduplication, stale-session rejection, seek/config reset, lag display, overflow/gap recovery, and chart-range preservation.
+- [x] 3.7 Start the ordered event consumer lazily on the first playback target so an idle cursor does not generate empty polling requests.
+- [x] 3.8 Cancel a superseded active playback observation at a cooperative checkpoint while preserving normal active-work completion semantics for manual requests; add coordinator coverage for cancellation and latest-target replacement.
+
+## 3A. Shared ANT stream execution
+
+- [x] 3A.1 Add a session-scoped legacy stream bundle that reads raw Fz suffixes once and maintains the distinct Crimson/Zenlite preprocessing states.
+- [x] 3A.2 Share Zenlite model inference across calmness, awareness, and spectral relaxation and reset/checkpoint the bundle with TNK replay state.
+- [x] 3A.3 Use child-specific warm-up lengths (Crimson 5 s; Zenlite 1200/256 s) and cover chunk invariance, shared source reads, and warm-up behavior with focused tests.
 
 ## 4. Transport decision and acceptance
 
@@ -29,3 +37,16 @@
 - [ ] 4.5 Repeat the paired local-recording playback measurement and report waveform tick distributions, analysis lag, per-stage timings, event coverage, queue saturation, and chart costs.
 - [ ] 4.6 Complete manual desktop acceptance for normal playback, deliberately delayed analysis, seek backward/forward, pause/resume, role/configuration change, cancellation, and delivery recovery; keep the capability disabled if any scientific parity or responsiveness gate fails.
 - [ ] 4.7 Profile overlapping-window preparation only after playback acceptance; propose a separate scientific-contract change before enabling cross-window numeric reuse or changing any TNK formulas/window semantics.
+
+## 5. Preview integrity and stage diagnostics
+
+- [x] 5.1 Keep the existing uniform-stride response fields unchanged and add bounded per-channel minimum/maximum summaries for each decimated display bin, with explicit bin-center time and µV units.
+- [x] 5.2 Render the optional extrema envelope behind the existing waveform line and label its values as display-bin ranges, not event timing.
+- [x] 5.3 Add opt-in request-correlated backend timing for source preparation, window slicing/validation, display projection, channel count, output point count, stride, and envelope-bin count.
+- [x] 5.4 Add focused backend and desktop tests for a transient omitted by uniform sampling, envelope time/unit/channel alignment, no-decimation behavior, and extrema rendering projection; run strict OpenSpec and diff checks.
+
+## 6. On-demand STFT history projection
+
+- [x] 6.1 Merge overlapping STFT window columns by recording-absolute time and preserve the backend frequency/unit/quality contract.
+- [x] 6.2 Reset STFT history on backward seek, incompatible recording/configuration identity, and new on-demand session.
+- [x] 6.3 Add focused desktop tests for overlap deduplication, append order, and context/reset behavior.

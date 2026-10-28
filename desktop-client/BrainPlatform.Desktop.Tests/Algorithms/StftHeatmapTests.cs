@@ -44,6 +44,46 @@ public sealed class StftHeatmapTests
     }
 
     [Fact]
+    public void Preview_AppendKeepsExistingSegmentAndAddsOnlyNewColumns()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var control = new StftHeatmap();
+                control.Measure(new Size(500, 300));
+                control.Arrange(new Rect(0, 0, 500, 300));
+                var first = StftPreview.Parse(CreatePreview());
+                control.Preview = first;
+
+                var surface = Assert.IsType<SciChartSurface>(FindVisualChild<SciChartSurface>(control));
+                var oldSegment = Assert.IsType<FastUniformHeatmapRenderableSeries>(surface.RenderableSeries[0]);
+                var oldDataSeries = oldSegment.DataSeries;
+                var initialSeriesCount = surface.RenderableSeries.Count;
+                var appended = StftPreview.Append(first, StftPreview.Parse(CreatePreviewAt("[3,4]", "[[5,6],[7,8]]")));
+                control.Preview = appended;
+
+                Assert.True(surface.RenderableSeries.Count > initialSeriesCount);
+                Assert.Same(oldSegment, surface.RenderableSeries[0]);
+                Assert.Same(oldDataSeries, oldSegment.DataSeries);
+                Assert.Equal(4, oldSegment.DataSeries!.Count);
+                var newSegments = surface.RenderableSeries
+                    .OfType<FastUniformHeatmapRenderableSeries>()
+                    .Where(segment => !ReferenceEquals(segment, oldSegment))
+                    .ToArray();
+                Assert.NotEmpty(newSegments);
+                Assert.All(newSegments, segment => Assert.Equal(4, segment.DataSeries!.Count));
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
     public void SliceChart_UsesBackendMatrixRowsAndColumnsWithoutFillingMissingValues()
     {
         Exception? failure = null;
@@ -94,6 +134,15 @@ public sealed class StftHeatmapTests
         new Dictionary<string, JsonElement> { ["time_center_s"] = Json("[1,2]"), ["frequency_hz"] = Json("[1,2]") },
         new Dictionary<string, JsonElement> { ["time_center_s"] = Json("{\"unit\":\"s\"}"), ["frequency_hz"] = Json("{\"unit\":\"Hz\"}") },
         new Dictionary<string, JsonElement> { ["power_db"] = Json("[[1,2],[3,4]]") },
+        new Dictionary<string, JsonElement> { ["power_db"] = Json("{\"unit\":\"dB re 1 uV^2/Hz\"}") },
+        [], new Dictionary<string, int>(), null, "spectrogram-v2", "stft-runtime-v1");
+
+    private static StructuredPreviewResponse CreatePreviewAt(string times, string matrix) => new(
+        "run", new RunArtifact("artifact", "run", "stft", "stft.npz", "application/x-npz", 1, "hash", null, new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+        Json("{\"kind\":\"time_frequency\"}"), ["O1"], new TimeRange(2, 6), new TimeRange(2, 6),
+        new Dictionary<string, JsonElement> { ["time_center_s"] = Json(times), ["frequency_hz"] = Json("[1,2]") },
+        new Dictionary<string, JsonElement> { ["time_center_s"] = Json("{\"unit\":\"s\"}"), ["frequency_hz"] = Json("{\"unit\":\"Hz\"}") },
+        new Dictionary<string, JsonElement> { ["power_db"] = Json(matrix) },
         new Dictionary<string, JsonElement> { ["power_db"] = Json("{\"unit\":\"dB re 1 uV^2/Hz\"}") },
         [], new Dictionary<string, int>(), null, "spectrogram-v2", "stft-runtime-v1");
 

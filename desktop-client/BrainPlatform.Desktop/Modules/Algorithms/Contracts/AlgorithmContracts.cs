@@ -71,6 +71,7 @@ public sealed record AlgorithmCatalogItem(
         "psd" => "频谱图",
         "stft" => "时频图",
         "rbp" => "频段功率结果",
+        "tnk_biofeedback" => "TNK 指标组",
         _ => "标量结果",
     };
 
@@ -79,6 +80,7 @@ public sealed record AlgorithmCatalogItem(
         "psd" => "频谱",
         "stft" => "时频",
         "rbp" => "频段功率",
+        "tnk_biofeedback" => "TNK 指标",
         _ => "标量",
     };
 

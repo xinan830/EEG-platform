@@ -7,6 +7,7 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     private RbpResultPreview preview = RbpResultPreview.Parse(null);
     private bool isFailureDetailsExpanded;
     private string? windowSession;
+    private IReadOnlyList<RbpChannelHistory> channelHistories = [];
 
     internal RbpDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "rbp")
     {
@@ -24,6 +25,7 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     public IReadOnlyList<RbpBandPoint> Bands => preview.BandsAt(Catalog.DynamicPreviewCursorSeconds);
     public IReadOnlyList<RbpWindowPoint> Trend =>
         preview.Windows.Where(window => !IsDynamic || window.EndSeconds <= Catalog.DynamicPreviewCursorSeconds + 1e-9).ToArray();
+    public IReadOnlyList<RbpChannelHistory> ChannelHistories => channelHistories;
     public bool IsDynamic => Catalog.IsDynamicMode;
     public bool HasResult => Bands.Any(band => band.Share is not null);
     public string QualityText => !IsServingCompletedBackgroundFullRun && Catalog.DisplayedAnalysisWindow is { } response && Catalog.SelectedAlgorithm?.Id == AlgorithmId
@@ -75,6 +77,10 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
                     ? RbpResultPreview.Parse(fullRun)
                     : RbpResultPreview.Parse(Catalog.LastRun)
                 : RbpResultPreview.Parse(null);
+            channelHistories = [];
+            RaisePropertyChanged(nameof(ChannelHistories));
+            if (Catalog.LastRun is { Status: "completed", ScientificVersion: "official-rbp-v3" } run)
+                _ = LoadStructuredHistoryAsync(run.RunId);
         }
         if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))
         {
@@ -87,18 +93,34 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
             {
                 preview = RbpResultPreview.FromWindow(response, windowSession == response.SessionId ? preview : null);
                 windowSession = response.SessionId;
+                if (channelHistories.Count == 0)
+                {
+                    channelHistories = RbpHistoryProjection.FromVisited(preview.ChannelWindows);
+                    RaisePropertyChanged(nameof(ChannelHistories));
+                }
+                else
+                {
+                    var latestByChannel = preview.ChannelWindows
+                        .GroupBy(point => point.Channel, StringComparer.OrdinalIgnoreCase)
+                        .Select(group => group.Last());
+                    RbpHistoryProjection.AppendVisited(channelHistories, latestByChannel,
+                        RbpResultPreview.MaximumVisitedWindows);
+                }
             }
             else
             {
                 windowSession = null;
                 preview = RbpResultPreview.Parse(null);
+                channelHistories = [];
+                RaisePropertyChanged(nameof(ChannelHistories));
             }
         }
-        if (args.PropertyName is nameof(AlgorithmListViewModel.LastRun)
+        if ((args.PropertyName is nameof(AlgorithmListViewModel.LastRun)
             or nameof(AlgorithmListViewModel.BackgroundFullRun)
             or nameof(AlgorithmListViewModel.DisplayedAnalysisWindow)
             or nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)
-            or nameof(AlgorithmListViewModel.IsDynamicMode))
+            or nameof(AlgorithmListViewModel.IsDynamicMode)) &&
+            (args.PropertyName != nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds) || !Catalog.IsDynamicPreviewSeeking))
         {
             RaisePropertyChanged(nameof(Bands));
             RaisePropertyChanged(nameof(Trend));
@@ -111,6 +133,34 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
             RaisePropertyChanged(nameof(WindowStateSummary));
             RaisePropertyChanged(nameof(FailureReasonText));
             RaisePropertyChanged(nameof(FailureDetailsText));
+        }
+    }
+
+    private async Task LoadStructuredHistoryAsync(string runId)
+    {
+        try
+        {
+            var structured = await Catalog.Client.GetStructuredPreviewAsync(runId, 1_000_000, CancellationToken.None);
+            if (Catalog.LastRun?.RunId != runId || Catalog.SelectedAlgorithm?.Id != AlgorithmId) return;
+            preview = RbpResultPreview.FromStructured(structured);
+            channelHistories = RbpHistoryProjection.FromFull(preview.ChannelWindows);
+            if (IsDynamic && Catalog.DynamicWindowRows.Count == 0 && preview.Windows.Length > 0)
+            {
+                var rows = preview.Windows.Select(window => new DynamicWindowRow(window.StartSeconds, window.EndSeconds,
+                    AlgorithmResultFormatter.FormatWindowStateForDisplay(window.State),
+                    AlgorithmResultFormatter.FormatQualityReasonForDisplay(window.Quality), window.Failure));
+                var initialCursor = preview.Windows.FirstOrDefault(window => window.State is "Complete" or "Partial")?.EndSeconds ?? 0;
+                Catalog.SetDynamicResultWindows(rows, initialCursor);
+            }
+            RaisePropertyChanged(nameof(ChannelHistories));
+            RaiseRbpProperties();
+        }
+        catch (Exception error)
+        {
+            if (Catalog.LastRun?.RunId != runId) return;
+            channelHistories = [];
+            Catalog.SetStructuredPreviewTextForModule($"RBP 多导联历史预览不可用：{error.Message}");
+            RaisePropertyChanged(nameof(ChannelHistories));
         }
     }
 

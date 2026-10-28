@@ -21,7 +21,7 @@ public sealed class RbpOnDemandDetailTests : IDisposable
         Assert.True(catalog.HasDynamicPreview);
         Assert.True(catalog.StartDynamicPreviewCommand.CanExecute(null));
         Assert.False(detail.HasResult);
-        catalog.DynamicTimeProgressPercent = 100 * 4d / 30;
+        catalog.DynamicTimeProgressPercent = 100 * 6d / 30;
         await catalog.CurrentWindowLoad;
         Assert.Equal(5, detail.Bands.Count);
         Assert.Equal(0.6, detail.Bands[2].Share);
@@ -29,6 +29,29 @@ public sealed class RbpOnDemandDetailTests : IDisposable
         Assert.Null(catalog.LastRun);
         Assert.Equal(0, client.FullRunCalls);
         Assert.True(new AlgorithmDetailViewModel(catalog).Rbp.HasResult);
+        await catalog.ReleaseWindowAnalysisAsync();
+    }
+
+    [Fact]
+    public async Task Visited_channel_history_appends_without_replacing_chart_data_collection()
+    {
+        var client = new OnDemandDetailClient();
+        var catalog = OnDemandDetailClient.Catalog(client);
+        var detail = new AlgorithmDetailViewModel(catalog).Rbp;
+        await OnDemandDetailClient.Run(catalog);
+
+        catalog.DynamicTimeProgressPercent = 20;
+        await catalog.CurrentWindowLoad;
+        var history = Assert.Single(detail.ChannelHistories);
+        var plottedWindows = history.Windows;
+        Assert.Single(plottedWindows);
+
+        catalog.DynamicTimeProgressPercent = 40;
+        await catalog.CurrentWindowLoad;
+
+        Assert.Same(plottedWindows, detail.ChannelHistories[0].Windows);
+        Assert.Equal(2, plottedWindows.Count);
+        Assert.Equal(12, plottedWindows[^1].EndSeconds);
         await catalog.ReleaseWindowAnalysisAsync();
     }
 
@@ -44,7 +67,7 @@ public sealed class RbpOnDemandDetailTests : IDisposable
         var catalog = OnDemandDetailClient.Catalog(client);
         var detail = new AlgorithmDetailViewModel(catalog).Rbp;
         await OnDemandDetailClient.Run(catalog);
-        catalog.DynamicTimeProgressPercent = 20;
+        catalog.DynamicTimeProgressPercent = 100 * 11d / 30;
         await catalog.CurrentWindowLoad;
         Assert.All(detail.Bands, band => Assert.Null(band.Share));
         Assert.Contains("350", detail.FailureDetailsText);
@@ -89,8 +112,9 @@ public sealed class RbpOnDemandDetailTests : IDisposable
     [Fact]
     public void Invalid_unit_or_shape_is_rejected_and_visited_history_is_bounded()
     {
+        using var config = JsonDocument.Parse("{\"channel\":\"F3\"}");
         var response = OnDemandDetailClient.RbpResponse(new DynamicWindowRequest("recording", "rbp", null, null,
-            default, 1200, RequestId: "request"));
+            config.RootElement.Clone(), 1200, RequestId: "request"));
         var result = response.Result!;
         var wrongUnits = new Dictionary<string, string>(result.ArrayUnits!) { ["alpha"] = "Hz" };
         Assert.Throws<InvalidOperationException>(() => RbpResultPreview.FromWindow(response with

@@ -45,10 +45,12 @@ public sealed partial class AlgorithmListViewModel
             if (Math.Abs(cursor - DynamicPreviewCursorSeconds) < 1e-9)
                 return;
             DynamicPreviewCursorSeconds = cursor;
-            ReleaseDynamicPreviewRows(immediateRequest: !dynamicPreviewSeeking);
+            if (!dynamicPreviewSeeking)
+                ReleaseDynamicPreviewRows(immediateRequest: true);
             RaiseDynamicPreviewProperties();
         }
     }
+    public bool IsDynamicPreviewSeeking => dynamicPreviewSeeking;
     public string DynamicTimeProgressText => $"{TimeDisplay.FormatPoint(DynamicPreviewCursorSeconds)} / {TimeDisplay.FormatPoint(DynamicPreviewDurationSeconds)}";
     public string DynamicCurrentWindowText => IsOnDemandAnalysis
         ? displayedWindow?.Range is { } actual

@@ -71,7 +71,8 @@ public sealed partial class AlgorithmListViewModel
 
         RegisteredChannels.Clear();
         MontageProfiles.Clear();
-        foreach (var profile in RegisteredRecording.MontageCatalogue ?? [])
+        foreach (var profile in HistoricalMontageCatalogue.Deduplicate(
+                     RegisteredRecording.MontageCatalogue ?? []))
             MontageProfiles.Add(profile);
         RaisePropertyChanged(nameof(HasRegisteredChannels));
         foreach (var channel in RegisteredRecording.Channels

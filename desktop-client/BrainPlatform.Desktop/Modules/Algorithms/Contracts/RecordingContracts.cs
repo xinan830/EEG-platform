@@ -37,3 +37,40 @@ public sealed record HistoricalMontageDescriptor(
     [property: JsonPropertyName("unavailable_reason")] string? UnavailableReason,
     [property: JsonPropertyName("outputs")] IReadOnlyList<HistoricalMontageOutput> Outputs,
     [property: JsonPropertyName("source_profile_id")] string? SourceProfileId = null);
+
+/// <summary>Removes duplicate historical projections returned by older backends.</summary>
+public static class HistoricalMontageCatalogue
+{
+    public static IReadOnlyList<HistoricalMontageDescriptor> Deduplicate(
+        IEnumerable<HistoricalMontageDescriptor> profiles)
+    {
+        ArgumentNullException.ThrowIfNull(profiles);
+        var identities = new HashSet<string>(StringComparer.Ordinal);
+        var projections = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<HistoricalMontageDescriptor>();
+        foreach (var profile in profiles)
+        {
+            if (!identities.Add(profile.Id) ||
+                !projections.Add(CreateProjectionIdentity(profile)))
+            {
+                continue;
+            }
+
+            result.Add(profile);
+        }
+
+        return result;
+    }
+
+    private static string CreateProjectionIdentity(HistoricalMontageDescriptor profile)
+    {
+        var outputs = string.Join('|', profile.Outputs.Select(output => string.Join(':',
+            output.Id.Trim(),
+            output.Label.Trim(),
+            output.Role.Trim(),
+            output.Unit.Trim(),
+            output.Available,
+            output.UnavailableReason?.Trim() ?? string.Empty)));
+        return string.Join('\u001F', profile.Label.Trim(), profile.Revision.Trim(), outputs);
+    }
+}

@@ -19,7 +19,7 @@ def validate_window_result(result, manifest):
     expected_kind = manifest.output_schema.get("window_output_kind")
     if expected_kind is not None and checked.output_kind != expected_kind:
         raise ValueError("dynamic window output kind does not match the module's output schema")
-    shapes = manifest.output_schema.get("window_shapes")
+    shapes = manifest.output_schema.get("on_demand_shapes", manifest.output_schema.get("window_shapes"))
     if shapes is not None:
         if set(shapes) != set(actual):
             raise ValueError("dynamic window shape schema must cover every output field")

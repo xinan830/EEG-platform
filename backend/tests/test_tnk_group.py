@@ -73,7 +73,8 @@ def test_public_catalog_has_one_group_and_children_are_internal_only():
     assert child_ids == {
         "tnk_iapf", "tnk_relaxation", "tnk_spatial_distribution", "tnk_rhythm_stability",
         "tnk_composite_meditation", "tnk_brainbeat", "tnk_brainbeat_flat", "tnk_fatigue",
-        "tnk_hai", "tnk_faa", "tnk_rbp", "tnk_aperiodic",
+        "tnk_hai", "tnk_faa", "tnk_rbp", "tnk_aperiodic", "tnk_crimson_meditation",
+        "tnk_zenlite_calmness", "tnk_zenlite_awareness", "tnk_zenlite_spectral_relaxation",
     }
 
 
@@ -147,6 +148,16 @@ def test_iapf_uses_its_own_30_second_warmup_and_five_second_cadence():
     assert group._dynamic_child_range("tnk_iapf", config, 26.0, 30.0) == (0.0, 30.0)
     assert group._dynamic_child_range("tnk_iapf", config, 27.0, 31.0) is None
     assert group._dynamic_child_range("tnk_iapf", config, 31.0, 35.0) == (5.0, 35.0)
+
+
+def test_legacy_children_use_their_declared_warmup_lengths():
+    group = _group()
+    config = _config("dynamic")
+
+    assert group._dynamic_child_range("tnk_crimson_meditation", config, 0.0, 4.0) is None
+    assert group._dynamic_child_range("tnk_crimson_meditation", config, 0.0, 5.0) == (0.0, 5.0)
+    assert group._dynamic_child_range("tnk_zenlite_calmness", config, 0.0, 4.0) is None
+    assert group._dynamic_child_range("tnk_zenlite_calmness", config, 0.0, 5.0) == (0.3125, 5.0)
 
 
 def test_brainbeat_flat_fits_its_current_window_before_independent_aperiodic_schedule():

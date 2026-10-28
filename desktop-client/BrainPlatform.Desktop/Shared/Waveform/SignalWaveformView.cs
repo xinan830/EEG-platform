@@ -74,7 +74,8 @@ public sealed class SignalWaveformView : UserControl
             labels.Children.Clear(); labels.RowDefinitions.Clear(); status.Visibility = Visibility.Visible;
             if (Signal is not { TimeSeconds.Count: > 1 } signal) { status.Text = "等待加载波形"; return; }
             if (signal.Unit != "uV" || signal.Channels.Count == 0 || signal.TimeSeconds.Any(time => !double.IsFinite(time)) ||
-                signal.Channels.Values.Any(samples => samples.Length != signal.TimeSeconds.Count || samples.Any(value => !double.IsFinite(value))))
+                signal.Channels.Values.Any(samples => samples.Length != signal.TimeSeconds.Count || samples.Any(value => !double.IsFinite(value))) ||
+                !HasValidExtrema(signal))
             { status.Text = "波形单位、维度或数值无效"; return; }
             Color[] colors = [Colors.IndianRed, Colors.SteelBlue, Colors.ForestGreen, Colors.MediumOrchid, Colors.DarkOrange];
             var index = 0;
@@ -88,6 +89,7 @@ public sealed class SignalWaveformView : UserControl
                     Visibility = Visibility.Collapsed, DrawMajorBands = false, DrawMajorGridLines = false, DrawMinorGridLines = false });
                 var series = new XyDataSeries<double, double> { SeriesName = $"{channel.Key} · µV" };
                 series.Append(signal.TimeSeconds, channel.Value);
+                AddExtremaEnvelope(signal, channel.Key, axisId, colors[index % colors.Length]);
                 surface.RenderableSeries.Add(new FastLineRenderableSeries { YAxisId = axisId, DataSeries = series,
                     Stroke = colors[index % colors.Length], StrokeThickness = 1, DrawNaNAs = LineDrawMode.Gaps });
                 labels.RowDefinitions.Add(new RowDefinition());
@@ -111,5 +113,42 @@ public sealed class SignalWaveformView : UserControl
             });
             surface.Annotations.Add(cursor); UpdateCursor(); status.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void AddExtremaEnvelope(SignalPreviewResponse signal, string channelName, string axisId, Color color)
+    {
+        var extremaTimes = signal.ExtremaTimeSeconds;
+        var channelExtrema = signal.ChannelExtrema;
+        if (extremaTimes is not { Count: > 0 } times || channelExtrema is null ||
+            !channelExtrema.TryGetValue(channelName, out var extrema)) return;
+
+        var points = SignalPreviewExtremaProjection.ToVerticalSegments(times, extrema);
+        var data = new XyDataSeries<double, double> { SeriesName = $"{channelName} · 每显示格范围" };
+        data.Append(points.TimeSeconds, points.Microvolts);
+        var envelopeColor = Color.FromArgb(105, color.R, color.G, color.B);
+        surface.RenderableSeries.Add(new FastLineRenderableSeries
+        {
+            YAxisId = axisId,
+            DataSeries = data,
+            Stroke = envelopeColor,
+            StrokeThickness = 2,
+            DrawNaNAs = LineDrawMode.Gaps,
+        });
+    }
+
+    private static bool HasValidExtrema(SignalPreviewResponse signal)
+    {
+        if (signal.ExtremaTimeSeconds is null && signal.ChannelExtrema is null) return true;
+        if (signal.ExtremaTimeSeconds is not { Count: > 0 } times ||
+            signal.ChannelExtrema is not { Count: > 0 } extremaByChannel ||
+            times.Any(time => !double.IsFinite(time)) ||
+            extremaByChannel.Count != signal.Channels.Count ||
+            extremaByChannel.Keys.Any(channel => !signal.Channels.ContainsKey(channel))) return false;
+
+        return extremaByChannel.Values.All(extrema =>
+            extrema.MinimumMicrovolts.Count == times.Count &&
+            extrema.MaximumMicrovolts.Count == times.Count &&
+            extrema.MinimumMicrovolts.Zip(extrema.MaximumMicrovolts).All(pair =>
+                double.IsFinite(pair.First) && double.IsFinite(pair.Second) && pair.First <= pair.Second));
     }
 }

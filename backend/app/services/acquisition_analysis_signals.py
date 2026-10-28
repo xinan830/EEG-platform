@@ -57,11 +57,19 @@ def historical_montage_catalogue(directory: str | Path, view: AcquisitionSignalV
     if not acquisition_default_id and resolved_views:
         acquisition_default_id = resolved_views[0].provenance.get("montage_id")
     result = []
+    projection_indexes: dict[str, int] = {}
     for resolved in resolved_views:
         entry = _catalogue_entry(resolved)
         entry["is_acquisition_default"] = entry["id"] == acquisition_default_id
         entry["label"] = resolved.provenance.get("montage_label") or entry["id"]
         entry["revision"] = str(resolved.provenance.get("montage_revision") or "acquisition-montage-v1")
+        projection_key = _catalogue_projection_key(entry)
+        existing_index = projection_indexes.get(projection_key)
+        if existing_index is not None:
+            if entry["is_acquisition_default"]:
+                result[existing_index]["is_acquisition_default"] = True
+            continue
+        projection_indexes[projection_key] = len(result)
         result.append(entry)
     return tuple(result)
 
@@ -102,6 +110,25 @@ def _catalogue_entry(resolved: AcquisitionSignalView) -> dict[str, object]:
         "snapshot_source": provenance.get("snapshot_source", "acquisition"),
         "source_profile_id": provenance.get("source_profile_id", profile_id),
     }
+
+
+def _catalogue_projection_key(entry: dict[str, object]) -> str:
+    """Return an identity for the displayed signal projection.
+
+    IDs and fingerprints identify a snapshot record, but old clients can write
+    the same projection under different IDs. The selector needs the signal
+    definition identity so those historical duplicates remain one option.
+    """
+    outputs = []
+    for output in entry.get("outputs", []):
+        if not isinstance(output, dict):
+            continue
+        outputs.append({key: value for key, value in output.items() if key not in {"id", "label"}})
+    return json.dumps({
+        "label": entry.get("label"),
+        "revision": entry.get("revision"),
+        "outputs": outputs,
+    }, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
 def read_acquisition_signal_view(

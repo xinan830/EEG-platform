@@ -35,13 +35,13 @@ public sealed class AlgorithmRunModuleTests
     }
 
     [Fact]
-    public void RbpFullPreview_UsesSharedDeclarativeBandSpec()
+    public void RbpV3FullPreview_UsesStructuredWindowProjection()
     {
         var spec = AlgorithmRunResultHandlerRegistry.For("rbp").FullRunMetricWindowSpec;
 
-        Assert.NotNull(spec);
-        Assert.Equal("ratio", spec!.ValueField);
-        Assert.Equal(["delta", "theta", "alpha", "beta", "gamma"], spec.MultiMetricFields);
+        Assert.Null(spec);
+        Assert.True(AlgorithmRunResultHandlerRegistry.For("rbp").SupportsFullRunWindowPreview);
+        Assert.False(AlgorithmRunResultHandlerRegistry.For("rbp").SupportsFullRunMetricWindowPreview);
     }
 
     [Theory]

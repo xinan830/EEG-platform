@@ -122,6 +122,32 @@ public sealed class DynamicWindowTargetCoordinatorTests
     }
 
     [Fact]
+    public async Task Latest_playback_target_can_cancel_superseded_active_work()
+    {
+        var observer = new ControlledObserver();
+        var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.Zero);
+        try
+        {
+            var activeTask = coordinator.LoadLatestAsync(Request(100), CancellationToken.None,
+                cancelActiveOnSupersede: true);
+            var active = await observer.NextAsync();
+            var latest = coordinator.LoadLatestAsync(Request(900), CancellationToken.None,
+                cancelActiveOnSupersede: true);
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => activeTask);
+            Assert.True(active.Token.IsCancellationRequested);
+
+            var replacement = await observer.NextAsync();
+            Assert.Equal(900, replacement.Request.CursorSample);
+            replacement.Complete();
+            await latest;
+            Assert.Equal(2, observer.Count);
+            Assert.Equal(1, observer.MaximumConcurrent);
+        }
+        finally { await coordinator.ResetAsync(); }
+    }
+
+    [Fact]
     public async Task Direct_seek_cancels_queued_playback_targets_but_keeps_active_work()
     {
         var observer = new ControlledObserver();

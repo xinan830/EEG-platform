@@ -31,6 +31,9 @@ internal sealed record FullRunResultDescriptor(
                 ["time_center_s", "frequency_hz"], "time_center_s",
                 "relative_window_time_center_s",
                 ["preprocessing_scope", "inner_time_axis", "analysis_state"], 1),
+            ("rbp", _) or (null, "algorithm_group") => new(
+                "rbp", "algorithm_group", ["delta", "theta", "alpha", "beta", "gamma"],
+                ["time_s", "channel_index"], "time_s", "absolute_recording_time_s", [], 1),
             _ => throw new InvalidOperationException(
                 $"完整结果输出类型 {id ?? kind ?? "unknown"} 没有已注册的结果契约。"),
         };
@@ -50,6 +53,9 @@ internal sealed record FullRunResultDescriptor(
             preview.AxisMetadata.TryGetValue(TimeAxis, out var metadata) &&
             Text(metadata, "unit") is not "s")
             throw new InvalidOperationException("STFT 时间轴必须显式声明秒单位。");
+        if (Kind == "algorithm_group" && preview.Axes.TryGetValue("channel_index", out var channels) &&
+            (channels.ValueKind != JsonValueKind.Array || channels.GetArrayLength() != preview.ChannelOrder.Count))
+            throw new InvalidOperationException("RBP 导联索引轴与通道顺序证据不一致。");
     }
 
     private static void RequireAxis(IReadOnlyDictionary<string, JsonElement> axes, string name)

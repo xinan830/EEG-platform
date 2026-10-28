@@ -11,4 +11,6 @@ internal static class StftWindowPresenter
         state.WindowPreview = response;
         state.Result = preview;
     }
+
+    public static void Append(StftPreviewState state, DynamicWindowResponse response) => state.AppendWindow(response);
 }

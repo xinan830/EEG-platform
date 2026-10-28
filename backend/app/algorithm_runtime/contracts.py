@@ -134,7 +134,7 @@ class SignalRequirements(BaseModel):
     """Module-owned declaration of source roles and preprocessing scope."""
 
     input_roles: list[str] = Field(min_length=1)
-    representation: Literal["time_series", "spectrum", "spectrogram"]
+    representation: Literal["time_series", "spectrum", "spectrogram", "mixed"]
     source_shape: Literal["single", "paired"]
     preprocessing_scope: Literal[
         "configured_continuous_before_slice",
@@ -160,6 +160,8 @@ class AlgorithmOutputContract(BaseModel):
     dynamic_result_type: Literal["series", "structured_series"]
     channel_role_order: list[str] = Field(min_length=1)
     fields: list[AlgorithmOutputField] = Field(min_length=1)
+    static_shapes: dict[str, list[str | int]] = Field(default_factory=dict)
+    window_shapes: dict[str, list[str | int]] = Field(default_factory=dict)
     axes: list[dict[str, Any]] = Field(default_factory=list)
     quality_values: list[str] = Field(min_length=1)
     dynamic_states: list[DynamicAnalysisState] = Field(default_factory=list)
@@ -207,10 +209,17 @@ class AlgorithmInputs(BaseModel):
 
     recording_id: str = Field(min_length=1)
     channel: str = Field(min_length=1)
+    channels: tuple[str, ...] = Field(default_factory=tuple)
     sfreq_hz: float = Field(gt=0)
     duration_s: float = Field(gt=0)
     payload: Any
     execution_context: ExecutionControl | None = Field(default=None, exclude=True)
+
+    @model_validator(mode="after")
+    def normalize_channels(self) -> "AlgorithmInputs":
+        if not self.channels:
+            self.channels = (self.channel,)
+        return self
 
 
 class AlgorithmResult(BaseModel):

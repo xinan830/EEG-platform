@@ -252,7 +252,8 @@ def build_tnk_child_adapters() -> tuple[TnkRuntimeAdapter, ...]:
         )
         adapter = TnkRuntimeAdapter(module, manifest)
         adapters.append(adapter)
-    return tuple(adapters)
+    from .legacy_runtime import build_tnk_legacy_adapters
+    return tuple(adapters) + build_tnk_legacy_adapters()
 
 
 def build_tnk_runtime_adapters() -> tuple[AlgorithmModule, ...]:

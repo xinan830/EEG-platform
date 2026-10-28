@@ -23,6 +23,27 @@ public sealed class StftPreview
     public TimeRange RequestedRange { get; }
     public string PowerUnit => "dB re 1 uV^2/Hz";
 
+    public static StftPreview Append(StftPreview existing, StftPreview incoming)
+    {
+        if (existing.FrequenciesHz.Length != incoming.FrequenciesHz.Length ||
+            existing.FrequenciesHz.Zip(incoming.FrequenciesHz)
+                .Any(pair => Math.Abs(pair.First - pair.Second) > 1e-9))
+            throw new InvalidOperationException("STFT 追加窗口的频率轴与历史不一致。");
+
+        var columns = existing.TimesSeconds
+            .Select((time, index) => (time, row: existing.PowerDb[index]))
+            .Concat(incoming.TimesSeconds.Select((time, index) => (time, row: incoming.PowerDb[index])))
+            .GroupBy(item => Math.Round(item.time, 9))
+            .Select(group => group.First())
+            .OrderBy(item => item.time)
+            .ToArray();
+        return BuildPreview(columns.Select(item => item.time).ToArray(), existing.FrequenciesHz,
+            columns.Select(item => item.row).ToArray(),
+            new TimeRange(
+                Math.Min(existing.RequestedRange.StartSeconds, incoming.RequestedRange.StartSeconds),
+                Math.Max(existing.RequestedRange.EndSeconds, incoming.RequestedRange.EndSeconds)));
+    }
+
     public static StftPreview Parse(StructuredPreviewResponse preview) => ParseCore(preview, null);
 
     public static StftPreview ParseDynamic(StructuredPreviewResponse preview, int windowIndex) =>
@@ -140,6 +161,13 @@ public sealed class StftPreview
         if (!double.IsFinite(minimum))
             throw new InvalidOperationException("STFT 范围内没有可显示的有效功率单元。");
         return new StftPreview(times, frequencies, rows, minimum, maximum, requestedRange);
+    }
+
+    private static StftPreview BuildPreview(double[] times, double[] frequencies, double?[][] rows, TimeRange requestedRange)
+    {
+        var finite = rows.SelectMany(row => row).Where(value => value is double number && double.IsFinite(number)).Select(value => value!.Value).ToArray();
+        if (finite.Length == 0) throw new InvalidOperationException("STFT 历史没有可显示的有效功率单元。");
+        return new StftPreview(times, frequencies, rows, finite.Min(), finite.Max(), requestedRange);
     }
 
     private static string Text(JsonElement value, string name) =>

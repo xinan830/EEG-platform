@@ -91,6 +91,30 @@ def test_public_official_catalog_matches_builtin_module_declarations() -> None:
         assert item["implementation_identity"] == module.manifest.implementation_identity
 
 
+def test_rbp_v3_bootstrap_preserves_immutable_v201_and_adds_v202(tmp_path) -> None:
+    from app.algorithms.catalog import ensure_official_definitions, official_definition_draft
+
+    service = DefinitionService(tmp_path / "rbp-upgrade.sqlite3")
+    definition = service.create(DefinitionCreateRequest(
+        name="Official RBP", owner="platform-official", description="frozen official RBP",
+    ))
+    old = DefinitionVersionDraft(
+        semver="2.0.1", graph={"nodes": [{"id": "out", "type": "output", "inputs": {"source": "$input.official_result"}}], "outputs": ["out"]},
+        inputs={"official_result": {"type": "Scalar", "unit": "dimensionless_or_declared_output", "source": "official_composite_adapter"}},
+        outputs={"delta": {"type": "Scalar", "unit": "ratio"}},
+    )
+    service.create_version(definition.definition_id, old)
+    service.publish(definition.definition_id, "2.0.1")
+
+    ensure_official_definitions(service)
+
+    assert service.repository.get_version(definition.definition_id, "2.0.1").digest_sha256
+    installed = service.repository.get_version(definition.definition_id, "2.0.2")
+    assert installed is not None and installed.state == "published"
+    assert installed.digest_sha256 == __import__("app.core.provenance", fromlist=["sha256_json"]).sha256_json(
+        official_definition_draft("rbp").model_dump(mode="json"))
+
+
 def test_tnk_catalog_exposes_one_group_and_keeps_children_internal() -> None:
     from app.algorithms.builtin_modules import build_builtin_modules
 
@@ -104,7 +128,7 @@ def test_tnk_catalog_exposes_one_group_and_keeps_children_internal() -> None:
     assert item["group"] == "TNK 脑指标"
     assert item["availability"] == "available"
     assert item["is_runnable"] is True
-    assert item["modes"] == ["static", "dynamic"]
+    assert item["modes"] == ["dynamic"]
     assert item["output_contract"]["channel_role_order"] == ["Fz", "Pz", "Oz", "F3", "F4"]
     assert {field["name"] for field in item["output_contract"]["fields"]} >= {"metric_index", "tnk_iapf", "tnk_faa"}
     assert all(child_id not in by_id for child_id in {"tnk_iapf", "tnk_faa", "tnk_rbp"})
@@ -120,7 +144,7 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
         "iapf": ("official-iapf-v2", "iapf-runtime-v3"),
         "peak_frequency": ("official-peak-frequency-v1", "peak-frequency-runtime-v2-frequency-contract"),
         "psd": ("offline-spectral-v3", "psd-runtime-v3-explicit-filters"),
-        "rbp": ("official-rbp-v2", "rbp-runtime-v2-five-band"),
+        "rbp": ("official-rbp-v3", "rbp-runtime-v3-montage-multi-channel"),
         "stft": ("spectrogram-v2", "stft-runtime-v4-relative-window-times"),
         "theta_beta": ("official-theta-beta-v2", "theta-beta-runtime-v1"),
     }
@@ -138,4 +162,4 @@ def test_tnk_runtime_no_longer_uses_shadow_rejection() -> None:
 
     module = next(item for item in build_builtin_modules() if item.manifest.algorithm_id == "tnk_biofeedback")
     assert module.manifest.is_runnable is True
-    assert module.manifest.supported_modes == ["static", "dynamic"]
+    assert module.manifest.supported_modes == ["dynamic"]

@@ -48,8 +48,10 @@ internal static class FullRunWindowPreviewAdapter
         }
         var result = state != "ready" ? null : new DynamicWindowResultResponse(
             Identity(target.RecordingId), state, OutputKind(preview.Output),
-            preview.Axes, AxisUnits(preview.AxisMetadata), SliceArrays(preview.Arrays, index, descriptor.OutputArrays),
-            ArrayUnits(preview.ArrayMetadata, descriptor.OutputArrays), quality, null, null, WindowProvenance(window, preview.Output));
+            WindowAxes(preview, index, descriptor), AxisUnits(preview.AxisMetadata),
+            SliceArrays(preview.Arrays, index, descriptor.OutputArrays),
+            ArrayUnits(preview.ArrayMetadata, descriptor.OutputArrays), quality, null,
+            WindowEvidence(preview, window), WindowProvenance(window, preview.Output));
         var startSample = Long(window, "start_sample");
         var endSample = Long(window, "end_sample");
         return new DynamicWindowResponse(
@@ -115,6 +117,37 @@ internal static class FullRunWindowPreviewAdapter
                 throw new InvalidOperationException($"完整结果缺少算法输出数组 {name} 的对应窗口行。");
         }
         return sliced;
+    }
+
+    private static IReadOnlyDictionary<string, JsonElement> WindowAxes(
+        StructuredPreviewResponse preview, int index, FullRunResultDescriptor descriptor)
+    {
+        if (descriptor.Kind != "algorithm_group") return preview.Axes;
+        var axes = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+        {
+            ["time_s"] = JsonSerializer.SerializeToElement(new[] { preview.Axes["time_s"][index].GetDouble() }),
+            ["channel_index"] = preview.Axes["channel_index"],
+        };
+        return axes;
+    }
+
+    private static JsonElement? WindowEvidence(StructuredPreviewResponse preview, JsonElement window)
+    {
+        var output = preview.Output;
+        if (OutputKind(output) == "algorithm_group")
+        {
+            var channelFailures = window.TryGetProperty("evidence", out var evidence) && evidence.ValueKind == JsonValueKind.Object &&
+                evidence.TryGetProperty("extensions", out var extensions) && extensions.ValueKind == JsonValueKind.Object &&
+                extensions.TryGetProperty("channel_failures", out var failures)
+                    ? failures
+                    : JsonSerializer.SerializeToElement(new { by_channel = new Dictionary<string, object>() });
+            return JsonSerializer.SerializeToElement(new { extensions = new
+            {
+                channel_order = new { channels = preview.ChannelOrder },
+                channel_failures = channelFailures,
+            }});
+        }
+        return null;
     }
 
     private static string WindowState(JsonElement window) =>

@@ -35,6 +35,8 @@ def declared_output_contract(
         dynamic_result_type=dynamic_result_type,
         channel_role_order=list(requirements.input_roles),
         fields=fields,
+        static_shapes={name: list(shape) for name, shape in schema.get("static_shapes", {}).items()},
+        window_shapes={name: list(shape) for name, shape in window_shapes.items()},
         axes=list(schema.get("window_axes", [])),
         quality_values=["clean", "gate_failed", "unavailable", "insufficient_data", "partial"],
         dynamic_states=["Partial", "Complete", "Rejected", "Unavailable"],

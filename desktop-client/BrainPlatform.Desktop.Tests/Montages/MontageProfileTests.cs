@@ -230,6 +230,69 @@ public sealed class MontageProfileTests
     }
 
     [Fact]
+    public void MontageCatalogue_DeduplicatesStableIds_ButKeepsDistinctUserProfiles()
+    {
+        var source = CreateAntSystemChannelConfiguration();
+        var preset = SystemMontageProfileFactory.Create(source).First();
+        var firstUserProfile = preset with
+        {
+            Id = "user-profile-1",
+            Source = MontageProfileSource.User,
+            DerivedChannels = preset.DerivedChannels
+                .Select((channel, index) => index == 0
+                    ? channel with
+                    {
+                        Name = $"{channel.PositiveLabel}-Fz",
+                        NegativeKind = MontageNegativeKind.Channel,
+                        NegativeLabels = ["Fz"],
+                    }
+                    : channel)
+                .ToArray(),
+        };
+        var secondUserProfile = preset with
+        {
+            Id = "user-profile-2",
+            Source = MontageProfileSource.User,
+            Description = "不同的用户语义",
+            DerivedChannels = preset.DerivedChannels
+                .Select((channel, index) => index == 0
+                    ? channel with
+                    {
+                        Name = $"{channel.PositiveLabel}-F4",
+                        NegativeKind = MontageNegativeKind.Channel,
+                        NegativeLabels = ["F4"],
+                    }
+                    : channel)
+                .ToArray(),
+        };
+
+        var profiles = MontageConfigurationWorkspaceViewModel.DeduplicateProfilesByStableIdentity(
+            [preset, preset with { Description = "重复的系统来源" }, firstUserProfile, secondUserProfile]);
+
+        Assert.Equal([preset.Id, firstUserProfile.Id, secondUserProfile.Id], profiles.Select(profile => profile.Id));
+    }
+
+    [Fact]
+    public void MontageCatalogue_DeduplicatesLegacySystemProfilesWithDifferentIds()
+    {
+        var source = CreateAntSystemChannelConfiguration();
+        var current = SystemMontageProfileFactory.Create(source);
+        var legacy = current
+            .Select(profile => profile with
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Source = MontageProfileSource.User,
+            })
+            .ToArray();
+
+        var profiles = MontageConfigurationWorkspaceViewModel.DeduplicateProfilesByStableIdentity(
+            current.Concat(legacy));
+
+        Assert.Equal(current.Select(profile => profile.Id), profiles.Select(profile => profile.Id));
+        Assert.Equal(current.Count, profiles.Count);
+    }
+
+    [Fact]
     public void Workspace_OpensSystemMontageAsReadOnlyViewWithItsActualRows()
     {
         var source = CreateAntSystemChannelConfiguration();

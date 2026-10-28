@@ -620,6 +620,15 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Keeps one catalogue entry for each stable profile identity. System
+    /// presets have fixed IDs, so legacy or repeated source entries must not
+    /// produce multiple identical options in acquisition selection.
+    /// </summary>
+    internal static IReadOnlyList<MontageProfile> DeduplicateProfilesByStableIdentity(
+        IEnumerable<MontageProfile> profiles)
+        => MontageProfileCatalogue.Deduplicate(profiles);
+
     private ChannelConfigurationProfile? FindPreferredChannelConfiguration() =>
         AvailableChannelConfigurations.FirstOrDefault();
 
@@ -649,11 +658,9 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
             referencedIds = await store.GetReferencedIdsAsync(CancellationToken.None);
             RefreshAvailableChannelConfigurations();
             Profiles.Clear();
-            foreach (var profile in CreateSystemProfiles())
-            {
-                Profiles.Add(PrepareSourceStatus(profile));
-            }
-            foreach (var profile in await store.LoadAsync(CancellationToken.None))
+            var persistedProfiles = await store.LoadAsync(CancellationToken.None);
+            foreach (var profile in DeduplicateProfilesByStableIdentity(
+                         CreateSystemProfiles().Concat(persistedProfiles)))
             {
                 Profiles.Add(PrepareSourceStatus(profile));
             }

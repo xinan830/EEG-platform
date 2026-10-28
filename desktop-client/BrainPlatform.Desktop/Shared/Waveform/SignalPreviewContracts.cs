@@ -21,4 +21,10 @@ public sealed record SignalPreviewResponse(
     [property: JsonPropertyName("channels")] IReadOnlyDictionary<string, double[]> Channels,
     [property: JsonPropertyName("low_hz")] double LowHz = 1,
     [property: JsonPropertyName("high_hz")] double HighHz = 30,
-    [property: JsonPropertyName("notch_hz")] double? NotchHz = null);
+    [property: JsonPropertyName("notch_hz")] double? NotchHz = null,
+    [property: JsonPropertyName("extrema_elapsed_s")] IReadOnlyList<double>? ExtremaTimeSeconds = null,
+    [property: JsonPropertyName("channel_extrema")] IReadOnlyDictionary<string, SignalPreviewChannelExtrema>? ChannelExtrema = null);
+
+public sealed record SignalPreviewChannelExtrema(
+    [property: JsonPropertyName("minimum_uv")] IReadOnlyList<double> MinimumMicrovolts,
+    [property: JsonPropertyName("maximum_uv")] IReadOnlyList<double> MaximumMicrovolts);

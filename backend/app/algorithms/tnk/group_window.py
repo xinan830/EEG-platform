@@ -152,6 +152,7 @@ class TnkGroupWindowCapability:
             for child in children:
                 if hasattr(child.module, "reset"):
                     child.module.reset()
+            self._reset_legacy_streams(children)
             first_frame_index = 0
             checkpoint_frame_index = None
         else:
@@ -186,9 +187,11 @@ class TnkGroupWindowCapability:
         actual_replayed_frames = target_index + 1 if checkpoint_frame_index is None else target_index - checkpoint_frame_index
         logger.info(
             "tnk_on_demand_execution target_frame=%s checkpoint_frame=%s replayed_frames=%s "
-            "spectrum_loads=%s spectrum_cache_hits=%s child_calculations=%s elapsed_ms=%.1f",
+            "spectrum_loads=%s spectrum_cache_hits=%s shared_time_series_loads=%s "
+            "child_calculations=%s elapsed_ms=%.1f",
             target_index, checkpoint_frame_index, actual_replayed_frames,
             diagnostics.get("spectrum_loads", 0), diagnostics.get("spectrum_cache_hits", 0),
+            diagnostics.get("shared_time_series_loads", 0),
             diagnostics.get("child_calculations", 0), (time.perf_counter() - started) * 1000,
         )
         if target_result is None:

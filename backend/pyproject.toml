@@ -16,6 +16,7 @@ dependencies = [
     "scipy>=1.10",
     "threadpoolctl>=3.5",
     "specparam>=2.0.0rc6",
+    "ai-edge-litert>=2.3.0,<2.4",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +27,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["app", "app.*"]
+
+[tool.setuptools.package-data]
+"app.algorithms.tnk" = ["assets/*.tflite"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

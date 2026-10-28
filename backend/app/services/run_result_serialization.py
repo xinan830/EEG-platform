@@ -71,6 +71,9 @@ def _serialize_structured_result(result: AlgorithmStructuredResult, algorithm_id
     quality = {"status": result.quality, "reasons": [result.failure.code] if result.failure else []}
     return {
         "output": {"id": algorithm_id, "label": label, "kind": result.output_kind, "quality": quality},
+        "requested_range": result.requested_range,
+        "actual_range": result.actual_range,
+        "mode": "static",
         "channel_order": result.channel_order,
         "requested_range": result.requested_range,
         "actual_range": result.actual_range,

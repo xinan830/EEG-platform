@@ -25,12 +25,17 @@ public sealed class HttpAlgorithmClientTests
             Assert.Equal(50, body.RootElement.GetProperty("notch_hz").GetDouble());
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new
             { recording_id = "source", montage_id = "montage", unit = "uV", filter = "continuous_zero_phase", low_hz=2d,high_hz=20d,notch_hz=50d,
-              elapsed_s = new[] {20d,20.001}, channels = new Dictionary<string,double[]> { ["Pz-AVG"] = [1,2] } }) };
+              elapsed_s = new[] {20d,20.001}, channels = new Dictionary<string,double[]> { ["Pz-AVG"] = [1,2] },
+              extrema_elapsed_s = new[] {20.0005}, channel_extrema = new Dictionary<string, object>
+              { ["Pz-AVG"] = new { minimum_uv = new[] {-2d}, maximum_uv = new[] {3d} } } }) };
         })) { BaseAddress = new Uri("http://localhost/") };
         var result = await new HttpAlgorithmClient(client).GetSignalPreviewAsync("source", new(20,10,"montage",["Pz-AVG"],LowHz:2,HighHz:20,NotchHz:50),CancellationToken.None);
         Assert.Equal("uV", result.Unit);
         Assert.Equal(20, result.TimeSeconds[0]);
         Assert.Equal(2,result.LowHz); Assert.Equal(20,result.HighHz); Assert.Equal(50,result.NotchHz);
+        Assert.Equal(20.0005, Assert.Single(result.ExtremaTimeSeconds!));
+        Assert.Equal(-2, Assert.Single(result.ChannelExtrema!["Pz-AVG"].MinimumMicrovolts));
+        Assert.Equal(3, Assert.Single(result.ChannelExtrema["Pz-AVG"].MaximumMicrovolts));
     }
     [Theory]
     [InlineData("{\"detail\":\"分析范围无效\"}", "分析范围无效")]

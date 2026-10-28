@@ -133,11 +133,13 @@ public sealed class DynamicWindowTargetCoordinator
     }
 
     /// <summary>
-    /// Queues a playback target while retaining only the newest target that has
-    /// not started. The active observation is allowed to finish so its result
-    /// can still enter bounded history; obsolete queued targets are cancelled.
+    /// Queues a latest-only target. Callers that own a stateful playback lane
+    /// may cancel an active observation when a newer target supersedes it;
+    /// ordinary interactive requests keep the active observation by default.
     /// </summary>
-    public Task<DynamicWindowResponse> LoadLatestAsync(DynamicWindowRequest request, CancellationToken waiterToken)
+    public Task<DynamicWindowResponse> LoadLatestAsync(
+        DynamicWindowRequest request, CancellationToken waiterToken,
+        bool cancelActiveOnSupersede = false)
     {
         waiterToken.ThrowIfCancellationRequested();
         Task<DynamicWindowResponse> result;
@@ -158,6 +160,9 @@ public sealed class DynamicWindowTargetCoordinator
                 result = next.Result.Task;
             else
             {
+                if (cancelActiveOnSupersede && active is { } activeWork && activeWork.Key != key &&
+                    activeWork.Generation == generation)
+                    CancelActive(activeWork, request);
                 DropPending();
                 DropSequentialPending();
                 pending = new Work(key, request, generation);
@@ -277,6 +282,16 @@ public sealed class DynamicWindowTargetCoordinator
             work.Result.TrySetCanceled();
             work.CancellationTask = work.Cancellation.CancelAsync();
         }
+    }
+
+    private void CancelActive(Work work, DynamicWindowRequest superseding)
+    {
+        if (work.Cancellation.IsCancellationRequested) return;
+        AlgorithmWindowPerformanceDiagnostics.RecordQueueDepth(
+            superseding, "latest_cancel_active", sequentialPending.Count,
+            work.Request.CursorSample, superseding.CursorSample);
+        work.Result.TrySetCanceled();
+        work.CancellationTask = work.Cancellation.CancelAsync();
     }
 
     private void ReportStatus(Work work, DynamicWindowResponse response)

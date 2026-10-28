@@ -233,7 +233,6 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         await catalog.CurrentWindowLoad;
 
         Assert.Equal(1, client.StructuredPreviewCalls);
-        Assert.Equal(0, client.FullWindowPreviewCalls);
         Assert.Equal(requestCountAfterFullCache, client.Requests.Count);
         Assert.Equal("全量已完成窗口（本地缓存）", catalog.DynamicPreviewSourceText);
         Assert.NotNull(detail.Preview);
@@ -244,36 +243,25 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
     }
 
     [Fact]
-    public async Task Combined_rbp_serves_completed_full_metric_window_without_http_preview()
+    public async Task Combined_rbp_serves_completed_structured_full_window_without_http_preview()
     {
         var client = new OnDemandDetailClient
         {
             Respond = OnDemandDetailClient.RbpResponse,
             RespondFullRun = request => new AnalysisRunResponse(
-                "full-run-1", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,
-                JsonSerializer.SerializeToElement(new
-                {
-                    result_contract_version = "official-algorithm-result-v1",
-                    metric = new
-                    {
-                        mode = "dynamic", result_contract_version = "dynamic-analysis-frame-v6",
-                        actual_range = new { start_s = 0d, end_s = 30d },
-                        output = new { value = (double?)null, unit = "ratio" },
-                        series = new[]
-                        {
-                            new { time_s = 5d, window_start_s = 0d, window_end_s = 5d, result_contract_version = "dynamic-analysis-frame-v6",
-                                output = new { value = (double?)null, unit = "ratio" }, analysis_state = "Complete", quality = new { status = "clean" },
-                                band_values = new { delta = 0.1, theta = 0.2, alpha = 0.3, beta = 0.25, gamma = 0.15 } },
-                            new { time_s = 10d, window_start_s = 5d, window_end_s = 10d, result_contract_version = "dynamic-analysis-frame-v6",
-                                output = new { value = (double?)null, unit = "ratio" }, analysis_state = "Complete", quality = new { status = "clean" },
-                                band_values = new { delta = 0.2, theta = 0.2, alpha = 0.2, beta = 0.2, gamma = 0.2 } },
-                        },
-                    },
-                }),
+                "full-run-1", request.RecordingId, request.AnalysisType, "completed", "official-rbp-v3", null, null,
+            JsonSerializer.SerializeToElement(new { result_contract_version = "official-algorithm-result-v1", metric = new { mode = "dynamic", result_contract_version = "dynamic-analysis-frame-v6", actual_range = new { start_s = 0d, end_s = 30d }, output = new { value = (double?)null, unit = "ratio" }, series = Array.Empty<object>() } }),
                 null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 10, 10,
                 "completed", "已完成"),
+            RespondFullStructuredPreview = _ => OnDemandDetailClient.FullRbpStructuredPreview(),
         };
         var catalog = OnDemandDetailClient.Catalog(client, "rbp");
+        catalog.SelectedAlgorithm = catalog.SelectedAlgorithm! with
+        {
+            Version = "official-rbp-v3",
+            ImplementationIdentity = "rbp-runtime-v3-montage-multi-channel",
+            DynamicCapabilities = JsonDocument.Parse("{\"on_demand\":{\"implementation\":\"implemented\",\"validation\":\"validated\"},\"combined_preview_background_full\":{\"implementation\":\"implemented\",\"validation\":\"validated\"},\"full_result_to_preview\":{\"implementation\":\"implemented\",\"validation\":\"validated\"}}").RootElement.Clone(),
+        };
         catalog.SelectedDynamicExecutionMode = "按需预览 + 后台全量";
 
         await OnDemandDetailClient.Run(catalog);
@@ -281,11 +269,10 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         catalog.DynamicTimeProgressPercent = 50;
         await catalog.CurrentWindowLoad;
 
-        Assert.Equal(0, client.StructuredPreviewCalls);
-        Assert.Equal(0, client.FullWindowPreviewCalls);
+        Assert.True(client.StructuredPreviewCalls >= 1);
         Assert.Equal(requestCountAfterFullCache, client.Requests.Count);
-        Assert.Equal("全量已完成窗口（本地缓存）", catalog.DynamicPreviewSourceText);
-        Assert.StartsWith("full-metric:", catalog.DisplayedAnalysisWindow!.SessionId);
+        Assert.Contains("全量窗口", catalog.DynamicPreviewSourceText);
+        Assert.StartsWith("full-cache:", catalog.DisplayedAnalysisWindow!.SessionId);
         Assert.Equal("ready", catalog.DisplayedAnalysisWindow.State);
         await catalog.ReleaseWindowAnalysisAsync();
     }

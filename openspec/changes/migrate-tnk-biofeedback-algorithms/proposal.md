@@ -13,6 +13,7 @@ The ANT-Amplify EEG process project contains a related set of biofeedback calcul
 - Expose the public `tnk_biofeedback` group only through dynamic analysis. New static TNK Run requests are rejected with a structured unsupported-mode error; existing persisted static Run records remain readable and are neither migrated nor re-executed.
 - Recreate the ANT offline workbench chart layout with SciChart chart-family tabs, a reusable filtered review-style waveform, playback and backend-owned score-state duration presentation. The user's subsequent scope correction excludes event annotation and event-period report controls. Single windows use time points; on-demand windows accumulate bounded real-time histories instead of categorical columns.
 - Add independent reference comparisons against the ANT source behavior and synthetic-signal fixtures; record any deliberate differences explicitly.
+- Add the three ANT-Amplify raw-Fz paths to the same internal TNK group: Crimson neural-network meditation, Zenlite calmness/awareness, and Zenlite spectral relaxation. They use a typed raw time-series source (V/float64), module-owned 250/256 Hz resampling and fixed causal preprocessing; they are not substituted with the platform PSD path.
 
 ## Capabilities
 

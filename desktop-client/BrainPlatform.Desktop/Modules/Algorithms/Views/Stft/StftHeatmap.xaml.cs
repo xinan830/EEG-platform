@@ -17,8 +17,13 @@ public partial class StftHeatmap : UserControl
     private readonly NumericAxis xAxis;
     private readonly NumericAxis yAxis;
     private readonly HeatmapColorPalette palette;
-    private readonly FastUniformHeatmapRenderableSeries heatmapSeries;
+    private readonly List<FastUniformHeatmapRenderableSeries> heatmapSegments = [];
     private readonly CursorModifier cursor;
+    private double renderedThroughSeconds = double.NegativeInfinity;
+    private double historyStartSeconds = double.NaN;
+    private double[]? renderedFrequencies;
+    private double minimumDb = double.PositiveInfinity;
+    private double maximumDb = double.NegativeInfinity;
 
     public static readonly DependencyProperty PreviewProperty = DependencyProperty.Register(
         nameof(Preview), typeof(StftPreview), typeof(StftHeatmap), new PropertyMetadata(null, OnPreviewChanged));
@@ -49,14 +54,6 @@ public partial class StftHeatmap : UserControl
                 new GradientStop(Color.FromRgb(217, 76, 68), 1.0),
             },
         };
-        heatmapSeries = new FastUniformHeatmapRenderableSeries
-        {
-            ColorMap = palette,
-            UseLinearTextureFiltering = true,
-            DrawTextInCell = false,
-            XAxisId = xAxis.Id,
-            YAxisId = yAxis.Id,
-        };
         cursor = new CursorModifier
         {
             IsEnabled = true,
@@ -72,7 +69,6 @@ public partial class StftHeatmap : UserControl
         Surface.XAxes.Add(xAxis);
         RecordingTimeAxisPresentation.SetAxis(this, xAxis);
         Surface.YAxes.Add(yAxis);
-        Surface.RenderableSeries.Add(heatmapSeries);
         Surface.ChartModifier = cursor;
         ColourMap.ColorPalette = palette;
     }
@@ -94,28 +90,95 @@ public partial class StftHeatmap : UserControl
 
     private void UpdatePreview(StftPreview? preview)
     {
-        heatmapSeries.DataSeries = null;
-        if (preview is null || preview.TimesSeconds.Length == 0 || preview.FrequenciesHz.Length == 0)
+        if (preview is null)
+        {
+            ClearSegments();
+            return;
+        }
+        if (preview.TimesSeconds.Length == 0 || preview.FrequenciesHz.Length == 0)
             return;
 
-        var width = preview.TimesSeconds.Length;
-        var height = preview.FrequenciesHz.Length;
-        var values = new double[height, width];
-        for (var y = 0; y < height; y++)
-            for (var x = 0; x < width; x++)
-                values[y, x] = preview.PowerDb[x][y] ?? double.NaN;
+        if (renderedFrequencies is not null && !renderedFrequencies.SequenceEqual(preview.FrequenciesHz))
+            ClearSegments();
+        renderedFrequencies = preview.FrequenciesHz.ToArray();
+        var newColumns = Enumerable.Range(0, preview.TimesSeconds.Length)
+            .Where(index => preview.TimesSeconds[index] > renderedThroughSeconds + 1e-9)
+            .ToArray();
+        if (newColumns.Length > 0)
+            AppendColumns(preview, newColumns);
 
-        var xStep = width > 1 ? preview.TimesSeconds[1] - preview.TimesSeconds[0] : 1.0;
-        var yStep = height > 1 ? preview.FrequenciesHz[1] - preview.FrequenciesHz[0] : 1.0;
-        var dataSeries = new UniformHeatmapDataSeries<double, double, double>(
-            values, preview.TimesSeconds[0], xStep, preview.FrequenciesHz[0], yStep, null);
-
-        heatmapSeries.DataSeries = dataSeries;
-        palette.Minimum = preview.MinimumDb;
-        palette.Maximum = preview.MaximumDb;
-        ColourMap.Minimum = preview.MinimumDb;
-        ColourMap.Maximum = preview.MaximumDb;
-        xAxis.VisibleRange = new DoubleRange(preview.TimesSeconds[0], preview.TimesSeconds[^1]);
+        minimumDb = Math.Min(minimumDb, preview.MinimumDb);
+        maximumDb = Math.Max(maximumDb, preview.MaximumDb);
+        palette.Minimum = minimumDb;
+        palette.Maximum = maximumDb;
+        ColourMap.Minimum = minimumDb;
+        ColourMap.Maximum = maximumDb;
+        xAxis.VisibleRange = new DoubleRange(
+            double.IsFinite(historyStartSeconds) ? historyStartSeconds : preview.TimesSeconds[0],
+            Math.Max(preview.TimesSeconds[^1], renderedThroughSeconds));
         yAxis.VisibleRange = new DoubleRange(preview.FrequenciesHz[0], preview.FrequenciesHz[^1]);
+    }
+
+    private void AppendColumns(StftPreview preview, int[] columnIndexes)
+    {
+        var timeStep = preview.TimesSeconds.Length > 1
+            ? preview.TimesSeconds[1] - preview.TimesSeconds[0]
+            : 1.0;
+        var groups = new List<List<int>>();
+        foreach (var index in columnIndexes)
+        {
+            if (groups.Count == 0 || !AreAdjacent(preview.TimesSeconds[groups[^1][^1]], preview.TimesSeconds[index], timeStep))
+                groups.Add([]);
+            groups[^1].Add(index);
+        }
+
+        foreach (var group in groups)
+        {
+            var height = preview.FrequenciesHz.Length;
+            var values = new double[height, group.Count];
+            for (var y = 0; y < height; y++)
+                for (var x = 0; x < group.Count; x++)
+                    values[y, x] = preview.PowerDb[group[x]][y] ?? double.NaN;
+
+            var firstIndex = group[0];
+            var xStep = group.Count > 1
+                ? preview.TimesSeconds[group[1]] - preview.TimesSeconds[firstIndex]
+                : timeStep;
+            var yStep = height > 1 ? preview.FrequenciesHz[1] - preview.FrequenciesHz[0] : 1.0;
+            var dataSeries = new UniformHeatmapDataSeries<double, double, double>(
+                values, preview.TimesSeconds[firstIndex], xStep, preview.FrequenciesHz[0], yStep, null);
+            var segment = new FastUniformHeatmapRenderableSeries
+            {
+                DataSeries = dataSeries,
+                ColorMap = palette,
+                UseLinearTextureFiltering = true,
+                DrawTextInCell = false,
+                XAxisId = xAxis.Id,
+                YAxisId = yAxis.Id,
+            };
+            Surface.RenderableSeries.Add(segment);
+            heatmapSegments.Add(segment);
+            if (!double.IsFinite(historyStartSeconds))
+                historyStartSeconds = preview.TimesSeconds[firstIndex];
+        }
+        renderedThroughSeconds = preview.TimesSeconds[columnIndexes[^1]];
+    }
+
+    private static bool AreAdjacent(double left, double right, double timeStep) =>
+        right - left <= timeStep * 1.000001;
+
+    private void ClearSegments()
+    {
+        foreach (var segment in heatmapSegments)
+        {
+            Surface.RenderableSeries.Remove(segment);
+            segment.DataSeries = null;
+        }
+        heatmapSegments.Clear();
+        renderedThroughSeconds = double.NegativeInfinity;
+        historyStartSeconds = double.NaN;
+        renderedFrequencies = null;
+        minimumDb = double.PositiveInfinity;
+        maximumDb = double.NegativeInfinity;
     }
 }

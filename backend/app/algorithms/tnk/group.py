@@ -37,7 +37,8 @@ _CHILD_ORDER = (
     "tnk_iapf", "tnk_relaxation", "tnk_spatial_distribution",
     "tnk_rhythm_stability", "tnk_composite_meditation", "tnk_brainbeat",
     "tnk_aperiodic", "tnk_brainbeat_flat", "tnk_fatigue", "tnk_hai",
-    "tnk_faa", "tnk_rbp",
+    "tnk_faa", "tnk_rbp", "tnk_crimson_meditation", "tnk_zenlite_calmness",
+    "tnk_zenlite_awareness", "tnk_zenlite_spectral_relaxation",
 )
 
 
@@ -104,8 +105,8 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                 "children": self._child_catalog_contract(),
             },
             signal_requirements=SignalRequirements(
-                input_roles=list(_ROLES), representation="spectrum", source_shape="paired",
-                preprocessing_scope="configured_continuous_before_slice",
+                input_roles=list(_ROLES), representation="mixed", source_shape="paired",
+                preprocessing_scope="module_defined",
             ),
             execution_kind="official_composite_run_adapter", availability="available",
             is_runnable=True, required_channel_roles=list(_ROLES), catalog_group="TNK 脑指标",
@@ -157,6 +158,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                 "display_name_zh": child.manifest.display_name_zh,
                 "required_roles": roles,
                 "input_source": "child_results" if not roles else "mapped_recording_channels",
+                "representation": getattr(child.manifest.signal_requirements, "representation", "spectrum"),
             })
         return children
 
@@ -191,7 +193,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
     def execution_snapshot(self, config: TnkGroupConfig) -> AlgorithmExecutionSnapshot:
         return AlgorithmExecutionSnapshot(
             window={"start_s": config.start_s, "end_s": config.end_s},
-            filters={"source": "recording.load_spectrum"},
+            filters={"source": "recording.load_spectrum_or_time_series"},
             quality_rules={"role_mapping": dict(config.role_mapping), "group_id": self.manifest.algorithm_id},
         )
 
@@ -295,7 +297,20 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
 
     def _fresh_children(self) -> tuple[Any, ...]:
         """Give each execution isolated state so concurrent strategies cannot cross-contaminate."""
-        return tuple(deepcopy(child) for child in self.children)
+        # Deep-copy the tuple as one graph. The migrated Crimson/Zenlite
+        # adapters point at one shared legacy stream bundle; copying children
+        # one by one would silently duplicate that state.
+        return deepcopy(self.children)
+
+    @staticmethod
+    def _reset_legacy_streams(children: tuple[Any, ...]) -> None:
+        seen: set[int] = set()
+        for child in children:
+            bundle = getattr(child, "stream_bundle", None)
+            if bundle is None or id(bundle) in seen:
+                continue
+            seen.add(id(bundle))
+            bundle.reset()
 
     def _execute_children(
         self, inputs: Any, config: TnkGroupConfig, start_s: float, end_s: float,
@@ -309,15 +324,40 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             for child in active_children:
                 if hasattr(child.module, "reset"):
                     child.module.reset()
+            self._reset_legacy_streams(active_children)
         spectrum_cache: dict[tuple[Any, ...], Any] = {}
         shared_spectra: dict[tuple[int, int], Any] = {}
         if dynamic_frame:
             ranges: set[tuple[float, float]] = set()
             for child in active_children:
+                if getattr(child, "signal_representation", "spectrum") != "spectrum":
+                    continue
                 child_range = self._dynamic_child_range(child.manifest.algorithm_id, config, start_s, end_s)
                 if child_range is not None:
                     ranges.add(child_range)
             shared_spectra = self._prewarm_shared_spectra(inputs, config, ranges, diagnostics)
+        legacy_outputs: dict[str, Any] = {}
+        legacy_children = [child for child in active_children if getattr(child, "stream_bundle", None) is not None]
+        if dynamic_frame and legacy_children and hasattr(inputs.payload, "load_time_series_source"):
+            due = [child for child in legacy_children
+                   if self._dynamic_child_range(child.manifest.algorithm_id, config, start_s, end_s) is not None]
+            if due:
+                bundles = {id(getattr(child, "stream_bundle")): getattr(child, "stream_bundle") for child in due}
+                if len(bundles) != 1:
+                    raise ValueError("TNK legacy children must use one shared stream bundle")
+                bundle = next(iter(bundles.values()))
+                try:
+                    legacy_outputs = bundle.advance(
+                        inputs, channel=inputs.channel,
+                        end_sample=int(round(end_s * inputs.sfreq_hz)),
+                        start_s=start_s, end_s=end_s,
+                    )
+                    if diagnostics is not None:
+                        diagnostics["shared_time_series_loads"] = diagnostics.get("shared_time_series_loads", 0) + 1
+                except (AttributeError, KeyError, ValueError):
+                    # Preserve the existing structured child-level failure
+                    # contract for malformed or unavailable historical input.
+                    legacy_outputs = {}
         for child in active_children:
             child_id = child.manifest.algorithm_id
             child_range = self._dynamic_child_range(child_id, config, start_s, end_s) if dynamic_frame else (start_s, end_s)
@@ -337,6 +377,17 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             child_rows = []
             for role in roles:
                 child_config = self._child_config(child, config, child_start_s, child_end_s, primary_role=role)
+                if getattr(child, "signal_representation", "spectrum") == "time_series":
+                    result = legacy_outputs.get(child_id)
+                    if result is None:
+                        result = child.compute_window(inputs, child_config, child_start_s, child_end_s)
+                    result.channel = "/".join(child.requested_channels(child_config))
+                    result.requested_range = {"start_s": child_start_s, "end_s": child_end_s}
+                    result.actual_range = {"start_s": child_start_s, "end_s": child_end_s}
+                    child_rows.append(result)
+                    if diagnostics is not None:
+                        diagnostics["time_series_loads"] = diagnostics.get("time_series_loads", 0) + 1
+                    continue
                 try:
                     child_inputs, window = self._child_inputs_and_window(
                     inputs, child, child_config, child_start_s, child_end_s, spectrum_cache, diagnostics,
@@ -401,7 +452,12 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             if not np.isclose(elapsed, cadence_index * cadence_s, rtol=0, atol=1e-7):
                 return None
         else:
-            duration_s = 4.0
+            duration_s = {
+                "tnk_crimson_meditation": 5.0,
+                "tnk_zenlite_calmness": 4.6875,
+                "tnk_zenlite_awareness": 4.6875,
+                "tnk_zenlite_spectral_relaxation": 4.6875,
+            }.get(child_id, 4.0)
             if end_s - config.start_s + 1e-9 < duration_s:
                 return None
         child_end_s = end_s
@@ -539,6 +595,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
         for child in children:
             if hasattr(child.module, "reset"):
                 child.module.reset()
+        self._reset_legacy_streams(children)
         values_by_metric = {name: [] for name in self._metric_units}
         windows: list[StructuredSeriesWindow] = []
         points = []

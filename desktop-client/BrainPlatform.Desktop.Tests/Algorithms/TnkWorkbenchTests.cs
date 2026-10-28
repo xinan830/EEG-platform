@@ -108,6 +108,44 @@ public sealed class TnkWorkbenchTests
     }
 
     [Fact]
+    public void AnalysisTabsExposeMigratedAntTimeSeriesMetrics()
+    {
+        var catalog = new AlgorithmListViewModel(new HttpAlgorithmClient(new System.Net.Http.HttpClient()), new OperationNotificationCenter());
+        var model = new TnkDetailViewModel(catalog, "tnk_biofeedback");
+
+        var tab = Assert.Single(model.AnalysisTabs, item => item.Title == "ANT 时序指标");
+
+        Assert.Equal(new[]
+        {
+            "tnk_crimson_meditation", "tnk_zenlite_calmness", "tnk_zenlite_awareness",
+            "tnk_zenlite_spectral_relaxation",
+        }, tab.AlgorithmIds);
+    }
+
+    [Fact]
+    public void AntTimeSeriesTabProjectsBackendValuesWithoutRecomputing()
+    {
+        var children = new[]
+        {
+            new TnkChildResultDisplay("tnk_crimson_meditation", "TNK 神经网络冥想度", "Fz", "Fz", "42 index", "良好", "")
+            { Chart = new(true, [new("Fz", "index", [new(5, 42, "5 s")])]) },
+            new TnkChildResultDisplay("tnk_zenlite_calmness", "TNK 平静度", "Fz", "Fz", "51 index", "良好", "")
+            { Chart = new(true, [new("Fz", "index", [new(5, 51, "5 s")])]) },
+            new TnkChildResultDisplay("tnk_zenlite_awareness", "TNK 觉察度", "Fz", "Fz", "63 index", "良好", "")
+            { Chart = new(true, [new("Fz", "index", [new(5, 63, "5 s")])]) },
+            new TnkChildResultDisplay("tnk_zenlite_spectral_relaxation", "TNK 频谱放松度", "Fz", "Fz", "37 index", "良好", "")
+            { Chart = new(true, [new("Fz", "index", [new(5, 37, "5 s")])]) },
+        };
+
+        var panel = Assert.Single(TnkDetailViewModel.BuildPlots(children,
+            new("ANT 时序指标", [
+                "tnk_crimson_meditation", "tnk_zenlite_calmness", "tnk_zenlite_awareness",
+                "tnk_zenlite_spectral_relaxation"])));
+
+        Assert.Equal(new[] { 42d, 51d, 63d, 37d }, panel.Chart.Series.SelectMany(series => series.Points).Select(point => point.Value!.Value));
+    }
+
+    [Fact]
     public void EmptyFaaPanelExplainsThatDynamicCursorWindowsAreUnsupported()
     {
         var faa = new TnkChildResultDisplay("tnk_faa", "TNK 额叶 Alpha 不对称", "F3、F4", "F3-REF/F4-REF",

@@ -117,6 +117,10 @@ internal static class FullRunPreviewIntegrity
             var frequencies = AxisLength(axes, "frequency_hz");
             foreach (var vector in row.EnumerateArray()) RequireVector(vector, frequencies);
         }
+        else if (kind == "algorithm_group")
+        {
+            RequireVector(row, AxisLength(axes, "channel_index"));
+        }
         else
             throw new InvalidOperationException("完整结果的数组输出结构不可验证。");
     }

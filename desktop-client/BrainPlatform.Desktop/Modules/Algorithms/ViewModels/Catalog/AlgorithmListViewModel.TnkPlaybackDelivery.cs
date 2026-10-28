@@ -59,8 +59,9 @@ public sealed partial class AlgorithmListViewModel
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return; }
             catch (AlgorithmApiException error) when (error.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                // The event consumer starts before the first target request
-                // creates the server buffer. Keep polling through that gap.
+                // A target can race buffer creation when playback starts. Keep
+                // polling through that short gap; idle pages do not start this
+                // consumer until the first playback target is queued.
                 await Task.Delay(TimeSpan.FromMilliseconds(300), cancellationToken).ConfigureAwait(false);
             }
             catch (NotSupportedException error)
@@ -74,6 +75,15 @@ public sealed partial class AlgorithmListViewModel
                 await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    private void EnsureTnkPlaybackDeliveryConsumer()
+    {
+        if (tnkPlaybackDeliveryId is null || tnkPlaybackEventsCancellation is not null)
+            return;
+        tnkPlaybackEventsCancellation = new CancellationTokenSource();
+        _ = ConsumeTnkPlaybackEventsAsync(null, tnkPlaybackDeliveryId,
+            tnkPlaybackEventsCancellation.Token);
     }
 
     private void PublishTnkPlaybackGap(TnkPlaybackDiscontinuityResponse? discontinuity, string deliveryId)
@@ -156,9 +166,7 @@ public sealed partial class AlgorithmListViewModel
         tnkPlaybackEventSequence = 0;
         lastRequestedWindowSample = -1;
         lastPlaybackWindowSample = -1;
-        tnkPlaybackEventsCancellation = new CancellationTokenSource();
-        _ = ConsumeTnkPlaybackEventsAsync(null, tnkPlaybackDeliveryId,
-            tnkPlaybackEventsCancellation.Token);
+        EnsureTnkPlaybackDeliveryConsumer();
         tnkPlaybackLastRequestedSample = null;
     }
 

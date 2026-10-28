@@ -137,6 +137,16 @@ internal static class AlgorithmRunConfiguration
             ["analysis_montage_outputs"] = montage?.Outputs?.Select(output => new { role = output.Role, output = output.Id, unit = output.Unit }).ToArray(),
         };
 
+        if (string.Equals(algorithm.Id, "rbp", StringComparison.OrdinalIgnoreCase) &&
+            montage?.Outputs is { Count: > 0 })
+        {
+            var channels = montage.Outputs.Where(output => output.Available)
+                .Select(output => output.Id).Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (channels.Length > 0)
+                payload["channels"] = channels;
+        }
+
         AlgorithmRunResultHandlerRegistry.For(algorithm.Id)
             .ApplyConfigFields(payload, channel, f4Channel, roleChannels);
 
@@ -144,6 +154,8 @@ internal static class AlgorithmRunConfiguration
         {
             (string)payload["channel"]!,
         };
+        if (string.Equals(algorithm.Id, "rbp", StringComparison.OrdinalIgnoreCase) && payload.TryGetValue("channels", out var requested))
+            selectedOutputs.UnionWith((IEnumerable<string>)requested!);
         if (!string.IsNullOrWhiteSpace(f4Channel)) selectedOutputs.Add(f4Channel);
         foreach (var roleChannel in roleChannels?.Values ?? [])
             if (!string.IsNullOrWhiteSpace(roleChannel)) selectedOutputs.Add(roleChannel);

@@ -73,14 +73,12 @@ def test_structured_rejects_mismatched_axes_arrays_units_kind_and_roles(mutate):
         validate_algorithm_result(result, PSD, "static", ["Fz"])
 
 
-def test_multi_field_scalar_requires_every_declared_output():
+def test_rbp_rejects_legacy_scalar_family_after_structured_contract_upgrade():
     result = scalar()
     result.unit = "ratio"
     result.value = None
-    with pytest.raises(InvalidAlgorithmResultError, match="all output"):
+    with pytest.raises(InvalidAlgorithmResultError, match="declared static result"):
         validate_algorithm_result(result, RBP, "static", ["Fz"])
-    result.output_values = {field.name: 0.2 for field in RBP.output_contract.fields}
-    validate_algorithm_result(result, RBP, "static", ["Fz"])
 
 
 def test_new_algorithm_identity_uses_the_same_validation_and_serialization():

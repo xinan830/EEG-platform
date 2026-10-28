@@ -128,8 +128,10 @@ def test_tnk_strategy_matrix_declares_each_algorithm_and_explicit_segment_bounda
     assert expected.issubset({row.split("|")[1].strip() for row in rows})
     faa = next(row for row in rows if "| FAA |" in row)
     assert "任意游标窗明确不支持" in faa
-    assert "尚未注册" in matrix
+    assert "已注册" in matrix
+    assert "仅支持 `dynamic`" in matrix
     structured = json.loads(Path("docs/algorithms/tnk-strategy-matrix.json").read_text(encoding="utf-8"))
     assert len(structured["algorithms"]) == 12
+    assert structured["public_boundary"]["supported_modes"] == ["dynamic"]
     assert structured["algorithms"]["tnk_faa"]["on_demand"]["intent"] == "unsupported"
     assert structured["algorithms"]["tnk_faa"]["on_demand"]["reason"]["code"] == "TNK_FAA_SEGMENT_SCOPE_REQUIRED"

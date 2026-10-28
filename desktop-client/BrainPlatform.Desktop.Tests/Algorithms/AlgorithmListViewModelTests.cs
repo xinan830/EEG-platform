@@ -215,13 +215,31 @@ public sealed class AlgorithmListViewModelTests
         Assert.Contains(nameof(AnalysisContextViewModel.DynamicPreviewCursorText), changed);
     }
 
+    [Fact]
+    public async Task Refresh_ExposesTnkGroupAsASelectableCatalogEntry()
+    {
+        var tnk = new AlgorithmCatalogItem("official", "tnk_biofeedback", "tnk-biofeedback-group-v1",
+            "TNK 脑指标", "TNK", "统一来源通道映射的 TNK 脑指标组", [], ["dynamic"], default,
+            new DynamicAnalysisPolicy(4, [4], 4, 1, true), "available", true, null, null, null,
+            Group: "TNK 脑指标");
+        var catalog = new AlgorithmListViewModel(new CatalogClient([tnk]), new OperationNotificationCenter());
+
+        await catalog.RefreshAsync();
+
+        var entry = Assert.Single(catalog.VisibleItems);
+        Assert.Equal("tnk_biofeedback", entry.Id);
+        Assert.Equal("TNK 指标组", entry.ResultTypeDisplay);
+        Assert.Equal("TNK 指标", entry.AlgorithmTypeDisplay);
+        Assert.Contains("TNK 指标", catalog.TypeFilters);
+    }
+
     private static AlgorithmCatalogItem Algorithm(string id) => new(
         "official", id, "v1", id, id.ToUpperInvariant(), "", [], ["static"], default,
         new DynamicAnalysisPolicy(4, [], 10, 1, false), "available", true, null, null, null);
 
-    private sealed class UnsupportedAlgorithmClient : IAlgorithmClient
+    private class UnsupportedAlgorithmClient : IAlgorithmClient
     {
-        public Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken) =>
+        public virtual Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
         public Task<AnalysisRunResponse> CreateRunAsync(AnalysisRunRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -231,6 +249,12 @@ public sealed class AlgorithmListViewModelTests
             throw new NotSupportedException();
         public Task<StructuredPreviewResponse> GetStructuredPreviewAsync(string runId, int maxCells, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class CatalogClient(IReadOnlyList<AlgorithmCatalogItem> items) : UnsupportedAlgorithmClient
+    {
+        public override Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(items);
     }
     [Fact]
     public void StaticAlgorithmAllowList_IncludesBandRatio()

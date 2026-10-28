@@ -18,6 +18,7 @@ class OfficialAlgorithmRunConfig(BaseModel):
     scientific_version: str | None = Field(default=None, min_length=1, max_length=160)
     time: AnalysisTimeRange
     channel: str | None = Field(default=None, min_length=1, max_length=160)
+    channels: list[str] | None = None
     f4_channel: str | None = Field(default=None, min_length=1, max_length=160)
     secondary_channel: str | None = Field(default=None, min_length=1, max_length=160)
     tertiary_channel: str | None = Field(default=None, min_length=1, max_length=160)
@@ -61,6 +62,18 @@ class OfficialAlgorithmRunConfig(BaseModel):
                 raise ValueError("Brainbeat Fz and Pz source channels must be different")
         elif not self.channel:
             raise ValueError(f"{self.algorithm_id} requires an analysis channel")
+        if self.algorithm_id == "rbp" and self.channels is not None:
+            normalized = []
+            seen = set()
+            for value in self.channels:
+                item = value.strip()
+                if not item or item.casefold() in seen:
+                    raise ValueError("RBP channels must be non-empty and unique")
+                normalized.append(item)
+                seen.add(item.casefold())
+            if not normalized:
+                raise ValueError("RBP channels cannot be empty")
+            self.channels = normalized
         if self.algorithm_id in {"peak_frequency", "psd", "stft", "faa"}:
             if self.low_hz is None or self.high_hz is None:
                 raise ValueError(f"{self.algorithm_id} requires low_hz and high_hz")
@@ -95,6 +108,8 @@ class OfficialAlgorithmRunConfig(BaseModel):
             "start_s": float(self.time.start_s), "end_s": float(self.time.end_s),
             "window_s": float(self.dynamic_window_s), "step_s": float(self.refresh_step_s),
         }
+        if self.algorithm_id == "rbp" and self.channels:
+            config["channels"] = list(self.channels)
         if self.algorithm_id == "tnk_biofeedback":
             config["role_mapping"] = dict(self.tnk_role_mapping or {})
         elif self.algorithm_id == "faa":

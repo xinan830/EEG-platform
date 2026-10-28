@@ -97,6 +97,8 @@ class RunAnalysisExecutor:
         label = module.manifest.display_name_zh
         if isinstance(result, AlgorithmStructuredSeriesResult):
             structured, arrays = _serialize_structured_series_result(result, config.algorithm_id, label)
+            structured["requested_range"] = result.requested_range
+            structured["actual_range"] = result.actual_range or result.requested_range
             return {"structured": structured}, arrays, None
         if isinstance(result, AlgorithmStructuredResult):
             structured, arrays = _serialize_structured_result(result, config.algorithm_id, label)

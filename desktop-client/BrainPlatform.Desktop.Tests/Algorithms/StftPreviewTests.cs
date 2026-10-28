@@ -67,6 +67,21 @@ public sealed class StftPreviewTests
     }
 
     [Fact]
+    public void Append_PreservesAbsoluteColumnsAndMergesRequestedWindowRange()
+    {
+        var preview = DynamicPreview("[[[null,null],[null,null]],[[1,null],[3,4]],[[5,6],[7,8]]]");
+
+        var first = StftPreview.ParseDynamic(preview, 1);
+        var second = StftPreview.ParseDynamic(preview, 2);
+        var combined = StftPreview.Append(first, second);
+
+        Assert.Equal([4.0, 5.0, 6.0], combined.TimesSeconds);
+        Assert.Equal(new TimeRange(2, 7), combined.RequestedRange);
+        Assert.Equal(1, combined.PowerDb[0][0]);
+        Assert.Equal(8, combined.PowerDb[2][1]);
+    }
+
+    [Fact]
     public void ParseDynamic_DoesNotDisplayRejectedOrMalformedWindow()
     {
         var preview = DynamicPreview("[[[null,null],[null,null]],[[1,2],[3,4]],[[5,6],[7,8]]]");

@@ -13,11 +13,24 @@ The desktop SHALL advance and render the review waveform without waiting synchro
 - **AND** the TNK display identifies the newest completed analysis window and its lag from the cursor
 - **AND** no old TNK value is labeled as if it were calculated at the current cursor
 
+#### Scenario: Playback target supersedes an active stale replay
+- **WHEN** a newer playback target arrives while the active TNK replay has exceeded the playback step
+- **THEN** the playback lane requests cooperative cancellation of the superseded active observation
+- **AND** the backend stops at a cancellation checkpoint and releases its subscription and compute slot
+- **AND** the replacement target restores a compatible checkpoint and replays every required canonical frame through its target
+- **AND** the waveform clock remains independent of cancellation and replacement
+
 #### Scenario: Waveform refreshes overlap with on-demand analysis
 - **WHEN** a seek, role change, or filter change occurs while a waveform preview request is still running
 - **THEN** the desktop coalesces pending refreshes and does not start a second preview request before the current one finishes
 - **AND** a stale response is discarded by its source revision
 - **AND** concurrent requests for the same continuous prepared source share one backend preprocessing operation
+
+#### Scenario: TNK cursor is idle before playback
+- **WHEN** a TNK on-demand session is created and the review cursor has not queued a playback target
+- **THEN** the desktop does not start an idle playback-event polling loop
+- **AND** the initial target is obtained through the existing target-only request path
+- **AND** ordered event consumption starts when playback advances or queues a playback target
 
 ### Requirement: Publish TNK results as identified analysis-window events
 Each TNK result event SHALL carry the immutable window identity, recording/session and scientific-configuration identity, algorithm and implementation identity, half-open sample range, recording-relative start/end time, output units, quality state, and structured failure/evidence when applicable. Consumers SHALL order and deduplicate by window identity and analysis time, not by response arrival time or current cursor position.
@@ -47,6 +60,20 @@ The TNK group SHALL execute every state transition required by the canonical dyn
 - **THEN** results and checkpoints from an incompatible context are not reused
 - **AND** analysis resumes from a compatible earlier checkpoint or the declared reset point
 
+### Requirement: Share migrated ANT time-series preprocessing within a session
+The four migrated ANT time-series children SHALL read each newly required raw Fz
+sample range once per TNK replay stream. Crimson and Zenlite MAY maintain separate
+resampling and filter states because their scientific contracts differ. Zenlite
+calmness, awareness, and spectral relaxation SHALL share one Zenlite preprocessing
+and model state and one model inference per canonical frame. A seek, scientific
+context change, or replay reset SHALL clear the stream state before rebuilding it.
+
+#### Scenario: Continuous playback advances one canonical frame
+- **WHEN** the next TNK frame extends the previous replay target by one second
+- **THEN** the raw Fz source is read only for the new sample suffix
+- **AND** the migrated ANT children consume the shared session stream
+- **AND** the result provenance identifies the source chunk and preprocessing contract
+
 ### Requirement: Account for every canonical frame in playback history
 During uninterrupted TNK playback, every canonical frame that the backend computes while advancing state SHALL become available to the active history projection in analysis-time order. The system SHALL distinguish complete, partial, rejected, unavailable, failed, and not-yet-computed frames. If bounded delivery capacity is exceeded or a stream is interrupted, the client SHALL expose the missing range and provide a reconciliation path; it SHALL NOT silently claim complete history.
 
@@ -67,6 +94,23 @@ The desktop SHALL append newly accepted TNK timeline points when the existing pr
 - **WHEN** a new valid or quality-rejected TNK frame arrives for the active session
 - **THEN** the corresponding value or explicit gap/state marker is appended at that frame's analysis time
 - **AND** the playback cursor and waveform series are not reset by the TNK chart update
+
+### Requirement: Append on-demand STFT columns by analysis time
+The desktop SHALL retain accepted on-demand STFT columns in recording-absolute
+time order. A later overlapping window SHALL contribute only columns whose
+absolute time is not already present; it SHALL not replace the existing
+history with the latest window. The frequency axis, units, quality and
+missing-cell semantics SHALL remain those returned by the backend.
+
+#### Scenario: A later STFT window overlaps the displayed history
+- **WHEN** the playback cursor advances and the next STFT window overlaps the previous window
+- **THEN** the desktop appends only the new absolute-time columns to the heatmap
+- **AND** previously displayed columns remain visible at their original times
+
+#### Scenario: STFT context moves backward or changes
+- **WHEN** the user seeks backward, changes the recording/channel/frequency/notch configuration, or starts a new on-demand session
+- **THEN** the STFT history is cleared before accepting the new context
+- **AND** the new window becomes the first column set in the rebuilt projection
 
 ### Requirement: Measure playback and TNK stages independently
 The system SHALL expose bounded diagnostics for waveform tick interval/handler duration, queue wait/depth, source preparation, state replay/computation, event delivery, history projection, and chart update. Performance acceptance SHALL compare the same recording and playback configuration with waveform-only and TNK-enabled playback and SHALL report both playback responsiveness and algorithm result lag.

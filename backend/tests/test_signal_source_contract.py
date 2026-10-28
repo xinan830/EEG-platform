@@ -230,9 +230,9 @@ def test_typed_spectral_request_provenance_is_complete_and_ordered():
 def test_every_official_algorithm_declares_signal_requirements():
     modules = build_builtin_modules()
 
-    assert len(modules) == 9
+    assert len(modules) == 10
     for module in modules:
         requirements = module.manifest.signal_requirements
         assert requirements is not None, module.manifest.algorithm_id
         assert requirements.input_roles
-        assert requirements.representation in {"time_series", "spectrum", "spectrogram"}
+        assert requirements.representation in {"time_series", "spectrum", "spectrogram", "mixed"}

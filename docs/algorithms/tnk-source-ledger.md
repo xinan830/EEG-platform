@@ -189,3 +189,15 @@ ANT 动态处理器使用 4 s 窗、3 s filter-settle gate 和 1 s 更新间隔�
 - 检查点/状态摘要只有在其身份覆盖 reset origin、输入源、预处理、采样率与通道顺序、算法/配置版本、phase/segment 边界及目标 end sample，并通过等价测试后，才可用于复用。
 - replay 取消时不发布目标成功结果；运行时释放任务资源。上下文长度达到资源界限时，必须返回显式资源限制/unsupported，不得截断历史再输出似乎有效的数值。
 - 本节冻结来源状态模型，不代表现有平台策略已支持该语义；上下文身份、复用、策略声明和取消测试分别由 2.2–2.4 实现与验收。
+## ANT-Amplify raw-Fz additions (2026-10-28)
+
+The following four internal children were added to the public `tnk_biofeedback` group. They are one source family but separate result identities.
+
+| Internal ID | Source and preprocessing | Output/state | Artifact identity |
+|---|---|---|---|
+| `tnk_crimson_meditation` | Fz only; input is V/float64 and converted to µV; causal rational resampling to 250 Hz; 2–45 Hz band-pass then 58–62 Hz and 48–52 Hz band-stop; 1250 samples (5 s) | TFLite output index 2, clipped to 0–100, 20-point moving average; warm-up/quality/model failures are structured unavailable results | `cmsn_meditation.tflite`, SHA-256 `17cf291169f0e11f7868f7784332bbc4fbef483e363fd8bb0f67c3eedd82f644`; input `[1,1,1250,1]`, output `[1,3]`, float32 |
+| `tnk_zenlite_calmness` | Fz only; V/µV conversion; causal rational resampling to 256 Hz; 2–45 Hz, 59–61 Hz and 49–51 Hz recursive sections; 1200 samples (4.6875 s) | Zenlite output index 0, clipped to 0–100, 10-point moving average; model failure does not disable the sibling spectral child | `zenlite-meditation.tflite`, SHA-256 `19fb19f948a2f86b59d01ce6ba2ca20a6034feb9941307184ee9ddbfe9517203`; input `[1,1,1200,1]`, output `[1,2]`, float32 |
+| `tnk_zenlite_awareness` | Same source and preprocessing as calmness | Zenlite output index 1, clipped to 0–100, 10-point moving average | Same Zenlite asset and shape contract |
+| `tnk_zenlite_spectral_relaxation` | Same 256 Hz/1200-sample filtered Fz window; SciPy FFTPACK real layout is paired as adjacent magnitudes; bands are delta 0.5–4, theta 4–8, alpha 8–12, low beta 12–22, high beta 22–32, gamma 32–56 Hz | `alpha/(beta_low+beta_high)`, mapped by `(ratio-0.1)/0.8*100`, clipped to 0–100, 10-point moving average; this is an amplitude proxy, not Welch PSD | No model dependency; the FFT and band boundaries are part of the child implementation |
+
+The raw source boundary is `load_time_series_source()` in `backend/app/services/algorithm_recording_context.py`. It preserves recording/montage identity, exact half-open sample bounds, channel order, V/float64 values, and rejects non-finite samples. The legacy children replay from the declared run origin for deterministic offline results; this is not a claim of live-stream equivalence. The optional `ai_edge_litert` dependency is intentionally lazy. Missing runtime/model validation returns `TNK_MODEL_UNAVAILABLE`; no zero or held value is substituted.

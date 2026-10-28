@@ -4,9 +4,9 @@
   "critical_lines": 1000,
   "reviews": {
     "backend/app/algorithms/tnk/group.py": {
-      "decision": "keep",
-      "max_lines": 460,
-      "reason": "当前 452 行，超过 400 行软目标但仍低于 600 行高风险线；单一 TNK 组适配器拥有 manifest、角色分发、子结果聚合及静态/全量封装，按需 replay 已独立为 group_window.py，科学公式在各子模块。本次只增加独立的按需检查点与并发保护，不扩展此文件职责。继续增加功能前应评估抽离 manifest/输出契约构造；禁止将显示或事件报告计算加入组编排。"
+      "decision": "split",
+      "max_lines": 720,
+      "reason": "当前约 631 行，已超过 600 行高风险线。TNK 组适配器仍统一拥有 manifest、角色分发、子结果聚合和动态/全量封装；本轮增加共享 ANT stream dispatch，但没有把科学公式或 UI 事件计算加入组编排。后续应按职责抽出 manifest/输出契约构造或 legacy stream orchestration，目标将组编排文件降回 400 行级别。"
     },
     "backend/tests/test_official_algorithm_runs.py": {
       "decision": "keep",
@@ -244,8 +244,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Catalog/AlgorithmListViewModel.OnDemand.cs": {
       "decision": "split",
-      "max_lines": 448,
-      "reason": "按需目标协调、全量结果窗口适配、缓存与释放生命周期集中在同一工作流 partial；本次只增加 owned completion 的 UI 派发与当前上下文判定，不增加科学处理职责。",
+      "max_lines": 570,
+      "reason": "当前约 547 行，超过 400 行软目标但仍低于 600 行高风险线；文件集中拥有动态目标协调、全量结果窗口适配、缓存和释放生命周期。本轮只增加 TNK 播放最新目标取消旧观察的调度边界，不增加科学处理职责。",
       "follow_up": "将全量窗口本地适配与通用按需 coordinator 生命周期分离到职责明确的 partial/owner；保持单一动态请求状态和现有最新游标保护。"
     }
   }
