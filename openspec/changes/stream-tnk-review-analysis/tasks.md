@@ -37,9 +37,12 @@
 
 - [x] 3C.1 Map the current WPF, BDF/EDF, acquisition persistence, and display-ring-buffer ownership boundaries.
 - [x] 3C.2 Define the identity-bound sample access session contract, including coordinates, units, channel order, gaps, lifecycle, per-format concurrency, cancellation, and live C#/Python boundary.
-- [ ] 3C.3 Reuse one backend recording-access session across TNK windows; preserve existing algorithm inputs and source identity.
-- [ ] 3C.4 Implement and validate the live acquisition adapter over an explicit bounded process boundary; keep raw persistence independent from display retention.
-- [ ] 3C.5 Migrate remaining backend sample consumers to the access session after documenting their format-specific lifetime and concurrency requirements.
+- [ ] 3C.3 Implement the source-independent backend access-session API and historical WPF/BDF/EDF adapters with bounded lifecycle, source identity validation, gap reporting, and per-format concurrency rules.
+- [ ] 3C.4 Implement the live acquisition adapter over an explicit bounded C#/Python process boundary using the same sample contract; keep raw persistence independent from display retention.
+- [ ] 3C.5 Validate equivalent sample coordinates, units, channel order, and gap semantics for historical and live adapters, including cancellation and source/session invalidation.
+- [ ] 3C.6 Migrate TNK window execution to retain one access session across consecutive windows without changing algorithm inputs or source identity.
+- [ ] 3C.7 Migrate remaining backend sample consumers after documenting their format-specific lifetime and concurrency requirements.
+- [ ] 3C.8 Gate multi-algorithm scheduling work on acceptance of the unified data access layer; scheduling must consume the access contract rather than own file readers.
 
 ## 4. Transport decision and acceptance
 

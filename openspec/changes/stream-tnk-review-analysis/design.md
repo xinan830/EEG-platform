@@ -179,12 +179,15 @@ above the source read boundary. This keeps one authoritative source reader
 without turning the access service into an algorithm or scheduler service.
 
 **Migration boundary:** The current TNK path only gains cached WPF facts across
-window requests; it still constructs a reader per request. The next backend
-slice will let one TNK analysis session retain a `RecordingAccessSession`
-across windows. Other consumers migrate only after their lifetime and source
-identity requirements are mapped. Live IPC integration remains a separate
-implementation slice after the contract is accepted; this design does not
-claim the current display ring buffer already satisfies it.
+window requests; it still constructs a reader per request. The next slice first
+establishes the source-independent access service and historical WPF/BDF/EDF
+adapters, then adds the live acquisition adapter over the bounded process
+boundary. Only after both source classes satisfy the same sample contract will
+TNK retain an access session across windows and the remaining consumers migrate.
+Algorithm scheduling is downstream of that access-layer acceptance gate; it
+must not become the mechanism that compensates for source-reader lifecycle or
+identity differences. This design does not claim the current display ring
+buffer already satisfies live analysis access.
 
 ## Risks / Trade-offs
 

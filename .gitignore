@@ -46,3 +46,8 @@ ANT-Amplify/
 **/.artifacts/
 /code_over_600.csv
 /desktop-client.Tests/Review/Waveform/ReviewDisplayLevelReaderTests.cs
+
+# Test and temporary output
+**/TestResults/
+**/_temp*/
+/.tmp/
