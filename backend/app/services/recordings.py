@@ -17,6 +17,7 @@ from app.services.recording_identity import (
     canonical_channel_label,
 )
 from app.services.spectral_analysis import SpectralAnalysisService, _AUTO_NOTCH
+from app.services.recording_samples import WpfRecordingFactsCache
 from app.services.wpf_recording import inspect_wpf_recording, load_wpf_data
 
 
@@ -28,6 +29,7 @@ class RecordingService:
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         self._filter_checkpoints = FilterCheckpointCache()
         self._analysis_preprocess_cache = AnalysisPreprocessCache()
+        self._wpf_recording_facts = WpfRecordingFactsCache()
         self._spectral_analysis = SpectralAnalysisService(self, self._analysis_preprocess_cache)
         from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
         self._analysis_montage_snapshots = AnalysisMontageSnapshots(self.database_path)
@@ -114,6 +116,7 @@ class RecordingService:
 
     def _register_wpf_source(self, source_directory: str, *, signal_mode: str) -> RecordingSummary:
         facts = inspect_wpf_recording(source_directory)
+        self._wpf_recording_facts.remember(facts)
         if signal_mode not in {"raw", "acquisition_montage"}:
             raise ValueError("unknown analysis signal mode")
         derived = signal_mode == "acquisition_montage"
@@ -251,8 +254,11 @@ class RecordingService:
                 view = self._analysis_montage_snapshots.resolve(
                     recording.id, directory, analysis_montage_id or recording.selected_montage_id,
                 )
-                return AcquisitionMontageSampleReader(WpfSampleReader(directory), view)
-            return WpfSampleReader(recording.stored_name.removeprefix("wpf:"))
+                facts = self._wpf_recording_facts.get(directory, recording.source_sha256)
+                return AcquisitionMontageSampleReader(WpfSampleReader(facts), view)
+            directory = recording.stored_name.removeprefix("wpf:")
+            facts = self._wpf_recording_facts.get(directory, recording.source_sha256)
+            return WpfSampleReader(facts)
         raw, _sfreq, _names, _events = self.open_data_reader(recording)
         return EdfSampleReader(raw)
 

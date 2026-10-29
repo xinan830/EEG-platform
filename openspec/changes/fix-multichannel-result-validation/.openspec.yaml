@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-28
+goal: Validate TNK five-channel outputs against all requested source channels
+  without weakening scalar/single-channel checks.

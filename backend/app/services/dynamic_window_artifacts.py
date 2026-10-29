@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import zipfile
 from pathlib import Path
 from uuid import uuid4
@@ -20,12 +21,39 @@ from app.algorithm_runtime.errors import DynamicWindowCapacityExceededError
 class DynamicWindowArtifactStore:
     MAX_PAYLOAD_BYTES = 16 * 1024 * 1024
     MAX_METADATA_BYTES = 2 * 1024 * 1024
+    # shortcut: one backend process owns this directory; use shared accounting before multi-worker hosting.
+    _usage_lock = threading.RLock()
+    _directory_usage: dict[Path, int] = {}
 
     def __init__(self, directory: Path, repository: DynamicWindowRepository):
-        self.directory = directory
+        self.directory = directory.resolve()
         self.repository = repository
         self.logger = logging.getLogger(__name__)
-        directory.mkdir(parents=True, exist_ok=True)
+        self.directory.mkdir(parents=True, exist_ok=True)
+        with self._usage_lock:
+            if self.directory not in self._directory_usage:
+                self._directory_usage[self.directory] = self._scan_directory_bytes()
+
+    def _scan_directory_bytes(self) -> int:
+        with os.scandir(self.directory) as entries:
+            return sum(entry.stat().st_size for entry in entries if entry.is_file())
+
+    def _track_file(self, path: Path) -> None:
+        size = path.stat().st_size
+        with self._usage_lock:
+            self._directory_usage[self.directory] += size
+
+    def _unlink_file(self, path: Path) -> None:
+        try:
+            size = path.stat().st_size
+        except FileNotFoundError:
+            return
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return
+        with self._usage_lock:
+            self._directory_usage[self.directory] -= size
 
     def cleanup(self) -> None:
         # Do not touch another process's in-flight publication. Recovery will
@@ -33,7 +61,7 @@ class DynamicWindowArtifactStore:
         if self.repository.has_running_attempts():
             return
         for path in (*self.directory.glob("*.tmp.npz"), *self.directory.glob("*.tmp.json")):
-            path.unlink(missing_ok=True)
+            self._unlink_file(path)
         referenced = self.repository.published_artifact_ids()
         stems = {path.stem for path in self.directory.glob("*.npz")} | {path.stem for path in self.directory.glob("*.json")}
         for artifact_id in stems - referenced:
@@ -63,7 +91,9 @@ class DynamicWindowArtifactStore:
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, target)
+            self._track_file(target)
             os.replace(metadata_temp, metadata_path)
+            self._track_file(metadata_path)
             # Verify the actual bytes that the repository will later reference.
             self.read(artifact_id)
             return artifact_id
@@ -75,13 +105,8 @@ class DynamicWindowArtifactStore:
                 path.unlink(missing_ok=True)
 
     def check_admission_budget(self, directory_budget: int, max_active: int) -> None:
-        used = 0
-        for path in self.directory.iterdir():
-            try:
-                if path.is_file():
-                    used += path.stat().st_size
-            except FileNotFoundError:
-                continue  # Another worker cleaned an unpublished file.
+        with self._usage_lock:
+            used = self._directory_usage[self.directory]
         reserved = max_active * (self.MAX_PAYLOAD_BYTES + self.MAX_METADATA_BYTES)
         if used + reserved > directory_budget:
             raise DynamicWindowCapacityExceededError("动态结果存储空间已达到预算；已有结果不会被删除。",
@@ -134,6 +159,6 @@ class DynamicWindowArtifactStore:
             return
         for suffix in (".npz", ".json"):
             try:
-                (self.directory / f"{artifact_id}{suffix}").unlink(missing_ok=True)
+                self._unlink_file(self.directory / f"{artifact_id}{suffix}")
             except OSError:
                 self.logger.warning("dynamic_artifact_cleanup_failed artifact_id=%s suffix=%s", artifact_id, suffix)

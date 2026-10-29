@@ -286,6 +286,11 @@ public sealed class TnkAnalysisPlotView : UserControl
         lastPlaybackCursorRefresh = Stopwatch.GetTimestamp();
         if (DesktopLog.PerformanceDiagnosticsEnabled) cursorRefreshCount++;
         cursor.X1 = PositionSeconds;
+        if (panel.Chart.IsTimeline && xAxis?.VisibleRange is DoubleRange visible)
+        {
+            var expanded = ExpandTimelineRange(visible, PositionSeconds);
+            if (expanded is not null) xAxis.VisibleRange = expanded;
+        }
         valuesAtCursor.Text = string.Join("  |  ", panel.Chart.Series.Select(series =>
         {
             var point = panel.Chart.IsTimeline ? series.Points.LastOrDefault(point => point.X <= PositionSeconds) : series.Points.LastOrDefault();
@@ -299,6 +304,13 @@ public sealed class TnkAnalysisPlotView : UserControl
             valuesAtCursor.Text += "  · 仅一个已返回窗口；更多窗口返回后形成趋势";
 
         RecordCursorRefreshDiagnostics();
+    }
+
+    internal static DoubleRange? ExpandTimelineRange(DoubleRange? visible, double positionSeconds)
+    {
+        if (visible is null || !double.IsFinite(positionSeconds) ||
+            (positionSeconds >= visible.Min && positionSeconds <= visible.Max)) return null;
+        return new DoubleRange(Math.Min(visible.Min, positionSeconds), Math.Max(visible.Max, positionSeconds));
     }
 
     private bool CanRefreshPlaybackCursor()

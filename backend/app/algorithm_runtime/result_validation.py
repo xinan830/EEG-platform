@@ -57,7 +57,8 @@ def validate_algorithm_result(
 
     declared_fields = {field.name: field.unit for field in contract.fields}
     if requested_channels is not None:
-        if not requested_channels or len(contract.channel_role_order) != 1:
+        if (not requested_channels or
+                len(requested_channels) != len(contract.channel_role_order)):
             raise InvalidAlgorithmResultError("requested channels do not match declared source roles")
         if isinstance(result, (AlgorithmResult, AlgorithmSeriesResult)):
             matches = result.channel.casefold() == "/".join(requested_channels).casefold()

@@ -87,6 +87,12 @@ During uninterrupted TNK playback, every canonical frame that the backend comput
 - **THEN** the client receives an explicit discontinuity/coverage state with the affected range
 - **AND** it can reconcile the range through the supported window/history read path without presenting the chart as complete
 
+#### Scenario: Backend cannot publish a computed frame
+- **WHEN** a computed canonical frame cannot be added to the playback event buffer
+- **THEN** the delivery status exposes the failed frame's exact half-open sample range and stable failure code
+- **AND** the client marks that range incomplete and attempts one canonical-window recovery
+- **AND** a recovered frame clears the gap, while failed recovery leaves history explicitly incomplete
+
 ### Requirement: Append TNK timeline results without unbounded UI work
 The desktop SHALL append newly accepted TNK timeline points when the existing prefix is unchanged. Per-event projection and chart work SHALL be bounded and SHALL NOT rebuild unrelated waveform data. A reset, incompatible identity, or explicit history replacement MAY rebuild the TNK projection.
 
@@ -119,3 +125,62 @@ The system SHALL expose bounded diagnostics for waveform tick interval/handler d
 - **WHEN** the TNK playback path is compared with a waveform-only baseline
 - **THEN** the report includes per-stage distributions, result-window lag, delivered-frame coverage, and queue saturation
 - **AND** it distinguishes measured desktop behavior from automated test results
+
+### Requirement: Reuse validated immutable WPF sample indexes
+The backend recording access layer SHALL reuse the validated WPF batch index
+for repeated sample-reader requests with the same canonical source path and
+registered source identity. Cache capacity SHALL be bounded. A source signature
+change SHALL trigger reinspection and source-identity validation. Each request
+SHALL retain an independent sample reader, and sample reads SHALL preserve the
+registered channel order, V/float64 units, and absolute half-open sample bounds.
+
+#### Scenario: Consecutive windows read one registered WPF recording
+- **WHEN** multiple windows request sample blocks from the same unchanged WPF recording
+- **THEN** the source files are indexed and hashed once for the cached identity
+- **AND** each window reads only its requested sample range through its own reader
+
+#### Scenario: A registered WPF source changes
+- **WHEN** a source file signature changes after facts were cached
+- **THEN** the backend rebuilds the index and verifies the computed hash against the registered source identity
+- **AND** it rejects the read if the source no longer matches that identity
+
+### Requirement: Access EEG samples through an identity-bound recording session
+Sample consumers SHALL use a source-independent access contract whose session
+is bound to one recording/source identity. Reads SHALL use recording-relative
+half-open sample bounds and an explicit ordered channel projection, and SHALL
+return sample-major float64 values in V with sampling rate, source identity,
+actual bounds, and explicit missing intervals. Missing samples SHALL never be
+fabricated as zero. Validated source metadata/index SHALL be reused throughout
+the access session; the session SHALL release format-specific resources on
+close and SHALL be invalidated when the source identity changes.
+
+Format adapters SHALL declare their read concurrency and cancellation
+semantics. The access service SHALL coordinate only adapters that require it;
+it SHALL NOT share an unsafe mutable reader across consumers or serialize
+unrelated recordings behind one global reader lock. Scientific preprocessing
+and algorithm scheduling remain above this boundary.
+
+#### Scenario: Consecutive TNK windows read the same completed recording
+- **WHEN** multiple canonical windows are read in one analysis session
+- **THEN** they reuse one identity-validated access context and index
+- **AND** each read returns only its requested sample and channel range
+- **AND** closing or invalidating the session releases its format-specific reader resources
+
+#### Scenario: A read overlaps a recorded data gap
+- **WHEN** the requested sample range includes samples absent from the source
+- **THEN** the response identifies the missing interval and retains unavailable values as missing
+- **AND** it does not shift later samples or fill the interval with zeros
+
+### Requirement: Keep live acquisition access separate from display retention
+Live access SHALL use acquisition-session and stream/schema identity, report its
+available sample-counter range, and expose overwritten or not-yet-available
+ranges explicitly. The desktop acquisition process SHALL transfer live EEG
+batches across an explicit bounded process boundary; it SHALL NOT expose an
+in-process Reader or display ring-buffer object to the Python backend. Raw
+recording persistence SHALL continue independently of display retention and
+analysis reads.
+
+#### Scenario: Live analysis requests samples outside retained source history
+- **WHEN** requested samples have been overwritten or have not arrived
+- **THEN** the access response reports the exact unavailable range/state
+- **AND** raw persistence and waveform playback continue according to their own lifecycle

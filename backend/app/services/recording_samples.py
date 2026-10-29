@@ -3,12 +3,86 @@
 from __future__ import annotations
 
 from bisect import bisect_right
+from collections import OrderedDict
+from concurrent.futures import Future
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 import numpy as np
 
-from app.services.wpf_recording import _index_batches, inspect_wpf_recording
+from app.services.wpf_recording import (
+    WpfRecordingError,
+    WpfRecordingFacts,
+    inspect_wpf_recording,
+    wpf_source_signature,
+)
+
+
+class WpfRecordingFactsCache:
+    """Reuse validated immutable WPF metadata without sharing reader state."""
+
+    def __init__(self, max_entries: int = 4):
+        if max_entries < 1:
+            raise ValueError("WPF 记录 facts 缓存容量必须大于零")
+        self._max_entries = max_entries
+        self._lock = RLock()
+        self._entries: OrderedDict[tuple[str, str], WpfRecordingFacts] = OrderedDict()
+        self._inflight: dict[tuple[str, str], Future[WpfRecordingFacts]] = {}
+
+    def remember(self, facts: WpfRecordingFacts) -> None:
+        key = (str(facts.root), facts.source_sha256)
+        with self._lock:
+            self._store(key, facts)
+
+    def get(self, directory: str | Path, expected_sha256: str | None) -> WpfRecordingFacts:
+        root = Path(directory).expanduser().resolve()
+        if not expected_sha256:
+            return inspect_wpf_recording(root)
+        key = (str(root), expected_sha256)
+        signature = wpf_source_signature(root)
+        with self._lock:
+            facts = self._entries.get(key)
+            if facts is not None and facts.source_signature == signature:
+                self._entries.move_to_end(key)
+                return facts
+            self._entries.pop(key, None)
+            future = self._inflight.get(key)
+            owner = future is None
+            if owner:
+                future = Future()
+                self._inflight[key] = future
+        if not owner:
+            return future.result()
+        try:
+            facts = inspect_wpf_recording(root)
+            if facts.source_sha256 != expected_sha256:
+                raise WpfRecordingError(
+                    "WPF_RECORDING_SOURCE_IDENTITY_MISMATCH",
+                    "WPF 记录内容与已注册的源身份不一致。",
+                )
+            if facts.source_signature != wpf_source_signature(root):
+                raise WpfRecordingError(
+                    "WPF_RECORDING_SOURCE_CHANGED_DURING_READ",
+                    "读取期间 WPF 记录源发生变化，请重新注册后再分析。",
+                )
+            with self._lock:
+                self._store(key, facts)
+            future.set_result(facts)
+            return facts
+        except BaseException as exc:
+            future.set_exception(exc)
+            future.exception()
+            raise
+        finally:
+            with self._lock:
+                self._inflight.pop(key, None)
+
+    def _store(self, key: tuple[str, str], facts: WpfRecordingFacts) -> None:
+        self._entries[key] = facts
+        self._entries.move_to_end(key)
+        while len(self._entries) > self._max_entries:
+            self._entries.popitem(last=False)
 
 
 class ArraySampleReader:
@@ -27,9 +101,9 @@ class ArraySampleReader:
 
 
 class WpfSampleReader:
-    def __init__(self, directory: str | Path):
-        self.facts = inspect_wpf_recording(directory)
-        self.batches = _index_batches(self.facts.root, len(self.facts.channels))
+    def __init__(self, source: str | Path | WpfRecordingFacts):
+        self.facts = source if isinstance(source, WpfRecordingFacts) else inspect_wpf_recording(source)
+        self.batches = self.facts.batches
         self.first_counter = self.batches[0][0]
         self.starts = [item[0] - self.first_counter for item in self.batches]
         self.sfreq = self.facts.sampling_rate_hz

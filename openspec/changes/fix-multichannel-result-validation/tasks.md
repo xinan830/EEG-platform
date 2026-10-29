@@ -1,0 +1,3 @@
+- [x] Update shared result validation for declared multi-channel contracts.
+- [x] Verify TNK structured results and existing single-channel boundaries.
+- [x] Run focused tests and diff checks.

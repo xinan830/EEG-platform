@@ -57,7 +57,7 @@ public sealed partial class RbpResultPreview
             previous = new RbpResultPreview(CurrentBands, shares, channelRows.Where(point => point.Channel == channels[0])
                 .Select(point => point.Window).OrderBy(window => window.EndSeconds).TakeLast(MaximumVisitedWindows).ToArray(),
                 response.Quality ?? "unknown", "", channelRows.OrderBy(point => point.Window.EndSeconds)
-                    .TakeLast(MaximumVisitedWindows * channels.Length).ToArray());
+                    .TakeLast(MaximumVisitedWindows * channels.Length).ToArray(), true);
         }
         var state = response.State == "ready" ? "Complete" : response.State switch
         {
@@ -73,7 +73,7 @@ public sealed partial class RbpResultPreview
             .Append(new RbpWindowPoint(range.EndSeconds, range.StartSeconds, range.EndSeconds,
                 state, response.Quality ?? "unknown", failure, shares))
             .TakeLast(MaximumVisitedWindows).OrderBy(window => window.EndSeconds).ToArray();
-        return new RbpResultPreview(CurrentBands, shares, windows, response.Quality ?? "unknown", failure, previous?.ChannelWindows);
+        return new RbpResultPreview(CurrentBands, shares, windows, response.Quality ?? "unknown", failure, previous?.ChannelWindows, true);
     }
 
     private static double? SingleValue(JsonElement array) =>

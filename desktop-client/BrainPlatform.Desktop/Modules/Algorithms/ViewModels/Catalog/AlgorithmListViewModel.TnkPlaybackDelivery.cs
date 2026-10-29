@@ -13,6 +13,7 @@ public sealed partial class AlgorithmListViewModel
     private readonly TnkPlaybackDeliveryDiagnostics tnkPlaybackDeliveryDiagnostics = new();
     private long tnkPlaybackEventSequence;
     private long? tnkPlaybackLastRequestedSample;
+    private (long StartSample, long EndSample)? tnkPlaybackRecoveryRange;
 
     private async Task ConsumeTnkPlaybackEventsAsync(string? projectId, string? deliveryId,
         CancellationToken cancellationToken)
@@ -53,6 +54,7 @@ public sealed partial class AlgorithmListViewModel
                     tnkPlaybackEventSequence = item.DeliverySequence;
                     PublishTnkPlaybackFrame(item);
                 }
+                RecoverFailedTnkFrame(batch.Delivery, batch.LatestSequence, deliveryId);
                 if (batch.Events.Count == 0 || !batch.HasMore)
                     await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken).ConfigureAwait(false);
             }
@@ -100,6 +102,29 @@ public sealed partial class AlgorithmListViewModel
         PublishOwnedTnkPlaybackGap(gap);
     }
 
+    private void RecoverFailedTnkFrame(TnkPlaybackDeliveryStatusResponse? delivery,
+        long latestSequence, string deliveryId)
+    {
+        if (delivery is not { State: "failure", Code: not null,
+                FailedStartSample: long start, FailedEndSample: long end } ||
+            start < 0 || end <= start || deliveryId != tnkPlaybackDeliveryId ||
+            tnkPlaybackRecoveryRange == (start, end)) return;
+
+        var samplingRate = RegisteredRecording?.SamplingRateHz;
+        if (samplingRate is not > 0) return;
+        tnkPlaybackRecoveryRange = (start, end);
+        var missingSequence = Math.Max(latestSequence, tnkPlaybackEventSequence) + 1;
+        PublishOwnedTnkPlaybackGap(new TnkPlaybackGap(missingSequence, missingSequence,
+            start, end, start / samplingRate.Value, end / samplingRate.Value,
+            true, deliveryId, delivery.Code));
+
+        if (windowRequest is not { } request || windowHandler is null) return;
+        _ = ObservePlaybackTargetAsync(new DynamicWindowRequest(request.RecordingId,
+            "tnk_biofeedback", null, null, request.Config, end,
+            RequestId: Guid.NewGuid().ToString("N"), PlaybackDelivery: false,
+            PlaybackDeliveryId: deliveryId));
+    }
+
     private void PublishOwnedTnkPlaybackGap(TnkPlaybackGap gap)
     {
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
@@ -131,6 +156,9 @@ public sealed partial class AlgorithmListViewModel
             item.Identity.GetProperty("start_sample").GetInt64(),
             item.Identity.GetProperty("end_sample").GetInt64(),
             item.WindowStartSeconds, item.WindowEndSeconds);
+        if (tnkPlaybackRecoveryRange is { } recovery &&
+            range.StartSample <= recovery.StartSample && range.EndSample >= recovery.EndSample)
+            tnkPlaybackRecoveryRange = null;
         var plan = new DynamicWindowPlanResponse(range.EndSample, range.StartSample, range.EndSample,
             range.StartSeconds, range.EndSeconds, "planned", null);
         var response = new DynamicWindowResponse(item.SessionId, item.WindowId,
@@ -162,8 +190,10 @@ public sealed partial class AlgorithmListViewModel
         if (tnkPlaybackDeliveryId is null || tnkPlaybackLastRequestedSample is not long previous ||
             cursorSample >= previous) return;
         CloseTnkPlaybackDelivery();
+        windowContextGeneration++;
         tnkPlaybackDeliveryId = Guid.NewGuid().ToString("N");
         tnkPlaybackEventSequence = 0;
+        tnkPlaybackRecoveryRange = null;
         lastRequestedWindowSample = -1;
         lastPlaybackWindowSample = -1;
         EnsureTnkPlaybackDeliveryConsumer();

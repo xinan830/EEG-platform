@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 import numpy as np
@@ -14,6 +16,8 @@ from app.algorithm_runtime.parameter_schema import AlgorithmParameter, Parameter
 from .legacy_biofeedback import CrimsonEngine, ZenliteEngine
 from .runtime import TnkRuntimeConfig
 from .contracts import TnkManifest
+
+_LOGGER = logging.getLogger("brain_platform.dynamic_window.tnk")
 
 
 class _LegacyDefinition:
@@ -68,6 +72,7 @@ class TnkLegacyStreamBundle:
         sfreq_hz = float(inputs.sfreq_hz)
         self._ensure_engines(sfreq_hz)
         source_provenance: dict[str, Any] | None = None
+        source_started = time.perf_counter()
         if end_sample < self._processed_end_sample:
             raise ValueError("TNK legacy stream cannot move backward without a checkpoint restore")
         if end_sample == self._processed_end_sample:
@@ -79,10 +84,19 @@ class TnkLegacyStreamBundle:
             )
             empty = source.values_v[:, 0]
             source_provenance = source.provenance
+        source_elapsed_ms = (time.perf_counter() - source_started) * 1000
         assert self._crimson is not None and self._zenlite is not None
+        crimson_started = time.perf_counter()
         crimson = self._crimson.process_chunk(empty, start_s=start_s, end_s=end_s)
+        crimson_elapsed_ms = (time.perf_counter() - crimson_started) * 1000
+        zenlite_started = time.perf_counter()
         zenlite = self._zenlite.process_chunk(empty, start_s=start_s, end_s=end_s)
+        zenlite_elapsed_ms = (time.perf_counter() - zenlite_started) * 1000
         self._processed_end_sample = end_sample
+        _LOGGER.info(
+            "tnk_legacy_stream_perf end_sample=%s source_read_ms=%.1f crimson_ms=%.1f zenlite_group_ms=%.1f",
+            end_sample, source_elapsed_ms, crimson_elapsed_ms, zenlite_elapsed_ms,
+        )
         results = {
             "tnk_crimson_meditation": crimson,
             "tnk_zenlite_calmness": zenlite["tnk_zenlite_calmness"],

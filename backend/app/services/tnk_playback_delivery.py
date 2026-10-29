@@ -57,7 +57,11 @@ class TnkPlaybackDeliveryService:
                 buffer, outcome = entry[1], entry[2]
                 self._buffers.move_to_end(delivery_id)
                 if outcome.get("state") == "failure":
-                    return dict(outcome), None
+                    failed_end = outcome.get("failed_end_sample")
+                    if failed_end is None or target_identity.end_sample < failed_end:
+                        return dict(outcome), None
+                    outcome.clear()
+                    outcome.update({"state": "enabled", "delivery_id": delivery_id})
 
         outcome.update({
             "state": "enabled", "delivery_id": delivery_id,
@@ -85,8 +89,14 @@ class TnkPlaybackDeliveryService:
                     result=normalized_result,
                 ))
             except Exception as exc:
-                outcome.update({"state": "failure", "code": "TNK_PLAYBACK_PUBLISH_FAILED",
-                                "message": str(exc)[:500]})
+                with self._lock:
+                    outcome.update({
+                        "state": "failure",
+                        "code": "TNK_PLAYBACK_PUBLISH_FAILED",
+                        "message": str(exc)[:500],
+                        "failed_start_sample": frame_identity.start_sample,
+                        "failed_end_sample": frame_identity.end_sample,
+                    })
                 self.logger.exception("tnk_playback_event_publish_failed delivery_id=%s", delivery_id)
 
         return outcome, publish

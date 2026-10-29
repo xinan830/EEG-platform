@@ -28,7 +28,7 @@ public sealed partial class RbpResultPreview
 
     private RbpResultPreview((string Key, string Label, string Range, string Color)[] bands,
         double?[] staticShares, RbpWindowPoint[] windows, string staticQuality, string staticFailure,
-        IReadOnlyList<RbpChannelWindowPoint>? channelWindows = null)
+        IReadOnlyList<RbpChannelWindowPoint>? channelWindows = null, bool isDynamic = false)
     {
         this.bands = bands;
         StaticShares = staticShares;
@@ -36,6 +36,7 @@ public sealed partial class RbpResultPreview
         StaticQuality = staticQuality;
         StaticFailure = staticFailure;
         ChannelWindows = channelWindows ?? [];
+        IsDynamic = isDynamic;
     }
 
     public double?[] StaticShares { get; }
@@ -43,7 +44,7 @@ public sealed partial class RbpResultPreview
     public string StaticQuality { get; }
     public string StaticFailure { get; }
     public IReadOnlyList<RbpChannelWindowPoint> ChannelWindows { get; }
-    public bool IsDynamic => Windows.Length > 0;
+    public bool IsDynamic { get; }
 
     public static IReadOnlyList<RbpBandPoint> BandDefinitions => CurrentBands.Select(band =>
         new RbpBandPoint(band.Key, band.Label, band.Range, null, band.Color)).ToArray();
@@ -78,7 +79,7 @@ public sealed partial class RbpResultPreview
         var primary = preview.ChannelOrder[0];
         var points = channelWindows.Where(item => item.Channel == primary).Select(item => item.Window).OrderBy(item => item.EndSeconds).ToArray();
         return new RbpResultPreview(CurrentBands, points.LastOrDefault()?.Shares ?? new double?[CurrentBands.Length], points,
-            preview.Quality?.ToString() ?? "", "", channelWindows);
+            QualityStatus(preview.Quality), FailurePayloadText(preview.Failure), channelWindows, preview.Windows.Count > 0);
     }
 
     private static double[] ReadVector(IReadOnlyDictionary<string, JsonElement> values, string key)
@@ -92,7 +93,10 @@ public sealed partial class RbpResultPreview
     {
         if (!values.TryGetValue(key, out var value) || value.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException($"RBP 结构化结果缺少 {key} 矩阵。");
-        return value.EnumerateArray().Select(row => row.ValueKind == JsonValueKind.Array
+        var items = value.EnumerateArray().ToArray();
+        if (items.All(item => item.ValueKind == JsonValueKind.Number || item.ValueKind == JsonValueKind.Null))
+            return [items.Select(item => item.ValueKind == JsonValueKind.Number && item.TryGetDouble(out var number) && double.IsFinite(number) ? (double?)number : null).ToArray()];
+        return items.Select(row => row.ValueKind == JsonValueKind.Array
             ? row.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.Number && item.TryGetDouble(out var number) && double.IsFinite(number) ? (double?)number : null).ToArray()
             : []).ToArray();
     }
@@ -100,6 +104,16 @@ public sealed partial class RbpResultPreview
     private static string FailureText(JsonElement window) =>
         window.TryGetProperty("failure", out var failure) && failure.ValueKind == JsonValueKind.Object
             ? $"{String(failure, "code")}：{String(failure, "message")}" : "";
+
+    private static string QualityStatus(JsonElement? value)
+    {
+        if (value is not { } element) return "";
+        return element.ValueKind == JsonValueKind.Object ? String(element, "status") : element.ToString();
+    }
+
+    private static string FailurePayloadText(JsonElement? value) =>
+        value is { ValueKind: JsonValueKind.Object } element
+            ? $"{String(element, "code")}：{String(element, "message")}".Trim('：') : "";
 
     public IReadOnlyList<RbpBandPoint> BandsAt(double cursorSeconds)
     {
@@ -136,7 +150,7 @@ public sealed partial class RbpResultPreview
                     usable && point.TryGetProperty("band_values", out var values) ? ReadShares(values, bands) : new double?[bands.Length]);
             }).Where(point => double.IsFinite(point.TimeSeconds) && double.IsFinite(point.EndSeconds))
               .OrderBy(point => point.EndSeconds).ToArray();
-            return new RbpResultPreview(bands, unavailable, windows, "", "");
+            return new RbpResultPreview(bands, unavailable, windows, "", "", null, true);
         }
 
         var clean = metric.TryGetProperty("quality", out var staticQuality) && staticQuality.ValueKind == JsonValueKind.Object &&

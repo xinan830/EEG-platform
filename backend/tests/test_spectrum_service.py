@@ -161,7 +161,7 @@ def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch
     assert calls["count"] == 1
 
 
-def test_on_demand_spectrum_prepares_only_requested_channels_with_same_values(tmp_path, monkeypatch):
+def test_on_demand_spectrum_reuses_canonical_preprocessed_source(tmp_path, monkeypatch):
     from dataclasses import replace
 
     service, recording = _service(tmp_path)
@@ -190,13 +190,55 @@ def test_on_demand_spectrum_prepares_only_requested_channels_with_same_values(tm
     prepared = [
         entry for (recording_id, _identity), entry
         in service._analysis_preprocess_cache._entries.items()
-        if recording_id == recording.id and entry.channel_names == ("Pz",)
+        if recording_id == recording.id
     ]
     assert len(prepared) == 1
-    assert prepared[0].data.shape == (data.shape[0], 1)
+    assert prepared[0].channel_names == ("Fz", "Pz")
+    assert prepared[0].data.shape == data.shape
 
 
-def test_on_demand_spectrogram_prepares_only_requested_channels(tmp_path, monkeypatch):
+def test_waveform_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypatch):
+    from dataclasses import replace
+
+    service, recording = _service(tmp_path)
+    sfreq = 100.0
+    times = np.arange(30 * int(sfreq)) / sfreq
+    data = np.column_stack([
+        10e-6 * np.sin(2 * np.pi * 10 * times),
+        8e-6 * np.sin(2 * np.pi * 6 * times),
+    ])
+    recording = replace(recording, sfreq=sfreq, duration_s=30.0, channels=("Fz", "Pz"))
+    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz", "Pz"], []))
+    calls = {"count": 0}
+
+    from app.scientific.primitives import gateway
+    original = gateway.preprocess_offline
+
+    def counted(values, rate, **kwargs):
+        calls["count"] += 1
+        return original(values, rate, **kwargs)
+
+    monkeypatch.setattr(gateway, "preprocess_offline", counted)
+    service.prepare_signal_preview(recording, 1.0, 30.0, None, ["Fz"])
+
+    class OnDemandControl:
+        is_on_demand = True
+
+        def check_cancelled(self):
+            pass
+
+    service.load_spectrum(
+        recording, 0.0, 10.0, ["Pz"], notch_hz=None,
+        filter_low_hz=1.0, filter_high_hz=30.0,
+        output_low_hz=1.0, output_high_hz=30.0,
+        execution_context=OnDemandControl(),
+    )
+
+    assert calls["count"] == 1
+    assert len(service._analysis_preprocess_cache._entries) == 1
+
+
+def test_on_demand_spectrogram_reuses_full_preprocessed_source(tmp_path, monkeypatch):
     from dataclasses import replace
 
     service, recording = _service(tmp_path)
@@ -227,10 +269,11 @@ def test_on_demand_spectrogram_prepares_only_requested_channels(tmp_path, monkey
     prepared = [
         entry for (recording_id, _identity), entry
         in service._analysis_preprocess_cache._entries.items()
-        if recording_id == recording.id and entry.channel_names == ("Pz",)
+        if recording_id == recording.id
     ]
     assert len(prepared) == 1
-    assert prepared[0].data.shape == (data.shape[0], 1)
+    assert prepared[0].channel_names == ("Fz", "Pz")
+    assert prepared[0].data.shape == data.shape
 
 
 def test_configured_v4_defaults_equal_frozen_v3(tmp_path, monkeypatch):

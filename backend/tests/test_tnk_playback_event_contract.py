@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+import logging
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -8,6 +10,7 @@ from app.algorithm_runtime.on_demand import (
 )
 from app.algorithms.tnk.playback_delivery import TnkPlaybackEventBuffer
 from app.algorithms.tnk.playback_event import TnkPlaybackFrameEvent
+from app.services.tnk_playback_delivery import TnkPlaybackDeliveryService
 
 
 def _identity(**overrides) -> DynamicWindowIdentity:
@@ -145,3 +148,32 @@ def test_event_buffer_rejects_out_of_order_publication_and_invalid_resume_cursor
         buffer.publish(lambda sequence: _event(delivery_sequence=sequence, identity=earlier))
     with pytest.raises(ValueError, match="exceeds the latest"):
         buffer.read_after(2)
+
+
+def test_failed_event_publication_reports_range_and_allows_canonical_recovery():
+    repository = SimpleNamespace(get_session=lambda _: SimpleNamespace(project_id="project"))
+    service = TnkPlaybackDeliveryService(repository, logging.getLogger(__name__))
+    identity = _identity()
+    capability = SimpleNamespace(execute_window_with_replayed_frames=lambda: None)
+
+    failed_status, failed_publisher = service.prepare(
+        True, "delivery-1", "session-1", identity, 0.0, capability, "target-1",
+    )
+    assert failed_publisher is not None
+    failed_publisher(identity, _result(identity))
+
+    assert failed_status["state"] == "failure"
+    assert failed_status["code"] == "TNK_PLAYBACK_PUBLISH_FAILED"
+    assert failed_status["failed_start_sample"] == identity.start_sample
+    assert failed_status["failed_end_sample"] == identity.end_sample
+
+    recovered_status, recovered_publisher = service.prepare(
+        True, "delivery-1", "session-1", identity, 1000.0, capability, "target-1",
+    )
+    assert recovered_status["state"] == "enabled"
+    assert recovered_publisher is not None
+    recovered_publisher(identity, _result(identity))
+
+    batch = service.events("delivery-1", project_id="project")
+    assert batch["coverage"] == "complete"
+    assert [event["identity"]["start_sample"] for event in batch["events"]] == [identity.start_sample]

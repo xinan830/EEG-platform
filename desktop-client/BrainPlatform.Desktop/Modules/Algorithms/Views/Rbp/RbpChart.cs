@@ -158,9 +158,12 @@ public sealed class RbpChart : UserControl
             Rebuild();
             return;
         }
-        for (var band = 0; band < stackedSeries.Count; band++)
-            stackedSeries[band].Append(window.EndSeconds, window.Shares.ElementAtOrDefault(band) ?? double.NaN);
-        UpdateStackedRange(Windows!);
+        using (surface.SuspendUpdates())
+        {
+            for (var band = 0; band < stackedSeries.Count; band++)
+                stackedSeries[band].Append(window.EndSeconds, window.Shares.ElementAtOrDefault(band) ?? double.NaN);
+            UpdateStackedRange(Windows!);
+        }
     }
 
     private void UpdateStackedRange(IReadOnlyList<RbpWindowPoint> windows)

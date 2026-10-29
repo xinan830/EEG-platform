@@ -1,9 +1,29 @@
 using System.Reflection;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
 public sealed class TnkWorkbenchTests
 {
+    [Theory]
+    [InlineData(27, 30, 59, 27, 59)]
+    [InlineData(27, 30, 10, 10, 30)]
+    public void Timeline_cursor_expands_chart_range_when_playback_leaves_result_range(
+        double min, double max, double position, double expectedMin, double expectedMax)
+    {
+        var expanded = TnkAnalysisPlotView.ExpandTimelineRange(new SciChart.Data.Model.DoubleRange(min, max), position);
+
+        Assert.NotNull(expanded);
+        Assert.Equal(expectedMin, expanded!.Min);
+        Assert.Equal(expectedMax, expanded.Max);
+    }
+
+    [Fact]
+    public void Timeline_cursor_does_not_reset_user_range_when_already_visible()
+    {
+        Assert.Null(TnkAnalysisPlotView.ExpandTimelineRange(new SciChart.Data.Model.DoubleRange(27, 60), 59));
+    }
+
     [Fact]
     public void OnDemandScoreStatesAccumulateReturnedWindowDurationsByThreshold()
     {

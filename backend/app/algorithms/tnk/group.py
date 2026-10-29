@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from copy import copy, deepcopy
 from dataclasses import is_dataclass, replace
 from typing import Any
@@ -33,6 +35,7 @@ from app.scientific.quality import SpectralQualityGateError
 from .group_window import TnkGroupWindowCapability
 
 _ROLES = ("Fz", "Pz", "Oz", "F3", "F4")
+_LOGGER = logging.getLogger("brain_platform.dynamic_window.tnk")
 _CHILD_ORDER = (
     "tnk_iapf", "tnk_relaxation", "tnk_spatial_distribution",
     "tnk_rhythm_stability", "tnk_composite_meditation", "tnk_brainbeat",
@@ -85,8 +88,8 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
         self.manifest = AlgorithmManifest(
             algorithm_id="tnk_biofeedback", display_name_zh="TNK 脑指标",
             abbreviation="TNK", purpose_zh="统一来源通道映射的 TNK 脑指标组",
-            scientific_version="tnk-biofeedback-group-v1", is_current_version=True,
-            implementation_identity="tnk-biofeedback-group-coordinator-v3-flat-current-window-fit",
+            scientific_version="tnk-biofeedback-group-v2", is_current_version=True,
+            implementation_identity="tnk-biofeedback-group-coordinator-v4-legacy-model-handle",
             supported_modes=["dynamic"],
             dynamic_policy=DynamicAnalysisPolicy(
                 minimum_window_s=4.0,
@@ -276,6 +279,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
         shared: dict[tuple[int, int], Any] = {}
         channels = tuple(config.role_mapping[role] for role in _ROLES)
         for start_s, end_s in sorted(ranges):
+            started = time.perf_counter()
             key = (
                 int(round(start_s * inputs.sfreq_hz)),
                 int(round(end_s * inputs.sfreq_hz)),
@@ -289,8 +293,16 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                 )
             except SpectralQualityGateError as exc:
                 shared[key] = (tuple(channel.casefold() for channel in channels), exc)
+                _LOGGER.info(
+                    "tnk_shared_spectrum_perf samples=%s:%s state=quality_rejected elapsed_ms=%.1f",
+                    key[0], key[1], (time.perf_counter() - started) * 1000,
+                )
                 continue
             shared[key] = (tuple(channel.casefold() for channel in channels), spectrum)
+            _LOGGER.info(
+                "tnk_shared_spectrum_perf samples=%s:%s state=ready elapsed_ms=%.1f",
+                key[0], key[1], (time.perf_counter() - started) * 1000,
+            )
             if diagnostics is not None:
                 diagnostics["spectrum_loads"] = diagnostics.get("spectrum_loads", 0) + 1
         return shared
@@ -346,6 +358,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                 if len(bundles) != 1:
                     raise ValueError("TNK legacy children must use one shared stream bundle")
                 bundle = next(iter(bundles.values()))
+                started = time.perf_counter()
                 try:
                     legacy_outputs = bundle.advance(
                         inputs, channel=inputs.channel,
@@ -358,6 +371,11 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                     # Preserve the existing structured child-level failure
                     # contract for malformed or unavailable historical input.
                     legacy_outputs = {}
+                _LOGGER.info(
+                    "tnk_legacy_stream_prepare_perf end_sample=%s output_count=%s elapsed_ms=%.1f",
+                    int(round(end_s * inputs.sfreq_hz)), len(legacy_outputs),
+                    (time.perf_counter() - started) * 1000,
+                )
         for child in active_children:
             child_id = child.manifest.algorithm_id
             child_range = self._dynamic_child_range(child_id, config, start_s, end_s) if dynamic_frame else (start_s, end_s)
@@ -375,6 +393,8 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             child_start_s, child_end_s = child_range
             roles = _ROLES if child_id == "tnk_rbp" else ("Fz",)
             child_rows = []
+            input_elapsed_ms = 0.0
+            compute_elapsed_ms = 0.0
             for role in roles:
                 child_config = self._child_config(child, config, child_start_s, child_end_s, primary_role=role)
                 if getattr(child, "signal_representation", "spectrum") == "time_series":
@@ -389,10 +409,12 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                         diagnostics["time_series_loads"] = diagnostics.get("time_series_loads", 0) + 1
                     continue
                 try:
+                    input_started = time.perf_counter()
                     child_inputs, window = self._child_inputs_and_window(
                     inputs, child, child_config, child_start_s, child_end_s, spectrum_cache, diagnostics,
                     shared_spectra,
                     )
+                    input_elapsed_ms += (time.perf_counter() - input_started) * 1000
                 except SpectralQualityGateError as exc:
                     child_rows.append(self._quality_rejected_result(
                         child, child_config, child_start_s, child_end_s, exc,
@@ -424,7 +446,9 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                             for role, exponent in exponents.items()
                             if exponent is not None and role in offsets
                         }
+                compute_started = time.perf_counter()
                 result = child.module.compute(window, child._tnk_config(child_config, child_inputs.sfreq_hz))
+                compute_elapsed_ms += (time.perf_counter() - compute_started) * 1000
                 if diagnostics is not None:
                     diagnostics["child_calculations"] = diagnostics.get("child_calculations", 0) + 1
                 result.channel = "/".join(child.requested_channels(child_config))
@@ -432,6 +456,11 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                 result.actual_range = {"start_s": child_start_s, "end_s": child_end_s}
                 child_rows.append(result)
             results[child_id] = child_rows
+            if child_rows and getattr(child, "signal_representation", "spectrum") != "time_series":
+                _LOGGER.info(
+                    "tnk_child_window_perf child_id=%s roles=%s input_ms=%.1f compute_ms=%.1f",
+                    child_id, len(child_rows), input_elapsed_ms, compute_elapsed_ms,
+                )
             if child_rows:
                 first_result[child_id] = child_rows[0]
         return results

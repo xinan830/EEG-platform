@@ -280,7 +280,14 @@ public sealed record TnkPlaybackGap(
     double StartSeconds,
     double EndSeconds,
     bool SampleRangeExact,
-    string? DeliveryId = null);
+    string? DeliveryId = null,
+    string? ReasonCode = null);
+
+public sealed record TnkPlaybackDeliveryStatusResponse(
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("code")] string? Code = null,
+    [property: JsonPropertyName("failed_start_sample")] long? FailedStartSample = null,
+    [property: JsonPropertyName("failed_end_sample")] long? FailedEndSample = null);
 
 public sealed record TnkPlaybackEventBatchResponse(
     [property: JsonPropertyName("delivery_id")] string DeliveryId,
@@ -289,7 +296,8 @@ public sealed record TnkPlaybackEventBatchResponse(
     [property: JsonPropertyName("latest_sequence")] long LatestSequence,
     [property: JsonPropertyName("has_more")] bool HasMore,
     [property: JsonPropertyName("coverage")] string Coverage,
-    [property: JsonPropertyName("discontinuity")] TnkPlaybackDiscontinuityResponse? Discontinuity);
+    [property: JsonPropertyName("discontinuity")] TnkPlaybackDiscontinuityResponse? Discontinuity,
+    [property: JsonPropertyName("delivery")] TnkPlaybackDeliveryStatusResponse? Delivery = null);
 
 public sealed record DynamicWindowPlanResponse(
     [property: JsonPropertyName("cursor_sample")] long CursorSample,

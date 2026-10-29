@@ -98,6 +98,62 @@ public sealed class RbpResultPreviewTests
     }
 
     [Fact]
+    public void StaticStructuredPreview_UsesOneDimensionalChannelArrays()
+    {
+        var preview = RbpResultPreview.FromStructured(new StructuredPreviewResponse(
+            "run", new RunArtifact("artifact", "run", "official_algorithm", "result.npz", "application/npz", 1, "hash", null,
+                new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+            JsonSerializer.SerializeToElement(new { kind = "algorithm_group", algorithm_id = "rbp" }),
+            ["Fp1-REF", "Fp2-REF"], new TimeRange(0, 30), new TimeRange(0, 30),
+            new Dictionary<string, JsonElement>
+            {
+                ["time_s"] = JsonSerializer.SerializeToElement(new[] { 30d }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new[] { 0d, 1d }),
+            }, new Dictionary<string, JsonElement>(),
+            new Dictionary<string, JsonElement>
+            {
+                ["delta"] = JsonSerializer.SerializeToElement(new[] { .1, .2 }),
+                ["theta"] = JsonSerializer.SerializeToElement(new[] { .2, .2 }),
+                ["alpha"] = JsonSerializer.SerializeToElement(new[] { .3, .2 }),
+                ["beta"] = JsonSerializer.SerializeToElement(new[] { .3, .3 }),
+                ["gamma"] = JsonSerializer.SerializeToElement(new[] { .1, .1 }),
+            }, new Dictionary<string, JsonElement>(), [], new Dictionary<string, int>(),
+            JsonSerializer.SerializeToElement(new { status = "clean", reasons = Array.Empty<string>() }), "official-rbp-v3", "runtime-v3"));
+
+        Assert.Equal("clean", preview.StaticQuality);
+        Assert.False(preview.IsDynamic);
+        Assert.Equal(.1, preview.BandsAt(0)[0].Share);
+        Assert.Equal([.1, .2, .3, .3, .1], preview.BandsAt(30).Select(band => band.Share));
+        Assert.Equal(30, preview.ChannelWindows.First(window => window.Channel == "Fp1-REF").Window.EndSeconds);
+    }
+
+    [Fact]
+    public void StaticStructuredPreview_UsesBackendQualityStatus()
+    {
+        var preview = RbpResultPreview.FromStructured(new StructuredPreviewResponse(
+            "run", new RunArtifact("artifact", "run", "official_algorithm", "result.npz", "application/npz", 1, "hash", null,
+                new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+            JsonSerializer.SerializeToElement(new { kind = "algorithm_group", algorithm_id = "rbp" }),
+            ["Fp1-REF"], new TimeRange(0, 30), new TimeRange(0, 30),
+            new Dictionary<string, JsonElement>
+            {
+                ["time_s"] = JsonSerializer.SerializeToElement(new[] { 30d }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new[] { 0d }),
+            }, new Dictionary<string, JsonElement>(),
+            new Dictionary<string, JsonElement>
+            {
+                ["delta"] = JsonSerializer.SerializeToElement(new[] { .1 }),
+                ["theta"] = JsonSerializer.SerializeToElement(new[] { .2 }),
+                ["alpha"] = JsonSerializer.SerializeToElement(new[] { .3 }),
+                ["beta"] = JsonSerializer.SerializeToElement(new[] { .3 }),
+                ["gamma"] = JsonSerializer.SerializeToElement(new[] { .1 }),
+            }, new Dictionary<string, JsonElement>(), [], new Dictionary<string, int>(),
+            JsonSerializer.SerializeToElement(new { status = "clean", reasons = Array.Empty<string>() }), "official-rbp-v3", "runtime-v3"));
+
+        Assert.Equal("clean", preview.StaticQuality);
+    }
+
+    [Fact]
     public void DynamicWindows_UseSharedCursorAndKeepRejectedWindow()
     {
         var catalog = new AlgorithmListViewModel(new UnusedAlgorithmClient(), new OperationNotificationCenter());

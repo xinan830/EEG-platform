@@ -185,7 +185,7 @@ internal sealed class TnkWindowChartHistory
                 foreach (var (key, gap) in gapSnapshot)
                 {
                     var label = gap.SampleRangeExact
-                        ? $"投递断档：序列 {gap.FirstMissingSequence}-{gap.LastMissingSequence}，样本 {gap.AffectedStartSample}-{gap.AffectedEndSample}"
+                        ? $"投递断档{(gap.ReasonCode is null ? "" : $" ({gap.ReasonCode})")}：序列 {gap.FirstMissingSequence}-{gap.LastMissingSequence}，样本 {gap.AffectedStartSample}-{gap.AffectedEndSample}"
                         : $"投递断档：序列 {gap.FirstMissingSequence}-{gap.LastMissingSequence}，范围估计";
                     points[key.EndSeconds] = new(key.EndSeconds, null, label);
                 }

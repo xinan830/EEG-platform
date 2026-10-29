@@ -27,7 +27,12 @@ public sealed class TnkPlaybackEventContractTests
                 "affected_end_sample": 6000,
                 "sample_range_exact": true
               },
-              "delivery": { "state": "enabled" }
+              "delivery": {
+                "state": "failure",
+                "code": "TNK_PLAYBACK_PUBLISH_FAILED",
+                "failed_start_sample": 5000,
+                "failed_end_sample": 9000
+              }
             }
             """;
 
@@ -39,6 +44,10 @@ public sealed class TnkPlaybackEventContractTests
         Assert.Equal("incomplete", batch.Coverage);
         Assert.Equal(2, batch.Discontinuity?.FirstMissingSequence);
         Assert.Equal(6000, batch.Discontinuity?.AffectedEndSample);
+        Assert.Equal("failure", batch.Delivery?.State);
+        Assert.Equal("TNK_PLAYBACK_PUBLISH_FAILED", batch.Delivery?.Code);
+        Assert.Equal(5000, batch.Delivery?.FailedStartSample);
+        Assert.Equal(9000, batch.Delivery?.FailedEndSample);
     }
 
     [Fact]

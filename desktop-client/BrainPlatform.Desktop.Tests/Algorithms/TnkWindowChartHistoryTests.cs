@@ -112,6 +112,26 @@ public sealed class TnkWindowChartHistoryTests
     }
 
     [Fact]
+    public void Failed_frame_gap_stays_incomplete_until_its_canonical_range_is_recovered()
+    {
+        var history = new TnkWindowChartHistory();
+        history.Add(Window(6), [Card(6, 6)]);
+        history.AddGap(new TnkPlaybackGap(2, 2, 6000, 10000, 6, 10,
+            true, "delivery", "TNK_PLAYBACK_PUBLISH_FAILED"));
+
+        var missing = history.Project([Card(6, 6)], 1)[0].Chart.Series[0].Points;
+        Assert.Contains("TNK_PLAYBACK_PUBLISH_FAILED", missing[^1].Label);
+        Assert.Contains("补齐", history.CoverageText);
+
+        history.MarkReconciliationFailed();
+        Assert.Contains("不完整", history.CoverageText);
+
+        history.Add(Window(10), [Card(10, 10)]);
+
+        Assert.Contains("完整", history.CoverageText);
+    }
+
+    [Fact]
     public void Duplicate_window_result_does_not_request_another_history_projection()
     {
         var history = new TnkWindowChartHistory();

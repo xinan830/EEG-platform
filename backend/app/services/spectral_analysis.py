@@ -88,14 +88,10 @@ class SpectralAnalysisService:
         from app.services.prepared_source_identity import prepared_source_identity
 
         selected_channels = None
-        if channels and (
-            getattr(execution_context, "is_on_demand", False)
-            or getattr(execution_context, "select_requested_channels", False)
-        ):
-            # A dynamic PSD target only consumes its requested channels. Keep
-            # its cold-start source bounded to that ordered projection; static
-            # analysis still prepares all channels so cross-channel requests
-            # can share one cache entry.
+        if channels and getattr(execution_context, "select_requested_channels", False):
+            # An explicit projection policy may opt into a smaller source.
+            # Ordinary on-demand work first shares the canonical full source
+            # with waveform and other algorithms when the resource budget fits.
             available = {name.casefold(): name for name in recording.channels}
             selected_channels = tuple(available[item.casefold()] for item in channels)
         elif channels:

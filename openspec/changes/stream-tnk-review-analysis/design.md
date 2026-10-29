@@ -108,6 +108,84 @@ heatmap. A backward seek, incompatible identity, or new on-demand session
 clears the projection. This is a display projection change; it does not reuse
 FFT values, alter window boundaries, or move scientific work into WPF.
 
+### 10. Reuse validated WPF source indexes in the recording access layer
+
+The playback timing evidence shows that opening a WPF sample reader repeats a
+full batch-header scan and source-file hash for every dynamic-window request;
+the reader constructor also indexes the same batches a second time. The
+existing `RecordingService.open_sample_reader` remains the common backend
+sample-access boundary. It will own a small bounded cache of immutable WPF
+recording facts and batch offsets keyed by canonical source path and registered
+source SHA-256. A cache miss validates the computed source hash against the
+registered identity; later reuse checks the source-file size, modification
+time, and file identity signature and rebuilds/revalidates on change.
+
+Each request still gets its own reader object and opens file streams only for
+the requested sample blocks. The cache shares immutable metadata, not mutable
+reader handles, EEG sample arrays, or scientific results. EDF/MNE reader
+lifecycle is unchanged. This relies on the project contract that completed raw
+recordings are immutable; a source whose observable file signature changes is
+re-inspected and rejected if its registered content identity no longer
+matches.
+
+**Alternative considered:** Keep a WPF reader open and share it between
+requests. Rejected because it introduces shared mutable lifetime and concurrent
+file-position concerns while the expensive work is immutable metadata
+construction, not bounded sample reads.
+
+### 11. Define one logical EEG access contract with source-owned lifetimes
+
+The common boundary is a logical sample-access contract, not one reader object
+shared by every source or process. `RecordingAccessSession` is scoped to one
+immutable recording/source identity and owns validated metadata, index reuse,
+and format-specific reader lifetime. Consumers request bounded sample-major
+blocks through `ReadSamples(start_sample, end_sample, ordered_channels)` using
+recording-relative half-open sample ranges. A block reports its actual bounds,
+sampling rate, ordered channel identities, V/float64 values, source identity,
+and explicit missing intervals; gaps remain unavailable/NaN and are never
+replaced with zero. The existing V/float64, `(samples, channels)`, and channel
+mapping contracts remain authoritative.
+
+For completed WPF/BDF/EDF recordings, opening an access session verifies the
+registered content/source identity and prepares format metadata/index once.
+Consecutive windows in that session reuse the validated context. A changed
+source invalidates the session and fails with a structured source-identity
+error; it is not silently rebound to a new recording. Session count and any
+metadata/sample-block caches are bounded. Closing the session releases
+format-specific handles and references. WPF may use independent positioned
+file reads over a shared immutable index. MNE `Raw` concurrency is not assumed;
+its adapter must serialize access until concurrent `get_data` safety is
+established or use independent handles. The access service must not put a
+single global lock around unrelated recordings or readers.
+
+Live acquisition implements the same sample-block shape and identity fields,
+but has a different lifetime/capability: identity is the acquisition session
+plus stream/schema revision, and the source reports its retained sample-counter
+range and current high-water mark. A read that has been overwritten or is not
+yet available returns an explicit range/state, never a fabricated block. The
+existing desktop `SampleBatchRingBuffer` is display history and its eviction
+does not affect raw persistence; it is not the backend analysis source. Since
+the acquisition runtime and backend are separate C#/Python processes, the
+contract crosses an explicit bounded IPC/API batch boundary. Reader instances,
+locks, and in-process ring-buffer objects never cross that boundary. Persisting
+raw recording remains independent of display and algorithm consumers.
+
+The access layer owns source identity, validated metadata/index, bounded reads,
+gaps, reader/session lifecycle, format-specific concurrency and cancellation
+semantics. It does not own resampling, filtering, referencing, montage
+projection, quality gates, algorithms, playback scheduling, or chart state;
+those consumers declare any required channel projection and preprocessing
+above the source read boundary. This keeps one authoritative source reader
+without turning the access service into an algorithm or scheduler service.
+
+**Migration boundary:** The current TNK path only gains cached WPF facts across
+window requests; it still constructs a reader per request. The next backend
+slice will let one TNK analysis session retain a `RecordingAccessSession`
+across windows. Other consumers migrate only after their lifetime and source
+identity requirements are mapped. Live IPC integration remains a separate
+implementation slice after the contract is accepted; this design does not
+claim the current display ring buffer already satisfies it.
+
 ## Risks / Trade-offs
 
 - [Intermediate event publication increases payload and CPU/memory use] → Batch transport metadata while retaining per-window scientific identity; cap payload/history; include overflow and reconciliation tests.

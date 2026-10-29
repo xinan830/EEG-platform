@@ -98,6 +98,30 @@ public sealed class DynamicWindowTargetCoordinatorTests
     }
 
     [Fact]
+    public async Task Sequential_playback_does_not_drop_targets_when_backlog_exceeds_old_limit()
+    {
+        var observer = new ControlledObserver();
+        var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.Zero);
+        try
+        {
+            var tasks = Enumerable.Range(1, 24)
+                .Select(index => coordinator.LoadSequentialAsync(Request(index * 100), CancellationToken.None))
+                .ToArray();
+
+            for (var index = 0; index < tasks.Length; index++)
+            {
+                var active = await observer.NextAsync();
+                Assert.Equal((index + 1) * 100, active.Request.CursorSample);
+                active.Complete();
+            }
+
+            await Task.WhenAll(tasks);
+            Assert.Equal(tasks.Length, observer.Count);
+        }
+        finally { await coordinator.ResetAsync(); }
+    }
+
+    [Fact]
     public async Task Latest_playback_targets_keep_active_work_and_replace_all_queued_targets()
     {
         var observer = new ControlledObserver();

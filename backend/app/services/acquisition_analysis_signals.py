@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
 from app.services.wpf_recording import WpfRecordingError
+
+_LOGGER = logging.getLogger("brain_platform.dynamic_window.tnk")
 
 
 def _field(item: dict, name: str, default=None):
@@ -262,7 +266,10 @@ class AcquisitionMontageSampleReader:
         selected = list(range(len(self.names))) if channels is None else channels
         signals = [self.view.signals[index] for index in selected]
         labels = list(dict.fromkeys(label.casefold() for signal in signals for label in (signal.positive, *signal.negatives)))
+        raw_started = time.perf_counter()
         source = self.raw.read(start, stop, [self._lookup[label] for label in labels])
+        raw_read_ms = (time.perf_counter() - raw_started) * 1000
+        projection_started = time.perf_counter()
         indexes = {label: index for index, label in enumerate(labels)}
         output = np.empty((stop - start, len(signals)), dtype=np.float64)
         for index, signal in enumerate(signals):
@@ -272,6 +279,12 @@ class AcquisitionMontageSampleReader:
                 output[:, index] = positive - reference
             else:
                 output[:, index] = positive
+        projection_ms = (time.perf_counter() - projection_started) * 1000
+        _LOGGER.info(
+            "tnk_montage_sample_read_perf samples=%s:%s source_channels=%s output_channels=%s "
+            "raw_read_ms=%.1f projection_ms=%.1f",
+            start, stop, len(labels), len(signals), raw_read_ms, projection_ms,
+        )
         return output
 
     def close(self) -> None:

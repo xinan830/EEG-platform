@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 import numpy as np
 from app.scientific.primitives import SpectralEstimate
 from app.algorithm_runtime.execution_control import ExecutionControl
 from app.algorithm_runtime.signal_source import SignalSourceData, SignalSourceRequest, SpectralSourceRequest
 from app.services.mapped_preprocessing import mapped_preprocess
+
+_LOGGER = logging.getLogger("brain_platform.dynamic_window.tnk")
 
 class _RecordingAlgorithmContext:
     """Bounded signal access passed to a canonical algorithm module."""
@@ -320,6 +324,7 @@ class _RecordingAlgorithmContext:
         order; the legacy TNK modules then perform their fixed resampling and
         causal filters themselves.
         """
+        total_started = time.perf_counter()
         if len(channels) != len(roles) or len(channels) != 1 or roles != ["Fz"]:
             raise ValueError("time-series source currently requires one explicit Fz channel")
         if not np.isclose(expected_sfreq_hz, self.sfreq_hz, rtol=0.0, atol=1e-12):
@@ -332,12 +337,22 @@ class _RecordingAlgorithmContext:
             ordered_channels = [lookup[channel.casefold()][1] for channel in channels]
         except KeyError as exc:
             raise ValueError(f"time-series source channel does not exist: {exc.args[0]}") from exc
+        reader_open_ms = 0.0
         if self._reader is None:
+            reader_started = time.perf_counter()
             self._reader = self._recordings.open_sample_reader(self._recording)
-        values = np.asarray(self._reader.read(start_sample, end_sample, indexes), dtype=np.float64)
+            reader_open_ms = (time.perf_counter() - reader_started) * 1000
+        sample_read_started = time.perf_counter()
+        raw_values = self._reader.read(start_sample, end_sample, indexes)
+        sample_read_ms = (time.perf_counter() - sample_read_started) * 1000
+        array_started = time.perf_counter()
+        values = np.asarray(raw_values, dtype=np.float64)
+        array_coercion_ms = (time.perf_counter() - array_started) * 1000
         if values.shape != (end_sample - start_sample, len(channels)):
             raise ValueError("time-series source returned inconsistent sample bounds")
+        provenance_started = time.perf_counter()
         provenance = dict(self._recordings.analysis_signal_provenance(self._recording))
+        provenance_ms = (time.perf_counter() - provenance_started) * 1000
         provenance.update({
             "time_scope": "exact_requested_absolute_range",
             "requested_range_s": {"start_s": start_sample / self.sfreq_hz, "end_s": end_sample / self.sfreq_hz},
@@ -346,7 +361,17 @@ class _RecordingAlgorithmContext:
             "sfreq_hz": self.sfreq_hz, "signal_input_unit": "V",
             "preprocessing_scope": "module_defined", "preprocessing": "legacy_tnk_owned",
         })
+        identity_started = time.perf_counter()
         montage_id, montage_fingerprint = self.signal_source_identity()
+        identity_ms = (time.perf_counter() - identity_started) * 1000
+        _LOGGER.info(
+            "tnk_time_series_source_perf samples=%s:%s count=%s reader_open_ms=%.1f "
+            "sample_read_ms=%.1f array_coercion_ms=%.1f provenance_ms=%.1f "
+            "identity_ms=%.1f total_ms=%.1f",
+            start_sample, end_sample, end_sample - start_sample, reader_open_ms,
+            sample_read_ms, array_coercion_ms, provenance_ms, identity_ms,
+            (time.perf_counter() - total_started) * 1000,
+        )
         return SignalSourceData(
             values_v=values, role_to_output=dict(zip(roles, ordered_channels)),
             channel_order=tuple(ordered_channels), sfreq_hz=self.sfreq_hz,

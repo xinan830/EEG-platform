@@ -75,7 +75,7 @@ public static class AlgorithmWindowPerformanceDiagnostics
 
     public static void RecordQueueDepth(
         DynamicWindowRequest request, string stage, int pendingCount,
-        long? activeCursorSample, long? newestPendingCursorSample)
+        long? activeCursorSample, long? newestPendingCursorSample, long? generation = null)
     {
         if (!Enabled) return;
 
@@ -85,6 +85,7 @@ public static class AlgorithmWindowPerformanceDiagnostics
             $" algorithm_id={request.AlgorithmId}" +
             $" request_id={request.RequestId ?? "none"}" +
             $" stage={stage} pending_count={pendingCount}" +
+            (generation is long value ? $" generation={value}" : string.Empty) +
             $" active_cursor_sample={activeCursorSample?.ToString() ?? "none"}" +
             $" newest_pending_cursor_sample={newestPendingCursorSample?.ToString() ?? "none"}" +
             $" target_cursor_sample={request.CursorSample}");

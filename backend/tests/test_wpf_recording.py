@@ -6,8 +6,9 @@ import numpy as np
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.recording_samples import WpfRecordingFactsCache
 from app.services.recordings import RecordingService
-from app.services.wpf_recording import inspect_wpf_recording, load_wpf_data
+from app.services.wpf_recording import WpfRecordingError, inspect_wpf_recording, load_wpf_data
 
 
 def _write_fixture(root: Path, status: str = "completed") -> None:
@@ -58,3 +59,32 @@ def test_register_wpf_is_idempotent_and_rejects_incomplete(tmp_path: Path, monke
         assert getattr(exc, "code") == "WPF_RECORDING_NOT_COMPLETE"
     else:
         raise AssertionError("incomplete recording was accepted")
+
+
+def test_wpf_facts_cache_reuses_index_and_revalidates_changed_source(tmp_path, monkeypatch):
+    from app.services import recording_samples
+
+    root = tmp_path / "recording"
+    _write_fixture(root)
+    expected_sha256 = inspect_wpf_recording(root).source_sha256
+    cache = WpfRecordingFactsCache()
+    calls = 0
+    inspect = recording_samples.inspect_wpf_recording
+
+    def counted_inspect(directory):
+        nonlocal calls
+        calls += 1
+        return inspect(directory)
+
+    monkeypatch.setattr(recording_samples, "inspect_wpf_recording", counted_inspect)
+    first = cache.get(root, expected_sha256)
+    second = cache.get(root, expected_sha256)
+    assert first is second
+    assert calls == 1
+
+    with (root / "audit.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write("changed\n")
+    with pytest.raises(WpfRecordingError) as exc_info:
+        cache.get(root, expected_sha256)
+    assert exc_info.value.code == "WPF_RECORDING_SOURCE_IDENTITY_MISMATCH"
+    assert calls == 2

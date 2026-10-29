@@ -7,11 +7,11 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.Api;
 /// <summary>One owned observation and one replaceable target; never plans scientific windows.</summary>
 public sealed class DynamicWindowTargetCoordinator
 {
-    internal const int MaximumSequentialPendingTargets = 16;
     private readonly object gate = new();
     private readonly Func<DynamicWindowRequest, CancellationToken, Task<DynamicWindowResponse>>? observe;
     private readonly IAlgorithmClient? client;
     private readonly TimeSpan cadence;
+    private readonly AlgorithmResourceScheduler resources;
     private Work? active;
     private Work? pending;
     private readonly Queue<Work> sequentialPending = new();
@@ -23,18 +23,20 @@ public sealed class DynamicWindowTargetCoordinator
     /// <summary>Raised for an owned result even when its cursor waiter has been superseded.</summary>
     public event Action<DynamicWindowRequest, DynamicWindowResponse>? WindowCompleted;
 
-    public DynamicWindowTargetCoordinator(IAlgorithmClient client)
+    public DynamicWindowTargetCoordinator(IAlgorithmClient client, AlgorithmResourceScheduler? resources = null)
     {
         this.client = client ?? throw new ArgumentNullException(nameof(client));
         cadence = TimeSpan.FromMilliseconds(200);
+        this.resources = resources ?? AlgorithmResourceScheduler.Shared;
     }
 
     public DynamicWindowTargetCoordinator(
         Func<DynamicWindowRequest, CancellationToken, Task<DynamicWindowResponse>> observe,
-        TimeSpan? cadence = null)
+        TimeSpan? cadence = null, AlgorithmResourceScheduler? resources = null)
     {
         this.observe = observe ?? throw new ArgumentNullException(nameof(observe));
         this.cadence = cadence ?? TimeSpan.FromMilliseconds(200);
+        this.resources = resources ?? AlgorithmResourceScheduler.Shared;
         if (this.cadence < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(cadence));
     }
 
@@ -88,7 +90,7 @@ public sealed class DynamicWindowTargetCoordinator
         return result.WaitAsync(waiterToken);
     }
 
-    /// <summary>Queues contiguous playback targets; direct seeks supersede this bounded queue.</summary>
+    /// <summary>Queues contiguous playback targets; direct seeks supersede this queue.</summary>
     public Task<DynamicWindowResponse> LoadSequentialAsync(DynamicWindowRequest request, CancellationToken waiterToken)
     {
         waiterToken.ThrowIfCancellationRequested();
@@ -110,9 +112,6 @@ public sealed class DynamicWindowTargetCoordinator
                 result = next.Result.Task;
             else if (sequentialPending.FirstOrDefault(work => work.Key == key) is { } queued)
                 result = queued.Result.Task;
-            else if (sequentialPending.Count >= MaximumSequentialPendingTargets)
-                result = Task.FromException<DynamicWindowResponse>(new InvalidOperationException(
-                    $"Playback analysis queue reached its {MaximumSequentialPendingTargets}-target limit."));
             else
             {
                 var work = new Work(key, request, generation);
@@ -120,7 +119,8 @@ public sealed class DynamicWindowTargetCoordinator
                 AlgorithmWindowPerformanceDiagnostics.RecordQueueDepth(
                     request, "enqueued", sequentialPending.Count,
                     active?.Request.CursorSample,
-                    sequentialPending.LastOrDefault()?.Request.CursorSample);
+                    sequentialPending.LastOrDefault()?.Request.CursorSample,
+                    generation);
                 result = work.Result.Task;
                 if (drained is null)
                 {
@@ -168,7 +168,8 @@ public sealed class DynamicWindowTargetCoordinator
                 pending = new Work(key, request, generation);
                 AlgorithmWindowPerformanceDiagnostics.RecordQueueDepth(
                     request, "latest_enqueued", sequentialPending.Count,
-                    active?.Request.CursorSample, request.CursorSample);
+                    active?.Request.CursorSample, request.CursorSample,
+                    generation);
                 result = pending.Result.Task;
                 if (drained is null)
                 {
@@ -209,15 +210,17 @@ public sealed class DynamicWindowTargetCoordinator
                 AlgorithmWindowPerformanceDiagnostics.RecordQueueDepth(
                     work.Request, "started", sequentialPending.Count,
                     work.Request.CursorSample,
-                    sequentialPending.LastOrDefault()?.Request.CursorSample);
+                    sequentialPending.LastOrDefault()?.Request.CursorSample,
+                    work.Generation);
             }
             var started = Stopwatch.GetTimestamp();
             try
             {
-                var response = client is null
-                    ? await observe!(work.Request, work.Cancellation.Token).ConfigureAwait(false)
-                    : await new DynamicWindowObserver(client).ObserveAsync(work.Request, work.Cancellation.Token,
-                        response => ReportStatus(work, response)).ConfigureAwait(false);
+                var response = await resources.RunAsync(async token => client is null
+                    ? await observe!(work.Request, token).ConfigureAwait(false)
+                    : await new DynamicWindowObserver(client).ObserveAsync(work.Request, token,
+                        response => ReportStatus(work, response)).ConfigureAwait(false), work.Cancellation.Token)
+                    .ConfigureAwait(false);
                 var publishCompleted = false;
                 lock (gate)
                 {
@@ -289,7 +292,8 @@ public sealed class DynamicWindowTargetCoordinator
         if (work.Cancellation.IsCancellationRequested) return;
         AlgorithmWindowPerformanceDiagnostics.RecordQueueDepth(
             superseding, "latest_cancel_active", sequentialPending.Count,
-            work.Request.CursorSample, superseding.CursorSample);
+            work.Request.CursorSample, superseding.CursorSample,
+            work.Generation);
         work.Result.TrySetCanceled();
         work.CancellationTask = work.Cancellation.CancelAsync();
     }

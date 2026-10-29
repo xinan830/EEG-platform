@@ -139,6 +139,19 @@ def test_dynamic_dispatch_preserves_each_child_per_window_and_metric_units():
     assert set(result.array_units) == set(result.arrays)
 
 
+def test_dynamic_result_validation_rejects_tnk_channel_count_or_order_mismatch():
+    group = _group()
+    config = _config("dynamic")
+    inputs = group.resolve_inputs(SyntheticRecording(), config)
+    result = group.execute_dynamic(inputs, config)
+    channels = group.requested_channels(config)
+
+    with pytest.raises(ValueError, match="requested channels"):
+        validate_algorithm_result(result, group.manifest, "dynamic", channels[:-1])
+    with pytest.raises(ValueError, match="channel order"):
+        validate_algorithm_result(result, group.manifest, "dynamic", list(reversed(channels)))
+
+
 def test_iapf_uses_its_own_30_second_warmup_and_five_second_cadence():
     group = _group()
     config = _config("dynamic")

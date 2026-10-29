@@ -7,6 +7,7 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     private RbpResultPreview preview = RbpResultPreview.Parse(null);
     private bool isFailureDetailsExpanded;
     private string? windowSession;
+    private string structuredPreviewFailure = "";
     private IReadOnlyList<RbpChannelHistory> channelHistories = [];
 
     internal RbpDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "rbp")
@@ -19,7 +20,12 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
             preview = RbpResultPreview.FromWindow(response);
             windowSession = response.SessionId;
         }
-        else preview = RbpResultPreview.Parse(catalog.LastRun);
+        else
+        {
+            preview = RbpResultPreview.Parse(catalog.LastRun);
+            if (catalog.LastRun is { Status: "completed", ScientificVersion: "official-rbp-v3" } run)
+                _ = LoadStructuredHistoryAsync(run.RunId);
+        }
     }
 
     public IReadOnlyList<RbpBandPoint> Bands => preview.BandsAt(Catalog.DynamicPreviewCursorSeconds);
@@ -44,14 +50,15 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
     private IEnumerable<RbpWindowPoint> ReleasedFailures => preview.Windows.Where(window =>
         window.EndSeconds <= Catalog.DynamicPreviewCursorSeconds + 1e-9 && !string.IsNullOrWhiteSpace(window.Failure));
     public string FailureReasonText => Catalog.LastRun?.Error?.Message ?? (!IsDynamic
-        ? (string.IsNullOrWhiteSpace(preview.StaticFailure) ? "暂无失败原因" : preview.StaticFailure)
+        ? (string.IsNullOrWhiteSpace(structuredPreviewFailure) && string.IsNullOrWhiteSpace(preview.StaticFailure)
+            ? "暂无失败原因" : string.IsNullOrWhiteSpace(structuredPreviewFailure) ? preview.StaticFailure : structuredPreviewFailure)
         : ReleasedFailures.LastOrDefault() is { } latest
             ? $"已有 {ReleasedFailures.Count()} 个失败窗口；最近原因：{AlgorithmResultFormatter.FormatFailureCodeForDisplay(latest.Failure)}"
             : "暂无失败原因");
     public string FailureDetailsText => Catalog.LastRun?.Error?.Message ?? (IsDynamic ?
         string.Join(Environment.NewLine, ReleasedFailures
             .Select(window => $"{window.StartSeconds:0.###}–{window.EndSeconds:0.###} s：{AlgorithmResultFormatter.FormatFailureCodeForDisplay(window.Failure)}"))
-        : preview.StaticFailure);
+        : string.IsNullOrWhiteSpace(structuredPreviewFailure) ? preview.StaticFailure : structuredPreviewFailure);
     public bool IsFailureDetailsExpanded
     {
         get => isFailureDetailsExpanded;
@@ -72,6 +79,7 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
             or nameof(AlgorithmListViewModel.BackgroundFullRun))
         {
             windowSession = null;
+            structuredPreviewFailure = "";
             preview = Catalog.SelectedAlgorithm?.Id == "rbp"
                 ? CompletedBackgroundFullRun is { } fullRun
                     ? RbpResultPreview.Parse(fullRun)
@@ -143,6 +151,7 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
             var structured = await Catalog.Client.GetStructuredPreviewAsync(runId, 1_000_000, CancellationToken.None);
             if (Catalog.LastRun?.RunId != runId || Catalog.SelectedAlgorithm?.Id != AlgorithmId) return;
             preview = RbpResultPreview.FromStructured(structured);
+            structuredPreviewFailure = "";
             channelHistories = RbpHistoryProjection.FromFull(preview.ChannelWindows);
             if (IsDynamic && Catalog.DynamicWindowRows.Count == 0 && preview.Windows.Length > 0)
             {
@@ -159,8 +168,10 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
         {
             if (Catalog.LastRun?.RunId != runId) return;
             channelHistories = [];
+            structuredPreviewFailure = $"RBP 结构化结果解析失败：{error.Message}";
             Catalog.SetStructuredPreviewTextForModule($"RBP 多导联历史预览不可用：{error.Message}");
             RaisePropertyChanged(nameof(ChannelHistories));
+            RaiseRbpProperties();
         }
     }
 

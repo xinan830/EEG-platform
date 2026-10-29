@@ -10,6 +10,7 @@
 - [x] 2.3 Add bounded subscription delivery with resume/deduplication and explicit overflow or discontinuity ranges; reuse existing immutable window reads for reconciliation where possible.
 - [x] 2.4 Keep existing target-only on-demand observation and full-Run behavior compatible; gate ordered playback delivery behind an opt-in capability with structured unsupported/capacity/failure outcomes.
 - [x] 2.5 Add backend tests for stateful sequential replay parity, checkpoint restore, backward seek, context invalidation, duplicate/out-of-order event recovery, bounded overflow, and exact window identity/provenance.
+- [x] 2.6 Expose exact failed-frame ranges when event publication fails, retry one canonical frame from the desktop, and keep unrecovered history explicitly incomplete.
 
 ## 3. Desktop playback and history projection
 
@@ -27,6 +28,18 @@
 - [x] 3A.1 Add a session-scoped legacy stream bundle that reads raw Fz suffixes once and maintains the distinct Crimson/Zenlite preprocessing states.
 - [x] 3A.2 Share Zenlite model inference across calmness, awareness, and spectral relaxation and reset/checkpoint the bundle with TNK replay state.
 - [x] 3A.3 Use child-specific warm-up lengths (Crimson 5 s; Zenlite 1200/256 s) and cover chunk invariance, shared source reads, and warm-up behavior with focused tests.
+
+## 3B. Shared WPF source access
+
+- [x] 3B.1 Reuse bounded, identity-validated WPF facts and batch indexes across per-window readers; remove duplicate indexing and cover cache reuse/source-change invalidation.
+
+## 3C. Unified EEG data access contract
+
+- [x] 3C.1 Map the current WPF, BDF/EDF, acquisition persistence, and display-ring-buffer ownership boundaries.
+- [x] 3C.2 Define the identity-bound sample access session contract, including coordinates, units, channel order, gaps, lifecycle, per-format concurrency, cancellation, and live C#/Python boundary.
+- [ ] 3C.3 Reuse one backend recording-access session across TNK windows; preserve existing algorithm inputs and source identity.
+- [ ] 3C.4 Implement and validate the live acquisition adapter over an explicit bounded process boundary; keep raw persistence independent from display retention.
+- [ ] 3C.5 Migrate remaining backend sample consumers to the access session after documenting their format-specific lifetime and concurrency requirements.
 
 ## 4. Transport decision and acceptance
 

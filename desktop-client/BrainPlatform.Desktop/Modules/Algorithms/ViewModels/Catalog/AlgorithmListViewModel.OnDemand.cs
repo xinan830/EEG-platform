@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text;
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
@@ -17,6 +19,10 @@ public sealed partial class AlgorithmListViewModel
     private DynamicWindowResponse? displayedWindow;
     private CancellationTokenSource? windowWait;
     private long windowRevision;
+    // One generation owns the playback target stream.  It advances whenever
+    // the scientific context is reset, so late results cannot be mistaken for
+    // current playback work even when the request shape is otherwise equal.
+    private long windowContextGeneration;
     private bool windowLoading;
     private readonly DispatcherTimer dynamicWindowRequestTimer;
     private bool dynamicWindowRequestPending;
@@ -30,11 +36,14 @@ public sealed partial class AlgorithmListViewModel
     private readonly Dictionary<(string RunId, long CursorSample), WindowPreviewResponse> fullWindowPreviewCache = [];
     private TaskCompletionSource<Task>? pendingRequestFlush;
     internal event Action<DynamicWindowRequest, DynamicWindowResponse>? OwnedWindowCompleted;
+    /// <summary>Single playback target stream for analysis subscribers.</summary>
+    internal event Action<ReviewTargetEnvelope>? PlaybackTargetPublished;
     internal event Action<TnkPlaybackGap>? OwnedTnkPlaybackGap;
     internal event Action<string>? OwnedTnkPlaybackRecoveryFailed;
     internal string? ActivePlaybackDeliveryId => tnkPlaybackDeliveryId;
     internal bool IsTnkPlaybackEventConsumerActive => tnkPlaybackEventsCancellation is not null;
     internal Task CurrentWindowLoad { get; private set; } = Task.CompletedTask;
+    internal long AnalysisContextGeneration => windowContextGeneration;
     public bool IsOnDemandAnalysis => windowRequest is not null;
     public DynamicWindowResponse? DisplayedAnalysisWindow => displayedWindow;
     internal bool IsCurrentDynamicRequest(DynamicWindowRequest request) => windowRequest is { } current &&
@@ -51,6 +60,7 @@ public sealed partial class AlgorithmListViewModel
     private async Task BeginWindowAnalysisAsync(AnalysisRunRequest request,
         IAlgorithmRunResultHandler handler, double initialCursor)
     {
+        windowContextGeneration++;
         if (windowTargets is null)
         {
             windowTargets = new DynamicWindowTargetCoordinator(client);
@@ -66,6 +76,7 @@ public sealed partial class AlgorithmListViewModel
         {
             tnkPlaybackDeliveryId = Guid.NewGuid().ToString("N");
             tnkPlaybackEventSequence = 0;
+            tnkPlaybackRecoveryRange = null;
         }
         dynamicWindowRequestTimer.Stop();
         dynamicWindowRequestPending = false;
@@ -130,6 +141,7 @@ public sealed partial class AlgorithmListViewModel
             null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"),
             PlaybackDelivery: tnkPlaybackDeliveryId is not null,
             PlaybackDeliveryId: tnkPlaybackDeliveryId);
+        PublishPlaybackTarget(target, recording);
         CurrentWindowLoad = LoadWindowTargetAsync(target, handler, revision, windowWait);
     }
 
@@ -153,12 +165,29 @@ public sealed partial class AlgorithmListViewModel
             null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"),
             PlaybackDelivery: tnkPlaybackDeliveryId is not null,
             PlaybackDeliveryId: tnkPlaybackDeliveryId);
+        PublishPlaybackTarget(target, recording);
         if (AlgorithmWindowPerformanceDiagnostics.Enabled)
             DesktopLog.Info($"tnk_playback_window_target request_id={target.RequestId}" +
+                $" generation={windowContextGeneration}" +
                 $" recording_id={target.RecordingId} algorithm_id={target.AlgorithmId}" +
                 $" target_sample={cursor} target_second={cursor / samplingRateInteger}" +
                 $" delivery_id={target.PlaybackDeliveryId ?? "none"}");
         _ = ObservePlaybackTargetAsync(target);
+    }
+
+    private void PublishPlaybackTarget(DynamicWindowRequest target, RegisteredRecording recording)
+    {
+        if (PlaybackTargetPublished is null || recording.SamplingRateHz is not > 0) return;
+        var configFingerprint = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(target.Config.GetRawText()))).ToLowerInvariant();
+        var lane = string.Equals(target.AlgorithmId, "tnk_biofeedback", StringComparison.OrdinalIgnoreCase)
+            ? ReviewTaskLane.StatefulAnalysis
+            : ReviewTaskLane.WindowIndependentAnalysis;
+        PlaybackTargetPublished.Invoke(new ReviewTargetEnvelope(
+            target.RequestId ?? Guid.NewGuid().ToString("N"), windowContextGeneration,
+            target.RecordingId, target.AlgorithmId, target.DefinitionId,
+            target.DefinitionVersion, configFingerprint, target.CursorSample,
+            recording.SamplingRateHz.Value, recording.Channels, lane, target.PlaybackDeliveryId));
     }
 
     private async Task ObservePlaybackTargetAsync(DynamicWindowRequest target)
@@ -166,15 +195,16 @@ public sealed partial class AlgorithmListViewModel
         var started = Stopwatch.GetTimestamp();
         try
         {
-            // Playback is a stateful latest-only lane. If a replay takes longer
-            // than the cursor cadence, cancel the superseded observation at its
-            // next backend checkpoint instead of letting old work accumulate
-            // ahead of the cursor. Manual seeks keep the normal active-work
-            // completion semantics through LoadAsync.
-            var response = await windowTargets!.LoadLatestAsync(
-                target, CancellationToken.None, cancelActiveOnSupersede: true);
+            // Playback targets are contiguous stateful frames. Keep them in the
+            // coordinator's bounded sequential lane so a slow frame is delayed,
+            // rather than cancelled and leaving a hole in the displayed history.
+            var response = await windowTargets!.LoadSequentialAsync(target, CancellationToken.None);
+            if (tnkPlaybackRecoveryRange is { } recovery && response.Range is { } range &&
+                range.StartSample <= recovery.StartSample && range.EndSample >= recovery.EndSample)
+                tnkPlaybackRecoveryRange = null;
             if (AlgorithmWindowPerformanceDiagnostics.Enabled)
                 DesktopLog.Info($"tnk_playback_window_observed request_id={target.RequestId ?? "none"}" +
+                    $" generation={windowContextGeneration}" +
                     $" window_id={response.WindowId} state={response.State}" +
                     $" target_sample={target.CursorSample} window_end_sample={response.Range?.EndSample.ToString() ?? "unknown"}" +
                     $" elapsed_ms={Stopwatch.GetElapsedTime(started).TotalMilliseconds:0.0}");
@@ -184,7 +214,7 @@ public sealed partial class AlgorithmListViewModel
         {
             AlgorithmWindowPerformanceDiagnostics.Record(target, target.AlgorithmId, null,
                 AlgorithmWindowPerformanceSource.OnDemand, "queue_limited", null, 0, error.Message);
-            if (target.PlaybackDelivery && target.PlaybackDeliveryId is { } deliveryId)
+            if (target.PlaybackDeliveryId is { } deliveryId)
                 PublishTnkPlaybackRecoveryFailed(deliveryId);
         }
     }
@@ -496,6 +526,7 @@ public sealed partial class AlgorithmListViewModel
 
     public async Task ReleaseWindowAnalysisAsync()
     {
+        windowContextGeneration++;
         StopDynamicPreviewTimer();
         dynamicWindowRequestTimer.Stop();
         dynamicWindowRequestPending = false;
@@ -518,6 +549,7 @@ public sealed partial class AlgorithmListViewModel
         tnkPlaybackDeliveryId = null;
         tnkPlaybackEventSequence = 0;
         tnkPlaybackLastRequestedSample = null;
+        tnkPlaybackRecoveryRange = null;
         if (windowTargets is not null) await windowTargets.ResetAsync();
         RaisePropertyChanged(nameof(IsRunActive));
     }

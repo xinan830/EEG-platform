@@ -12,6 +12,8 @@ TNK playback currently prioritizes the newest cursor target, while the backend r
 - Keep formulas, units, window policy, preprocessing, quality rules, and scientific versions unchanged. Defer cross-window numeric reuse until per-window equivalence and profiling justify it.
 - For the migrated ANT time-series children, share one raw Fz chunk stream per TNK session, retain the distinct Crimson/Zenlite preprocessing contracts, and share Zenlite model inference across calmness, awareness, and spectral relaxation.
 - Add opt-in stage timings for the waveform signal-preview request and preserve per-channel display-window minima/maxima alongside the existing uniformly sampled preview line.
+- Reuse validated WPF sample-batch indexes across dynamic-window requests in the backend recording access layer, while keeping per-request readers and source identity validation.
+- Define a source-independent EEG sample access contract for completed recordings and live acquisition, including identity, sample coordinates, units, channel order, gaps, lifecycle, concurrency, cancellation, and the C#/Python process boundary.
 
 ## Capabilities
 
@@ -24,7 +26,7 @@ TNK playback currently prioritizes the newest cursor target, while the backend r
 
 ## Impact
 
-- Backend: TNK group window replay/checkpoint path, bounded event/result delivery, window identity and result serialization; signal-preview stage timing and min/max envelope projection.
+- Backend: TNK group window replay/checkpoint path, bounded event/result delivery, window identity and result serialization; validated WPF sample-index reuse; a source-independent EEG access contract; signal-preview stage timing and min/max envelope projection.
 - Desktop: TNK playback coordination, owned-window history projection, on-demand STFT column append, signal-preview envelope rendering, and SciChart timeline update path.
 - Diagnostics/tests: paired playback-only versus playback-plus-TNK measurements, preview-stage timing, narrow-transient envelope coverage, stateful replay/seek/cancellation coverage, event ordering and history-completeness validation.
 - Compatibility: existing full Runs and immutable on-demand window reads remain compatible. No raw recording or database schema migration is intended; if complete-history delivery requires durable intermediate windows, that storage/API decision must be separately justified before implementation.

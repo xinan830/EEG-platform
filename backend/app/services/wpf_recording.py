@@ -37,6 +37,8 @@ class WpfRecordingFacts:
     duration_s: float
     sample_count: int
     source_sha256: str
+    batches: tuple[tuple[int, int, int, int, int, Path], ...]
+    source_signature: tuple[tuple[str, int, int, int], ...]
 
 
 def inspect_wpf_recording(source_directory: str | Path) -> WpfRecordingFacts:
@@ -99,11 +101,15 @@ def inspect_wpf_recording(source_directory: str | Path) -> WpfRecordingFacts:
         with path.open("rb") as stream:
             for block in iter(lambda: stream.read(1024 * 1024), b""):
                 digest.update(block)
-    return WpfRecordingFacts(root, session_id, start_utc, sfreq, tuple(channels), eeg, (last - first) / sfreq, last - first, digest.hexdigest())
+    return WpfRecordingFacts(
+        root, session_id, start_utc, sfreq, tuple(channels), eeg,
+        (last - first) / sfreq, last - first, digest.hexdigest(), tuple(batches),
+        _source_signature(unique_paths),
+    )
 
 
 def load_wpf_data(facts: WpfRecordingFacts) -> tuple[np.ndarray, float, list[str], list[dict[str, object]]]:
-    batches = _index_batches(facts.root, len(facts.channels))
+    batches = facts.batches
     first = batches[0][0]
     last = max(item[0] + item[1] for item in batches)
     values = np.full((last - first, len(facts.eeg_indexes)), np.nan, dtype=np.float64)
@@ -145,3 +151,20 @@ def _index_batches(root: Path, channel_count: int) -> list[tuple[int, int, int, 
     if any(result[index][0] < result[index - 1][0] + result[index - 1][1] for index in range(1, len(result))):
         raise WpfRecordingError("WPF_RECORDING_COUNTER_OVERLAP", "WPF 样本计数器存在重叠。")
     return result
+
+
+def wpf_source_signature(root: Path) -> tuple[tuple[str, int, int, int], ...]:
+    paths = [root / "manifest.json", root / "recording-summary.json", root / "audit.jsonl"]
+    paths.extend(sorted(root.glob("samples-*.bin")))
+    return _source_signature([path for path in paths if path.is_file()])
+
+
+def _source_signature(paths: list[Path]) -> tuple[tuple[str, int, int, int], ...]:
+    signature = []
+    try:
+        for path in paths:
+            stat = path.stat()
+            signature.append((path.name, stat.st_size, stat.st_mtime_ns, getattr(stat, "st_ino", 0)))
+    except OSError as exc:
+        raise WpfRecordingError("WPF_RECORDING_CHUNK_UNREADABLE", f"WPF 记录源文件无法读取：{path.name}。") from exc
+    return tuple(signature)

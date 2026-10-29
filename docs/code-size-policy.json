@@ -110,8 +110,8 @@
     },
     "backend/app/services/recordings.py": {
       "decision": "keep",
-      "max_lines": 585,
-      "reason": "算法导联选择及 TNK 波形预览：当前 578 行，负责 recording 注册、目录身份和读取器委派；预览只增加连续预处理缓存的窄委派，校验、裁剪、单位转换和显示步长由 recording_signal_preview.py 负责。导联快照和信号投影仍由独立模块拥有。低于 600 行高风险线；继续增长应将注册/目录查询拆为独立服务，不在本文件加入显示或公式。当前工作区将 AnalysisMontageSnapshots 提升为 RecordingService 实例所有者以复用其有界解析缓存，并在现有 registration 分支增加失效源路径的内容匹配重绑定，不新增服务职责；文件低于登记上限。"
+      "max_lines": 590,
+      "reason": "RecordingService 负责 recording 注册、目录身份和样本读取委派，并持有 AnalysisMontageSnapshots 与有界 WPF facts/index 缓存；WPF 样本读取、内容校验、通道投影及窗口裁剪由独立模块负责。当前文件 584 行，低于 600 行高风险线；继续增长应将注册/目录查询拆为独立服务，不在本文件加入显示或科学公式。"
     },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",
