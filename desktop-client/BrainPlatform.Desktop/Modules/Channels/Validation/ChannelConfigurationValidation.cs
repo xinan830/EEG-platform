@@ -45,7 +45,7 @@ public static class ChannelConfigurationValidation
             {
                 if (!string.Equals(label, location.CanonicalSite, StringComparison.OrdinalIgnoreCase) ||
                     location.CoordinateFrame != "mri" || location.CoordinateUnit != "m" ||
-                    location.SourceId != "mne.standard_1020" ||
+                    location.SourceId != "mne.colin27_1020" ||
                     string.IsNullOrWhiteSpace(location.SourceVersion) ||
                     !double.IsFinite(location.X) || !double.IsFinite(location.Y) || !double.IsFinite(location.Z))
                 {

@@ -67,7 +67,9 @@ class SpectralSourceRequest:
     output_high_hz: float
     notch_hz: float | None
     representation: Literal["spectrum", "spectrogram"] = "spectrum"
-    preprocessing_scope: Literal["configured_continuous_before_slice"] = "configured_continuous_before_slice"
+    preprocessing_scope: Literal[
+        "configured_continuous_before_slice", "tnk_window_scoped_v1",
+    ] = "configured_continuous_before_slice"
 
     def __post_init__(self) -> None:
         if not self.roles or any(not role.strip() for role in self.roles):
@@ -93,6 +95,10 @@ class SpectralSourceRequest:
             raise ValueError("spectral source notch frequency must be positive")
         if self.representation not in {"spectrum", "spectrogram"}:
             raise ValueError("spectral source representation is unsupported")
+        if self.preprocessing_scope not in {
+            "configured_continuous_before_slice", "tnk_window_scoped_v1",
+        }:
+            raise ValueError("spectral source preprocessing scope is unsupported")
 
 
 @dataclass(frozen=True)

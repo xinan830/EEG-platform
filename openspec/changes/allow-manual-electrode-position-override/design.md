@@ -10,7 +10,7 @@ The floating electrode map currently allows placement only when `ElectrodeLocati
 - Render manually overridden positions using the existing amber style so the override is distinguishable from unmodified blue standard positions.
 - Preserve each row's resolved template location separately from the manual override. The restore-all action clears every EEG row's override and returns standard channels to their template projection; custom channels without a template location become unavailable on the map again.
 - Treat the manual 2D position as display metadata: validate its normalized range and persist it, but exclude it from the channel signal-identity fingerprint so moving a point does not invalidate or block existing montage references.
-- Represent hardware REF and GND as separate map landmarks, not EEG rows or standard MNE scalp snapshots. Their initial diagram positions are user-confirmed midpoints between Pz/Cz (REF) and Fz/Fpz (GND), projected from the standard_1020 template; persist normalized 2D positions in the profile, allow dragging either marker independently, and restore both with the map reset action. Keep hardware wiring labels and acquisition metadata unchanged.
+- Represent hardware REF and GND as separate map landmarks, not EEG rows or standard MNE scalp snapshots. Their initial diagram positions are user-confirmed midpoints between Pz/Cz (REF) and Fz/Fpz (GND), projected from the colin27_1020 template; persist normalized 2D positions in the profile, allow dragging either marker independently, and restore both with the map reset action. Keep hardware wiring labels and acquisition metadata unchanged.
 
 ## Risks / Trade-offs
 

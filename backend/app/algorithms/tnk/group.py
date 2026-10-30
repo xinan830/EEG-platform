@@ -229,6 +229,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
         self, inputs: Any, child: Any, child_config: Any, start_s: float, end_s: float,
         spectrum_cache: dict[tuple[Any, ...], Any], diagnostics: dict[str, int] | None = None,
         shared_spectra: dict[tuple[int, int], Any] | None = None,
+        *, dynamic_frame: bool = False,
     ):
         child_inputs = child.resolve_inputs(inputs.payload, child_config)
         channels = tuple(channel.casefold() for channel in child.requested_channels(child_config))
@@ -256,7 +257,9 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             cache_key = (start_sample, end_sample, channels)
             spectrum = spectrum_cache.get(cache_key)
             if spectrum is None:
-                spectrum = child.load_window_spectrum(child_inputs, child_config, start_s, end_s)
+                spectrum = child.load_window_spectrum(
+                    child_inputs, child_config, start_s, end_s, bounded=dynamic_frame,
+                )
                 spectrum_cache[cache_key] = spectrum
                 if diagnostics is not None:
                     diagnostics["spectrum_loads"] = diagnostics.get("spectrum_loads", 0) + 1
@@ -289,7 +292,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                     start_s=start_s, window_s=end_s - start_s,
                     channels=list(channels), filter_low_hz=1.0,
                     filter_high_hz=30.0, output_low_hz=1.0,
-                    output_high_hz=30.0,
+                    output_high_hz=30.0, preprocessing_scope="tnk_window_scoped_v1",
                 )
             except SpectralQualityGateError as exc:
                 shared[key] = (tuple(channel.casefold() for channel in channels), exc)
@@ -412,7 +415,7 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                     input_started = time.perf_counter()
                     child_inputs, window = self._child_inputs_and_window(
                     inputs, child, child_config, child_start_s, child_end_s, spectrum_cache, diagnostics,
-                    shared_spectra,
+                    shared_spectra, dynamic_frame=dynamic_frame,
                     )
                     input_elapsed_ms += (time.perf_counter() - input_started) * 1000
                 except SpectralQualityGateError as exc:
@@ -656,5 +659,9 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             evidence={"extensions": {"tnk_evidence": {
                 "group_id": self.manifest.algorithm_id,
                 "role_mapping": dict(config.role_mapping), "points": points,
+                "preprocessing_scope": "tnk_window_scoped_v1",
+                "preprocessing_version": "tnk-window-spectral-v1",
+                "filter_context_s": 2.0,
+                "boundary_policy": "clamp_to_recording",
             }}},
         )

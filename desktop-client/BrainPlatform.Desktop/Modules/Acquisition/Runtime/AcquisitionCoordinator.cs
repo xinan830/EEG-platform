@@ -8,6 +8,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     private readonly IAcquisitionDeviceAdapter deviceAdapter;
     private readonly IAcquisitionRawWriterFactory rawWriterFactory;
     private readonly BoundedAnalysisDispatcher analysisDispatcher;
+    private readonly BoundedLiveAccessDispatcher? liveAccessDispatcher;
     private readonly SemaphoreSlim lifecycle = new(1, 1);
     private readonly SemaphoreSlim batchBoundary = new(1, 1);
     private readonly int ringBufferCapacitySamples;
@@ -45,7 +46,9 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         IAcquisitionRawWriterFactory rawWriterFactory,
         IAcquisitionAnalysisBridge analysisBridge,
         int ringBufferCapacitySamples = 30_000,
-        int analysisQueueCapacity = 8)
+        int analysisQueueCapacity = 8,
+        ILiveSampleAccessBridge? liveAccessBridge = null,
+        int liveAccessQueueCapacity = 8)
     {
         this.deviceAdapter = deviceAdapter ?? throw new ArgumentNullException(nameof(deviceAdapter));
         this.rawWriterFactory = rawWriterFactory ?? throw new ArgumentNullException(nameof(rawWriterFactory));
@@ -57,11 +60,18 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             analysisBridge ?? throw new ArgumentNullException(nameof(analysisBridge)),
             analysisQueueCapacity);
         analysisDispatcher.AnalysisFaulted += (_, fault) => AnalysisFaulted?.Invoke(this, fault);
+        if (liveAccessBridge is not null)
+        {
+            this.liveAccessDispatcher = new BoundedLiveAccessDispatcher(liveAccessBridge, liveAccessQueueCapacity);
+            this.liveAccessDispatcher.Faulted += (_, fault) => LiveAccessFaulted?.Invoke(this, fault);
+        }
     }
 
     public event EventHandler<AcquisitionStateSnapshot>? StateChanged;
 
     public event EventHandler<AcquisitionFault>? AnalysisFaulted;
+
+    public event EventHandler<AcquisitionFault>? LiveAccessFaulted;
 
     public AcquisitionStateSnapshot State => Volatile.Read(ref state);
 
@@ -379,6 +389,10 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         {
             disposed = true;
             await analysisDispatcher.DisposeAsync();
+            if (liveAccessDispatcher is not null)
+            {
+                await liveAccessDispatcher.DisposeAsync();
+            }
             batchBoundary.Dispose();
             lifecycle.Dispose();
         }
@@ -498,6 +512,12 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
 
             var dispatchSessionId = sessionId ?? throw new InvalidOperationException("Stream session was not initialized.");
             var dispatch = analysisDispatcher.TryQueue(new AcquisitionAnalysisBatch(
+                dispatchSessionId,
+                activeMetadata,
+                batch,
+                continuity.Gap,
+                activeWriter?.RecordingDirectory ?? string.Empty));
+            liveAccessDispatcher?.TryQueue(new AcquisitionAnalysisBatch(
                 dispatchSessionId,
                 activeMetadata,
                 batch,

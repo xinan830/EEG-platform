@@ -76,7 +76,7 @@ public sealed class MontageDirectionProjectionTests
 
     private static ChannelConfigurationEntry StandardChannel(string label, double x, double y, double z, double mapX, double mapY) => new(
         0, AcquisitionChannelKind.Reference, label, true, 0,
-        new ElectrodeLocationSnapshot(label, x, y, z, "mri", "m", "mne.standard_1020", "1.12.1", mapX, mapY));
+        new ElectrodeLocationSnapshot(label, x, y, z, "mri", "m", "mne.colin27_1020", "1.12.1", mapX, mapY));
 
     private static MontageDraftRow Row(string positive, MontageNegativeKind kind, string? negative = null) => new(
         positive, 0, ["F3", "C3", "C4"], kind, negative, null, null, "AVG", "PAIR");

@@ -53,7 +53,7 @@ public static class ElectrodeMapProjection
     }
 
     private static bool IsUsableLocation(string label, ElectrodeLocationSnapshot? location) =>
-        location is { CoordinateFrame: "mri", CoordinateUnit: "m", SourceId: "mne.standard_1020" } &&
+        location is { CoordinateFrame: "mri", CoordinateUnit: "m", SourceId: "mne.colin27_1020" } &&
         !string.IsNullOrWhiteSpace(location.SourceVersion) &&
         string.Equals(label.Trim(), location.CanonicalSite, StringComparison.OrdinalIgnoreCase) &&
         double.IsFinite(location.X) && double.IsFinite(location.Y) && double.IsFinite(location.Z);

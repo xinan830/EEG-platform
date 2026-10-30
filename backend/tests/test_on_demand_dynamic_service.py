@@ -25,7 +25,10 @@ class _RecordingStub:
     def analysis_signal_provenance(self, _recording):
         return {"analysis_reference": "original", "signal_mode": "raw"}
 
-    def load_spectrum(self, _recording, start_s=0, window_s=0, channels=None, **_kwargs):
+    def load_spectrum(self, _recording, start_s=0, window_s=0, channels=None, **kwargs):
+        execution_context = kwargs.get("execution_context")
+        if execution_context is not None:
+            execution_context.source_preparation_completed()
         frequencies = PsdAlgorithm._frequency_axis(200, 1, 50)
         return {
             "frequencies_hz": frequencies.tolist(),

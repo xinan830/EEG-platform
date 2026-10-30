@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import threading
 import time
 from collections import OrderedDict
@@ -140,6 +141,7 @@ class TnkGroupWindowCapability:
         if check_cancelled:
             check_cancelled()
         started = time.perf_counter()
+        process_cpu_started = time.process_time()
         frames = self._replay_frames(inputs, config, plan.end_s)
         target_index = next((index for index, frame in enumerate(frames)
                              if self._same_range(frame, plan.start_s, plan.end_s, inputs.sfreq_hz)), None)
@@ -185,14 +187,19 @@ class TnkGroupWindowCapability:
         if check_cancelled:
             check_cancelled()
         actual_replayed_frames = target_index + 1 if checkpoint_frame_index is None else target_index - checkpoint_frame_index
+        elapsed_seconds = time.perf_counter() - started
+        process_cpu_ms = (time.process_time() - process_cpu_started) * 1000
+        process_cpu_percent = process_cpu_ms / max(elapsed_seconds * 1000, 1e-9) / max(1, os.cpu_count() or 1) * 100
         logger.info(
             "tnk_on_demand_execution target_frame=%s checkpoint_frame=%s replayed_frames=%s "
             "spectrum_loads=%s spectrum_cache_hits=%s shared_time_series_loads=%s "
-            "child_calculations=%s elapsed_ms=%.1f",
+            "child_calculations=%s elapsed_ms=%.1f process_cpu_ms=%.1f "
+            "process_cpu_pct=%.1f logical_processors=%s",
             target_index, checkpoint_frame_index, actual_replayed_frames,
             diagnostics.get("spectrum_loads", 0), diagnostics.get("spectrum_cache_hits", 0),
             diagnostics.get("shared_time_series_loads", 0),
-            diagnostics.get("child_calculations", 0), (time.perf_counter() - started) * 1000,
+            diagnostics.get("child_calculations", 0), elapsed_seconds * 1000,
+            process_cpu_ms, process_cpu_percent, os.cpu_count() or 1,
         )
         if target_result is None:
             raise ValueError("TNK group replay produced no target result")
@@ -220,7 +227,10 @@ class TnkGroupWindowCapability:
             quality=quality,
             evidence=self._point_evidence(config, evidence, values),
             provenance={
-                "preprocessing_scope": "configured_continuous_before_window_slice",
+                "preprocessing_scope": "tnk_window_scoped_v1",
+                "preprocessing_version": "tnk-window-spectral-v1",
+                "filter_context_s": 2.0,
+                "boundary_policy": "clamp_to_recording",
                 "analysis_state": self._analysis_state(quality),
                 "role_mapping": dict(config.role_mapping),
                 "replayed_window_count": replayed_window_count,

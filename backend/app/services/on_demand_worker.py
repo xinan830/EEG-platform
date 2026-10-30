@@ -43,6 +43,7 @@ class WindowExecutionControl:
 
     def source_preparation_completed(self) -> None:
         self.check()
+        self._acquire_compute_slot()
         self.prepared()
 
     def check_cancelled(self) -> None:
@@ -50,9 +51,11 @@ class WindowExecutionControl:
 
     def window_started(self) -> None:
         self.check()
+
+    def _acquire_compute_slot(self) -> None:
         if self.compute_coordinator is not None:
             if self._compute_lease is not None:
-                raise RuntimeError("a dynamic window is already active")
+                return
             self._compute_lease = self.compute_coordinator.acquire("interactive", self.check)
             if self.on_compute_slot_acquired is not None:
                 self.on_compute_slot_acquired(self._compute_lease.waited_s)

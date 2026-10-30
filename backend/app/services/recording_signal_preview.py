@@ -1,4 +1,4 @@
-"""Filtered montage preview from the canonical continuous prepared signal."""
+"""Filtered montage preview from the bounded display waveform path."""
 import logging
 import os
 import time
@@ -6,27 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
-
 
 logger = logging.getLogger("brain_platform.signal_preview")
-
-
-@dataclass(frozen=True)
-class PreviewPreparationControl:
-    preparation_resource_policy: DynamicWindowResourcePolicy = DynamicWindowResourcePolicy(
-        max_preparation_bytes=512 * 1024**2)
-    # A preview request usually contains only the channels currently visible
-    # in the montage, but those channel lists change as the roles are edited.
-    # Preparing that projection as the cache identity creates one expensive
-    # whole-recording filter per combination and lets playback requests evict
-    # one another.  Keep the canonical prepared source when it fits the
-    # preview budget; _preprocessed_recording still falls back to the
-    # requested projection for recordings that exceed the budget.
-    select_requested_channels: bool = False
-
-    def check_cancelled(self):
-        pass
 
 
 @dataclass(frozen=True)
@@ -61,19 +42,31 @@ def signal_preview(service, recording_id: str, *, start_s: float, window_s: floa
         raise ValueError("预览通道不属于当前导联")
     channels = [available[name.casefold()] for name in channels]
     preparation_started = time.perf_counter()
-    prepared = service.prepare_signal_preview(recording, low_hz, high_hz, notch_hz, channels)
-    preparation_ms = (time.perf_counter() - preparation_started) * 1000
+    window = service.load_window(
+        recording,
+        start_s=start_s,
+        window_s=window_s,
+        low_cut_hz=low_hz,
+        high_cut_hz=high_hz,
+        notch_hz=notch_hz,
+        reference="original",
+        channels=channels,
+        montage="original",
+    )
+    window_read_filter_ms = (time.perf_counter() - preparation_started) * 1000
     slice_started = time.perf_counter()
-    sfreq = prepared.sfreq
-    prepared_lookup = {name.casefold(): index for index, name in enumerate(prepared.channel_names)}
-    indexes = [prepared_lookup[name.casefold()] for name in channels]
-    start = int(np.floor(start_s * sfreq))
-    stop = min(len(prepared.data), int(np.ceil((start_s + window_s) * sfreq)))
-    if start < 0 or start >= stop:
-        raise ValueError("预览窗口超出记录范围")
-    if (stop - start) * len(channels) > 2_000_000:
+    sfreq = float(window["sfreq"])
+    elapsed_s = list(window["elapsed_s"])
+    start = int(np.floor(float(window["window_start_s"]) * sfreq))
+    stop = start + len(elapsed_s)
+    if not elapsed_s:
+        raise ValueError("窗口数据不足")
+    if len(elapsed_s) * len(channels) > 2_000_000:
         raise ValueError("预览窗口超出 200 万样本值预算，请缩短窗口或减少通道")
-    values = np.asarray(prepared.data[start:stop, :][:, indexes], dtype=np.float64)
+    values = np.column_stack([
+        np.asarray(window["channels"][name], dtype=np.float64) * 1e-6
+        for name in channels
+    ])
     if not np.all(np.isfinite(values)):
         raise ValueError("预览信号包含非有限数值")
     slice_validation_ms = (time.perf_counter() - slice_started) * 1000
@@ -83,7 +76,7 @@ def signal_preview(service, recording_id: str, *, start_s: float, window_s: floa
     projection_ms = (time.perf_counter() - projection_started) * 1000
     result = {
         "recording_id": recording_id, "montage_id": montage_id,
-        "unit": "uV", "filter": "continuous_zero_phase", "sfreq": sfreq,
+        "unit": "uV", "filter": "display_causal_iir", "sfreq": sfreq,
         "low_hz": low_hz, "high_hz": high_hz, "notch_hz": notch_hz,
         "start_s": start / sfreq, "end_s": stop / sfreq,
         "elapsed_s": projection.elapsed_s,
@@ -95,7 +88,7 @@ def signal_preview(service, recording_id: str, *, start_s: float, window_s: floa
     _log_preview_diagnostics(
         request_id=request_id,
         recording_id=recording_id,
-        preparation_ms=preparation_ms,
+        window_read_filter_ms=window_read_filter_ms,
         slice_validation_ms=slice_validation_ms,
         projection_ms=projection_ms,
         channel_count=len(channels),
@@ -137,7 +130,7 @@ def _project_display_samples(values: np.ndarray, channels: list[str], start: int
 
 
 def _log_preview_diagnostics(*, request_id: str, recording_id: str,
-                             preparation_ms: float, slice_validation_ms: float,
+                             window_read_filter_ms: float, slice_validation_ms: float,
                              projection_ms: float, channel_count: int,
                              source_sample_count: int, projection: _DisplayProjection,
                              total_service_ms: float) -> None:
@@ -145,11 +138,11 @@ def _log_preview_diagnostics(*, request_id: str, recording_id: str,
         return
 
     logger.info(
-        "signal_preview_perf request_id=%s recording_id=%s source_preparation_ms=%.1f "
+        "signal_preview_perf request_id=%s recording_id=%s window_read_filter_ms=%.1f "
         "window_slice_validation_ms=%.1f display_projection_ms=%.1f channel_count=%s "
         "source_sample_count=%s displayed_point_count=%s display_stride_samples=%s "
         "envelope_bin_count=%s total_service_ms=%.1f",
-        request_id, recording_id, preparation_ms, slice_validation_ms, projection_ms,
+        request_id, recording_id, window_read_filter_ms, slice_validation_ms, projection_ms,
         channel_count, source_sample_count, len(projection.elapsed_s), projection.stride_samples,
         len(projection.extrema_elapsed_s) if projection.extrema_elapsed_s is not None else 0,
         total_service_ms,

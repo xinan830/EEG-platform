@@ -3,12 +3,13 @@ import struct
 from pathlib import Path
 
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services.recording_samples import WpfRecordingFactsCache
 from app.services.recordings import RecordingService
-from app.services.wpf_recording import WpfRecordingError, inspect_wpf_recording, load_wpf_data
+from app.services.wpf_recording import WpfRecordingError, inspect_wpf_recording
 
 
 def _write_fixture(root: Path, status: str = "completed") -> None:
@@ -31,15 +32,38 @@ def _write_fixture(root: Path, status: str = "completed") -> None:
     (root / "audit.jsonl").write_text('{"type":"completed"}\n')
 
 
+def _write_gap_fixture(root: Path) -> None:
+    _write_fixture(root)
+    with (root / "samples-000001.bin").open("wb") as stream:
+        stream.write(struct.pack("<qiiq", 100, 2, 2, 0))
+        np.asarray([[1e-6, 100], [2e-6, 101]], dtype="<f8").tofile(stream)
+        stream.write(struct.pack("<qiiq", 104, 2, 2, 0))
+        np.asarray([[3e-6, 104], [np.nan, 105]], dtype="<f8").tofile(stream)
+    (root / "audit.jsonl").write_text(
+        '{"type":"sample_gap","FirstMissingSampleCounter":102,"LastMissingSampleCounter":103,"MissingSampleCount":2}\n'
+        '{"type":"completed"}\n'
+    )
+
+
 def test_wpf_fixture_is_loaded_as_v_float64(tmp_path: Path):
     root = tmp_path / "recording"
-    _write_fixture(root)
-    facts = inspect_wpf_recording(root)
-    values, sfreq, names, events = load_wpf_data(facts)
-    assert sfreq == 10
-    assert names == ["Fz"]
-    assert values[:, 0].tolist() == [1e-6, 2e-6, 3e-6, 4e-6]
-    assert events == []
+    _write_gap_fixture(root)
+    service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
+    recording = service.register_wpf_recording(str(root))
+    with service.open_access_session(recording) as session:
+        first = session.read_samples(0, 1, ["Fz"])
+        block = session.read_samples(1, 2, ["Fz"])
+        full = session.read_samples(0, 6, ["Fz"])
+    assert (first.start_sample, first.end_sample) == (0, 1)
+    assert first.values_v[:, 0].tolist() == [1e-6]
+    assert block.sampling_rate_hz == 10
+    assert block.channel_names == ("Fz",)
+    assert block.values_v[:, 0].tolist() == [2e-6]
+    np.testing.assert_allclose(full.values_v[:, 0], [1e-6, 2e-6, np.nan, np.nan, 3e-6, np.nan], equal_nan=True)
+    assert [(item.start_sample, item.end_sample, item.reason, item.channels) for item in full.unavailable_intervals] == [
+        (2, 4, "source_gap", ("Fz",)),
+        (5, 6, "missing_value", ("Fz",)),
+    ]
 
 
 def test_register_wpf_is_idempotent_and_rejects_incomplete(tmp_path: Path, monkeypatch):

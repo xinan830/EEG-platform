@@ -24,7 +24,7 @@ public sealed class HttpAlgorithmClientTests
             Assert.Equal(20, body.RootElement.GetProperty("high_hz").GetDouble());
             Assert.Equal(50, body.RootElement.GetProperty("notch_hz").GetDouble());
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new
-            { recording_id = "source", montage_id = "montage", unit = "uV", filter = "continuous_zero_phase", low_hz=2d,high_hz=20d,notch_hz=50d,
+            { recording_id = "source", montage_id = "montage", unit = "uV", filter = "display_causal_iir", low_hz=2d,high_hz=20d,notch_hz=50d,
               elapsed_s = new[] {20d,20.001}, channels = new Dictionary<string,double[]> { ["Pz-AVG"] = [1,2] },
               extrema_elapsed_s = new[] {20.0005}, channel_extrema = new Dictionary<string, object>
               { ["Pz-AVG"] = new { minimum_uv = new[] {-2d}, maximum_uv = new[] {3d} } } }) };

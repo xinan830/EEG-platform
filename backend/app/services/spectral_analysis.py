@@ -83,7 +83,6 @@ class SpectralAnalysisService:
 
     def _preprocessed_recording(self, recording, low_hz, high_hz, notch_hz,
                                 execution_context, channels=None):
-        from app.services.recordings import RecordingService
         from app.services.mapped_preprocessing import mapped_preprocess
         from app.services.prepared_source_identity import prepared_source_identity
 
@@ -106,10 +105,6 @@ class SpectralAnalysisService:
             high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
             channel_names=selected_channels)
         expected_contract = None
-        # Legacy/custom loaders may omit recording-level sample metadata. In
-        # that case the source cannot be contract-validated before loading;
-        # preserve the existing loader seam and attach a contract only when
-        # the immutable recording summary is complete.
         if recording.sfreq is not None and recording.duration_s is not None and recording.channels:
             sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
             contract_channels = selected_channels or tuple(recording.channels)
@@ -143,22 +138,12 @@ class SpectralAnalysisService:
                 recording.id, identity, lookup.miss_reason,
             )
         def create_preprocessed() -> PreprocessedRecording:
-            if getattr(self.recordings.load_data, "__func__", None) is RecordingService.load_data:
-                prepared = mapped_preprocess(self.recordings, recording, low_hz=low_hz,
-                    high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
-                    channels=list(selected_channels) if selected_channels is not None else None,
-                    execution_context=execution_context)
-            else:
-                data, sfreq, names, _events = self.recordings.load_data(recording)
-                source = np.asarray(data, dtype=float)
-                if selected_channels is not None:
-                    available = {name.casefold(): index for index, name in enumerate(names)}
-                    indexes = [available[name.casefold()] for name in selected_channels]
-                    source = source[:, indexes]
-                    names = [names[index] for index in indexes]
-                filtered = self.spectral_gateway.preprocess(source, sfreq,
-                    low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q)
-                prepared = PreprocessedRecording(filtered, sfreq, tuple(names))
+            prepared = mapped_preprocess(
+                self.recordings, recording, low_hz=low_hz, high_hz=high_hz,
+                notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
+                channels=list(selected_channels) if selected_channels is not None else None,
+                execution_context=execution_context,
+            )
             if expected_contract is not None:
                 prepared = replace(prepared, contract=expected_contract)
             return prepared
@@ -185,6 +170,7 @@ class SpectralAnalysisService:
         output_low_hz: float | None = None,
         output_high_hz: float | None = None,
         execution_context: Any = None,
+        preprocessing_scope: str = "configured_continuous_before_slice",
         _preprocessed: PreprocessedRecording | None = None,
     ) -> dict[str, object]:
         """Return frozen v3 PSD, absolute band power, and relative power."""
@@ -196,17 +182,37 @@ class SpectralAnalysisService:
                 or filter_low_hz <= 0.0 or filter_high_hz <= filter_low_hz
                 or output_low_hz < 0.0 or output_high_hz <= output_low_hz):
             raise ValueError("PSD 频率范围无效")
-        version = str(ANALYSIS_CONTRACT["algorithm_version"])
+        requested_start = float(start_s)
+        requested_end = requested_start + float(window_s)
         # Filtering is part of the scientific contract. Never reuse a 1-30 Hz
         # preprocessed signal for a requested 0.5-50 Hz PSD (or vice versa).
         if notch_hz is _AUTO_NOTCH:
             notch_hz = _notch_for_requested_range(filter_high_hz)
         elif notch_hz is not None and float(notch_hz) not in (50.0, 60.0):
             raise ValueError("陷波仅支持关闭、50Hz 或 60Hz")
-        cached = _preprocessed or self._preprocessed_recording(
-            recording, filter_low_hz, filter_high_hz, notch_hz, execution_context,
-            channels=channels)
-        filtered_all, sfreq, names = cached.data, cached.sfreq, list(cached.channel_names)
+        bounded = preprocessing_scope == "tnk_window_scoped_v1"
+        bounded_evidence: dict[str, object] | None = None
+        bounded_start_sample: int | None = None
+        if bounded:
+            from app.services.tnk_window_preprocessing import prepare_tnk_window
+
+            sfreq = float(recording.sfreq)
+            target_start = int(np.floor(requested_start * sfreq))
+            target_end = target_start + int(round(float(window_s) * sfreq))
+            bounded_start_sample = target_start
+            prepared = prepare_tnk_window(
+                self.recordings, recording, start_sample=target_start,
+                end_sample=target_end, channels=channels,
+                low_hz=filter_low_hz, high_hz=filter_high_hz,
+                notch_hz=notch_hz, execution_context=execution_context,
+            )
+            filtered_all, sfreq, names = prepared.data, prepared.sfreq, list(prepared.channel_names)
+            bounded_evidence = prepared.evidence
+        else:
+            cached = _preprocessed or self._preprocessed_recording(
+                recording, filter_low_hz, filter_high_hz, notch_hz, execution_context,
+                channels=channels)
+            filtered_all, sfreq, names = cached.data, cached.sfreq, list(cached.channel_names)
         available = {name.casefold(): name for name in names}
         requested = names if channels is None else [available.get(item.casefold()) for item in channels]
         if any(item is None for item in requested):
@@ -215,11 +221,9 @@ class SpectralAnalysisService:
         if not requested_names:
             raise ValueError("频谱分析至少需要一个通道")
         indexes = [names.index(item) for item in requested_names]
-        duration_s = len(filtered_all) / sfreq
+        duration_s = float(recording.duration_s) if bounded else len(filtered_all) / sfreq
         if filter_high_hz >= sfreq / 2.0 or output_high_hz >= sfreq / 2.0:
             raise ValueError(f"PSD 最高频率必须低于奈奎斯特频率（{sfreq / 2:g}Hz）")
-        requested_start = float(start_s)
-        requested_end = requested_start + float(window_s)
         validate_recording_analysis_input(
             duration_s,
             sfreq,
@@ -228,9 +232,14 @@ class SpectralAnalysisService:
             requested_end,
             requested_names,
         )
-        actual_start = requested_start
-        start_index = int(np.floor(actual_start * sfreq))
-        stop_index = min(len(filtered_all), start_index + int(round(float(window_s) * sfreq)))
+        actual_start = (
+            bounded_start_sample / sfreq
+            if bounded_start_sample is not None else requested_start
+        )
+        start_index = 0 if bounded else int(np.floor(actual_start * sfreq))
+        stop_index = len(filtered_all) if bounded else min(
+            len(filtered_all), start_index + int(round(float(window_s) * sfreq)),
+        )
         window = filtered_all[start_index:stop_index, :][:, indexes]
         if len(window) < int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * sfreq)):
             raise ValueError("频谱分析窗口至少需要 4 秒")
@@ -285,11 +294,17 @@ class SpectralAnalysisService:
             "channels": requested_names,
             "analysis_reference": self.recordings.analysis_signal_provenance(recording)["analysis_reference"],
             "signal_source": self.recordings.analysis_signal_provenance(recording),
-            "algorithm_version": ANALYSIS_CONTRACT["algorithm_version"],
+            "algorithm_version": (
+                bounded_evidence["algorithm_version"]
+                if bounded_evidence is not None else ANALYSIS_CONTRACT["algorithm_version"]
+            ),
             "filter_contract": {**{key: ANALYSIS_CONTRACT[key] for key in (
                 "bandpass_type", "bandpass_prototype_order", "bandpass_hz", "preprocessing_phase", "filter_form",
             )}, "bandpass_hz": [filter_low_hz, filter_high_hz], "notch_hz": notch_hz,
-            "notch_quality_factor": POWERLINE_NOTCH_Q if notch_hz is not None else None},
+            "notch_quality_factor": POWERLINE_NOTCH_Q if notch_hz is not None else None,
+            "preprocessing_scope": preprocessing_scope,
+            "preprocessing": bounded_evidence,
+            },
             "welch_contract": {key: ANALYSIS_CONTRACT[key] for key in (
                 "welch_segment_s", "welch_segment_overlap", "welch_step_s", "welch_window", "welch_scaling",
             )},

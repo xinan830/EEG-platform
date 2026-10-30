@@ -46,18 +46,13 @@ def test_generated_recording_registers_and_projects_exact_raw_signals(synthetic_
     derived = service.register_wpf_recording(str(synthetic_recording), signal_mode="acquisition_montage")
     assert derived.channels == ("F3-REF", "F7-REF")
     assert raw.source_sha256 == derived.source_sha256
-    raw_reader = service.open_sample_reader(raw)
-    derived_reader = service.open_sample_reader(derived)
-    try:
+    with service.open_access_session(raw) as raw_session, service.open_access_session(derived) as derived_session:
         # Include a batch boundary and both ends of the recording.
         for start, stop in [(0, 250), (900, 1100), (2750, 3000)]:
-            values = derived_reader.read(start, stop)
+            values = derived_session.read_samples(start, stop).values_v
             assert values.dtype == np.float64
             assert np.isfinite(values).all()
-            np.testing.assert_array_equal(values, raw_reader.read(start, stop))
-    finally:
-        raw_reader.close()
-        derived_reader.close()
+            np.testing.assert_array_equal(values, raw_session.read_samples(start, stop).values_v)
 
 
 @pytest.mark.parametrize("key", ["HardwareReferenceElectrodeLocation", "HardwareGroundElectrodeLocation"])

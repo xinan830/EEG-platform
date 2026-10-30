@@ -8,10 +8,19 @@ import pytest
 from app.scientific.primitives import preprocess_offline
 from app.scientific.primitives.block_filter import preprocess_blocks
 from app.services.mapped_preprocessing import mapped_preprocess
+from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
 from app.services.recording_samples import WpfSampleReader
 from app.services.recordings import RecordingService
 from app.services.run_execution_context import RunCancelledError, RunExecutionContext
 from tests.test_wpf_recording import _write_fixture
+
+
+class _AccessSession(RecordingAccessSession):
+    def __init__(self, reader, sfreq, names):
+        super().__init__(
+            RecordingSourceIdentity("test", "test", "test"), reader, sfreq,
+            reader.sample_count, names, (), lambda: None, serialize_reads=False,
+        )
 
 
 @pytest.mark.parametrize("notch", [None, 50, 60])
@@ -44,6 +53,39 @@ def test_wpf_reader_selects_ranges_and_preserves_counter_gaps(tmp_path):
     reader = WpfSampleReader(root)
     values = reader.read(2, 8, [0])[:, 0]
     np.testing.assert_allclose(values, [3e-6, 4e-6, np.nan, np.nan, 7e-6, 8e-6], equal_nan=True)
+    reader.close()
+
+
+def test_wpf_reader_closes_after_cancellation_between_batches(tmp_path):
+    root = tmp_path / "raw"
+    _write_fixture(root)
+    with (root / "samples-000001.bin").open("ab") as stream:
+        stream.write(struct.pack("<qiiq", 104, 2, 2, 0))
+        np.asarray([[5e-6, 104], [6e-6, 105]], dtype="<f8").tofile(stream)
+    reader = WpfSampleReader(root)
+    checks = 0
+
+    def check_cancelled():
+        nonlocal checks
+        checks += 1
+        if checks == 2:
+            raise RunCancelledError("cancel")
+
+    with pytest.raises(RunCancelledError):
+        reader.read(0, 6, [0], check_cancelled=check_cancelled)
+    reader.close()
+
+
+def test_wpf_reader_uses_uniform_payload_view(tmp_path):
+    root = tmp_path / "raw"
+    _write_fixture(root)
+    with (root / "samples-000001.bin").open("ab") as stream:
+        stream.write(struct.pack("<qiiq", 104, 4, 2, 0))
+        np.asarray([[5e-6, 104], [6e-6, 105], [7e-6, 106], [8e-6, 107]], dtype="<f8").tofile(stream)
+    reader = WpfSampleReader(root)
+    values = reader.read(0, 8, [0])[:, 0]
+    np.testing.assert_allclose(values, [1e-6, 2e-6, 3e-6, 4e-6, 5e-6, 6e-6, 7e-6, 8e-6])
+    reader.close()
 
 
 def test_mapped_owner_cleanup_after_reader_failure(tmp_path, monkeypatch):
@@ -65,8 +107,8 @@ def test_mapped_owner_cleanup_after_reader_failure(tmp_path, monkeypatch):
             self.closed = True
     reader = Broken()
     class Recording:
-        def open_sample_reader(self, _recording):
-            return reader
+        def open_access_session(self, _recording):
+            return _AccessSession(reader, 200, ["F3"])
     monkeypatch.setattr(module, "MappedArrays", Owner)
     with pytest.raises(ValueError, match="bad block"):
         mapped_preprocess(Recording(), object(), low_hz=1, high_hz=50, notch_hz=None)
@@ -92,13 +134,13 @@ def test_mapping_reads_bounded_selected_blocks_and_remains_live_after_eviction()
     from app.services.recording_samples import ArraySampleReader
     calls = []
     class Reader(ArraySampleReader):
-        def read(self, start, stop, channels=None):
+        def read(self, start, stop, channels=None, check_cancelled=None):
             calls.append((start, stop, channels))
-            return super().read(start, stop, channels)
+            return super().read(start, stop, channels, check_cancelled)
     source = np.random.default_rng(21).normal(0, 3e-6, (140000, 3))
     class Recording:
-        def open_sample_reader(self, _recording):
-            return Reader(source, 250, ["F3", "F4", "O1"])
+        def open_access_session(self, _recording):
+            return _AccessSession(Reader(source, 250, ["F3", "F4", "O1"]), 250, ["F3", "F4", "O1"])
     lease = mapped_preprocess(Recording(), object(), low_hz=1, high_hz=50,
                               notch_hz=50, channels=["F4", "F3"])
     directory = Path(lease.owner.directory.name)
@@ -122,7 +164,8 @@ def test_stft_does_not_require_entry_to_fit_in_memory_cache(tmp_path, monkeypatc
     from app.services.analysis_preprocess_cache import AnalysisPreprocessCache
     service, recording = _service(tmp_path)
     time = np.arange(6000) / 200
-    monkeypatch.setattr(service, "load_data", lambda _: ((10e-6 * np.sin(2 * np.pi * 10 * time))[:, None], 200, ["F3"], []))
+    from tests.test_spectrum_service import _provide_data
+    _provide_data(monkeypatch, service, (10e-6 * np.sin(2 * np.pi * 10 * time))[:, None], 200, ["F3"])
     service._spectral_analysis.preprocess_cache = AnalysisPreprocessCache(max_resident_bytes=1)
     result = service.load_spectrogram(recording, 0, 30, ["F3"], notch_hz=None)
     assert len(result["times_s"]) == 27

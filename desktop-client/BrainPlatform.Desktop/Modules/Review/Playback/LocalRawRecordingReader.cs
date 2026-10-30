@@ -29,8 +29,14 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
 
     public static async Task<LocalRawRecording> OpenAsync(
         string recordingDirectory,
+        Guid expectedSessionId,
         CancellationToken cancellationToken)
     {
+        if (expectedSessionId == Guid.Empty)
+        {
+            throw new RecordingReadException("RECORDING_IDENTITY_INVALID", "打开回溯必须提供有效的录音会话标识。");
+        }
+
         if (string.IsNullOrWhiteSpace(recordingDirectory))
         {
             throw new RecordingReadException("RECORDING_DIRECTORY_INVALID", "记录目录不能为空。");
@@ -81,6 +87,13 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
         }
 
         ValidateManifest(manifest);
+        if (manifest.SessionId != expectedSessionId)
+        {
+            throw new RecordingReadException(
+                "RECORDING_IDENTITY_MISMATCH",
+                "录音目录中的会话标识与所选录音不一致。");
+        }
+
         var batches = BuildIndex(root, manifest, cancellationToken);
         var index = new LocalRawRecordingIndex(batches, payloadBytesReadDuringOpen: 0);
         var reader = new LocalRawRecordingReader(root, manifest, index);

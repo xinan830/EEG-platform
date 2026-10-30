@@ -31,6 +31,7 @@ DISPLAY_FILTER_CONTRACT = {
     "baseline_stabilization_default": False,
     "baseline_type": "sample_ema",
     "baseline_alpha": 0.01,
+    "read_ahead_seconds": 1.0,
     "notch_type": "iir_notch",
     "notch_q": 30.0,
     "bandpass_type": "butterworth",

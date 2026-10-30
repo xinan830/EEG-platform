@@ -14,7 +14,7 @@ public sealed class ElectrodeLocationClientTests
             Assert.Equal(HttpMethod.Post, request.Method);
             Assert.EndsWith("/api/electrode-locations/resolve", request.RequestUri!.AbsolutePath);
             Assert.Equal("{\"labels\":[\"Fp1\",\"REF\"]}", body);
-            return JsonResponse("""{"montage":"standard_1020","locations":[{"requested_label":"Fp1","status":"available","canonical_site":"Fp1","coordinates":[-0.03,0.08,-0.007],"map_coordinates":[-0.24,-0.87],"coordinate_frame":"mri","coordinate_unit":"m","source_id":"mne.standard_1020","source_version":"1.12.1"},{"requested_label":"REF","status":"unavailable","canonical_site":null,"coordinates":null,"map_coordinates":null,"coordinate_frame":null,"coordinate_unit":null,"source_id":"mne.standard_1020","source_version":"1.12.1"}]}""");
+            return JsonResponse("""{"montage":"colin27_1020","locations":[{"requested_label":"Fp1","status":"available","canonical_site":"Fp1","coordinates":[-0.03,0.08,-0.007],"map_coordinates":[-0.24,-0.87],"coordinate_frame":"mri","coordinate_unit":"m","source_id":"mne.colin27_1020","source_version":"1.12.1"},{"requested_label":"REF","status":"unavailable","canonical_site":null,"coordinates":null,"map_coordinates":null,"coordinate_frame":null,"coordinate_unit":null,"source_id":"mne.colin27_1020","source_version":"1.12.1"}]}""");
         });
         var client = new HttpElectrodeLocationClient(new HttpClient(handler)
         {

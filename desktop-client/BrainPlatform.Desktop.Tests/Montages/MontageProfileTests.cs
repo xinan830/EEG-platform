@@ -14,7 +14,7 @@ public sealed class MontageProfileTests
         {
             Channels = [profile.Channels[0] with
             {
-                ElectrodeLocation = new ElectrodeLocationSnapshot("F3", -0.05, 0.04, 0.06, "mri", "m", "mne.standard_1020", "1.12.1"),
+                ElectrodeLocation = new ElectrodeLocationSnapshot("F3", -0.05, 0.04, 0.06, "mri", "m", "mne.colin27_1020", "1.12.1"),
             }, .. profile.Channels.Skip(1)],
         };
 

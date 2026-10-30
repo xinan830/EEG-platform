@@ -133,6 +133,13 @@ public partial class RecordingReviewView : UserControl
 
     private void OnPlaybackSpeedClick(object sender, RoutedEventArgs e) => ViewModel?.CyclePlaybackSpeed();
 
+    private async void OnWaveformMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (ViewModel is not { } viewModel || e.Delta == 0) return;
+        e.Handled = true;
+        await viewModel.SeekRelativeAsync(-(double)e.Delta / Mouse.MouseWheelDeltaForOneLine);
+    }
+
     private void OnPointLineModeClick(object sender, RoutedEventArgs e)
     {
         ReviewWaveformCanvas.IsPointLineModeEnabled = !ReviewWaveformCanvas.IsPointLineModeEnabled;

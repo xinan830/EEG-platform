@@ -126,6 +126,21 @@ The system SHALL expose bounded diagnostics for waveform tick interval/handler d
 - **THEN** the report includes per-stage distributions, result-window lag, delivered-frame coverage, and queue saturation
 - **AND** it distinguishes measured desktop behavior from automated test results
 
+### Requirement: Bound playback-driven TNK cursor refreshes
+After initial chart structure setup or reactivation, each visible TNK chart SHALL refresh its cursor presentation no more frequently than every 250 ms, including when results arrive in a burst. Hidden or unloaded charts SHALL detach panel subscriptions and perform no cursor or chart refresh work. Reactivation SHALL synchronize the current panel snapshot and cursor immediately without clearing accepted scientific history. This visual throttle SHALL NOT delay the waveform clock, change scientific window scheduling, or discard accepted TNK results.
+
+#### Scenario: Waveform playback advances between TNK cursor refreshes
+- **WHEN** the waveform cursor advances during TNK playback
+- **THEN** waveform rendering and analysis scheduling continue at their existing cadence
+- **AND** visible TNK chart cursors refresh at most four times per second, except for one immediate refresh when chart structure is first created or the chart is reactivated
+- **AND** each accepted TNK result is still appended to its chart history
+
+#### Scenario: Switch away from and return to an analysis chart
+- **WHEN** a chart is hidden or unloaded while the playback cursor and accepted history continue advancing
+- **THEN** the inactive chart does not update its series, cursor, or cursor labels
+- **AND** showing or reloading it observes only its current panel and immediately presents the latest accepted snapshot and current recording position
+- **AND** replacing a panel while inactive does not retain the old panel subscription
+
 ### Requirement: Reuse validated immutable WPF sample indexes
 The backend recording access layer SHALL reuse the validated WPF batch index
 for repeated sample-reader requests with the same canonical source path and
@@ -149,10 +164,13 @@ Sample consumers SHALL use a source-independent access contract whose session
 is bound to one recording/source identity. Reads SHALL use recording-relative
 half-open sample bounds and an explicit ordered channel projection, and SHALL
 return sample-major float64 values in V with sampling rate, source identity,
-actual bounds, and explicit missing intervals. Missing samples SHALL never be
-fabricated as zero. Validated source metadata/index SHALL be reused throughout
-the access session; the session SHALL release format-specific resources on
-close and SHALL be invalidated when the source identity changes.
+actual bounds, and explicit missing intervals. Physical discontinuities in
+stored sample coordinates SHALL be reported as `source_gap`; non-finite channel
+values at present source samples SHALL be reported as `missing_value`. Missing
+samples SHALL never be fabricated as zero. Validated source metadata/index
+SHALL be reused throughout the access session; the session SHALL release
+format-specific resources on close and SHALL be invalidated when the source
+identity changes.
 
 Format adapters SHALL declare their read concurrency and cancellation
 semantics. The access service SHALL coordinate only adapters that require it;
@@ -170,6 +188,11 @@ and algorithm scheduling remain above this boundary.
 - **WHEN** the requested sample range includes samples absent from the source
 - **THEN** the response identifies the missing interval and retains unavailable values as missing
 - **AND** it does not shift later samples or fill the interval with zeros
+
+#### Scenario: WPF review opens the selected recording identity
+- **WHEN** the project review opens a recording directory for a selected session
+- **THEN** the manifest session identity is checked against the selected recording identity before sample indexing
+- **AND** a mismatch is rejected with a structured recording identity error
 
 ### Requirement: Keep live acquisition access separate from display retention
 Live access SHALL use acquisition-session and stream/schema identity, report its

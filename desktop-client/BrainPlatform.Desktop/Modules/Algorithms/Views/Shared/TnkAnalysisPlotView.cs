@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Diagnostics;
 using System.Globalization;
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
@@ -33,6 +34,8 @@ public sealed class TnkAnalysisPlotView : UserControl
     private long cursorDiagnosticsStarted;
     private int cursorRefreshCount;
     private int cursorRefreshSkippedCount;
+    private bool refreshQueued;
+    private TnkPlotPanel? subscribedPanel;
     private readonly TextBlock empty = new() { Text = "暂无有效结果 · 请查看质量状态", Foreground = Brushes.SlateGray,
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     public static readonly DependencyProperty PanelProperty = DependencyProperty.Register(nameof(Panel), typeof(TnkPlotPanel),
@@ -46,6 +49,22 @@ public sealed class TnkAnalysisPlotView : UserControl
 
     public TnkAnalysisPlotView()
     {
+        Loaded += (_, _) =>
+        {
+            ObservePanel(Panel);
+            Refresh();
+            UpdateCursor(force: true);
+        };
+        Unloaded += (_, _) =>
+        {
+            refreshQueued = false;
+            ObservePanel(null);
+        };
+        IsVisibleChanged += (_, _) =>
+        {
+            ObservePanel(IsVisible ? Panel : null);
+            if (IsVisible) ScheduleRefresh();
+        };
         SciChart.Charting.ThemeManager.SetTheme(surface, "BrightSpark");
         surface.ChartModifier = new ModifierGroup(new MouseWheelZoomModifier(), new ZoomPanModifier(), new ZoomExtentsModifier(),
             new RolloverModifier { ShowTooltipOn = ShowTooltipOptions.MouseOver, DrawVerticalLine = true });
@@ -64,18 +83,41 @@ public sealed class TnkAnalysisPlotView : UserControl
 
     private void OnPanelChanged(TnkPlotPanel? previous, TnkPlotPanel? current)
     {
-        if (previous is not null) previous.PropertyChanged -= OnPanelPropertyChanged;
-        if (current is not null) current.PropertyChanged += OnPanelPropertyChanged;
-        Refresh();
+        ObservePanel(current);
+        ScheduleRefresh();
+    }
+
+    private void ObservePanel(TnkPlotPanel? panel)
+    {
+        if (subscribedPanel is not null)
+            subscribedPanel.PropertyChanged -= OnPanelPropertyChanged;
+        subscribedPanel = null;
+        if (IsLoaded && panel is not null)
+        {
+            panel.PropertyChanged += OnPanelPropertyChanged;
+            subscribedPanel = panel;
+        }
     }
 
     private void OnPanelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
-        if (args.PropertyName is nameof(TnkPlotPanel.Chart) or nameof(TnkPlotPanel.EmptyReason)) Refresh();
+        if (args.PropertyName is nameof(TnkPlotPanel.Chart) or nameof(TnkPlotPanel.EmptyReason)) ScheduleRefresh();
+    }
+
+    private void ScheduleRefresh()
+    {
+        if (!IsLoaded || !IsVisible || refreshQueued) return;
+        refreshQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            refreshQueued = false;
+            if (IsLoaded && IsVisible) Refresh();
+        }));
     }
 
     private void Refresh()
     {
+        if (!IsLoaded) return;
         var started = DesktopLog.PerformanceDiagnosticsEnabled ? Stopwatch.GetTimestamp() : 0;
         var updateKind = "unchanged";
         if (Panel is not { } panel)
@@ -280,7 +322,7 @@ public sealed class TnkAnalysisPlotView : UserControl
 
     private void UpdateCursor(bool force = false)
     {
-        if (Panel is not { } panel) return;
+        if (!IsLoaded || !IsVisible || Panel is not { } panel) return;
         if (!force && !CanRefreshPlaybackCursor()) return;
 
         lastPlaybackCursorRefresh = Stopwatch.GetTimestamp();

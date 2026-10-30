@@ -13,7 +13,7 @@ import numpy as np
 
 from app.services.wpf_recording import WpfRecordingError
 
-_LOGGER = logging.getLogger("brain_platform.dynamic_window.tnk")
+_LOGGER = logging.getLogger("brain_platform.recording_access.montage")
 
 
 def _field(item: dict, name: str, default=None):
@@ -262,17 +262,20 @@ class AcquisitionMontageSampleReader:
         self.names = tuple(signal.name for signal in view.signals)
         self._lookup = {name.casefold(): index for index, name in enumerate(raw.names)}
 
-    def read(self, start: int, stop: int, channels: list[int] | None = None) -> np.ndarray:
+    def read(self, start: int, stop: int, channels: list[int] | None = None,
+             check_cancelled=None) -> np.ndarray:
         selected = list(range(len(self.names))) if channels is None else channels
         signals = [self.view.signals[index] for index in selected]
         labels = list(dict.fromkeys(label.casefold() for signal in signals for label in (signal.positive, *signal.negatives)))
         raw_started = time.perf_counter()
-        source = self.raw.read(start, stop, [self._lookup[label] for label in labels])
+        source = self.raw.read(start, stop, [self._lookup[label] for label in labels], check_cancelled)
         raw_read_ms = (time.perf_counter() - raw_started) * 1000
         projection_started = time.perf_counter()
         indexes = {label: index for index, label in enumerate(labels)}
         output = np.empty((stop - start, len(signals)), dtype=np.float64)
         for index, signal in enumerate(signals):
+            if check_cancelled is not None:
+                check_cancelled()
             positive = source[:, indexes[signal.positive.casefold()]]
             if signal.negatives:
                 reference = source[:, [indexes[label.casefold()] for label in signal.negatives]].mean(axis=1)
@@ -286,6 +289,9 @@ class AcquisitionMontageSampleReader:
             start, stop, len(labels), len(signals), raw_read_ms, projection_ms,
         )
         return output
+
+    def source_gaps(self, start: int, stop: int) -> tuple[range, ...]:
+        return self.raw.source_gaps(start, stop)
 
     def close(self) -> None:
         self.raw.close()

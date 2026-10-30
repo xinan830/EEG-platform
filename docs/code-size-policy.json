@@ -3,6 +3,11 @@
   "strong_review_lines": 600,
   "critical_lines": 1000,
   "reviews": {
+    "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Views/Shared/TnkAnalysisPlotView.cs": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "当前约 432 行，单一 TNK SciChart 呈现控件。此次增加每面板的可见生命周期订阅和后台合并刷新，避免隐藏图表持续更新；不引入科学计算、历史所有权或新调用路径。保留同一控件内的图表结构、增量更新和生命周期，避免为少量超线机械拆分；后续扩展前重新评估。"
+    },
     "backend/app/algorithms/tnk/group.py": {
       "decision": "split",
       "max_lines": 720,
@@ -111,7 +116,7 @@
     "backend/app/services/recordings.py": {
       "decision": "keep",
       "max_lines": 590,
-      "reason": "RecordingService 负责 recording 注册、目录身份和样本读取委派，并持有 AnalysisMontageSnapshots 与有界 WPF facts/index 缓存；WPF 样本读取、内容校验、通道投影及窗口裁剪由独立模块负责。当前文件 584 行，低于 600 行高风险线；继续增长应将注册/目录查询拆为独立服务，不在本文件加入显示或科学公式。"
+      "reason": "RecordingService 负责 recording 注册、目录身份和访问服务委派，并持有 AnalysisMontageSnapshots 与有界 WPF facts/index 缓存；样本读取契约、格式适配、内容校验及通道投影位于独立 recording_access 模块。当前文件 523 行，低于 600 行高风险线；若继续增长则把注册/目录查询拆为独立服务，不在本文件加入显示或科学公式。"
     },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",

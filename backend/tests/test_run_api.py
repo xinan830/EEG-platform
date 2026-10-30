@@ -13,17 +13,18 @@ from app.services.recordings import RecordingService
 from app.services.definitions import DefinitionService
 from app.services.runs import RunService
 from app.services.validations import ValidationService
+from tests.access_fixtures import array_access_session
 
 
 class SyntheticRecordingService(RecordingService):
-    def load_data(self, recording):
+    def open_access_session(self, recording, *, analysis_montage_id=None):
         sfreq = 100.0
         times = np.arange(10 * int(sfreq)) / sfreq
         values = np.column_stack([
             10e-6 * np.sin(2 * np.pi * 10 * times),
             6e-6 * np.sin(2 * np.pi * 6 * times),
         ])
-        return values, sfreq, ["F3", "Fz"], []
+        return array_access_session(recording, values, sfreq, ["F3", "Fz"])
 
 
 def _configure_services(tmp_path: Path) -> tuple[TestClient, RecordingSummary]:

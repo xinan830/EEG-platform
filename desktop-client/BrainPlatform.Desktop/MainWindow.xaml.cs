@@ -292,8 +292,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!Guid.TryParseExact(recording.SessionId, "N", out var expectedSessionId))
+        {
+            throw new RecordingReadException("RECORDING_IDENTITY_INVALID", "所选录音的会话标识无效。");
+        }
+
         var loadedRecording = await LocalRawRecordingReader.OpenAsync(
             recording.RecordingDirectory,
+            expectedSessionId,
             CancellationToken.None);
         try
         {

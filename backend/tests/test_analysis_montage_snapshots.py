@@ -68,11 +68,8 @@ def test_registration_rebinds_missing_content_identical_source_before_catalogue(
     assert tuple(item for item in rebound.montage_catalogue
                  if item["snapshot_source"] == "analysis_configuration_snapshot") == snapshots
     assert rebound.stored_name == f"wpf-montage:{moved_root}"
-    reader = service.open_sample_reader(rebound, analysis_montage_id=snapshots[0]["id"])
-    try:
-        assert reader.read(0, 1).shape[0] == 1
-    finally:
-        reader.close()
+    with service.open_access_session(rebound, analysis_montage_id=snapshots[0]["id"]) as session:
+        assert session.read_samples(0, 1).values_v.shape[0] == 1
 
 
 def test_registration_keeps_existing_source_when_content_identical_copy_exists(tmp_path):
@@ -191,11 +188,8 @@ def test_edited_formula_creates_new_identity_without_overwriting_old_snapshot(tm
     assert first_snapshot in changed.montage_catalogue
     for snapshot, expected in [(first_snapshot, values[:10, 0] - values[:10, :3].mean(axis=1)),
                                (new_snapshot, values[:10, 0] - values[:10, 1])]:
-        reader = service.open_sample_reader(changed, analysis_montage_id=snapshot["id"])
-        try:
-            np.testing.assert_allclose(reader.read(0, 10)[:, 0], expected, rtol=0, atol=1e-18)
-        finally:
-            reader.close()
+        with service.open_access_session(changed, analysis_montage_id=snapshot["id"]) as session:
+            np.testing.assert_allclose(session.read_samples(0, 10).values_v[:, 0], expected, rtol=0, atol=1e-18)
 
 
 def test_dynamic_window_projects_selected_snapshot_and_isolates_default_cache(tmp_path):

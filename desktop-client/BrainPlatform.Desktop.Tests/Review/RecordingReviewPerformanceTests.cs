@@ -16,9 +16,10 @@ public sealed class RecordingReviewPerformanceTests
                 .Append(new AcquisitionChannel(28, 28, "Trigger", AcquisitionChannelKind.Trigger, "code"))
                 .Append(new AcquisitionChannel(29, 29, "Counter", AcquisitionChannelKind.SampleCounter, "count"))
                 .ToArray();
+            var sessionId = Guid.NewGuid();
             var manifest = new
             {
-                SessionId = Guid.NewGuid(),
+                SessionId = sessionId,
                 PayloadFormat = "sample_major_float64_v1_with_receive_utc_ticks_and_per_channel_units",
                 EegSignalUnit = "V",
                 DeviceId = "ant-eego",
@@ -47,7 +48,7 @@ public sealed class RecordingReviewPerformanceTests
                 }
             }
 
-            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, CancellationToken.None);
+            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, sessionId, CancellationToken.None);
             Assert.Equal(4000, recording.Manifest.SamplingRateHz);
             Assert.Equal(30, recording.Index.Batches[0].ChannelCount);
             Assert.Equal(0, recording.Index.PayloadBytesReadDuringOpen);

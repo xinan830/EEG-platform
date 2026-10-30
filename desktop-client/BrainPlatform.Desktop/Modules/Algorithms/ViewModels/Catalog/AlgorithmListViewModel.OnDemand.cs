@@ -195,10 +195,14 @@ public sealed partial class AlgorithmListViewModel
         var started = Stopwatch.GetTimestamp();
         try
         {
-            // Playback targets are contiguous stateful frames. Keep them in the
-            // coordinator's bounded sequential lane so a slow frame is delayed,
-            // rather than cancelled and leaving a hole in the displayed history.
-            var response = await windowTargets!.LoadSequentialAsync(target, CancellationToken.None);
+            // TNK replay publishes every canonical frame through its delivery
+            // stream. Keep only the newest playback target so a slow catch-up
+            // cannot turn the cursor into an unbounded request backlog.
+            var response = string.Equals(target.AlgorithmId, "tnk_biofeedback",
+                StringComparison.OrdinalIgnoreCase)
+                ? await windowTargets!.LoadLatestAsync(
+                    target, CancellationToken.None, cancelActiveOnSupersede: true)
+                : await windowTargets!.LoadSequentialAsync(target, CancellationToken.None);
             if (tnkPlaybackRecoveryRange is { } recovery && response.Range is { } range &&
                 range.StartSample <= recovery.StartSample && range.EndSample >= recovery.EndSample)
                 tnkPlaybackRecoveryRange = null;

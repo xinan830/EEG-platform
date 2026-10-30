@@ -436,9 +436,14 @@ def test_waveform_session_reads_raw_data_in_display_chunks():
             self.calls = []
             self.closed = False
 
-        def get_data(self, picks, start, stop):
+        def read(self, start, stop, picks, check_cancelled=None):
+            if check_cancelled is not None:
+                check_cancelled()
             self.calls.append((picks, start, stop))
-            return np.zeros((1, stop - start), dtype=float)
+            return np.zeros((stop - start, len(picks)), dtype=float)
+
+        def source_gaps(self, start, stop):
+            return ()
 
         def close(self):
             self.closed = True
@@ -447,8 +452,13 @@ def test_waveform_session_reads_raw_data_in_display_chunks():
         def __init__(self, raw):
             self.raw = raw
 
-        def open_data_reader(self, _recording):
-            return self.raw, 200.0, ["Fz"], []
+        def open_access_session(self, recording):
+            from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
+            return RecordingAccessSession(
+                RecordingSourceIdentity(recording.id, "test", "test"), self.raw,
+                200.0, self.raw.n_times, self.raw.ch_names, (), lambda: None,
+                serialize_reads=True,
+            )
 
     raw = Raw()
     recording = RecordingSummary(
@@ -465,5 +475,6 @@ def test_waveform_session_reads_raw_data_in_display_chunks():
             break
     assert messages[0]["type"] == "info"
     assert any(isinstance(message, bytes) for message in messages)
-    assert all(stop - start <= 10 for _, start, stop in raw.calls)
+    assert len(raw.calls) == 1
+    assert raw.calls[0][1:] == (0, 20)
     assert raw.closed is True

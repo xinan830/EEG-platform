@@ -77,7 +77,7 @@ def test_queue_rejects_unsupported_bands_before_loading_or_persisting(tmp_path, 
                    time=dict(start_s=0, end_s=10), dynamic_window_s=5, refresh_step_s=1, **extra)
     with pytest.raises(ValueError):
         queue.enqueue(RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=payload))
-    assert service.recordings.load_data_calls == 0
+    assert service.recordings.open_access_session_calls == 0
     assert queue.list() == []
 
 

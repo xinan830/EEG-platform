@@ -20,12 +20,12 @@ def test_standard_template_returns_mne_coordinates_and_provenance():
     response = client().post("/api/electrode-locations/resolve", json={"labels": [" Fp1 ", "cz"]})
     assert response.status_code == 200
     payload = response.json()
-    assert payload["montage"] == "standard_1020"
+    assert payload["montage"] == "colin27_1020"
     fp1, cz = payload["locations"]
     assert fp1["canonical_site"] == "Fp1"
     assert fp1["coordinate_frame"] == "mri" and fp1["coordinate_unit"] == "m"
     assert fp1["coordinates"] == pytest.approx([-0.0294367, 0.0839171, -0.00699])
-    montage = mne.channels.make_standard_montage("standard_1020")
+    montage = mne.channels.make_standard_montage("colin27_1020")
     unique_sites = {}
     for name, xyz in montage.get_positions()["ch_pos"].items():
         unique_sites.setdefault(tuple(float(value) for value in xyz), name)
@@ -33,7 +33,7 @@ def test_standard_template_returns_mne_coordinates_and_provenance():
     info.set_montage(montage)
     assert len(fp1["map_coordinates"]) == 2
     assert fp1["map_coordinates"][1] < 0
-    assert fp1["source_id"] == "mne.standard_1020"
+    assert fp1["source_id"] == "mne.colin27_1020"
     assert cz["status"] == "available" and cz["canonical_site"] == "Cz"
 
 
@@ -45,7 +45,7 @@ def test_unsupported_and_non_electrode_labels_are_explicitly_unavailable():
 
 
 def test_mne_topomap_places_occipital_sites_at_the_posterior_head_edge():
-    labels = mne.channels.make_standard_montage("standard_1020").ch_names
+    labels = mne.channels.make_standard_montage("colin27_1020").ch_names
     locations = {item["canonical_site"]: item for item in resolve_electrode_labels(labels)}
     assert locations["Fp1"]["map_coordinates"][1] < locations["O1"]["map_coordinates"][1]
     assert locations["Fz"]["map_coordinates"][1] < locations["Cz"]["map_coordinates"][1]

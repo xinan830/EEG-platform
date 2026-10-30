@@ -9,15 +9,17 @@ from app.services.batch_runs import BatchProjectMembershipError, BatchRunService
 from app.services.projects import ProjectService
 from app.services.recordings import RecordingService
 from app.services.run_queue import PersistentRunQueue
+from tests.access_fixtures import array_access_session
 from app.main import app
 from fastapi.testclient import TestClient
 from app.models.run import RunStatus, StructuredRunError
 
 
 class SyntheticRecordings(RecordingService):
-    def load_data(self, recording):
+    def open_access_session(self, recording, *, analysis_montage_id=None):
         time_s = np.arange(int((recording.duration_s or 10) * 100)) / 100
-        return (10e-6 * np.sin(2 * np.pi * 10 * time_s))[:, None], 100.0, ["F3"], []
+        values = (10e-6 * np.sin(2 * np.pi * 10 * time_s))[:, None]
+        return array_access_session(recording, values, 100.0, ["F3"])
 
 
 def _recording(service: RecordingService, name: str, channels: str, duration: float) -> str:

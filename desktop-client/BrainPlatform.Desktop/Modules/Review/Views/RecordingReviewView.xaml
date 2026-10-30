@@ -238,7 +238,9 @@
         <views:EegWorkspaceShell.Waveform>
             <shared:AnalysisDockHost IsPanelOpen="{Binding IsPsdAnalysisPanelOpen}" PanelTitle="PSD 分析">
                 <shared:AnalysisDockHost.Waveform>
-                    <review:RecordingReviewSciChartCanvas x:Name="ReviewWaveformCanvas" />
+                    <review:RecordingReviewSciChartCanvas x:Name="ReviewWaveformCanvas"
+                        PreviewMouseWheel="OnWaveformMouseWheel"
+                        ToolTip="滚轮：向下前进 1 秒，向上后退 1 秒" />
                 </shared:AnalysisDockHost.Waveform>
                 <shared:AnalysisDockHost.Panel>
                     <analysis:PsdReviewAnalysisPanel />

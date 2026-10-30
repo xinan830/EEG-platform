@@ -75,10 +75,10 @@ public sealed class AntSystemChannelLocationResolverTests
 
     private static ElectrodeLocationResolution Available(
         string label, string canonical, double x, double y, double z) =>
-        new(label, "available", canonical, [x, y, z], [0.1, -0.2], "mri", "m", "mne.standard_1020", "1.12.1");
+        new(label, "available", canonical, [x, y, z], [0.1, -0.2], "mri", "m", "mne.colin27_1020", "1.12.1");
 
     private static ElectrodeLocationResolution Unavailable(string label) =>
-        new(label, "unavailable", null, null, null, null, null, "mne.standard_1020", "1.12.1");
+        new(label, "unavailable", null, null, null, null, null, "mne.colin27_1020", "1.12.1");
 
     private sealed class StubLocationClient(
         Func<IReadOnlyList<string>, IReadOnlyList<ElectrodeLocationResolution>> resolve) : IElectrodeLocationClient

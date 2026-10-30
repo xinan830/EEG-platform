@@ -4,7 +4,7 @@ See proposal.md - Why. TNK playback calls the desktop `LoadLatestAsync` path. Th
 
 The backend remains the only scientific authority. This change must preserve the current five-role channel mapping, V/float64 internal signal contract, continuous preprocessing, algorithm identities/versions, actual sample windows, quality gates, and module state semantics. The Viewer pipeline and raw recording storage are outside this design.
 
-The viewer signal-preview endpoint is included only as a competing display workload and as a display-integrity boundary. Its existing uniform-stride arrays remain intact for compatibility. An additive min/max envelope summarizes each display bin per requested channel so narrow excursions are not erased by that stride; the envelope is display metadata in µV at bin-center times, not raw-sample timing or scientific output. Opt-in diagnostics correlate preview preparation, window validation, and display projection timings by request and recording IDs. HTTP middleware continues to provide total request duration.
+The viewer signal-preview endpoint is an independent display workload and display-integrity boundary. It reads only the requested window through the unified recording access session and applies the display causal-IIR filter contract. It never calls algorithm scientific preparation, touches `AnalysisPreprocessCache`, or waits for TNK. Its existing uniform-stride arrays remain intact for compatibility. An additive min/max envelope summarizes each display bin per requested channel so narrow excursions are not erased by that stride; the envelope is display metadata in µV at bin-center times, not raw-sample timing or scientific output. Opt-in diagnostics correlate bounded window-read/filter, window validation, and display projection timings by request and recording IDs. HTTP middleware continues to provide total request duration.
 
 ## Goals / Non-Goals
 
@@ -66,6 +66,10 @@ The view-model history projection accepts event batches off the playback-critica
 
 **Alternative considered:** Rebuild all chart points after every event. Rejected because its work grows with history length and competes for UI thread time.
 
+The TNK chart cursor is presentation-only and shares the WPF UI/render thread with waveform playback. It refreshes at most every 250 ms per visible chart, while waveform playback and accepted result-history updates keep their existing cadence. This bounds chart cursor invalidation without dropping or delaying scientific results.
+
+Chart activity is owned by the shared plot control's loaded and effective-visible lifecycle. Hidden or unloaded plots detach their panel subscriptions and ignore cursor bindings and chart refreshes. Reactivation observes only the current panel and synchronizes its latest snapshot and current cursor immediately, even within the cursor throttle interval. Accepted scientific history remains owned by the view model; hiding a chart never clears it. The 2026-10-29 comparison showed all five RBP plots still logging cursor refreshes after switching to fatigue, so this removes confirmed inactive work, without claiming it explains all waveform stalls.
+
 ### 6. Gate cross-window reuse on independent equivalence evidence
 
 After the event path is measured, profile repeated source preparation and overlapping-window spectra. The ANT time-series children already use a bounded session stream: one raw Fz chunk read advances separate Crimson and Zenlite preprocessing states, and the three Zenlite outputs share one model inference. Crimson and Zenlite retain their distinct sampling/filter contracts. Any broader cross-window reuse still requires independent equivalence evidence, keyed by source identity, role/channel order, reference, preprocessing contract, sample range, scientific version, and configuration. A replay-versus-reference test must cover state reset, sequential playback, backward seek, and configuration change before enabling additional reuse.
@@ -77,23 +81,26 @@ After the event path is measured, profile repeated source preparation and overla
 The 2026-10-27 playback logs showed six concurrent `signal-preview` requests
 for one recording, each taking about 15 seconds. The desktop cancelled only its
 local wait and immediately started a replacement, while the backend continued
-processing the cancelled request. The preview path also entered the continuous
-preprocessing cache without an in-flight owner, so simultaneous misses could
-each read and filter the recording.
+processing the cancelled request. Those requests were coupled to whole-recording
+scientific preparation, so simultaneous misses could each read and filter the
+recording.
 
-The repair serializes waveform preview refreshes in the desktop, keeps only the
-latest pending refresh, selects only requested preview channels, and uses a
-single-flight cache for identical prepared-source identities. This changes
-request scheduling and resource contention only; it does not change TNK window
-boundaries, formulas, units, preprocessing parameters, or numeric reuse across
-windows. Paired desktop performance acceptance remains required before the
-streamed playback capability is declared accepted.
+The repair keeps waveform preview refreshes on the display access path, selects
+only requested preview channels, and removes the preview dependency on
+whole-recording scientific preparation. The unified access layer reads ahead in
+one-second blocks while the causal display filter keeps its 50 ms state cadence;
+the continuous WebSocket playback uses the same read-ahead contract and emits
+the smaller display frames from memory. This changes request scheduling and
+resource contention only; it does not change TNK window boundaries, formulas,
+units, or algorithm preprocessing parameters. Paired desktop performance
+acceptance remains required before the streamed playback capability is declared
+accepted.
 
 ### 8. Preserve preview excursions and measure display preparation
 
 Uniform-stride preview samples are retained unchanged because they are part of the existing response contract, but they alone can omit a one-sample excursion between selected points. When the stride exceeds one, the backend adds per-channel minimum and maximum values for each same-sized display bin. It maps the summary to the bin's recording-relative center time; the response explicitly names it as an envelope, and the desktop draws vertical range segments behind the sampled line. When no samples are omitted, the optional envelope is absent. This is a display summary only and cannot be used for event timing or analysis.
 
-With `BRAIN_REVIEW_PERF_DIAGNOSTICS=1`, the signal-preview path records request/recording identity, source-preparation time, crop/validation time, display-projection time, selected channel count, source/output point counts, stride, and envelope-bin count. The existing HTTP middleware supplies total request duration and request ID. Logs contain metadata only. Existing cache-miss logs remain available to distinguish cold preparation from likely cache reuse; this first pass does not alter cache behavior or add a new cache policy.
+With `BRAIN_REVIEW_PERF_DIAGNOSTICS=1`, the signal-preview path records request/recording identity, bounded window-read/filter time, crop/validation time, display-projection time, selected channel count, source/output point counts, stride, and envelope-bin count. The existing HTTP middleware supplies total request duration and request ID. Logs contain metadata only. Signal preview does not create or wait for algorithm prepared-source cache entries.
 
 **Alternative considered:** Replace the legacy preview arrays with a new variable-time per-channel series. Rejected for this pass because it breaks the shared-time response contract and increases consumer migration risk. The additive envelope preserves visual extrema while keeping old consumers functional.
 
@@ -112,39 +119,54 @@ FFT values, alter window boundaries, or move scientific work into WPF.
 
 The playback timing evidence shows that opening a WPF sample reader repeats a
 full batch-header scan and source-file hash for every dynamic-window request;
-the reader constructor also indexes the same batches a second time. The
-existing `RecordingService.open_sample_reader` remains the common backend
-sample-access boundary. It will own a small bounded cache of immutable WPF
-recording facts and batch offsets keyed by canonical source path and registered
-source SHA-256. A cache miss validates the computed source hash against the
-registered identity; later reuse checks the source-file size, modification
-time, and file identity signature and rebuilds/revalidates on change.
+the reader constructor also indexes the same batches a second time.
+`RecordingAccessSession` is the single backend sample-access boundary. Its WPF
+adapter uses a small bounded cache of immutable recording facts and batch
+offsets keyed by canonical source path and registered source SHA-256. A cache
+miss validates the computed source hash against the registered identity; later
+session opens check the source-file size, modification time, and file identity
+signature and rebuild/revalidate on change.
 
-Each request still gets its own reader object and opens file streams only for
-the requested sample blocks. The cache shares immutable metadata, not mutable
-reader handles, EEG sample arrays, or scientific results. EDF/MNE reader
-lifecycle is unchanged. This relies on the project contract that completed raw
-recordings are immutable; a source whose observable file signature changes is
-re-inspected and rejected if its registered content identity no longer
-matches.
+Each access session gets its own reader object and reuses session-local
+read-only source mappings or positioned reads for the requested sample blocks.
+Consecutive reads in one session reuse its validated immutable metadata/index
+and source mapping, not shared mutable reader handles, EEG sample arrays, or
+scientific results. EDF/MNE reader lifecycle is owned by its session. WPF must
+not reopen the same source file for every small batch. This relies on the
+project contract that completed raw recordings are immutable; a source whose
+observable file signature changes invalidates its session.
 
-**Alternative considered:** Keep a WPF reader open and share it between
-requests. Rejected because it introduces shared mutable lifetime and concurrent
-file-position concerns while the expensive work is immutable metadata
-construction, not bounded sample reads.
+**Alternative considered:** Share one mutable WPF or MNE reader across sessions.
+Rejected because session-local lifecycle and format-specific concurrency are
+explicit, while only immutable metadata/index is shared.
 
 ### 11. Define one logical EEG access contract with source-owned lifetimes
 
 The common boundary is a logical sample-access contract, not one reader object
-shared by every source or process. `RecordingAccessSession` is scoped to one
+shared by every source or process. The Python backend's `RecordingAccessSession`
+owns historical analysis reads; the WPF review reader remains the desktop's
+local adapter and does not call the backend for raw samples. These are separate
+physical readers implementing declared sample semantics, not a primary path
+plus a compatibility fallback. `RecordingAccessSession` is scoped to one
 immutable recording/source identity and owns validated metadata, index reuse,
-and format-specific reader lifetime. Consumers request bounded sample-major
-blocks through `ReadSamples(start_sample, end_sample, ordered_channels)` using
-recording-relative half-open sample ranges. A block reports its actual bounds,
-sampling rate, ordered channel identities, V/float64 values, source identity,
-and explicit missing intervals; gaps remain unavailable/NaN and are never
-replaced with zero. The existing V/float64, `(samples, channels)`, and channel
-mapping contracts remain authoritative.
+and format-specific reader lifetime. Backend consumers request bounded
+sample-major blocks through `ReadSamples(start_sample, end_sample,
+ordered_channels)`. Backend historical and live access return
+`SampleBlock[SourceIdentity]` with actual half-open bounds, sampling rate,
+ordered channel names and units, V/float64 values, source identity, and
+unavailable intervals with a structured reason. The desktop WPF review adapter
+expresses the same logical semantics through its local recording manifest and
+review-window types; it does not expose or depend on the Python object type.
+Sample coordinates are interpreted only within their source identity: a
+historical recording starts at sample zero, while a live source uses its
+acquisition sample counter. WPF review may retain device counters internally
+to address source batches and preserve gaps; the recording-relative index is
+`source_counter - first_stored_counter`, and elapsed time is that index divided
+by the manifest sampling rate. A device counter is never a historical backend
+sample index. Gaps remain explicit and are never replaced with zero.
+The existing V/float64, `(samples, channels)`, and channel mapping contracts
+remain authoritative for EEG projections; live access rejects non-V channels
+rather than labeling unconverted values as V.
 
 For completed WPF/BDF/EDF recordings, opening an access session verifies the
 registered content/source identity and prepares format metadata/index once.
@@ -153,10 +175,20 @@ source invalidates the session and fails with a structured source-identity
 error; it is not silently rebound to a new recording. Session count and any
 metadata/sample-block caches are bounded. Closing the session releases
 format-specific handles and references. WPF may use independent positioned
-file reads over a shared immutable index. MNE `Raw` concurrency is not assumed;
+file reads over a shared immutable index. Because WPF may contain very small
+sample payloads, an adapter read groups consecutive batches from one source
+file into one contiguous byte read before projecting channels; it does not
+perform one file operation per batch. MNE `Raw` concurrency is not assumed;
 its adapter must serialize access until concurrent `get_data` safety is
 established or use independent handles. The access service must not put a
 single global lock around unrelated recordings or readers.
+
+Cancellation is checked at the access-session boundary before and after each
+read and at a bounded interval while a format adapter is walking fine-grained
+physical batches. A database-backed cancellation callback therefore cannot be
+invoked once per WPF payload. On-demand scientific compute leases are acquired
+after source preparation reports completion, so raw reads and whole-recording
+preprocessing do not occupy the numerical compute lane.
 
 Live acquisition implements the same sample-block shape and identity fields,
 but has a different lifetime/capability: identity is the acquisition session
@@ -170,24 +202,40 @@ contract crosses an explicit bounded IPC/API batch boundary. Reader instances,
 locks, and in-process ring-buffer objects never cross that boundary. Persisting
 raw recording remains independent of display and algorithm consumers.
 
-The access layer owns source identity, validated metadata/index, bounded reads,
-gaps, reader/session lifecycle, format-specific concurrency and cancellation
-semantics. It does not own resampling, filtering, referencing, montage
+The implemented live boundary is `LiveRecordingAccessService` plus the
+`/api/live-recordings` binary batch protocol. The backend owns a bounded,
+identity-bound session and returns the shared sample-block type with NaN values
+and explicit `overwritten`, `not_yet_available`, `source_gap`, or
+`missing_value` intervals. The desktop
+`HttpLiveSampleAccessBridge` sends only explicitly mapped EEG channels in V and
+uses `BoundedLiveAccessDispatcher`; it is injected separately from the display
+filter bridge and is opt-in until a live scientific consumer is accepted.
+
+Each access adapter owns source identity, validated metadata/index, bounded
+reads, gaps, reader/session lifecycle, and format-specific concurrency and
+cancellation semantics. Adapters share the logical contract, not reader
+handles or a process dependency. The access layer does not own resampling,
+filtering, referencing, montage
 projection, quality gates, algorithms, playback scheduling, or chart state;
 those consumers declare any required channel projection and preprocessing
-above the source read boundary. This keeps one authoritative source reader
-without turning the access service into an algorithm or scheduler service.
+above the source read boundary. This keeps one authoritative reader per owning
+process without turning the access service into an algorithm or scheduler
+service.
 
-**Migration boundary:** The current TNK path only gains cached WPF facts across
-window requests; it still constructs a reader per request. The next slice first
-establishes the source-independent access service and historical WPF/BDF/EDF
-adapters, then adds the live acquisition adapter over the bounded process
-boundary. Only after both source classes satisfy the same sample contract will
-TNK retain an access session across windows and the remaining consumers migrate.
-Algorithm scheduling is downstream of that access-layer acceptance gate; it
-must not become the mechanism that compensates for source-reader lifecycle or
-identity differences. This design does not claim the current display ring
-buffer already satisfies live analysis access.
+**Migration boundary:** The source-independent session and historical WPF/BDF/EDF
+backend adapters come first. Then migrate every backend historical sample
+consumer, including TNK, mapped preprocessing, preview/spectrum, and waveform
+playback, onto that session. Delete `open_sample_reader`, `open_data_reader`,
+and other superseded backend reader entry points after their callers move; no
+parallel backend fallback remains. The WPF review reader remains a separate
+desktop-owned adapter and must satisfy the coordinate, unit, channel-order, and
+gap semantics above. Preserve whole-recording operations by reading bounded
+blocks through the backend session. Next add the live acquisition adapter
+over an explicit bounded C#/Python process boundary and validate that it reports
+the same sample coordinates, units, channel order, and gaps. The desktop display
+ring buffer remains display history, not a live analysis source. Multi-algorithm
+scheduling is downstream of this access-layer acceptance gate and cannot own
+file readers or compensate for source lifecycle/identity differences.
 
 ## Risks / Trade-offs
 
@@ -198,16 +246,17 @@ buffer already satisfies live analysis access.
 - [Performance results vary by machine and recording] → Keep deterministic stage timers in automated tests and document real-desktop paired measurements separately; do not convert one machine's result into a universal latency promise.
 - [A range envelope can be mistaken for an event occurring exactly at the bin center] → Label it as a display-bin range, retain the sampled line, and do not expose the envelope as event or analysis data.
 - [Adding envelope arrays increases response size] → Emit them only when the source is actually decimated, bound the bin count by the existing `max_points`, and measure response size during paired desktop acceptance.
+- [The WPF and Python readers could drift in sample origin or gap handling] → Keep their ownership separate, state the counter-to-recording-index mapping explicitly, and assert matching recording-relative time and unavailable ranges at each adapter boundary.
 
 ## Migration Plan
 
-1. Add the event contract and backend replay publication behind an opt-in TNK playback capability; retain the current target-only observer as fallback.
-2. Integrate desktop ordered history, stale-session rejection, explicit lag/coverage, and bounded chart updates.
-3. Before enabling the new path, capture paired waveform-only and current waveform-plus-TNK baselines with the same local recording, playback speed, selected roles, and plotting configuration; set measurable thresholds from those results.
-4. Validate stateful parity, transport load, and navigation/cancellation cases; repeat the paired performance measurements and complete manual desktop acceptance.
-5. Enable the new path only after the baseline thresholds and acceptance checks pass. Rollback by disabling the capability and returning to target-only observation; no raw recording or historical Run migration is required.
+1. Establish and accept the identity-bound historical access session and WPF/BDF/EDF adapters.
+2. Migrate all historical read consumers, remove the old reader entry points, and verify scientific input parity at the sample boundary.
+3. Add the live acquisition adapter over the bounded process boundary; do not route analysis through display retention or display-filter caches.
+4. Use the accepted access session in TNK playback, then integrate ordered desktop history, stale-session rejection, explicit lag/coverage, and bounded chart updates.
+5. Capture paired waveform-only and waveform-plus-TNK baselines, set measurable thresholds, and complete stateful parity, transport, navigation/cancellation, and manual desktop acceptance before declaring the playback path accepted.
 
-No schema migration is planned. Before implementation, verify that the existing immutable window identity and repository can safely publish/reconcile every intermediate canonical frame. If that requires a persistence schema change or unbounded retention, stop and revise the proposal before coding.
+No raw recording or historical Run rewrite is planned. Before implementation, verify that the existing immutable window identity and repository can safely publish/reconcile every intermediate canonical frame. If that requires a persistence schema change or unbounded retention, stop and revise the proposal before coding.
 
 ## Open Questions
 

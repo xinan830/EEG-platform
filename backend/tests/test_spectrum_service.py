@@ -6,12 +6,24 @@ import pytest
 from app.models.analysis_config import AnalysisConfigRequest
 from app.scientific.primitives.spectral import estimate_spectrogram, estimate_spectrogram_with_quality
 from app.services.recordings import RecordingService
+from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
+from app.services.recording_samples import ArraySampleReader
 
 
 def _service(tmp_path: Path) -> tuple[RecordingService, object]:
     service = RecordingService(tmp_path / "recordings", tmp_path / "catalog.sqlite3")
     recording = service.create_recording("sample.bdf", ".bdf", b"raw")
     return service, recording
+
+
+def _provide_data(monkeypatch, service, data, sfreq, names):
+    def open_session(_recording):
+        reader = ArraySampleReader(data, sfreq, names)
+        return RecordingAccessSession(
+            RecordingSourceIdentity("test", "test", "test"), reader, sfreq,
+            len(data), names, (), lambda: None, serialize_reads=False,
+        )
+    monkeypatch.setattr(service, "open_access_session", open_session)
 
 
 def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypatch):
@@ -23,7 +35,7 @@ def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypa
         20e-6 * np.sin(2 * np.pi * 10 * times),
         30e-6 * np.sin(2 * np.pi * 10 * times),
     ])
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz", "Pz", "Oz"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["Fz", "Pz", "Oz"])
 
     payload = service.load_spectrum(recording, channels=["Oz", "Fz"])
 
@@ -40,7 +52,7 @@ def test_spectrum_exposes_backend_declared_welch_step(tmp_path, monkeypatch):
     sfreq = 100.0
     times = np.arange(10 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["F3"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["F3"])
 
     payload = service.load_spectrum(recording, 0.0, 10.0, ["F3"])
 
@@ -54,7 +66,7 @@ def test_spectrum_accepts_a_long_recording_range_without_a_fixed_cap(tmp_path, m
     sfreq = 100.0
     times = np.arange(150 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["F3"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["F3"])
 
     payload = service.load_spectrum(recording, 0.0, 149.982, ["F3"])
 
@@ -67,7 +79,7 @@ def test_spectrum_rejects_a_range_past_the_recording_end_instead_of_truncating(t
     sfreq = 100.0
     times = np.arange(150 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["F3"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["F3"])
 
     with pytest.raises(ValueError, match="超出文件范围"):
         service.load_spectrum(recording, 1.0, 149.982, ["F3"])
@@ -78,7 +90,7 @@ def test_spectrum_uses_the_requested_frequency_range_for_filter_cache_and_output
     sfreq = 200.0
     times = np.arange(20 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 40 * times) + 6e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["Fz"])
 
     wide = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=0.5, high_hz=50.0)
     default = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=1.0, high_hz=30.0)
@@ -98,7 +110,7 @@ def test_spectrum_separates_filter_range_from_output_axis_and_reuses_filter_cach
     sfreq = 200.0
     times = np.arange(20 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["Fz"])
 
     first = service.load_spectrum(
         recording, 0.0, 20.0, ["Fz"], notch_hz=60.0,
@@ -127,7 +139,7 @@ def test_spectrogram_reuses_preprocess_cache_with_explicit_notch(tmp_path, monke
     sfreq = 200.0
     times = np.arange(12 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["Fz"])
 
     payload = service.load_spectrogram(recording, 0.0, 12.0, ["Fz"], low_hz=1.0, high_hz=50.0, notch_hz=50.0)
 
@@ -144,17 +156,17 @@ def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch
         10e-6 * np.sin(2 * np.pi * 10 * times),
         8e-6 * np.sin(2 * np.pi * 6 * times),
     ])
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz", "Pz"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["Fz", "Pz"])
     calls = {"count": 0}
 
-    from app.scientific.primitives import gateway
-    original = gateway.preprocess_offline
+    import app.services.mapped_preprocessing as mapped_preprocessing
+    original = mapped_preprocessing.preprocess_blocks
 
-    def counted(values, rate, **kwargs):
+    def counted(*args, **kwargs):
         calls["count"] += 1
-        return original(values, rate, **kwargs)
+        return original(*args, **kwargs)
 
-    monkeypatch.setattr(gateway, "preprocess_offline", counted)
+    monkeypatch.setattr(mapped_preprocessing, "preprocess_blocks", counted)
     service.load_spectrum(recording, channels=["Fz"], window_s=10)
     service.load_spectrum(recording, channels=["Pz"], window_s=10)
 
@@ -172,7 +184,7 @@ def test_on_demand_spectrum_reuses_canonical_preprocessed_source(tmp_path, monke
         8e-6 * np.sin(2 * np.pi * 6 * times),
     ])
     recording = replace(recording, sfreq=sfreq, duration_s=30.0, channels=("Fz", "Pz"))
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz", "Pz"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["Fz", "Pz"])
 
     static = service.load_spectrum(recording, 0.0, 10.0, ["Fz", "Pz"])
     class OnDemandControl:
@@ -197,7 +209,7 @@ def test_on_demand_spectrum_reuses_canonical_preprocessed_source(tmp_path, monke
     assert prepared[0].data.shape == data.shape
 
 
-def test_waveform_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypatch):
+def test_spectrum_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypatch):
     from dataclasses import replace
 
     service, recording = _service(tmp_path)
@@ -208,18 +220,18 @@ def test_waveform_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypat
         8e-6 * np.sin(2 * np.pi * 6 * times),
     ])
     recording = replace(recording, sfreq=sfreq, duration_s=30.0, channels=("Fz", "Pz"))
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz", "Pz"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["Fz", "Pz"])
     calls = {"count": 0}
 
-    from app.scientific.primitives import gateway
-    original = gateway.preprocess_offline
+    import app.services.mapped_preprocessing as mapped_preprocessing
+    original = mapped_preprocessing.preprocess_blocks
 
-    def counted(values, rate, **kwargs):
+    def counted(*args, **kwargs):
         calls["count"] += 1
-        return original(values, rate, **kwargs)
+        return original(*args, **kwargs)
 
-    monkeypatch.setattr(gateway, "preprocess_offline", counted)
-    service.prepare_signal_preview(recording, 1.0, 30.0, None, ["Fz"])
+    monkeypatch.setattr(mapped_preprocessing, "preprocess_blocks", counted)
+    service.load_spectrum(recording, 0.0, 10.0, ["Fz"], low_hz=1.0, high_hz=30.0)
 
     class OnDemandControl:
         is_on_demand = True
@@ -249,7 +261,7 @@ def test_on_demand_spectrogram_reuses_full_preprocessed_source(tmp_path, monkeyp
         8e-6 * np.sin(2 * np.pi * 6 * times),
     ])
     recording = replace(recording, sfreq=sfreq, duration_s=12.0, channels=("Fz", "Pz"))
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["Fz", "Pz"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["Fz", "Pz"])
 
     class OnDemandControl:
         is_on_demand = True
@@ -281,7 +293,7 @@ def test_configured_v4_defaults_equal_frozen_v3(tmp_path, monkeypatch):
     sfreq = 100.0
     times = np.arange(40 * int(sfreq)) / sfreq
     data = np.column_stack([10e-6 * np.sin(2 * np.pi * 10 * times), 8e-6 * np.sin(2 * np.pi * 6 * times)])
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["F3", "Fz"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["F3", "Fz"])
     frozen = service.load_spectrum(recording, 0, 30, ["F3", "Fz"])
     configured = service.load_configured_spectrum(recording, AnalysisConfigRequest(
         mode="static", channels=["F3", "Fz"], time={"start_s": 0, "end_s": 30}
@@ -306,7 +318,7 @@ def test_configured_static_range_rejects_file_overflow(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
     times = np.arange(1000) / 100.0
     values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    monkeypatch.setattr(service, "load_data", lambda _recording: (values, 100.0, ["F3"], []))
+    _provide_data(monkeypatch, service, values, 100.0, ["F3"])
     config = AnalysisConfigRequest(mode="static", channels=["F3"], time={"start_s": 5, "end_s": 15})
     import pytest
     with pytest.raises(ValueError, match="超出文件范围"):
@@ -317,7 +329,7 @@ def test_configured_static_range_accepts_one_sample_rounding_error(tmp_path, mon
     service, recording = _service(tmp_path)
     times = np.arange(7634) / 1000.0
     values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    monkeypatch.setattr(service, "load_data", lambda _recording: (values, 1000.0, ["F3"], []))
+    _provide_data(monkeypatch, service, values, 1000.0, ["F3"])
     config = AnalysisConfigRequest(mode="static", channels=["F3"], time={"start_s": 1.022, "end_s": 7.635})
     payload = service.load_configured_spectrum(recording, config)
     assert payload["actual_end_s"] == 7.634
@@ -348,7 +360,7 @@ def test_configured_spectrogram_returns_backend_custom_band_trend(tmp_path, monk
     sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    monkeypatch.setattr(service, "load_data", lambda _recording: (data, sfreq, ["F3"], []))
+    _provide_data(monkeypatch, service, data, sfreq, ["F3"])
     config = AnalysisConfigRequest(
         mode="spectrogram", channels=["F3"], time={"start_s": 0, "end_s": 30},
         custom_frequency_range={"low_hz": 8, "high_hz": 13},

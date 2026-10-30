@@ -9,7 +9,7 @@ public sealed class ChannelConfigurationDraftRowTests
     public void ChangingLabelClearsLocationAndAdvancesRevisionEvenWhenLabelChangesBack()
     {
         var location = new ElectrodeLocationSnapshot(
-            "Fp1", -0.029, 0.083, -0.006, "mri", "m", "mne.standard_1020", "1.12.1");
+            "Fp1", -0.029, 0.083, -0.006, "mri", "m", "mne.colin27_1020", "1.12.1");
         var row = new ChannelConfigurationDraftRow(
             0, "EEG", "V", "µV", "Fp1", true, 0, true, location,
             new ElectrodeMapPosition(0.25, -0.4));

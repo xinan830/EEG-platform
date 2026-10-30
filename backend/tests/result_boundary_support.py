@@ -8,6 +8,7 @@ import numpy as np
 
 from app.services.analysis_provenance import build_analysis_provenance
 from test_official_algorithm_runs import _request, _service
+from tests.access_fixtures import array_access_session
 
 
 ALGORITHM_IDS = (
@@ -18,13 +19,15 @@ ALGORITHM_IDS = (
 
 def snapshot_run(tmp_path, algorithm_id, mode, rejected, provenance_builder=build_analysis_provenance):
     service, recording_id = _service(tmp_path, sfreq_hz=200.0)
-    original = service.recordings.load_data
+    recording = service.recordings.require_recording(recording_id)
+    with service.recordings.open_access_session(recording) as session:
+        original_values = session.read_samples(0, session.sample_count).values_v
+        rate, channels = session.sampling_rate_hz, list(session.channel_names)
+    values = original_values * (30 if rejected else 1)
 
-    def source(recording):
-        values, rate, channels, annotations = original(recording)
-        return values * (30 if rejected else 1), rate, channels, annotations
-
-    service.recordings.load_data = source
+    service.recordings.open_access_session = lambda item, **_kwargs: array_access_session(
+        item, values, rate, channels,
+    )
     request = _request(recording_id, algorithm_id, dynamic=mode == "dynamic")
     if algorithm_id == "band_ratio":
         request.config.update(numerator_low_hz=8, numerator_high_hz=13,
@@ -48,7 +51,6 @@ def snapshot_run(tmp_path, algorithm_id, mode, rejected, provenance_builder=buil
     # Retain the immutable Definition version and all scientific identity fields.
     provenance["official_algorithm_identity"]["definition_id"] = "<allocated-definition-id>"
     provenance["scientific_cache_key"] = "<allocated-cache-key>"
-    values, rate, channels, _ = source(service.recordings.require_recording(recording_id))
     snapshot = {
         "input": {"sha256": hashlib.sha256(values.astype("<f8").tobytes()).hexdigest(),
                   "sfreq_hz": rate, "channel_order": channels, "unit": "V"},

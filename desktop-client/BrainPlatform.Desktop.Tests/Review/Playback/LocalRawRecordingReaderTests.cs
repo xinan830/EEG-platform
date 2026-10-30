@@ -10,20 +10,25 @@ public sealed class LocalRawRecordingReaderTests
         var directory = CreateTempDirectory();
         try
         {
-            WriteManifest(directory, firstSampleCounter: 100, samplingRateHz: 10);
+            var sessionId = WriteManifest(directory, firstSampleCounter: 100, samplingRateHz: 10);
             WriteChunk(directory, 1, [
                 MakeBatch(100, 4, [1, 10, 100, 0, 2, 20, 101, 0, 3, 30, 102, 0, 4, 40, 103, 0]),
                 MakeBatch(104, 4, [5, 50, 104, 0, 6, 60, 105, 0, 7, 70, 106, 0, 8, 80, 107, 0])]);
 
-            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, CancellationToken.None);
+            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, sessionId, CancellationToken.None);
 
             Assert.Equal(10, recording.Manifest.SamplingRateHz);
+            Assert.NotEqual(Guid.Empty, recording.Manifest.SessionId);
+            Assert.Equal(["F3", "F4", "Trigger", "Counter"], recording.Manifest.Channels.Select(channel => channel.Label));
+            Assert.Equal(["V", "V", "code", "count"], recording.Manifest.Channels.Select(channel => channel.Unit));
             Assert.Equal(2, recording.Index.Batches.Count);
             Assert.Equal(0, recording.Index.PayloadBytesReadDuringOpen);
 
             var window = await recording.Reader.ReadWindowAsync(0.2, 0.3, CancellationToken.None);
 
             var segment = Assert.Single(window.Segments);
+            Assert.Equal(0.2, window.ActualStartSeconds);
+            Assert.Equal(0.5, window.ActualEndSeconds);
             Assert.Equal(102, segment.FirstSampleCounter);
             Assert.Equal(3, segment.SampleCount);
             Assert.Equal([3d, 30d, 102d, 0d, 4d, 40d, 103d, 0d, 5d, 50d, 104d, 0d], segment.SampleMajorValues);
@@ -40,18 +45,22 @@ public sealed class LocalRawRecordingReaderTests
         var directory = CreateTempDirectory();
         try
         {
-            WriteManifest(directory, firstSampleCounter: 0, samplingRateHz: 10);
-            WriteChunk(directory, 1, [MakeBatch(0, 2, [1, 0, 10, 0, 2, 0, 11, 0]), MakeBatch(4, 2, [3, 0, 14, 0, 4, 0, 15, 0])]);
+            var sessionId = WriteManifest(directory, firstSampleCounter: 100, samplingRateHz: 10);
+            WriteChunk(directory, 1, [MakeBatch(100, 2, [double.NaN, 0, 110, 0, 2, 0, 111, 0]), MakeBatch(104, 2, [3, 0, 114, 0, 4, 0, 115, 0])]);
             await File.WriteAllTextAsync(
                 Path.Combine(directory, "audit.jsonl"),
-                "{\"type\":\"sample_gap\",\"FirstMissingSampleCounter\":2,\"LastMissingSampleCounter\":3,\"MissingSampleCount\":2}\n");
+                "{\"type\":\"sample_gap\",\"FirstMissingSampleCounter\":102,\"LastMissingSampleCounter\":103,\"MissingSampleCount\":2}\n");
 
-            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, CancellationToken.None);
+            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, sessionId, CancellationToken.None);
             var window = await recording.Reader.ReadWindowAsync(0, 0.6, CancellationToken.None);
 
             Assert.Equal(2, window.Segments.Count);
-            Assert.Equal(0, window.Segments[0].FirstSampleCounter);
-            Assert.Equal(4, window.Segments[1].FirstSampleCounter);
+            Assert.Equal(0, window.ActualStartSeconds);
+            Assert.Equal(0.6, window.ActualEndSeconds);
+            Assert.Equal(100, window.Segments[0].FirstSampleCounter);
+            Assert.Equal(104, window.Segments[1].FirstSampleCounter);
+            Assert.True(double.IsNaN(window.Segments[0].SampleMajorValues[0]));
+            Assert.Equal(2, Assert.Single(recording.Gaps).MissingSampleCount);
         }
         finally
         {
@@ -65,7 +74,7 @@ public sealed class LocalRawRecordingReaderTests
         var directory = CreateTempDirectory();
         try
         {
-            WriteManifest(directory, firstSampleCounter: 0, samplingRateHz: 10);
+            var sessionId = WriteManifest(directory, firstSampleCounter: 0, samplingRateHz: 10);
             using (var stream = File.Create(Path.Combine(directory, "samples-000001.bin")))
             using (var writer = new BinaryWriter(stream))
             {
@@ -77,7 +86,7 @@ public sealed class LocalRawRecordingReaderTests
             }
 
             var exception = await Assert.ThrowsAsync<RecordingReadException>(
-                () => LocalRawRecordingReader.OpenAsync(directory, CancellationToken.None));
+                () => LocalRawRecordingReader.OpenAsync(directory, sessionId, CancellationToken.None));
 
             Assert.Equal("RECORDING_CHUNK_TRUNCATED", exception.Code);
         }
@@ -87,11 +96,34 @@ public sealed class LocalRawRecordingReaderTests
         }
     }
 
-    private static void WriteManifest(string directory, long firstSampleCounter, int samplingRateHz)
+    [Fact]
+    public async Task OpenAsyncRejectsManifestForDifferentSelectedRecording()
     {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var manifestSessionId = WriteManifest(directory, firstSampleCounter: 0, samplingRateHz: 10);
+            await File.WriteAllBytesAsync(Path.Combine(directory, "samples-000001.bin"), [0]);
+            var selectedSessionId = Guid.NewGuid();
+
+            var exception = await Assert.ThrowsAsync<RecordingReadException>(
+                () => LocalRawRecordingReader.OpenAsync(directory, selectedSessionId, CancellationToken.None));
+
+            Assert.Equal("RECORDING_IDENTITY_MISMATCH", exception.Code);
+            Assert.NotEqual(manifestSessionId, selectedSessionId);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static Guid WriteManifest(string directory, long firstSampleCounter, int samplingRateHz)
+    {
+        var sessionId = Guid.NewGuid();
         var manifest = new
         {
-            SessionId = Guid.NewGuid(),
+            SessionId = sessionId,
             PayloadFormat = "sample_major_float64_v1_with_receive_utc_ticks_and_per_channel_units",
             EegSignalUnit = "V",
             DeviceId = "test-device",
@@ -118,6 +150,7 @@ public sealed class LocalRawRecordingReaderTests
         File.WriteAllText(
             Path.Combine(directory, "manifest.json"),
             JsonSerializer.Serialize(manifest));
+        return sessionId;
     }
 
     private static void WriteChunk(string directory, int index, params Batch[] batches)

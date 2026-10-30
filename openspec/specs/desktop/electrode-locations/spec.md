@@ -3,7 +3,7 @@
 Preserve an explicit, stable scalp-site mapping for configured EEG input electrodes so future spatial displays can place values using recorded configuration metadata instead of guessing from channel text.
 ## Requirements
 ### Requirement: Channel settings disclose standard electrode locations
-The system SHALL resolve recognized electrode labels by exact case-insensitive matching after trimming outer whitespace against MNE `standard_1020`. It SHALL return XYZ in meters, coordinate frame `mri`, the MNE version, and source identifier. Results SHALL be identified as standard-template locations, not measured cap-specific or patient-specific sensor positions. Unsupported labels SHALL be explicitly unavailable; the system MUST NOT infer or alias nearby sites. Resolution SHALL use a typed read-only backend API and keep MNE objects internal to the backend.
+The system SHALL resolve recognized electrode labels by exact case-insensitive matching after trimming outer whitespace against MNE `colin27_1020`. It SHALL return XYZ in meters, coordinate frame `mri`, the MNE version, and source identifier. Results SHALL be identified as standard-template locations, not measured cap-specific or patient-specific sensor positions. Unsupported labels SHALL be explicitly unavailable; the system MUST NOT infer or alias nearby sites. Resolution SHALL use a typed read-only backend API and keep MNE objects internal to the backend.
 
 #### Scenario: Recognized electrode label
 - **WHEN** a channel configuration contains a supported 10–20 electrode label

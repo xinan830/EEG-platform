@@ -9,22 +9,32 @@ from app.algorithms.stft.runner import StftAlgorithm
 from app.scientific.quality import SpectralQualityGateError
 from app.services.algorithm_recording_context import _RecordingAlgorithmContext
 from app.services.run_queue import PersistentRunQueue
+from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
+from app.services.recording_samples import ArraySampleReader
 from app.models.run import RunStatus
 from tests.test_official_algorithm_runs import _request, _service
 
 
 def _range_service(tmp_path, sfreq_hz=200):
     service, recording_id = _service(tmp_path, sfreq_hz=sfreq_hz)
-    load = service.recordings.load_data
+    recording = service.recordings.require_recording(recording_id)
+    with service.recordings.open_access_session(recording) as session:
+        raw = session.read_samples(0, session.sample_count).values_v
+        sfreq = session.sampling_rate_hz
+        names = session.channel_names
+    if sfreq > 80:
+        times = np.arange(len(raw)) / sfreq
+        raw = raw + (10e-6 * np.sin(2 * np.pi * 39 * times))[:, None]
+    service.range_signal = raw
 
-    def with_high_frequency_signal(recording):
-        raw, sfreq, names, events = load(recording)
-        if sfreq > 80:
-            times = np.arange(len(raw)) / sfreq
-            raw = raw + (10e-6 * np.sin(2 * np.pi * 39 * times))[:, None]
-        return raw, sfreq, names, events
+    def open_session(_recording, *, analysis_montage_id=None):
+        reader = ArraySampleReader(raw, sfreq, names)
+        return RecordingAccessSession(
+            RecordingSourceIdentity(_recording.id, "synthetic", "test"), reader,
+            sfreq, len(raw), names, (), lambda: None, serialize_reads=False,
+        )
 
-    service.recordings.load_data = with_high_frequency_signal
+    service.recordings.open_access_session = open_session
     return service, recording_id
 
 
@@ -70,7 +80,8 @@ def _independent_matrix(raw, sfreq, low, high, notch):
 def test_crop_and_band_integrals_match_independent_full_grid(tmp_path, low, high, notch):
     service, recording_id = _range_service(tmp_path)
     recording = service.recordings.require_recording(recording_id)
-    raw, sfreq, names, _ = service.recordings.load_data(recording)
+    raw = service.range_signal
+    sfreq = recording.sfreq
     payload = service.recordings.load_spectrogram(recording, 5, 10, ["Fz"],
         low_hz=low, high_hz=high, notch_hz=notch)
     frequencies, matrix = _independent_matrix(raw, sfreq, low, high, notch)

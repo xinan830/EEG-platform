@@ -25,13 +25,13 @@ class _RecordingAlgorithmContext:
         self.duration_s = float(recording.duration_s or 0.0)
         self.execution_context = execution_context
         self._signals: dict[tuple, Any] = {}
-        self._reader: Any = None
+        self._access_session: Any = None
 
     def close(self) -> None:
         self._signals.clear()
-        if self._reader is not None:
-            self._reader.close()
-            self._reader = None
+        if self._access_session is not None:
+            self._access_session.close()
+            self._access_session = None
 
     def signal_source_identity(self) -> tuple[str, str]:
         """Bind a source request to its immutable raw or montage identity."""
@@ -65,6 +65,7 @@ class _RecordingAlgorithmContext:
             output_low_hz=request.output_low_hz,
             output_high_hz=request.output_high_hz,
             notch_hz=request.notch_hz,
+            preprocessing_scope=request.preprocessing_scope,
             execution_context=self.execution_context,
         )
         estimate = self._spectral_estimate(payload)
@@ -134,7 +135,7 @@ class _RecordingAlgorithmContext:
             "representation": request.representation,
         }
 
-    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 30.0, notch_hz: float | None = None, filter_low_hz: float | None = None, filter_high_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None) -> SpectralEstimate:
+    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 30.0, notch_hz: float | None = None, filter_low_hz: float | None = None, filter_high_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None, preprocessing_scope: str = "configured_continuous_before_slice") -> SpectralEstimate:
         sfreq = self.sfreq_hz
         start_sample = max(0, int(np.floor(start_s * sfreq)))
         end_sample = min(
@@ -152,7 +153,7 @@ class _RecordingAlgorithmContext:
             montage_fingerprint=montage_fingerprint,
             filter_low_hz=float(filter_low), filter_high_hz=float(filter_high),
             output_low_hz=float(output_low), output_high_hz=float(output_high),
-            notch_hz=notch_hz,
+            notch_hz=notch_hz, preprocessing_scope=preprocessing_scope,
         )
         return self.load_spectral_source(request, role_to_channel=dict(zip(channels, channels)))
 
@@ -211,10 +212,10 @@ class _RecordingAlgorithmContext:
     def load_faa_signals(self, *, start_s: float, end_s: float, f3_channel: str, f4_channel: str, low_hz: float | None = None, high_hz: float | None = None, notch_hz: float | None = None) -> tuple[np.ndarray, np.ndarray, float, dict[str, Any]]:
         """Slice the pair after whole-recording continuous preprocessing."""
         names = tuple(self.channel_names)
-        lookup = {name.casefold(): (index, name) for index, name in enumerate(names)}
+        lookup = {name.casefold(): name for name in names}
         try:
-            f3_index, f3_name = lookup[f3_channel.casefold()]
-            f4_index, f4_name = lookup[f4_channel.casefold()]
+            f3_name = lookup[f3_channel.casefold()]
+            f4_name = lookup[f4_channel.casefold()]
         except KeyError as exc:
             raise ValueError(f"FAA source channel does not exist: {exc.args[0]}") from exc
         sfreq = self.sfreq_hz
@@ -230,9 +231,12 @@ class _RecordingAlgorithmContext:
                     notch_hz=notch_hz, execution_context=self.execution_context)
             pair = self._signals[key].data[start_index:end_index]
         else:
-            if self._reader is None:
-                self._reader = self._recordings.open_sample_reader(self._recording)
-            pair = self._reader.read(start_index, end_index, [f3_index, f4_index])
+            if self._access_session is None:
+                self._access_session = self._recordings.open_access_session(self._recording)
+            check_cancelled = self.execution_context.check_cancelled if self.execution_context is not None else None
+            pair = self._access_session.read_samples(
+                start_index, end_index, (f3_name, f4_name), check_cancelled=check_cancelled,
+            ).values_v
         evidence = {
             "sfreq_hz": float(sfreq), "channels": [f3_name, f4_name],
             "analysis_reference": self._recordings.analysis_signal_provenance(self._recording)["analysis_reference"],
@@ -331,25 +335,30 @@ class _RecordingAlgorithmContext:
             raise ValueError("time-series source sampling rate changed after request planning")
         if start_sample < 0 or end_sample <= start_sample or end_sample > int(round(self.duration_s * self.sfreq_hz)):
             raise ValueError("time-series source sample bounds exceed the recording")
-        lookup = {name.casefold(): (index, name) for index, name in enumerate(self.channel_names)}
+        lookup = {name.casefold(): name for name in self.channel_names}
         try:
-            indexes = [lookup[channel.casefold()][0] for channel in channels]
-            ordered_channels = [lookup[channel.casefold()][1] for channel in channels]
+            ordered_channels = [lookup[channel.casefold()] for channel in channels]
         except KeyError as exc:
             raise ValueError(f"time-series source channel does not exist: {exc.args[0]}") from exc
         reader_open_ms = 0.0
-        if self._reader is None:
+        if self._access_session is None:
             reader_started = time.perf_counter()
-            self._reader = self._recordings.open_sample_reader(self._recording)
+            self._access_session = self._recordings.open_access_session(self._recording)
             reader_open_ms = (time.perf_counter() - reader_started) * 1000
         sample_read_started = time.perf_counter()
-        raw_values = self._reader.read(start_sample, end_sample, indexes)
+        check_cancelled = self.execution_context.check_cancelled if self.execution_context is not None else None
+        raw_values = self._access_session.read_samples(
+            start_sample, end_sample, ordered_channels, check_cancelled=check_cancelled,
+        ).values_v
         sample_read_ms = (time.perf_counter() - sample_read_started) * 1000
         array_started = time.perf_counter()
         values = np.asarray(raw_values, dtype=np.float64)
         array_coercion_ms = (time.perf_counter() - array_started) * 1000
         if values.shape != (end_sample - start_sample, len(channels)):
             raise ValueError("time-series source returned inconsistent sample bounds")
+        completed = getattr(self.execution_context, "source_preparation_completed", None)
+        if completed is not None:
+            completed()
         provenance_started = time.perf_counter()
         provenance = dict(self._recordings.analysis_signal_provenance(self._recording))
         provenance_ms = (time.perf_counter() - provenance_started) * 1000

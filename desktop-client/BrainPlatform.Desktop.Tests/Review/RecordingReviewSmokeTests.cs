@@ -49,7 +49,7 @@ public sealed class RecordingReviewSmokeTests
                 writer.Write(1d);
             }
 
-            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, CancellationToken.None);
+            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, sessionId, CancellationToken.None);
             var catalog = RecordingMontageCatalog.Build(recording.Manifest, [acquisition]);
             await using var viewModel = new RecordingReviewViewModel(
                 recording.Reader,

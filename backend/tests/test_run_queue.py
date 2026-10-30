@@ -8,13 +8,15 @@ from app.main import app
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
 from app.services.run_queue import PersistentRunQueue
+from tests.access_fixtures import array_access_session
 
 
 class SyntheticRecordingService(RecordingService):
-    def load_data(self, _recording):
+    def open_access_session(self, recording, *, analysis_montage_id=None):
         sfreq = 100.0
         time_s = np.arange(1000) / sfreq
-        return np.column_stack([10e-6 * np.sin(2 * np.pi * 10 * time_s)]), sfreq, ["F3"], []
+        values = np.column_stack([10e-6 * np.sin(2 * np.pi * 10 * time_s)])
+        return array_access_session(recording, values, sfreq, ["F3"])
 
 
 def _queue(tmp_path: Path) -> tuple[PersistentRunQueue, str]:

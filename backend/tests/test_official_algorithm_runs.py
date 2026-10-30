@@ -10,6 +10,8 @@ from app.algorithm_runtime.errors import RetiredAlgorithmVersionError
 from app.core.provenance import sha256_json
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
+from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
+from app.services.recording_samples import ArraySampleReader
 from app.services.runs import RunService
 from app.services.analysis_provenance import serialize_analysis_run
 from app.services.run_analysis_executor import _RecordingAlgorithmContext
@@ -22,17 +24,22 @@ class OfficialSyntheticRecordingService(RecordingService):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.load_data_calls = 0
+        self.open_access_session_calls = 0
 
-    def load_data(self, _recording):
-        self.load_data_calls += 1
+    def open_access_session(self, _recording, *, analysis_montage_id=None):
+        self.open_access_session_calls += 1
         sfreq = self.synthetic_sfreq_hz
         time_s = np.arange(int(30 * sfreq)) / sfreq
         alpha = 12e-6 * np.sin(2 * np.pi * 10 * time_s)
-        return np.column_stack((
+        values = np.column_stack((
             8e-6 * np.sin(2 * np.pi * 6 * time_s) + alpha, alpha * 1.1, alpha * 1.2,
             alpha * 0.8, alpha * 1.6,
-        )), sfreq, ["Fz", "Pz", "O2", "F3", "F4"], []
+        ))
+        reader = ArraySampleReader(values, sfreq, ["Fz", "Pz", "O2", "F3", "F4"])
+        return RecordingAccessSession(
+            RecordingSourceIdentity(_recording.id, "synthetic", "test"), reader,
+            sfreq, len(values), reader.names, (), lambda: None, serialize_reads=False,
+        )
 
 
 def _service(tmp_path: Path, *, sfreq_hz: float = 100.0) -> tuple[RunService, str]:
@@ -90,7 +97,7 @@ def test_retired_official_version_is_rejected_before_eeg_load_or_queue(tmp_path:
     with pytest.raises(RetiredAlgorithmVersionError):
         service.create(request)
 
-    assert service.recordings.load_data_calls == 0
+    assert service.recordings.open_access_session_calls == 0
     assert service.list(recording_id) == []
 
 
@@ -440,7 +447,7 @@ def test_dynamic_faa_reuses_the_run_scoped_raw_recording(tmp_path: Path):
     context.load_faa_signals(start_s=0.0, end_s=20.0, f3_channel="F3", f4_channel="F4")
     context.load_faa_signals(start_s=1.0, end_s=21.0, f3_channel="F3", f4_channel="F4")
 
-    assert service.recordings.load_data_calls == 1
+    assert service.recordings.open_access_session_calls == 1
 
 
 def test_official_faa_rejects_missing_or_duplicate_pair_sources(tmp_path: Path):

@@ -102,20 +102,22 @@ class TnkRuntimeAdapter:
 
     def load_window_spectrum(
         self, inputs: AlgorithmInputs, config: TnkRuntimeConfig, start_s: float, end_s: float,
+        *, bounded: bool = False,
     ) -> Any:
         channels = self.requested_channels(config)
         return inputs.payload.load_spectrum(
             start_s=start_s, window_s=end_s - start_s, channels=channels,
             filter_low_hz=1.0, filter_high_hz=30.0, output_low_hz=1.0, output_high_hz=30.0,
+            preprocessing_scope=("tnk_window_scoped_v1" if bounded else "configured_continuous_before_slice"),
         )
 
     def _window(
         self, inputs: AlgorithmInputs, config: TnkRuntimeConfig, start_s: float, end_s: float,
-        *, spectrum: Any | None = None,
+        *, spectrum: Any | None = None, bounded: bool = False,
     ) -> TnkSpectralWindow:
         channels = self.requested_channels(config)
         if spectrum is None:
-            spectrum = self.load_window_spectrum(inputs, config, start_s, end_s)
+            spectrum = self.load_window_spectrum(inputs, config, start_s, end_s, bounded=bounded)
         roles = self.manifest.required_channel_roles
         return TnkSpectralWindow(
             frequencies_hz=spectrum.freqs,
@@ -145,8 +147,8 @@ class TnkRuntimeAdapter:
             fit_high_hz=config.fit_high_hz,
         )
 
-    def _compute(self, inputs: AlgorithmInputs, config: TnkRuntimeConfig, start_s: float, end_s: float) -> AlgorithmResult:
-        window = self._window(inputs, config, start_s, end_s)
+    def _compute(self, inputs: AlgorithmInputs, config: TnkRuntimeConfig, start_s: float, end_s: float, *, bounded: bool = False) -> AlgorithmResult:
+        window = self._window(inputs, config, start_s, end_s, bounded=bounded)
         result = self.module.compute(window, self._tnk_config(config, inputs.sfreq_hz))
         # The module consumes stable scientific roles (for example Pz/Oz),
         # while the platform contract identifies the actual source channels
@@ -187,7 +189,7 @@ class TnkRuntimeAdapter:
         point_evidence: list[dict[str, Any]] = []
         windows: list[dict[str, float]] = []
         for frame in controlled_frames(frames, inputs.execution_context):
-            item = self._compute(inputs, config, frame.window_start_s, frame.window_end_s)
+            item = self._compute(inputs, config, frame.window_start_s, frame.window_end_s, bounded=True)
             values.append(item.value)
             output_values.append(item.output_values or {})
             qualities.append(item.quality)
@@ -211,6 +213,10 @@ class TnkRuntimeAdapter:
                 "algorithm_id": self.manifest.algorithm_id,
                 "window_s": window_s,
                 "step_s": step_s,
+                "preprocessing_scope": "tnk_window_scoped_v1",
+                "preprocessing_version": "tnk-window-spectral-v1",
+                "filter_context_s": 2.0,
+                "boundary_policy": "clamp_to_recording",
             }}},
         )
 

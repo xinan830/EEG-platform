@@ -22,6 +22,9 @@
 - [x] 3.6 Add desktop tests for playback continuing during delayed analysis, ordered append, deduplication, stale-session rejection, seek/config reset, lag display, overflow/gap recovery, and chart-range preservation.
 - [x] 3.7 Start the ordered event consumer lazily on the first playback target so an idle cursor does not generate empty polling requests.
 - [x] 3.8 Cancel a superseded active playback observation at a cooperative checkpoint while preserving normal active-work completion semantics for manual requests; add coordinator coverage for cancellation and latest-target replacement.
+- [x] 3.9 Throttle presentation-only TNK chart cursor refreshes to 4 Hz while preserving waveform cadence and every accepted result-history update.
+- [x] 3.10 Stop hidden/unloaded chart subscriptions and rendering updates, synchronize latest snapshot/cursor on reactivation, and add focused lifecycle regression coverage (not executed at user request). Desktop and test-project compilation passed with 0 errors; existing package/analyzer warnings remain. OpenSpec strict validation and diff checks passed; real playback acceptance remains task 3.11.
+- [ ] 3.11 Manually repeat RBP 30 s then fatigue 30 s; confirm old RBP cursor diagnostics stop and assess remaining waveform stalls independently.
 
 ## 3A. Shared ANT stream execution
 
@@ -35,14 +38,18 @@
 
 ## 3C. Unified EEG data access contract
 
-- [x] 3C.1 Map the current WPF, BDF/EDF, acquisition persistence, and display-ring-buffer ownership boundaries.
+- [x] 3C.1 Map every current historical read entry point (`load_data`, `open_data_reader`, `open_sample_reader`, preview/spectrum) and separate raw persistence, live display, and HTTP display-filter ownership.
 - [x] 3C.2 Define the identity-bound sample access session contract, including coordinates, units, channel order, gaps, lifecycle, per-format concurrency, cancellation, and live C#/Python boundary.
-- [ ] 3C.3 Implement the source-independent backend access-session API and historical WPF/BDF/EDF adapters with bounded lifecycle, source identity validation, gap reporting, and per-format concurrency rules.
-- [ ] 3C.4 Implement the live acquisition adapter over an explicit bounded C#/Python process boundary using the same sample contract; keep raw persistence independent from display retention.
-- [ ] 3C.5 Validate equivalent sample coordinates, units, channel order, and gap semantics for historical and live adapters, including cancellation and source/session invalidation.
-- [ ] 3C.6 Migrate TNK window execution to retain one access session across consecutive windows without changing algorithm inputs or source identity.
-- [ ] 3C.7 Migrate remaining backend sample consumers after documenting their format-specific lifetime and concurrency requirements.
-- [ ] 3C.8 Gate multi-algorithm scheduling work on acceptance of the unified data access layer; scheduling must consume the access contract rather than own file readers.
+- [x] 3C.3 Implement the source-independent backend access-session API and historical WPF/BDF/EDF adapters with bounded lifecycle, source identity validation, explicit gap reporting, and per-format concurrency/cancellation semantics.
+- [x] 3C.4 Migrate TNK, mapped preprocessing, preview/spectrum, and waveform playback to the historical access session; preserve their existing scientific inputs and display behavior. Independent spectral-reference reads remain separate by design so parity checks do not reuse the production adapter.
+- [x] 3C.5 Delete `open_sample_reader`, `open_data_reader`, and other recording-owned reader entry points after all callers migrate; do not retain parallel legacy readers or silent fallbacks.
+- [x] 3C.6 Implement the live acquisition adapter over an explicit bounded C#/Python process boundary using the same sample contract; keep raw persistence independent from display retention.
+- [x] 3C.7 Validate the shared sample-block type, source-identity-scoped coordinates, V units, channel order, unavailable reasons, cancellation, and source/session invalidation across historical and live adapters.
+- [x] 3C.8 Verify TNK retains one access session across consecutive windows without changing algorithm inputs or source identity.
+- [x] 3C.9 Gate multi-algorithm scheduling work on acceptance of the unified data access layer; scheduling must consume the access contract rather than own file readers.
+- [x] 3C.10 Bulk-read consecutive tiny WPF payloads inside the access adapter while preserving sample bounds, channel order, units, gaps, cancellation, and source validation.
+- [x] 3C.11 Bound database-backed cancellation checks at the access-session boundary and acquire the on-demand compute lease only after source preparation completes.
+- [x] 3C.12 Verify the WPF desktop review adapter against the shared logical contract: map source counters to recording-relative sample time, distinguish source gaps from missing channel values, scope reads to the opened recording identity, and preserve channel order and units. `LocalRawRecordingReaderTests` covers non-zero counter origin, explicit counter gaps, channel order/units, and rejection when the selected session ID differs from the directory manifest; focused suite passed. Manual playback acceptance remains in 4.6.
 
 ## 4. Transport decision and acceptance
 
@@ -58,8 +65,10 @@
 
 - [x] 5.1 Keep the existing uniform-stride response fields unchanged and add bounded per-channel minimum/maximum summaries for each decimated display bin, with explicit bin-center time and µV units.
 - [x] 5.2 Render the optional extrema envelope behind the existing waveform line and label its values as display-bin ranges, not event timing.
-- [x] 5.3 Add opt-in request-correlated backend timing for source preparation, window slicing/validation, display projection, channel count, output point count, stride, and envelope-bin count.
+- [x] 5.3 Add opt-in request-correlated backend timing for bounded window read/display filtering, window slicing/validation, display projection, channel count, output point count, stride, and envelope-bin count.
 - [x] 5.4 Add focused backend and desktop tests for a transient omitted by uniform sampling, envelope time/unit/channel alignment, no-decimation behavior, and extrema rendering projection; run strict OpenSpec and diff checks.
+- [x] 5.5 Split signal preview from algorithm scientific preparation: use bounded `load_window()` access with the display causal-IIR contract, remove the preview preparation facade, and verify overlapping preview/algorithm requests have independent paths.
+- [x] 5.6 Make display data access block-oriented: read one-second source blocks, preserve causal filter state, and emit 50 ms playback frames from memory so WPF access is not invoked once per display frame.
 
 ## 6. On-demand STFT history projection
 

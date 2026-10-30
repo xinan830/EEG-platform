@@ -184,20 +184,20 @@ class Resources:
         self.release_patch = patch.object(MappedArrays, "release", lambda owner, array: self.release(owner, array))
         self.allocation_patch.start()
         self.release_patch.start()
-        original_read = RecordingService.open_sample_reader
+        original_open = RecordingService.open_access_session
         phases = self.phase_ms
-        class TimedReader:
-            def __init__(self, reader):
-                self.reader = reader
+        class TimedSession:
+            def __init__(self, session):
+                self.session = session
             def __getattr__(self, name):
-                return getattr(self.reader, name)
-            def read(self, *args, **kwargs):
+                return getattr(self.session, name)
+            def read_samples(self, *args, **kwargs):
                 started = time.perf_counter()
-                result = self.reader.read(*args, **kwargs)
+                result = self.session.read_samples(*args, **kwargs)
                 phases["source_read"].append((time.perf_counter() - started) * 1000)
                 return result
-        self.reader_patch = patch.object(RecordingService, "open_sample_reader",
-            lambda owner, recording: TimedReader(original_read(owner, recording)))
+        self.reader_patch = patch.object(RecordingService, "open_access_session",
+            lambda owner, recording, **kwargs: TimedSession(original_open(owner, recording, **kwargs)))
         original_preprocess = preprocessing.preprocess_blocks
         def timed_preprocess(*args, **kwargs):
             started = time.perf_counter()

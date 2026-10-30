@@ -25,12 +25,12 @@ class ElectrodeLocationItem(BaseModel):
     map_coordinates: list[float] | None
     coordinate_frame: Literal["mri"] | None
     coordinate_unit: Literal["m"] | None
-    source_id: Literal["mne.standard_1020"]
+    source_id: Literal["mne.colin27_1020"]
     source_version: str
 
 
 class ElectrodeLocationResponse(BaseModel):
-    montage: Literal["standard_1020"] = "standard_1020"
+    montage: Literal["colin27_1020"] = "colin27_1020"
     locations: list[ElectrodeLocationItem]
 
 
@@ -40,4 +40,4 @@ def resolve(payload: ElectrodeLocationRequest, request: Request) -> dict:
         locations = resolve_electrode_labels(payload.labels)
     except RuntimeError as error:
         return error_response(request, 503, "ELECTRODE_LOCATION_SOURCE_UNAVAILABLE", str(error))
-    return {"montage": "standard_1020", "locations": locations}
+    return {"montage": "colin27_1020", "locations": locations}

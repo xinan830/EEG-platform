@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using SciChart.Charting.ChartModifiers;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
@@ -22,6 +24,12 @@ public sealed class SignalWaveformView : UserControl
         VerticalAlignment = VerticalAlignment.Center, Foreground = Brushes.SlateGray };
     private readonly VerticalLineAnnotation cursor = new() { Stroke = Brushes.DodgerBlue, StrokeThickness = 1, IsEditable = false };
     private Thickness? labelMargin;
+    private long previousRendering;
+    private long renderingWindowStarted;
+    private int renderingFrames;
+    private int renderingGapsOver50Ms;
+    private int renderingGapsOver100Ms;
+    private double renderingMaxGapMs;
     public event EventHandler<double>? SeekRequested;
     public static readonly DependencyProperty SignalProperty = DependencyProperty.Register(nameof(Signal), typeof(SignalPreviewResponse),
         typeof(SignalWaveformView), new PropertyMetadata(null, (owner, _) => ((SignalWaveformView)owner).Refresh()));
@@ -45,6 +53,8 @@ public sealed class SignalWaveformView : UserControl
         root.Children.Add(labels);
         var host = new Grid(); Grid.SetColumn(host, 2); host.Children.Add(surface); host.Children.Add(status); root.Children.Add(host);
         Content = root;
+        Loaded += (_, _) => StartRenderingDiagnostics();
+        Unloaded += (_, _) => StopRenderingDiagnostics();
         surface.LayoutUpdated += (_, _) => WaveformPlotLayout.SyncLabelPlotArea(surface, labels, ref labelMargin);
         surface.MouseLeftButtonUp += (_, args) =>
         {
@@ -52,6 +62,40 @@ public sealed class SignalWaveformView : UserControl
             var seconds = x.GetCurrentCoordinateCalculator().GetDataValue(args.GetPosition((IInputElement)surface.GridLinesPanel).X);
             if (double.IsFinite(seconds)) SeekRequested?.Invoke(this, seconds);
         };
+    }
+
+    private void StartRenderingDiagnostics()
+    {
+        if (!DesktopLog.PerformanceDiagnosticsEnabled) return;
+        previousRendering = renderingWindowStarted = 0;
+        renderingFrames = renderingGapsOver50Ms = renderingGapsOver100Ms = 0;
+        renderingMaxGapMs = 0;
+        CompositionTarget.Rendering += OnRendering;
+    }
+
+    private void StopRenderingDiagnostics() => CompositionTarget.Rendering -= OnRendering;
+
+    private void OnRendering(object? sender, EventArgs args)
+    {
+        var now = Stopwatch.GetTimestamp();
+        if (previousRendering != 0)
+        {
+            var gapMs = Stopwatch.GetElapsedTime(previousRendering, now).TotalMilliseconds;
+            renderingFrames++;
+            if (gapMs > 50) renderingGapsOver50Ms++;
+            if (gapMs > 100) renderingGapsOver100Ms++;
+            renderingMaxGapMs = Math.Max(renderingMaxGapMs, gapMs);
+        }
+        previousRendering = now;
+        if (renderingWindowStarted == 0) renderingWindowStarted = now;
+        if (Stopwatch.GetElapsedTime(renderingWindowStarted, now) < TimeSpan.FromSeconds(5)) return;
+
+        DesktopLog.Info($"waveform_render_frame_perf scenario={DesktopLog.PerformanceScenario}" +
+            $" frames={renderingFrames} gap_over_50ms={renderingGapsOver50Ms}" +
+            $" gap_over_100ms={renderingGapsOver100Ms} max_gap_ms={renderingMaxGapMs:0.0}");
+        renderingWindowStarted = now;
+        renderingFrames = renderingGapsOver50Ms = renderingGapsOver100Ms = 0;
+        renderingMaxGapMs = 0;
     }
 
     private void UpdateCursor()
@@ -67,6 +111,23 @@ public sealed class SignalWaveformView : UserControl
     }
 
     private void Refresh()
+    {
+        var diagnosticsEnabled = DesktopLog.PerformanceDiagnosticsEnabled;
+        var started = diagnosticsEnabled ? Stopwatch.GetTimestamp() : 0;
+        try
+        {
+            RefreshCore();
+        }
+        finally
+        {
+            if (diagnosticsEnabled)
+                DesktopLog.Info($"waveform_refresh_perf scenario={DesktopLog.PerformanceScenario}" +
+                    $" channel_count={Signal?.Channels.Count ?? 0} point_count={Signal?.TimeSeconds.Count ?? 0}" +
+                    $" elapsed_ms={Stopwatch.GetElapsedTime(started).TotalMilliseconds:0.000}");
+        }
+    }
+
+    private void RefreshCore()
     {
         using (surface.SuspendUpdates())
         {

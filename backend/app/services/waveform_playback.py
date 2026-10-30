@@ -25,6 +25,9 @@ DISPLAY_CHANNEL_GROUPS = (
     ("F4",),
 )
 
+DISPLAY_FILTER_CHUNK_SECONDS = DISPLAY_FILTER_CONTRACT["chunk_seconds"]
+DISPLAY_READ_AHEAD_SECONDS = DISPLAY_FILTER_CONTRACT["read_ahead_seconds"]
+
 def select_display_channels(
     names: list[str],
     limit: int = 5,
@@ -124,8 +127,9 @@ class WaveformPlaybackSession:
     @staticmethod
     def _prime_filter(display_filter: DisplaySignalFilter, read_chunk: Any, position: int, chunk_samples: int) -> None:
         """定位后重放从文件起点到目标位置的状态，保证与静态窗口逐点一致。"""
-        for cursor in range(0, position, chunk_samples):
-            display_filter.process(read_chunk(cursor, min(position, cursor + chunk_samples)))
+        read_ahead = max(chunk_samples, int(round(display_filter.sfreq * DISPLAY_READ_AHEAD_SECONDS)))
+        for cursor in range(0, position, read_ahead):
+            display_filter.process(read_chunk(cursor, min(position, cursor + read_ahead)))
 
     @staticmethod
     def _resolve_reset_position(current: int, seek_to: float | None, sample_count: int, sfreq: float) -> int:
@@ -193,20 +197,23 @@ class WaveformPlaybackSession:
                 self.status = "stopped"
 
     def _run(self) -> None:
-        raw = None
+        access_session = None
         try:
-            raw, sfreq, all_names, events = self._recordings.open_data_reader(self._recording)
+            access_session = self._recordings.open_access_session(self._recording)
+            sfreq = access_session.sampling_rate_hz
+            all_names = list(access_session.channel_names)
+            events = access_session.events
             requested = self._requested_channels
             if requested is None and self._montage_id == "original":
                 _, requested = select_display_channels(list(all_names))
             definition = build_montage(self._montage_id, list(all_names), requested, self._average_exclude, self._custom_montage)
-            source_indices = [all_names.index(name) for name in definition.required_channels]
             names = [item.name for item in definition.channels]
-            chunk_samples = max(1, int(round(sfreq * DISPLAY_FILTER_CONTRACT["chunk_seconds"])))
-            sample_count = int(raw.n_times)
+            chunk_samples = max(1, int(round(sfreq * DISPLAY_FILTER_CHUNK_SECONDS)))
+            read_ahead_samples = max(chunk_samples, int(round(sfreq * DISPLAY_READ_AHEAD_SECONDS)))
+            sample_count = access_session.sample_count
 
             def read_chunk(start: int, stop: int) -> np.ndarray:
-                return np.asarray(raw.get_data(picks=source_indices, start=start, stop=stop), dtype=float).T
+                return access_session.read_samples(start, stop, definition.required_channels).values_v
 
             position = 0
             event_index = 0
@@ -224,7 +231,6 @@ class WaveformPlaybackSession:
                     position = self._resolve_reset_position(position, seek_to, sample_count, sfreq)
                     if self._channels_changed:
                         definition = build_montage(self._montage_id, list(all_names), self._requested_channels, self._average_exclude, self._custom_montage)
-                        source_indices = [all_names.index(name) for name in definition.required_channels]
                         names = [item.name for item in definition.channels]
                         self._channels_changed = False
                         self._emit({
@@ -240,17 +246,19 @@ class WaveformPlaybackSession:
                     time.sleep(0.02)
                     continue
 
-                end = min(sample_count, position + chunk_samples)
+                end = min(sample_count, position + read_ahead_samples)
                 chunk = read_chunk(position, end)
                 filtered = display_filter.process(chunk)
-                filtered_uv = apply_montage(filtered, list(definition.required_channels), definition) * 1e6
-                position = end
-                elapsed_s = position / sfreq
-                self._emit(encode_waveform_binary(elapsed_s, filtered_uv))
-                while event_index < len(events) and float(events[event_index]["elapsed_s"]) <= elapsed_s:
-                    self._emit({"type": "event", **events[event_index]})
-                    event_index += 1
-                time.sleep(len(chunk) / sfreq / self._speed)
+                for offset in range(0, len(chunk), chunk_samples):
+                    frame = filtered[offset:offset + chunk_samples]
+                    frame_uv = apply_montage(frame, list(definition.required_channels), definition) * 1e6
+                    position = position + len(frame)
+                    elapsed_s = position / sfreq
+                    self._emit(encode_waveform_binary(elapsed_s, frame_uv))
+                    while event_index < len(events) and float(events[event_index]["elapsed_s"]) <= elapsed_s:
+                        self._emit({"type": "event", **events[event_index]})
+                        event_index += 1
+                    time.sleep(len(frame) / sfreq / self._speed)
 
             if not self._stop.is_set():
                 self.status = "completed"
@@ -259,8 +267,8 @@ class WaveformPlaybackSession:
             self.status = "failed"
             self._emit({"type": "error", "detail": str(exc)})
         finally:
-            if raw is not None:
-                raw.close()
+            if access_session is not None:
+                access_session.close()
 
     async def next_message(self) -> dict[str, Any] | bytes:
         return await asyncio.to_thread(self._outbound.get)

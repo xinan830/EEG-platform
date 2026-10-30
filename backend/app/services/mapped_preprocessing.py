@@ -64,33 +64,36 @@ def _cleanup_maps(maps, directory):
 def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
                       high_hz: float, notch_hz: float | None, notch_q: float = 30.0,
                       channels: list[str] | None = None, execution_context: ExecutionControl | None = None) -> PreprocessedRecording:
-    reader = recordings.open_sample_reader(recording)
     policy = getattr(execution_context, "preparation_resource_policy", None)
     owner = MappedArrays() if policy is None else MappedArrays(policy)
+    session = None
     def check_cancelled():
         if execution_context is not None:
             execution_context.check_cancelled()
     try:
-        lookup = {name.casefold(): index for index, name in enumerate(reader.names)}
-        indexes = list(range(len(reader.names))) if channels is None else [lookup[name.casefold()] for name in channels]
-        names = tuple(reader.names[index] for index in indexes)
-        shape = (reader.sample_count, len(indexes))
+        session = recordings.open_access_session(recording)
+        lookup = {name.casefold(): name for name in session.channel_names}
+        names = tuple(session.channel_names) if channels is None else tuple(lookup[name.casefold()] for name in channels)
+        shape = (session.sample_count, len(names))
         source = owner.allocate(shape)
         target = owner.allocate(shape)
-        block_samples = max(1, min(65536, (8 * 1024**2) // (8 * len(indexes))))
-        for start in range(0, reader.sample_count, block_samples):
+        block_samples = max(1, min(65536, (8 * 1024**2) // (8 * len(names))))
+        for start in range(0, session.sample_count, block_samples):
             check_cancelled()
-            stop = min(start + block_samples, reader.sample_count)
-            source[start:stop] = reader.read(start, stop, indexes)
-        preprocess_blocks(source, target, reader.sfreq, owner.allocate,
+            stop = min(start + block_samples, session.sample_count)
+            source[start:stop] = session.read_samples(
+                start, stop, names, check_cancelled=check_cancelled,
+            ).values_v
+        preprocess_blocks(source, target, session.sampling_rate_hz, owner.allocate,
                           low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
                           notch_q=notch_q, check_cancelled=check_cancelled, release=owner.release,
                           block_samples=block_samples)
         owner.release(source)
         target.flush()
-        return PreprocessedRecording(target, reader.sfreq, names, owner)
+        return PreprocessedRecording(target, session.sampling_rate_hz, names, owner)
     except BaseException:
         owner.close()
         raise
     finally:
-        reader.close()
+        if session is not None:
+            session.close()

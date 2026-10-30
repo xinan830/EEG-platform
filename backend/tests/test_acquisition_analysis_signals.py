@@ -84,15 +84,13 @@ def test_registration_exposes_only_saved_outputs_and_preserves_raw(tmp_path):
     assert catalogue["outputs"][0]["role"] == "F7"
     assert service.register_wpf_recording(str(root), signal_mode="acquisition_montage").id == derived.id
     reloaded = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
-    reader = reloaded.open_sample_reader(reloaded.require_recording(derived.id))
-    try:
-        np.testing.assert_array_equal(reader.read(3, 25), values[3:25, [1, 0]])
-        np.testing.assert_array_equal(reader.read(3, 25, [1]), values[3:25, [0]])
-    finally:
-        reader.close()
-    data, _, names, _ = service.load_data(derived)
-    assert names == list(derived.channels)
-    np.testing.assert_array_equal(data, values[:, [1, 0]])
+    with reloaded.open_access_session(reloaded.require_recording(derived.id)) as session:
+        np.testing.assert_array_equal(session.read_samples(3, 25).values_v, values[3:25, [1, 0]])
+        np.testing.assert_array_equal(session.read_samples(3, 25, ("F3-REF",)).values_v, values[3:25, [0]])
+    with service.open_access_session(derived) as session:
+        data = session.read_samples(0, session.sample_count).values_v
+        assert list(session.channel_names) == list(derived.channels)
+        np.testing.assert_array_equal(data, values[:, [1, 0]])
 
 
 def test_record_without_alternate_catalogue_reads_default_but_rejects_switch(tmp_path):
@@ -101,11 +99,8 @@ def test_record_without_alternate_catalogue_reads_default_but_rejects_switch(tmp
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     recording = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
     assert [profile["id"] for profile in recording.montage_catalogue] == ["saved-montage"]
-    reader = service.open_sample_reader(recording, analysis_montage_id="saved-montage")
-    try:
-        np.testing.assert_array_equal(reader.read(0, 10), values[:10, [1, 0]])
-    finally:
-        reader.close()
+    with service.open_access_session(recording, analysis_montage_id="saved-montage") as session:
+        np.testing.assert_array_equal(session.read_samples(0, 10).values_v, values[:10, [1, 0]])
     with pytest.raises(WpfRecordingError, match="requested historical montage is not present"):
         read_acquisition_signal_view(root, "unsaved-average")
 
@@ -119,11 +114,8 @@ def test_output_colors_and_custom_order_do_not_remap_physical_sources(tmp_path):
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     derived = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
     assert list(derived.channels) == ["F7-REF", "F3-REF"]
-    reader = service.open_sample_reader(derived)
-    try:
-        np.testing.assert_array_equal(reader.read(0, 200), values[:200, [1, 0]])
-    finally:
-        reader.close()
+    with service.open_access_session(derived) as session:
+        np.testing.assert_array_equal(session.read_samples(0, 200).values_v, values[:200, [1, 0]])
     assert (root / "samples-000001.bin").read_bytes() == original
 
 
@@ -133,13 +125,11 @@ def test_formula_projects_all_reference_dependencies(tmp_path, kind, negatives):
     values, _ = fixture_recording(root, [row("F3", kind, negatives)])
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     derived = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
-    reader = service.open_sample_reader(derived)
-    try:
+    with service.open_access_session(derived) as session:
         indexes = [{"F3": 0, "F7": 1, "Cz": 2}[name] for name in negatives]
-        np.testing.assert_allclose(reader.read(0, 200)[:, 0], values[:200, 0] - values[:200, indexes].mean(axis=1), atol=0)
-        assert reader.read(0, 200).dtype == np.float64
-    finally:
-        reader.close()
+        block = session.read_samples(0, 200)
+        np.testing.assert_allclose(block.values_v[:, 0], values[:200, 0] - values[:200, indexes].mean(axis=1), atol=0)
+        assert block.values_v.dtype == np.float64
 
 
 @pytest.mark.parametrize("damage", ["missing_snapshot", "swapped_mapping", "missing_negative", "unit", "kind", "duplicate", "mean_group", "device", "name"])
@@ -291,15 +281,9 @@ def test_historical_catalogue_projects_selected_profile_from_same_raw_channels(t
     assert service.require_recording(recording.id).montage_catalogue == catalogue
     restarted = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     assert restarted.require_recording(recording.id).montage_catalogue == catalogue
-    reader = service.open_sample_reader(
-        recording,
-        analysis_montage_id="saved-average",
-    )
-    try:
+    with service.open_access_session(recording, analysis_montage_id="saved-average") as session:
         reference_indexes = [0, 1, 2] if reference_kind == 2 else [1]
-        np.testing.assert_allclose(reader.read(0, 10)[:, 0], values[:10, 0] - values[:10, reference_indexes].mean(axis=1))
-    finally:
-        reader.close()
+        np.testing.assert_allclose(session.read_samples(0, 10).values_v[:, 0], values[:10, 0] - values[:10, reference_indexes].mean(axis=1))
     assert {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in source_paths} == source_checksums
 
 
@@ -356,12 +340,9 @@ def test_explicit_compatible_profile_is_persisted_resolved_and_keeps_raw_immutab
 
     selected = service.select_analysis_montage(recording, snapshot["id"])
     assert selected.channels == ("F3-AVG",)
-    reader = service.open_sample_reader(selected)
-    try:
+    with service.open_access_session(selected) as session:
         expected = values[:20, 0] - values[:20, :3].mean(axis=1)
-        np.testing.assert_allclose(reader.read(0, 20)[:, 0], expected, rtol=0, atol=1e-18)
-    finally:
-        reader.close()
+        np.testing.assert_allclose(session.read_samples(0, 20).values_v[:, 0], expected, rtol=0, atol=1e-18)
 
     reloaded = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     persisted = reloaded.require_recording(recording.id)

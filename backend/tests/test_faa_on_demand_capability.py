@@ -8,15 +8,15 @@ from app.algorithm_runtime.on_demand_result_validation import validate_window_re
 from app.algorithms.faa.config import FaaConfig
 from app.algorithms.faa.runner import FaaAlgorithm
 from app.services.algorithm_recording_context import _RecordingAlgorithmContext
-from app.services.recording_samples import ArraySampleReader
+from tests.access_fixtures import array_access_session
 from on_demand_fixtures import configure_api, source_hashes
 import time
 
 
 def _context(pair: np.ndarray, sfreq: float) -> _RecordingAlgorithmContext:
     class Source:
-        def open_sample_reader(self, _recording):
-            return ArraySampleReader(pair, sfreq, ["F3", "F4"])
+        def open_access_session(self, recording, *, analysis_montage_id=None):
+            return array_access_session(recording, pair, sfreq, ["F3", "F4"])
 
         def analysis_signal_provenance(self, _recording):
             return {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}

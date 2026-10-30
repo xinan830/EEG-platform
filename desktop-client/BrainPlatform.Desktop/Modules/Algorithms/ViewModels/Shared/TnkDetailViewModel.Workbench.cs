@@ -17,6 +17,7 @@ public sealed partial class TnkDetailViewModel
     private string waveformStatus = "选择记录后显示波形";
     private double waveformPosition;
     private bool workbenchActive;
+    private TnkDispatcherOperationDiagnostics? dispatcherOperationDiagnostics;
     private bool historyRefreshQueued;
     private readonly object historyProjectionGate = new();
     private IReadOnlyList<TnkChildResultDisplay>? pendingHistorySource;
@@ -81,8 +82,11 @@ public sealed partial class TnkDetailViewModel
         get => waveformPosition;
         set
         {
+            var previousSecond = (long)Math.Floor(waveformPosition);
             hasSelectedTime = true;
-            SetProperty(ref waveformPosition, Math.Clamp(value, 0, Math.Max(0, RecordingDuration - .001)));
+            if (!SetProperty(ref waveformPosition, Math.Clamp(value, 0, Math.Max(0, RecordingDuration - .001)))) return;
+            if (workbenchPlaying && previousSecond == (long)Math.Floor(waveformPosition)) return;
+
             RaisePropertyChanged(nameof(SelectedValueText));
             NotifyCursorPresentation();
             RefreshScoreStates();
@@ -118,6 +122,8 @@ public sealed partial class TnkDetailViewModel
     {
         if (workbenchActive) return;
         workbenchActive = true;
+        if (DesktopLog.PerformanceDiagnosticsEnabled && System.Windows.Application.Current is { } application)
+            dispatcherOperationDiagnostics = new TnkDispatcherOperationDiagnostics(application.Dispatcher);
         Catalog.OwnedWindowCompleted += OnOwnedWindowCompleted;
         Catalog.OwnedTnkPlaybackGap += OnOwnedTnkPlaybackGap;
         Catalog.OwnedTnkPlaybackRecoveryFailed += OnOwnedTnkPlaybackRecoveryFailed;
@@ -133,6 +139,8 @@ public sealed partial class TnkDetailViewModel
         StopWorkbenchPlayback();
         DeactivateSidebar();
         workbenchActive = false;
+        dispatcherOperationDiagnostics?.Dispose();
+        dispatcherOperationDiagnostics = null;
         historyRefreshQueued = false;
         lock (historyProjectionGate)
         {
@@ -377,7 +385,7 @@ public sealed partial class TnkDetailViewModel
             if (revision != waveformRevision || request.IsCancellationRequested) return;
             if (result.RecordingId != Catalog.RegisteredRecording?.Id || result.MontageId != Catalog.SelectedMontageProfile?.Id)
                 throw new InvalidOperationException("波形来源身份已变化，拒绝绑定。");
-            Waveform = result; WaveformStatus = $"{result.LowHz:G}–{result.HighHz:G} Hz · 陷波 {(result.NotchHz is double notch ? notch + " Hz" : "关闭")} · 连续零相位滤波 · 原始记录不变";
+            Waveform = result; WaveformStatus = $"{result.LowHz:G}–{result.HighHz:G} Hz · 陷波 {(result.NotchHz is double notch ? notch + " Hz" : "关闭")} · 显示因果滤波 · 原始记录不变";
         }
         catch (OperationCanceledException) { }
         catch (Exception) when (revision != waveformRevision || request.IsCancellationRequested) { }

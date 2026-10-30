@@ -539,7 +539,7 @@
                                         ToolTip="关闭当前通道配置中的全部 EEG 通道显示" />
                                 <Button Content="解析标准位置" Command="{Binding ChannelConfigurations.ResolveElectrodeLocationsCommand}"
                                         Style="{StaticResource OutlineBlueButton}" Height="32" Padding="12,0" Margin="0,0,12,0"
-                                        ToolTip="使用 MNE standard_1020 查询标准模板位置；不是患者或电极帽实测坐标" />
+                                        ToolTip="使用 MNE colin27_1020 查询标准模板位置；不是患者或电极帽实测坐标" />
                                 <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="6" Height="32" Width="220" Padding="8,0">
                                     <Grid VerticalAlignment="Center">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -623,7 +623,7 @@
                                                     </Grid>
                                                 </Border>
                                                 <CheckBox Grid.Column="5" IsChecked="{Binding IsEnabled, Mode=TwoWay}" IsEnabled="{Binding IsEegInput}" Style="{StaticResource ModernToggleSwitch}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="6,0,0,0" />
-                                                <TextBlock Grid.Column="6" Text="{Binding LocationText}" FontSize="11" Foreground="#64748B" VerticalAlignment="Center" Margin="6,0,4,0" ToolTip="MNE standard_1020；坐标单位 m，坐标系 mri" />
+                                                <TextBlock Grid.Column="6" Text="{Binding LocationText}" FontSize="11" Foreground="#64748B" VerticalAlignment="Center" Margin="6,0,4,0" ToolTip="MNE colin27_1020；坐标单位 m，坐标系 mri" />
                                                 <Border Grid.Column="7" CornerRadius="10" Padding="10,2" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,0">
                                                     <Border.Style>
                                                         <Style TargetType="Border">

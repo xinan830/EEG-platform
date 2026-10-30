@@ -10,8 +10,8 @@ import mne
 import numpy as np
 
 
-MONTAGE_NAME = "standard_1020"
-SOURCE_ID = "mne.standard_1020"
+MONTAGE_NAME = "colin27_1020"
+SOURCE_ID = "mne.colin27_1020"
 COORDINATE_FRAME = "mri"
 COORDINATE_UNIT = "m"
 MAP_EDGE_SITES = ("Fp1", "Fpz", "Fp2", "T7", "T8", "O1", "Oz", "O2")

@@ -108,23 +108,6 @@ def inspect_wpf_recording(source_directory: str | Path) -> WpfRecordingFacts:
     )
 
 
-def load_wpf_data(facts: WpfRecordingFacts) -> tuple[np.ndarray, float, list[str], list[dict[str, object]]]:
-    batches = facts.batches
-    first = batches[0][0]
-    last = max(item[0] + item[1] for item in batches)
-    values = np.full((last - first, len(facts.eeg_indexes)), np.nan, dtype=np.float64)
-    names = [facts.channels[index].label for index in facts.eeg_indexes]
-    for counter, count, channel_count, _ticks, offset, path in batches:
-        with path.open("rb") as stream:
-            stream.seek(offset)
-            payload = np.fromfile(stream, dtype="<f8", count=count * channel_count)
-        if payload.size != count * channel_count:
-            raise WpfRecordingError("WPF_RECORDING_CHUNK_TRUNCATED", f"WPF 分块读取不完整：{path.name}。")
-        matrix = payload.reshape(count, channel_count)
-        values[counter - first:counter - first + count, :] = matrix[:, list(facts.eeg_indexes)]
-    return values, facts.sampling_rate_hz, names, []
-
-
 def _index_batches(root: Path, channel_count: int) -> list[tuple[int, int, int, int, int, Path]]:
     result = []
     for path in sorted(root.glob("samples-*.bin")):

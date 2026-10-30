@@ -10,7 +10,7 @@ public sealed class ChannelConfigurationProfileTests
     public async Task Store_RoundTripsElectrodeLocation_AndLegacyEntriesRemainUnavailable()
     {
         var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "profiles.json");
-        var location = new ElectrodeLocationSnapshot("Fp1", -0.0294367, 0.0839171, -0.00699, "mri", "m", "mne.standard_1020", "1.12.1");
+        var location = new ElectrodeLocationSnapshot("Fp1", -0.0294367, 0.0839171, -0.00699, "mri", "m", "mne.colin27_1020", "1.12.1");
         var profile = new ChannelConfigurationProfile(
             "profile-location", "位置", "test", ChannelConfigurationSource.User, "0:Reference",
             [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "Fp1", true, 0, location)],
@@ -58,7 +58,7 @@ public sealed class ChannelConfigurationProfileTests
         var profile = new ChannelConfigurationProfile(
             "profile-location", "位置", "test", ChannelConfigurationSource.User, "0:Reference",
             [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "Fp1", true, 0,
-                new ElectrodeLocationSnapshot("Fp2", 0, 0, 0, "mri", "m", "mne.standard_1020", "1.12.1"))],
+                new ElectrodeLocationSnapshot("Fp2", 0, 0, 0, "mri", "m", "mne.colin27_1020", "1.12.1"))],
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
         var error = Assert.Throws<InvalidOperationException>(() => ChannelConfigurationValidation.Validate(profile));
@@ -71,7 +71,7 @@ public sealed class ChannelConfigurationProfileTests
         var profile = new ChannelConfigurationProfile(
             "profile-location", "位置", "test", ChannelConfigurationSource.User, "0:Reference",
             [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "F3", true, 0,
-                new ElectrodeLocationSnapshot("F3", -0.03, 0.04, 0, "mri", "m", "mne.standard_1020", "1.12.1"),
+                new ElectrodeLocationSnapshot("F3", -0.03, 0.04, 0, "mri", "m", "mne.colin27_1020", "1.12.1"),
                 new ElectrodeMapPosition(0.45, -0.2))],
             DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 
@@ -82,7 +82,7 @@ public sealed class ChannelConfigurationProfileTests
     public void Fingerprint_IncludesElectrodeLocationSnapshot()
     {
         var timestamp = DateTimeOffset.UtcNow;
-        var location = new ElectrodeLocationSnapshot("Fp1", -0.029, 0.083, -0.006, "mri", "m", "mne.standard_1020", "1.12.1");
+        var location = new ElectrodeLocationSnapshot("Fp1", -0.029, 0.083, -0.006, "mri", "m", "mne.colin27_1020", "1.12.1");
         var withoutLocation = new ChannelConfigurationProfile(
             "profile-location", "位置", "test", ChannelConfigurationSource.User, "0:Reference",
             [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "Fp1", true, 0)], timestamp, timestamp);

@@ -18,7 +18,8 @@ from app.services.recording_identity import (
 )
 from app.services.spectral_analysis import SpectralAnalysisService, _AUTO_NOTCH
 from app.services.recording_samples import WpfRecordingFactsCache
-from app.services.wpf_recording import inspect_wpf_recording, load_wpf_data
+from app.services.recording_access import RecordingAccessService
+from app.services.wpf_recording import inspect_wpf_recording
 
 
 class RecordingService:
@@ -33,6 +34,8 @@ class RecordingService:
         self._spectral_analysis = SpectralAnalysisService(self, self._analysis_preprocess_cache)
         from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
         self._analysis_montage_snapshots = AnalysisMontageSnapshots(self.database_path)
+        self._recording_access = RecordingAccessService(self.storage_dir, self._wpf_recording_facts,
+                                                        self._analysis_montage_snapshots)
         ensure_storage_directories()
         self._initialize_database()
 
@@ -205,62 +208,14 @@ class RecordingService:
         return summary
 
 
-    def load_data(self, recording: RecordingSummary) -> tuple[object, float, list[str], list[dict[str, object]]]:
-        if recording.extension == ".wpf":
-            if recording.stored_name.startswith("wpf-montage:"):
-                reader = self.open_sample_reader(recording)
-                try:
-                    return reader.read(0, reader.sample_count), reader.sfreq, list(reader.names), []
-                finally:
-                    reader.close()
-            return load_wpf_data(inspect_wpf_recording(recording.stored_name.removeprefix("wpf:")))
-        import mne
-
-        path = self.storage_dir / recording.stored_name
-        reader = mne.io.read_raw_bdf if recording.extension == ".bdf" else mne.io.read_raw_edf
-        raw = reader(path, preload=True, verbose=False)
-        try:
-            events = [
-                {"elapsed_s": float(onset), "label": str(label)}
-                for onset, label in zip(raw.annotations.onset, raw.annotations.description)
-            ]
-            return raw.get_data().T, float(raw.info["sfreq"]), list(raw.ch_names), events
-        finally:
-            raw.close()
-
-    def open_data_reader(self, recording: RecordingSummary):
-        """打开非预加载读取器，供连续回放按样本块读取；调用方必须 close。"""
-        import mne
-
-        path = self.storage_dir / recording.stored_name
-        reader = mne.io.read_raw_bdf if recording.extension == ".bdf" else mne.io.read_raw_edf
-        raw = reader(path, preload=False, verbose=False)
-        events = [
-            {"elapsed_s": float(onset), "label": str(label)}
-            for onset, label in zip(raw.annotations.onset, raw.annotations.description)
-        ]
-        return raw, float(raw.info["sfreq"]), list(raw.ch_names), events
-
-    def open_sample_reader(self, recording: RecordingSummary, *, analysis_montage_id: str | None = None):
-        """Caller owns a sample-block reader and must close it after use."""
-        from app.services.recording_samples import ArraySampleReader, EdfSampleReader, WpfSampleReader
-        if getattr(self.load_data, "__func__", None) is not RecordingService.load_data:
-            data, sfreq, names, _events = self.load_data(recording)
-            return ArraySampleReader(data, sfreq, names)
-        if recording.extension == ".wpf":
-            if recording.stored_name.startswith("wpf-montage:"):
-                from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader
-                directory = recording.stored_name.removeprefix("wpf-montage:")
-                view = self._analysis_montage_snapshots.resolve(
-                    recording.id, directory, analysis_montage_id or recording.selected_montage_id,
-                )
-                facts = self._wpf_recording_facts.get(directory, recording.source_sha256)
-                return AcquisitionMontageSampleReader(WpfSampleReader(facts), view)
-            directory = recording.stored_name.removeprefix("wpf:")
-            facts = self._wpf_recording_facts.get(directory, recording.source_sha256)
-            return WpfSampleReader(facts)
-        raw, _sfreq, _names, _events = self.open_data_reader(recording)
-        return EdfSampleReader(raw)
+    def open_access_session(
+        self, recording: RecordingSummary, *, analysis_montage_id: str | None = None,
+        verify_content_hash: bool = True,
+    ):
+        return self._recording_access.open_session(
+            recording, analysis_montage_id=analysis_montage_id,
+            verify_content_hash=verify_content_hash,
+        )
 
     def select_analysis_montage(self, recording: RecordingSummary, montage_id: str) -> RecordingSummary:
         """Validate a registered montage snapshot and bind its output channels."""
@@ -290,26 +245,20 @@ class RecordingService:
         window_s: float,
     ) -> tuple[object, float, list[str], list[dict[str, object]], float]:
         """只读取预览所需的时间窗，避免为查看波形加载完整记录。"""
-        import mne
-
-        path = self.storage_dir / recording.stored_name
-        reader = mne.io.read_raw_bdf if recording.extension == ".bdf" else mne.io.read_raw_edf
-        raw = reader(path, preload=False, verbose=False)
-        try:
-            sfreq = float(raw.info["sfreq"])
-            duration_s = float(raw.n_times / sfreq)
+        with self.open_access_session(recording) as session:
+            sfreq = session.sampling_rate_hz
+            sample_count = session.sample_count
+            duration_s = sample_count / sfreq
             actual_start_s = max(0.0, min(float(start_s), duration_s))
             actual_stop_s = min(duration_s, actual_start_s + max(0.1, float(window_s)))
-            start_sample = int(actual_start_s * sfreq)
-            stop_sample = max(start_sample + 1, int(actual_stop_s * sfreq))
+            start_sample = min(sample_count, int(actual_start_s * sfreq))
+            stop_sample = min(sample_count, max(start_sample, int(actual_stop_s * sfreq)))
+            block = session.read_samples(start_sample, stop_sample)
             events = [
-                {"elapsed_s": float(onset), "label": str(label)}
-                for onset, label in zip(raw.annotations.onset, raw.annotations.description)
-                if actual_start_s <= float(onset) <= actual_stop_s
+                event for event in session.events
+                if actual_start_s <= float(event["elapsed_s"]) <= actual_stop_s
             ]
-            return raw.get_data(start=start_sample, stop=stop_sample).T, sfreq, list(raw.ch_names), events, duration_s
-        finally:
-            raw.close()
+            return block.values_v, sfreq, list(session.channel_names), events, duration_s
 
     def load_preview(
         self,
@@ -339,12 +288,6 @@ class RecordingService:
             "events": events,
         }
 
-    def prepare_signal_preview(self, recording, low_hz, high_hz, notch_hz, channels):
-        """Reuse continuous scientific preparation; display requests never refilter a cropped window."""
-        from app.services.recording_signal_preview import PreviewPreparationControl
-        return self._spectral_analysis._preprocessed_recording(
-            recording, low_hz, high_hz, notch_hz, PreviewPreparationControl(), channels=channels)
-
     def load_spectrum(
         self,
         recording: RecordingSummary,
@@ -359,10 +302,11 @@ class RecordingService:
         filter_high_hz: float | None = None,
         output_low_hz: float | None = None,
         output_high_hz: float | None = None,
+        preprocessing_scope: str = "configured_continuous_before_slice",
         execution_context=None,
     ) -> dict:
         """Compatibility facade for the offline spectral analysis use case."""
-        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, execution_context=execution_context)
+        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, preprocessing_scope=preprocessing_scope, execution_context=execution_context)
 
     def load_spectrogram(
         self,
@@ -414,7 +358,6 @@ class RecordingService:
     ) -> dict:
         """按需读取并处理一个阅图窗口；原始文件始终保持不变。"""
         import numpy as np
-        import mne
         from app.services.waveform_playback import DISPLAY_FILTER_CONTRACT, DisplaySignalFilter
         from app.services.montage import apply_montage, build_montage
 
@@ -425,34 +368,39 @@ class RecordingService:
         if notch_hz is not None and float(notch_hz) not in (50.0, 60.0):
             raise ValueError("陷波仅支持关闭、50Hz 或 60Hz")
 
-        path = self.storage_dir / recording.stored_name
-        reader = mne.io.read_raw_bdf if recording.extension == ".bdf" else mne.io.read_raw_edf
-        raw = reader(path, preload=False, verbose=False)
+        access_session = self.open_access_session(recording)
         try:
-            sfreq = float(raw.info["sfreq"])
+            sfreq = access_session.sampling_rate_hz
             nyquist = sfreq / 2.0
             if high >= nyquist:
                 raise ValueError(f"高切必须低于奈奎斯特频率（{nyquist:g}Hz）")
-            duration_s = float(raw.n_times / sfreq)
+            duration_s = float(access_session.sample_count / sfreq)
             actual_start = max(0.0, min(float(start_s), duration_s))
             actual_window = max(0.1, float(window_s))
             actual_stop = min(duration_s, actual_start + actual_window)
 
-            available = list(raw.ch_names)
+            available = list(access_session.channel_names)
             ref_mode = str(reference or "original")
             montage_id = str(montage or ("reference:" + ref_mode if ref_mode not in {"original", "average"} else ref_mode))
             definition = build_montage(
                 montage_id, available, channels, average_exclude, custom_montage,
             )
             read_names = list(definition.required_channels)
-            indices = [available.index(name) for name in read_names]
 
-            # 从最近检查点按播放相同的 50ms 块推进滤波器，再截取目标窗口。
-            # 首次访问仍从文件起点建立状态，后续窗口可复用同一滤波器状态。
-            n_times = int(raw.n_times)
+            # 从最近检查点推进同一条因果显示滤波状态，再截取目标窗口。
+            # 文件按秒级块读取，避免访问层为每个 50ms 显示帧重复触发文件读取。
+            n_times = access_session.sample_count
             start_sample = min(max(0, n_times - 1), int(actual_start * sfreq))
             stop_sample = min(n_times, max(start_sample + 1, int(actual_stop * sfreq)))
-            chunk_samples = max(1, int(round(sfreq * 0.05)))
+            filter_chunk_samples = max(1, int(round(sfreq * 0.05)))
+            # File access is much more expensive than advancing the already
+            # stateful display filter. Read ahead in one-second blocks and
+            # process that block as one causal sequence. This keeps the
+            # display contract while preventing one file read per 50 samples.
+            read_chunk_samples = max(
+                filter_chunk_samples,
+                int(round(sfreq * DISPLAY_FILTER_CONTRACT["read_ahead_seconds"])),
+            )
             checkpoint_key = (recording.id, sfreq, low, high, notch_hz, bool(baseline_stabilization), tuple(read_names))
             checkpoint_start, checkpoint_state = self._filter_checkpoints.nearest(checkpoint_key, start_sample)
             display_filter = DisplaySignalFilter(
@@ -470,8 +418,8 @@ class RecordingService:
             checkpoint_interval = max(1, int(round(sfreq * 10.0)))
             next_checkpoint = ((cursor // checkpoint_interval) + 1) * checkpoint_interval
             while cursor < stop_sample:
-                end = min(stop_sample, cursor + chunk_samples)
-                values = np.asarray(raw.get_data(picks=indices, start=cursor, stop=end), dtype=float).T
+                end = min(stop_sample, cursor + read_chunk_samples)
+                values = access_session.read_samples(cursor, end, read_names).values_v
                 if values.shape[0] == 0:
                     break
                 filtered = display_filter.process(values)
@@ -491,7 +439,7 @@ class RecordingService:
             elapsed = actual_start + np.arange(len(cropped), dtype=float) / sfreq
             events = [
                 {"elapsed_s": float(onset), "label": str(label)}
-                for onset, label in zip(raw.annotations.onset, raw.annotations.description)
+                for onset, label in ((event["elapsed_s"], event["label"]) for event in access_session.events)
                 if actual_start <= float(onset) <= actual_stop
             ]
             return {
@@ -505,7 +453,7 @@ class RecordingService:
                 "settings": {"low_cut_hz": low, "high_cut_hz": high, "notch_hz": notch_hz, "baseline_stabilization": bool(baseline_stabilization), "reference": ref_mode, "montage": definition.id, "average_exclude": list(definition.excluded_channels), "custom_montage": custom_montage or [], "filter_contract": DISPLAY_FILTER_CONTRACT},
             }
         finally:
-            raw.close()
+            access_session.close()
 
     def _set_metadata(
         self,

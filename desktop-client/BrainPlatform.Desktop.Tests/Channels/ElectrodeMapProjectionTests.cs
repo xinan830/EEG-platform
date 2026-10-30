@@ -188,7 +188,7 @@ public sealed class ElectrodeMapProjectionTests
         double y,
         bool isEeg = true,
         string frame = "mri",
-        string source = "mne.standard_1020",
+        string source = "mne.colin27_1020",
         double mapX = 0,
         double mapY = 0) => new(
             0, isEeg ? "EEG" : "REF", "V", "µV", label, true, 0, isEeg,

@@ -8,6 +8,7 @@ from app.models.spectral_validation import SpectralReferenceValidationRequest
 from app.services.independent_spectral_reference import IndependentSpectralReferenceService
 from app.services.recordings import RecordingService
 from app.services.validations import ValidationService
+from tests.access_fixtures import array_access_session
 
 import importlib.metadata as _metadata
 
@@ -26,8 +27,8 @@ class SyntheticRecordingService(RecordingService):
         super().__init__(*args, **kwargs)
         self.source, self.sfreq, self.names = source, sfreq, names
 
-    def load_data(self, _recording):
-        return self.source, self.sfreq, self.names, []
+    def open_access_session(self, recording, *, analysis_montage_id=None):
+        return array_access_session(recording, self.source, self.sfreq, self.names)
 
 
 def _source(sfreq: float = 100.0) -> tuple[np.ndarray, list[str]]:

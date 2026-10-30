@@ -35,8 +35,10 @@ from app.api.extensions import router as extensions_router
 from app.api.algorithms import router as algorithms_router
 from app.api.algorithm_presets import router as algorithm_presets_router
 from app.api.live_filters import router as live_filters_router
+from app.api.live_recordings import router as live_recordings_router
 from app.api.analysis_windows import router as analysis_windows_router
 from app.services.live_filter import LiveFilterService
+from app.services.live_recording_access import LiveRecordingAccessService
 from app.services.on_demand_dynamic import DynamicWindowService
 from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
 from app.bootstrap import build_builtin_registry
@@ -64,6 +66,7 @@ async def lifespan(application: FastAPI):
         application.state.run_worker.stop()
         application.state.dynamic_window_service.close()
         application.state.scientific_compute_coordinator.close()
+        application.state.live_recording_access_service.close_all()
 
 
 app = FastAPI(title="Brain Platform API", version="0.1.0", lifespan=lifespan)
@@ -105,6 +108,7 @@ app.state.algorithm_preset_service = AlgorithmPresetService(
     DATABASE_PATH,
 )
 app.state.live_filter_service = LiveFilterService()
+app.state.live_recording_access_service = LiveRecordingAccessService()
 app.state.dynamic_window_service = DynamicWindowService(
     app.state.recording_service,
     app.state.algorithm_runtime_registry,
@@ -135,6 +139,7 @@ app.include_router(extensions_router)
 app.include_router(algorithms_router)
 app.include_router(algorithm_presets_router)
 app.include_router(live_filters_router)
+app.include_router(live_recordings_router)
 app.include_router(analysis_windows_router)
 
 

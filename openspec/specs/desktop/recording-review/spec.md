@@ -303,6 +303,14 @@ rebuilt from immutable raw samples without changing the raw recording.
 - **AND** it SHALL expose an explicit failure state that does not claim the
   selected filter was applied to the target.
 
+### Requirement: Mouse wheel navigates recording time
+The recording review waveform SHALL move the playback cursor forward by one recording second per downward mouse-wheel detent and backward by one recording second per upward detent. High-resolution wheel deltas SHALL move proportionally. Navigation SHALL reuse the existing relative-seek path, clamp to recording boundaries, preserve playback rate and play/pause state, and update the analysis selection through the existing cursor-selection flow. The visible time scale SHALL remain unchanged.
+
+#### Scenario: Scroll over the waveform
+- **WHEN** the user scrolls one downward detent over the recording review waveform
+- **THEN** the selected recording time advances by one second, bounded by the recording duration
+- **AND** one upward detent moves backward by one second, bounded by zero
+
 ### Requirement: Review navigation does not restore obsolete targets
 
 Review SHALL preserve the latest requested playback position and derived viewport

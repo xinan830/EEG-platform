@@ -6,14 +6,15 @@ from app.algorithms.catalog import ensure_official_definitions
 from app.models.run import RunCreateRequest, RunStatus
 from app.services.recordings import RecordingService
 from app.services.runs import RunService
+from tests.access_fixtures import array_access_session
 
 
 class HighAmplitudeRecordingService(RecordingService):
-    def load_data(self, _recording):
+    def open_access_session(self, recording, *, analysis_montage_id=None):
         sfreq = 100.0
         time_s = np.arange(int(30 * sfreq)) / sfreq
         signal = 400e-6 * np.sin(2 * np.pi * 10 * time_s)
-        return signal[:, None], sfreq, ["Fz"], []
+        return array_access_session(recording, signal[:, None], sfreq, ["Fz"])
 
 
 def test_dynamic_peak_frequency_preserves_backend_failure_per_window(tmp_path: Path):

@@ -8,7 +8,6 @@ import numpy as np
 
 from app.models.run import RunCreateRequest
 from app.services.analysis_provenance import build_analysis_provenance
-from app.services.recording_samples import WpfSampleReader
 from app.services.recordings import RecordingService
 from app.services.runs import RunService
 from scripts import recording_audit_reference as ref
@@ -130,13 +129,10 @@ def replay(directory: Path, temporary: Path, progress=print):
         for kind in ("REF", "AVG"):
             montage = next(item for item in recording.montage_catalogue
                            if item["is_acquisition_default"] == (kind == "REF"))
-            reader = recordings.open_sample_reader(recording, analysis_montage_id=montage["id"])
-            try:
-                checks.exact(f"{kind}.channels", list(reader.names), [f"{label}-{kind}" for label in labels])
-                checks.numeric(f"{kind}.source_v", reader.read(0, reader.sample_count), sources[kind],
-                               rtol=0, atol=1e-18)
-            finally:
-                reader.close()
+            with recordings.open_access_session(recording, analysis_montage_id=montage["id"]) as session:
+                checks.exact(f"{kind}.channels", list(session.channel_names), [f"{label}-{kind}" for label in labels])
+                values = session.read_samples(0, session.sample_count).values_v
+                checks.numeric(f"{kind}.source_v", values, sources[kind], rtol=0, atol=1e-18)
             aliases = {recording.id: "recording", montage["id"]: f"montage-{kind}"}
             for identifier in ALGORITHMS:
                 for mode in ("static", "dynamic"):

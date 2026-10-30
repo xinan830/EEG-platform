@@ -81,6 +81,31 @@ public sealed class TnkWorkbenchTests
     }
 
     [Fact]
+    public void Playback_cursor_keeps_smooth_position_updates_but_throttles_derived_summary_to_seconds()
+    {
+        var catalog = new AlgorithmListViewModel(new HttpAlgorithmClient(new System.Net.Http.HttpClient()), new OperationNotificationCenter());
+        typeof(AlgorithmListViewModel).GetProperty("RegisteredRecording")!.SetValue(catalog,
+            new RegisteredRecording("record", "record", ".wpf", "", 1000, 30, ["Fz-REF"], "source"));
+        var model = new TnkDetailViewModel(catalog, "tnk_biofeedback");
+        typeof(TnkDetailViewModel).GetField("workbenchPlaying", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(model, true);
+        var changed = new List<string?>();
+        model.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        model.WaveformPosition = 1.1;
+        changed.Clear();
+        model.WaveformPosition = 1.2;
+
+        Assert.Equal([nameof(TnkDetailViewModel.WaveformPosition)], changed);
+
+        changed.Clear();
+        model.WaveformPosition = 2.0;
+
+        Assert.Contains(nameof(TnkDetailViewModel.WaveformPosition), changed);
+        Assert.Contains(nameof(TnkDetailViewModel.SelectedValueText), changed);
+        Assert.Contains(nameof(TnkDetailViewModel.CurrentTimeText), changed);
+    }
+
+    [Fact]
     public void RbpPanelsUseCanonicalBandOrderPercentUnitsAndPreserveGaps()
     {
         var child = new TnkChildResultDisplay("tnk_rbp", "RBP", "Fz", "Fz-REF", "", "良好", "")

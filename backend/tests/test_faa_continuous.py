@@ -7,7 +7,7 @@ from scipy import signal
 from app.algorithms.faa.runner import FaaAlgorithm
 from app.algorithms.faa.config import FaaConfig
 from app.services.algorithm_recording_context import _RecordingAlgorithmContext
-from app.services.recording_samples import ArraySampleReader
+from tests.access_fixtures import array_access_session
 
 
 def independent_faa(pair, sfreq):
@@ -40,8 +40,8 @@ def reference_filter(pair, sfreq, notch):
 
 def source_context(pair, sfreq):
     class Source:
-        def open_sample_reader(self, _recording):
-            return ArraySampleReader(pair, sfreq, ["F3", "F4"])
+        def open_access_session(self, recording, *, analysis_montage_id=None):
+            return array_access_session(recording, pair, sfreq, ["F3", "F4"])
         def analysis_signal_provenance(self, _recording):
             return {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}
     recording = SimpleNamespace(id="synthetic", channels=["F3", "F4"],

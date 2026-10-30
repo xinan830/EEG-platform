@@ -969,7 +969,7 @@ public sealed class ChannelConfigurationWorkspaceViewModel : ObservableObject
                 : null);
         }
 
-        StatusText = "已按 MNE standard_1020 更新可识别通道的位置；不可识别标签保持不可用。";
+        StatusText = "已按 MNE colin27_1020 更新可识别通道的位置；不可识别标签保持不可用。";
     }
 
     private static bool IsEeg(AcquisitionChannelCapability capability) =>

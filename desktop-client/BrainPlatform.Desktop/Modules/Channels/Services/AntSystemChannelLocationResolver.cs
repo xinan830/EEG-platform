@@ -87,7 +87,7 @@ public static class AntSystemChannelLocationResolver
         if (string.IsNullOrWhiteSpace(result.CanonicalSite) || result.Coordinates is not { Length: 3 } xyz ||
             result.MapCoordinates is not { Length: 2 } map ||
             result.CoordinateFrame != "mri" || result.CoordinateUnit != "m" ||
-            result.SourceId != "mne.standard_1020" || string.IsNullOrWhiteSpace(result.SourceVersion) ||
+            result.SourceId != "mne.colin27_1020" || string.IsNullOrWhiteSpace(result.SourceVersion) ||
             xyz.Any(value => !double.IsFinite(value)) || map.Any(value => !double.IsFinite(value)) ||
             map.Any(value => value is < -1 or > 1))
         {
