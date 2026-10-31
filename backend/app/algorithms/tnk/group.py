@@ -1,11 +1,7 @@
-"""Public TNK group adapter and child-result aggregation."""
+"""Public TNK group adapter; child science is owned by registered modules."""
 
 from __future__ import annotations
 
-import logging
-import time
-from copy import copy, deepcopy
-from dataclasses import is_dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -14,11 +10,8 @@ from pydantic import model_validator
 from app.algorithm_runtime.contracts import (
     AlgorithmConfigBase,
     AlgorithmExecutionSnapshot,
-    AlgorithmFailure,
     AlgorithmInputs,
     AlgorithmManifest,
-    AlgorithmModule,
-    AlgorithmResult,
     AlgorithmStructuredResult,
     AlgorithmStructuredSeriesResult,
     CapabilityEvidenceStatus,
@@ -28,21 +21,22 @@ from app.algorithm_runtime.contracts import (
     StructuredSeriesWindow,
 )
 from app.algorithm_runtime.errors import UnsupportedAlgorithmModeError
+from app.algorithm_runtime.group_execution import AlgorithmGroupExecutor
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
-from app.scientific.quality import SpectralQualityGateError
 
+from .group_graph import TNK_ROLE_ORDER, build_tnk_group_graph
+from .group_results import (
+    analysis_state,
+    group_failure,
+    metric_values,
+    point_evidence,
+    quality as group_quality,
+)
+from .group_scheduler import execute_tnk_frame, fresh_tnk_children, reset_tnk_children
 from .group_window import TnkGroupWindowCapability
 
-_ROLES = ("Fz", "Pz", "Oz", "F3", "F4")
-_LOGGER = logging.getLogger("brain_platform.dynamic_window.tnk")
-_CHILD_ORDER = (
-    "tnk_iapf", "tnk_relaxation", "tnk_spatial_distribution",
-    "tnk_rhythm_stability", "tnk_composite_meditation", "tnk_brainbeat",
-    "tnk_aperiodic", "tnk_brainbeat_flat", "tnk_fatigue", "tnk_hai",
-    "tnk_faa", "tnk_rbp", "tnk_crimson_meditation", "tnk_zenlite_calmness",
-    "tnk_zenlite_awareness", "tnk_zenlite_spectral_relaxation",
-)
+_ROLES = TNK_ROLE_ORDER
 
 
 class TnkGroupConfig(AlgorithmConfigBase):
@@ -69,17 +63,17 @@ class TnkGroupConfig(AlgorithmConfigBase):
 
 
 class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
-    """Coordinate child input preparation; child modules retain all science."""
+    """Coordinate TNK graph execution without owning child formulas."""
 
     config_model = TnkGroupConfig
     on_demand_default_enabled = True
-    # v2 separates the IAPF family's 30 s / 5 s schedule from the group's
-    # one-second 4 s metric timeline; cached v1 timelines are not equivalent.
-    window_policy_version = "tnk-biofeedback-dynamic-window-v3-flat-current-fit"
+    window_policy_version = "tnk-biofeedback-dynamic-window-v4-graph-execution"
 
     def __init__(self, children: tuple[Any, ...]) -> None:
         super().__init__()
-        self.children = tuple(sorted(children, key=lambda child: _CHILD_ORDER.index(child.manifest.algorithm_id)))
+        self.group_graph = build_tnk_group_graph(children)
+        children_by_id = {child.manifest.algorithm_id: child for child in children}
+        self.children = tuple(children_by_id[node.node_id] for node in self.group_graph.nodes)
         self._child_by_id = {child.manifest.algorithm_id: child for child in self.children}
         self._metric_units = self._build_metric_units()
         metric_count = len(self._metric_units)
@@ -89,12 +83,10 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             algorithm_id="tnk_biofeedback", display_name_zh="TNK 脑指标",
             abbreviation="TNK", purpose_zh="统一来源通道映射的 TNK 脑指标组",
             scientific_version="tnk-biofeedback-group-v2", is_current_version=True,
-            implementation_identity="tnk-biofeedback-group-coordinator-v4-legacy-model-handle",
+            implementation_identity=f"tnk-biofeedback-group-{self.group_graph.identity}",
             supported_modes=["dynamic"],
             dynamic_policy=DynamicAnalysisPolicy(
                 minimum_window_s=4.0,
-                # The group publishes a one-second timeline. Each child gets
-                # its own frozen scientific input window in _execute_children.
                 window_options_s=[4.0],
                 default_window_s=4.0,
                 refresh_step_s=1.0,
@@ -103,7 +95,10 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             ),
             output_schema={
                 "fields": fields,
-                "window_shapes": {item["name"]: [metric_count] if item["name"] == "metric_index" else [1] for item in fields},
+                "window_shapes": {
+                    item["name"]: [metric_count] if item["name"] == "metric_index" else [1]
+                    for item in fields
+                },
                 "window_output_kind": "algorithm_group",
                 "children": self._child_catalog_contract(),
             },
@@ -116,17 +111,26 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             dynamic_capabilities=DynamicStrategyCapabilities(
                 full=CapabilityEvidenceStatus(
                     implementation="implemented", validation="unvalidated",
-                    reason="组级 dispatch 与结果契约已有测试，但组级完整数值 parity 尚未验证。",
+                    reason="组级执行图与结果契约已有测试；完整真实录音验收尚未完成。",
                     evidence=["backend/tests/test_tnk_group.py"],
                 ),
                 on_demand=CapabilityEvidenceStatus(
                     implementation="implemented", validation="unvalidated",
-                    reason="组级目标窗回放已实现；完整记录上的数值 parity 与人工验收尚待完成。",
+                    reason="目标窗回放使用相同组帧执行器；真实录音验收尚未完成。",
                     evidence=["backend/tests/test_tnk_group.py"],
                 ),
-                combined_preview_background_full=CapabilityEvidenceStatus(implementation="implemented", validation="unvalidated", reason="组级 combined parity 尚待验收。"),
-                full_result_to_preview=CapabilityEvidenceStatus(implementation="unsupported", validation="not_applicable", reason="组结果不能从单个标量预览中反向投影。"),
-                on_demand_result_to_full=CapabilityEvidenceStatus(implementation="unsupported", validation="not_applicable", reason="组级精确窗口反向复用未声明。"),
+                combined_preview_background_full=CapabilityEvidenceStatus(
+                    implementation="implemented", validation="unvalidated",
+                    reason="组级 combined parity 尚待验收。",
+                ),
+                full_result_to_preview=CapabilityEvidenceStatus(
+                    implementation="unsupported", validation="not_applicable",
+                    reason="组结果不能从单个标量预览中反向投影。",
+                ),
+                on_demand_result_to_full=CapabilityEvidenceStatus(
+                    implementation="unsupported", validation="not_applicable",
+                    reason="组级精确窗口反向复用未声明。",
+                ),
             ),
             definition_persistence={"name": "TNK 脑指标", "version": "1.0.0"},
         )
@@ -141,13 +145,16 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                 roles = child.module.manifest.channel_roles
                 units.update({f"{algorithm_id}.{role}": unit for role in roles})
             elif algorithm_id == "tnk_rbp":
-                units.update({f"tnk_rbp.{role}.{band}": unit for role in _ROLES for band in child.module.bands})
+                units.update({
+                    f"tnk_rbp.{role}.{band}": unit
+                    for role in _ROLES for band in child.module.bands
+                })
             else:
                 units[algorithm_id] = unit
         return units
 
     def _child_catalog_contract(self) -> list[dict[str, Any]]:
-        """Expose each child's input-role needs without making it selectable."""
+        """Expose child requirements without making child nodes selectable."""
         children = []
         for child in self.children:
             algorithm_id = child.manifest.algorithm_id
@@ -201,8 +208,14 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
         )
 
     def resolve_inputs(self, recording: Any, config: TnkGroupConfig):
-        labels = {str(item).casefold(): str(item) for item in getattr(recording, "channel_names", getattr(recording, "channels", []))}
-        missing = [value for value in self.requested_channels(config) if value.casefold() not in labels]
+        labels = {
+            str(item).casefold(): str(item)
+            for item in getattr(recording, "channel_names", getattr(recording, "channels", []))
+        }
+        missing = [
+            value for value in self.requested_channels(config)
+            if value.casefold() not in labels
+        ]
         if missing:
             raise ValueError(f"TNK 来源通道在当前记录/导联快照中不存在: {missing}")
         channels = [labels[value.casefold()] for value in self.requested_channels(config)]
@@ -210,507 +223,6 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             recording_id=str(getattr(recording, "id", "unknown")), channel=channels[0],
             sfreq_hz=float(recording.sfreq_hz), duration_s=float(recording.duration_s), payload=recording,
         )
-
-    def _child_config(self, child: Any, config: TnkGroupConfig, start_s: float, end_s: float, primary_role: str = "Fz"):
-        role_map = {"channel": primary_role, "dependencies": "Fz"}
-        source_channels = [config.role_mapping[role_map.get(role, role)] for role in child.manifest.required_channel_roles]
-        payload: dict[str, Any] = {"channel": source_channels[0], "mode": "static", "start_s": start_s, "end_s": end_s}
-        child_fields = ("secondary_channel", "tertiary_channel", "fourth_channel", "fifth_channel")
-        payload.update({field: value for field, value in zip(child_fields, source_channels[1:])})
-        payload.update({
-            "window_s": config.window_s, "step_s": config.step_s,
-            "iapf_hz": config.iapf_hz, "ema_alpha": config.ema_alpha,
-            "warmup_count": config.warmup_count, "min_clean_epochs": config.min_clean_epochs,
-            "fit_low_hz": config.fit_low_hz, "fit_high_hz": config.fit_high_hz,
-        })
-        return child.config_model.model_validate(payload)
-
-    def _child_inputs_and_window(
-        self, inputs: Any, child: Any, child_config: Any, start_s: float, end_s: float,
-        spectrum_cache: dict[tuple[Any, ...], Any], diagnostics: dict[str, int] | None = None,
-        shared_spectra: dict[tuple[int, int], Any] | None = None,
-        *, dynamic_frame: bool = False,
-    ):
-        child_inputs = child.resolve_inputs(inputs.payload, child_config)
-        channels = tuple(channel.casefold() for channel in child.requested_channels(child_config))
-        start_sample = int(round(start_s * inputs.sfreq_hz))
-        end_sample = int(round(end_s * inputs.sfreq_hz))
-        range_key = (start_sample, end_sample)
-        shared = (shared_spectra or {}).get(range_key)
-        if shared is not None:
-            shared_channels, shared_value = shared
-            if isinstance(shared_value, SpectralQualityGateError):
-                raise shared_value
-            shared_spectrum = shared_value
-            indexes = [shared_channels.index(channel) for channel in channels]
-            psd = shared_spectrum.psd[indexes]
-            if is_dataclass(shared_spectrum):
-                spectrum = replace(shared_spectrum, psd=psd)
-            else:
-                # Test and legacy recording adapters may return a mutable
-                # namespace instead of the scientific dataclass.
-                spectrum = copy(shared_spectrum)
-                spectrum.psd = psd
-            if diagnostics is not None:
-                diagnostics["spectrum_cache_hits"] = diagnostics.get("spectrum_cache_hits", 0) + 1
-        else:
-            cache_key = (start_sample, end_sample, channels)
-            spectrum = spectrum_cache.get(cache_key)
-            if spectrum is None:
-                spectrum = child.load_window_spectrum(
-                    child_inputs, child_config, start_s, end_s, bounded=dynamic_frame,
-                )
-                spectrum_cache[cache_key] = spectrum
-                if diagnostics is not None:
-                    diagnostics["spectrum_loads"] = diagnostics.get("spectrum_loads", 0) + 1
-            elif diagnostics is not None:
-                diagnostics["spectrum_cache_hits"] = diagnostics.get("spectrum_cache_hits", 0) + 1
-        quality_failure = self._spectrum_channel_failure(spectrum, channels)
-        if quality_failure is not None:
-            raise quality_failure
-        window = child._window(child_inputs, child_config, start_s, end_s, spectrum=spectrum)
-        return child_inputs, window
-
-    @staticmethod
-    def _spectrum_channel_failure(spectrum: Any, channels: tuple[str, ...]) -> SpectralQualityGateError | None:
-        psd = np.asarray(getattr(spectrum, "psd", []), dtype=float)
-        if psd.ndim != 2 or psd.shape[0] != len(channels):
-            return None
-        invalid = [index for index, row in enumerate(psd) if not np.isfinite(row).all()]
-        if not invalid:
-            return None
-        evidence = getattr(spectrum, "evidence", {}) or {}
-        channel_quality = evidence.get("channel_quality", {})
-        rejected = {
-            channels[index]: channel_quality.get(channels[index], {
-                "status": "gate_failed",
-                "rejected_reasons": ["non_finite_psd"],
-            })
-            for index in invalid
-        }
-        reasons = sorted({
-            reason
-            for item in rejected.values()
-            for reason in item.get("rejected_reasons", ["non_finite_psd"])
-        })
-        first = next(iter(rejected.values()))
-        quality = dict(first.get("failure", {}))
-        quality.update({
-            "clean_segments": getattr(spectrum, "clean_epochs", quality.get("clean_segments", 0)),
-            "total_segments": getattr(spectrum, "total_epochs", quality.get("total_segments", 0)),
-            "clean_ratio": getattr(spectrum, "signal_quality", quality.get("clean_ratio", 0.0)),
-            "gate_failed": "channel_quality",
-            "rejected_reasons": reasons,
-        })
-        quality["evidence"] = {
-            **dict(quality.get("evidence", {})),
-            "channel_quality": rejected,
-        }
-        return SpectralQualityGateError(quality)
-
-    def _prewarm_shared_spectra(
-        self, inputs: Any, config: TnkGroupConfig,
-        ranges: set[tuple[float, float]], diagnostics: dict[str, int] | None = None,
-    ) -> dict[tuple[int, int], Any]:
-        """Load one shared spectrum per range, isolating rejected channels only on fallback.
-
-        TNK children use different role subsets, but they share the same
-        1-30 Hz source contract. Loading the five mapped channels once avoids
-        repeated preprocessing; a rejected shared request is retried per
-        channel so one bad channel does not hide valid channels.
-        """
-        shared: dict[tuple[int, int], Any] = {}
-        channels = tuple(config.role_mapping[role] for role in _ROLES)
-        for start_s, end_s in sorted(ranges):
-            started = time.perf_counter()
-            key = (
-                int(round(start_s * inputs.sfreq_hz)),
-                int(round(end_s * inputs.sfreq_hz)),
-            )
-            try:
-                spectrum = inputs.payload.load_spectrum(
-                    start_s=start_s, window_s=end_s - start_s,
-                    channels=list(channels), filter_low_hz=1.0,
-                    filter_high_hz=30.0, output_low_hz=1.0,
-                    output_high_hz=30.0, preprocessing_scope="tnk_window_scoped_v1",
-                )
-            except SpectralQualityGateError as exc:
-                shared[key] = (tuple(channel.casefold() for channel in channels), exc)
-                _LOGGER.info(
-                    "tnk_shared_spectrum_perf samples=%s:%s state=shared_quality_rejected elapsed_ms=%.1f",
-                    key[0], key[1], (time.perf_counter() - started) * 1000,
-                )
-                channel_results: list[Any | None] = []
-                channel_quality: dict[str, Any] = {}
-                reference = None
-                for channel in channels:
-                    channel_key = channel.casefold()
-                    try:
-                        estimate = inputs.payload.load_spectrum(
-                            start_s=start_s, window_s=end_s - start_s,
-                            channels=[channel], filter_low_hz=1.0,
-                            filter_high_hz=30.0, output_low_hz=1.0,
-                            output_high_hz=30.0, preprocessing_scope="tnk_window_scoped_v1",
-                        )
-                    except SpectralQualityGateError as channel_error:
-                        channel_results.append(None)
-                        channel_quality[channel_key] = {
-                            "status": "gate_failed",
-                            "failure": channel_error.quality,
-                            "rejected_reasons": list(channel_error.quality.get("rejected_reasons", [])),
-                        }
-                        continue
-                    values = np.asarray(getattr(estimate, "psd", []), dtype=float)
-                    if values.ndim != 2 or values.shape[0] != 1 or not np.isfinite(values).all():
-                        channel_results.append(None)
-                        channel_quality[channel_key] = {
-                            "status": "gate_failed",
-                            "rejected_reasons": ["non_finite_psd"],
-                        }
-                        continue
-                    channel_results.append(estimate)
-                    reference = reference or estimate
-                    channel_quality[channel_key] = {
-                        "status": "clean",
-                        "signal_quality": getattr(estimate, "signal_quality", None),
-                        "rejected_reasons": list(getattr(estimate, "rejected_reasons", ())),
-                    }
-                if reference is None:
-                    shared[key] = (tuple(channel.casefold() for channel in channels), exc)
-                    continue
-                rows = [
-                    np.asarray(estimate.psd[0], dtype=float)
-                    if estimate is not None else np.full(reference.psd.shape[1], np.nan, dtype=float)
-                    for estimate in channel_results
-                ]
-                evidence = dict(getattr(reference, "evidence", {}) or {})
-                evidence["channel_quality"] = channel_quality
-                evidence["channel_isolated_fallback"] = True
-                if is_dataclass(reference):
-                    spectrum = replace(
-                        reference, psd=np.vstack(rows), gate_failed=None,
-                        signal_quality=min(
-                            float(item["signal_quality"])
-                            for item in channel_quality.values()
-                            if item.get("status") == "clean" and item.get("signal_quality") is not None
-                        ), evidence=evidence,
-                    )
-                else:
-                    spectrum = copy(reference)
-                    spectrum.psd = np.vstack(rows)
-                    spectrum.gate_failed = None
-                    spectrum.evidence = evidence
-                shared[key] = (tuple(channel.casefold() for channel in channels), spectrum)
-                _LOGGER.info(
-                    "tnk_shared_spectrum_perf samples=%s:%s state=partial_quality rejected_channels=%s elapsed_ms=%.1f",
-                    key[0], key[1],
-                    [channel for channel, item in channel_quality.items() if item.get("status") != "clean"],
-                    (time.perf_counter() - started) * 1000,
-                )
-                continue
-            shared[key] = (tuple(channel.casefold() for channel in channels), spectrum)
-            _LOGGER.info(
-                "tnk_shared_spectrum_perf samples=%s:%s state=ready elapsed_ms=%.1f",
-                key[0], key[1], (time.perf_counter() - started) * 1000,
-            )
-            if diagnostics is not None:
-                diagnostics["spectrum_loads"] = diagnostics.get("spectrum_loads", 0) + 1
-        return shared
-
-    def _fresh_children(self) -> tuple[Any, ...]:
-        """Give each execution isolated state so concurrent strategies cannot cross-contaminate."""
-        # Deep-copy the tuple as one graph. The migrated Crimson/Zenlite
-        # adapters point at one shared legacy stream bundle; copying children
-        # one by one would silently duplicate that state.
-        return deepcopy(self.children)
-
-    @staticmethod
-    def _reset_legacy_streams(children: tuple[Any, ...]) -> None:
-        seen: set[int] = set()
-        for child in children:
-            bundle = getattr(child, "stream_bundle", None)
-            if bundle is None or id(bundle) in seen:
-                continue
-            seen.add(id(bundle))
-            bundle.reset()
-
-    def _execute_children(
-        self, inputs: Any, config: TnkGroupConfig, start_s: float, end_s: float,
-        *, reset_state: bool, children: tuple[Any, ...] | None = None,
-        diagnostics: dict[str, int] | None = None, dynamic_frame: bool = False,
-    ):
-        active_children = children or self.children
-        results: dict[str, list[Any]] = {}
-        first_result: dict[str, Any] = {}
-        if reset_state:
-            for child in active_children:
-                if hasattr(child.module, "reset"):
-                    child.module.reset()
-            self._reset_legacy_streams(active_children)
-        spectrum_cache: dict[tuple[Any, ...], Any] = {}
-        shared_spectra: dict[tuple[int, int], Any] = {}
-        if dynamic_frame:
-            ranges: set[tuple[float, float]] = set()
-            for child in active_children:
-                if getattr(child, "signal_representation", "spectrum") != "spectrum":
-                    continue
-                child_range = self._dynamic_child_range(child.manifest.algorithm_id, config, start_s, end_s)
-                if child_range is not None:
-                    ranges.add(child_range)
-            shared_spectra = self._prewarm_shared_spectra(inputs, config, ranges, diagnostics)
-        legacy_outputs: dict[str, Any] = {}
-        legacy_children = [child for child in active_children if getattr(child, "stream_bundle", None) is not None]
-        if dynamic_frame and legacy_children and hasattr(inputs.payload, "load_time_series_source"):
-            due = [child for child in legacy_children
-                   if self._dynamic_child_range(child.manifest.algorithm_id, config, start_s, end_s) is not None]
-            if due:
-                bundles = {id(getattr(child, "stream_bundle")): getattr(child, "stream_bundle") for child in due}
-                if len(bundles) != 1:
-                    raise ValueError("TNK legacy children must use one shared stream bundle")
-                bundle = next(iter(bundles.values()))
-                started = time.perf_counter()
-                try:
-                    legacy_outputs = bundle.advance(
-                        inputs, channel=inputs.channel,
-                        end_sample=int(round(end_s * inputs.sfreq_hz)),
-                        start_s=start_s, end_s=end_s,
-                    )
-                    if diagnostics is not None:
-                        diagnostics["shared_time_series_loads"] = diagnostics.get("shared_time_series_loads", 0) + 1
-                except (AttributeError, KeyError, ValueError):
-                    # Preserve the existing structured child-level failure
-                    # contract for malformed or unavailable historical input.
-                    legacy_outputs = {}
-                _LOGGER.info(
-                    "tnk_legacy_stream_prepare_perf end_sample=%s output_count=%s elapsed_ms=%.1f",
-                    int(round(end_s * inputs.sfreq_hz)), len(legacy_outputs),
-                    (time.perf_counter() - started) * 1000,
-                )
-        for child in active_children:
-            child_id = child.manifest.algorithm_id
-            child_range = self._dynamic_child_range(child_id, config, start_s, end_s) if dynamic_frame else (start_s, end_s)
-            if child_range is None:
-                elapsed = end_s - config.start_s
-                if child_id == "tnk_faa":
-                    code, message = "TNK_SEGMENT_REQUIRED", "TNK FAA 需要完整配对事件段；当前游标动态分析没有事件段输入。"
-                elif child_id in {"tnk_iapf", "tnk_hai", "tnk_aperiodic"} and elapsed < 30.0 - 1e-9:
-                    code, message = "TNK_CONTEXT_WARMUP", "该指标需要最近 30 秒的连续数据；当前记录位置尚未满足预热长度。"
-                else:
-                    code, message = "TNK_UPDATE_NOT_DUE", "该指标按冻结策略每 5 秒更新一次；当前游标尚未到更新节拍。"
-                results[child_id] = [self._scheduled_child_result(child, start_s, end_s, code, message)]
-                first_result[child_id] = results[child_id][0]
-                continue
-            child_start_s, child_end_s = child_range
-            roles = _ROLES if child_id == "tnk_rbp" else ("Fz",)
-            child_rows = []
-            input_elapsed_ms = 0.0
-            compute_elapsed_ms = 0.0
-            for role in roles:
-                child_config = self._child_config(child, config, child_start_s, child_end_s, primary_role=role)
-                if getattr(child, "signal_representation", "spectrum") == "time_series":
-                    result = legacy_outputs.get(child_id)
-                    if result is None:
-                        result = child.compute_window(inputs, child_config, child_start_s, child_end_s)
-                    result.channel = "/".join(child.requested_channels(child_config))
-                    result.requested_range = {"start_s": child_start_s, "end_s": child_end_s}
-                    result.actual_range = {"start_s": child_start_s, "end_s": child_end_s}
-                    child_rows.append(result)
-                    if diagnostics is not None:
-                        diagnostics["time_series_loads"] = diagnostics.get("time_series_loads", 0) + 1
-                    continue
-                try:
-                    input_started = time.perf_counter()
-                    child_inputs, window = self._child_inputs_and_window(
-                    inputs, child, child_config, child_start_s, child_end_s, spectrum_cache, diagnostics,
-                    shared_spectra, dynamic_frame=dynamic_frame,
-                    )
-                    input_elapsed_ms += (time.perf_counter() - input_started) * 1000
-                except SpectralQualityGateError as exc:
-                    child_rows.append(self._quality_rejected_result(
-                        child, child_config, child_start_s, child_end_s, exc,
-                    ))
-                    continue
-                if child_id == "tnk_composite_meditation":
-                    spatial = first_result.get("tnk_spatial_distribution")
-                    stability = first_result.get("tnk_rhythm_stability")
-                    window.provenance.update({
-                        "spatial_distribution": spatial.value if spatial else None,
-                        "rhythm_stability": stability.value if stability else None,
-                        "spatial_valid": bool(spatial and spatial.quality == "clean"),
-                        "stability_ready": bool(stability and stability.quality == "clean"),
-                    })
-                if child_id == "tnk_brainbeat_flat":
-                    aperiodic = first_result.get("tnk_aperiodic")
-                    if aperiodic:
-                        fit_evidence = aperiodic.evidence.get("extensions", {}).get("tnk_evidence", {})
-                        exponents = aperiodic.output_values or {}
-                        offsets = fit_evidence.get("offsets", {})
-                        fit_quality = fit_evidence.get("fit_quality", {})
-                        window.provenance["aperiodic_fit_by_role"] = {
-                            role: {
-                                "offset": offsets[role], "exponent": exponent,
-                                "fit_start_s": aperiodic.actual_range["start_s"],
-                                "fit_end_s": aperiodic.actual_range["end_s"],
-                                "fit_quality": fit_quality.get(role),
-                            }
-                            for role, exponent in exponents.items()
-                            if exponent is not None and role in offsets
-                        }
-                compute_started = time.perf_counter()
-                result = child.module.compute(window, child._tnk_config(child_config, child_inputs.sfreq_hz))
-                compute_elapsed_ms += (time.perf_counter() - compute_started) * 1000
-                if diagnostics is not None:
-                    diagnostics["child_calculations"] = diagnostics.get("child_calculations", 0) + 1
-                result.channel = "/".join(child.requested_channels(child_config))
-                result.requested_range = {"start_s": child_start_s, "end_s": child_end_s}
-                result.actual_range = {"start_s": child_start_s, "end_s": child_end_s}
-                child_rows.append(result)
-            results[child_id] = child_rows
-            if child_rows and getattr(child, "signal_representation", "spectrum") != "time_series":
-                _LOGGER.info(
-                    "tnk_child_window_perf child_id=%s roles=%s input_ms=%.1f compute_ms=%.1f",
-                    child_id, len(child_rows), input_elapsed_ms, compute_elapsed_ms,
-                )
-            if child_rows:
-                first_result[child_id] = child_rows[0]
-        return results
-
-    @staticmethod
-    def _dynamic_child_range(
-        child_id: str, config: TnkGroupConfig, start_s: float, end_s: float,
-    ) -> tuple[float, float] | None:
-        """Apply each child's frozen rolling window and refresh cadence."""
-        if child_id == "tnk_faa":
-            return None
-        if child_id in {"tnk_iapf", "tnk_hai", "tnk_aperiodic"}:
-            duration_s, cadence_s = 30.0, 5.0
-            elapsed = end_s - config.start_s
-            if elapsed + 1e-9 < duration_s:
-                return None
-            cadence_index = round(elapsed / cadence_s)
-            if not np.isclose(elapsed, cadence_index * cadence_s, rtol=0, atol=1e-7):
-                return None
-        else:
-            duration_s = {
-                "tnk_crimson_meditation": 5.0,
-                "tnk_zenlite_calmness": 4.6875,
-                "tnk_zenlite_awareness": 4.6875,
-                "tnk_zenlite_spectral_relaxation": 4.6875,
-            }.get(child_id, 4.0)
-            if end_s - config.start_s + 1e-9 < duration_s:
-                return None
-        child_end_s = end_s
-        child_start_s = child_end_s - duration_s
-        return (child_start_s, child_end_s) if child_start_s >= config.start_s - 1e-9 else None
-
-    @staticmethod
-    def _scheduled_child_result(
-        child: Any, start_s: float, end_s: float, code: str, message: str,
-    ) -> AlgorithmResult:
-        roles = list(child.module.manifest.channel_roles)
-        channel = "/".join(roles)
-        return AlgorithmResult(
-            value=None, unit=child.module.manifest.output_unit, channel=channel,
-            requested_range={"start_s": start_s, "end_s": end_s},
-            actual_range={"start_s": start_s, "end_s": end_s},
-            quality="insufficient_data",
-            failure=AlgorithmFailure(code=code, message=message),
-            output_values={role: None for role in roles} if child.manifest.algorithm_id in {
-                "tnk_hai", "tnk_aperiodic", "tnk_fatigue",
-            } else None,
-            evidence={"extensions": {"tnk_evidence": {
-                "provenance": {"algorithm_id": child.manifest.algorithm_id,
-                               "schedule_state": "not_due" if code == "TNK_UPDATE_NOT_DUE" else "unsupported"}
-            }}},
-        )
-
-    @staticmethod
-    def _quality_rejected_result(
-        child: Any, child_config: Any, start_s: float, end_s: float,
-        error: SpectralQualityGateError,
-    ) -> AlgorithmResult:
-        """Keep a rejected source window local to its child instead of aborting the Run."""
-        quality = dict(error.quality)
-        channels = child.requested_channels(child_config)
-        roles = list(child.module.manifest.channel_roles)
-        output_values = {role: None for role in roles} if child.manifest.algorithm_id in {
-            "tnk_hai", "tnk_aperiodic", "tnk_fatigue",
-        } else None
-        return AlgorithmResult(
-            value=None,
-            unit=child.module.manifest.output_unit,
-            channel="/".join(channels),
-            requested_range={"start_s": start_s, "end_s": end_s},
-            actual_range={"start_s": start_s, "end_s": end_s},
-            quality="gate_failed",
-            failure=AlgorithmFailure(
-                code="TNK_QUALITY_REJECTED",
-                message="TNK 窗口未通过共享频谱质量门",
-                detail={"quality": quality},
-            ),
-            output_values=output_values,
-            evidence={
-                "source_quality": quality,
-                "extensions": {"tnk_evidence": {
-                    "provenance": {"algorithm_id": child.manifest.algorithm_id},
-                    "quality_gate": quality,
-                }},
-            },
-        )
-
-    def _metric_values(self, results: dict[str, list[Any]]) -> tuple[dict[str, float | None], dict[str, Any]]:
-        values: dict[str, float | None] = {}
-        evidence: dict[str, Any] = {}
-        for child_id, rows in results.items():
-            evidence[child_id] = [row.model_dump(mode="json") for row in rows]
-            if child_id in {"tnk_hai", "tnk_aperiodic", "tnk_fatigue"}:
-                for row in rows:
-                    for role, value in (row.output_values or {}).items():
-                        values[f"{child_id}.{role}"] = value
-            elif child_id == "tnk_rbp":
-                for role, row in zip(_ROLES, rows, strict=True):
-                    for band, value in (row.output_values or {}).items():
-                        values[f"tnk_rbp.{role}.{band}"] = value
-            else:
-                values[child_id] = rows[0].value
-        ordered = {name: values.get(name) for name in self._metric_units}
-        return ordered, evidence
-
-    @staticmethod
-    def _quality(results: dict[str, list[Any]]) -> str:
-        qualities = [row.quality for rows in results.values() for row in rows]
-        if qualities and all(value == "clean" for value in qualities):
-            return "clean"
-        if "gate_failed" in qualities:
-            return "partial"
-        if qualities and all(value in {"gate_failed", "unavailable", "insufficient_data"} for value in qualities):
-            return "unavailable"
-        return "partial"
-
-    @staticmethod
-    def _analysis_state(quality: str) -> str:
-        if quality == "clean":
-            return "Complete"
-        if quality == "unavailable":
-            return "Rejected"
-        return "Partial"
-
-    @staticmethod
-    def _group_failure(quality: str) -> AlgorithmFailure | None:
-        if quality != "unavailable":
-            return None
-        return AlgorithmFailure(
-            code="TNK_GROUP_WINDOW_QUALITY_REJECTED",
-            message="该动态窗口的全部 TNK 子指标均未通过输入质量门",
-        )
-
-    def _point_evidence(self, config: TnkGroupConfig, results: dict[str, list[Any]], values: dict[str, float | None]) -> dict[str, Any]:
-        return {"extensions": {"tnk_evidence": {
-            "group_id": self.manifest.algorithm_id,
-            "role_mapping": dict(config.role_mapping),
-            "children": results,
-            "metric_values": values,
-        }}}
 
     def execute_static(self, inputs: Any, config: TnkGroupConfig) -> AlgorithmStructuredResult:
         raise UnsupportedAlgorithmModeError(
@@ -722,38 +234,34 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
     def execute_dynamic(self, inputs: Any, config: TnkGroupConfig) -> AlgorithmStructuredSeriesResult:
         frames = build_dynamic_analysis_frames(
             config.start_s, config.end_s, duration_s=inputs.duration_s,
-            window_s=4.0, step_s=1.0,
-            # Every child consumes Welch spectra with a frozen 4 s minimum.
-            # Shorter warm-up frames reach the spectral service and fail before
-            # the child can return its declared insufficient-data result.
-            minimum_window_s=4.0, allow_warmup=True,
+            window_s=4.0, step_s=1.0, minimum_window_s=4.0, allow_warmup=True,
         )
         if not frames:
             raise ValueError("TNK 脑指标组没有可执行动态窗口")
-        children = self._fresh_children()
-        for child in children:
-            if hasattr(child.module, "reset"):
-                child.module.reset()
-        self._reset_legacy_streams(children)
+        children = fresh_tnk_children(self)
+        reset_tnk_children(children)
         values_by_metric = {name: [] for name in self._metric_units}
         windows: list[StructuredSeriesWindow] = []
         points = []
-        for frame in controlled_frames(frames, inputs.execution_context):
-            results = self._execute_children(inputs, config, frame.window_start_s, frame.window_end_s,
-                                             reset_state=False, children=children, dynamic_frame=True)
-            values, evidence = self._metric_values(results)
-            for name, value in values.items():
-                values_by_metric[name].append([np.nan if value is None else value])
-            quality = self._quality(results)
-            point = self._point_evidence(config, evidence, values)
-            windows.append(StructuredSeriesWindow(
-                start_sample=int(round(frame.window_start_s * inputs.sfreq_hz)),
-                end_sample=int(round(frame.window_end_s * inputs.sfreq_hz)),
-                start_s=frame.window_start_s, end_s=frame.window_end_s,
-                state=self._analysis_state(quality), quality=quality,
-                failure=self._group_failure(quality), evidence=point,
-            ))
-            points.append(point)
+        with AlgorithmGroupExecutor(self.group_graph) as executor:
+            for frame in controlled_frames(frames, inputs.execution_context):
+                child_results = execute_tnk_frame(
+                    self, executor, inputs, config, frame.window_start_s, frame.window_end_s,
+                    children=children,
+                )
+                values, evidence = metric_values(self._metric_units, child_results)
+                for name, value in values.items():
+                    values_by_metric[name].append([np.nan if value is None else value])
+                quality = group_quality(child_results)
+                point = point_evidence(self, config, evidence, values)
+                windows.append(StructuredSeriesWindow(
+                    start_sample=int(round(frame.window_start_s * inputs.sfreq_hz)),
+                    end_sample=int(round(frame.window_end_s * inputs.sfreq_hz)),
+                    start_s=frame.window_start_s, end_s=frame.window_end_s,
+                    state=analysis_state(quality), quality=quality,
+                    failure=group_failure(quality), evidence=point,
+                ))
+                points.append(point)
         arrays = {name: np.asarray(rows, dtype=float) for name, rows in values_by_metric.items()}
         return AlgorithmStructuredSeriesResult(
             output_kind="algorithm_group", channel_order=self.requested_channels(config),
@@ -770,5 +278,9 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                 "preprocessing_version": "tnk-window-spectral-v1",
                 "filter_context_s": 2.0,
                 "boundary_policy": "clamp_to_recording",
+                "execution_graph": {
+                    "version": self.group_graph.version,
+                    "identity": self.group_graph.identity,
+                },
             }}},
         )

@@ -8,11 +8,6 @@
       "max_lines": 450,
       "reason": "当前约 432 行，单一 TNK SciChart 呈现控件。此次增加每面板的可见生命周期订阅和后台合并刷新，避免隐藏图表持续更新；不引入科学计算、历史所有权或新调用路径。保留同一控件内的图表结构、增量更新和生命周期，避免为少量超线机械拆分；后续扩展前重新评估。"
     },
-    "backend/app/algorithms/tnk/group.py": {
-      "decision": "split",
-      "max_lines": 720,
-      "reason": "当前约 631 行，已超过 600 行高风险线。TNK 组适配器仍统一拥有 manifest、角色分发、子结果聚合和动态/全量封装；本轮增加共享 ANT stream dispatch，但没有把科学公式或 UI 事件计算加入组编排。后续应按职责抽出 manifest/输出契约构造或 legacy stream orchestration，目标将组编排文件降回 400 行级别。"
-    },
     "backend/tests/test_official_algorithm_runs.py": {
       "decision": "keep",
       "max_lines": 450,

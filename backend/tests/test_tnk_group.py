@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.algorithms.builtin_modules import build_builtin_modules
 from app.algorithms.tnk.group import TnkGroupConfig
+from app.algorithms.tnk.group_graph import dynamic_child_range
 from app.algorithms.tnk.runtime import build_tnk_child_adapters
 from app.algorithm_runtime.executor import AlgorithmRuntime
 from app.algorithm_runtime.errors import UnsupportedAlgorithmModeError
@@ -18,6 +19,7 @@ from app.algorithm_runtime.on_demand import DynamicSessionIdentity, DynamicWindo
 from app.algorithm_runtime.on_demand_result_validation import validate_window_result
 from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithm_runtime.result_validation import validate_algorithm_result
+from app.algorithm_runtime.signal_source import SignalSourceData
 from app.scientific.quality import SpectralQualityGateError
 
 
@@ -52,6 +54,10 @@ class SyntheticRecording:
 
 def _group():
     return next(item for item in build_builtin_modules() if item.manifest.algorithm_id == "tnk_biofeedback")
+
+
+def _child_range(group, child_id, origin_s, end_s):
+    return dynamic_child_range(group.group_graph.node(child_id), origin_s, end_s)
 
 
 def _config(mode="dynamic"):
@@ -136,7 +142,29 @@ def test_dynamic_dispatch_preserves_each_child_per_window_and_metric_units():
     assert all(array.shape == (len(result.windows), 1) for array in result.arrays.values())
     point = result.evidence["extensions"]["tnk_evidence"]["points"][0]
     assert set(point["extensions"]["tnk_evidence"]["children"]) == set(group._child_by_id)
+    assert point["extensions"]["tnk_evidence"]["execution_graph"] == {
+        "version": group.group_graph.version,
+        "identity": group.group_graph.identity,
+    }
+    children = point["extensions"]["tnk_evidence"]["children"]
+    assert children["tnk_iapf"][0]["failure"]["code"] == "TNK_CONTEXT_WARMUP"
+    assert children["tnk_crimson_meditation"][0]["failure"]["code"] == "TNK_UPDATE_NOT_DUE"
     assert set(result.array_units) == set(result.arrays)
+    reference = {
+        "tnk_relaxation": (2, 99.87441111117148),
+        "tnk_spatial_distribution": (2, 96.68430225873591),
+        "tnk_rhythm_stability": (2, 50.0),
+        "tnk_composite_meditation": (2, 96.68430225873591),
+        "tnk_brainbeat": (2, 0.1506680103126692),
+        "tnk_rbp.Fz.delta": (2, 0.059300152278145266),
+    }
+    for name, (index, value) in reference.items():
+        np.testing.assert_allclose(result.arrays[name][index, 0], value, rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(
+        result.arrays["tnk_rhythm_stability"][:, 0],
+        [50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 100.0, 100.0],
+        rtol=0, atol=0,
+    )
 
 
 def test_dynamic_result_validation_rejects_tnk_channel_count_or_order_mismatch():
@@ -156,21 +184,21 @@ def test_iapf_uses_its_own_30_second_warmup_and_five_second_cadence():
     group = _group()
     config = _config("dynamic")
 
-    assert group._dynamic_child_range("tnk_iapf", config, 0.0, 4.0) is None
-    assert group._dynamic_child_range("tnk_iapf", config, 25.0, 29.0) is None
-    assert group._dynamic_child_range("tnk_iapf", config, 26.0, 30.0) == (0.0, 30.0)
-    assert group._dynamic_child_range("tnk_iapf", config, 27.0, 31.0) is None
-    assert group._dynamic_child_range("tnk_iapf", config, 31.0, 35.0) == (5.0, 35.0)
+    assert _child_range(group, "tnk_iapf", config.start_s, 4.0) is None
+    assert _child_range(group, "tnk_iapf", config.start_s, 29.0) is None
+    assert _child_range(group, "tnk_iapf", config.start_s, 30.0) == (0.0, 30.0)
+    assert _child_range(group, "tnk_iapf", config.start_s, 31.0) is None
+    assert _child_range(group, "tnk_iapf", config.start_s, 35.0) == (5.0, 35.0)
 
 
 def test_legacy_children_use_their_declared_warmup_lengths():
     group = _group()
     config = _config("dynamic")
 
-    assert group._dynamic_child_range("tnk_crimson_meditation", config, 0.0, 4.0) is None
-    assert group._dynamic_child_range("tnk_crimson_meditation", config, 0.0, 5.0) == (0.0, 5.0)
-    assert group._dynamic_child_range("tnk_zenlite_calmness", config, 0.0, 4.0) is None
-    assert group._dynamic_child_range("tnk_zenlite_calmness", config, 0.0, 5.0) == (0.3125, 5.0)
+    assert _child_range(group, "tnk_crimson_meditation", config.start_s, 4.0) is None
+    assert _child_range(group, "tnk_crimson_meditation", config.start_s, 5.0) == (0.0, 5.0)
+    assert _child_range(group, "tnk_zenlite_calmness", config.start_s, 4.0) is None
+    assert _child_range(group, "tnk_zenlite_calmness", config.start_s, 5.0) == (0.3125, 5.0)
 
 
 def test_brainbeat_flat_fits_its_current_window_before_independent_aperiodic_schedule():
@@ -496,3 +524,86 @@ def test_dynamic_group_isolates_one_rejected_channel_from_other_rbp_roles():
     assert pz_row["failure"]["code"] == "TNK_QUALITY_REJECTED"
     assert result.arrays["tnk_rbp.Pz.delta"][0, 0] != result.arrays["tnk_rbp.Pz.delta"][0, 0]
     assert np.isfinite(result.arrays["tnk_rbp.Fz.delta"][0, 0])
+
+
+def test_legacy_group_nodes_use_one_shared_read_and_return_structured_failures():
+    class InvalidTimeSeriesRecording(SyntheticRecording):
+        sfreq_hz = 250.0
+
+        def __init__(self):
+            super().__init__()
+            self.time_series_calls = []
+
+        def load_time_series_source(self, *, start_sample, end_sample, **_):
+            self.time_series_calls.append((start_sample, end_sample))
+            raise ValueError("invalid shared time-series source")
+
+    group = _group()
+    config = _config("dynamic")
+    recording = InvalidTimeSeriesRecording()
+    result = group.execute_dynamic(group.resolve_inputs(recording, config), config)
+
+    due_points = result.evidence["extensions"]["tnk_evidence"]["points"][1:]
+    assert len(recording.time_series_calls) == len(due_points) == 8
+    legacy_ids = (
+        "tnk_crimson_meditation", "tnk_zenlite_calmness",
+        "tnk_zenlite_awareness", "tnk_zenlite_spectral_relaxation",
+    )
+    for point in due_points:
+        children = point["extensions"]["tnk_evidence"]["children"]
+        assert all(children[node_id][0]["failure"]["code"] == "TNK_LEGACY_INPUT_INVALID"
+                   for node_id in legacy_ids)
+
+
+def test_full_and_checkpoint_replay_match_for_shared_legacy_stream_nodes():
+    class ValidLegacyRecording(SyntheticRecording):
+        sfreq_hz = 250.0
+
+        def __init__(self):
+            super().__init__()
+            self.time_series_calls = []
+
+        def load_time_series_source(
+            self, *, start_sample, end_sample, channels, expected_sfreq_hz, roles,
+        ):
+            self.time_series_calls.append((start_sample, end_sample))
+            sample_times = np.arange(start_sample, end_sample, dtype=np.float64) / self.sfreq_hz
+            values = (
+                20e-6 * np.sin(2 * np.pi * 10 * sample_times)
+                + 4e-6 * np.sin(2 * np.pi * 2 * sample_times)
+            )[:, None]
+            return SignalSourceData(
+                values_v=values, role_to_output={roles[0]: channels[0]},
+                channel_order=tuple(channels), sfreq_hz=expected_sfreq_hz,
+                start_sample=start_sample, end_sample=end_sample, unit="V",
+                missing_sample_policy="reject", montage_id="synthetic",
+                montage_fingerprint="synthetic", preprocessing_scope="module_defined",
+                preprocessing={"low_hz": None, "high_hz": None, "notch_hz": None},
+                provenance={"source": "synthetic"},
+            )
+
+    group = _group()
+    config = _config("dynamic")
+    recording = ValidLegacyRecording()
+    inputs = group.resolve_inputs(recording, config)
+    full = group.execute_dynamic(inputs, config)
+    calls_after_full = len(recording.time_series_calls)
+    assert calls_after_full == 8
+
+    target_index = len(full.windows) - 1
+    target = full.windows[target_index]
+    session = _session(group)
+    plan = group.plan_window(inputs, config, int(round(target.end_s * inputs.sfreq_hz)), session)
+    identity = DynamicWindowIdentity(
+        **session.model_dump(), start_sample=plan.start_sample, end_sample=plan.end_sample,
+    )
+    replay = group.execute_window(inputs, config, plan, identity)
+
+    assert len(recording.time_series_calls) - calls_after_full == calls_after_full
+    full_children = target.evidence["extensions"]["tnk_evidence"]["children"]
+    replay_children = replay.evidence["extensions"]["tnk_evidence"]["children"]
+    for child_id in (
+        "tnk_crimson_meditation", "tnk_zenlite_calmness",
+        "tnk_zenlite_awareness", "tnk_zenlite_spectral_relaxation",
+    ):
+        assert replay_children[child_id] == full_children[child_id]

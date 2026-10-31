@@ -13,7 +13,7 @@ from app.algorithms.tnk.legacy_biofeedback import CrimsonEngine, ZenliteEngine
 from app.algorithms.tnk.legacy_dsp import StreamingResampler, zenlite_relaxation_raw
 from app.algorithms.tnk.legacy_models import CrimsonModel, LegacyModelError, ZenliteModel
 from app.algorithms.tnk.legacy_runtime import TnkLegacyStreamBundle
-from app.algorithms.tnk.runtime import TnkRuntimeConfig, build_tnk_child_adapters
+from app.algorithms.tnk.runtime import build_tnk_child_adapters
 
 
 ASSETS = Path(__file__).parents[1] / "app" / "algorithms" / "tnk" / "assets"
@@ -71,7 +71,7 @@ def test_legacy_children_are_internal_time_series_modules():
     assert children["tnk_zenlite_spectral_relaxation"].manifest.required_channel_roles == ["Fz"]
 
 
-def test_legacy_adapter_reads_typed_raw_source_and_returns_provenance():
+def test_legacy_stream_bundle_reads_typed_source_and_propagates_provenance():
     sfreq = 1000.0
     signal = 20e-6 * np.sin(2 * np.pi * 10 * np.arange(6000) / sfreq)
 
@@ -87,11 +87,15 @@ def test_legacy_adapter_reads_typed_raw_source_and_returns_provenance():
 
     payload = SimpleNamespace(load_time_series_source=load_time_series_source)
     inputs = AlgorithmInputs(recording_id="r", channel="Fz", sfreq_hz=sfreq, duration_s=6.0, payload=payload)
-    adapter = next(item for item in build_tnk_child_adapters() if item.manifest.algorithm_id == "tnk_zenlite_spectral_relaxation")
-    config = TnkRuntimeConfig(channel="Fz", mode="static", start_s=0.0, end_s=6.0)
-    result = adapter.compute_window(inputs, config, 0.0, 6.0)
-    assert result.actual_range == {"start_s": 0.0, "end_s": 6.0}
-    assert result.evidence["extensions"]["tnk_evidence"]["source_provenance"] == {"source": "test"}
+    results = TnkLegacyStreamBundle().advance(
+        inputs, channel="Fz", end_sample=6000, start_s=0.0, end_s=6.0,
+    )
+    assert set(results) == {
+        "tnk_crimson_meditation", "tnk_zenlite_calmness",
+        "tnk_zenlite_awareness", "tnk_zenlite_spectral_relaxation",
+    }
+    assert all(item.evidence["extensions"]["tnk_evidence"]["source_provenance"] == {"source": "test"}
+               for item in results.values())
 
 
 def test_legacy_engines_are_chunk_invariant_after_warmup():

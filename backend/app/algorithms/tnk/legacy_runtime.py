@@ -26,7 +26,10 @@ class _LegacyDefinition:
             algorithm_id=algorithm_id, display_name_zh=display_name_zh,
             scientific_version=f"{algorithm_id}-v1", implementation_identity=f"{algorithm_id}-legacy-port-v1",
             channel_roles=["Fz"], output_unit=output_unit, stateful=True,
-            failure_codes=["TNK_WARMUP", "TNK_QUALITY_REJECTED", "TNK_MODEL_UNAVAILABLE", "TNK_LEGACY_INPUT_INVALID"],
+            failure_codes=[
+                "TNK_WARMUP", "TNK_QUALITY_REJECTED", "TNK_MODEL_UNAVAILABLE",
+                "TNK_LEGACY_INPUT_INVALID", "TNK_LEGACY_STREAM_OUTPUT_MISSING",
+            ],
         )
 
 
@@ -110,12 +113,7 @@ class TnkLegacyStreamBundle:
 
 
 class TnkLegacyRuntimeAdapter:
-    """Load canonical Fz samples and replay the old stream from the run origin.
-
-    Each target is replayed from ``config.start_s`` to ``end_s``.  This keeps
-    causal filter/resampler and smoothing state deterministic across full and
-    on-demand execution; it is intentionally not presented as live acquisition.
-    """
+    """Declare one internal child of the shared stateful TNK legacy stream."""
 
     signal_representation = "time_series"
     config_model = TnkRuntimeConfig
@@ -126,23 +124,6 @@ class TnkLegacyRuntimeAdapter:
         self.manifest = self._build_manifest(definition.manifest)
         self.kind = kind
         self.stream_bundle: TnkLegacyStreamBundle | None = None
-
-    def reset_stream(self) -> None:
-        if self.stream_bundle is not None:
-            self.stream_bundle.reset()
-
-    def compute_stream_frame(self, inputs: Any, *, start_s: float, end_s: float,
-                             end_sample: int) -> AlgorithmResult:
-        if self.stream_bundle is None:
-            raise ValueError("TNK legacy stream bundle is not configured")
-        result = self.stream_bundle.advance(
-            inputs, channel=inputs.channel, end_sample=end_sample,
-            start_s=start_s, end_s=end_s,
-        )[self.manifest.algorithm_id]
-        result.channel = inputs.channel
-        result.requested_range = {"start_s": start_s, "end_s": end_s}
-        result.actual_range = {"start_s": start_s, "end_s": end_s}
-        return result
 
     @staticmethod
     def _build_manifest(source: TnkManifest) -> AlgorithmManifest:
@@ -194,35 +175,6 @@ class TnkLegacyRuntimeAdapter:
             recording_id=str(getattr(recording, "id", "unknown")), channel=labels[config.channel.casefold()],
             sfreq_hz=float(recording.sfreq_hz), duration_s=float(recording.duration_s), payload=recording,
         )
-
-    def compute_window(self, inputs: Any, config: TnkRuntimeConfig, start_s: float, end_s: float) -> AlgorithmResult:
-        start_s = float(config.start_s)
-        request_start = max(0, int(round(start_s * inputs.sfreq_hz)))
-        request_end = min(int(round(end_s * inputs.sfreq_hz)), int(round(inputs.duration_s * inputs.sfreq_hz)))
-        try:
-            source = inputs.payload.load_time_series_source(
-                start_sample=request_start, end_sample=request_end, channels=[inputs.channel],
-                expected_sfreq_hz=inputs.sfreq_hz, roles=["Fz"],
-            )
-            values = source.values_v[:, 0]
-            if self.kind == "crimson":
-                result = CrimsonEngine(inputs.sfreq_hz).run(values, start_s=start_s, end_s=end_s)
-            else:
-                results = ZenliteEngine(inputs.sfreq_hz).run(values, start_s=start_s, end_s=end_s)
-                result = results[self.manifest.algorithm_id]
-        except (AttributeError, KeyError, ValueError) as exc:
-            from app.algorithm_runtime.contracts import AlgorithmFailure
-            result = AlgorithmResult(
-                value=None, unit=self.module.manifest.output_unit, channel=inputs.channel,
-                requested_range={"start_s": start_s, "end_s": end_s},
-                actual_range={"start_s": start_s, "end_s": end_s}, quality="unavailable",
-                failure=AlgorithmFailure(code="TNK_LEGACY_INPUT_INVALID", message=str(exc)), evidence={},
-            )
-            return result
-        result.channel = inputs.channel
-        result.evidence["extensions"]["tnk_evidence"]["source_provenance"] = source.provenance
-        return result
-
 
 def build_tnk_legacy_adapters() -> tuple[TnkLegacyRuntimeAdapter, ...]:
     adapters = [

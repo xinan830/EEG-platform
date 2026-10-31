@@ -21,8 +21,12 @@ from app.algorithm_runtime.on_demand import (
     DynamicWindowPlan,
     DynamicWindowResult,
 )
+from app.algorithm_runtime.group_execution import AlgorithmGroupExecutor
 from app.algorithm_runtime.on_demand_planning import plan_policy_window
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames
+
+from .group_results import analysis_state, metric_values, point_evidence, quality as group_quality
+from .group_scheduler import execute_tnk_frame, fresh_tnk_children, reset_tnk_children
 
 logger = logging.getLogger("brain_platform.dynamic_window.tnk")
 _MAX_CHECKPOINT_SESSIONS = 32
@@ -150,11 +154,8 @@ class TnkGroupWindowCapability:
 
         checkpoint = self._nearest_checkpoint(plan.session_identity, target_index)
         if checkpoint is None:
-            children = self._fresh_children()
-            for child in children:
-                if hasattr(child.module, "reset"):
-                    child.module.reset()
-            self._reset_legacy_streams(children)
+            children = fresh_tnk_children(self)
+            reset_tnk_children(children)
             first_frame_index = 0
             checkpoint_frame_index = None
         else:
@@ -162,28 +163,29 @@ class TnkGroupWindowCapability:
             first_frame_index = checkpoint_frame_index + 1
         target_result = None
         diagnostics: dict[str, int] = {}
-        for frame_index in range(first_frame_index, target_index + 1):
-            if check_cancelled:
-                check_cancelled()
-            frame = frames[frame_index]
-            frame_results = self._execute_children(
-                inputs, config, frame.window_start_s, frame.window_end_s,
-                reset_state=False, children=children, diagnostics=diagnostics, dynamic_frame=True,
-            )
-            self._save_checkpoint(plan.session_identity, frame_index, children)
-            frame_identity = identity if frame_index == target_index else DynamicWindowIdentity(
-                **plan.session_identity.model_dump(),
-                generation=identity.generation,
-                start_sample=int(round(frame.window_start_s * inputs.sfreq_hz)),
-                end_sample=int(round(frame.window_end_s * inputs.sfreq_hz)),
-            )
-            frame_result = self._build_frame_result(
-                config, frame_identity, frame_results, replayed_window_count=frame_index + 1,
-            )
-            if on_frame_result is not None:
-                on_frame_result(frame_identity, frame_result.model_copy(deep=True))
-            if frame_index == target_index:
-                target_result = frame_result
+        with AlgorithmGroupExecutor(self.group_graph) as executor:
+            for frame_index in range(first_frame_index, target_index + 1):
+                if check_cancelled:
+                    check_cancelled()
+                frame = frames[frame_index]
+                frame_results = execute_tnk_frame(
+                    self, executor, inputs, config, frame.window_start_s, frame.window_end_s,
+                    children=children, diagnostics=diagnostics,
+                )
+                self._save_checkpoint(plan.session_identity, frame_index, children)
+                frame_identity = identity if frame_index == target_index else DynamicWindowIdentity(
+                    **plan.session_identity.model_dump(),
+                    generation=identity.generation,
+                    start_sample=int(round(frame.window_start_s * inputs.sfreq_hz)),
+                    end_sample=int(round(frame.window_end_s * inputs.sfreq_hz)),
+                )
+                frame_result = self._build_frame_result(
+                    config, frame_identity, frame_results, replayed_window_count=frame_index + 1,
+                )
+                if on_frame_result is not None:
+                    on_frame_result(frame_identity, frame_result.model_copy(deep=True))
+                if frame_index == target_index:
+                    target_result = frame_result
         if check_cancelled:
             check_cancelled()
         actual_replayed_frames = target_index + 1 if checkpoint_frame_index is None else target_index - checkpoint_frame_index
@@ -210,12 +212,12 @@ class TnkGroupWindowCapability:
         self, config, identity: DynamicWindowIdentity, child_results: dict[str, list[Any]],
         *, replayed_window_count: int,
     ) -> DynamicWindowResult:
-        values, evidence = self._metric_values(child_results)
+        values, evidence = metric_values(self._metric_units, child_results)
         arrays = {
             name: np.asarray([np.nan if value is None else value], dtype=float)
             for name, value in values.items()
         }
-        quality = self._quality(child_results)
+        quality = group_quality(child_results)
         return DynamicWindowResult(
             identity=identity,
             state="ready",
@@ -225,13 +227,13 @@ class TnkGroupWindowCapability:
             arrays=arrays,
             array_units=dict(self._metric_units),
             quality=quality,
-            evidence=self._point_evidence(config, evidence, values),
+            evidence=point_evidence(self, config, evidence, values),
             provenance={
                 "preprocessing_scope": "tnk_window_scoped_v1",
                 "preprocessing_version": "tnk-window-spectral-v1",
                 "filter_context_s": 2.0,
                 "boundary_policy": "clamp_to_recording",
-                "analysis_state": self._analysis_state(quality),
+                "analysis_state": analysis_state(quality),
                 "role_mapping": dict(config.role_mapping),
                 "replayed_window_count": replayed_window_count,
             },
