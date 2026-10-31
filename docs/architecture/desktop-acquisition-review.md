@@ -16,6 +16,7 @@ The system has one source of truth for each responsibility:
 | Scientific filters, montage mathematics, PSD, algorithms | Python backend | C# display code |
 | Current live display frame | C# display pipeline | raw writer or SDK callback |
 | Review window, derived chunks, playback target | C# review session/cache | chart control or Python request caller |
+| Historical recording identity, index, and bounded source leases | `RecordingSessionManager` owned by `DesktopWorkspaceViewModel` | Review or TNK workbench opening independent readers |
 | Analysis provenance and scientific artifacts | backend persistence | desktop SQLite writes |
 
 The WPF client is the product owner for the Windows acquisition, review, and
@@ -120,6 +121,15 @@ or an equivalent validated contract; until then this is a documented limit.
 
 ## 6. Review pipeline
 
+Review and algorithm consumers receive recording data through the
+recording-access session contract in `Modules/Recordings/Access`. The contract
+uses half-open integer sample-counter ranges and exposes recording identity,
+source revision, sampling rate, ordered source channels with units, sample
+bounds, and known gaps. The local immutable recording is the first adapter;
+Review no longer injects a Review-specific reader. The live ring buffer remains
+owned by acquisition and is not yet registered as an access adapter because its
+retention/eviction response contract is still separate work.
+
 Review must not load a complete long recording or rebuild a filter on every
 pointer movement. The implemented data path is:
 
@@ -158,11 +168,22 @@ partial or stale chunk must never be bound to the chart.
 
 `ReviewSourceLoader` owns source reads, filtered chunk work and checkpoint
 lifetime; `RecordingReviewSession` remains the sole foreground revision/frame
-publication owner. Shared chunks deliver progress only to their current
-waiters. Replaced waiters detach, prefetch has no foreground progress subscriber,
-and queued UI callbacks recheck target revision, cancellation and loading state.
-Closing the coordinator cancels active/queued work immediately but defers its
-synchronization-resource disposal until admitted operations have exited.
+publication owner. The shared playback time coordinator owns cursor and
+playback generation; waveform request coordination owns only view/request
+generation and cancellation. Every published frame carries the recording
+access `source revision` in addition to its recording ID and request revision.
+Shared chunks deliver progress only to their current waiters. Replaced waiters
+detach, prefetch has no foreground progress subscriber, and queued UI callbacks
+recheck target revision, cancellation and loading state. Closing the coordinator
+cancels active/queued work immediately but defers its synchronization-resource
+disposal until admitted operations have exited.
+
+Continuous playback and one-off preview share immutable recording/filter facts
+but use independent mutable filter/checkpoint sessions. A complete frame is
+published only when recording ID, source revision, view/playback generations,
+request identity, sample range, channel order, units and explicit gap state all
+match the active target. File access, filtering and projection stay off the UI
+dispatcher; SciChart receives only the completed frame.
 
 The current review cache retains at most two raw windows and three frames, with
 an independent 64 MiB float64 payload budget for each class. A complete entry
@@ -184,8 +205,11 @@ frame visible during a target build.
 Algorithm review shares the review session's sample cursor; it does not create
 another clock. While playback runs, the desktop submits the current cursor once
 per algorithm-declared refresh step (one second when the policy says one
-second), independently of waveform loading. The backend remains authoritative
-for eligible scientific windows and identity-based work reuse. Analysis latency
+second), independently of waveform loading. Each dynamic request carries both
+the playback generation and the desktop analysis-context generation. A result
+is accepted only when both generations, the recording/configuration identity,
+target cursor and backend window identity still match the active context. The
+backend remains authoritative for eligible scientific windows and identity-based work reuse. Analysis latency
 is represented as queued/computing/lag; only a backend terminal
 `insufficient_data` response means the scientific target has insufficient
 data. Any retained result remains labeled with its returned cursor and actual
@@ -465,3 +489,6 @@ values do not rule out a render-engine or driver stall.
 
 Passing unit tests is evidence for contracts, not evidence that a physical
 amplifier or GPU has been accepted.
+### 工作区录音访问所有权
+
+`DesktopWorkspaceViewModel` 持有唯一的 `RecordingSessionManager`。数据回溯和算法工作台只取得各自的 lease，因此同一条本地录音共享索引与 reader 生命周期，同时保留独立的取消、缓存和结果展示状态。TNK 的科学计算仍由后端 `RecordingAccessService` 执行；桌面 lease 只负责在注册边界验证录音身份、V 单位、样本范围和通道表。当前动态窗口 API 不接收桌面样本块，因此不能宣称 WPF reader 已替代后端科学读取；样本传输需要另一个明确的契约。

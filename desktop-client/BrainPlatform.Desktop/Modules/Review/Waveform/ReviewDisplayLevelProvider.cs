@@ -14,7 +14,8 @@ internal sealed record ReviewDisplayFrame(
     double WindowEndSeconds,
     IReadOnlyList<string> OutputChannelNames,
     IReadOnlyList<ReviewDisplayTracePoints> Traces,
-    IReadOnlyList<string>? OutputChannelColors);
+    IReadOnlyList<string>? OutputChannelColors,
+    string SourceRevision);
 
 /// <summary>
 /// Reads a complete persistent display level when one exists. A miss is
@@ -73,6 +74,7 @@ internal sealed class ReviewDisplayLevelProvider
             viewportStartSeconds + visibleDurationSeconds,
             frame.OutputChannelNames,
             traces,
-            frame.OutputChannelColors);
+            frame.OutputChannelColors,
+            frame.SourceRevision);
     }
 }

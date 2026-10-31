@@ -265,19 +265,59 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
                     diagnostics["spectrum_loads"] = diagnostics.get("spectrum_loads", 0) + 1
             elif diagnostics is not None:
                 diagnostics["spectrum_cache_hits"] = diagnostics.get("spectrum_cache_hits", 0) + 1
+        quality_failure = self._spectrum_channel_failure(spectrum, channels)
+        if quality_failure is not None:
+            raise quality_failure
         window = child._window(child_inputs, child_config, start_s, end_s, spectrum=spectrum)
         return child_inputs, window
+
+    @staticmethod
+    def _spectrum_channel_failure(spectrum: Any, channels: tuple[str, ...]) -> SpectralQualityGateError | None:
+        psd = np.asarray(getattr(spectrum, "psd", []), dtype=float)
+        if psd.ndim != 2 or psd.shape[0] != len(channels):
+            return None
+        invalid = [index for index, row in enumerate(psd) if not np.isfinite(row).all()]
+        if not invalid:
+            return None
+        evidence = getattr(spectrum, "evidence", {}) or {}
+        channel_quality = evidence.get("channel_quality", {})
+        rejected = {
+            channels[index]: channel_quality.get(channels[index], {
+                "status": "gate_failed",
+                "rejected_reasons": ["non_finite_psd"],
+            })
+            for index in invalid
+        }
+        reasons = sorted({
+            reason
+            for item in rejected.values()
+            for reason in item.get("rejected_reasons", ["non_finite_psd"])
+        })
+        first = next(iter(rejected.values()))
+        quality = dict(first.get("failure", {}))
+        quality.update({
+            "clean_segments": getattr(spectrum, "clean_epochs", quality.get("clean_segments", 0)),
+            "total_segments": getattr(spectrum, "total_epochs", quality.get("total_segments", 0)),
+            "clean_ratio": getattr(spectrum, "signal_quality", quality.get("clean_ratio", 0.0)),
+            "gate_failed": "channel_quality",
+            "rejected_reasons": reasons,
+        })
+        quality["evidence"] = {
+            **dict(quality.get("evidence", {})),
+            "channel_quality": rejected,
+        }
+        return SpectralQualityGateError(quality)
 
     def _prewarm_shared_spectra(
         self, inputs: Any, config: TnkGroupConfig,
         ranges: set[tuple[float, float]], diagnostics: dict[str, int] | None = None,
     ) -> dict[tuple[int, int], Any]:
-        """Load one mapped-channel spectrum per time range for all children.
+        """Load one shared spectrum per range, isolating rejected channels only on fallback.
 
         TNK children use different role subsets, but they share the same
         1-30 Hz source contract. Loading the five mapped channels once avoids
-        evicting separate one-, two-, and five-channel preprocessing entries
-        from the small process cache on every child calculation.
+        repeated preprocessing; a rejected shared request is retried per
+        channel so one bad channel does not hide valid channels.
         """
         shared: dict[tuple[int, int], Any] = {}
         channels = tuple(config.role_mapping[role] for role in _ROLES)
@@ -297,8 +337,75 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
             except SpectralQualityGateError as exc:
                 shared[key] = (tuple(channel.casefold() for channel in channels), exc)
                 _LOGGER.info(
-                    "tnk_shared_spectrum_perf samples=%s:%s state=quality_rejected elapsed_ms=%.1f",
+                    "tnk_shared_spectrum_perf samples=%s:%s state=shared_quality_rejected elapsed_ms=%.1f",
                     key[0], key[1], (time.perf_counter() - started) * 1000,
+                )
+                channel_results: list[Any | None] = []
+                channel_quality: dict[str, Any] = {}
+                reference = None
+                for channel in channels:
+                    channel_key = channel.casefold()
+                    try:
+                        estimate = inputs.payload.load_spectrum(
+                            start_s=start_s, window_s=end_s - start_s,
+                            channels=[channel], filter_low_hz=1.0,
+                            filter_high_hz=30.0, output_low_hz=1.0,
+                            output_high_hz=30.0, preprocessing_scope="tnk_window_scoped_v1",
+                        )
+                    except SpectralQualityGateError as channel_error:
+                        channel_results.append(None)
+                        channel_quality[channel_key] = {
+                            "status": "gate_failed",
+                            "failure": channel_error.quality,
+                            "rejected_reasons": list(channel_error.quality.get("rejected_reasons", [])),
+                        }
+                        continue
+                    values = np.asarray(getattr(estimate, "psd", []), dtype=float)
+                    if values.ndim != 2 or values.shape[0] != 1 or not np.isfinite(values).all():
+                        channel_results.append(None)
+                        channel_quality[channel_key] = {
+                            "status": "gate_failed",
+                            "rejected_reasons": ["non_finite_psd"],
+                        }
+                        continue
+                    channel_results.append(estimate)
+                    reference = reference or estimate
+                    channel_quality[channel_key] = {
+                        "status": "clean",
+                        "signal_quality": getattr(estimate, "signal_quality", None),
+                        "rejected_reasons": list(getattr(estimate, "rejected_reasons", ())),
+                    }
+                if reference is None:
+                    shared[key] = (tuple(channel.casefold() for channel in channels), exc)
+                    continue
+                rows = [
+                    np.asarray(estimate.psd[0], dtype=float)
+                    if estimate is not None else np.full(reference.psd.shape[1], np.nan, dtype=float)
+                    for estimate in channel_results
+                ]
+                evidence = dict(getattr(reference, "evidence", {}) or {})
+                evidence["channel_quality"] = channel_quality
+                evidence["channel_isolated_fallback"] = True
+                if is_dataclass(reference):
+                    spectrum = replace(
+                        reference, psd=np.vstack(rows), gate_failed=None,
+                        signal_quality=min(
+                            float(item["signal_quality"])
+                            for item in channel_quality.values()
+                            if item.get("status") == "clean" and item.get("signal_quality") is not None
+                        ), evidence=evidence,
+                    )
+                else:
+                    spectrum = copy(reference)
+                    spectrum.psd = np.vstack(rows)
+                    spectrum.gate_failed = None
+                    spectrum.evidence = evidence
+                shared[key] = (tuple(channel.casefold() for channel in channels), spectrum)
+                _LOGGER.info(
+                    "tnk_shared_spectrum_perf samples=%s:%s state=partial_quality rejected_channels=%s elapsed_ms=%.1f",
+                    key[0], key[1],
+                    [channel for channel, item in channel_quality.items() if item.get("status") != "clean"],
+                    (time.perf_counter() - started) * 1000,
                 )
                 continue
             shared[key] = (tuple(channel.casefold() for channel in channels), spectrum)

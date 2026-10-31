@@ -63,5 +63,6 @@ global using BrainPlatform.Desktop.Modules.Channels.Views;
 global using BrainPlatform.Desktop.Modules.Devices.ViewModels;
 global using BrainPlatform.Desktop.Modules.Devices.Views;
 global using BrainPlatform.Desktop.Modules.Montages.ViewModels;
+global using BrainPlatform.Desktop.Modules.Recordings.Access;
 global using BrainPlatform.Desktop.Modules.Montages.Views;
 global using BrainPlatform.Desktop.Modules.Settings.Views;

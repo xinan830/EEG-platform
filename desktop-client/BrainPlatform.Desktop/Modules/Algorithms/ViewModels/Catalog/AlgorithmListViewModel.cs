@@ -6,6 +6,7 @@ using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 using BrainPlatform.Desktop.Modules.Projects.ViewModels;
 using BrainPlatform.Desktop.Modules.Montages.Stores;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 
@@ -16,11 +17,16 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     private readonly AlgorithmRunCoordinator runCoordinator;
     private readonly OperationNotificationCenter notifications;
     private readonly MontageProfileStore montageStore;
+    private readonly RecordingSessionManager? recordingSessionManager;
+    private RecordingSessionManager.RecordingAccessLease? algorithmRecording;
     private string statusText = "尚未加载算法目录。";
     private bool isLoading;
     private bool isLoadFailed;
     private string sourceDirectory = string.Empty;
     private RegisteredRecording? registeredRecording;
+    private RecordingPlaybackTimeCoordinator? playbackCoordinator;
+    private readonly RecordingPlaybackTimeCoordinator? injectedPlaybackCoordinator;
+    private bool ownsPlaybackCoordinator = true;
     private AlgorithmCatalogItem? selectedAlgorithm;
     private string? selectedAlgorithmId;
     private ProjectRecordingRow? selectedProjectRecording;
@@ -60,13 +66,19 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     private bool automaticRunPending;
 
     public AlgorithmListViewModel(IAlgorithmClient client, OperationNotificationCenter notifications, ProjectWorkspaceViewModel? projects = null,
-        RecordingTimeDisplaySettings? timeDisplaySettings = null, MontageProfileStore? montageStore = null)
+        RecordingTimeDisplaySettings? timeDisplaySettings = null, MontageProfileStore? montageStore = null,
+        RecordingPlaybackTimeCoordinator? playbackCoordinator = null,
+        RecordingSessionManager? recordingSessionManager = null)
     {
         InitializeTimeDisplay(timeDisplaySettings ?? new RecordingTimeDisplaySettings());
         this.client = client ?? throw new ArgumentNullException(nameof(client));
         runCoordinator = new AlgorithmRunCoordinator(client);
         this.notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
         this.montageStore = montageStore ?? new MontageProfileStore();
+        this.recordingSessionManager = recordingSessionManager;
+        injectedPlaybackCoordinator = playbackCoordinator;
+        this.playbackCoordinator = playbackCoordinator;
+        ownsPlaybackCoordinator = playbackCoordinator is null;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, ReportCatalogError);
         RegisterCommand = new AsyncRelayCommand(RegisterAsync, ReportRunError);
         RunCommand = new AsyncRelayCommand(RunAsync, ReportRunError);
@@ -200,7 +212,14 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
             if (!SetProperty(ref selectedProjectRecording, value)) return;
             TimeDisplay.RecordingStartUtc = value?.RecordingStartUtc;
             SourceDirectory = value?.RecordingDirectory ?? string.Empty;
+            _ = ReleaseAlgorithmRecordingAsync();
             RegisteredRecording = null;
+            if (ownsPlaybackCoordinator)
+            {
+                playbackCoordinator?.Dispose();
+                playbackCoordinator = null;
+                RaisePropertyChanged(nameof(PlaybackCoordinator));
+            }
             RegisteredChannels.Clear();
             MontageProfiles.Clear();
             SelectedMontageProfile = null;
@@ -249,6 +268,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
         }
     }
     public RegisteredRecording? RegisteredRecording { get => registeredRecording; private set => SetProperty(ref registeredRecording, value); }
+    public RecordingPlaybackTimeCoordinator? PlaybackCoordinator => playbackCoordinator;
     public AlgorithmCatalogItem? SelectedAlgorithm
     {
         get => selectedAlgorithm;

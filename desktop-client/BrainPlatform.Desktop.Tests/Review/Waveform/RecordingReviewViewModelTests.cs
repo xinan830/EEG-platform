@@ -300,7 +300,7 @@ public sealed partial class RecordingReviewViewModelTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class FakeReader(LocalRawRecordingManifest manifest, double durationSeconds = 20) : IRecordingReviewReader
+    private sealed class FakeReader(LocalRawRecordingManifest manifest, double durationSeconds = 20) : IRecordingAccessSession
     {
         private int readCount;
 
@@ -319,6 +319,13 @@ public sealed partial class RecordingReviewViewModelTests
                 startSeconds + durationSeconds,
                 [new RecordingReviewSegment(0, 1, 2, [1e-6, 0])]));
         }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition)

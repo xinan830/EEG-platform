@@ -348,6 +348,14 @@ public sealed partial class AlgorithmListViewModel
         dynamicPreviewTimer.Stop();
         StopBackgroundObservation();
         await ReleaseWindowAnalysisAsync();
+        if (ownsPlaybackCoordinator)
+            playbackCoordinator?.Dispose();
+        if (algorithmRecording is not null)
+        {
+            await algorithmRecording.DisposeAsync();
+            algorithmRecording = null;
+        }
+        playbackCoordinator = injectedPlaybackCoordinator;
         backgroundFullRequest = null;
         backgroundFullAlgorithmId = null;
         backgroundFullObservationError = null;

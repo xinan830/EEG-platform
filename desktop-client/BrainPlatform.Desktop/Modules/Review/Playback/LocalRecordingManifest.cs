@@ -1,4 +1,5 @@
 using System.IO;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 namespace BrainPlatform.Desktop.Modules.Review.Playback;
 
@@ -74,7 +75,7 @@ public sealed class RecordingReadException : IOException
     public string Code { get; }
 }
 
-public sealed class LocalRawRecording : IAsyncDisposable
+public sealed class LocalRawRecording : IAsyncDisposable, IRecordingAccessSession
 {
     internal LocalRawRecording(
         LocalRawRecordingManifest manifest,
@@ -88,6 +89,14 @@ public sealed class LocalRawRecording : IAsyncDisposable
         Gaps = gaps;
         LifecycleBoundaries = lifecycleBoundaries;
         Reader = reader;
+        Metadata = new RecordingAccessMetadata(
+            manifest.SessionId,
+            $"local:{manifest.SessionId:N}:{index.LastSampleCounter}:{index.Batches.Count}",
+            manifest.SamplingRateHz,
+            index.FirstSampleCounter,
+            index.LastSampleCounter,
+            gaps,
+            manifest);
     }
 
     public LocalRawRecordingManifest Manifest { get; }
@@ -98,7 +107,24 @@ public sealed class LocalRawRecording : IAsyncDisposable
 
     public IReadOnlyList<RecordingLifecycleBoundary> LifecycleBoundaries { get; }
 
-    public LocalRawRecordingReader Reader { get; }
+    internal LocalRawRecordingReader Reader { get; }
+
+    public RecordingAccessMetadata Metadata { get; }
+
+    public double DurationSeconds => Metadata.DurationSeconds;
+
+    public long FirstSampleCounter => Metadata.FirstSampleCounter;
+
+    public long LastSampleCounter => Metadata.LastSampleCounter;
+
+    public Task<RecordingAccessReadResult> ReadSamplesAsync(
+        RecordingSampleRange range,
+        IReadOnlyList<int>? channelIndexes,
+        CancellationToken cancellationToken) =>
+        Reader.ReadSamplesAsync(range, channelIndexes, cancellationToken);
+
+    public long GetContiguousSegmentOrigin(long sampleCounter) =>
+        Reader.GetContiguousSegmentOrigin(sampleCounter);
 
     public ValueTask DisposeAsync() => Reader.DisposeAsync();
 }

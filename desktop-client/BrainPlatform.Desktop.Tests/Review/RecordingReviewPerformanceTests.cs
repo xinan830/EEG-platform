@@ -53,7 +53,8 @@ public sealed class RecordingReviewPerformanceTests
             Assert.Equal(30, recording.Index.Batches[0].ChannelCount);
             Assert.Equal(0, recording.Index.PayloadBytesReadDuringOpen);
 
-            var window = await recording.Reader.ReadWindowAsync(0.25, 0.5, CancellationToken.None);
+            var window = (await recording.ReadSamplesAsync(
+                new RecordingSampleRange(1000, 3000), null, CancellationToken.None)).Window;
 
             var segment = Assert.Single(window.Segments);
             Assert.Equal(2000, segment.SampleCount);

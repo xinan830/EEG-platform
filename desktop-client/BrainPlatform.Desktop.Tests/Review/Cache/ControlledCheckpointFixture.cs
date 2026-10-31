@@ -27,7 +27,7 @@ internal sealed class ControlledCheckpointFixture : IDisposable
         if (Directory.Exists(root)) Directory.Delete(root, true);
     }
 
-    internal sealed class Reader(int samplingRateHz = 10) : IRecordingReviewReader, IRecordingReviewTimeline
+    internal sealed class Reader(int samplingRateHz = 10) : IRecordingAccessSession
     {
         public LocalRawRecordingManifest Manifest { get; } = new(
             Guid.NewGuid(), "fixture", "V", "fixture", "fixture", samplingRateHz, 1, DateTimeOffset.UnixEpoch,
@@ -38,6 +38,13 @@ internal sealed class ControlledCheckpointFixture : IDisposable
         public long GetContiguousSegmentOrigin(long counter) => FirstSampleCounter;
         public Task<RecordingReviewWindow> ReadWindowAsync(double start, double duration, CancellationToken token) =>
             Task.FromResult(Window(start, duration));
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, FirstSampleCounter, ReadWindowAsync, range, channelIndexes, cancellationToken);
         public RecordingReviewWindow Window(double start, double duration)
         {
             var count = (int)Math.Round(duration * Manifest.SamplingRateHz);

@@ -24,7 +24,7 @@ public sealed class ReviewSampleMarkerProjectionTests
             [
                 Segment(125_000, [1e-6, double.NaN, 3e-6]),
                 Segment(125_004, [4e-6, 5e-6]),
-            ], ["F3-REF"]);
+            ], ["F3-REF"], "fixture-source");
 
         var markers = ReviewSampleMarkerProjection.Build(frame, 0);
 
@@ -37,7 +37,7 @@ public sealed class ReviewSampleMarkerProjectionTests
     {
         var source = new[] { 0d, 10e-6, 0d, -8e-6, 0d };
         var frame = new RecordingReviewFrame(Guid.NewGuid(), 1, 1000, 0, 0, .005, "REF",
-            [Segment(0, source)], ["F3-REF"]);
+            [Segment(0, source)], ["F3-REF"], "fixture-source");
 
         var markers = ReviewSampleMarkerProjection.Build(frame, 0);
 

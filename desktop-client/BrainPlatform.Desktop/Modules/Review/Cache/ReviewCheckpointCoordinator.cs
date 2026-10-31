@@ -1,3 +1,5 @@
+using BrainPlatform.Desktop.Modules.Recordings.Access;
+
 namespace BrainPlatform.Desktop.Modules.Review.Cache;
 
 public enum ReviewPreparationPhase
@@ -24,15 +26,9 @@ public sealed record ReviewPreparationState(
     public static readonly ReviewPreparationState Idle = new(ReviewPreparationPhase.Idle, 0, 0, 0);
 }
 
-internal interface IRecordingReviewTimeline
-{
-    long FirstSampleCounter { get; }
-    long GetContiguousSegmentOrigin(long sampleCounter);
-}
-
 /// <summary>Serializes exact Python checkpoint work for one review session.</summary>
 internal sealed class ReviewCheckpointCoordinator(
-    IRecordingReviewReader reader,
+    IRecordingAccessSession reader,
     IRecordingReviewFilter filter,
     ReviewCheckpointAnchorCache anchorCache) : IAsyncDisposable
 {
@@ -100,10 +96,7 @@ internal sealed class ReviewCheckpointCoordinator(
         Action<ReviewPreparationState>? progress)
     {
         var group = ReviewCheckpointAnchorGroupKey.Create(reader.Manifest, settings, contract);
-        var firstCounter = await GetFirstSampleCounterAsync(cancellationToken);
-        var segmentOrigin = reader is IRecordingReviewTimeline timeline
-            ? timeline.GetContiguousSegmentOrigin(target.FirstSampleCounter)
-            : firstCounter;
+        var segmentOrigin = reader.GetContiguousSegmentOrigin(target.FirstSampleCounter);
         var anchor = await anchorCache.FindNearestAsync(
             group, segmentOrigin, target.FirstSampleCounter, cancellationToken);
         var cursor = anchor?.NextSampleCounter ?? segmentOrigin;
@@ -123,9 +116,8 @@ internal sealed class ReviewCheckpointCoordinator(
             var remaining = target.FirstSampleCounter - cursor;
             var count = Math.Min(remaining, GetAdvanceBatchSampleCount(
                 reader.Manifest.SamplingRateHz, target.ChannelCount));
-            var startSeconds = (cursor - firstCounter) / (double)reader.Manifest.SamplingRateHz;
-            var durationSeconds = count / (double)reader.Manifest.SamplingRateHz;
-            var history = await reader.ReadWindowAsync(startSeconds, durationSeconds, cancellationToken);
+            var history = (await reader.ReadSamplesAsync(
+                new RecordingSampleRange(cursor, checked(cursor + count)), null, cancellationToken)).Window;
             cancellationToken.ThrowIfCancellationRequested();
             if (history.Segments.Count == 0)
                 throw new InvalidOperationException("精确滤波历史中没有可读取的原始样本。");
@@ -169,15 +161,6 @@ internal sealed class ReviewCheckpointCoordinator(
         cancellationToken.ThrowIfCancellationRequested();
         await anchorCache.StoreAsync(group, segmentOrigin, cursor, finalCheckpoint, cancellationToken);
         return (filtered, finalCheckpoint);
-    }
-
-    private async Task<long> GetFirstSampleCounterAsync(CancellationToken cancellationToken)
-    {
-        if (reader is IRecordingReviewTimeline timeline) return timeline.FirstSampleCounter;
-        var duration = Math.Min(reader.DurationSeconds, 1d / reader.Manifest.SamplingRateHz);
-        var first = await reader.ReadWindowAsync(0, duration, cancellationToken);
-        return first.Segments.FirstOrDefault()?.FirstSampleCounter
-            ?? throw new InvalidOperationException("记录开头没有可读取的样本。");
     }
 
     private static long GetAdvanceBatchSampleCount(int samplingRateHz, int channelCount)

@@ -1,22 +1,16 @@
 using System.Diagnostics;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
 using BrainPlatform.Desktop.Modules.Review.Waveform;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
+using BrainPlatform.Desktop.Shared.Waveform;
 
 namespace BrainPlatform.Desktop.Modules.Review.Playback;
-
-public interface IRecordingReviewReader
-{
-    LocalRawRecordingManifest Manifest { get; }
-    IReadOnlyList<RecordingLifecycleBoundary> LifecycleBoundaries => [];
-    long FirstSampleCounter => 0;
-    double DurationSeconds { get; }
-    Task<RecordingReviewWindow> ReadWindowAsync(double startSeconds, double durationSeconds, CancellationToken cancellationToken);
-}
 
 public sealed record RecordingReviewFrame(
     Guid RecordingSessionId, long Revision, int SamplingRateHz, long WindowStartSampleCounter,
     double WindowStartSeconds, double WindowEndSeconds, string ViewingMontageName,
     IReadOnlyList<ProjectedMontageSegment> Segments, IReadOnlyList<string> OutputChannelNames,
+    string SourceRevision,
     IReadOnlyList<string>? OutputChannelColors = null,
     string? DisplaySourceIdentity = null);
 
@@ -29,7 +23,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     // Keep first paint quick at high sampling rates; the next bounded block is
     // loaded ahead of the visible range instead of making one giant request.
     private const double CacheCoverageMultiplier = 1.5;
-    private readonly IRecordingReviewReader reader;
+    private readonly IRecordingAccessSession reader;
     private readonly RecordingMontageCatalogResult catalog;
     private readonly RecordingReviewWindowCache cache = new();
     private readonly ReviewSourceLoader sourceLoader;
@@ -41,10 +35,11 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private readonly CancellationTokenSource lifetime = new();
     private CancellationTokenSource? currentLoad;
     private long revision;
+    private WaveformDisplayRequestContext currentDisplayRequest;
     private RecordingReviewFilterSettings filterSettings = new(1, 30, 50);
     private int disposed;
 
-    public RecordingReviewSession(IRecordingReviewReader reader, RecordingMontageCatalogResult catalog,
+    public RecordingReviewSession(IRecordingAccessSession reader, RecordingMontageCatalogResult catalog,
         double visibleDurationSeconds, IRecordingReviewFilter? filter = null,
         IReviewPerformanceSink? performanceSink = null)
     {
@@ -157,7 +152,8 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             return true;
         }
 
-        var requestRevision = Interlocked.Increment(ref revision);
+        var request = BeginDisplayRequest();
+        var requestRevision = request.ViewGeneration;
         var load = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var token = load.Token;
         var previousLoad = Interlocked.Exchange(ref currentLoad, load);
@@ -177,12 +173,18 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             RecordFrameBuild(result, requestRevision, targetViewportStart, started);
 
             var frame = result.Frame with { Revision = requestRevision };
-            cache.StoreFrame(frame, filterSettings, SelectedViewingMontage, result.FilterUnavailable);
-            PositionSeconds = targetPosition;
-            ViewportStartSeconds = targetViewportStart;
-            CurrentFrame = frame;
-            StatusText = DescribeFrame(frame, result.FilterUnavailable);
-            return true;
+            return WaveformDisplayFramePublisher.TryPublish(
+                new WaveformDisplayFrame<RecordingReviewFrame>(request, frame),
+                currentDisplayRequest,
+                token,
+                payload =>
+                {
+                    cache.StoreFrame(payload, filterSettings, SelectedViewingMontage, result.FilterUnavailable);
+                    PositionSeconds = targetPosition;
+                    ViewportStartSeconds = targetViewportStart;
+                    CurrentFrame = payload;
+                    StatusText = DescribeFrame(payload, result.FilterUnavailable);
+                });
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return false; }
         catch (Exception) when (requestRevision != Volatile.Read(ref revision)) { return false; }
@@ -292,6 +294,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private void SupersedePendingLoad()
     {
         Interlocked.Increment(ref revision);
+        currentDisplayRequest = default;
         var obsolete = Interlocked.Exchange(ref currentLoad, null);
         obsolete?.Cancel();
         PreparationState = ReviewPreparationState.Idle;
@@ -334,7 +337,8 @@ public sealed class RecordingReviewSession : IAsyncDisposable
 
     private async Task LoadCacheBlockAsync(double cacheStartSeconds)
     {
-        var requestRevision = Interlocked.Increment(ref revision);
+        var request = BeginDisplayRequest();
+        var requestRevision = request.ViewGeneration;
         // Dragging is latest-only. The underlying source-chunk task remains
         // reusable, while this frame wait is cancelled so obsolete targets do
         // not hold the foreground worker or commit stale state.
@@ -358,9 +362,16 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             RecordFrameBuild(result, requestRevision, ViewportStartSeconds, started);
 
             var frame = result.Frame with { Revision = requestRevision };
-            cache.StoreFrame(frame, filterSettings, SelectedViewingMontage, result.FilterUnavailable);
-            CurrentFrame = frame;
-            StatusText = DescribeFrame(frame, result.FilterUnavailable);
+            WaveformDisplayFramePublisher.TryPublish(
+                new WaveformDisplayFrame<RecordingReviewFrame>(request, frame),
+                currentDisplayRequest,
+                token,
+                payload =>
+                {
+                    cache.StoreFrame(payload, filterSettings, SelectedViewingMontage, result.FilterUnavailable);
+                    CurrentFrame = payload;
+                    StatusText = DescribeFrame(payload, result.FilterUnavailable);
+                });
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
         catch (Exception) when (requestRevision != Volatile.Read(ref revision)) { return; }
@@ -378,6 +389,18 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             Interlocked.CompareExchange(ref currentLoad, null, load);
             load.Dispose();
         }
+    }
+
+    private WaveformDisplayRequestContext BeginDisplayRequest()
+    {
+        var metadata = reader.Metadata;
+        var request = new WaveformDisplayRequestContext(
+            metadata.RecordingId,
+            metadata.Revision,
+            Interlocked.Increment(ref revision),
+            Guid.NewGuid());
+        currentDisplayRequest = request;
+        return request;
     }
 
     private async Task<FrameBuildResult> BuildFrameAsync(double cacheStartSeconds, CancellationToken token,
@@ -399,6 +422,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             reader.Manifest.SamplingRateHz, projected.FirstOrDefault()?.FirstSampleCounter ?? 0,
             displayWindow.ActualStartSeconds, displayWindow.ActualEndSeconds,
             montage?.Name ?? "原始设备通道", projected, outputNames,
+            reader.Metadata.Revision,
             MontageOutputAppearance.ResolveColors(montage, outputNames),
             sourceResult.FilterUnavailable || sourceResult.FilterContract is null
                 ? ReviewDisplaySourceIdentity.CreateRaw(reader.Manifest, montage)

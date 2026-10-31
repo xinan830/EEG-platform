@@ -87,6 +87,28 @@ public sealed class ReviewCheckpointCoordinatorTests
         finally { Directory.Delete(root, true); }
     }
 
+    [Fact]
+    public async Task Concurrent_targets_use_independent_checkpoint_sessions()
+    {
+        var root = TemporaryDirectory();
+        try
+        {
+            var reader = new StreamingReader(200, 10);
+            var filter = new CountingCheckpointFilter();
+            await using var coordinator = new ReviewCheckpointCoordinator(
+                reader, filter, new ReviewCheckpointAnchorCache(root));
+
+            var first = coordinator.FilterAsync(reader.TargetWindow(20, 1), Settings(), Contract(), CancellationToken.None);
+            var second = coordinator.FilterAsync(reader.TargetWindow(40, 1), Settings(), Contract(), CancellationToken.None);
+            await Task.WhenAll(first, second);
+
+            Assert.Equal(2, filter.SessionCount);
+            Assert.Equal(20, filter.FilteredSamples);
+            Assert.Equal(2, filter.SessionStartStates.Count);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
     private static RecordingReviewFilterSettings Settings() => new(0.01, 4, null);
     private static ReviewFilterContract Contract() => new("test", "test-contract", "checkpoint-v1");
 
@@ -166,7 +188,7 @@ public sealed class ReviewCheckpointCoordinatorTests
         }
     }
 
-    private sealed class StreamingReader : IRecordingReviewReader, IRecordingReviewTimeline
+    private sealed class StreamingReader : IRecordingAccessSession
     {
         private readonly int gapStart;
         private readonly int gapLength;
@@ -194,6 +216,13 @@ public sealed class ReviewCheckpointCoordinatorTests
             MaximumRequestedSamples = Math.Max(MaximumRequestedSamples, count);
             return Task.FromResult(CreateWindow(startSeconds, start, count));
         }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, FirstSampleCounter, ReadWindowAsync, range, channelIndexes, cancellationToken);
 
         public RecordingReviewWindow TargetWindow(double startSeconds, double durationSeconds)
         {

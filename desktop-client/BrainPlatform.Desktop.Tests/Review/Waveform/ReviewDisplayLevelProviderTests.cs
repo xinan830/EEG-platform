@@ -26,7 +26,7 @@ public sealed class ReviewDisplayLevelProviderTests
                 Guid.NewGuid(), 7, 4, 0, 10, 11, "REF",
                 [new ProjectedMontageSegment(0, 4,
                     [new ProjectedMontageChannel("F3", [1, -2, 3, 4])])],
-                ["F3"], ["#123456"], "raw-source");
+                ["F3"], "fixture-source", ["#123456"], "raw-source");
             var provider = new ReviewDisplayLevelProvider(new ReviewDisplayLevelReader(index, cache));
 
             var display = await provider.TryReadAsync(frame, 10, 1, 800, CancellationToken.None);
@@ -35,6 +35,7 @@ public sealed class ReviewDisplayLevelProviderTests
             Assert.Equal([10d, 10.25d, 10.5d, 10.75d], display!.Traces[0].XSeconds);
             Assert.Equal([1d, -2d, 3d, 4d], display.Traces[0].ValuesVolts);
             Assert.Equal(frame.OutputChannelNames, display.OutputChannelNames);
+            Assert.Equal(frame.SourceRevision, display.SourceRevision);
         }
         finally { Delete(root); }
     }
@@ -49,7 +50,7 @@ public sealed class ReviewDisplayLevelProviderTests
                 Guid.NewGuid(), 1, 4, 0, 0, 1, "REF",
                 [new ProjectedMontageSegment(0, 4,
                     [new ProjectedMontageChannel("F3", [1, 2, 3, 4])])],
-                ["F3"], DisplaySourceIdentity: "raw-source");
+                ["F3"], "fixture-source", DisplaySourceIdentity: "raw-source");
             var provider = new ReviewDisplayLevelProvider(new ReviewDisplayLevelReader(
                 new ReviewDisplayLevelIndex(root), new ReviewDisplayLevelChunkCache(root)));
 

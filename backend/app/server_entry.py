@@ -1,6 +1,6 @@
 """
 PyInstaller 打包入口 —— 不要直接运行此文件用于开发。
-开发环境请继续使用：uvicorn app.main:app --reload
+开发环境请继续使用：uvicorn app.main:app --reload --no-access-log
 """
 import os
 import sys

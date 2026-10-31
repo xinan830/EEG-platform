@@ -99,6 +99,25 @@ public sealed class RecordingReviewSessionTests
     }
 
     [Fact]
+    public async Task Published_frame_carries_the_recording_source_revision()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new FakeReader(30, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        await using var session = new RecordingReviewSession(reader, catalog, 10);
+
+        await session.InitializeAsync();
+
+        Assert.Equal(((IRecordingAccessSession)reader).Metadata.Revision, session.CurrentFrame?.SourceRevision);
+    }
+
+    [Fact]
     public async Task SeekingInsideTheBoundedCacheDoesNotReadOrFilterAgain()
     {
         var configuration = Configuration(2);
@@ -369,7 +388,7 @@ public sealed class RecordingReviewSessionTests
             MontageProfileFingerprint.Create(fingerprint, rows));
     }
 
-    private sealed class FakeReader : IRecordingReviewReader
+    private sealed class FakeReader : IRecordingAccessSession
     {
         private readonly TaskCompletionSource<RecordingReviewWindow>? first;
         private readonly TaskCompletionSource<RecordingReviewWindow>? second;
@@ -406,6 +425,13 @@ public sealed class RecordingReviewSessionTests
 
             return Task.FromResult(Window());
         }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
     }
 
     private sealed class FakeFilter : IRecordingReviewFilter
@@ -452,7 +478,7 @@ public sealed class RecordingReviewSessionTests
         }
     }
 
-    private sealed class RangeReader(double durationSeconds, LocalRawRecordingManifest manifest) : IRecordingReviewReader
+    private sealed class RangeReader(double durationSeconds, LocalRawRecordingManifest manifest) : IRecordingAccessSession
     {
         private int readCount;
 
@@ -479,9 +505,16 @@ public sealed class RecordingReviewSessionTests
                 startSeconds + durationSeconds,
                 [new RecordingReviewSegment(firstSample, sampleCount, 3, values)]));
         }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
     }
 
-    private sealed class TrackClickBlockingReader(double durationSeconds, LocalRawRecordingManifest manifest) : IRecordingReviewReader
+    private sealed class TrackClickBlockingReader(double durationSeconds, LocalRawRecordingManifest manifest) : IRecordingAccessSession
     {
         private int readCount;
 
@@ -510,6 +543,13 @@ public sealed class RecordingReviewSessionTests
             return new RecordingReviewWindow(startSeconds, startSeconds, startSeconds + durationSeconds,
                 [new RecordingReviewSegment(firstSample, sampleCount, 3, values)]);
         }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
     }
 
     private sealed class WarmupCapturingFilter : IRecordingReviewFilter

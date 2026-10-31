@@ -9,6 +9,7 @@ using EventListView = BrainPlatform.Desktop.Modules.Events.Views.EventListView;
 using EventDefinitionEditorView = BrainPlatform.Desktop.Modules.Events.Views.EventDefinitionEditorView;
 using RecordingReviewView = BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 namespace BrainPlatform.Desktop;
 
@@ -30,7 +31,8 @@ public partial class MainWindow : Window
     private EventDefinitionEditorView? eventDefinitionEditorView;
     private AlgorithmWorkspaceView? algorithmWorkspaceView;
     private RecordingReviewViewModel? recordingReviewViewModel;
-    private LocalRawRecording? recordingReviewRecording;
+    private RecordingSessionManager.RecordingAccessLease? recordingReviewRecording;
+    private RecordingPlaybackTimeCoordinator? recordingReviewPlayback;
     private EegSessionWindow? acquisitionSessionWindow;
     private EegSessionWindow? reviewSessionWindow;
     private readonly IRecordingReviewFilter? recordingReviewFilter;
@@ -297,7 +299,10 @@ public partial class MainWindow : Window
             throw new RecordingReadException("RECORDING_IDENTITY_INVALID", "所选录音的会话标识无效。");
         }
 
-        var loadedRecording = await LocalRawRecordingReader.OpenAsync(
+        if (DataContext is not DesktopWorkspaceViewModel workspace)
+            throw new InvalidOperationException("工作区尚未初始化，无法打开录音回溯。");
+
+        var loadedRecording = await workspace.RecordingSessions.OpenLocalAsync(
             recording.RecordingDirectory,
             expectedSessionId,
             CancellationToken.None);
@@ -313,32 +318,41 @@ public partial class MainWindow : Window
                 $"历史导联引用无法登记，记录仍可查看：{exception.Message}");
         }
         var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
-        var analysisCoordinator = (DataContext as DesktopWorkspaceViewModel) is { } workspace
-            ? new ReviewAnalysisCoordinator(new PsdReviewAnalysisAdapter(workspace.Algorithms))
+        var analysisCoordinator = (DataContext as DesktopWorkspaceViewModel) is { } analysisWorkspace
+            ? new ReviewAnalysisCoordinator(new PsdReviewAnalysisAdapter(analysisWorkspace.Algorithms))
             : null;
-        var viewModel = new RecordingReviewViewModel(
-            loadedRecording.Reader,
-            catalog,
-            recordingName: recording.Name,
-            projectName: loadedRecording.Manifest.Project.Name,
-            filter: recordingReviewFilter,
-            recordingDirectory: recording.RecordingDirectory,
-            eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
-            notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications,
-            analysisCoordinator: analysisCoordinator,
-            timeDisplaySettings: (DataContext as DesktopWorkspaceViewModel)?.TimeDisplaySettings);
+        var playbackCoordinator = new RecordingPlaybackTimeCoordinator(
+            loadedRecording.Manifest.SessionId.ToString("N"),
+            loadedRecording.Manifest.SamplingRateHz,
+            checked(loadedRecording.LastSampleCounter - loadedRecording.FirstSampleCounter + 1L));
+        RecordingReviewViewModel? viewModel = null;
         try
         {
+            viewModel = new RecordingReviewViewModel(
+                loadedRecording,
+                catalog,
+                recordingName: recording.Name,
+                projectName: loadedRecording.Manifest.Project.Name,
+                filter: recordingReviewFilter,
+                recordingDirectory: recording.RecordingDirectory,
+                eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
+                notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications,
+                analysisCoordinator: analysisCoordinator,
+                timeDisplaySettings: (DataContext as DesktopWorkspaceViewModel)?.TimeDisplaySettings,
+                playbackCoordinator: playbackCoordinator);
             await viewModel.InitializeAsync();
         }
         catch
         {
-            await viewModel.DisposeAsync();
+            if (viewModel is not null)
+                await viewModel.DisposeAsync();
+            playbackCoordinator.Dispose();
             await loadedRecording.DisposeAsync();
             throw;
         }
 
         recordingReviewRecording = loadedRecording;
+        recordingReviewPlayback = playbackCoordinator;
         recordingReviewViewModel = viewModel;
         var view = new RecordingReviewView { DataContext = viewModel };
         reviewSessionWindow = new EegSessionWindow(
@@ -505,5 +519,8 @@ public partial class MainWindow : Window
             recordingReviewRecording = null;
             await loadedRecording.DisposeAsync();
         }
+
+        recordingReviewPlayback?.Dispose();
+        recordingReviewPlayback = null;
     }
 }

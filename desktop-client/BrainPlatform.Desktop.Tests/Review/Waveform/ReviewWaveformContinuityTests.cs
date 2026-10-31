@@ -108,7 +108,7 @@ public sealed class ReviewWaveformContinuityTests
     }
 
     private static RecordingReviewFrame Frame(params ProjectedMontageSegment[] segments) => new(
-        Guid.NewGuid(), 1, 1000, 0, 0, 20, "REF", segments, ["F8-REF"]);
+        Guid.NewGuid(), 1, 1000, 0, 0, 20, "REF", segments, ["F8-REF"], "fixture-source");
 
     private static ProjectedMontageSegment Segment(long start, double[] values) =>
         new(start, values.Length, [new ProjectedMontageChannel("F8-REF", values)]);

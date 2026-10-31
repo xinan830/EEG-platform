@@ -1,7 +1,5 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
 using System.Text.Json;
-using System.Text;
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
@@ -36,8 +34,6 @@ public sealed partial class AlgorithmListViewModel
     private readonly Dictionary<(string RunId, long CursorSample), WindowPreviewResponse> fullWindowPreviewCache = [];
     private TaskCompletionSource<Task>? pendingRequestFlush;
     internal event Action<DynamicWindowRequest, DynamicWindowResponse>? OwnedWindowCompleted;
-    /// <summary>Single playback target stream for analysis subscribers.</summary>
-    internal event Action<ReviewTargetEnvelope>? PlaybackTargetPublished;
     internal event Action<TnkPlaybackGap>? OwnedTnkPlaybackGap;
     internal event Action<string>? OwnedTnkPlaybackRecoveryFailed;
     internal string? ActivePlaybackDeliveryId => tnkPlaybackDeliveryId;
@@ -51,7 +47,9 @@ public sealed partial class AlgorithmListViewModel
         request.AlgorithmId == handler.AlgorithmId && request.DefinitionId is null &&
         request.DefinitionVersion is null && request.ProjectId is null &&
         request.Config.GetRawText() == current.Config.GetRawText() &&
-        (request.PlaybackDeliveryId is null || request.PlaybackDeliveryId == tnkPlaybackDeliveryId);
+        request.AnalysisContextGeneration == windowContextGeneration &&
+        (request.PlaybackDeliveryId is null || request.PlaybackDeliveryId == tnkPlaybackDeliveryId) &&
+        request.PlaybackGeneration == (PlaybackCoordinator?.Snapshot.Generation ?? 0);
     internal TimeRange? WindowRequestedRange => windowRequest is { } request &&
         request.Config.TryGetProperty("start_s", out var start) &&
         request.Config.TryGetProperty("end_s", out var end)
@@ -75,6 +73,7 @@ public sealed partial class AlgorithmListViewModel
         if (string.Equals(handler.AlgorithmId, "tnk_biofeedback", StringComparison.OrdinalIgnoreCase))
         {
             tnkPlaybackDeliveryId = Guid.NewGuid().ToString("N");
+            tnkPlaybackGeneration = PlaybackCoordinator?.Snapshot.Generation ?? 0;
             tnkPlaybackEventSequence = 0;
             tnkPlaybackRecoveryRange = null;
         }
@@ -140,8 +139,9 @@ public sealed partial class AlgorithmListViewModel
         var target = new DynamicWindowRequest(request.RecordingId, handler.AlgorithmId,
             null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"),
             PlaybackDelivery: tnkPlaybackDeliveryId is not null,
-            PlaybackDeliveryId: tnkPlaybackDeliveryId);
-        PublishPlaybackTarget(target, recording);
+            PlaybackGeneration: PlaybackCoordinator?.Snapshot.Generation ?? 0,
+            PlaybackDeliveryId: tnkPlaybackDeliveryId,
+            AnalysisContextGeneration: windowContextGeneration);
         CurrentWindowLoad = LoadWindowTargetAsync(target, handler, revision, windowWait);
     }
 
@@ -164,8 +164,9 @@ public sealed partial class AlgorithmListViewModel
         var target = new DynamicWindowRequest(request.RecordingId, handler.AlgorithmId,
             null, null, request.Config, cursor, RequestId: Guid.NewGuid().ToString("N"),
             PlaybackDelivery: tnkPlaybackDeliveryId is not null,
-            PlaybackDeliveryId: tnkPlaybackDeliveryId);
-        PublishPlaybackTarget(target, recording);
+            PlaybackGeneration: PlaybackCoordinator?.Snapshot.Generation ?? 0,
+            PlaybackDeliveryId: tnkPlaybackDeliveryId,
+            AnalysisContextGeneration: windowContextGeneration);
         if (AlgorithmWindowPerformanceDiagnostics.Enabled)
             DesktopLog.Info($"tnk_playback_window_target request_id={target.RequestId}" +
                 $" generation={windowContextGeneration}" +
@@ -173,21 +174,6 @@ public sealed partial class AlgorithmListViewModel
                 $" target_sample={cursor} target_second={cursor / samplingRateInteger}" +
                 $" delivery_id={target.PlaybackDeliveryId ?? "none"}");
         _ = ObservePlaybackTargetAsync(target);
-    }
-
-    private void PublishPlaybackTarget(DynamicWindowRequest target, RegisteredRecording recording)
-    {
-        if (PlaybackTargetPublished is null || recording.SamplingRateHz is not > 0) return;
-        var configFingerprint = Convert.ToHexString(SHA256.HashData(
-            Encoding.UTF8.GetBytes(target.Config.GetRawText()))).ToLowerInvariant();
-        var lane = string.Equals(target.AlgorithmId, "tnk_biofeedback", StringComparison.OrdinalIgnoreCase)
-            ? ReviewTaskLane.StatefulAnalysis
-            : ReviewTaskLane.WindowIndependentAnalysis;
-        PlaybackTargetPublished.Invoke(new ReviewTargetEnvelope(
-            target.RequestId ?? Guid.NewGuid().ToString("N"), windowContextGeneration,
-            target.RecordingId, target.AlgorithmId, target.DefinitionId,
-            target.DefinitionVersion, configFingerprint, target.CursorSample,
-            recording.SamplingRateHz.Value, recording.Channels, lane, target.PlaybackDeliveryId));
     }
 
     private async Task ObservePlaybackTargetAsync(DynamicWindowRequest target)
@@ -200,8 +186,7 @@ public sealed partial class AlgorithmListViewModel
             // cannot turn the cursor into an unbounded request backlog.
             var response = string.Equals(target.AlgorithmId, "tnk_biofeedback",
                 StringComparison.OrdinalIgnoreCase)
-                ? await windowTargets!.LoadLatestAsync(
-                    target, CancellationToken.None, cancelActiveOnSupersede: true)
+                ? await windowTargets!.LoadLatestAsync(target, CancellationToken.None)
                 : await windowTargets!.LoadSequentialAsync(target, CancellationToken.None);
             if (tnkPlaybackRecoveryRange is { } recovery && response.Range is { } range &&
                 range.StartSample <= recovery.StartSample && range.EndSample >= recovery.EndSample)
@@ -324,7 +309,8 @@ public sealed partial class AlgorithmListViewModel
                 RunStatusText = $"{displayedWindowSource}：{WindowStateLabel(status.State)}；保留上次已显示结果。";
             });
             var response = await LoadPreferredWindowAsync(target, handler, progress, waiter.Token);
-            if (revision != windowRevision || waiter.IsCancellationRequested) return;
+            if (revision != windowRevision || waiter.IsCancellationRequested ||
+                !IsCurrentDynamicRequest(target)) return;
             if (response.Identity is not { } identity ||
                 !identity.TryGetProperty("recording_id", out var source) || source.GetString() != target.RecordingId)
                 throw new InvalidOperationException("按需窗口源身份不匹配，已拒绝绑定。");

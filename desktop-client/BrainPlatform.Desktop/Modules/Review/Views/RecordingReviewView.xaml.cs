@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using BrainPlatform.Desktop.Modules.Events.Views;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
@@ -9,17 +10,12 @@ namespace BrainPlatform.Desktop.Modules.Review.Views;
 
 public partial class RecordingReviewView : UserControl
 {
-    private readonly DispatcherTimer playbackTimer;
     private readonly ReviewPlaybackTickDiagnostics playbackTickDiagnostics = new();
     private ReviewResourceMonitor? resourceMonitor;
 
     public RecordingReviewView()
     {
         InitializeComponent();
-        playbackTimer = new DispatcherTimer(DispatcherPriority.Render)
-        {
-            Interval = TimeSpan.FromMilliseconds(16),
-        };
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -75,8 +71,7 @@ public partial class RecordingReviewView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        playbackTimer.Tick += OnPlaybackTimerTick;
-        playbackTimer.Start();
+        CompositionTarget.Rendering += OnPlaybackRendering;
         if (ReviewPerformanceDiagnostics.Enabled && resourceMonitor is null)
         {
             resourceMonitor = new ReviewResourceMonitor(
@@ -107,11 +102,10 @@ public partial class RecordingReviewView : UserControl
         resourceMonitor?.Dispose();
         resourceMonitor = null;
         ViewModel?.EndTimelineDrag();
-        playbackTimer.Stop();
-        playbackTimer.Tick -= OnPlaybackTimerTick;
+        CompositionTarget.Rendering -= OnPlaybackRendering;
     }
 
-    private void OnPlaybackTimerTick(object? sender, EventArgs e)
+    private void OnPlaybackRendering(object? sender, EventArgs e)
     {
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         if (ViewModel is not { IsPlaying: true } viewModel)

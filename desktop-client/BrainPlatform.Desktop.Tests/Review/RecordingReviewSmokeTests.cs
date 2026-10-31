@@ -52,7 +52,7 @@ public sealed class RecordingReviewSmokeTests
             await using var recording = await LocalRawRecordingReader.OpenAsync(directory, sessionId, CancellationToken.None);
             var catalog = RecordingMontageCatalog.Build(recording.Manifest, [acquisition]);
             await using var viewModel = new RecordingReviewViewModel(
-                recording.Reader,
+                recording,
                 catalog,
                 recordingName: "测试记录",
                 projectName: recording.Manifest.Project.Name);

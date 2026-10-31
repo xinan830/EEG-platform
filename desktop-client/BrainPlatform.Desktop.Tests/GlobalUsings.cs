@@ -10,6 +10,7 @@ global using BrainPlatform.Desktop.Modules.Channels.Validation;
 global using BrainPlatform.Desktop.Modules.Montages.Domain;
 global using BrainPlatform.Desktop.Modules.Montages.Stores;
 global using BrainPlatform.Desktop.Modules.Montages.Validation;
+global using BrainPlatform.Desktop.Modules.Recordings.Access;
 global using BrainPlatform.Desktop.Modules.Acquisition.Session;
 global using BrainPlatform.Desktop.Modules.Events.Adapters;
 global using BrainPlatform.Desktop.Modules.Events.Domain;

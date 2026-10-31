@@ -9,6 +9,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 public sealed partial class AlgorithmListViewModel
 {
     private string? tnkPlaybackDeliveryId;
+    private long tnkPlaybackGeneration;
     private CancellationTokenSource? tnkPlaybackEventsCancellation;
     private readonly TnkPlaybackDeliveryDiagnostics tnkPlaybackDeliveryDiagnostics = new();
     private long tnkPlaybackEventSequence;
@@ -43,7 +44,9 @@ public sealed partial class AlgorithmListViewModel
                         _ = ObservePlaybackTargetAsync(new DynamicWindowRequest(request.RecordingId,
                             handler.AlgorithmId, null, null, request.Config, missing.AffectedEndSample,
                             RequestId: Guid.NewGuid().ToString("N"), PlaybackDelivery: true,
-                            PlaybackDeliveryId: deliveryId));
+                            PlaybackDeliveryId: deliveryId,
+                            PlaybackGeneration: PlaybackCoordinator?.Snapshot.Generation ?? 0,
+                            AnalysisContextGeneration: windowContextGeneration));
                     }
                     if (batch.Discontinuity is { } discontinuity)
                         tnkPlaybackEventSequence = Math.Max(tnkPlaybackEventSequence, discontinuity.LastMissingSequence);
@@ -122,7 +125,9 @@ public sealed partial class AlgorithmListViewModel
         _ = ObservePlaybackTargetAsync(new DynamicWindowRequest(request.RecordingId,
             "tnk_biofeedback", null, null, request.Config, end,
             RequestId: Guid.NewGuid().ToString("N"), PlaybackDelivery: false,
-            PlaybackDeliveryId: deliveryId));
+            PlaybackDeliveryId: deliveryId,
+            PlaybackGeneration: PlaybackCoordinator?.Snapshot.Generation ?? 0,
+            AnalysisContextGeneration: windowContextGeneration));
     }
 
     private void PublishOwnedTnkPlaybackGap(TnkPlaybackGap gap)
@@ -182,16 +187,22 @@ public sealed partial class AlgorithmListViewModel
             new DynamicWindowRequest(request.RecordingId, "tnk_biofeedback", null, null,
                 request.Config, range.EndSample,
                 RequestId: $"playback-event-{item.DeliverySequence}",
-                PlaybackDelivery: true, PlaybackDeliveryId: item.DeliveryId), response);
+                PlaybackDelivery: true, PlaybackDeliveryId: item.DeliveryId,
+                PlaybackGeneration: tnkPlaybackGeneration,
+                AnalysisContextGeneration: windowContextGeneration), response);
     }
 
     private void ResetTnkPlaybackDeliveryForBackwardSeek(long cursorSample)
     {
-        if (tnkPlaybackDeliveryId is null || tnkPlaybackLastRequestedSample is not long previous ||
-            cursorSample >= previous) return;
+        if (tnkPlaybackDeliveryId is null) return;
+        var currentPlaybackGeneration = PlaybackCoordinator?.Snapshot.Generation ?? 0;
+        var generationChanged = currentPlaybackGeneration != tnkPlaybackGeneration;
+        var movedBackward = tnkPlaybackLastRequestedSample is long previous && cursorSample < previous;
+        if (!generationChanged && !movedBackward) return;
         CloseTnkPlaybackDelivery();
         windowContextGeneration++;
         tnkPlaybackDeliveryId = Guid.NewGuid().ToString("N");
+        tnkPlaybackGeneration = currentPlaybackGeneration;
         tnkPlaybackEventSequence = 0;
         tnkPlaybackRecoveryRange = null;
         lastRequestedWindowSample = -1;

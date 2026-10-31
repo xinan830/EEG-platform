@@ -18,7 +18,7 @@ public sealed class ReviewWaveformRefreshTests
             canvas.UpdateLayout();
             var values = Enumerable.Repeat(1e-6, 20_000).ToArray();
             var frame = new RecordingReviewFrame(Guid.NewGuid(), 1, 1000, 0, 0, 20, "REF",
-                [new ProjectedMontageSegment(0, values.Length, [new ProjectedMontageChannel("F3-REF", values)])], ["F3-REF"]);
+                [new ProjectedMontageSegment(0, values.Length, [new ProjectedMontageChannel("F3-REF", values)])], ["F3-REF"], "fixture-source");
             var type = typeof(RecordingReviewSciChartCanvas);
             var apply = type.GetMethod("ApplyFrame", BindingFlags.Instance | BindingFlags.NonPublic)!;
             apply.Invoke(canvas, [frame, null]);

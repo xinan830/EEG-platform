@@ -197,6 +197,11 @@ public sealed partial class AlgorithmListViewModel
     private void StartDynamicPreview()
     {
         if (!CanStartDynamicPreview()) return;
+        if (PlaybackCoordinator is { } coordinator)
+        {
+            coordinator.SeekSeconds(DynamicPreviewCursorSeconds);
+            coordinator.Play();
+        }
         IsDynamicPreviewPlaying = true;
         dynamicPreviewTimer.Start();
         RaiseDynamicPreviewProperties();
@@ -204,6 +209,7 @@ public sealed partial class AlgorithmListViewModel
 
     private void PauseDynamicPreview()
     {
+        PlaybackCoordinator?.Pause();
         StopDynamicPreviewTimer();
         RaiseDynamicPreviewProperties();
     }
@@ -230,7 +236,19 @@ public sealed partial class AlgorithmListViewModel
         if (IsOnDemandAnalysis) QueueWindowRequest(immediate: true);
     }
 
-    private void AdvanceDynamicPreview() => StepDynamicPreview();
+    private void AdvanceDynamicPreview()
+    {
+        if (PlaybackCoordinator is not { IsPlaying: true } coordinator)
+        {
+            StepDynamicPreview();
+            return;
+        }
+
+        if (!coordinator.Update()) return;
+        DynamicPreviewCursorSeconds = Math.Min(DynamicPlaybackEndSeconds, coordinator.PositionSeconds);
+        ReleaseDynamicPreviewRows();
+        RaiseDynamicPreviewProperties();
+    }
 
     internal void DynamicPreviewCursorSecondsForTest(double seconds)
     {
@@ -243,6 +261,8 @@ public sealed partial class AlgorithmListViewModel
             return;
         var maximum = DynamicPlaybackEndSeconds;
         DynamicPreviewCursorSeconds = Math.Clamp(seconds, 0, maximum);
+        if (PlaybackCoordinator is { } coordinator)
+            coordinator.SeekSeconds(DynamicPreviewCursorSeconds);
         ReleaseDynamicPreviewRows(immediateRequest: true);
         RaiseDynamicPreviewProperties();
     }
@@ -281,6 +301,7 @@ public sealed partial class AlgorithmListViewModel
 
     private void StopDynamicPreviewTimer()
     {
+        PlaybackCoordinator?.Pause();
         dynamicPreviewTimer.Stop();
         IsDynamicPreviewPlaying = false;
     }

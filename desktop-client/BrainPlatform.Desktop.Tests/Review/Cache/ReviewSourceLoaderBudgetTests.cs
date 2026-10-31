@@ -34,7 +34,7 @@ public sealed class ReviewSourceLoaderBudgetTests
 
     private static RecordingReviewFilterSettings Settings => new(1, 4, null);
 
-    private sealed class Reader : IRecordingReviewReader
+    private sealed class Reader : IRecordingAccessSession
     {
         public LocalRawRecordingManifest Manifest { get; } = new(
             Guid.NewGuid(), "fixture", "V", "fixture", "fixture", 10, 1, DateTimeOffset.UnixEpoch,
@@ -48,6 +48,13 @@ public sealed class ReviewSourceLoaderBudgetTests
             return Task.FromResult(new RecordingReviewWindow(start, start, start + duration,
                 [new RecordingReviewSegment((long)(start * 10), count, 1, new double[count])]));
         }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
     }
 
     private sealed class BlockingFilter : IRecordingReviewFilter

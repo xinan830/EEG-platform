@@ -93,8 +93,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Playback/RecordingReviewSession.cs": {
       "decision": "keep",
-      "max_lines": 455,
-      "reason": "Completed the prior high-risk source-loader extraction after deterministic foreground race coverage. The roughly 450-line session now exclusively owns navigation revisions, foreground cancellation, cache activation, frame projection/publication and request-scoped progress. Raw/filtered source loading and checkpoint lifetime live in ReviewSourceLoader; shared chunk ownership/progress lives in ReviewSourceChunkWork. Preserve a single foreground revision owner rather than fragmenting its state to meet a mechanical line target. New source/coordinator/test files remain below 400 lines."
+      "max_lines": 500,
+      "reason": "The 488-line session owns navigation revisions, foreground cancellation, cache activation and complete-frame publication, including the shared request identity gate. Raw/filtered source loading and checkpoint lifetime live in ReviewSourceLoader; shared chunk ownership/progress lives in ReviewSourceChunkWork. Keep one foreground revision owner rather than fragmenting its state to meet a mechanical line target; re-evaluate before exceeding 500 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventDefinitionEditorView.xaml": {
       "decision": "split",

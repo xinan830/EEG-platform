@@ -5,9 +5,19 @@ using System.IO;
 using BrainPlatform.Desktop.Modules.Montages.Domain;
 using BrainPlatform.Desktop.Modules.Review.Montages;
 using BrainPlatform.Desktop.Modules.Review.Playback;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 public sealed partial class AlgorithmListViewModel
 {
+    private async Task ReleaseAlgorithmRecordingAsync()
+    {
+        if (algorithmRecording is null)
+            return;
+        var lease = algorithmRecording;
+        algorithmRecording = null;
+        await lease.DisposeAsync();
+    }
+
     private async Task AutoRegisterSelectedRecordingAsync()
     {
         try
@@ -51,6 +61,19 @@ public sealed partial class AlgorithmListViewModel
         if (SelectedProjectRecording is not { Status: "已完成" } || string.IsNullOrWhiteSpace(SourceDirectory))
             throw new InvalidOperationException("请先从项目中选择一条已完成的记录。");
 
+        if (recordingSessionManager is not null)
+        {
+            if (!Guid.TryParseExact(SelectedProjectRecording.SessionId, "N", out var sessionId))
+                throw new RecordingAccessException(
+                    RecordingAccessErrorCodes.IdentityInvalid, "所选录音的会话标识无效。", null);
+
+            if (algorithmRecording is not null)
+                await algorithmRecording.DisposeAsync();
+            algorithmRecording = await recordingSessionManager.OpenLocalAsync(
+                SourceDirectory.Trim(), sessionId, CancellationToken.None);
+            ValidateSharedRecordingSource(algorithmRecording);
+        }
+
         var profiles = await montageStore.LoadAsync(CancellationToken.None);
         var manifestPath = Path.Combine(SourceDirectory.Trim(), "manifest.json");
         await using var manifestStream = File.OpenRead(manifestPath);
@@ -68,6 +91,26 @@ public sealed partial class AlgorithmListViewModel
             SourceDirectory.Trim(), CancellationToken.None, compatibleProfiles);
         if (RegisteredRecording.Channels.Count == 0 || RegisteredRecording.DurationSeconds is not > 0)
             throw new InvalidOperationException("注册记录没有有效的通道或时长。");
+        if (RegisteredRecording.SamplingRateHz is not > 0 ||
+            !double.IsFinite(RegisteredRecording.SamplingRateHz.Value) ||
+            RegisteredRecording.SamplingRateHz.Value != Math.Truncate(RegisteredRecording.SamplingRateHz.Value))
+            throw new InvalidOperationException("注册记录没有有效的整数采样率。");
+        var samplingRateHz = checked((int)RegisteredRecording.SamplingRateHz.Value);
+        var durationSamples = checked((long)Math.Round(
+            RegisteredRecording.DurationSeconds.Value * samplingRateHz, MidpointRounding.AwayFromZero));
+        var expectedRecordingId = RegisteredRecording.Id;
+        if (injectedPlaybackCoordinator is not null &&
+            (!string.Equals(injectedPlaybackCoordinator.RecordingId, expectedRecordingId, StringComparison.Ordinal) ||
+             injectedPlaybackCoordinator.SamplingRateHz != samplingRateHz ||
+             injectedPlaybackCoordinator.DurationSamples != durationSamples))
+            throw new InvalidOperationException("注入的播放协调器与注册录音身份或采样范围不一致。");
+
+        if (ownsPlaybackCoordinator)
+            playbackCoordinator?.Dispose();
+        playbackCoordinator = injectedPlaybackCoordinator ?? new RecordingPlaybackTimeCoordinator(
+            expectedRecordingId, samplingRateHz, durationSamples);
+        ownsPlaybackCoordinator = injectedPlaybackCoordinator is null;
+        RaisePropertyChanged(nameof(PlaybackCoordinator));
 
         RegisteredChannels.Clear();
         MontageProfiles.Clear();
@@ -95,6 +138,22 @@ public sealed partial class AlgorithmListViewModel
         RefreshTnkRoleChannels();
         EndSecondsText = RegisteredRecording.DurationSeconds.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
         StatusText = $"已注册记录：{RegisteredRecording.OriginalName}，{RegisteredRecording.DurationSeconds.Value:0.###} 秒。请选择分析导联和范围。";
+    }
+
+    internal static void ValidateSharedRecordingSource(IRecordingAccessSession recording)
+    {
+        var metadata = recording.Metadata;
+        if (!string.Equals(metadata.Manifest.EegSignalUnit, "V", StringComparison.OrdinalIgnoreCase))
+            throw new RecordingAccessException(
+                RecordingAccessErrorCodes.SourceUnavailable,
+                $"录音源单位必须是 V，实际为 {metadata.Manifest.EegSignalUnit}。", metadata.RecordingId);
+        if (metadata.SamplingRateHz <= 0 || metadata.LastSampleCounter < metadata.FirstSampleCounter)
+            throw new RecordingAccessException(
+                RecordingAccessErrorCodes.SourceUnavailable, "录音源采样范围无效。", metadata.RecordingId);
+        if (metadata.Manifest.Channels.Count == 0 || metadata.Manifest.Channels.Any(channel =>
+                string.IsNullOrWhiteSpace(channel.Label)))
+            throw new RecordingAccessException(
+                RecordingAccessErrorCodes.SourceUnavailable, "录音源没有完整的有序通道表。", metadata.RecordingId);
     }
 
     private void ApplyAlgorithmChannelDefaults()

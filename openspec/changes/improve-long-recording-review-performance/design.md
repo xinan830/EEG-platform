@@ -1,5 +1,70 @@
 # Design
 
+## Context
+
+The review path already has a shared historical recording-access session,
+bounded filtered chunks, checkpoint coordination, a workspace playback time
+coordinator, and a separate algorithm-analysis coordinator. The remaining
+architectural risk is ownership overlap: a request loader must not become a
+second clock, a preview must not mutate playback filter state, and SciChart
+must never receive a partially assembled frame.
+
+## Goals / Non-Goals
+
+**Goals:**
+
+- Make one owner explicit for each clock, recording lease, display session,
+  source/filter cache, and published frame.
+- Keep waveform display responsive and bounded for long recordings while
+  preserving sample time, channel order, units, gaps, and provenance.
+- Make stale-request fencing and complete-frame publication testable.
+
+**Non-Goals:**
+
+- Real-time RingBuffer access, algorithm formula changes, or a new transport
+  from WPF samples into the backend.
+- Reusing a retired reader API or keeping a compatibility shim for an old
+  internal path.
+
+## Architecture Boundaries
+
+```text
+RecordingPlaybackTimeCoordinator
+  -> cursor / play / pause / seek / playback generation
+
+WaveformRequestCoordinator
+  -> view generation / request id / latest target / cancellation
+
+RecordingSessionManager lease
+  -> recording identity / source revision / sample access
+
+RecordingReviewSession
+  -> waveform session state / loaded frame / published frame
+
+ReviewSourceLoader
+  -> bounded reads / display projection / filter state / checkpoints / cache
+
+CompleteFramePublisher
+  -> identity fence / gap and unit validation / atomic SciChart handoff
+```
+
+The time coordinator is the only owner of playback position and generation.
+The waveform request coordinator may request data for that position but cannot
+advance it. Continuous playback and one-off preview use separate mutable
+filter/checkpoint state; they may share immutable recording identity, channel
+schema and filter configuration. The algorithm line observes the shared cursor
+through its own analysis coordinator and never blocks the waveform publisher.
+
+Every frame publication checks recording identity, source revision, view and
+playback generations, request identity, absolute sample range, channel order,
+unit, and explicit gap state. A frame is publishable only after all requested
+samples and metadata are complete. The previous complete frame remains bound
+until that check succeeds.
+
+All reads, filtering, downsampling, HTTP calls, and algorithm waits run off the
+UI dispatcher. SciChart receives an immutable complete frame and performs only
+binding/render preparation.
+
 ## Evidence-First Phases
 
 ### Phase 0: Trace the current path
@@ -79,7 +144,10 @@ not synchronously wait for a non-cooperative reader or remote operation.
 
 The visible chart must not append every playback tick to an unbounded series.
 Playback advances the clock and reuses a bounded frame until a cache boundary
-is crossed. Waveform rendering has priority over algorithm-detail updates.
+is crossed. Waveform rendering has priority over algorithm-detail updates. TNK
+panels remain separate SciChart surfaces, but their refresh callbacks share one
+background Dispatcher operation per WPF Dispatcher; this reduces queue overhead
+without merging chart data or moving algorithm work onto the UI thread.
 
 ### Phase 2: Multi-resolution waveform display
 

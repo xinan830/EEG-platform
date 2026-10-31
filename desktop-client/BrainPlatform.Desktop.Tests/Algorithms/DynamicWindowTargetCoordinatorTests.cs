@@ -146,32 +146,6 @@ public sealed class DynamicWindowTargetCoordinatorTests
     }
 
     [Fact]
-    public async Task Latest_playback_target_can_cancel_superseded_active_work()
-    {
-        var observer = new ControlledObserver();
-        var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.Zero);
-        try
-        {
-            var activeTask = coordinator.LoadLatestAsync(Request(100), CancellationToken.None,
-                cancelActiveOnSupersede: true);
-            var active = await observer.NextAsync();
-            var latest = coordinator.LoadLatestAsync(Request(900), CancellationToken.None,
-                cancelActiveOnSupersede: true);
-
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => activeTask);
-            Assert.True(active.Token.IsCancellationRequested);
-
-            var replacement = await observer.NextAsync();
-            Assert.Equal(900, replacement.Request.CursorSample);
-            replacement.Complete();
-            await latest;
-            Assert.Equal(2, observer.Count);
-            Assert.Equal(1, observer.MaximumConcurrent);
-        }
-        finally { await coordinator.ResetAsync(); }
-    }
-
-    [Fact]
     public async Task Direct_seek_cancels_queued_playback_targets_but_keeps_active_work()
     {
         var observer = new ControlledObserver();
@@ -288,6 +262,34 @@ public sealed class DynamicWindowTargetCoordinatorTests
         Assert.Equal(1, observer.MaximumConcurrent);
         Assert.Equal(1, completedCount);
         await coordinator.ResetAsync();
+    }
+
+    [Fact]
+    public async Task Analysis_context_generation_rejects_late_result_with_identical_scientific_inputs()
+    {
+        var observer = new ControlledObserver(ignoreCancellation: true);
+        var coordinator = new DynamicWindowTargetCoordinator(observer.Observe, TimeSpan.Zero);
+        var completedCount = 0;
+        coordinator.WindowCompleted += (_, _) => completedCount++;
+        try
+        {
+            var first = coordinator.LoadAsync(Request(100) with { AnalysisContextGeneration = 1 },
+                CancellationToken.None);
+            var active = await observer.NextAsync();
+            var replacement = coordinator.LoadAsync(Request(100) with { AnalysisContextGeneration = 2 },
+                CancellationToken.None);
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+            Assert.True(active.Token.IsCancellationRequested);
+            active.Complete();
+            var next = await observer.NextAsync();
+            next.Complete();
+            await replacement;
+
+            Assert.Equal(1, completedCount);
+            Assert.Equal(2, observer.Count);
+        }
+        finally { await coordinator.ResetAsync(); }
     }
 
     [Fact]

@@ -2,15 +2,17 @@ using System.Collections.ObjectModel;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
 using BrainPlatform.Desktop.Modules.Review.Waveform;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
 public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly RecordingReviewSession session;
-    private readonly IRecordingReviewReader reviewReader;
+    private readonly IRecordingAccessSession reviewReader;
     private readonly RecordingMontageCatalogResult catalog;
-    private readonly RecordingPlaybackController playback;
+    private readonly RecordingPlaybackTimeCoordinator playback;
+    private readonly bool ownsPlayback;
     private readonly int samplingRateHz;
     private readonly int sourceChannelCount;
     private readonly string projectName;
@@ -42,7 +44,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private bool isAnalysisStale;
 
     public RecordingReviewViewModel(
-        IRecordingReviewReader reader,
+        IRecordingAccessSession reader,
         RecordingMontageCatalogResult catalog,
         double visibleDurationSeconds = 10,
         string? recordingName = null,
@@ -53,7 +55,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         EventDefinitionService? eventDefinitionService = null,
         OperationNotificationCenter? notifications = null,
         ReviewAnalysisCoordinator? analysisCoordinator = null,
-        RecordingTimeDisplaySettings? timeDisplaySettings = null)
+        RecordingTimeDisplaySettings? timeDisplaySettings = null,
+        RecordingPlaybackTimeCoordinator? playbackCoordinator = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -61,8 +64,17 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         this.catalog = catalog;
         recordingId = reader.Manifest.SessionId.ToString("N");
         session = new RecordingReviewSession(reader, catalog, visibleDurationSeconds, filter);
-        playback = new RecordingPlaybackController(reader.DurationSeconds, playbackClockSeconds);
         samplingRateHz = reader.Manifest.SamplingRateHz;
+        var durationSamples = checked((long)Math.Round(
+            reader.DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero));
+        playback = playbackCoordinator ?? new RecordingPlaybackTimeCoordinator(
+            recordingId, samplingRateHz, durationSamples, playbackClockSeconds);
+        ownsPlayback = playbackCoordinator is null;
+        if (!string.Equals(playback.RecordingId, recordingId, StringComparison.Ordinal) ||
+            playback.SamplingRateHz != samplingRateHz || playback.DurationSamples != durationSamples)
+        {
+            throw new ArgumentException("播放协调器与当前录音身份或采样范围不一致。", nameof(playbackCoordinator));
+        }
         recordingStartUtc = reader.Manifest.RecordingStartUtc;
         InitializeTimeDisplay(timeDisplaySettings ?? new RecordingTimeDisplaySettings());
         sourceChannelCount = reader.Manifest.Channels.Count(channel =>
@@ -580,6 +592,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         session.Changed -= OnSessionChanged;
         await session.DisposeAsync();
         await DetachAnalysisAsync();
+        if (ownsPlayback) playback.Dispose();
     }
 
     private void OnSessionChanged(object? sender, EventArgs e)

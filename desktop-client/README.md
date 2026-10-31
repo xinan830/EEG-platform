@@ -63,18 +63,11 @@ dotnet test BrainPlatform.Desktop.slnx -c Release
 dotnet run --project BrainPlatform.Desktop\BrainPlatform.Desktop.csproj
 ```
 
-Start the existing Python backend first with `start_brain_platform.bat` or the
-backend development command. The startup script and current web client use port
-`8000`; earlier README text naming ports `8001` or `5174` was obsolete.
-
-From the repository root, `start_brain_desktop.bat` opens separate terminal and
-WPF windows for the backend and frontend. The backend terminal keeps the live
-Uvicorn logs visible. It builds the current `desktop-client` Release source and
-launches its DLL with `dotnet`; it never launches the portable release package.
-If a healthy backend owned
-by this project is already running, the script restarts it in the visible
-backend terminal so the frontend and backend windows remain clear; an
-unrelated process on port 8000 is reported without being terminated.
+Start the backend from the repository root with `backend\start_backend.bat`.
+It runs the source backend on port `8000` in its own console. Start the WPF
+client separately with `dotnet run --project
+desktop-client\BrainPlatform.Desktop\BrainPlatform.Desktop.csproj` or from the
+IDE.
 
 ## Windows Release Package
 

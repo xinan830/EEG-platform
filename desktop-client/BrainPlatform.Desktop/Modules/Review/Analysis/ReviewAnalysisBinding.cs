@@ -25,6 +25,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
     private string statusText = "未绑定分析结果。";
     private int disposed;
     private long loadGeneration;
+    private long playbackGeneration;
     private long targetCursorSample = -1;
     private long? onDemandRefreshStepSamples;
 
@@ -107,6 +108,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         onDemandSnapshot = null;
         onDemandRefreshStepSamples = null;
         lastRequestedSample = -1;
+        playbackGeneration = 0;
         TargetCursorSample = -1;
         CurrentWindow = null;
         StatusText = $"已绑定 {coordinator.AlgorithmDisplayName} 结果，等待游标。";
@@ -125,6 +127,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
             0, algorithm);
         onDemandRefreshStepSamples = ReadRefreshStepSamples(onDemandSnapshot.Configuration);
         lastRequestedSample = -1;
+        playbackGeneration = 0;
         TargetCursorSample = -1;
         CurrentWindow = null;
         StatusText = $"已绑定按需 {coordinator.AlgorithmDisplayName}，等待游标。";
@@ -140,6 +143,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         onDemandSnapshot = null;
         onDemandRefreshStepSamples = null;
         lastRequestedSample = -1;
+        playbackGeneration = 0;
         TargetCursorSample = -1;
         CurrentWindow = null;
         IsLoading = false;
@@ -227,10 +231,11 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         }
     }
 
-    public void OnPlaybackCursorAdvanced(double seconds)
+    public void OnPlaybackCursorAdvanced(double seconds, long generation = 0)
     {
         if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandSnapshot is null)) return;
         if (!double.IsFinite(seconds)) return;
+        if (!AcceptPlaybackGeneration(generation)) return;
         var sample = RecordingTimeMapper.ToCursorSample(
             Math.Clamp(seconds, 0, durationSamples / (double)samplingRateHz), samplingRateHz, durationSamples);
         var refreshStep = onDemandRefreshStepSamples ?? samplingRateHz;
@@ -238,12 +243,17 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         RequestPreviewAtSample(sample);
     }
 
-    public void OnCursorPositionSelected(double seconds) => RequestPreviewAtSeconds(seconds);
+    public void OnCursorPositionSelected(double seconds, long generation = 0)
+    {
+        if (!AcceptPlaybackGeneration(generation)) return;
+        RequestPreviewAtSeconds(seconds);
+    }
 
-    public void OnCursorDragCompleted(double seconds)
+    public void OnCursorDragCompleted(double seconds, long generation = 0)
     {
         if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandSnapshot is null)) return;
         if (!double.IsFinite(seconds)) return;
+        if (!AcceptPlaybackGeneration(generation)) return;
         var sample = RecordingTimeMapper.ToCursorSample(
             Math.Clamp(seconds, 0, durationSamples / (double)samplingRateHz), samplingRateHz, durationSamples);
         RequestPreviewAtSample(sample);
@@ -306,6 +316,15 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
     {
         loadCancellation?.Cancel();
         loadCancellation = null;
+    }
+
+    private bool AcceptPlaybackGeneration(long generation)
+    {
+        if (generation < playbackGeneration) return false;
+        if (generation == playbackGeneration) return true;
+        playbackGeneration = generation;
+        lastRequestedSample = -1;
+        return true;
     }
 
     private void Set<T>(ref T field, T value, string propertyName)

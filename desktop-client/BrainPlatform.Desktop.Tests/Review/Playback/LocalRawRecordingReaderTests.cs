@@ -24,7 +24,8 @@ public sealed class LocalRawRecordingReaderTests
             Assert.Equal(2, recording.Index.Batches.Count);
             Assert.Equal(0, recording.Index.PayloadBytesReadDuringOpen);
 
-            var window = await recording.Reader.ReadWindowAsync(0.2, 0.3, CancellationToken.None);
+            var window = (await recording.ReadSamplesAsync(
+                new RecordingSampleRange(102, 105), null, CancellationToken.None)).Window;
 
             var segment = Assert.Single(window.Segments);
             Assert.Equal(0.2, window.ActualStartSeconds);
@@ -52,7 +53,8 @@ public sealed class LocalRawRecordingReaderTests
                 "{\"type\":\"sample_gap\",\"FirstMissingSampleCounter\":102,\"LastMissingSampleCounter\":103,\"MissingSampleCount\":2}\n");
 
             await using var recording = await LocalRawRecordingReader.OpenAsync(directory, sessionId, CancellationToken.None);
-            var window = await recording.Reader.ReadWindowAsync(0, 0.6, CancellationToken.None);
+            var window = (await recording.ReadSamplesAsync(
+                new RecordingSampleRange(100, 106), null, CancellationToken.None)).Window;
 
             Assert.Equal(2, window.Segments.Count);
             Assert.Equal(0, window.ActualStartSeconds);
@@ -111,6 +113,76 @@ public sealed class LocalRawRecordingReaderTests
 
             Assert.Equal("RECORDING_IDENTITY_MISMATCH", exception.Code);
             Assert.NotEqual(manifestSessionId, selectedSessionId);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ReadSamplesUsesAbsoluteCountersAndExplicitChannelSelection()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var sessionId = WriteManifest(directory, firstSampleCounter: 100, samplingRateHz: 10);
+            WriteChunk(directory, 1, [MakeBatch(100, 4,
+                [1, 10, 100, 0, 2, 20, 101, 0, 3, 30, 102, 0, 4, 40, 103, 0])]);
+
+            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, sessionId, CancellationToken.None);
+            var result = await recording.ReadSamplesAsync(
+                new RecordingSampleRange(101, 104), [1, 3], CancellationToken.None);
+
+            Assert.Equal(new RecordingSampleRange(101, 104), result.ActualRange);
+            Assert.Equal(["F4", "Counter"], result.Channels.Select(channel => channel.Label));
+            var segment = Assert.Single(result.Window.Segments);
+            Assert.Equal([20d, 0d, 30d, 0d, 40d, 0d], segment.SampleMajorValues);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ReadSamplesRejectsRangeWithNoAvailableData()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var sessionId = WriteManifest(directory, firstSampleCounter: 100, samplingRateHz: 10);
+            WriteChunk(directory, 1, [MakeBatch(100, 2, [1, 0, 0, 0, 2, 0, 0, 0])]);
+            await using var recording = await LocalRawRecordingReader.OpenAsync(directory, sessionId, CancellationToken.None);
+
+            var exception = await Assert.ThrowsAsync<RecordingAccessException>(() =>
+                recording.ReadSamplesAsync(new RecordingSampleRange(200, 201), null, CancellationToken.None));
+
+            Assert.Equal(RecordingAccessErrorCodes.NoData, exception.Code);
+            Assert.Equal(sessionId, exception.RecordingId);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SessionManagerSharesSourceUntilAllLeasesClose()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var sessionId = WriteManifest(directory, firstSampleCounter: 100, samplingRateHz: 10);
+            WriteChunk(directory, 1, [MakeBatch(100, 2, [1, 0, 0, 0, 2, 0, 0, 0])]);
+            await using var manager = new RecordingSessionManager();
+            await using var first = await manager.OpenLocalAsync(directory, sessionId, CancellationToken.None);
+            await using var second = await manager.OpenLocalAsync(directory, sessionId, CancellationToken.None);
+
+            Assert.Equal(first.Metadata.Revision, second.Metadata.Revision);
+            await first.ReadSamplesAsync(new RecordingSampleRange(100, 102), null, CancellationToken.None);
+            await first.DisposeAsync();
+            await second.ReadSamplesAsync(new RecordingSampleRange(100, 102), null, CancellationToken.None);
         }
         finally
         {

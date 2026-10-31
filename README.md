@@ -6,12 +6,12 @@
 
 ## 启动
 
-在 Windows 双击 `start_brain_desktop.bat`：构建当前 WPF 源码，启动匹配的后端与桌面窗口。需要 .NET 10 SDK 和已安装项目依赖的 Python 环境。脚本不使用旧桌面发布包。
+在 Windows 双击 `backend\start_backend.bat` 启动源码后端。它只运行后端，不构建或启动 WPF。
 
-仅启动后端可使用 `start_brain_platform.bat`；该脚本优先使用打包后端，开发当前源码时应使用桌面启动脚本，或在 `backend` 目录执行：
+后端启动后，可通过 IDE 或在仓库根目录运行以下命令单独启动桌面端；需要 .NET 10 SDK：
 
 ```powershell
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+dotnet run --project desktop-client\BrainPlatform.Desktop\BrainPlatform.Desktop.csproj
 ```
 
 API 文档：<http://127.0.0.1:8000/docs>。

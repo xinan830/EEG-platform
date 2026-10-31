@@ -9,12 +9,6 @@ public sealed partial class TnkDetailViewModel
 {
     private TnkChildResultDisplay? selectedMetric;
     private TnkChartSeries? selectedMetricSeries;
-    private SignalPreviewResponse? waveform;
-    private CancellationTokenSource? waveformRequest;
-    private long waveformRevision;
-    private bool waveformLoadInProgress;
-    private bool waveformReloadPending;
-    private string waveformStatus = "选择记录后显示波形";
     private double waveformPosition;
     private bool workbenchActive;
     private TnkDispatcherOperationDiagnostics? dispatcherOperationDiagnostics;
@@ -74,8 +68,6 @@ public sealed partial class TnkDetailViewModel
             return child?.FailureText ?? child?.QualityText ?? "等待当前窗口结果";
         }
     }
-    public SignalPreviewResponse? Waveform { get => waveform; private set => SetProperty(ref waveform, value); }
-    public string WaveformStatus { get => waveformStatus; private set => SetProperty(ref waveformStatus, value); }
     public double RecordingDuration => Catalog.RegisteredRecording?.DurationSeconds ?? 0;
     public double WaveformPosition
     {
@@ -85,7 +77,7 @@ public sealed partial class TnkDetailViewModel
             var previousSecond = (long)Math.Floor(waveformPosition);
             hasSelectedTime = true;
             if (!SetProperty(ref waveformPosition, Math.Clamp(value, 0, Math.Max(0, RecordingDuration - .001)))) return;
-            if (workbenchPlaying && previousSecond == (long)Math.Floor(waveformPosition)) return;
+            if (Playback?.IsPlaying == true && previousSecond == (long)Math.Floor(waveformPosition)) return;
 
             RaisePropertyChanged(nameof(SelectedValueText));
             NotifyCursorPresentation();
@@ -99,9 +91,7 @@ public sealed partial class TnkDetailViewModel
     private void InitializeWorkbench()
     {
         InitializePlayback();
-        LoadWaveformCommand = new AsyncRelayCommand(RequestWaveformLoadAsync, error => WaveformStatus = error.Message);
-        PreviousWaveformCommand = new RelayCommand(() => SeekFromChart(WaveformPosition - 10));
-        NextWaveformCommand = new RelayCommand(() => SeekFromChart(WaveformPosition + 10));
+        InitializeWaveformCommands();
     }
 
     private void RefreshSelectedMetric()
@@ -124,6 +114,7 @@ public sealed partial class TnkDetailViewModel
         workbenchActive = true;
         if (DesktopLog.PerformanceDiagnosticsEnabled && System.Windows.Application.Current is { } application)
             dispatcherOperationDiagnostics = new TnkDispatcherOperationDiagnostics(application.Dispatcher);
+        System.Windows.Media.CompositionTarget.Rendering += OnPlaybackRendering;
         Catalog.OwnedWindowCompleted += OnOwnedWindowCompleted;
         Catalog.OwnedTnkPlaybackGap += OnOwnedTnkPlaybackGap;
         Catalog.OwnedTnkPlaybackRecoveryFailed += OnOwnedTnkPlaybackRecoveryFailed;
@@ -137,6 +128,7 @@ public sealed partial class TnkDetailViewModel
     internal void DeactivateWorkbench()
     {
         StopWorkbenchPlayback();
+        System.Windows.Media.CompositionTarget.Rendering -= OnPlaybackRendering;
         DeactivateSidebar();
         workbenchActive = false;
         dispatcherOperationDiagnostics?.Dispose();
@@ -319,7 +311,7 @@ public sealed partial class TnkDetailViewModel
         // Let the current request finish and discard its result by revision. Cancelling
         // here followed by an immediate replacement caused overlapping server-side
         // preview work because the HTTP cancellation did not stop backend processing.
-        waveformRevision++; Waveform = null;
+        InvalidateWaveformFrame();
         RaisePropertyChanged(nameof(RoleMappingText));
         if (invalidateResults)
         {
@@ -332,70 +324,10 @@ public sealed partial class TnkDetailViewModel
         ReloadWaveform();
     }
 
-    private void ReloadWaveform()
-    {
-        if (!workbenchActive) return;
-        waveformReloadPending = true;
-        if (!waveformLoadInProgress) _ = LoadWaveformSafelyAsync();
-    }
-
-    private Task RequestWaveformLoadAsync()
-    {
-        ReloadWaveform();
-        return Task.CompletedTask;
-    }
-
-    private async Task LoadWaveformSafelyAsync()
-    {
-        if (!workbenchActive || waveformLoadInProgress) return;
-        waveformLoadInProgress = true;
-        try
-        {
-            do
-            {
-                waveformReloadPending = false;
-                try { await LoadWaveformAsync(); }
-                catch (Exception error)
-                {
-                    if (workbenchActive)
-                    {
-                        WaveformStatus = error.Message;
-                        StopWorkbenchPlayback();
-                    }
-                }
-            }
-            while (workbenchActive && waveformReloadPending);
-        }
-        finally
-        {
-            waveformLoadInProgress = false;
-            if (workbenchActive && waveformReloadPending) _ = LoadWaveformSafelyAsync();
-        }
-    }
-
-    private async Task LoadWaveformAsync()
-    {
-        var revision = ++waveformRevision;
-        waveformRequest?.Cancel(); waveformRequest?.Dispose();
-        using var request = new CancellationTokenSource(); waveformRequest = request;
-        try
-        {
-            WaveformStatus = "正在读取当前导联波形…";
-            var result = await Catalog.LoadSignalPreviewAsync(Math.Max(0, WaveformPosition - 10), request.Token);
-            if (revision != waveformRevision || request.IsCancellationRequested) return;
-            if (result.RecordingId != Catalog.RegisteredRecording?.Id || result.MontageId != Catalog.SelectedMontageProfile?.Id)
-                throw new InvalidOperationException("波形来源身份已变化，拒绝绑定。");
-            Waveform = result; WaveformStatus = $"{result.LowHz:G}–{result.HighHz:G} Hz · 陷波 {(result.NotchHz is double notch ? notch + " Hz" : "关闭")} · 显示因果滤波 · 原始记录不变";
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception) when (revision != waveformRevision || request.IsCancellationRequested) { }
-        finally { if (ReferenceEquals(waveformRequest, request)) waveformRequest = null; }
-    }
-
     internal void SeekFromChart(double seconds)
     {
-        WaveformPosition = seconds;
-        playbackOrigin = WaveformPosition; playbackClock.Restart();
+        Playback?.SeekSeconds(seconds);
+        WaveformPosition = Playback?.PositionSeconds ?? seconds;
         ReloadWaveform();
         if (Catalog.IsOnDemandAnalysis) Catalog.SeekDynamicPreviewSecondsForModule(WaveformPosition);
     }

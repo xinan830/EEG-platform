@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 namespace BrainPlatform.Desktop.Modules.Review.Cache;
 
@@ -16,7 +17,7 @@ internal sealed class ReviewSourceLoader : IAsyncDisposable
     private const double FilteredSourceChunkSeconds = 10;
     private const double MinimumFilterWarmupSeconds = 5;
     private const double MaximumFilterWarmupSeconds = 30;
-    private readonly IRecordingReviewReader reader;
+    private readonly IRecordingAccessSession reader;
     private readonly IRecordingReviewFilter? filter;
     private readonly RecordingReviewWindowCache cache;
     private readonly ReviewFilteredSourceChunkCache filteredSourceCache;
@@ -32,7 +33,7 @@ internal sealed class ReviewSourceLoader : IAsyncDisposable
     private int disposed;
     private double DurationSeconds => reader.DurationSeconds;
 
-    public ReviewSourceLoader(IRecordingReviewReader reader, IRecordingReviewFilter? filter,
+    public ReviewSourceLoader(IRecordingAccessSession reader, IRecordingReviewFilter? filter,
         RecordingReviewWindowCache cache,
         Action<ReviewPerformanceStage, ReviewPerformanceSource, RecordingReviewWindow, double> recordWindow,
         ReviewFilteredSourceChunkCache? filteredSourceCache = null)
@@ -285,7 +286,7 @@ internal sealed class ReviewSourceLoader : IAsyncDisposable
         }
 
         var started = Stopwatch.GetTimestamp();
-        var window = await reader.ReadWindowAsync(startSeconds, endSeconds - startSeconds, token);
+        var window = await ReadWindowAsync(startSeconds, endSeconds, token);
         token.ThrowIfCancellationRequested();
         cache.StoreRaw(window);
         RecordWindow(ReviewPerformanceStage.RawRead, ReviewPerformanceSource.Disk,
@@ -328,7 +329,7 @@ internal sealed class ReviewSourceLoader : IAsyncDisposable
             return cached;
         }
 
-        var warmup = await reader.ReadWindowAsync(start, duration, token);
+        var warmup = await ReadWindowAsync(start, cacheStartSeconds, token);
         token.ThrowIfCancellationRequested();
         cache.StoreRaw(warmup);
         return warmup;
@@ -338,6 +339,23 @@ internal sealed class ReviewSourceLoader : IAsyncDisposable
         3d / settings.HighPassHz,
         MinimumFilterWarmupSeconds,
         MaximumFilterWarmupSeconds);
+
+    private async Task<RecordingReviewWindow> ReadWindowAsync(
+        double startSeconds,
+        double endSeconds,
+        CancellationToken token)
+    {
+        if (!double.IsFinite(startSeconds) || !double.IsFinite(endSeconds) || endSeconds <= startSeconds)
+            throw new ArgumentOutOfRangeException(nameof(startSeconds), "回溯读取范围必须是有限的正窗口。");
+
+        var rate = reader.Manifest.SamplingRateHz;
+        var first = reader.FirstSampleCounter;
+        var startSample = checked(first + (long)Math.Floor(startSeconds * rate));
+        var endSample = checked(first + (long)Math.Ceiling(endSeconds * rate));
+        var result = await reader.ReadSamplesAsync(
+            new RecordingSampleRange(startSample, endSample), null, token);
+        return result.Window;
+    }
 
 
     private void RecordWindow(ReviewPerformanceStage stage, ReviewPerformanceSource source,

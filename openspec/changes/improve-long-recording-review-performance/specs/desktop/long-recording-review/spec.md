@@ -202,3 +202,101 @@ Incomplete, corrupt, stale, or incompatible entries SHALL be treated as misses.
 - **THEN** the partial entry SHALL not be readable as a complete level
 - **AND** a later request SHALL rebuild or use the existing bounded fallback
   without modifying the raw recording.
+
+### Requirement: Waveform playback time has one owner
+
+The review workspace SHALL use one playback time coordinator as the authority
+for play, pause, seek, cursor sample, and playback generation. A waveform
+request coordinator SHALL only manage view generations, request identity,
+latest-target selection, and cancellation; it SHALL NOT maintain a second
+playback clock.
+
+#### Scenario: Playback and waveform loading overlap
+- **WHEN** a waveform frame is loading while playback advances
+- **THEN** the playback cursor and generation SHALL come from the shared time
+  coordinator
+- **AND** the waveform request coordinator SHALL request the current target
+  without creating or advancing another clock
+- **AND** a late frame SHALL be rejected when its generation is obsolete.
+
+#### Scenario: A user seeks during an outstanding request
+- **WHEN** a seek changes the playback generation before the old request ends
+- **THEN** the old request SHALL be cancelled or fenced
+- **AND** it SHALL NOT publish under the new cursor
+- **AND** the new target SHALL be scheduled through the same waveform pipeline.
+
+### Requirement: Waveform session and display pipeline have separate ownership
+
+The review SHALL obtain samples through the recording-access session and SHALL
+keep recording identity, source revision, channel order, units, display filter
+configuration, and session state explicit. Continuous playback and one-off
+preview SHALL use independent mutable filter/checkpoint state, even when their
+immutable recording and filter configuration is equal.
+
+#### Scenario: Preview and playback overlap
+- **WHEN** a one-off preview and continuous playback request overlapping ranges
+- **THEN** each operation SHALL use its own filter/checkpoint state
+- **AND** one operation SHALL NOT advance, reset, or invalidate the other's
+  state
+- **AND** both results SHALL retain the same declared source identity and units.
+
+#### Scenario: A recording source changes
+- **WHEN** the selected recording or source revision changes
+- **THEN** existing waveform state and derived cache entries SHALL be fenced
+- **AND** the next frame SHALL be read through the new recording-access session
+- **AND** data from the previous source SHALL NOT be relabeled as current.
+
+### Requirement: Only complete identity-matching frames reach the chart
+
+SciChart SHALL receive only an immutable complete frame whose recording,
+source revision, view generation, playback generation, request identity,
+absolute sample range, channel order, units, and explicit gap state match the
+active target. Missing or invalid samples SHALL remain explicit gaps or
+structured unavailable states; they SHALL NOT be replaced with zeros or old
+values.
+
+#### Scenario: A newer target supersedes an older load
+- **WHEN** an older load completes after a newer target was accepted
+- **THEN** the older frame SHALL be discarded or retained only as disposable
+  cache data
+- **AND** it SHALL NOT replace the currently published chart frame
+- **AND** the old frame's time and channel metadata SHALL remain unchanged.
+
+#### Scenario: A frame contains a source gap
+- **WHEN** the requested range contains a recorded gap or non-finite sample
+- **THEN** the frame SHALL carry an explicit gap or unavailable reason
+- **AND** the renderer SHALL show a break
+- **AND** the pipeline SHALL NOT bridge the gap with fabricated numeric values.
+
+### Requirement: Display processing cannot block the UI or algorithm line
+
+File access, filtering, projection, downsampling, cache I/O, HTTP requests,
+and algorithm waits SHALL run outside the UI dispatcher. Waveform rendering
+and algorithm result delivery SHALL have independent scheduling and lifetime;
+waiting for an algorithm result SHALL not prevent a complete waveform frame
+from being published.
+
+#### Scenario: An algorithm request is delayed
+- **WHEN** an algorithm computation is queued or slow while a waveform target is
+  ready
+- **THEN** the waveform frame SHALL publish as soon as its own data is complete
+- **AND** algorithm lag SHALL be represented in the algorithm state
+- **AND** the UI dispatcher SHALL not synchronously wait for the algorithm.
+
+### Requirement: TNK chart refresh scheduling is coalesced per dispatcher
+
+The TNK detail view SHALL retain one independent SciChart surface per chart
+panel while using one shared refresh scheduler per WPF Dispatcher. Multiple
+panel refresh requests received before the next background dispatcher turn
+SHALL enqueue one dispatcher operation and invoke each current panel callback at
+most once. The scheduler SHALL not change chart data, algorithm results,
+waveform scheduling, or playback time ownership.
+
+#### Scenario: Several TNK panels receive one result batch
+
+- **WHEN** multiple independent TNK panels publish property changes in the
+  same dispatcher interval
+- **THEN** the detail view SHALL schedule one background dispatcher operation
+- **AND** each affected chart SHALL refresh independently within that operation
+- **AND** a repeated request for the same panel before execution SHALL not add
+  another callback.

@@ -56,7 +56,7 @@ public sealed class DynamicWindowTargetCoordinator
             // An explicit seek supersedes queued playback targets, including
             // the case where it rejoins the currently active target.
             DropSequentialPending();
-            var key = $"{context}|{request.CursorSample}|{request.Retry}|{request.RetryOfWindowId}";
+            var key = $"{context}|{request.AnalysisContextGeneration}|{request.CursorSample}|{request.Retry}|{request.RetryOfWindowId}";
             if (cached is { } hit && hit.Key == key)
             {
                 // Returning to the displayed target supersedes a queued seek too.
@@ -103,7 +103,7 @@ public sealed class DynamicWindowTargetCoordinator
                 ResetOwnedWork();
                 contextKey = context;
             }
-            var key = $"{context}|{request.CursorSample}|{request.Retry}|{request.RetryOfWindowId}";
+            var key = $"{context}|{request.AnalysisContextGeneration}|{request.CursorSample}|{request.Retry}|{request.RetryOfWindowId}";
             if (cached is { } hit && hit.Key == key)
                 result = Task.FromResult(hit.Response);
             else if (active is { } current && current.Key == key && current.Generation == generation)
@@ -133,13 +133,11 @@ public sealed class DynamicWindowTargetCoordinator
     }
 
     /// <summary>
-    /// Queues a latest-only target. Callers that own a stateful playback lane
-    /// may cancel an active observation when a newer target supersedes it;
-    /// ordinary interactive requests keep the active observation by default.
+    /// Queues a latest-only target. A newer target replaces only work that has
+    /// not started; the active observation remains owned until it is terminal.
     /// </summary>
     public Task<DynamicWindowResponse> LoadLatestAsync(
-        DynamicWindowRequest request, CancellationToken waiterToken,
-        bool cancelActiveOnSupersede = false)
+        DynamicWindowRequest request, CancellationToken waiterToken)
     {
         waiterToken.ThrowIfCancellationRequested();
         Task<DynamicWindowResponse> result;
@@ -151,7 +149,7 @@ public sealed class DynamicWindowTargetCoordinator
                 ResetOwnedWork();
                 contextKey = context;
             }
-            var key = $"{context}|{request.CursorSample}|{request.Retry}|{request.RetryOfWindowId}";
+            var key = $"{context}|{request.AnalysisContextGeneration}|{request.CursorSample}|{request.Retry}|{request.RetryOfWindowId}";
             if (cached is { } hit && hit.Key == key)
                 result = Task.FromResult(hit.Response);
             else if (active is { } current && current.Key == key && current.Generation == generation)
@@ -160,9 +158,6 @@ public sealed class DynamicWindowTargetCoordinator
                 result = next.Result.Task;
             else
             {
-                if (cancelActiveOnSupersede && active is { } activeWork && activeWork.Key != key &&
-                    activeWork.Generation == generation)
-                    CancelActive(activeWork, request);
                 DropPending();
                 DropSequentialPending();
                 pending = new Work(key, request, generation);
@@ -287,17 +282,6 @@ public sealed class DynamicWindowTargetCoordinator
         }
     }
 
-    private void CancelActive(Work work, DynamicWindowRequest superseding)
-    {
-        if (work.Cancellation.IsCancellationRequested) return;
-        AlgorithmWindowPerformanceDiagnostics.RecordQueueDepth(
-            superseding, "latest_cancel_active", sequentialPending.Count,
-            work.Request.CursorSample, superseding.CursorSample,
-            work.Generation);
-        work.Result.TrySetCanceled();
-        work.CancellationTask = work.Cancellation.CancelAsync();
-    }
-
     private void ReportStatus(Work work, DynamicWindowResponse response)
     {
         IProgress<DynamicWindowResponse>? progress;
@@ -331,7 +315,8 @@ public sealed class DynamicWindowTargetCoordinator
         System.Text.Json.JsonSerializer.Serialize(new
         {
             request.RecordingId, request.AlgorithmId, request.DefinitionId,
-            request.DefinitionVersion, request.ProjectId, request.Config
+            request.DefinitionVersion, request.ProjectId, request.Config,
+            request.AnalysisContextGeneration
         });
 
     private sealed class Work(string key, DynamicWindowRequest request, long generation)

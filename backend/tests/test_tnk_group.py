@@ -412,10 +412,21 @@ def test_dynamic_group_records_quality_rejected_child_and_continues_later_window
         def __init__(self):
             super().__init__()
             self.first_call = True
+            self.first_fallback_call = True
 
         def load_spectrum(self, *, start_s, window_s, channels, **kwargs):
             if self.first_call:
                 self.first_call = False
+                raise SpectralQualityGateError({
+                    "clean_ratio": 0.0,
+                    "clean_segments": 0,
+                    "total_segments": 1,
+                    "gate_failed": "low_quality",
+                    "rejected_reasons": ["amplitude_threshold"],
+                    "evidence": {"amplitude": {"peak_uv": 364.3, "threshold_uv": 150.0}},
+                })
+            if self.first_fallback_call and len(channels) == 1:
+                self.first_fallback_call = False
                 raise SpectralQualityGateError({
                     "clean_ratio": 0.0,
                     "clean_segments": 0,
@@ -444,3 +455,44 @@ def test_dynamic_group_records_quality_rejected_child_and_continues_later_window
     assert later_iapf["quality"] != "gate_failed"
     assert np.isfinite(result.arrays["tnk_brainbeat"][1:, 0]).any()
     assert result.arrays["tnk_iapf"][0, 0] != result.arrays["tnk_iapf"][0, 0]
+
+
+def test_dynamic_group_isolates_one_rejected_channel_from_other_rbp_roles():
+    class OneChannelRejectedRecording(SyntheticRecording):
+        def load_spectrum(self, *, start_s, window_s, channels, **kwargs):
+            if len(channels) > 1:
+                raise SpectralQualityGateError({
+                    "clean_ratio": 0.0,
+                    "clean_segments": 0,
+                    "total_segments": 1,
+                    "gate_failed": "low_quality",
+                    "rejected_reasons": ["amplitude_threshold"],
+                    "evidence": {"amplitude": {"peak_uv": 158.7, "threshold_uv": 150.0}},
+                })
+            if channels[0] == ROLE_MAPPING["Pz"]:
+                raise SpectralQualityGateError({
+                    "clean_ratio": 0.0,
+                    "clean_segments": 0,
+                    "total_segments": 1,
+                    "gate_failed": "low_quality",
+                    "rejected_reasons": ["amplitude_threshold"],
+                    "evidence": {"amplitude": {"peak_uv": 158.7, "threshold_uv": 150.0}},
+                })
+            return super().load_spectrum(
+                start_s=start_s, window_s=window_s, channels=channels, **kwargs,
+            )
+
+    group = _group()
+    config = _config("dynamic")
+    recording = OneChannelRejectedRecording()
+    result = group.execute_dynamic(group.resolve_inputs(recording, config), config)
+
+    first_point = result.evidence["extensions"]["tnk_evidence"]["points"][0]
+    rbp_rows = first_point["extensions"]["tnk_evidence"]["children"]["tnk_rbp"]
+    assert rbp_rows[0]["quality"] != "gate_failed"
+    assert rbp_rows[0]["output_values"]
+    pz_row = rbp_rows[1]
+    assert pz_row["quality"] == "gate_failed"
+    assert pz_row["failure"]["code"] == "TNK_QUALITY_REJECTED"
+    assert result.arrays["tnk_rbp.Pz.delta"][0, 0] != result.arrays["tnk_rbp.Pz.delta"][0, 0]
+    assert np.isfinite(result.arrays["tnk_rbp.Fz.delta"][0, 0])

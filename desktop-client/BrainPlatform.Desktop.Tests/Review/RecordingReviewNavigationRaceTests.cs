@@ -103,7 +103,7 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.Equal(0, notifications);
     }
 
-    private sealed class DeferredNavigationReader(LocalRawRecordingManifest manifest) : IRecordingReviewReader
+    private sealed class DeferredNavigationReader(LocalRawRecordingManifest manifest) : IRecordingAccessSession
     {
         private int reads;
         public LocalRawRecordingManifest Manifest { get; } = manifest;
@@ -122,5 +122,12 @@ public sealed partial class RecordingReviewViewModelTests
             return new RecordingReviewWindow(start, start, start + duration,
                 [new RecordingReviewSegment((long)Math.Round(start * Manifest.SamplingRateHz), samples, 2, new double[samples * 2])]);
         }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
     }
 }

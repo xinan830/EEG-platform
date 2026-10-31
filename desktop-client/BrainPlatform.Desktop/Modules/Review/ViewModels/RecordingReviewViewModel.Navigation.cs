@@ -20,7 +20,7 @@ public sealed partial class RecordingReviewViewModel
     {
         if (!isTimelineDragging) return;
         isTimelineDragging = false;
-        analysisBinding?.OnCursorDragCompleted(PositionSeconds);
+        analysisBinding?.OnCursorDragCompleted(PositionSeconds, playback.Snapshot.Generation);
         RaisePlaybackPropertiesChanged();
     }
 
@@ -84,7 +84,7 @@ public sealed partial class RecordingReviewViewModel
         RaisePlaybackPropertiesChanged();
         // Property notifications can close the view before this tick resumes.
         if (isDisposing) return;
-        analysisBinding?.OnPlaybackCursorAdvanced(PositionSeconds);
+        analysisBinding?.OnPlaybackCursorAdvanced(PositionSeconds, playback.Snapshot.Generation);
         if (isDisposing) return;
         if (!session.ContainsViewport(ViewportStartSeconds) &&
             !session.TryActivateCachedViewport(ViewportStartSeconds, playback.PositionSeconds))
@@ -133,13 +133,13 @@ public sealed partial class RecordingReviewViewModel
 
     private void SetPreviewPositionCore(double positionSeconds, bool updateViewport, bool requestAnalysis = true)
     {
-        playback.Seek(positionSeconds);
+        playback.SeekSeconds(positionSeconds);
         if (updateViewport)
             UpdateViewportStart(GetFollowViewportStart(playback.PositionSeconds));
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         RaisePlaybackPropertiesChanged();
-        if (requestAnalysis) analysisBinding?.OnCursorPositionSelected(PositionSeconds);
+        if (requestAnalysis) analysisBinding?.OnCursorPositionSelected(PositionSeconds, playback.Snapshot.Generation);
     }
 
     private double GetFollowViewportStart(double positionSeconds) => Math.Clamp(

@@ -250,7 +250,9 @@ public sealed record DynamicWindowRequest(
     [property: JsonPropertyName("retry")] bool Retry = false,
     [property: JsonPropertyName("retry_of_window_id")] string? RetryOfWindowId = null,
     [property: JsonPropertyName("playback_delivery")] bool PlaybackDelivery = false,
-    [property: JsonPropertyName("playback_delivery_id")] string? PlaybackDeliveryId = null);
+    [property: JsonPropertyName("playback_delivery_id")] string? PlaybackDeliveryId = null,
+    [property: JsonIgnore] long PlaybackGeneration = 0,
+    [property: JsonIgnore] long AnalysisContextGeneration = 0);
 
 public sealed record TnkPlaybackFrameEventResponse(
     [property: JsonPropertyName("delivery_sequence")] long DeliverySequence,

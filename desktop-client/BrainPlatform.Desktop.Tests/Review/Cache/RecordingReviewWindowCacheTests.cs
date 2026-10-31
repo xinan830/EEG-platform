@@ -34,7 +34,7 @@ public sealed class RecordingReviewWindowCacheTests
     {
         var cache = new RecordingReviewWindowCache(maximumRawPayloadBytes: 1024, maximumFramePayloadBytes: 16);
         var frame = new RecordingReviewFrame(Guid.NewGuid(), 1, 10, 0, 0, 1, "F3",
-            [new ProjectedMontageSegment(0, 2, [new ProjectedMontageChannel("F3", [1d, 2d])])], ["F3"]);
+            [new ProjectedMontageSegment(0, 2, [new ProjectedMontageChannel("F3", [1d, 2d])])], ["F3"], "fixture-source");
 
         cache.StoreFrame(frame, new RecordingReviewFilterSettings(1, 30, 50), null, false);
 

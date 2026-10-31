@@ -122,7 +122,7 @@ public sealed class MontageAppearanceProjectionTests
             ["channel_configuration_snapshot_json"] = JsonSerializer.Serialize(profile.ChannelConfigurationSnapshot),
         });
 
-    private sealed class Reader(LocalRawRecordingManifest manifest) : IRecordingReviewReader
+    private sealed class Reader(LocalRawRecordingManifest manifest) : IRecordingAccessSession
     {
         public LocalRawRecordingManifest Manifest => manifest;
         public double DurationSeconds => 30;
@@ -135,5 +135,12 @@ public sealed class MontageAppearanceProjectionTests
             return Task.FromResult(new RecordingReviewWindow(startSeconds, startSeconds, startSeconds + durationSeconds,
                 [new RecordingReviewSegment((long)Math.Round(startSeconds * manifest.SamplingRateHz), count, 3, values)]));
         }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
     }
 }

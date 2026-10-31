@@ -2,10 +2,11 @@ using System.Buffers;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 namespace BrainPlatform.Desktop.Modules.Review.Playback;
 
-public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReviewReader, IRecordingReviewTimeline
+public sealed class LocalRawRecordingReader : IAsyncDisposable
 {
     private const int BatchHeaderBytes = sizeof(long) + sizeof(int) + sizeof(int) + sizeof(long);
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -103,7 +104,7 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
         return new LocalRawRecording(manifest, index, gaps, lifecycle, reader);
     }
 
-    public async Task<RecordingReviewWindow> ReadWindowAsync(
+    private async Task<RecordingReviewWindow> ReadWindowSecondsAsync(
         double startSeconds,
         double durationSeconds,
         CancellationToken cancellationToken)
@@ -206,6 +207,63 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
         return new RecordingReviewWindow(startSeconds, actualStart, actualEnd, segments);
     }
 
+    internal async Task<RecordingAccessReadResult> ReadSamplesAsync(
+        RecordingSampleRange range,
+        IReadOnlyList<int>? channelIndexes,
+        CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        range.Validate();
+        var firstCounter = index.FirstSampleCounter;
+        var lastExclusive = checked(index.LastSampleCounter + 1L);
+        if (range.EndSampleExclusive <= firstCounter || range.StartSample >= lastExclusive)
+        {
+            throw new RecordingAccessException(
+                RecordingAccessErrorCodes.NoData,
+                "请求样本范围与录音没有重叠数据。",
+                manifest.SessionId,
+                range.StartSample,
+                range.EndSampleExclusive);
+        }
+
+        var actualStart = Math.Max(range.StartSample, firstCounter);
+        var actualEnd = Math.Min(range.EndSampleExclusive, lastExclusive);
+        var requestedStartSeconds = (range.StartSample - firstCounter) / (double)manifest.SamplingRateHz;
+        RecordingReviewWindow window;
+        try
+        {
+            window = await ReadWindowSecondsAsync(
+                (actualStart - firstCounter) / (double)manifest.SamplingRateHz,
+                (actualEnd - actualStart) / (double)manifest.SamplingRateHz,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (IOException exception)
+        {
+            throw new RecordingAccessException(
+                RecordingAccessErrorCodes.SourceUnavailable,
+                "读取录音样本范围失败。",
+                manifest.SessionId,
+                range.StartSample,
+                range.EndSampleExclusive,
+                exception);
+        }
+        var selectedChannels = ResolveChannels(channelIndexes);
+        var selectedIndexes = selectedChannels.Select(channel => channel.StreamIndex).ToArray();
+        var selectedSegments = window.Segments
+            .Select(segment => SelectChannels(segment, selectedIndexes))
+            .ToArray();
+        var selectedWindow = window with { RequestedStartSeconds = requestedStartSeconds, Segments = selectedSegments };
+        return new RecordingAccessReadResult(
+            range,
+            new RecordingSampleRange(actualStart, actualEnd),
+            selectedChannels,
+            selectedWindow);
+    }
+
     public double DurationSeconds =>
         (index.LastSampleCounter - index.FirstSampleCounter + 1d) / manifest.SamplingRateHz;
 
@@ -215,7 +273,9 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
 
     public long FirstSampleCounter => index.FirstSampleCounter;
 
-    public long GetContiguousSegmentOrigin(long sampleCounter)
+    internal long LastSampleCounter => index.LastSampleCounter;
+
+    internal long GetContiguousSegmentOrigin(long sampleCounter)
     {
         var position = -1;
         for (var current = 0; current < index.Batches.Count; current++)
@@ -232,6 +292,39 @@ public sealed class LocalRawRecordingReader : IAsyncDisposable, IRecordingReview
                index.Batches[position].FirstSampleCounter)
             position--;
         return index.Batches[position].FirstSampleCounter;
+    }
+
+    private AcquisitionChannel[] ResolveChannels(IReadOnlyList<int>? channelIndexes)
+    {
+        var requested = channelIndexes?.ToArray() ??
+            manifest.Channels.OrderBy(channel => channel.StreamIndex).Select(channel => channel.StreamIndex).ToArray();
+        if (requested.Length == 0 || requested.Any(index => index < 0 || index >= manifest.Channels.Count) ||
+            requested.Distinct().Count() != requested.Length)
+        {
+            throw new RecordingAccessException(
+                RecordingAccessErrorCodes.RangeInvalid,
+                "请求通道必须是录音源通道表中的唯一索引。",
+                manifest.SessionId);
+        }
+
+        return requested.Select(index => manifest.Channels.Single(channel => channel.StreamIndex == index)).ToArray();
+    }
+
+    private static RecordingReviewSegment SelectChannels(
+        RecordingReviewSegment source,
+        IReadOnlyList<int> indexes)
+    {
+        var values = new double[checked(source.SampleCount * indexes.Count)];
+        for (var sample = 0; sample < source.SampleCount; sample++)
+        {
+            for (var channel = 0; channel < indexes.Count; channel++)
+            {
+                values[sample * indexes.Count + channel] = source.SampleMajorValues[
+                    checked(sample * source.ChannelCount + indexes[channel])];
+            }
+        }
+
+        return new RecordingReviewSegment(source.FirstSampleCounter, source.SampleCount, indexes.Count, values);
     }
 
     public ValueTask DisposeAsync()

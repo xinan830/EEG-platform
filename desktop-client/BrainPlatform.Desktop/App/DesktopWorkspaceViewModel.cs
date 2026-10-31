@@ -3,6 +3,7 @@ using System.Windows.Media;
 using System.IO;
 using BrainPlatform.Desktop.Infrastructure.Backend;
 using BrainPlatform.Desktop.Modules.Channels.Api;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 namespace BrainPlatform.Desktop.ViewModels;
 
@@ -20,15 +21,18 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         ResearchProjectStore? projectStore = null,
         ChannelConfigurationProfileStore? channelConfigurationStore = null,
         MontageProfileStore? montageStore = null,
-        IElectrodeLocationClient? electrodeLocationClient = null)
+        IElectrodeLocationClient? electrodeLocationClient = null,
+        RecordingSessionManager? recordingSessionManager = null)
     {
         this.backendHealthClient = backendHealthClient;
         Notifications = notifications ?? new OperationNotificationCenter();
         Acquisition = acquisition;
         montageStore ??= new MontageProfileStore(projectStore: projectStore);
         Algorithms = algorithmClient ?? throw new ArgumentNullException(nameof(algorithmClient));
+        RecordingSessions = recordingSessionManager ?? new RecordingSessionManager();
         Projects = new ProjectWorkspaceViewModel(Notifications, store: projectStore);
-        AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects, TimeDisplaySettings, montageStore);
+        AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects, TimeDisplaySettings, montageStore,
+            recordingSessionManager: RecordingSessions);
         AlgorithmWorkspace = new AlgorithmWorkspaceViewModel(AlgorithmCatalog);
         Overview = new DeviceOverviewViewModel(acquisition.DeviceSession, acquisition);
         ChannelConfigurations = new ChannelConfigurationWorkspaceViewModel(
@@ -62,6 +66,9 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     public RecordingTimeDisplaySettings TimeDisplaySettings { get; } = new();
 
     public IAlgorithmClient Algorithms { get; }
+
+    /// <summary>唯一的工作区录音访问所有者；Review 与算法工作台共享其 lease。</summary>
+    public RecordingSessionManager RecordingSessions { get; }
 
     public AlgorithmListViewModel AlgorithmCatalog { get; }
 
@@ -169,6 +176,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     public async ValueTask DisposeAsync()
     {
         await AlgorithmCatalog.DisposeAsync();
+        await RecordingSessions.DisposeAsync();
         Overview.Dispose();
         await Acquisition.DisposeAsync();
     }

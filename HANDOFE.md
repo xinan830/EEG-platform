@@ -22,7 +22,7 @@
 
 共享流与调度修复（2026-10-28）：确认旧的 TNK group 对四个 ANT 时序子指标分别重建读取/预处理，且统一 4 秒窗口会让 Crimson 的 5 秒 warm-up 永久不可用。新增 `TnkLegacyStreamBundle` 后，同一 TNK replay session 只读取新追加的 raw Fz 样本；Crimson 和 Zenlite 保留各自 250/256 Hz、滤波和模型契约，Zenlite 平静度、觉察度和频谱放松度共享一条 Zenlite 流及一次模型推理。bundle 随 replay checkpoint 深拷贝，seek/上下文变化会重置；TFLite 推理句柄在 checkpoint 间共享并串行保护，避免复制 native interpreter，滤波/历史/平滑状态仍独立复制。`group.py` 当前约 631 行，已在 `docs/code-size-policy.json` 登记为高风险拆分项，后续应抽离 manifest/输出契约或 legacy stream orchestration。
 
-播放调度的确定性问题是：WPF 每秒提交一个最新目标，但旧目标计算期间不会被取消；后端动态窗口执行器又是单 worker，单帧超过 1 秒就会占住计算槽，造成结果落后、成批到达和忽快忽慢。现在 TNK 播放调用 `LoadLatestAsync(..., cancelActiveOnSupersede: true)`，新目标会在协调器层取消旧观察，后端在 replay checkpoint 检查处释放订阅和计算槽，再从兼容 checkpoint 重放到新目标；手动按需请求仍保留旧目标完成语义。新增协调器取消测试。该修复已通过自动化测试，但真实 WPF/录音上的卡顿和滞后仍未测量，不能据此声称已经完全解决。
+播放调度的确定性问题是：WPF 每秒提交一个最新目标，但活动窗口必须保持完成，不能因为游标前进就取消；最新目标只替换尚未开始的排队项。这样 TNK 的状态推进不会被订阅清理转换成 `WINDOW_NO_ACTIVE_SUBSCRIBERS`，历史取消窗口仍由观察器的显式重试路径恢复。该修复已通过自动化测试，但真实 WPF/录音上的卡顿和滞后仍未测量，不能据此声称已经完全解决。
 
 WPF 展示入口已补齐：公共算法列表保留一个可选择的 `tnk_biofeedback`（结果类型显示为“TNK 指标组”，类型筛选增加“TNK 指标”）；进入 TNK 详情后新增“ANT 时序指标”页签，展示 Crimson 神经网络冥想度、Zenlite 平静度、Zenlite 觉察度和 Zenlite 频谱放松度。页签只投影后端返回的时间、数值、单位和不可用状态，不在桌面端重算科学指标。相关桌面 focused tests 3 项通过；当前仍未做真实 WPF 人工验收。
 

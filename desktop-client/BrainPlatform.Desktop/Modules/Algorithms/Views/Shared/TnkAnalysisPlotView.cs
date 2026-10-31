@@ -35,6 +35,7 @@ public sealed class TnkAnalysisPlotView : UserControl
     private int cursorRefreshCount;
     private int cursorRefreshSkippedCount;
     private bool refreshQueued;
+    private readonly TnkPlotRefreshScheduler refreshScheduler;
     private TnkPlotPanel? subscribedPanel;
     private readonly TextBlock empty = new() { Text = "暂无有效结果 · 请查看质量状态", Foreground = Brushes.SlateGray,
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -49,6 +50,7 @@ public sealed class TnkAnalysisPlotView : UserControl
 
     public TnkAnalysisPlotView()
     {
+        refreshScheduler = TnkPlotRefreshScheduler.For(Dispatcher);
         Loaded += (_, _) =>
         {
             ObservePanel(Panel);
@@ -66,6 +68,7 @@ public sealed class TnkAnalysisPlotView : UserControl
             if (IsVisible) ScheduleRefresh();
         };
         SciChart.Charting.ThemeManager.SetTheme(surface, "BrightSpark");
+        surface.RenderPriority = RenderPriority.Low;
         surface.ChartModifier = new ModifierGroup(new MouseWheelZoomModifier(), new ZoomPanModifier(), new ZoomExtentsModifier(),
             new RolloverModifier { ShowTooltipOn = ShowTooltipOptions.MouseOver, DrawVerticalLine = true });
         var root = new DockPanel();
@@ -108,11 +111,13 @@ public sealed class TnkAnalysisPlotView : UserControl
     {
         if (!IsLoaded || !IsVisible || refreshQueued) return;
         refreshQueued = true;
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-        {
-            refreshQueued = false;
-            if (IsLoaded && IsVisible) Refresh();
-        }));
+        refreshScheduler.Request(ExecuteScheduledRefresh);
+    }
+
+    private void ExecuteScheduledRefresh()
+    {
+        refreshQueued = false;
+        if (IsLoaded && IsVisible) Refresh();
     }
 
     private void Refresh()

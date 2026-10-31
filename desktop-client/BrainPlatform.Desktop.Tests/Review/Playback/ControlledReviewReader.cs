@@ -3,7 +3,7 @@ using System.Threading.Channels;
 namespace BrainPlatform.Desktop.Tests.Review;
 
 /// <summary>Separates navigation timing from completion, deliberately ignoring cancellation.</summary>
-internal sealed class ControlledReviewReader : IRecordingReviewReader, IDisposable
+internal sealed class ControlledReviewReader : IRecordingAccessSession, IDisposable
 {
     private readonly Channel<PendingRead> pending = Channel.CreateUnbounded<PendingRead>();
     private readonly List<PendingRead> reads = [];
@@ -40,6 +40,13 @@ internal sealed class ControlledReviewReader : IRecordingReviewReader, IDisposab
         pending.Writer.TryWrite(read);
         return read.Completion.Task;
     }
+
+    public Task<RecordingAccessReadResult> ReadSamplesAsync(
+        RecordingSampleRange range,
+        IReadOnlyList<int>? channelIndexes,
+        CancellationToken cancellationToken) =>
+        RecordingAccessTestHelpers.ReadAsync(
+            Manifest, FirstSampleCounter, ReadWindowAsync, range, channelIndexes, cancellationToken);
 
     public async Task<PendingRead> NextReadAsync() =>
         await pending.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));

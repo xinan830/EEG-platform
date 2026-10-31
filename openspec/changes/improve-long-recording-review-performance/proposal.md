@@ -23,6 +23,14 @@ gaps, filter identity, and result provenance.
 - Add a multi-resolution waveform display layer for long recordings. Its level
   is selected from visible time range, sampling rate, and plot width; it must
   preserve explicit gaps and use the correct raw or filtered data identity.
+- Make the waveform architecture explicit: the shared playback time
+  coordinator owns play/pause/seek/cursor generations, while the waveform
+  request coordinator owns only latest-target loading and cancellation.
+- Keep recording access, waveform session state, display processing, frame
+  publication, and SciChart rendering as separate owners. Remove any remaining
+  internal parallel reader path instead of adding another compatibility layer.
+- Give continuous playback and one-off preview independent mutable filter state
+  and checkpoints while sharing only immutable recording/filter configuration.
 - Make completed full-analysis windows readable through the same indexed result
   path used by review without triggering duplicate scientific computation.
 - Record measurable acceptance evidence for 10-second, 10-minute, 1-hour,
@@ -40,14 +48,26 @@ gaps, filter identity, and result provenance.
   loading latency.
 - No unbounded worker or thread increase.
 
-## Compatibility Impact
+## Capabilities
+
+### New Capabilities
+
+- `desktop/long-recording-review`: bounded, identity-safe waveform display for
+  long recordings, including request coordination and complete-frame publication.
+
+### Modified Capabilities
+
+- `desktop/recording-review`: make the shared time-coordinator, recording-access,
+  and display/rendering ownership boundaries explicit.
+
+## Impact
 
 Existing review APIs, recording manifests, raw chunks, full Runs, on-demand
 Runs, and historical artifacts remain readable. New display indexes and caches
 are disposable and versioned. A missing, stale, corrupt, or incompatible
-display index is a cache miss and falls back to the existing bounded review
-path. Existing chart behavior remains available while the new display layer is
-introduced behind a validated capability boundary.
+display index is a cache miss handled by the same canonical bounded
+raw/filtered display pipeline; it must not reopen a retired reader API or add a
+second internal data path.
 
 ## Scientific-Contract Impact
 
@@ -60,10 +80,11 @@ the visible waveform; raw summaries must never be presented as filtered data.
 
 ## Migration And Rollback
 
-The existing bounded-window reader remains the fallback. New display indexes are
-created outside the immutable recording and published atomically. Deleting the
-derived index or disabling the capability returns review to the current bounded
-window path without changing raw data or historical results.
+The canonical bounded raw/filtered window pipeline remains the fine-resolution
+path. New display indexes are created outside the immutable recording and
+published atomically. Deleting a derived index returns review to that same
+canonical pipeline without changing raw data or historical results. No retired
+reader, old request format, or silent compatibility route is retained.
 
 ## Validation
 

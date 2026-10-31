@@ -1,5 +1,6 @@
 using System.Reflection;
 using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
+using BrainPlatform.Desktop.Shared.Time;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
@@ -67,17 +68,21 @@ public sealed class TnkWorkbenchTests
         var catalog = new AlgorithmListViewModel(new HttpAlgorithmClient(new System.Net.Http.HttpClient()), new OperationNotificationCenter());
         typeof(AlgorithmListViewModel).GetProperty("RegisteredRecording")!.SetValue(catalog,
             new RegisteredRecording("record", "record", ".wpf", "", 1000, 30, ["Fz-REF"], "source"));
+        var playback = new RecordingPlaybackTimeCoordinator("record", 1000, 30_000);
+        typeof(AlgorithmListViewModel).GetField("playbackCoordinator", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(catalog, playback);
         var model = new TnkDetailViewModel(catalog, "tnk_biofeedback");
         model.SeekFromChart(-10);
         Assert.Equal(0, model.WaveformPosition);
         model.NextWaveformCommand.Execute(null);
         Assert.Equal(10, model.WaveformPosition);
-        Assert.Equal(10d, typeof(TnkDetailViewModel).GetField("playbackOrigin", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(model));
+        Assert.Equal(10d, playback.PositionSeconds);
         model.PreviousWaveformCommand.Execute(null);
         Assert.Equal(0, model.WaveformPosition);
         model.SeekFromChart(100);
         Assert.Equal(29.999, model.WaveformPosition, 3);
-        Assert.Equal(model.WaveformPosition, typeof(TnkDetailViewModel).GetField("playbackOrigin", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(model));
+        Assert.Equal(30d, playback.PositionSeconds);
+        playback.Dispose();
     }
 
     [Fact]
@@ -86,8 +91,11 @@ public sealed class TnkWorkbenchTests
         var catalog = new AlgorithmListViewModel(new HttpAlgorithmClient(new System.Net.Http.HttpClient()), new OperationNotificationCenter());
         typeof(AlgorithmListViewModel).GetProperty("RegisteredRecording")!.SetValue(catalog,
             new RegisteredRecording("record", "record", ".wpf", "", 1000, 30, ["Fz-REF"], "source"));
+        var playback = new RecordingPlaybackTimeCoordinator("record", 1000, 30_000);
+        typeof(AlgorithmListViewModel).GetField("playbackCoordinator", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .SetValue(catalog, playback);
         var model = new TnkDetailViewModel(catalog, "tnk_biofeedback");
-        typeof(TnkDetailViewModel).GetField("workbenchPlaying", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(model, true);
+        playback.Play();
         var changed = new List<string?>();
         model.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
 
@@ -103,6 +111,7 @@ public sealed class TnkWorkbenchTests
         Assert.Contains(nameof(TnkDetailViewModel.WaveformPosition), changed);
         Assert.Contains(nameof(TnkDetailViewModel.SelectedValueText), changed);
         Assert.Contains(nameof(TnkDetailViewModel.CurrentTimeText), changed);
+        playback.Dispose();
     }
 
     [Fact]

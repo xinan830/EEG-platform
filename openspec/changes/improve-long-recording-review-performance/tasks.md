@@ -1,5 +1,29 @@
 # Tasks
 
+## Phase 0A - Architecture Contract Before More Code
+
+- [x] 0A.1 Record the ownership map for the shared playback time coordinator,
+  waveform request coordinator, recording-access session, waveform session,
+  source loader/cache, complete-frame publisher, and SciChart renderer.
+- [x] 0A.2 Verify that no waveform request path owns a second playback clock and
+  that no retired internal reader API remains reachable from Review or TNK.
+- [x] 0A.3 Verify continuous playback and one-off preview use independent
+  mutable filter/checkpoint state while sharing only immutable source facts.
+- [x] 0A.4 Define the complete-frame fence fields and failure states: recording
+  identity, source revision, generations, request identity, sample range,
+  channel order, units, and explicit gaps.
+- [x] 0A.5 Add contract tests for ownership, stale-result rejection, preview /
+  playback state isolation, and UI-dispatcher non-blocking boundaries.
+
+## Phase 0B - Architecture Evidence
+
+- [ ] 0B.1 Capture one waveform-only and one waveform-plus-algorithm trace with
+  request, source-read, filter, frame-publication, chart-binding, and algorithm
+  timings separated; do not log raw EEG values.
+- [ ] 0B.2 Record the long-recording matrix and manual acceptance protocol for
+  initial load, play/pause, seek, reverse seek, gaps, filter changes, and
+  Review+TNK shared-cursor behavior.
+
 ## Phase 0 - Evidence Before Behavior Changes
 
 - [ ] Record the current revision, test environment, and review performance
@@ -46,6 +70,9 @@
   avoid rebuilding unchanged trace data. The waveform canvas only rebuilds trace
   arrays when frame identity or display geometry changes; PSD uses a separate
   chart host. Existing refresh and binding tests cover the identity guard.
+- [x] Coalesce independent TNK chart refresh callbacks per WPF Dispatcher while
+  retaining one SciChart surface per panel. Add a focused scheduler test for
+  one queued operation and duplicate callback suppression.
 - [x] Validate forward/reverse drag, rapid target changes, playback, cold seek,
   cached seek, filter changes, and recording gaps through deterministic WPF
   tests. This is automated interaction coverage, not a replacement for a real
@@ -56,7 +83,7 @@
 - [x] Define the level-selection and bucket/extrema contract from viewport
   pixels, time range, sampling rate, channel count, and source identity. The
   selector and chart-neutral projection are covered by deterministic tests.
-- [ ] Implement chunked, indexed, disposable display-level storage with atomic
+- [x] Implement chunked, indexed, disposable display-level storage with atomic
   publication and explicit gap/invalid-sample handling.
   - [x] Add versioned atomic chunk storage outside immutable recordings, with
     channel-aware keys, bounded bucket validation, and corrupt/truncated cache
@@ -79,9 +106,9 @@
   - [x] Add a persistent level index and wire visible-level reads into SciChart.
     `ReviewDisplayLevelProvider` is an optional hit path; missing, stale, or
     incomplete levels fall back to the bounded review frame path.
-- [ ] Build filtered levels only from compatible filtered source chunks; keep
+- [x] Build filtered levels only from compatible filtered source chunks; keep
   raw and filtered display identities separate.
-- [ ] Add overview/detail zoom tests and bounded-memory/read tests for long
+- [x] Add overview/detail zoom tests and bounded-memory/read tests for long
   recordings.
 
 ## Phase 3 - Full-Result Reuse And Completion
