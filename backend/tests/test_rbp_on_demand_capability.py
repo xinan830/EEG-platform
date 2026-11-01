@@ -25,7 +25,7 @@ def session():
     return DynamicSessionIdentity(recording_id="recording", source_sha256="source", algorithm_id="rbp",
         definition_id="definition", definition_version=manifest.definition_persistence.version,
         scientific_version=manifest.scientific_version, implementation_identity=manifest.implementation_identity,
-        configuration_sha256="config", window_policy_version="rbp-dynamic-window-v1")
+        configuration_sha256="config", window_policy_version=RbpAlgorithm.window_policy_version)
 
 
 def execute(algorithm, source, cursor, check=None):

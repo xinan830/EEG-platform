@@ -25,8 +25,19 @@
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
-      "max_lines": 510,
-      "reason": "The existing window/session composition owns navigation and top-level close interception. This change adds a small delegation to the channel-draft leave guard for navigation and window-close confirmation; prompt/save/discard behavior remains in the channel module. It stays below 600 lines and adds no persistence or scientific logic. Reassess extraction of top-level navigation handling before further growth."
+      "max_lines": 531,
+      "reason": "Top-level composition owns navigation, close interception and construction of the six Review algorithm coordinators. Each coordinator delegates to the existing shared dynamic-window adapter; no scientific logic, request state, or playback clock is added here. Reassess navigation extraction before growing this composition further."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Review/Views/RecordingReviewView.xaml": {
+      "decision": "split",
+      "max_lines": 501,
+      "reason": "Review view composes the existing toolbar, waveform, event overlay and timeline, plus six menu/panel registrations. Algorithm-specific chart layouts remain separate controls, so no scientific behavior is embedded in this view. Keep one AnalysisDockHost and the existing waveform owner.",
+      "follow_up": "Extract the event-editor overlay and review toolbar before adding further Review controls."
+    },
+    "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/AlgorithmListViewModelTests.cs": {
+      "decision": "keep",
+      "max_lines": 402,
+      "reason": "Existing algorithm catalog view-model tests share one fixture/client and now include the standalone RBP/STFT catalog routing assertions. This file is only two lines over the target; splitting its fixture would add indirection without separating a test responsibility. Reassess before adding another catalog workflow."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Catalog/AlgorithmListViewModel.Previews.cs": {
       "decision": "split",
@@ -121,7 +132,7 @@
     "backend/app/services/spectral_analysis.py": {
       "decision": "keep",
       "max_lines": 550,
-      "reason": "当前约 542 行，职责是配置频谱请求的源数据租约、缓存与响应 provenance 编排；滤波和频谱数学已归入 ScientificSpectralGateway，分块读取和映射另有所有者。本次增加请求通道投影和预处理 single-flight 协调，仍低于 600 行；继续扩展前应拆出独立的预处理生命周期协作者。"
+      "reason": "当前 485 行，保留配置频谱请求、连续预处理缓存和响应 provenance 编排；滤波和频谱数学归入 ScientificSpectralGateway，分块读取和映射另有所有者。本轮按职责将 STFT 有限上下文读取及响应组装移至 spectrogram_source，共用的读取/滤波/裁剪操作归 bounded_window_preprocessing。既有连续频谱缓存仍由本服务拥有，不机械拆分同一缓存生命周期；继续扩展前复核其职责边界。"
     },
     "backend/app/persistence/repositories/dynamic_attempt.py": {
       "decision": "keep",
@@ -185,9 +196,9 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/ViewModels/RecordingReviewViewModel.cs": {
       "decision": "split",
-      "max_lines": 831,
-      "reason": "Existing review composition owns playback, waveform scheduling, events and analysis binding. Analysis preparation/configuration revision methods were moved to the cohesive Analysis partial in this change, reducing the main file; no scientific computation was added. The remaining event workflow and waveform scheduling are still separate extraction candidates.",
-      "follow_up": "Before adding further review workflows, move event editing/commands into a dedicated review event controller and waveform viewport scheduling into its own owner. Keep the existing playback cursor unique; target a main composition file below 400 lines."
+      "max_lines": 700,
+      "reason": "High-risk Review composition: playback notifications, waveform scheduling and event commands remain in the main partial, while algorithm preparation, identity/cancellation, input configuration, and result projectors are separate Review owners. This change adds only the six-panel presentation properties and composition references; it does not add scientific work or another clock.",
+      "follow_up": "Move event editing/commands into a review event controller and waveform viewport scheduling into its own owner before further growing this file. Keep the playback cursor unique and target a main composition below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Views/LiveSciChartCanvas.cs": {
       "decision": "keep",

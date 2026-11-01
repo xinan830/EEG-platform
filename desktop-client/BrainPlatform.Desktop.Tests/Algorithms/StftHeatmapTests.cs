@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Reflection;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,6 +8,7 @@ using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft;
 using BrainPlatform.Desktop.Modules.Algorithms.Views.Stft;
 using SciChart.Charting.Visuals;
+using SciChart.Charting.Visuals.Axes;
 using SciChart.Charting.Visuals.RenderableSeries;
 using SciChart.Charting.Model.DataSeries;
 
@@ -26,6 +28,15 @@ public sealed class StftHeatmapTests
                 control.Measure(new Size(500, 300));
                 control.Arrange(new Rect(0, 0, 500, 300));
                 control.Preview = StftPreview.Parse(CreatePreview());
+
+                var xAxis = Assert.IsType<NumericAxis>(typeof(StftHeatmap)
+                    .GetField("xAxis", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(control));
+                var yAxis = Assert.IsType<NumericAxis>(typeof(StftHeatmap)
+                    .GetField("yAxis", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(control));
+                Assert.Equal("", xAxis.AxisTitle);
+                Assert.Equal(42, xAxis.Height);
+                Assert.Equal("", yAxis.AxisTitle);
+                Assert.Equal(32, yAxis.Width);
 
                 var surface = Assert.IsType<SciChartSurface>(FindVisualChild<SciChartSurface>(control));
                 var heatmap = Assert.IsType<FastUniformHeatmapRenderableSeries>(surface.RenderableSeries[0]);
@@ -126,7 +137,7 @@ public sealed class StftHeatmapTests
         new Dictionary<string, JsonElement> { ["time_center_s"] = Json("{\"unit\":\"s\"}"), ["frequency_hz"] = Json("{\"unit\":\"Hz\"}") },
         new Dictionary<string, JsonElement> { ["power_db"] = Json("[[1,2,3],[4,null,6]]") },
         new Dictionary<string, JsonElement> { ["power_db"] = Json("{\"unit\":\"dB re 1 uV^2/Hz\"}") },
-        [], new Dictionary<string, int>(), null, "spectrogram-v2", "stft-runtime-v1");
+        [], new Dictionary<string, int>(), null, "spectrogram-v3-bounded", "stft-runtime-v1");
 
     private static StructuredPreviewResponse CreatePreview() => new(
         "run", new RunArtifact("artifact", "run", "stft", "stft.npz", "application/x-npz", 1, "hash", null, new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
@@ -135,7 +146,7 @@ public sealed class StftHeatmapTests
         new Dictionary<string, JsonElement> { ["time_center_s"] = Json("{\"unit\":\"s\"}"), ["frequency_hz"] = Json("{\"unit\":\"Hz\"}") },
         new Dictionary<string, JsonElement> { ["power_db"] = Json("[[1,2],[3,4]]") },
         new Dictionary<string, JsonElement> { ["power_db"] = Json("{\"unit\":\"dB re 1 uV^2/Hz\"}") },
-        [], new Dictionary<string, int>(), null, "spectrogram-v2", "stft-runtime-v1");
+        [], new Dictionary<string, int>(), null, "spectrogram-v3-bounded", "stft-runtime-v1");
 
     private static StructuredPreviewResponse CreatePreviewAt(string times, string matrix) => new(
         "run", new RunArtifact("artifact", "run", "stft", "stft.npz", "application/x-npz", 1, "hash", null, new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
@@ -144,7 +155,7 @@ public sealed class StftHeatmapTests
         new Dictionary<string, JsonElement> { ["time_center_s"] = Json("{\"unit\":\"s\"}"), ["frequency_hz"] = Json("{\"unit\":\"Hz\"}") },
         new Dictionary<string, JsonElement> { ["power_db"] = Json(matrix) },
         new Dictionary<string, JsonElement> { ["power_db"] = Json("{\"unit\":\"dB re 1 uV^2/Hz\"}") },
-        [], new Dictionary<string, int>(), null, "spectrogram-v2", "stft-runtime-v1");
+        [], new Dictionary<string, int>(), null, "spectrogram-v3-bounded", "stft-runtime-v1");
 
     private static JsonElement Json(string value) => JsonDocument.Parse(value).RootElement.Clone();
 

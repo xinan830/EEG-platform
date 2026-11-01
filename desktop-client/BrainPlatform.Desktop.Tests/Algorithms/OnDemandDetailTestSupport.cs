@@ -168,7 +168,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
             "clean", null, null,
             JsonSerializer.SerializeToElement(new
             {
-                preprocessing_scope = "whole_recording_before_window_slice",
+                preprocessing_scope = "bounded_window_with_finite_context",
                 inner_time_axis = "relative_window_time_center_s",
                 analysis_state = "Complete",
             }));
@@ -286,7 +286,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
                     end_sample = 1000, start_s = 0d, end_s = 5d, state = "Complete", quality = "clean",
                     provenance = new
                     {
-                        preprocessing_scope = "whole_recording_before_window_slice",
+                        preprocessing_scope = "bounded_window_with_finite_context",
                         inner_time_axis = "relative_window_time_center_s", analysis_state = "Complete",
                     },
                 }),
@@ -296,7 +296,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
                     end_sample = 2000, start_s = 5d, end_s = 10d, state = "Complete", quality = "clean",
                     provenance = new
                     {
-                        preprocessing_scope = "whole_recording_before_window_slice",
+                        preprocessing_scope = "bounded_window_with_finite_context",
                         inner_time_axis = "relative_window_time_center_s", analysis_state = "Complete",
                     },
                 }),
@@ -306,7 +306,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
                     end_sample = 3000, start_s = 10d, end_s = 15d, state = "Complete", quality = "clean",
                     provenance = new
                     {
-                        preprocessing_scope = "whole_recording_before_window_slice",
+                        preprocessing_scope = "bounded_window_with_finite_context",
                         inner_time_axis = "relative_window_time_center_s", analysis_state = "Complete",
                     },
                 }),
@@ -354,7 +354,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
                 state = "Complete", quality = "clean",
             })).ToArray(),
             new Dictionary<string, int> { ["Complete"] = 3 }, JsonSerializer.SerializeToElement("clean"),
-            "official-rbp-v3", "rbp-runtime-v3-montage-multi-channel");
+            "official-rbp-v4", "rbp-runtime-v5-channel-quality");
 
     private static AnalysisRunResponse CompletedFullRun(AnalysisRunRequest request) => new(
         "full-run-1", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,

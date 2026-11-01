@@ -162,6 +162,24 @@ as zero.
 - **THEN** the client displays the backend window count, state counts, and unit
   without changing the returned values.
 
+### Requirement: Preserve TNK on-demand chart history for the active session
+
+The TNK desktop workspaces SHALL retain every accepted on-demand result window
+from the active session for chart projection until that session is reset or
+closed. History retention SHALL NOT use a fixed window-count limit. Duplicate
+windows SHALL be replaced by identity, late recovered windows SHALL update
+their actual time positions, and unavailable windows and delivery gaps SHALL
+remain explicit. A panel-open time filter MAY hide earlier points from Review
+presentation, but SHALL NOT discard accepted history needed by the active
+session.
+
+#### Scenario: Playback continues beyond the former history limit
+
+- **WHEN** the active TNK session accepts more than 600 result windows
+- **THEN** the earliest accepted window remains available in the session chart
+- **AND** the newest window is added without removing earlier accepted windows
+- **AND** the visible Review series still begins at its captured panel-open time.
+
 ### Requirement: Preserve static workflows
 
 Adding dynamic controls SHALL NOT change static request payloads or existing

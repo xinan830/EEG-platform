@@ -179,7 +179,7 @@ internal static class FullRunWindowPreviewAdapter
     private static bool HasCurrentContract(JsonElement window, JsonElement? output) =>
         OutputKind(output) != "time_frequency" ||
         (window.TryGetProperty("provenance", out var provenance) && provenance.ValueKind == JsonValueKind.Object &&
-            String(provenance, "preprocessing_scope") == "whole_recording_before_window_slice" &&
+            String(provenance, "preprocessing_scope") == "bounded_window_with_finite_context" &&
             String(provenance, "inner_time_axis") == "relative_window_time_center_s");
 
     private static DynamicWindowFailure ContractFailure() => new(

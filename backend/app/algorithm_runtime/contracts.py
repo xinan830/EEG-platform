@@ -135,11 +135,13 @@ class SignalRequirements(BaseModel):
 
     input_roles: list[str] = Field(min_length=1)
     representation: Literal["time_series", "spectrum", "spectrogram", "mixed"]
-    source_shape: Literal["single", "paired"]
+    # channel_set repeats the channel role for an explicitly ordered selection.
+    source_shape: Literal["single", "paired", "channel_set"]
     preprocessing_scope: Literal[
         "configured_continuous_before_slice",
         "fixed_continuous_before_slice",
         "module_defined",
+        "bounded_window_with_finite_context",
     ]
     missing_sample_policy: Literal["preserve_nan", "reject"] = "preserve_nan"
 

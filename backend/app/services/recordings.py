@@ -303,10 +303,11 @@ class RecordingService:
         output_low_hz: float | None = None,
         output_high_hz: float | None = None,
         preprocessing_scope: str = "configured_continuous_before_slice",
+        quality_policy: str = "strict",
         execution_context=None,
     ) -> dict:
         """Compatibility facade for the offline spectral analysis use case."""
-        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, preprocessing_scope=preprocessing_scope, execution_context=execution_context)
+        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, preprocessing_scope=preprocessing_scope, quality_policy=quality_policy, execution_context=execution_context)
 
     def load_spectrogram(
         self,
@@ -322,7 +323,7 @@ class RecordingService:
         output_high_hz: float | None = None,
         execution_context=None,
     ) -> dict:
-        """Compatibility facade for the spectrogram-v2 analysis use case."""
+        """Compatibility facade for the spectrogram-v3-bounded analysis use case."""
         return self._spectral_analysis.load_spectrogram(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, execution_context=execution_context)
 
     def load_configured_spectrum(self, recording: RecordingSummary, config: AnalysisConfigRequest) -> dict:

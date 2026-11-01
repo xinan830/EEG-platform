@@ -9,13 +9,13 @@ public sealed class StftPreviewTests
     [Fact]
     public void StaticStftConfig_PreservesBackendIdentityAndRequestedInputs()
     {
-        var algorithm = new AlgorithmCatalogItem("official", "stft", "spectrogram-v2", "时频分析", "STFT", "", [], ["static", "dynamic"], default,
+        var algorithm = new AlgorithmCatalogItem("official", "stft", "spectrogram-v3-bounded", "时频分析", "STFT", "", [], ["static", "dynamic"], default,
             new DynamicAnalysisPolicy(4, [], 4, 1, false), "available", true, null, null, null);
 
         var config = AlgorithmRunConfiguration.BuildStaticRunConfig(algorithm, "O1", new TimeRange(1.25, 9.875));
 
         Assert.Equal("stft", config.GetProperty("algorithm_id").GetString());
-        Assert.Equal("spectrogram-v2", config.GetProperty("scientific_version").GetString());
+        Assert.Equal("spectrogram-v3-bounded", config.GetProperty("scientific_version").GetString());
         Assert.Equal("O1", config.GetProperty("channel").GetString());
         Assert.Equal("static", config.GetProperty("mode").GetString());
         Assert.Equal(1.25, config.GetProperty("time").GetProperty("start_s").GetDouble());
@@ -106,6 +106,34 @@ public sealed class StftPreviewTests
     }
 
     [Fact]
+    public async Task StaticPreview_EmptyFailedFrameClearsPreviousImageAndRetainsEvidence()
+    {
+        var preview = Preview("[[1,2],[3,4]]");
+        var client = new PreviewClient(preview);
+        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter());
+        await catalog.LoadStftStructuredPreviewAsync("run-1", dynamic: false);
+        Assert.True(catalog.HasStftPreview);
+
+        client.Preview = preview with
+        {
+            ActualRange = null,
+            Axes = new Dictionary<string, JsonElement>
+                { ["time_center_s"] = Json("[]"), ["frequency_hz"] = Json("[1,2]") },
+            Arrays = new Dictionary<string, JsonElement> { ["power_db"] = Json("[]") },
+            Quality = Json("{\"bad_windows\":2,\"total_windows\":2}"),
+            Failure = Json("{\"code\":\"STFT_WINDOW_QUALITY_GATE_FAILED\"}"),
+        };
+        await catalog.LoadStftStructuredPreviewAsync("run-1", dynamic: false);
+
+        Assert.False(catalog.HasStftPreview);
+        Assert.Equal("时间 (s)", catalog.StftAxisText);
+        Assert.Same(client.Preview, catalog.StftStructuredPreview);
+        Assert.Equal("STFT_WINDOW_QUALITY_GATE_FAILED",
+            catalog.StftStructuredPreview?.Failure?.GetProperty("code").GetString());
+        Assert.True(new StftDetailViewModel(catalog).HasFailureDetails);
+    }
+
+    [Fact]
     public void ChartSelection_UsesStableKindRatherThanDisplayText()
     {
         var catalog = new AlgorithmListViewModel(new PreviewClient(Preview("[[1,2],[3,4]]")), new OperationNotificationCenter());
@@ -124,7 +152,7 @@ public sealed class StftPreviewTests
     {
         var preview = DynamicPreview("[[[null,null],[null,null]],[[1,2],[3,4]],[[5,6],[7,8]]]");
         var catalog = new AlgorithmListViewModel(new PreviewClient(preview), new OperationNotificationCenter());
-        catalog.SelectedAlgorithm = new AlgorithmCatalogItem("official", "stft", "spectrogram-v2", "时频分析", "STFT", "", [], ["static", "dynamic"], default,
+        catalog.SelectedAlgorithm = new AlgorithmCatalogItem("official", "stft", "spectrogram-v3-bounded", "时频分析", "STFT", "", [], ["static", "dynamic"], default,
             new DynamicAnalysisPolicy(4, [4], 4, 1, true), "available", true, null, null, null);
         catalog.SelectedAnalysisMode = "动态";
 
@@ -158,7 +186,7 @@ public sealed class StftPreviewTests
         new Dictionary<string, JsonElement> { ["time_center_s"] = Json("{\"unit\":\"s\"}"), ["frequency_hz"] = Json("{\"unit\":\"Hz\"}") },
         new Dictionary<string, JsonElement> { ["power_db"] = Json(matrix) },
         new Dictionary<string, JsonElement> { ["power_db"] = JsonSerializer.SerializeToElement(new { unit }) },
-        windows ?? [], new Dictionary<string, int>(), null, "spectrogram-v2", "stft-runtime-v1");
+        windows ?? [], new Dictionary<string, int>(), null, "spectrogram-v3-bounded", "stft-runtime-v1");
 
     private static StructuredPreviewResponse DynamicPreview(string matrix) => Preview(matrix, windows:
     [
@@ -171,10 +199,11 @@ public sealed class StftPreviewTests
 
     private sealed class PreviewClient(StructuredPreviewResponse preview) : IAlgorithmClient
     {
+        public StructuredPreviewResponse Preview { get; set; } = preview;
         public Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<AnalysisRunResponse> CreateRunAsync(AnalysisRunRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<AnalysisRunResponse> GetRunAsync(string runId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<RunArtifact>> ListArtifactsAsync(string runId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<StructuredPreviewResponse> GetStructuredPreviewAsync(string runId, int maxCells, CancellationToken cancellationToken) => Task.FromResult(preview);
+        public Task<StructuredPreviewResponse> GetStructuredPreviewAsync(string runId, int maxCells, CancellationToken cancellationToken) => Task.FromResult(Preview);
     }
 }

@@ -146,7 +146,7 @@ public sealed class StftOnDemandDetailTests : IDisposable
             Axes = axes,
             Provenance = JsonSerializer.SerializeToElement(new
             {
-                preprocessing_scope = "whole_recording_before_window_slice",
+                preprocessing_scope = "bounded_window_with_finite_context",
                 inner_time_axis = axisKind,
                 analysis_state = "Complete",
             }),
@@ -184,7 +184,7 @@ public sealed class StftOnDemandDetailTests : IDisposable
             JsonSerializer.SerializeToElement(new { source_quality = new { clean_windows = 1, total_windows = 1 }, calculation_trace = new { segment_s = 4 } }),
             JsonSerializer.SerializeToElement(new
             {
-                preprocessing_scope = "whole_recording_before_window_slice",
+                preprocessing_scope = "bounded_window_with_finite_context",
                 inner_time_axis = "relative_window_time_center_s",
                 analysis_state = partial ? "Partial" : "Complete",
             }));

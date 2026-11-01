@@ -109,7 +109,7 @@ def test_rbp_v3_bootstrap_preserves_immutable_v201_and_adds_v202(tmp_path) -> No
     ensure_official_definitions(service)
 
     assert service.repository.get_version(definition.definition_id, "2.0.1").digest_sha256
-    installed = service.repository.get_version(definition.definition_id, "2.0.2")
+    installed = service.repository.get_version(definition.definition_id, "2.0.4")
     assert installed is not None and installed.state == "published"
     assert installed.digest_sha256 == __import__("app.core.provenance", fromlist=["sha256_json"]).sha256_json(
         official_definition_draft("rbp").model_dump(mode="json"))
@@ -144,8 +144,8 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
         "iapf": ("official-iapf-v2", "iapf-runtime-v3"),
         "peak_frequency": ("official-peak-frequency-v1", "peak-frequency-runtime-v2-frequency-contract"),
         "psd": ("offline-spectral-v3", "psd-runtime-v3-explicit-filters"),
-        "rbp": ("official-rbp-v3", "rbp-runtime-v3-montage-multi-channel"),
-        "stft": ("spectrogram-v2", "stft-runtime-v4-relative-window-times"),
+        "rbp": ("official-rbp-v4", "rbp-runtime-v5-channel-quality"),
+        "stft": ("spectrogram-v3-bounded", "stft-runtime-v6-bounded"),
         "theta_beta": ("official-theta-beta-v2", "theta-beta-runtime-v1"),
     }
     modules = {module.manifest.algorithm_id: module for module in build_builtin_modules()}

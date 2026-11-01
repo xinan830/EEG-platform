@@ -2,17 +2,15 @@ using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 
-/// <summary>Bounded display history of returned windows; never computes or invents scientific values.</summary>
+/// <summary>Review-session history of returned windows; never computes or invents scientific values.</summary>
 internal sealed class TnkWindowChartHistory
 {
-    internal const int MaximumWindows = 600;
     private string? sessionId;
     private readonly SortedDictionary<(double EndSeconds, double StartSeconds, string IdentityKey),
         IReadOnlyList<TnkChildResultDisplay>> windows = [];
     private readonly Dictionary<(double EndSeconds, double StartSeconds, string IdentityKey), string> windowFingerprints = [];
     private readonly SortedDictionary<(double EndSeconds, long FirstSequence, long LastSequence), TnkPlaybackGap> gaps = [];
     private readonly List<(long StartSample, long EndSample)> acceptedRanges = [];
-    private bool historyTruncated;
     private bool reconciling;
     private readonly object gate = new();
 
@@ -25,7 +23,6 @@ internal sealed class TnkWindowChartHistory
             windowFingerprints.Clear();
             gaps.Clear();
             acceptedRanges.Clear();
-            historyTruncated = false;
             reconciling = false;
         }
     }
@@ -49,7 +46,7 @@ internal sealed class TnkWindowChartHistory
         {
             lock (gate)
                 return reconciling ? "正在补齐历史区间"
-                    : historyTruncated || gaps.Count > 0 ? "历史不完整 · 存在未补齐区间"
+                    : gaps.Count > 0 ? "历史不完整 · 存在未补齐区间"
                     : windows.Count == 0 ? "尚无历史数据" : "历史完整 · 已接收窗口连续";
         }
     }
@@ -77,7 +74,6 @@ internal sealed class TnkWindowChartHistory
                 windowFingerprints.Clear();
                 gaps.Clear();
                 acceptedRanges.Clear();
-                historyTruncated = false;
                 reconciling = false;
             }
             if (window.Range is not { } range || !double.IsFinite(range.EndSeconds)) return false;
@@ -98,14 +94,6 @@ internal sealed class TnkWindowChartHistory
             windows[key] = result;
             windowFingerprints[key] = fingerprint;
             ReconcileCoveredGaps();
-            while (windows.Count > MaximumWindows)
-            {
-                var removed = windows.First().Key;
-                windows.Remove(removed);
-                windowFingerprints.Remove(removed);
-                if (acceptedRanges.Count > MaximumWindows) acceptedRanges.RemoveAt(0);
-                historyTruncated = true;
-            }
             return true;
         }
     }

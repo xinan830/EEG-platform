@@ -56,10 +56,18 @@ def validate_algorithm_result(
             raise InvalidAlgorithmResultError("algorithm evidence extension shadows a common field")
 
     declared_fields = {field.name: field.unit for field in contract.fields}
+    channel_set = manifest.signal_requirements is not None and manifest.signal_requirements.source_shape == "channel_set"
+    if channel_set and (
+        contract.channel_role_order != ["channel"]
+        or not isinstance(result, (AlgorithmStructuredResult, AlgorithmStructuredSeriesResult))
+    ):
+        raise InvalidAlgorithmResultError("channel-set outputs require a structured ordered channel contract")
     if requested_channels is not None:
         if (not requested_channels or
-                len(requested_channels) != len(contract.channel_role_order)):
+                (not channel_set and len(requested_channels) != len(contract.channel_role_order))):
             raise InvalidAlgorithmResultError("requested channels do not match declared source roles")
+        if channel_set and len({name.casefold() for name in requested_channels}) != len(requested_channels):
+            raise InvalidAlgorithmResultError("requested channel set contains duplicate channels")
         if isinstance(result, (AlgorithmResult, AlgorithmSeriesResult)):
             matches = result.channel.casefold() == "/".join(requested_channels).casefold()
         else:
@@ -117,7 +125,7 @@ def validate_algorithm_result(
         )
     if result.output_kind != manifest.output_schema["window_output_kind"]:
         raise InvalidAlgorithmResultError("structured result kind differs from its declaration")
-    dimensions = {}
+    dimensions = {"channel": len(result.channel_order)} if channel_set else {}
     for name, value in {**result.axes, **result.arrays}.items():
         array = np.asarray(value)
         shape = array.shape

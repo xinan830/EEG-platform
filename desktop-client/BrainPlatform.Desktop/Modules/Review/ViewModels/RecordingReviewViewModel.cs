@@ -21,7 +21,9 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private readonly RecordingEventStore? eventStore;
     private readonly string recordingId;
     private readonly OperationNotificationCenter? notifications;
-    private readonly ReviewAnalysisCoordinator? analysisCoordinator;
+    private readonly IReadOnlyDictionary<string, ReviewAnalysisCoordinator> analysisCoordinators;
+    private readonly IReadOnlyDictionary<string, ReviewAlgorithmPanelRegistration> analysisPanels;
+    private ReviewAnalysisCoordinator? analysisCoordinator;
     private ReviewAnalysisBinding? analysisBinding;
     private readonly LatestDelayedTask filterUpdater = new();
     private double highPassHz = 1;
@@ -33,13 +35,27 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     private double viewportStartSeconds;
     private RecordingReviewFrame? publishedFrame;
     private double publishedVisibleDuration;
-    private string psdPreparationText = "PSD 未准备。";
-    private bool isPsdAnalysisPanelOpen;
+    private string analysisPreparationText = "算法未准备。";
+    private string? activeAnalysisId;
+    private double analysisPanelStartSeconds;
     private readonly string? analysisRecordingDirectory;
     private RegisteredRecording? analysisRecording;
     private readonly CancellationTokenSource analysisLifetime = new();
-    public ReviewPsdParameters PsdParameters { get; } = new();
-    public ReviewAnalysisSettings AnalysisSettings { get; } = new();
+    public ReviewRbpParameters RbpParameters { get; } = new();
+    public RbpReviewAnalysisViewModel RbpAnalysis { get; } = new();
+    public ReviewStftParameters StftParameters { get; } = new();
+    public StftReviewAnalysisViewModel StftAnalysis { get; } = new();
+    public ReviewTnkParameters TnkParameters { get; } = new();
+    public ReviewTnkAnalysisViewModel TnkAnalysis { get; } = new();
+    public ReviewScalarParameters FaaParameters { get; } = new("faa", "F3", "F4", "f4_channel",
+        new Dictionary<string, object?> { ["low_hz"] = 1d, ["high_hz"] = 50d, ["notch_hz"] = 50d });
+    public ReviewScalarParameters IapfParameters { get; } = new("iapf");
+    public ReviewScalarParameters ThetaBetaParameters { get; } = new("theta_beta");
+    public ReviewScalarParameters BrainbeatParameters { get; } = new("brainbeat", "Fz", "Pz", "secondary_channel");
+    public ReviewScalarAnalysisViewModel FaaAnalysis { get; } = new("无量纲", ReviewScalarProjectors.Faa);
+    public ReviewScalarAnalysisViewModel IapfAnalysis { get; } = new("Hz", ReviewScalarProjectors.Iapf);
+    public ReviewScalarAnalysisViewModel ThetaBetaAnalysis { get; } = new("无量纲", ReviewScalarProjectors.ThetaBeta);
+    public ReviewScalarAnalysisViewModel BrainbeatAnalysis { get; } = new("ratio", ReviewScalarProjectors.Brainbeat);
     private long analysisConfigurationRevision;
     private bool isAnalysisStale;
 
@@ -54,7 +70,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         string? recordingDirectory = null,
         EventDefinitionService? eventDefinitionService = null,
         OperationNotificationCenter? notifications = null,
-        ReviewAnalysisCoordinator? analysisCoordinator = null,
+        IReadOnlyList<ReviewAnalysisCoordinator>? analysisCoordinators = null,
         RecordingTimeDisplaySettings? timeDisplaySettings = null,
         RecordingPlaybackTimeCoordinator? playbackCoordinator = null)
     {
@@ -88,16 +104,28 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         eventStore = recordingDirectory is null ? null : new RecordingEventStore(recordingDirectory);
         EventDefinitionService = eventDefinitionService;
         this.notifications = notifications;
-        this.analysisCoordinator = analysisCoordinator;
+        this.analysisCoordinators = (analysisCoordinators ?? []).ToDictionary(item => item.AlgorithmId);
+        analysisPanels = CreateAnalysisPanelRegistrations();
+        analysisCoordinator = analysisCoordinators?.FirstOrDefault();
         analysisRecordingDirectory = recordingDirectory;
         MarkSelectedEventCommand = new AsyncRelayCommand(MarkSelectedEventAsync, ReportCommandError);
         DeleteSelectedEventCommand = new AsyncRelayCommand(DeleteSelectedEventWithNotificationAsync, ReportCommandError);
         SaveEditedEventCommand = new AsyncRelayCommand(SaveEditedEventAsync, ReportCommandError);
-        OpenPsdAnalysisCommand = new AsyncRelayCommand(OpenPsdAnalysisAsync, ReportCommandError);
-        ClosePsdAnalysisCommand = new RelayCommand(() => IsPsdAnalysisPanelOpen = false);
-        LoadAnalysisSettingsCommand = new AsyncRelayCommand(EnsurePsdParametersLoadedAsync, ReportCommandError);
-        PsdParameters.PropertyChanged += OnAnalysisConfigurationChanged;
-        AnalysisSettings.PropertyChanged += OnAnalysisConfigurationChanged;
+        OpenRbpAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("rbp"), ReportCommandError);
+        OpenStftAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("stft"), ReportCommandError);
+        OpenTnkAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("tnk_biofeedback"), ReportCommandError);
+        OpenFaaAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("faa"), ReportCommandError);
+        OpenIapfAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("iapf"), ReportCommandError);
+        OpenThetaBetaAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("theta_beta"), ReportCommandError);
+        OpenBrainbeatAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("brainbeat"), ReportCommandError);
+        CloseAnalysisCommand = new AsyncRelayCommand(CloseAnalysisAsync, ReportCommandError);
+        RbpParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        StftParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        TnkParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        FaaParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        IapfParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        ThetaBetaParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        BrainbeatParameters.PropertyChanged += OnAnalysisConfigurationChanged;
         OpenEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = true, () => CanEditSelectedEvent);
         CloseEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = false);
         displaySettings.PropertyChanged += OnDisplaySettingsChanged;
@@ -179,21 +207,59 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public System.Windows.Input.ICommand CloseEventEditorCommand { get; }
 
-    public System.Windows.Input.ICommand OpenPsdAnalysisCommand { get; }
+    public System.Windows.Input.ICommand OpenRbpAnalysisCommand { get; }
 
-    public System.Windows.Input.ICommand ClosePsdAnalysisCommand { get; }
-    public System.Windows.Input.ICommand LoadAnalysisSettingsCommand { get; }
+    public System.Windows.Input.ICommand OpenStftAnalysisCommand { get; }
+    public System.Windows.Input.ICommand OpenTnkAnalysisCommand { get; }
 
-    public bool IsPsdAnalysisPanelOpen
+    public System.Windows.Input.ICommand OpenFaaAnalysisCommand { get; }
+    public System.Windows.Input.ICommand OpenIapfAnalysisCommand { get; }
+    public System.Windows.Input.ICommand OpenThetaBetaAnalysisCommand { get; }
+    public System.Windows.Input.ICommand OpenBrainbeatAnalysisCommand { get; }
+
+    public System.Windows.Input.ICommand CloseAnalysisCommand { get; }
+
+    public bool IsAnalysisPanelOpen => activeAnalysisId is not null;
+    public bool IsRbpAnalysisPanelOpen => activeAnalysisId == "rbp";
+    public bool IsStftAnalysisPanelOpen => activeAnalysisId == "stft";
+    public bool IsTnkAnalysisPanelOpen => activeAnalysisId == "tnk_biofeedback";
+    public bool IsFaaAnalysisPanelOpen => activeAnalysisId == "faa";
+    public bool IsIapfAnalysisPanelOpen => activeAnalysisId == "iapf";
+    public bool IsThetaBetaAnalysisPanelOpen => activeAnalysisId == "theta_beta";
+    public bool IsBrainbeatAnalysisPanelOpen => activeAnalysisId == "brainbeat";
+    public ReviewScalarParameters? ActiveScalarParameters => activeAnalysisId switch
     {
-        get => isPsdAnalysisPanelOpen;
-        private set => SetProperty(ref isPsdAnalysisPanelOpen, value);
-    }
-
-    public string PsdPreparationText
+        "faa" => FaaParameters,
+        "iapf" => IapfParameters,
+        "theta_beta" => ThetaBetaParameters,
+        "brainbeat" => BrainbeatParameters,
+        _ => null,
+    };
+    public ReviewScalarAnalysisViewModel? ActiveScalarAnalysis => activeAnalysisId switch
     {
-        get => psdPreparationText;
-        private set => SetProperty(ref psdPreparationText, value);
+        "faa" => FaaAnalysis,
+        "iapf" => IapfAnalysis,
+        "theta_beta" => ThetaBetaAnalysis,
+        "brainbeat" => BrainbeatAnalysis,
+        _ => null,
+    };
+    public bool HasSecondaryScalarChannel => activeAnalysisId is "faa" or "brainbeat";
+    public string AnalysisPanelTitle => activeAnalysisId switch
+    {
+        "rbp" => "RBP 相对频段功率",
+        "stft" => "STFT 时频分析",
+        "tnk_biofeedback" => "TNK 脑指标",
+        "faa" => "额叶 Alpha 不对称性",
+        "iapf" => "个体 Alpha 峰频率",
+        "theta_beta" => "Theta/Beta 比值",
+        "brainbeat" => "脑节律指标",
+        _ => "算法分析",
+    };
+
+    public string AnalysisPreparationText
+    {
+        get => analysisPreparationText;
+        private set => SetProperty(ref analysisPreparationText, value);
     }
 
     public bool CanEditSelectedEvent => SelectedRecordingEvent is { Source: EventSource.ManualButton or EventSource.KeyboardShortcut };
@@ -216,6 +282,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
             VisibleDurationSeconds, plotWidthPixels, cancellationToken);
 
     public double PositionSeconds => playback.PositionSeconds;
+
+    public double AnalysisPanelStartSeconds => analysisPanelStartSeconds;
 
     public Guid ReviewSessionId => session.ReviewSessionId;
 
@@ -369,64 +437,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         UpdateViewportStart(session.ViewportStartSeconds);
     }
 
-    /// <summary>
-    /// Attaches an existing completed Run. Review follows the playback clock;
-    /// it does not create Runs or calculate scientific values.
-    /// </summary>
-    public async Task AttachAnalysisAsync(string runId, CancellationToken cancellationToken = default)
-    {
-        if (analysisCoordinator is null)
-            throw new InvalidOperationException("当前回溯页未配置分析 provider。");
-
-        analysisBinding?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        analysisBinding = new ReviewAnalysisBinding(
-            analysisCoordinator,
-            analysisRecording?.Id ?? recordingId,
-            samplingRateHz,
-            checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)),
-            analysisRecording);
-        analysisBinding.PropertyChanged += OnAnalysisBindingChanged;
-        analysisBinding.AttachRun(runId);
-        isAnalysisStale = false;
-        RaiseAnalysisPropertiesChanged();
-        await analysisBinding.LoadAtSecondsAsync(PositionSeconds, cancellationToken);
-        RaiseAnalysisPropertiesChanged();
-    }
-
-    public async Task AttachOnDemandAnalysisAsync(
-        AnalysisRunRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        if (analysisCoordinator is null || !analysisCoordinator.SupportsOnDemandWindows)
-            throw new InvalidOperationException("当前回溯页未启用按需动态窗口。");
-
-        await DetachAnalysisAsync();
-        analysisBinding = new ReviewAnalysisBinding(
-            analysisCoordinator,
-            analysisRecording?.Id ?? recordingId,
-            samplingRateHz,
-            checked((long)Math.Round(DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero)),
-            analysisRecording);
-        analysisBinding.PropertyChanged += OnAnalysisBindingChanged;
-        analysisBinding.AttachOnDemand(request,
-            await analysisCoordinator.GetAlgorithmAsync(cancellationToken));
-        isAnalysisStale = false;
-        RaiseAnalysisPropertiesChanged();
-        await analysisBinding.LoadAtSecondsAsync(PositionSeconds, cancellationToken);
-        RaiseAnalysisPropertiesChanged();
-    }
-
-    public async ValueTask DetachAnalysisAsync()
-    {
-        if (analysisBinding is null) return;
-        analysisBinding.PropertyChanged -= OnAnalysisBindingChanged;
-        await analysisBinding.DisposeAsync();
-        analysisBinding = null;
-        RaiseAnalysisPropertiesChanged();
-    }
-
-    public Task LoadAnalysisAtCurrentPositionAsync() =>
-        analysisBinding?.LoadAtSecondsAsync(PositionSeconds) ?? Task.CompletedTask;
 
 
     public async Task LoadEventsAsync()
@@ -582,16 +592,20 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         isDisposing = true;
         playback.Pause();
         analysisLifetime.Cancel();
+        analysisPreparation?.Cancel();
         analysisUpdater.Dispose();
-        PsdParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
-        AnalysisSettings.PropertyChanged -= OnAnalysisConfigurationChanged;
+        RbpParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
+        StftParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
+        TnkParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
         TimeDisplay.PropertyChanged -= OnTimeDisplayChanged;
         viewportLoader.Dispose();
         filterUpdater.Dispose();
         displaySettings.PropertyChanged -= OnDisplaySettingsChanged;
         session.Changed -= OnSessionChanged;
+        await analysisPreparationGate.WaitAsync();
+        try { await DetachAnalysisAsync(); }
+        finally { analysisPreparationGate.Release(); }
         await session.DisposeAsync();
-        await DetachAnalysisAsync();
         if (ownsPlayback) playback.Dispose();
     }
 
@@ -609,7 +623,15 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
                 if (!wasUnresolved) InvalidateAnalysisConfiguration();
             }
             else
-                PsdParameters.SelectMontage(registered, selectedMontage);
+            {
+                RbpParameters.SelectMontage(registered, selectedMontage);
+                StftParameters.SelectMontage(registered, selectedMontage);
+                FaaParameters.SelectMontage(registered, selectedMontage);
+                IapfParameters.SelectMontage(registered, selectedMontage);
+                ThetaBetaParameters.SelectMontage(registered, selectedMontage);
+                BrainbeatParameters.SelectMontage(registered, selectedMontage);
+                TnkParameters.SelectMontage(registered, selectedMontage);
+            }
         }
         if (!ReferenceEquals(publishedFrame, session.CurrentFrame))
         {
@@ -642,32 +664,16 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         RaisePlaybackPropertiesChanged();
     }
 
-    private void OnAnalysisBindingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        RaiseAnalysisPropertiesChanged();
-    }
-
-    private void RaiseAnalysisPropertiesChanged()
-    {
-        RaisePropertyChanged(nameof(CurrentAnalysisWindow));
-        RaisePropertyChanged(nameof(TargetAnalysisCursorSample));
-        RaisePropertyChanged(nameof(DisplayedAnalysisCursorSample));
-        RaisePropertyChanged(nameof(AnalysisWindowState));
-        RaisePropertyChanged(nameof(IsAnalysisTargetDisplayed));
-        RaisePropertyChanged(nameof(IsAnalysisLoading));
-        RaisePropertyChanged(nameof(AnalysisStatusText));
-        RaisePropertyChanged(nameof(IsAnalysisAttached));
-    }
 
     private void RaisePlaybackPropertiesChanged()
     {
         RaisePropertyChanged(nameof(IsPlaying));
         RaisePropertyChanged(nameof(IsCompleted));
+        TnkAnalysis.SetCursor(PositionSeconds);
     }
 
     private void ScheduleFilterUpdate()
     {
-        InvalidateAnalysisConfiguration();
         filterUpdater.Schedule(TimeSpan.FromMilliseconds(220), async cancellationToken =>
         {
             try

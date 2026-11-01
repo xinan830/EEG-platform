@@ -18,7 +18,7 @@ public sealed class RecordingTimeChartModeTests
     {
         var start = DateTimeOffset.UtcNow;
         var context = new RecordingTimeDisplayContext(new RecordingTimeDisplaySettings(), start);
-        var run = new AnalysisRunResponse("run", "recording", "official_algorithm", "completed", "official-rbp-v2", null, null,
+        var run = new AnalysisRunResponse("run", "recording", "official_algorithm", "completed", "official-rbp-v4", null, null,
             Json("""{"metric":{"series":[{"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.2,"gamma":0.2},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"},"quality":{"status":"clean"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}"""),
             null, null, start, start);
         var preview = RbpResultPreview.Parse(run);
@@ -52,7 +52,7 @@ public sealed class RecordingTimeChartModeTests
             new Dictionary<string, JsonElement> { ["time_center_s"] = Json("""{"unit":"s"}"""), ["frequency_hz"] = Json("""{"unit":"Hz"}""") },
             new Dictionary<string, JsonElement> { ["power_db"] = Json("[[1,2],[3,4]]") },
             new Dictionary<string, JsonElement> { ["power_db"] = Json("""{"unit":"dB re 1 uV^2/Hz"}""") },
-            [], new Dictionary<string, int>(), null, "spectrogram-v2", "stft-runtime-v1"));
+            [], new Dictionary<string, int>(), null, "spectrogram-v3-bounded", "stft-runtime-v1"));
         var chart = new StftSliceChart { Preview = preview, IsSpectrum = false };
         RecordingTimeAxisPresentation.SetContext(chart, context);
         var surface = Assert.IsType<SciChartSurface>(chart.Content);

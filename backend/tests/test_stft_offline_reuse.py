@@ -47,7 +47,7 @@ def test_full_stft_reuses_complete_on_demand_window_with_relative_time_axis(tmp_
         matching = next(item for item in structured["windows"]
                         if item["start_s"] == on_demand["range"]["start_s"]
                         and item["end_s"] == on_demand["range"]["end_s"])
-        assert matching["provenance"]["preprocessing_scope"] == "whole_recording_before_window_slice"
+        assert matching["provenance"]["preprocessing_scope"] == "bounded_window_with_finite_context"
         assert matching["provenance"]["inner_time_axis"] == "relative_window_time_center_s"
         assert matching["provenance"]["analysis_state"] == "Complete"
         index = structured["windows"].index(matching)

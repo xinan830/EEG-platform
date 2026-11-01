@@ -1,0 +1,51 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.RbpReviewAnalysisPanel"
+             x:Name="RbpPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
+             xmlns:rbp="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <shared:AnalysisPanelShell Title="" ToolTip="{Binding RbpAnalysis.WindowText}"
+                               CloseCommand="{Binding CloseAnalysisCommand}">
+        <shared:AnalysisPanelShell.Style>
+            <Style TargetType="{x:Type shared:AnalysisPanelShell}" BasedOn="{StaticResource {x:Type shared:AnalysisPanelShell}}">
+                <Setter Property="StatusText" Value="{Binding AnalysisPreparationText}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding RbpAnalysis.HasResult}" Value="True">
+                        <Setter Property="StatusText" Value="" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </shared:AnalysisPanelShell.Style>
+                <ListBox x:Name="ChannelHistoryList" ItemsSource="{Binding RbpAnalysis.ChannelHistories}"
+                         BorderThickness="0" Background="Transparent" Padding="0"
+                         ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.CacheLength="0">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Focusable" Value="False" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,6" ToolTip="{Binding QualitySummary}">
+                                <TextBlock Text="{Binding Channel}" FontSize="11" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <rbp:RbpChart Height="120" IsStackedHistory="True" ShowAxisTitles="False"
+                                              VisibleStartSeconds="{Binding DataContext.AnalysisPanelStartSeconds, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                              Bands="{Binding Bands}" Windows="{Binding Windows}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+    </shared:AnalysisPanelShell>
+</UserControl>

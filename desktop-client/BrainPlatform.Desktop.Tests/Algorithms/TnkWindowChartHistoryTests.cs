@@ -28,6 +28,18 @@ public sealed class TnkWindowChartHistoryTests
         Assert.Null(advanced);
     }
 
+    [Fact]
+    public void ReviewTimelineStartsAtThePanelOpenTimeAndExpandsWithoutMovingItsOrigin()
+    {
+        var initial = TnkTimelineRange.FromVisibleStart(30, 30);
+        var advanced = TnkTimelineRange.AdvanceFromVisibleStart(initial, 30, 31, 32);
+
+        Assert.Equal(30, initial.Min);
+        Assert.Equal(31, initial.Max);
+        Assert.Equal(30, advanced!.Min);
+        Assert.Equal(32, advanced.Max);
+    }
+
     private static TnkChildResultDisplay Card(double time, double? value) =>
         new("tnk_iapf", "IAPF", "Pz/Oz", "Pz/O2", "", "", "")
         { Chart = new(true, [new("Pz/O2", "Hz", [new(time, value, $"{time} s")])]) };
@@ -72,15 +84,16 @@ public sealed class TnkWindowChartHistoryTests
     }
 
     [Fact]
-    public void MissingResultAddsGapAndHistoryRemainsBounded()
+    public void MissingResultAddsGapAndEarlierWindowsRemainInHistory()
     {
         var history = new TnkWindowChartHistory();
-        IReadOnlyList<TnkChildResultDisplay> result = [];
-        for (var time = 10; time <= 10 + TnkWindowChartHistory.MaximumWindows; time++)
-            result = history.Read(Window(time), [Card(time, time)], 1);
-        Assert.Equal(TnkWindowChartHistory.MaximumWindows, result[0].Chart.Series[0].Points.Count);
-        var missing = Card(611, null) with { Chart = new(true, []) };
-        result = history.Read(Window(611) with { State = "insufficient_data" }, [missing], 1);
+        for (var time = 10; time <= 710; time++) history.Add(Window(time), [Card(time, time)]);
+        var missing = Card(711, null) with { Chart = new(true, []) };
+        history.Add(Window(711) with { State = "insufficient_data" }, [missing]);
+        var result = history.Project([missing], 1);
+
+        Assert.Equal(10, result[0].Chart.Series[0].Points[0].X);
+        Assert.Equal(711, result[0].Chart.Series[0].Points[^1].X);
         Assert.Null(result[0].Chart.Series[0].Points.Last().Value);
     }
 
@@ -189,13 +202,12 @@ public sealed class TnkWindowChartHistoryTests
     }
 
     [Fact]
-    public void Bounded_history_explicitly_reports_truncation()
+    public void Continuous_history_does_not_report_truncation_as_a_delivery_gap()
     {
         var history = new TnkWindowChartHistory();
-        for (var time = 10; time < 10 + TnkWindowChartHistory.MaximumWindows + 1; time++)
-            history.Add(Window(time), [Card(time, time)]);
+        for (var time = 10; time <= 710; time++) history.Add(Window(time), [Card(time, time)]);
 
-        Assert.Contains("不完整", history.CoverageText);
+        Assert.Contains("完整", history.CoverageText);
     }
 
     [Fact]

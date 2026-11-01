@@ -1,6 +1,7 @@
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using BrainPlatform.Desktop.Shared.Controls.Analysis;
@@ -20,7 +21,7 @@ public sealed class AnalysisPanelCompositionTests
         var close = new TestCommand();
         var shell = new AnalysisPanelShell
         {
-            DataContext = context, Title = "PSD 分析", Parameters = parameter, Content = chart,
+            DataContext = context, Title = "RBP 分析", Parameters = parameter, Content = chart,
             CloseCommand = close,
             StatusText = "参数已改变，等待自动分析。",
         };
@@ -64,6 +65,70 @@ public sealed class AnalysisPanelCompositionTests
         Assert.Equal(initialWidth, panel.ActualWidth);
         Assert.Same(panel, host.Panel);
         Assert.Same(context, panel.DataContext);
+    });
+
+    [Fact]
+    public void Dock_host_places_tnk_below_waveform_and_restores_both_split_directions() => OnSta(() =>
+    {
+        var panel = new Border();
+        var waveform = new Border();
+        var host = new AnalysisDockHost
+        {
+            Waveform = waveform,
+            Panel = panel,
+            IsPanelBelowWaveform = true,
+            IsPanelOpen = true,
+        };
+
+        Arrange(host, 800, 700);
+        Assert.Equal(800, waveform.ActualWidth);
+        Assert.Equal(800, panel.ActualWidth);
+        Assert.InRange(waveform.ActualHeight, 340, 350);
+        Assert.InRange(panel.ActualHeight, 340, 350);
+
+        host.IsPanelBelowWaveform = false;
+        Arrange(host, 800, 700);
+        Assert.InRange(waveform.ActualWidth, 390, 400);
+        Assert.InRange(panel.ActualWidth, 390, 400);
+
+        host.IsPanelBelowWaveform = true;
+        Arrange(host, 800, 700);
+        Assert.InRange(waveform.ActualHeight, 340, 350);
+        Assert.InRange(panel.ActualHeight, 340, 350);
+    });
+
+    [Fact]
+    public void Tnk_review_panel_uses_compact_single_row_tabs_above_chart_and_summary() => OnSta(() =>
+    {
+        var panel = new BrainPlatform.Desktop.Modules.Review.Views.ReviewTnkAnalysisPanel();
+        var shell = Assert.IsType<AnalysisPanelShell>(panel.Content);
+        var tabs = Assert.IsType<ListBox>(panel.FindName("MetricTabs"));
+        var channels = Assert.IsType<ItemsControl>(panel.FindName("ChannelSelectors"));
+        var chart = Assert.IsType<ScrollViewer>(panel.FindName("MetricContent"));
+        var summary = Assert.IsType<ScrollViewer>(panel.FindName("SummarySidebar"));
+        var recentMetrics = Assert.IsType<StackPanel>(panel.FindName("RecentMetricsLayout"));
+        var corticalValue = Assert.IsType<TextBlock>(panel.FindName("CorticalValueText"));
+        var tabColumns = Assert.IsType<UniformGrid>(tabs.ItemsPanel.LoadContent());
+
+        Assert.Equal(new Thickness(6, 4, 6, 4), shell.Padding);
+        Assert.Equal("", shell.StatusText);
+        Assert.Same(channels, shell.HeaderContent);
+        Assert.Equal(0, Grid.GetRow(tabs));
+        Assert.Equal(0, Grid.GetColumn(tabs));
+        Assert.Equal(1, Grid.GetRow(chart));
+        Assert.Equal(0, Grid.GetRow(summary));
+        Assert.Equal(1, Grid.GetColumn(summary));
+        Assert.Equal(2, Grid.GetRowSpan(summary));
+        Assert.Equal(9, tabColumns.Columns);
+        Assert.Equal(1, tabColumns.Rows);
+        Assert.Equal(3, recentMetrics.Children.Count);
+        Assert.Equal(TextTrimming.CharacterEllipsis, corticalValue.TextTrimming);
+
+        Arrange(panel, 1200, 600);
+        shell.ApplyTemplate();
+        var header = Assert.IsType<ContentPresenter>(shell.Template.FindName("PART_HeaderContent", shell));
+        var dock = Assert.IsType<Button>(shell.Template.FindName("PART_DockButton", shell));
+        Assert.Equal(Grid.GetRow(dock), Grid.GetRow(header));
     });
 
     [Fact]

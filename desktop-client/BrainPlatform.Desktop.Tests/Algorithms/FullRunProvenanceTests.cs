@@ -55,7 +55,7 @@ public sealed class FullRunProvenanceTests
         Assert.NotNull(state.Result);
         Assert.Equal([7d, 8d], state.Result!.TimesSeconds);
         Assert.Equal("dB re 1 uV^2/Hz", state.Result.PowerUnit);
-        Assert.Equal("whole_recording_before_window_slice",
+        Assert.Equal("bounded_window_with_finite_context",
             response.Result!.Provenance!.Value.GetProperty("preprocessing_scope").GetString());
         Assert.False(response.Result.Provenance.Value.TryGetProperty("compatibility_source", out _));
         Assert.Equal(2d, response.Result.Arrays!["power_db"][0][0].GetDouble());

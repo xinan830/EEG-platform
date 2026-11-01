@@ -3,11 +3,15 @@ using System.Collections.ObjectModel;
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp;
 
 public sealed class RbpChannelHistory(string channel, IEnumerable<RbpWindowPoint> windows,
-    IReadOnlyList<RbpBandPoint> bands)
+    IReadOnlyList<RbpBandPoint> bands) : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     public string Channel { get; } = channel;
     public ObservableCollection<RbpWindowPoint> Windows { get; } = new(windows);
     public IReadOnlyList<RbpBandPoint> Bands { get; } = bands;
+    public string QualitySummary => $"质量警告：{Windows.Count(window => window.Warning.Length > 0)} 个窗口；不可用：{Windows.Count(window => window.Shares.All(value => value is null))} 个窗口" +
+        (Windows.LastOrDefault(window => window.Warning.Length > 0) is { } last
+            ? $"；最近警告 {last.StartSeconds:0.###}–{last.EndSeconds:0.###} s：{last.Warning}" : "");
 
     internal void Append(RbpWindowPoint window, int maximumWindows)
     {
@@ -25,6 +29,7 @@ public sealed class RbpChannelHistory(string channel, IEnumerable<RbpWindowPoint
             Windows.Insert(insertAt, window);
         }
         while (Windows.Count > maximumWindows) Windows.RemoveAt(0);
+        PropertyChanged?.Invoke(this, new(nameof(QualitySummary)));
     }
 }
 

@@ -54,11 +54,14 @@
                                 <RowDefinition Height="Auto" /><RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <Grid Margin="{DynamicResource AnalysisSectionSpacing}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock Text="{TemplateBinding Title}" FontSize="16" FontWeight="SemiBold"
                                            Foreground="{DynamicResource AnalysisHeadingBrush}" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
-                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <ContentPresenter x:Name="PART_HeaderContent" Grid.Column="1"
+                                                  Content="{TemplateBinding HeaderContent}"
+                                                  VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <StackPanel Grid.Column="2" Orientation="Horizontal">
                                     <Button x:Name="PART_DockButton" Style="{DynamicResource ToolbarGearButtonStyle}"
                                             ToolTip="停靠 / 分离" AutomationProperties.Name="停靠 / 分离" Margin="0,0,6,0">
                                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" FontSize="14" />
@@ -67,9 +70,9 @@
                                             ToolTip="关闭分析面板" AutomationProperties.Name="关闭分析面板" />
                                 </StackPanel>
                             </Grid>
-                            <ContentPresenter Grid.Row="1" Content="{TemplateBinding Parameters}"
+                            <ContentPresenter x:Name="PART_Parameters" Grid.Row="1" Content="{TemplateBinding Parameters}"
                                               Margin="{DynamicResource AnalysisSectionSpacing}" />
-                            <Grid Grid.Row="2" Margin="0,0,0,8">
+                            <Grid x:Name="PART_StatusRow" Grid.Row="2" Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock x:Name="PART_StatusText" Text="{TemplateBinding StatusText}" Style="{StaticResource AnalysisStatusTextStyle}"
                                            Margin="0,0,10,0" />
@@ -83,6 +86,19 @@
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="Parameters" Value="{x:Null}">
+                            <Setter TargetName="PART_Parameters" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="HeaderContent" Value="{x:Null}">
+                            <Setter TargetName="PART_HeaderContent" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="StatusText" Value="" />
+                                <Condition Property="ApplyCommand" Value="{x:Null}" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="PART_StatusRow" Property="Visibility" Value="Collapsed" />
+                        </MultiTrigger>
                         <Trigger Property="ApplyCommand" Value="{x:Null}">
                             <Setter TargetName="PART_ApplyButton" Property="Visibility" Value="Collapsed" />
                         </Trigger>

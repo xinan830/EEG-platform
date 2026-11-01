@@ -34,11 +34,22 @@ public partial class StftHeatmap : UserControl
         set => SetValue(PreviewProperty, value);
     }
 
+    public static readonly DependencyProperty RetainHistoryProperty = DependencyProperty.Register(
+        nameof(RetainHistory), typeof(bool), typeof(StftHeatmap), new PropertyMetadata(true,
+            (sender, _) => { var chart = (StftHeatmap)sender; chart.ClearSegments(); chart.UpdatePreview(chart.Preview); }));
+
+    public bool RetainHistory
+    {
+        get => (bool)GetValue(RetainHistoryProperty);
+        set => SetValue(RetainHistoryProperty, value);
+    }
+
     public StftHeatmap()
     {
         InitializeComponent();
-        xAxis = CreateAxis("时间（s）", AxisAlignment.Bottom);
-        yAxis = CreateAxis("频率（Hz）", AxisAlignment.Left);
+        xAxis = CreateAxis("", AxisAlignment.Bottom);
+        xAxis.Height = 42;
+        yAxis = CreateAxis("", AxisAlignment.Left);
         xAxis.AutoRange = AutoRange.Never;
         yAxis.AutoRange = AutoRange.Never;
 
@@ -77,7 +88,7 @@ public partial class StftHeatmap : UserControl
     {
         AxisAlignment = alignment,
         AxisTitle = title,
-        Width = alignment == AxisAlignment.Left ? 78 : double.NaN,
+        Width = alignment == AxisAlignment.Left ? 32 : double.NaN,
         FontSize = 12,
         TickTextBrush = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
         DrawMajorBands = false,
@@ -97,6 +108,9 @@ public partial class StftHeatmap : UserControl
         }
         if (preview.TimesSeconds.Length == 0 || preview.FrequenciesHz.Length == 0)
             return;
+
+        if (!RetainHistory || preview.TimesSeconds[^1] < renderedThroughSeconds - 1e-9)
+            ClearSegments();
 
         if (renderedFrequencies is not null && !renderedFrequencies.SequenceEqual(preview.FrequenciesHz))
             ClearSegments();

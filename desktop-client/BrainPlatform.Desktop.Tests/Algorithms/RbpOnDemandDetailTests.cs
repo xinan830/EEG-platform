@@ -12,6 +12,31 @@ public sealed class RbpOnDemandDetailTests : IDisposable
     public void Dispose() => Environment.SetEnvironmentVariable("BRAIN_WPF_ON_DEMAND_RBP", previous);
 
     [Fact]
+    public async Task Artifact_warning_keeps_on_demand_values_and_channel_history_warning()
+    {
+        var client = new OnDemandDetailClient { Respond = request =>
+        {
+            var response = OnDemandDetailClient.RbpResponse(request);
+            if (response.Result is null) return response;
+            return response with { Quality = "partial", Result = response.Result with {
+                Quality = "partial", Evidence = JsonSerializer.SerializeToElement(new { extensions = new {
+                    channel_order = new { channels = new[] { "F3" } },
+                    channel_failures = new { by_channel = new { } },
+                    channel_warnings = new { by_channel = new { F3 = new { status = "warning", reasons = new[] { "clipping" } } } }
+                } }) } };
+        } };
+        var catalog = OnDemandDetailClient.Catalog(client);
+        var detail = new AlgorithmDetailViewModel(catalog).Rbp;
+        await OnDemandDetailClient.Run(catalog);
+        catalog.DynamicTimeProgressPercent = 20;
+        await catalog.CurrentWindowLoad;
+        Assert.True(detail.HasResult);
+        Assert.Equal(.6, detail.Bands[2].Share);
+        Assert.Contains("疑似削顶", Assert.Single(detail.ChannelHistories).QualitySummary);
+        await catalog.ReleaseWindowAnalysisAsync();
+    }
+
+    [Fact]
     public async Task First_window_timeline_then_five_bands_without_full_run()
     {
         var client = new OnDemandDetailClient();

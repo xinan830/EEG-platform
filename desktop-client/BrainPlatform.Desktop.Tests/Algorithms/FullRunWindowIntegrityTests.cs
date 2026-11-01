@@ -130,6 +130,22 @@ public sealed class FullRunWindowIntegrityTests
     }
 
     [Fact]
+    public void Full_stft_rejects_old_whole_record_preprocessing_contract()
+    {
+        var preview = OnDemandDetailClient.FullStftStructuredPreview();
+        preview = preview with
+        {
+            Windows = preview.Windows.Select(window => JsonSerializer.Deserialize<JsonElement>(window.GetRawText().Replace(
+                "bounded_window_with_finite_context", "whole_recording_before_window_slice"))).ToArray(),
+        };
+        var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(preview, Target(2000), 200);
+
+        Assert.Equal("unavailable", response.State);
+        Assert.Equal("FULL_WINDOW_CONTRACT_UNAVAILABLE", response.Failure?.Code);
+        Assert.Null(response.Result);
+    }
+
+    [Fact]
     public void Shared_descriptor_rejects_missing_scientific_array_before_window_read()
     {
         var preview = OnDemandDetailClient.FullStftStructuredPreview() with

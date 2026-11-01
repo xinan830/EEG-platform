@@ -337,18 +337,28 @@ class TestPsdAndStftAdapters:
     def test_stft_payload_shape_units_and_actual_window(self):
         class Payload:
             def load_spectrogram(self, **_kwargs):
-                times = np.array([2., 3., 4.])
-                frequencies = np.array([8., 9., 10.])
-                matrix = np.ones((3, 3))
+                times = np.array([12., 13., 14.])
+                frequencies = np.arange(8., 10.25, .25)
+                matrix = np.ones((3, 9))
                 return {
                     "times_s": times,
                     "frequencies_hz": frequencies,
                     "power_linear": {"Fz": matrix * 1e12},
                     "power_db": {"Fz": matrix * 20.0},
-                    "quality": {"bad_windows": 0, "windows": []},
-                    "spectrogram_contract_version": "spectrogram-v2",
+                    "quality": {"bad_windows": 0, "total_windows": 3,
+                                "windows": [{"status": "clean"}] * 3},
+                    "spectrogram_contract_version": "spectrogram-v3-bounded",
                     "segment_s": 4.0, "step_s": 1.0, "window_start_s": 10.0,
                     "window_duration_s": 6.0,
+                    "preprocessing": {
+                        "algorithm_version": "spectral-window-v1",
+                        "scope": "bounded_window_with_finite_context",
+                        "context_s": 2.0, "context_samples": 200,
+                        "target_range_samples": {"start": 1000, "end": 1600},
+                        "read_range_samples": {"start": 800, "end": 1800},
+                        "boundary_policy": "clamp_to_recording", "filter_phase": "zero_phase",
+                        "unit": "V", "channel_order": ["Fz"], "gap_policy": "reject",
+                    },
                 }
 
         algorithm = StftAlgorithm()
@@ -358,7 +368,7 @@ class TestPsdAndStftAdapters:
             duration_s=30.0, payload=Payload(),
         )
         result = algorithm.execute_static(inputs, config)
-        assert result.arrays["power_linear"].shape == (3, 3)
+        assert result.arrays["power_linear"].shape == (3, 9)
         assert result.array_units["power_linear"] == "V^2/Hz"
         assert result.array_units["power_db"] == "dB re 1 uV^2/Hz"
         assert result.actual_range == {"start_s": 10.0, "end_s": 16.0}

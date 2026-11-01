@@ -34,7 +34,7 @@ public sealed class ReviewOnDemandProgressRaceTests
         provider.Calls[1].Complete();
         await dispatcher.FinishAsync(current);
         Assert.Equal(500, binding.DisplayedCursorSample);
-        Assert.Equal("PSD 窗口已更新。", binding.StatusText);
+        Assert.Equal("RBP 窗口已更新。", binding.StatusText);
         Assert.False(binding.IsLoading);
     }
 
@@ -82,7 +82,7 @@ public sealed class ReviewOnDemandProgressRaceTests
         await dispatcher.FinishAsync(load);
         provider.Calls[0].Report("preparing_source");
         dispatcher.Drain();
-        Assert.Equal("PSD 窗口已更新。", binding.StatusText);
+        Assert.Equal("RBP 窗口已更新。", binding.StatusText);
         Assert.Equal(500, binding.DisplayedCursorSample);
         Assert.False(binding.IsLoading);
     }
@@ -131,11 +131,11 @@ public sealed class ReviewOnDemandProgressRaceTests
 
     private static AnalysisRunRequest Request(string channel = "F3") => new(
         "recording", "official_algorithm",
-        JsonSerializer.SerializeToElement(new { algorithm_id = "psd", channel }));
+        JsonSerializer.SerializeToElement(new { algorithm_id = "rbp", channel }));
 
     private static AnalysisRunRequest RequestWithStep() => new(
         "recording", "official_algorithm",
-        JsonSerializer.SerializeToElement(new { algorithm_id = "psd", channel = "F3", refresh_step_s = 1.0 }));
+        JsonSerializer.SerializeToElement(new { algorithm_id = "rbp", channel = "F3", refresh_step_s = 1.0 }));
 
     // Queue Progress<T> delivery like the WPF dispatcher, without relying on sleeps
     // to choose the ordering of old and current callbacks.
@@ -179,8 +179,8 @@ public sealed class ReviewOnDemandProgressRaceTests
 
     private sealed class ControlledProvider : IReviewAlgorithmAdapter
     {
-        public string AlgorithmId => "psd";
-        public string DisplayName => "PSD";
+        public string AlgorithmId => "rbp";
+        public string DisplayName => "RBP";
         public bool SupportsOnDemandWindows => true;
         public List<Call> Calls { get; } = [];
         public string? ConfigurationHashOverride { get; set; }
@@ -233,11 +233,11 @@ public sealed class ReviewOnDemandProgressRaceTests
                 JsonSerializer.SerializeToElement(new
                 {
                     project_scope = (string?)null,
-                    recording_id = "recording", source_sha256 = "fixture-source-sha256", algorithm_id = "psd",
-                    definition_id = "official-psd", definition_version = "1", definition_sha256 = "definition-hash",
+                    recording_id = "recording", source_sha256 = "fixture-source-sha256", algorithm_id = "rbp",
+                    definition_id = "official-rbp", definition_version = "1", definition_sha256 = "definition-hash",
                     implementation_build = "build-1", scientific_version = "v1", implementation_identity = "test",
                     configuration_sha256 = configurationHashOverride() ?? digest,
-                    window_policy_version = "psd-dynamic-window-v1",
+                    window_policy_version = "rbp-dynamic-window-v1",
                     start_sample = 0, end_sample = sample, generation = 0,
                 }), canonical));
         }

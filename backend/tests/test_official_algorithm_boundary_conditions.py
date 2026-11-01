@@ -179,8 +179,8 @@ class TestRbpBoundaries:
         assert sum(shares.values()) == pytest.approx(1.0, abs=1e-12)
         assert set(powers) == {"delta", "theta", "alpha", "beta", "gamma"}
 
-    def test_gamma_has_nonzero_power_and_current_identity_is_v2(self):
+    def test_gamma_has_nonzero_power_and_current_identity_is_v4(self):
         _, shares = five_band_shares(_flat_spectrum(1.0, 50.0, channels=1))
         assert shares["gamma"] > 0
-        assert RBP_MANIFEST.scientific_version == "official-rbp-v2"
+        assert RBP_MANIFEST.scientific_version == "official-rbp-v4"
         assert "gamma" in RBP_MANIFEST.output_schema["fields"][-1]["name"].lower() or len(RBP_MANIFEST.output_schema["fields"]) == 5

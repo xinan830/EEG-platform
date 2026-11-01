@@ -9,7 +9,7 @@ public sealed record RbpBandPoint(string Key, string Label, string Range, double
 }
 
 public sealed record RbpWindowPoint(double TimeSeconds, double StartSeconds, double EndSeconds,
-    string State, string Quality, string Failure, double?[] Shares);
+    string State, string Quality, string Failure, double?[] Shares, string Warning = "");
 
 public sealed record RbpChannelWindowPoint(string Channel, RbpWindowPoint Window);
 
@@ -51,8 +51,8 @@ public sealed partial class RbpResultPreview
 
     public static RbpResultPreview FromStructured(StructuredPreviewResponse preview)
     {
-        if (preview.ScientificVersion != "official-rbp-v3" || preview.ChannelOrder is null || preview.ChannelOrder.Count == 0)
-            throw new InvalidOperationException("RBP 结构化结果缺少 v3 导联顺序。");
+        if (preview.ScientificVersion != "official-rbp-v4" || preview.ChannelOrder is null || preview.ChannelOrder.Count == 0)
+            throw new InvalidOperationException("RBP 结构化结果缺少当前 v4 导联顺序。");
         var channelWindows = new List<RbpChannelWindowPoint>();
         var timeAxis = ReadVector(preview.Axes, "time_s");
         var bandMatrices = CurrentBands.ToDictionary(band => band.Key, band => ReadMatrix(preview.Arrays, band.Key), StringComparer.Ordinal);
@@ -72,9 +72,22 @@ public sealed partial class RbpResultPreview
             var start = metadata.ValueKind == JsonValueKind.Object ? Number(metadata, "start_s") : double.NaN;
             var state = metadata.ValueKind != JsonValueKind.Object ? "Complete" : String(metadata, "state");
             var quality = metadata.ValueKind != JsonValueKind.Object ? "clean" : String(metadata, "quality");
+            var evidence = metadata.ValueKind == JsonValueKind.Object && metadata.TryGetProperty("evidence", out var item)
+                ? item : preview.SpectralEvidence;
+            var warning = ReadChannelWarnings(evidence).GetValueOrDefault(preview.ChannelOrder[channel], "");
+            var channelFailure = ReadChannelFailures(evidence).GetValueOrDefault(preview.ChannelOrder[channel], "");
             if (state is "Rejected" or "Unavailable" || quality is "failed" or "unavailable") shares = new double?[CurrentBands.Length];
+            if (quality == "partial" && shares.All(value => value is not null)) quality = warning.Length > 0 ? "partial" : "clean";
+            if (warning.Length > 0 && shares.All(value => value is not null)) quality = "partial";
+            if (shares.All(value => value is null) && state is not ("Rejected" or "Unavailable"))
+            {
+                state = "Unavailable";
+                quality = "unavailable";
+                if (channelFailure.Length == 0) channelFailure = "当前导联缺少有效五频段结果";
+            }
             channelWindows.Add(new RbpChannelWindowPoint(preview.ChannelOrder[channel], new RbpWindowPoint(end, start, end,
-                state, quality, metadata.ValueKind != JsonValueKind.Object ? "" : FailureText(metadata), shares)));
+                channelFailure.Length > 0 ? "Unavailable" : state, channelFailure.Length > 0 ? "unavailable" : quality,
+                channelFailure.Length > 0 ? channelFailure : metadata.ValueKind != JsonValueKind.Object ? "" : FailureText(metadata), shares, warning)));
         }
         var primary = preview.ChannelOrder[0];
         var points = channelWindows.Where(item => item.Channel == primary).Select(item => item.Window).OrderBy(item => item.EndSeconds).ToArray();
@@ -127,7 +140,7 @@ public sealed partial class RbpResultPreview
     public static RbpResultPreview Parse(AnalysisRunResponse? run)
     {
         if (run is not null) CurrentAlgorithmResult.Require(run);
-        var isCurrentVersion = run?.ScientificVersion is "official-rbp-v2" or "official-rbp-v3";
+        var isCurrentVersion = run?.ScientificVersion == "official-rbp-v4";
         var bands = isCurrentVersion ? CurrentBands : [];
         var unavailable = new double?[bands.Length];
         if (!isCurrentVersion || run?.Status != "completed" || run.ResultSummary is not { } summary ||
@@ -144,7 +157,7 @@ public sealed partial class RbpResultPreview
                 var failure = point.TryGetProperty("quality", out qualityValue) && qualityValue.ValueKind == JsonValueKind.Object &&
                     qualityValue.TryGetProperty("reasons", out var reasons) && reasons.ValueKind == JsonValueKind.Array
                     ? string.Join("、", reasons.EnumerateArray().Where(reason => reason.ValueKind == JsonValueKind.String).Select(reason => reason.GetString())) : "";
-                var usable = (state is "Complete" or "Partial") && quality == "clean";
+                var usable = (state is "Complete" or "Partial") && quality is "clean" or "partial";
                 return new RbpWindowPoint(Number(point, "time_s"), Number(point, "window_start_s"),
                     Number(point, "window_end_s"), state, quality, failure,
                     usable && point.TryGetProperty("band_values", out var values) ? ReadShares(values, bands) : new double?[bands.Length]);
@@ -154,7 +167,7 @@ public sealed partial class RbpResultPreview
         }
 
         var clean = metric.TryGetProperty("quality", out var staticQuality) && staticQuality.ValueKind == JsonValueKind.Object &&
-            String(staticQuality, "status") == "clean";
+            String(staticQuality, "status") is "clean" or "partial";
         var failure = metric.TryGetProperty("failure", out var staticFailure) && staticFailure.ValueKind == JsonValueKind.Object
             ? String(staticFailure, "message") : "";
         return new RbpResultPreview(bands, clean && metric.TryGetProperty("band_values", out var staticValues)

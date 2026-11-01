@@ -43,6 +43,25 @@ def test_spectral_source_request_rejects_non_finite_frequency_ranges():
         )
 
 
+@pytest.mark.parametrize("representation,scope,valid", [
+    ("spectrogram", "bounded_window_with_finite_context", True),
+    ("spectrogram", "configured_continuous_before_slice", False),
+    ("spectrum", "bounded_window_with_finite_context", False),
+])
+def test_stft_source_requires_bounded_scope_without_changing_psd(representation, scope, valid):
+    arguments = dict(
+        roles=("channel",), start_sample=0, end_sample=1024,
+        expected_sfreq_hz=256.0, montage_id="montage-a", montage_fingerprint="sha256:a",
+        filter_low_hz=1.0, filter_high_hz=30.0, output_low_hz=1.0, output_high_hz=30.0,
+        notch_hz=None, representation=representation, preprocessing_scope=scope,
+    )
+    if valid:
+        assert SpectralSourceRequest(**arguments).preprocessing_scope == scope
+    else:
+        with pytest.raises(ValueError):
+            SpectralSourceRequest(**arguments)
+
+
 @pytest.mark.parametrize("values", [
     np.zeros((10, 2), dtype=np.float32),
     np.zeros((2, 10), dtype=np.float64),
@@ -224,6 +243,7 @@ def test_typed_spectral_request_provenance_is_complete_and_ordered():
         "filter_low_hz": 1.0, "filter_high_hz": 4.0,
         "output_low_hz": 1.0, "output_high_hz": 4.0,
         "notch_hz": None, "representation": "spectrum",
+        "quality_policy": "strict",
     }
 
 

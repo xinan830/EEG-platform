@@ -5,7 +5,40 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp;
 
 public sealed partial class RbpResultPreview
 {
-    internal const int MaximumVisitedWindows = 256;
+    public const int MaximumVisitedWindows = 256;
+
+    public static RbpResultPreview FromReviewWindow(WindowPreviewResponse response,
+        RbpResultPreview? previous = null)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        var window = response.Window;
+        var range = window is null ? null : new DynamicWindowRange(
+            window.StartSample, window.EndSample,
+            response.WindowStartSeconds ?? 0, response.WindowEndSeconds ?? 0);
+        var result = response.Arrays is null ? null : new DynamicWindowResultResponse(
+            response.BackendIdentity, response.Status == "available" ? "ready" : response.Status,
+            "algorithm_group", response.Axes,
+            new Dictionary<string, string> { ["time_s"] = "s", ["channel_index"] = "index" },
+            response.Arrays, ReadArrayUnits(response.ArrayMetadata), response.Window?.QualityStatus,
+            null, response.Evidence, response.Provenance);
+        var dynamic = new DynamicWindowResponse(
+            response.RunId, window?.WindowId ?? "review-window", "review", response.Status == "available" ? "ready" : response.Status,
+            response.BackendIdentity, window is null ? null : new DynamicWindowPlanResponse(
+                response.CursorSample, window.StartSample, window.EndSample,
+                response.WindowStartSeconds ?? 0, response.WindowEndSeconds ?? 0, response.Status, null,
+                response.BackendIdentity, response.CursorSeconds),
+            range, response.Window?.QualityStatus, null, result);
+        return FromWindow(dynamic, previous);
+    }
+
+    private static IReadOnlyDictionary<string, string> ReadArrayUnits(
+        IReadOnlyDictionary<string, JsonElement>? metadata)
+    {
+        if (metadata is null) return new Dictionary<string, string>();
+        return metadata.Where(item => item.Value.ValueKind == JsonValueKind.Object &&
+                item.Value.TryGetProperty("unit", out var unit) && unit.ValueKind == JsonValueKind.String)
+            .ToDictionary(item => item.Key, item => item.Value.GetProperty("unit").GetString()!, StringComparer.Ordinal);
+    }
 
     public static RbpResultPreview FromWindow(DynamicWindowResponse response, RbpResultPreview? previous = null)
     {
@@ -35,6 +68,7 @@ public sealed partial class RbpResultPreview
                     throw new InvalidOperationException($"RBP {name} 矩阵形状或单位无效。");
             }
             var failures = ReadChannelFailures(result.Evidence);
+            var warnings = ReadChannelWarnings(result.Evidence);
             var channelShares = channels.Select(_ => new double?[CurrentBands.Length]).ToArray();
             for (var channelIndex = 0; channelIndex < channels.Length; channelIndex++)
             {
@@ -50,8 +84,10 @@ public sealed partial class RbpResultPreview
                     (point.Window.StartSeconds != range.StartSeconds || point.Window.EndSeconds != range.EndSeconds));
                 channelRows.AddRange(previousPoint ?? []);
                 channelRows.Add(new RbpChannelWindowPoint(channels[channelIndex], new RbpWindowPoint(range.EndSeconds,
-                    range.StartSeconds, range.EndSeconds, "Complete", response.Quality ?? "clean",
-                    failures.TryGetValue(channels[channelIndex], out var reason) ? reason : "", channelShares[channelIndex])));
+                    range.StartSeconds, range.EndSeconds, failures.ContainsKey(channels[channelIndex]) ? "Unavailable" : "Complete",
+                    failures.ContainsKey(channels[channelIndex]) ? "unavailable" : warnings.ContainsKey(channels[channelIndex]) ? "partial" : "clean",
+                    failures.TryGetValue(channels[channelIndex], out var reason) ? reason : "", channelShares[channelIndex],
+                    warnings.GetValueOrDefault(channels[channelIndex], ""))));
             }
             shares = channelShares[0];
             previous = new RbpResultPreview(CurrentBands, shares, channelRows.Where(point => point.Channel == channels[0])
@@ -102,5 +138,26 @@ public sealed partial class RbpResultPreview
         return failures.EnumerateObject().ToDictionary(item => item.Name,
             item => item.Value.TryGetProperty("message", out var message) ? message.ToString() : "导联结果不可用",
             StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Dictionary<string, string> ReadChannelWarnings(JsonElement? evidence)
+    {
+        var warnings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (evidence is not { ValueKind: JsonValueKind.Object } value) return warnings;
+        if (value.TryGetProperty("extensions", out var extensions) &&
+            extensions.TryGetProperty("channel_warnings", out var wrapper) && wrapper.TryGetProperty("by_channel", out var channels))
+            value = channels;
+        else if (value.TryGetProperty("channel_quality", out channels)) value = channels;
+        else return warnings;
+        foreach (var channel in value.EnumerateObject())
+        {
+            if (String(channel.Value, "status") != "warning" || !channel.Value.TryGetProperty("reasons", out var reasons)) continue;
+            warnings[channel.Name] = string.Join("、", reasons.EnumerateArray().Select(reason => reason.GetString() switch
+            {
+                "amplitude_threshold" => "幅值超限", "clipping" => "疑似削顶", "flatline" => "低幅值/近似平线",
+                var code => code ?? "质量警告",
+            }));
+        }
+        return warnings;
     }
 }

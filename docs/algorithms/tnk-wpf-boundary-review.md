@@ -14,9 +14,10 @@ at right. Record, montage and execution configuration is collapsible above it.
   percentages without normalization; nulls remain gaps. Other metrics use time
   curves. A single returned window is a marked point at its actual end time,
   never a categorical column or an invented flat history.
-- `TnkWindowChartHistory` keeps up to 600 returned on-demand windows per
+- `TnkWindowChartHistory` retains every accepted on-demand window for the active
   scientific session, replaces duplicates, sorts by time and inserts null gaps
-  across uncomputed intervals. Source/role/session changes clear that history.
+  across uncomputed intervals. Source/role/session changes clear that history;
+  there is no fixed window-count eviction.
 - `TnkResultChartProjection` reads immutable Run/current-window evidence.
   `TnkWorkbenchPresentation` only groups and formats returned values.
 - `TnkAnalysisPlotView` provides zoom, pan, reset, series visibility, rollover

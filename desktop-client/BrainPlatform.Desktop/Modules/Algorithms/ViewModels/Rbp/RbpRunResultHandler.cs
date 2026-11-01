@@ -10,7 +10,7 @@ internal sealed class RbpRunResultHandler : IAlgorithmRunResultHandler
     public bool SupportsOnDemandWindows =>
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
     public bool SupportsFullRunWindowPreview => true;
-    // RBP v3 is channel-matrix structured output; the generic metric adapter
+    // RBP is channel-matrix structured output; the generic metric adapter
     // cannot preserve channel order or channel-level failures.
     public FullRunMetricWindowSpec? FullRunMetricWindowSpec => null;
 
@@ -22,13 +22,7 @@ internal sealed class RbpRunResultHandler : IAlgorithmRunResultHandler
     {
         if (dynamic)
             ApplyDynamicWindows(catalog, run);
-        var description = dynamic
-            ? run.ScientificVersion == "official-rbp-v3"
-                ? "动态 RBP 每个窗口返回 Delta、Theta、Alpha、Beta、Gamma 相对功率，数值由后端直接返回，未在客户端重算。"
-                : "历史动态 RBP 每个窗口返回 Delta、Theta、Alpha、Beta 相对功率，数值由后端直接返回，未在客户端重算。"
-            : run.ScientificVersion == "official-rbp-v3"
-                ? "RBP 为 1–50 Hz 五频段结果，数值由后端直接返回，未在客户端重算。"
-                : "历史 RBP 为 1–30 Hz 四频段结果，数值由后端直接返回，未在客户端重算。";
+        var description = "RBP 为 1–50 Hz 五频段结果，各导联独立评估质量。伪迹保留计算值并警告，缺失样本或无效总功率不可用；数值由后端返回。";
         catalog.SetStructuredPreviewTextForModule(description);
         return Task.CompletedTask;
     }

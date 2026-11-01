@@ -20,7 +20,7 @@
 - IAPF：在 3–30 Hz 的对数频谱拟合中排除 7–13 Hz，依据残差峰值与 COG 规则返回个体 Alpha 频率；质量和失败原因一并保存。
 - Band Ratio：按配置的分子、分母频段功率计算比值，实际积分范围与中间功率写入 evidence。
 - Theta/Beta：当前为一个明确原始通道的 IAPF 相对频段比值，`theta=[max(4,IAPF-6),IAPF-2]`、`beta=[IAPF+2,30]`，不要求 Fz/Pz/Oz 三通道组合。
-- RBP：当前输出 Delta、Theta、Alpha、Beta、Gamma 五频段功率及相对比例；边界和总分母由 RBP 模块声明，不使用旧实时四频段实现。
+- 独立 RBP（`official-rbp-v4`）：输出 Delta、Theta、Alpha、Beta、Gamma 五频段功率及相对比例；边界和总分母由 RBP 模块声明。质量按通道独立评估，幅值超限、疑似削顶和低幅值等保留有限数据的计算值并标注警告，不再受 75% 干净片段比例限制。缺失/非有限样本、无效五频段总功率仍令该通道不可用；不插值、不补零。保留伪迹会改变数值含义，不能解释成经过伪迹剔除的干净脑电。TNK 和其他指标的质量策略不随之改变。
 - FAA：F3/F4 明确选择来源，使用请求绝对范围内的成对 2 s epoch、50% overlap 和质量门，默认至少十个 clean paired epochs；计算 `ln(P_F4_alpha)-ln(P_F3_alpha)`。不再保留历史起始丢弃或最长时长常量。
 - 离线 Brainbeat：同一窗内独立计算 Fz/Pz 频谱及 IAPF，得到 `relative_theta(Fz)/relative_alpha(Pz)`，不跨窗进行 IAPF 锁定、warm-up 累积或 EMA。
 

@@ -66,6 +66,7 @@ class _RecordingAlgorithmContext:
             output_high_hz=request.output_high_hz,
             notch_hz=request.notch_hz,
             preprocessing_scope=request.preprocessing_scope,
+            quality_policy=request.quality_policy,
             execution_context=self.execution_context,
         )
         estimate = self._spectral_estimate(payload)
@@ -133,9 +134,10 @@ class _RecordingAlgorithmContext:
             "output_high_hz": request.output_high_hz,
             "notch_hz": request.notch_hz,
             "representation": request.representation,
+            "quality_policy": request.quality_policy,
         }
 
-    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 30.0, notch_hz: float | None = None, filter_low_hz: float | None = None, filter_high_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None, preprocessing_scope: str = "configured_continuous_before_slice") -> SpectralEstimate:
+    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 30.0, notch_hz: float | None = None, filter_low_hz: float | None = None, filter_high_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None, preprocessing_scope: str = "configured_continuous_before_slice", quality_policy: str = "strict") -> SpectralEstimate:
         sfreq = self.sfreq_hz
         start_sample = max(0, int(np.floor(start_s * sfreq)))
         end_sample = min(
@@ -153,7 +155,7 @@ class _RecordingAlgorithmContext:
             montage_fingerprint=montage_fingerprint,
             filter_low_hz=float(filter_low), filter_high_hz=float(filter_high),
             output_low_hz=float(output_low), output_high_hz=float(output_high),
-            notch_hz=notch_hz, preprocessing_scope=preprocessing_scope,
+            notch_hz=notch_hz, preprocessing_scope=preprocessing_scope, quality_policy=quality_policy,
         )
         return self.load_spectral_source(request, role_to_channel=dict(zip(channels, channels)))
 
@@ -177,6 +179,7 @@ class _RecordingAlgorithmContext:
             "band_power": dict(payload["band_power"][selected]),
             "relative_band_power": dict(payload["relative_band_power"][selected]),
             "quality": dict(payload["quality"]),
+            "channel_quality": dict(payload["quality"].get("by_channel", {})),
         }
         return SpectralEstimate(
             np.asarray(payload["frequencies_hz"], dtype=float),
@@ -190,7 +193,7 @@ class _RecordingAlgorithmContext:
         )
 
     def load_spectrogram(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 50.0, notch_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None) -> dict[str, object]:
-        """Build a typed sample-bounded request for the frozen STFT service."""
+        """Build a typed finite-context request for the current STFT service."""
         sfreq = self.sfreq_hz
         start_sample = max(0, int(np.floor(start_s * sfreq)))
         end_sample = min(
@@ -206,6 +209,7 @@ class _RecordingAlgorithmContext:
             output_low_hz=float(output_low_hz if output_low_hz is not None else low_hz),
             output_high_hz=float(output_high_hz if output_high_hz is not None else high_hz),
             notch_hz=notch_hz, representation="spectrogram",
+            preprocessing_scope="bounded_window_with_finite_context",
         )
         return self.load_spectrogram_source(request, role_to_channel=dict(zip(channels, channels)))
 

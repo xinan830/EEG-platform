@@ -58,7 +58,8 @@
 
 - [x] 5.9 Remove event annotation/report controls and their workbench-only client code. Replace categorical column snapshots with real-time points/curves and RBP stacked trends; preserve a bounded, session-isolated history of returned on-demand windows and explicit gaps. Verify single-window and multi-window rendering before completion.
   - [x] Remove event UI, event commands, activation requests and event-only client contracts; retain the independent recording event API for its existing consumers.
-  - [x] Remove TNK column renderers; project single windows at actual recording seconds, accumulate returned windows with duplicate replacement, ordering, null gaps, session resets and a 600-window bound. Desktop algorithm checks: 423 passed.
+  - [x] Remove TNK column renderers; project single windows at actual recording seconds, accumulate returned windows with duplicate replacement, ordering, null gaps and session resets. Desktop algorithm checks: 423 passed.
+  - [x] Remove the fixed history eviction limit; keep every accepted TNK window for the active session and verify history beyond 600 windows.
 - [x] 5.10 Make TNK on-demand playback incremental with bounded session-identity checkpoints and per-frame shared spectrum loads; prove sequential targets compute only new frames, random seeks replay from the nearest compatible checkpoint, cold misses preserve full/on-demand parity, and cache identities never cross-contaminate.
   - [x] Add bounded checkpoints keyed by complete `DynamicSessionIdentity`, nearest-prior restore, request-local shared spectra, and per-frame replay diagnostics.
   - [x] Serialize checkpoint restore/replay/save for concurrent requests in the same session using a fixed set of lock stripes; add a concurrent-target regression test.

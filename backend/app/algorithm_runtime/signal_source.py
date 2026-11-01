@@ -68,8 +68,9 @@ class SpectralSourceRequest:
     notch_hz: float | None
     representation: Literal["spectrum", "spectrogram"] = "spectrum"
     preprocessing_scope: Literal[
-        "configured_continuous_before_slice", "tnk_window_scoped_v1",
+        "configured_continuous_before_slice", "tnk_window_scoped_v1", "bounded_window_with_finite_context",
     ] = "configured_continuous_before_slice"
+    quality_policy: Literal["strict", "per_channel_annotation"] = "strict"
 
     def __post_init__(self) -> None:
         if not self.roles or any(not role.strip() for role in self.roles):
@@ -95,10 +96,16 @@ class SpectralSourceRequest:
             raise ValueError("spectral source notch frequency must be positive")
         if self.representation not in {"spectrum", "spectrogram"}:
             raise ValueError("spectral source representation is unsupported")
+        if self.quality_policy not in {"strict", "per_channel_annotation"}:
+            raise ValueError("spectral source quality policy is unsupported")
+        if self.representation == "spectrogram" and self.quality_policy != "strict":
+            raise ValueError("spectrogram quality policy must remain strict")
         if self.preprocessing_scope not in {
-            "configured_continuous_before_slice", "tnk_window_scoped_v1",
+            "configured_continuous_before_slice", "tnk_window_scoped_v1", "bounded_window_with_finite_context",
         }:
             raise ValueError("spectral source preprocessing scope is unsupported")
+        if (self.representation == "spectrogram") != (self.preprocessing_scope == "bounded_window_with_finite_context"):
+            raise ValueError("spectrogram source requires bounded finite-context preprocessing")
 
 
 @dataclass(frozen=True)

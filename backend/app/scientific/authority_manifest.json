@@ -50,8 +50,8 @@
       "kind": "algorithm",
       "canonical_import": "app.algorithms.stft.runner.StftAlgorithm",
       "owner": "algorithms",
-      "scientific_version": "spectrogram-v2",
-      "implementation_identity": "stft-runtime-v1",
+      "scientific_version": "spectrogram-v3-bounded",
+        "implementation_identity": "stft-runtime-v6-bounded",
       "authority": true,
       "executable": true,
       "reference_only": false

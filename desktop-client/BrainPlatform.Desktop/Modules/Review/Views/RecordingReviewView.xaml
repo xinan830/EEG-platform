@@ -5,6 +5,7 @@
              xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Views"
              xmlns:review="clr-namespace:BrainPlatform.Desktop.Modules.Review.Waveform"
              xmlns:analysis="clr-namespace:BrainPlatform.Desktop.Modules.Review.Views"
+             xmlns:tnk="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"
              xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
              xmlns:controls="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
              xmlns:presentation="clr-namespace:BrainPlatform.Desktop.Shared.Behaviors"
@@ -17,6 +18,10 @@
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <DataTemplate x:Key="RbpPanelTemplate"><analysis:RbpReviewAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="StftPanelTemplate"><analysis:StftReviewAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="ScalarPanelTemplate"><analysis:ReviewScalarAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="TnkPanelTemplate"><analysis:ReviewTnkAnalysisPanel /></DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -26,20 +31,14 @@
             <MenuItem Header="项目">
                 <MenuItem Header="返回项目" Click="OnBackClick" />
             </MenuItem>
-            <MenuItem Header="分析" SubmenuOpened="OnAnalysisMenuOpened">
-                <MenuItem Header="功率谱密度（PSD）" Command="{Binding OpenPsdAnalysisCommand}" />
-                <Separator />
-                <MenuItem Header="分析区间">
-                    <MenuItem StaysOpenOnClick="True">
-                        <MenuItem.Header>
-                            <StackPanel Margin="0,4">
-                                <TextBlock Text="分析窗口长度（秒）" Margin="0,0,0,6" />
-                                <ComboBox Width="160" ItemsSource="{Binding AnalysisSettings.WindowOptions}"
-                                          SelectedItem="{Binding AnalysisSettings.WindowSeconds, Mode=TwoWay}" />
-                            </StackPanel>
-                        </MenuItem.Header>
-                    </MenuItem>
-                </MenuItem>
+            <MenuItem Header="算法">
+                <MenuItem Header="RBP 相对频段功率" Command="{Binding OpenRbpAnalysisCommand}" />
+                <MenuItem Header="STFT 时频分析" Command="{Binding OpenStftAnalysisCommand}" />
+                <MenuItem Header="额叶 Alpha 不对称性" Command="{Binding OpenFaaAnalysisCommand}" />
+                <MenuItem Header="个体 Alpha 峰频率" Command="{Binding OpenIapfAnalysisCommand}" />
+                <MenuItem Header="Theta/Beta 比值" Command="{Binding OpenThetaBetaAnalysisCommand}" />
+                <MenuItem Header="脑节律指标" Command="{Binding OpenBrainbeatAnalysisCommand}" />
+                <MenuItem Header="TNK 脑指标组" Command="{Binding OpenTnkAnalysisCommand}" />
             </MenuItem>
             <MenuItem Header="报告" IsEnabled="False" />
             <MenuItem Header="设置" IsEnabled="False" />
@@ -65,9 +64,20 @@
                                                 IsEnabled="{Binding CanEditSelectedEvent}"
                                                 ToolTip="在当前位置添加人工事件标记" />
                         <controls:EegToolButton Content="测量" Glyph="&#xED5E;" ToolTip="测量波幅与周期" />
-                        <controls:EegToolButton Content="频谱分析" Glyph="&#xE7C4;" Command="{Binding OpenPsdAnalysisCommand}"
-                                                ToolTip="打开功率谱密度（PSD）分析面板" />
-                        <controls:EegToolButton Content="时频分析" Glyph="&#xF0E2;" ToolTip="时频联合分析 (TF)" />
+                        <controls:EegToolButton Content="RBP 算法" Glyph="&#xE7C4;" Command="{Binding OpenRbpAnalysisCommand}"
+                                                ToolTip="打开相对频段功率算法面板" />
+                        <controls:EegToolButton Content="STFT 时频" Glyph="&#xE7C4;" Command="{Binding OpenStftAnalysisCommand}"
+                                                ToolTip="打开当前窗口的时频算法面板" />
+                        <controls:EegToolButton Content="FAA" Glyph="&#xE7C4;" Command="{Binding OpenFaaAnalysisCommand}"
+                                                ToolTip="打开额叶 Alpha 不对称性面板" />
+                        <controls:EegToolButton Content="IAPF" Glyph="&#xE7C4;" Command="{Binding OpenIapfAnalysisCommand}"
+                                                ToolTip="打开个体 Alpha 峰频率面板" />
+                        <controls:EegToolButton Content="Theta/Beta" Glyph="&#xE7C4;" Command="{Binding OpenThetaBetaAnalysisCommand}"
+                                                ToolTip="打开 Theta/Beta 比值面板" />
+                        <controls:EegToolButton Content="脑节律" Glyph="&#xE7C4;" Command="{Binding OpenBrainbeatAnalysisCommand}"
+                                                ToolTip="打开脑节律指标面板" />
+                        <controls:EegToolButton Content="TNK 指标组" Glyph="&#xE7C4;" Command="{Binding OpenTnkAnalysisCommand}"
+                                                ToolTip="打开 TNK 脑指标组面板" />
                         <controls:EegToolButton Content="事件列表" Glyph="&#xE8FD;" Click="OnSeekToEventClick" ToolTip="跳转或查看事件" />
                         <controls:EegToolButton Content="数据信息" Glyph="&#xE946;" Click="OnToggleDataInfoClick" ToolTip="查看记录与数据信息" />
                         <controls:EegToolButton Content="导出" Glyph="&#xE896;" ToolTip="导出当前段数据/EDF" />
@@ -236,14 +246,36 @@
         </views:EegWorkspaceShell.TopBar>
 
         <views:EegWorkspaceShell.Waveform>
-            <shared:AnalysisDockHost IsPanelOpen="{Binding IsPsdAnalysisPanelOpen}" PanelTitle="PSD 分析">
+            <shared:AnalysisDockHost IsPanelOpen="{Binding IsAnalysisPanelOpen}"
+                                     IsPanelBelowWaveform="{Binding IsTnkAnalysisPanelOpen}"
+                                     PanelTitle="{Binding AnalysisPanelTitle}">
                 <shared:AnalysisDockHost.Waveform>
                     <review:RecordingReviewSciChartCanvas x:Name="ReviewWaveformCanvas"
                         PreviewMouseWheel="OnWaveformMouseWheel"
                         ToolTip="滚轮：向下前进 1 秒，向上后退 1 秒" />
                 </shared:AnalysisDockHost.Waveform>
                 <shared:AnalysisDockHost.Panel>
-                    <analysis:PsdReviewAnalysisPanel />
+                    <ContentControl Content="{Binding}">
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRbpAnalysisPanelOpen}" Value="True">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource RbpPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsStftAnalysisPanelOpen}" Value="True">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource StftPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsTnkAnalysisPanelOpen}" Value="True">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource TnkPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsFaaAnalysisPanelOpen}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding IsIapfAnalysisPanelOpen}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding IsThetaBetaAnalysisPanelOpen}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding IsBrainbeatAnalysisPanelOpen}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                    </ContentControl>
                 </shared:AnalysisDockHost.Panel>
             </shared:AnalysisDockHost>
         </views:EegWorkspaceShell.Waveform>

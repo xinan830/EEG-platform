@@ -8,6 +8,7 @@ from app.services.tnk_window_preprocessing import prepare_tnk_window
 class _Session:
     def __init__(self, values, sfreq=100.0):
         self.values = np.asarray(values, dtype=np.float64)
+        self.identity = SimpleNamespace(recording_id="test")
         self.sampling_rate_hz = sfreq
         self.sample_count = len(self.values)
         self.channel_names = ("Fz",)
@@ -24,6 +25,12 @@ class _Session:
 
     def close(self):
         pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.close()
 
 
 class _Recordings:

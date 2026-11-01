@@ -232,7 +232,15 @@ public sealed record WindowPreviewResponse(
     [property: JsonPropertyName("scientific_version")] string? ScientificVersion,
     [property: JsonPropertyName("implementation_version")] string? ImplementationVersion,
     [property: JsonIgnore] JsonElement? BackendIdentity = null,
-    [property: JsonIgnore] string? ScientificConfigurationJson = null);
+    [property: JsonIgnore] string? ScientificConfigurationJson = null,
+    [property: JsonIgnore] JsonElement? Evidence = null,
+    [property: JsonIgnore] JsonElement? Provenance = null,
+    [property: JsonIgnore] double? WindowStartSeconds = null,
+    [property: JsonIgnore] double? WindowEndSeconds = null)
+{
+    [JsonIgnore]
+    public DynamicWindowResponse? DynamicResponse { get; init; }
+}
 
 /// <summary>
 /// Backend-planned request for one dynamic analysis window. The desktop sends

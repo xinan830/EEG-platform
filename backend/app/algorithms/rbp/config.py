@@ -6,9 +6,8 @@ from app.algorithm_runtime.contracts import AlgorithmConfigBase
 class RbpConfig(AlgorithmConfigBase):
     """RBP channel selection and an absolute analysis range.
 
-    ``channels`` is optional for the legacy single-channel request. When it
-    contains more than one validated montage output, the module returns the
-    channel-aware structured result family.
+    ``channel`` selects one output; ``channels`` selects an ordered set.
+    Both use the same channel-aware structured result family.
     """
 
     channels: list[str] = Field(default_factory=list, min_length=0)

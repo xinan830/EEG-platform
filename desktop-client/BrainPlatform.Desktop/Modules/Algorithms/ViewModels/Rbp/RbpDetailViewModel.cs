@@ -23,7 +23,7 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
         else
         {
             preview = RbpResultPreview.Parse(catalog.LastRun);
-            if (catalog.LastRun is { Status: "completed", ScientificVersion: "official-rbp-v3" } run)
+            if (catalog.LastRun is { Status: "completed", ScientificVersion: "official-rbp-v4" } run)
                 _ = LoadStructuredHistoryAsync(run.RunId);
         }
     }
@@ -87,7 +87,7 @@ public sealed class RbpDetailViewModel : AlgorithmSpecificDetailViewModel, IAlgo
                 : RbpResultPreview.Parse(null);
             channelHistories = [];
             RaisePropertyChanged(nameof(ChannelHistories));
-            if (Catalog.LastRun is { Status: "completed", ScientificVersion: "official-rbp-v3" } run)
+            if (Catalog.LastRun is { Status: "completed", ScientificVersion: "official-rbp-v4" } run)
                 _ = LoadStructuredHistoryAsync(run.RunId);
         }
         if (args.PropertyName == nameof(AlgorithmListViewModel.DisplayedAnalysisWindow))

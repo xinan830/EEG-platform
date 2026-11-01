@@ -14,6 +14,29 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 public sealed class RbpResultPreviewTests
 {
     [Fact]
+    public void Annotated_full_window_keeps_values_and_isolates_channel_warning()
+    {
+        var full = OnDemandDetailClient.FullRbpStructuredPreview();
+        var evidence = JsonSerializer.SerializeToElement(new { extensions = new {
+            channel_warnings = new { by_channel = new Dictionary<string, object> {
+                ["F3"] = new { status = "warning", reasons = new[] { "amplitude_threshold" } } } },
+            channel_failures = new { by_channel = new { } } } });
+        var windows = full.Windows.Select(item => JsonSerializer.SerializeToElement(new {
+            start_s = item.GetProperty("start_s").GetDouble(), end_s = item.GetProperty("end_s").GetDouble(),
+            state = "Complete", quality = "partial", evidence })).ToArray();
+        var preview = RbpResultPreview.FromStructured(full with { Windows = windows });
+        var affected = preview.ChannelWindows.First(item => item.Channel == "F3").Window;
+        var healthy = preview.ChannelWindows.First(item => item.Channel == "F7").Window;
+        Assert.Equal("partial", affected.Quality);
+        Assert.Equal("幅值超限", affected.Warning);
+        Assert.All(affected.Shares, value => Assert.NotNull(value));
+        Assert.Equal("clean", healthy.Quality);
+        Assert.Empty(healthy.Warning);
+        var history = Assert.Single(RbpHistoryProjection.FromFull(preview.ChannelWindows.Where(item => item.Channel == "F3")));
+        Assert.Contains("质量警告：3", history.QualitySummary);
+    }
+
+    [Fact]
     public void Static_UsesBackendSharesInDeclaredBandOrder()
     {
         var preview = RbpResultPreview.Parse(Run("""
@@ -30,7 +53,7 @@ public sealed class RbpResultPreviewTests
     {
         var preview = RbpResultPreview.Parse(Run("""
             {"metric":{"quality":{"status":"clean"},"band_values":{"gamma":0.3,"beta":0.2,"alpha":0.2,"theta":0.2,"delta":0.1},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
-            """, "official-rbp-v2"));
+            """, "official-rbp-v4"));
 
         Assert.Equal(5, preview.BandsAt(0).Count);
         Assert.Equal([0.1, 0.2, 0.2, 0.2, 0.3], preview.BandsAt(0).Select(band => band.Share));
@@ -43,7 +66,7 @@ public sealed class RbpResultPreviewTests
     {
         var preview = RbpResultPreview.Parse(Run("""
             {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
-            """, "official-rbp-v2"));
+            """, "official-rbp-v4"));
 
         Assert.All(preview.BandsAt(0), band => Assert.Null(band.Share));
     }
@@ -63,7 +86,7 @@ public sealed class RbpResultPreviewTests
     {
         var preview = RbpResultPreview.Parse(Run("""
             {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4,"gamma":1.1},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
-            """, "official-rbp-v2"));
+            """, "official-rbp-v4"));
 
         Assert.All(preview.BandsAt(0), band => Assert.Null(band.Share));
     }
@@ -118,7 +141,7 @@ public sealed class RbpResultPreviewTests
                 ["beta"] = JsonSerializer.SerializeToElement(new[] { .3, .3 }),
                 ["gamma"] = JsonSerializer.SerializeToElement(new[] { .1, .1 }),
             }, new Dictionary<string, JsonElement>(), [], new Dictionary<string, int>(),
-            JsonSerializer.SerializeToElement(new { status = "clean", reasons = Array.Empty<string>() }), "official-rbp-v3", "runtime-v3"));
+            JsonSerializer.SerializeToElement(new { status = "clean", reasons = Array.Empty<string>() }), "official-rbp-v4", "rbp-runtime-v5-channel-quality"));
 
         Assert.Equal("clean", preview.StaticQuality);
         Assert.False(preview.IsDynamic);
@@ -148,7 +171,7 @@ public sealed class RbpResultPreviewTests
                 ["beta"] = JsonSerializer.SerializeToElement(new[] { .3 }),
                 ["gamma"] = JsonSerializer.SerializeToElement(new[] { .1 }),
             }, new Dictionary<string, JsonElement>(), [], new Dictionary<string, int>(),
-            JsonSerializer.SerializeToElement(new { status = "clean", reasons = Array.Empty<string>() }), "official-rbp-v3", "runtime-v3"));
+            JsonSerializer.SerializeToElement(new { status = "clean", reasons = Array.Empty<string>() }), "official-rbp-v4", "rbp-runtime-v5-channel-quality"));
 
         Assert.Equal("clean", preview.StaticQuality);
     }
@@ -204,7 +227,7 @@ public sealed class RbpResultPreviewTests
             {
                 var run = Run("""
                     {"metric":{"series":[{"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.2,"beta":0.2,"gamma":0.3},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
-                    """, "official-rbp-v2");
+                    """, "official-rbp-v4");
                 var preview = RbpResultPreview.Parse(run);
                 var chart = new RbpChart { IsTrend = true, Bands = preview.BandsAt(5), Windows = preview.Windows };
                 var surface = Assert.IsType<SciChartSurface>(chart.Content);
@@ -223,7 +246,7 @@ public sealed class RbpResultPreviewTests
         {"metric":{"series":[{"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":5,"window_start_s":1,"window_end_s":5,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["RBP_WINDOW_QUALITY_GATE_FAILED"]},"band_values":{"delta":null,"theta":null,"alpha":null,"beta":null},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
         """);
 
-    private static AnalysisRunResponse Run(string summary, string scientificVersion = "official-rbp-v2") => new(
+    private static AnalysisRunResponse Run(string summary, string scientificVersion = "official-rbp-v4") => new(
         "run-1", "recording-1", "official_algorithm", "completed", scientificVersion,
         new TimeRange(0, 20), new TimeRange(0, 20), JsonSerializer.Deserialize<JsonElement>(summary),
         null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);

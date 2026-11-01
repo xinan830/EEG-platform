@@ -1,0 +1,31 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.StftReviewAnalysisPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
+             xmlns:stft="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Stft"
+             xmlns:time="clr-namespace:BrainPlatform.Desktop.Shared.Waveform"
+             time:RecordingTimeAxisPresentation.Context="{Binding TimeDisplay}">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <shared:AnalysisPanelShell Title="" CloseCommand="{Binding CloseAnalysisCommand}"
+                               StatusText="{Binding AnalysisPreparationText}">
+        <shared:AnalysisPanelShell.HeaderContent>
+            <ComboBox x:Name="StftChannelSelector" ItemsSource="{Binding StftParameters.Channels}"
+                      SelectedItem="{Binding StftParameters.Channel}"
+                      Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="120"
+                      VerticalAlignment="Center" />
+        </shared:AnalysisPanelShell.HeaderContent>
+        <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <stft:StftHeatmap Grid.Row="0" MinHeight="180" RetainHistory="True" Preview="{Binding StftAnalysis.Preview}" />
+            <TextBlock Grid.Row="1" Text="{Binding StftAnalysis.StatusText}" TextWrapping="Wrap"
+                       Foreground="#64748B" FontSize="11" Margin="2,4,0,0" />
+        </Grid>
+    </shared:AnalysisPanelShell>
+</UserControl>

@@ -10,6 +10,8 @@
                 <TextBlock Grid.Column="1" Text="{Binding WindowText}"
                            FontSize="12" Foreground="#64748B" VerticalAlignment="Center" />
             </Grid>
+            <TextBlock Text="各导联独立评估质量。幅值超限、疑似削顶等保留计算值并标注警告，结果可能包含伪迹；缺失样本或无效总功率仍不可用。"
+                       TextWrapping="Wrap" Foreground="#92400E" Margin="0,0,0,12" />
             <local:RbpChart Height="520" MinHeight="460" Bands="{Binding Bands}" />
             <ItemsControl ItemsSource="{Binding Bands}" Margin="0,12,0,0">
                 <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="5" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -36,6 +38,7 @@
                     <DataTemplate>
                         <StackPanel Margin="0,0,0,20">
                             <TextBlock Text="{Binding Channel}" FontSize="15" FontWeight="SemiBold" Foreground="#0F172A" Margin="0,0,0,8" />
+                            <TextBlock Text="{Binding QualitySummary}" TextWrapping="Wrap" Foreground="#92400E" Margin="0,0,0,6" />
                             <local:RbpChart Height="320" MinHeight="280" IsStackedHistory="True"
                                             Bands="{Binding Bands}" Windows="{Binding Windows}" />
                         </StackPanel>

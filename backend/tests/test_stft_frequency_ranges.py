@@ -27,7 +27,7 @@ def _range_service(tmp_path, sfreq_hz=200):
         raw = raw + (10e-6 * np.sin(2 * np.pi * 39 * times))[:, None]
     service.range_signal = raw
 
-    def open_session(_recording, *, analysis_montage_id=None):
+    def open_session(_recording, *, analysis_montage_id=None, verify_content_hash=True):
         reader = ArraySampleReader(raw, sfreq, names)
         return RecordingAccessSession(
             RecordingSourceIdentity(_recording.id, "synthetic", "test"), reader,
@@ -58,18 +58,22 @@ def test_official_narrow_stft_completes_and_preserves_requested_axis(tmp_path: P
     np.testing.assert_array_equal(arrays[axis_key], expected_axis)
     assert arrays["power_linear"].shape[-1] == len(expected_axis)
     assert np.isfinite(arrays["power_linear"]).all()
-    assert queue.base.algorithm_runtime_registry.get("stft").manifest.implementation_identity == "stft-runtime-v4-relative-window-times"
+    assert queue.base.algorithm_runtime_registry.get("stft").manifest.implementation_identity == "stft-runtime-v6-bounded"
 
 
 def _independent_matrix(raw, sfreq, low, high, notch):
-    filtered = raw.copy()
+    context = int(np.ceil(max(2.0, 3.0 / low) * sfreq))
+    read_start = max(0, 5 * int(sfreq) - context)
+    read_end = min(len(raw), 15 * int(sfreq) + context)
+    filtered = raw[read_start:read_end].copy()
     if notch is not None:
         numerator, denominator = signal.iirnotch(notch, 30, sfreq)
         filtered = signal.filtfilt(numerator, denominator, filtered, axis=0)
     sos = signal.butter(4, [low, high], btype="bandpass", fs=sfreq, output="sos")
     filtered = signal.sosfiltfilt(sos, filtered, axis=0)
+    filtered = filtered[5 * int(sfreq) - read_start:15 * int(sfreq) - read_start]
     rows = []
-    for start in range(5 * int(sfreq), 11 * int(sfreq) + 1, int(sfreq)):
+    for start in range(0, 6 * int(sfreq) + 1, int(sfreq)):
         frequencies, density = signal.periodogram(filtered[start:start + 4 * int(sfreq), 0],
             fs=sfreq, window="hann", detrend="constant", scaling="density")
         rows.append(density)

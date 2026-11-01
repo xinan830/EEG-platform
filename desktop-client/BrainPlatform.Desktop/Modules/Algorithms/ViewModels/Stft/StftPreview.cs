@@ -56,36 +56,58 @@ public sealed class StftPreview
             result.Axes is null || result.AxisUnits is null || result.Arrays is null || result.ArrayUnits is null ||
             response.Range is not { } range)
             throw new InvalidOperationException("STFT 按需窗口不是可显示的时频结果。");
-        if (result.Axes.Count != 2 || result.Arrays.Count != 2 || result.AxisUnits.Count != 2 || result.ArrayUnits.Count != 2 ||
-            result.AxisUnits.GetValueOrDefault("time_center_s") != "s" ||
-            result.AxisUnits.GetValueOrDefault("frequency_hz") != "Hz" ||
-            result.ArrayUnits.GetValueOrDefault("power_linear") != "V^2/Hz" ||
-            result.ArrayUnits.GetValueOrDefault("power_db") != "dB re 1 uV^2/Hz")
+        return ParseWindowData(result.Axes, result.Arrays, result.AxisUnits, result.ArrayUnits,
+            result.Provenance, range.StartSeconds, range.EndSeconds);
+    }
+
+    public static StftPreview FromReviewWindow(WindowPreviewResponse response)
+    {
+        if (response.Status != "available" || response.Window is not { WindowState: "ready", QualityStatus: "clean" } ||
+            response.Output is not { ValueKind: JsonValueKind.Object } output || Text(output, "kind") != "time_frequency" ||
+            response.Quality is not { ValueKind: JsonValueKind.Object } quality ||
+            Text(quality, "status") != "clean" || Text(quality, "state") != "ready" ||
+            response.Axes is null || response.Arrays is null || response.AxisMetadata is null || response.ArrayMetadata is null ||
+            response.WindowStartSeconds is not { } start || response.WindowEndSeconds is not { } end)
+            throw new InvalidOperationException("STFT 回溯窗口不是可显示的时频结果。");
+        return ParseWindowData(response.Axes, response.Arrays,
+            response.AxisMetadata.ToDictionary(item => item.Key, item => Text(item.Value, "unit")),
+            response.ArrayMetadata.ToDictionary(item => item.Key, item => Text(item.Value, "unit")),
+            response.Provenance, start, end);
+    }
+
+    private static StftPreview ParseWindowData(IReadOnlyDictionary<string, JsonElement> axes,
+        IReadOnlyDictionary<string, JsonElement> arrays, IReadOnlyDictionary<string, string> axisUnits,
+        IReadOnlyDictionary<string, string> arrayUnits, JsonElement? provenanceValue, double start, double end)
+    {
+        if (axes.Count != 2 || arrays.Count != 2 || axisUnits.Count != 2 || arrayUnits.Count != 2 ||
+            axisUnits.GetValueOrDefault("time_center_s") != "s" ||
+            axisUnits.GetValueOrDefault("frequency_hz") != "Hz" ||
+            arrayUnits.GetValueOrDefault("power_linear") != "V^2/Hz" ||
+            arrayUnits.GetValueOrDefault("power_db") != "dB re 1 uV^2/Hz")
             throw new InvalidOperationException("STFT 按需窗口的轴或功率单位不符合展示契约。");
-        if (!result.Axes.TryGetValue("time_center_s", out var timesAxis) ||
-            !result.Axes.TryGetValue("frequency_hz", out var frequencyAxis) ||
-            !result.Arrays.TryGetValue("power_linear", out var linearMatrix) ||
-            !result.Arrays.TryGetValue("power_db", out var matrix) ||
+        if (!axes.TryGetValue("time_center_s", out var timesAxis) ||
+            !axes.TryGetValue("frequency_hz", out var frequencyAxis) ||
+            !arrays.TryGetValue("power_linear", out var linearMatrix) ||
+            !arrays.TryGetValue("power_db", out var matrix) ||
             linearMatrix.ValueKind != JsonValueKind.Array || matrix.ValueKind != JsonValueKind.Array)
             throw new InvalidOperationException("STFT 按需窗口缺少时频轴或功率矩阵。");
-        if (result.Provenance is not { ValueKind: JsonValueKind.Object } provenance ||
-            Text(provenance, "preprocessing_scope") != "whole_recording_before_window_slice" ||
+        if (provenanceValue is not { ValueKind: JsonValueKind.Object } provenance ||
+            Text(provenance, "preprocessing_scope") != "bounded_window_with_finite_context" ||
             Text(provenance, "inner_time_axis") != "relative_window_time_center_s" ||
             Text(provenance, "analysis_state") is not ("Partial" or "Complete"))
-            throw new InvalidOperationException("STFT 按需窗口缺少连续预处理或时间轴 provenance。");
+            throw new InvalidOperationException("STFT 按需窗口缺少有限上下文预处理或时间轴 provenance。");
         var times = ReadAxis(new Dictionary<string, JsonElement> { ["time_center_s"] = timesAxis }, "time_center_s");
         var frequencies = ReadAxis(new Dictionary<string, JsonElement> { ["frequency_hz"] = frequencyAxis }, "frequency_hz");
-        if (!double.IsFinite(range.StartSeconds) || !double.IsFinite(range.EndSeconds) ||
-            range.StartSeconds < 0 || range.EndSeconds <= range.StartSeconds)
+        if (!double.IsFinite(start) || !double.IsFinite(end) || start < 0 || end <= start)
             throw new InvalidOperationException("STFT 按需窗口范围无效。");
         if (matrix.GetArrayLength() != times.Length)
             throw new InvalidOperationException("STFT 按需窗口矩阵的时间维度不一致。");
         ValidateMatrix(linearMatrix, times.Length, frequencies.Length, "STFT 线性功率矩阵");
-        var windowDuration = range.EndSeconds - range.StartSeconds;
+        var windowDuration = end - start;
         if (times.Any(time => time < 0 || time > windowDuration))
             throw new InvalidOperationException("STFT 按需窗口的内层时间轴超出窗口范围。");
-        var absoluteTimes = times.Select(time => time + range.StartSeconds).ToArray();
-        return BuildPreview(absoluteTimes, frequencies, matrix, new TimeRange(range.StartSeconds, range.EndSeconds));
+        var absoluteTimes = times.Select(time => time + start).ToArray();
+        return BuildPreview(absoluteTimes, frequencies, matrix, new TimeRange(start, end));
     }
 
     private static StftPreview ParseCore(StructuredPreviewResponse preview, int? windowIndex)
@@ -171,7 +193,7 @@ public sealed class StftPreview
     }
 
     private static string Text(JsonElement value, string name) =>
-        value.TryGetProperty(name, out var item) && item.ValueKind == JsonValueKind.String
+        value.ValueKind == JsonValueKind.Object && value.TryGetProperty(name, out var item) && item.ValueKind == JsonValueKind.String
             ? item.GetString() ?? "" : "";
 
     private static void ValidateMatrix(JsonElement matrix, int timeCount, int frequencyCount, string label)

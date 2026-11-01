@@ -6,15 +6,16 @@ import pytest
 from app.algorithm_runtime.contracts import AlgorithmInputs
 from app.algorithm_runtime.on_demand import DynamicSessionIdentity, DynamicWindowIdentity
 from app.algorithms.stft.config import StftConfig
+from app.algorithms.stft.frame import frequency_axis, relative_time_axis
 from app.algorithms.stft.runner import StftAlgorithm
 
 
 def _session() -> DynamicSessionIdentity:
     return DynamicSessionIdentity(
         recording_id="recording", source_sha256="source", algorithm_id="stft",
-        definition_id="definition", definition_version="1", scientific_version="spectrogram-v2",
+        definition_id="definition", definition_version="1", scientific_version="spectrogram-v3-bounded",
         implementation_identity="implementation", configuration_sha256="config",
-        window_policy_version="stft-dynamic-window-v1",
+        window_policy_version="stft-dynamic-window-v3-bounded",
     )
 
 
@@ -33,24 +34,39 @@ def _identity(plan) -> DynamicWindowIdentity:
                                  start_sample=plan.start_sample, end_sample=plan.end_sample)
 
 
-def _payload(window_s=5.0, bad_windows=0):
-    frequencies = np.array([1.0, 2.0, 3.0])
-    count = 1 if window_s < 5 else 2
-    times = 2.0 + np.arange(count)
+def _payload(window_s=5.0, bad_windows=0, start_s=0.0):
+    frequencies = frequency_axis(200, 1, 30)
+    times = relative_time_axis(200, window_s)
+    count = len(times)
     linear_uv = np.arange(count * frequencies.size, dtype=float).reshape(count, -1) + 1
     db = np.full_like(linear_uv, 10.0)
+    linear_uv[:bad_windows] = np.nan
+    db[:bad_windows] = np.nan
     return {
-        "times_s": (times + 0.0).tolist(),
+        "window_start_s": start_s,
+        "window_duration_s": window_s,
+        "times_s": (times + start_s).tolist(),
         "frequencies_hz": frequencies.tolist(),
         "power_linear": {"F3": linear_uv.tolist()},
         "power_db": {"F3": db.tolist()},
-        "spectrogram_contract_version": "spectrogram-v2",
+        "spectrogram_contract_version": "spectrogram-v3-bounded",
         "segment_s": 4.0,
         "step_s": 1.0,
         "frequency_range_hz": {"low_hz": 1.0, "high_hz": 30.0},
         "filter_frequency_range_hz": {"low_hz": 1.0, "high_hz": 30.0},
         "notch_hz": None,
-        "quality": {"windows": [], "bad_windows": bad_windows, "total_windows": max(1, bad_windows), "evidence": {}},
+        "preprocessing": {
+            "algorithm_version": "spectral-window-v1", "scope": "bounded_window_with_finite_context",
+            "context_s": 3.0, "context_samples": 600,
+            "target_range_samples": {"start": round(start_s * 200), "end": round((start_s + window_s) * 200)},
+            "read_range_samples": {"start": max(0, round(start_s * 200) - 600),
+                                   "end": min(4000, round((start_s + window_s) * 200) + 600)},
+            "boundary_policy": "clamp_to_recording", "filter_phase": "zero_phase",
+            "unit": "V", "channel_order": ["F3"], "gap_policy": "reject",
+        },
+        "quality": {"windows": [{"status": "bad" if index < bad_windows else "clean"}
+                                for index in range(count)],
+                    "bad_windows": bad_windows, "total_windows": count, "evidence": {}},
     }
 
 
@@ -75,9 +91,9 @@ def test_stft_window_returns_real_partial_matrix_and_provenance():
     assert result.state == "ready"
     assert result.output_kind == "time_frequency"
     assert result.axes["time_center_s"].shape == (1,)
-    assert result.arrays["power_linear"].shape == (1, 3)
+    assert result.arrays["power_linear"].shape == (1, 117)
     assert result.array_units == {"power_linear": "V^2/Hz", "power_db": "dB re 1 uV^2/Hz"}
-    assert result.provenance["preprocessing_scope"] == "whole_recording_before_window_slice"
+    assert result.provenance["preprocessing_scope"] == "bounded_window_with_finite_context"
     assert result.provenance["analysis_state"] == "Partial"
 
 
@@ -86,7 +102,7 @@ def test_stft_window_matches_full_dynamic_frame_for_complete_window():
     config = _config()
 
     def loader(**kwargs):
-        return _payload(kwargs["window_s"])
+        return _payload(kwargs["window_s"], start_s=kwargs["start_s"])
 
     recording = SimpleNamespace(load_spectrogram=loader)
     inputs = _inputs(recording)
@@ -105,7 +121,7 @@ def test_stft_window_normalizes_absolute_source_times_to_relative_coordinates():
     algorithm = StftAlgorithm()
     config = _config().model_copy(update={"start_s": 10, "end_s": 20})
     inputs = _inputs(SimpleNamespace(load_spectrogram=lambda **_: {
-        **_payload(5.0), "times_s": [12.0, 13.0],
+        **_payload(5.0, start_s=10), "times_s": [12.0, 13.0],
     }))
     plan = algorithm.plan_window(inputs, config, 3000, _session())
     result = algorithm.execute_window(inputs, config, plan, _identity(plan))
@@ -117,7 +133,7 @@ def test_stft_window_normalizes_absolute_source_times_to_relative_coordinates():
 def test_stft_reuse_acceptance_rejects_partial_and_accepts_complete_contract():
     algorithm = StftAlgorithm()
     config = _config().model_dump(mode="json")
-    frequencies = algorithm._frequency_axis(200, 1, 30)
+    frequencies = frequency_axis(200, 1, 30)
 
     def loader(**kwargs):
         count = 1 if kwargs["window_s"] < 5 else 2

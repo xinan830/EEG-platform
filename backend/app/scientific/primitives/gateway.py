@@ -47,6 +47,12 @@ class ScientificSpectralGateway:
     def spectrogram(self, data: np.ndarray, sfreq_hz: float, *, low_hz: float = 1.0, high_hz: float = 30.0) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, Any]]]:
         return estimate_spectrogram_with_quality(data, sfreq_hz, low_hz=low_hz, high_hz=high_hz)
 
+    def welch_annotated_channels(self, data: np.ndarray, sfreq_hz: float, *,
+                                 low_hz: float, high_hz: float) -> SpectralEstimate:
+        """Keep independent channel measurements with artifact evidence."""
+        from .annotated_spectral import estimate_annotated_channel_psd
+        return estimate_annotated_channel_psd(data, sfreq_hz, low_hz=low_hz, high_hz=high_hz)
+
     def integrate_band(self, frequencies_hz: np.ndarray, values: np.ndarray, low_hz: float, high_hz: float) -> np.ndarray | float:
         return band_power(frequencies_hz, values, low_hz, high_hz)
 

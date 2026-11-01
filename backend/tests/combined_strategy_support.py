@@ -131,7 +131,10 @@ def compare_preview(preview, summary, arrays):
         for key, values in result["arrays"].items():
             compare_arrays({key: values}, {key: arrays[key][index]})
         for key, values in result["axes"].items():
-            compare_arrays({key: values}, {key: arrays[f"axis_{key}"]})
+            expected_axis = arrays[f"axis_{key}"]
+            if key == "time_s":
+                expected_axis = expected_axis[index:index + 1]
+            compare_arrays({key: values}, {key: expected_axis})
         evidence = json.loads(str(arrays["window_evidence_json"].item()))
         assert result["evidence"] == evidence[index]
     else:
@@ -148,4 +151,6 @@ def compare_preview(preview, summary, arrays):
             assert value == frame["official"][key]
     if result["identity"]["algorithm_id"] != "psd":
         assert result["provenance"]["analysis_state"] == "Complete"
-    assert result["provenance"]["preprocessing_scope"] == "whole_recording_before_window_slice"
+    expected_scope = ("bounded_window_with_finite_context" if result["identity"]["algorithm_id"] == "stft"
+                      else "whole_recording_before_window_slice")
+    assert result["provenance"]["preprocessing_scope"] == expected_scope

@@ -7,6 +7,46 @@ from app.algorithm_runtime.on_demand import DynamicWindowResponse
 from on_demand_fixtures import configure_api, source_hashes
 
 
+def test_full_and_on_demand_keep_healthy_channel_when_peer_has_invalid_power(tmp_path, monkeypatch):
+    from app.scientific.primitives.gateway import ScientificSpectralGateway
+    original = ScientificSpectralGateway.welch_annotated_channels
+
+    def one_flat_channel(self, data, sfreq_hz, **kwargs):
+        modified = np.array(data, copy=True)
+        modified[:, 0] = 0
+        return original(self, modified, sfreq_hz, **kwargs)
+
+    monkeypatch.setattr(ScientificSpectralGateway, "welch_annotated_channels", one_flat_channel)
+    client, recording, windows, runs, _ = configure_api(tmp_path, duration_s=6, labels=["F3", "F4"])
+    config = {"algorithm_id": "rbp", "channel": "F3-REF", "channels": ["F3-REF", "F4-REF"],
+              "mode": "dynamic", "time": {"start_s": 0, "end_s": 6},
+              "dynamic_window_s": 5, "refresh_step_s": 1}
+    try:
+        response = client.post("/api/runs", json={"recording_id": recording.id,
+            "analysis_type": "official_algorithm", "config": config})
+        assert response.status_code == 202, response.text
+        run = runs.process_next()
+        assert run.status.value == "completed", run.error
+        response = client.post("/api/analysis-windows/ensure", json={"recording_id": recording.id,
+            "algorithm_id": "rbp", "config": config, "cursor_sample": 1000,
+            "request_id": "partial-from-full"})
+        assert response.status_code in {200, 202}, response.text
+        target = wait_window(client, response.json()["window_id"])
+        assert target["state"] == "ready", target
+        assert target["quality"] == "partial"
+        preview = client.get(f"/api/runs/{run.run_id}/structured-preview")
+        assert preview.status_code == 200, preview.text
+        assert preview.json()["quality"]["status"] == "partial"
+        for values in preview.json()["arrays"].values():
+            assert values[-1][0] is None and np.isfinite(values[-1][1])
+        for values in target["result"]["arrays"].values():
+            assert values[0] is None and np.isfinite(values[1])
+        assert set(target["result"]["evidence"]["extensions"]["channel_failures"]["by_channel"]) == {"F3-REF"}
+    finally:
+        windows.close()
+        client.close()
+
+
 def wait_window(client, window_id):
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:

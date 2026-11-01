@@ -115,8 +115,9 @@ def estimate_welch_psd(
     *,
     low_hz: float | None = None,
     high_hz: float | None = None,
+    annotate_artifacts: bool = False,
 ) -> SpectralEstimate:
-    """Compute overlapping Welch segments and average clean segments only."""
+    """Average clean Welch segments, or finite artifact-bearing segments when explicitly annotated."""
     values = np.asarray(data, dtype=float)
     segment_samples = int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * sfreq))
     overlap = float(ANALYSIS_CONTRACT["welch_segment_overlap"])
@@ -126,12 +127,14 @@ def estimate_welch_psd(
     segments = [values[start:start + segment_samples] for start in bounds]
     checks = [evaluate_spectral_window(item, segment_samples) for item in segments]
     clean = [item for item, check in zip(segments, checks) if check.status == "clean"]
+    # Annotation retains artifacts, never missing or non-finite samples.
+    accepted = [item for item, check in zip(segments, checks) if not check.gap.detected] if annotate_artifacts else clean
     rejected_reasons = tuple(dict.fromkeys(reason for check in checks for reason in check.reasons))
     if not segments:
         rejected_reasons = ("missing_samples",)
     quality = len(clean) / len(segments) if segments else 0.0
     minimum = float(ANALYSIS_CONTRACT["minimum_clean_epoch_ratio"])
-    if not segments or not clean or quality < minimum:
+    if not accepted or (not annotate_artifacts and quality < minimum):
         evidence = _spectral_evidence(
             checks,
             transform_padding=TransformPaddingEvidence(),
@@ -146,7 +149,7 @@ def estimate_welch_psd(
         )
     spectra = []
     freqs = np.array([])
-    for item in clean:
+    for item in accepted:
         freqs, segment_psd = signal.welch(
             item, fs=sfreq, window=str(ANALYSIS_CONTRACT["welch_window"]),
             nperseg=segment_samples, noverlap=overlap_samples, detrend="constant",
@@ -165,8 +168,12 @@ def estimate_welch_psd(
         expected_samples=segment_samples,
     )
     evidence["welch"]["overlap_samples"] = overlap_samples
+    density = np.maximum(averaged, 1e-20)
+    if annotate_artifacts:
+        # A zero signal must not acquire synthetic power from the numerical floor.
+        density[np.all(averaged == 0, axis=1)] = 0.0
     return SpectralEstimate(
-        freqs[mask], np.maximum(averaged, 1e-20), quality,
+        freqs[mask], density, quality,
         len(clean), len(segments), None, rejected_reasons,
         evidence=evidence,
     )

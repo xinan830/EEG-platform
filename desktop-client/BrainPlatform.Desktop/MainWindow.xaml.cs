@@ -318,8 +318,14 @@ public partial class MainWindow : Window
                 $"历史导联引用无法登记，记录仍可查看：{exception.Message}");
         }
         var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
-        var analysisCoordinator = (DataContext as DesktopWorkspaceViewModel) is { } analysisWorkspace
-            ? new ReviewAnalysisCoordinator(new PsdReviewAnalysisAdapter(analysisWorkspace.Algorithms))
+        ReviewAnalysisCoordinator[]? analysisCoordinators = (DataContext as DesktopWorkspaceViewModel) is { } analysisWorkspace
+            ? [new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "rbp", "RBP")),
+               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "stft", "STFT")),
+               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "faa", "FAA")),
+               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "iapf", "IAPF")),
+               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "theta_beta", "Theta/Beta")),
+               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "brainbeat", "脑节律")),
+               new(new ReviewTnkAnalysisAdapter(analysisWorkspace.Algorithms))]
             : null;
         var playbackCoordinator = new RecordingPlaybackTimeCoordinator(
             loadedRecording.Manifest.SessionId.ToString("N"),
@@ -337,7 +343,7 @@ public partial class MainWindow : Window
                 recordingDirectory: recording.RecordingDirectory,
                 eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
                 notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications,
-                analysisCoordinator: analysisCoordinator,
+                analysisCoordinators: analysisCoordinators,
                 timeDisplaySettings: (DataContext as DesktopWorkspaceViewModel)?.TimeDisplaySettings,
                 playbackCoordinator: playbackCoordinator);
             await viewModel.InitializeAsync();

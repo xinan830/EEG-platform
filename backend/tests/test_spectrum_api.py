@@ -118,7 +118,7 @@ def test_configured_spectrogram_api_passes_spectrogram_mode(monkeypatch):
             return {
                 "analysis_config_hash": "SPEC123", "channels": config.channels,
                 "analysis_algorithm_version": "offline-spectral-v3",
-                "spectrogram_contract_version": "spectrogram-v2",
+                "spectrogram_contract_version": "spectrogram-v3-bounded",
                 "power_linear": {"F3": [[1.0]]}, "power_db": {"F3": [[0.0]]},
                 "matrix_shape": [1, 1], "quality": {"windows": [], "clean_windows": 1, "total_windows": 1, "bad_windows": 0},
             }
@@ -135,6 +135,6 @@ def test_configured_spectrogram_api_passes_spectrogram_mode(monkeypatch):
     assert response.status_code == 200
     assert response.json()["analysis_config_hash"] == "SPEC123"
     assert response.json()["analysis_algorithm_version"] == "offline-spectral-v3"
-    assert response.json()["spectrogram_contract_version"] == "spectrogram-v2"
+    assert response.json()["spectrogram_contract_version"] == "spectrogram-v3-bounded"
     assert response.json()["matrix_shape"] == [1, 1]
     assert response.json()["quality"]["bad_windows"] == 0

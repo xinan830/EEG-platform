@@ -111,7 +111,7 @@ public sealed partial class RecordingReviewViewModelTests
         var frame = vm.CurrentFrame;
         var viewport = vm.ViewportStartSeconds;
         var reads = reader.ReadCount;
-        var status = vm.PsdPreparationText;
+        var status = vm.AnalysisPreparationText;
 
         vm.TimeDisplay.IsClockTime = true;
 
@@ -120,7 +120,7 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.Equal(viewport, vm.ViewportStartSeconds);
         Assert.Same(frame, vm.CurrentFrame);
         Assert.Equal(reads, reader.ReadCount);
-        Assert.Equal(status, vm.PsdPreparationText);
+        Assert.Equal(status, vm.AnalysisPreparationText);
         Assert.Equal(vm.TimeDisplay.FormatCursor(17), vm.PositionTimeText);
         Assert.Equal(RecordingTimeDisplayMode.Clock, settings.Mode);
 

@@ -14,9 +14,10 @@ def test_registry_only_exposes_declared_validated_capabilities():
         ("iapf", "official-iapf-v2"),
         ("peak_frequency", "official-peak-frequency-v1"),
         ("psd", "offline-spectral-v3"),
-        ("rbp", "official-rbp-v2"),
-        ("stft", "spectrogram-v2"),
+        ("rbp", "official-rbp-v4"),
+        ("stft", "spectrogram-v3-bounded"),
         ("theta_beta", "official-theta-beta-v2"),
+        ("tnk_biofeedback", "tnk-biofeedback-group-v2"),
     ]
     assert registry.get("psd", "offline-spectral-v3").window_policy_version == "psd-dynamic-window-v1"
     assert registry.get("brainbeat", "official-brainbeat-v1").window_policy_version == "brainbeat-dynamic-window-v1"

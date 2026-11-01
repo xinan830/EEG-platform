@@ -16,6 +16,7 @@ import numpy as np
 from dataclasses import replace
 
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
+from app.scientific.contracts.spectrogram import STFT_PREPROCESSING_VERSION
 from app.core.provenance import implementation_version
 from app.scientific.quality import SpectralQualityGateError
 from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY, ScientificSpectralGateway
@@ -59,7 +60,13 @@ def _configured_provenance(payload: dict[str, object], *, mode: str, requested_t
         filter_contract = payload.get("filter_contract")
     else:
         welch = {"segment_s": payload.get("segment_s"), "window": "hann", "overlap_fraction": None, "step_s": payload.get("step_s")}
-        filter_contract = {"bandpass_hz": [1.0, 30.0], "preprocessing_phase": "zero_phase"}
+        bounds = payload["filter_frequency_range_hz"]
+        filter_contract = {
+            "bandpass_hz": [bounds["low_hz"], bounds["high_hz"]],
+            "preprocessing_phase": "zero_phase", "notch_hz": payload["notch_hz"],
+            "preprocessing_scope": "bounded_window_with_finite_context",
+            "preprocessing": payload["preprocessing"],
+        }
     return {
         "contract_version": "analysis-provenance-v1", "status": "completed", "analysis_type": mode,
         "definition_version": None, "scientific_algorithm_version": payload.get("analysis_algorithm_version", payload.get("baseline_algorithm_version", payload.get("algorithm_version"))),
@@ -171,9 +178,12 @@ class SpectralAnalysisService:
         output_high_hz: float | None = None,
         execution_context: Any = None,
         preprocessing_scope: str = "configured_continuous_before_slice",
+        quality_policy: str = "strict",
         _preprocessed: PreprocessedRecording | None = None,
     ) -> dict[str, object]:
         """Return frozen v3 PSD, absolute band power, and relative power."""
+        if quality_policy not in {"strict", "per_channel_annotation"}:
+            raise ValueError("Unsupported spectrum quality policy")
         filter_low_hz = float(low_hz if filter_low_hz is None else filter_low_hz)
         filter_high_hz = float(high_hz if filter_high_hz is None else filter_high_hz)
         output_low_hz = float(filter_low_hz if output_low_hz is None else output_low_hz)
@@ -248,7 +258,9 @@ class SpectralAnalysisService:
         # still clipped to exactly [low_hz, high_hz].
         band_floor = min(edge[0] for edge in FREQUENCY_BANDS.values())
         band_ceiling = max(edge[1] for edge in FREQUENCY_BANDS.values())
-        spectrum = self.spectral_gateway.welch(
+        estimator = (self.spectral_gateway.welch_annotated_channels
+                     if quality_policy == "per_channel_annotation" else self.spectral_gateway.welch)
+        spectrum = estimator(
             window, sfreq, low_hz=min(filter_low_hz, output_low_hz, band_floor),
             high_hz=max(filter_high_hz, output_high_hz, band_ceiling),
         )
@@ -266,7 +278,8 @@ class SpectralAnalysisService:
             name: {
                 band: (
                     float(self.spectral_gateway.integrate_band(spectrum.freqs, spectrum.psd[index], *edges) * 1e12)
-                    if edges[0] >= spectrum.freqs[0] and edges[1] <= spectrum.freqs[-1]
+                    if (edges[0] >= spectrum.freqs[0] and edges[1] <= spectrum.freqs[-1]
+                        and np.isfinite(spectrum.psd[index]).all())
                     else None
                 )
                 for band, edges in FREQUENCY_BANDS.items()
@@ -310,12 +323,15 @@ class SpectralAnalysisService:
             )},
             "units": {"psd": "uV^2/Hz", "absolute_power": "uV^2", "relative_power": "ratio"},
             "frequencies_hz": frequencies.tolist(),
-            "psd": {name: psd_values[index].tolist() for index, name in enumerate(requested_names)},
+            "psd": {name: [float(value) if np.isfinite(value) else None for value in psd_values[index]]
+                    for index, name in enumerate(requested_names)},
             "frequency_range_hz": {"low_hz": output_low_hz, "high_hz": output_high_hz},
             "filter_frequency_range_hz": {"low_hz": filter_low_hz, "high_hz": filter_high_hz},
             "band_power": absolute,
             "relative_band_power": relative,
             "quality": {
+                "policy": quality_policy,
+                "by_channel": dict(zip(requested_names, spectrum.evidence.get("channel_quality", []))),
                 "clean_segments": spectrum.clean_epochs,
                 "total_segments": spectrum.total_epochs,
                 "clean_ratio": spectrum.signal_quality,
@@ -325,106 +341,21 @@ class SpectralAnalysisService:
         }
 
     def load_spectrogram(
-        self,
-        recording: RecordingSummary,
-        start_s: float = 0.0,
-        window_s: float = 30.0,
-        channels: list[str] | None = None,
-        *,
-        low_hz: float = 1.0,
-        high_hz: float = 50.0,
-        notch_hz: float | None = None,
-        output_low_hz: float | None = None,
-        output_high_hz: float | None = None,
-        execution_context: Any = None,
+        self, recording: RecordingSummary, start_s: float = 0.0,
+        window_s: float = 30.0, channels: list[str] | None = None, *,
+        low_hz: float = 1.0, high_hz: float = 50.0,
+        notch_hz: float | None = None, output_low_hz: float | None = None,
+        output_high_hz: float | None = None, execution_context: Any = None,
     ) -> dict[str, object]:
-        """Return spectrogram-v2 from the continuous v3-preprocessed signal."""
-        output_low = float(output_low_hz if output_low_hz is not None else low_hz)
-        output_high = float(output_high_hz if output_high_hz is not None else high_hz)
-        # Keep a lease throughout both estimates; another worker may evict the LRU entry.
-        cached = self._preprocessed_recording(
-            recording, low_hz, high_hz, notch_hz, execution_context, channels=channels,
-        )
-        payload = self.load_spectrum(
-            recording, start_s=start_s, window_s=window_s, channels=channels,
+        """Execute current STFT without entering whole-record preprocessing."""
+        from app.services.spectrogram_source import load_spectrogram
+
+        return load_spectrogram(
+            self.recordings, self.spectral_gateway, recording, start_s, window_s, channels,
             low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-            filter_low_hz=low_hz, filter_high_hz=high_hz,
-            output_low_hz=output_low, output_high_hz=output_high,
+            output_low_hz=output_low_hz, output_high_hz=output_high_hz,
             execution_context=execution_context,
-            _preprocessed=cached,
         )
-        names = list(payload["channels"])
-        indexes = [list(cached.channel_names).index(name) for name in names]
-        start_index = int(np.floor(float(start_s) * cached.sfreq))
-        stop_index = min(len(cached.data), start_index + int(round(float(window_s) * cached.sfreq)))
-        # Integrate standard bands before cropping the returned frequency axis.
-        times, freqs, values, quality = self.spectral_gateway.spectrogram(
-            cached.data[start_index:stop_index, :][:, indexes], cached.sfreq,
-            low_hz=min(output_low, min(edges[0] for edges in FREQUENCY_BANDS.values())),
-            high_hz=min(max(output_high, max(edges[1] for edges in FREQUENCY_BANDS.values())),
-                        np.nextafter(cached.sfreq / 2.0, 0.0)),
-        )
-        frequency_mask = (freqs >= output_low) & (freqs <= output_high)
-        if not np.any(frequency_mask):
-            raise ValueError("请求的 STFT 频率范围没有可用频率点")
-        power_uv = values[:, :, frequency_mask] * 1e12
-        power_db = 10.0 * np.log10(np.maximum(power_uv, np.finfo(float).tiny))
-        linear_values = {name: power_uv[:, index, :].tolist() for index, name in enumerate(names)}
-        db_values = {name: power_db[:, index, :].tolist() for index, name in enumerate(names)}
-        band_series = {
-            name: {
-                band: [
-                    (float(self.spectral_gateway.integrate_band(freqs, row, low, high) * 1e12)
-                     if np.isfinite(row).all() else float("nan"))
-                    if low >= freqs[0] and high <= freqs[-1] else None
-                    for row in values[:, index, :]
-                ]
-                for band, (low, high) in FREQUENCY_BANDS.items()
-            }
-            for index, name in enumerate(names)
-        }
-        for item in quality:
-            item["center_s"] = float(item["center_s"]) + float(start_s)
-            item["start_s"] = float(item["start_s"]) + float(start_s)
-            item["end_s"] = float(item["end_s"]) + float(start_s)
-        return {
-            "recording_id": recording.id,
-            "window_start_s": float(start_s),
-            "window_duration_s": (stop_index - start_index) / cached.sfreq,
-            "sfreq_hz": float(cached.sfreq),
-            "channels": names,
-            "analysis_reference": payload["analysis_reference"],
-            "signal_source": payload["signal_source"],
-            "times_s": (times + float(start_s)).tolist(),
-            "frequencies_hz": freqs[frequency_mask].tolist(),
-            "power": linear_values,
-            "power_linear": linear_values,
-            "power_db": db_values,
-            "band_power_timeseries": band_series,
-            "units": "uV^2/Hz",
-            "power_linear_units": "uV^2/Hz",
-            "power_db_units": "dB re 1 uV^2/Hz",
-            "band_power_timeseries_units": "uV^2",
-            "analysis_algorithm_version": "offline-spectral-v3",
-            "spectrogram_contract_version": "spectrogram-v2",
-            "algorithm_version": "spectrogram-v2",
-            "frequency_range_hz": {"low_hz": output_low, "high_hz": output_high},
-            "filter_frequency_range_hz": {"low_hz": float(low_hz), "high_hz": float(high_hz)},
-            "notch_hz": notch_hz,
-            "segment_s": 4.0,
-            "step_s": 1.0,
-            "quality": {
-                "windows": quality,
-                "clean_windows": sum(item["status"] == "clean" for item in quality),
-                "total_windows": len(quality),
-                "bad_windows": sum(item["status"] == "bad" for item in quality),
-                "evidence": {
-                    "schema_version": "spectrogram-window-evidence-v1",
-                    "transform_padding": {"used": False, "kind": "none", "samples": 0},
-                    "gap_detected_windows": sum(bool(item["gap"]["detected"]) for item in quality),
-                },
-            },
-        }
 
     def load_configured_spectrum(
         self,
@@ -477,7 +408,7 @@ class SpectralAnalysisService:
         config: AnalysisConfigRequest,
         spectrogram_loader: Callable[..., dict[str, object]] | None = None,
     ) -> dict[str, object]:
-        """Add the configurable spectrogram-v2 traceability envelope."""
+        """Add the configurable spectrogram-v3-bounded traceability envelope."""
         if config.mode != "spectrogram":
             raise ValueError("时频图配置的 mode 必须为 spectrogram")
         requested = config.model_dump(mode="json")
@@ -518,7 +449,8 @@ class SpectralAnalysisService:
             "actual_time": {"start_s": actual_start, "end_s": actual_end, "duration_s": actual_end - actual_start},
             "segment_s": payload["segment_s"],
             "step_s": payload["step_s"],
-            "frequency_range_hz": [1.0, 30.0],
+            "frequency_range_hz": [payload["frequency_range_hz"]["low_hz"], payload["frequency_range_hz"]["high_hz"]],
+            "preprocessing": payload["preprocessing"],
             "custom_frequency_range": requested.get("custom_frequency_range"),
             "time_axis": "window_center",
             "matrix_shape": [len(payload["times_s"]), len(payload["frequencies_hz"])],
@@ -529,10 +461,10 @@ class SpectralAnalysisService:
         frequency_bins = len(payload["frequencies_hz"])
         config_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper()
         payload.update({
-            "algorithm_version": "spectrogram-v2-configurable",
-            "analysis_algorithm_version": "offline-spectral-v3",
-            "spectrogram_contract_version": "spectrogram-v2",
-            "baseline_algorithm_version": "spectrogram-v2",
+            "algorithm_version": "spectrogram-v3-bounded-configurable",
+            "analysis_algorithm_version": STFT_PREPROCESSING_VERSION,
+            "spectrogram_contract_version": "spectrogram-v3-bounded",
+            "baseline_algorithm_version": "spectrogram-v3-bounded",
             "requested_config": requested,
             "execution_config": execution,
             "requested_start_s": config.time.start_s,

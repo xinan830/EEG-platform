@@ -1,139 +1,176 @@
 using BrainPlatform.Desktop.Modules.Review.Analysis;
-using BrainPlatform.Desktop.Modules.Review.Scheduling;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
-/// <summary>Review analysis preparation and configuration revision boundaries; no playback clock or science.</summary>
+/// <summary>One active algorithm panel; preparation is serialized and cancelled on selection changes.</summary>
 public sealed partial class RecordingReviewViewModel
 {
-    private Task? analysisParameterLoadTask;
+    private readonly SemaphoreSlim analysisPreparationGate = new(1, 1);
+    private CancellationTokenSource? analysisPreparation;
     private bool hasUnresolvedAnalysisMontage;
+    private bool loadingAnalysisParameters;
     private readonly LatestDelayedTask analysisUpdater = new();
-    public Task PrepareDefaultPsdAsync() => PreparePsdAsync(analysisLifetime.Token);
 
-    private async Task PreparePsdAsync(CancellationToken cancellationToken)
+    private IReadOnlyDictionary<string, ReviewAlgorithmPanelRegistration> CreateAnalysisPanelRegistrations()
     {
-        if (analysisCoordinator is null || analysisRecordingDirectory is null)
-            throw new InvalidOperationException("当前回溯记录不支持算法注册。");
-        PsdPreparationText = "正在注册记录并加载 PSD 配置…";
-        long? revision = null;
+        var registrations = new[]
+        {
+            new ReviewAlgorithmPanelRegistration("rbp", RbpParameters,
+                (recording, algorithm, montage) => RbpParameters.Initialize(recording, algorithm, montage),
+                (duration, rate) => RbpParameters.BuildConfig(duration, rate),
+                (response, cursor) => RbpAnalysis.Apply(response, cursor)),
+            new ReviewAlgorithmPanelRegistration("stft", StftParameters,
+                (recording, algorithm, montage) => StftParameters.Initialize(recording, algorithm, montage),
+                (duration, rate) => StftParameters.BuildConfig(duration, rate),
+                (response, _) => StftAnalysis.Apply(response)),
+            new ReviewAlgorithmPanelRegistration("tnk_biofeedback", TnkParameters,
+                (recording, algorithm, montage) =>
+                {
+                    TnkParameters.Initialize(recording, algorithm, montage);
+                    TnkAnalysis.Initialize(algorithm);
+                    TnkAnalysis.SetVisibleStart(AnalysisPanelStartSeconds);
+                },
+                (duration, rate) => TnkParameters.BuildConfig(duration, rate),
+                (response, _) => TnkAnalysis.Apply(response, AnalysisPanelStartSeconds)),
+            ScalarRegistration(FaaParameters, FaaAnalysis),
+            ScalarRegistration(IapfParameters, IapfAnalysis),
+            ScalarRegistration(ThetaBetaParameters, ThetaBetaAnalysis),
+            ScalarRegistration(BrainbeatParameters, BrainbeatAnalysis),
+        };
+        return registrations.ToDictionary(item => item.AlgorithmId, StringComparer.Ordinal);
+    }
+
+    private static ReviewAlgorithmPanelRegistration ScalarRegistration(ReviewScalarParameters parameters,
+        ReviewScalarAnalysisViewModel presentation) => new(parameters.AlgorithmId, parameters,
+        (recording, algorithm, montage) => parameters.Initialize(recording, algorithm, montage),
+        (duration, rate) => parameters.BuildConfig(duration, rate),
+        (response, _) => presentation.Apply(response, parameters.Channel, parameters.SecondaryChannel));
+
+    internal async Task OpenAnalysisAsync(string algorithmId)
+    {
+        if (!analysisCoordinators.ContainsKey(algorithmId) || !analysisPanels.ContainsKey(algorithmId))
+            throw new InvalidOperationException($"回放页未配置 {algorithmId} 算法。");
+        SetActiveAnalysis(algorithmId);
+        await PrepareAnalysisAsync(algorithmId, analysisLifetime.Token);
+    }
+
+    internal async Task CloseAnalysisAsync()
+    {
+        SetActiveAnalysis(null);
+        var revision = analysisConfigurationRevision;
+        await analysisPreparationGate.WaitAsync();
         try
         {
-            await EnsurePsdParametersLoadedAsync();
-            cancellationToken.ThrowIfCancellationRequested();
-            var registered = analysisRecording ?? throw new InvalidOperationException("PSD 记录注册未完成。");
-            if (hasUnresolvedAnalysisMontage)
-                throw new InvalidOperationException("当前回溯导联没有对应的后端分析快照，已停止计算以避免沿用旧导联结果。");
-            var request = new AnalysisRunRequest(registered.Id, "official_algorithm",
-                PsdParameters.BuildConfig(registered.DurationSeconds ?? DurationSeconds,
-                    registered.SamplingRateHz ?? samplingRateHz,
-                    new ReviewAnalysisSettingsSnapshot(HighPassHz, LowPassHz, NotchHz, AnalysisSettings.WindowSeconds),
-                    PsdParameters.Montage));
-            revision = analysisConfigurationRevision;
-            await DetachAnalysisAsync();
-            if (!analysisCoordinator.SupportsOnDemandWindows)
-                throw new NotSupportedException("PSD 尚未通过回溯按需适配验收；此页面不会回退到完整 Run 计算。");
-            await AttachOnDemandAnalysisAsync(request, cancellationToken);
-            if (cancellationToken.IsCancellationRequested || revision != analysisConfigurationRevision) return;
-            PsdPreparationText = CurrentAnalysisWindow is null
-                ? AnalysisStatusText
-                : "PSD 按需窗口已准备，正在跟随回溯游标。";
+            if (activeAnalysisId is null && revision == analysisConfigurationRevision) await DetachAnalysisAsync();
         }
+        finally { analysisPreparationGate.Release(); }
+        if (!IsAnalysisPanelOpen) AnalysisPreparationText = "算法面板已关闭。";
+    }
+
+    private void SetActiveAnalysis(string? algorithmId)
+    {
+        analysisPreparation?.Cancel();
+        analysisBinding?.DetachRun();
+        analysisConfigurationRevision++;
+        activeAnalysisId = algorithmId;
+        analysisPanelStartSeconds = PositionSeconds;
+        foreach (var panel in analysisPanels.Values) panel.Apply(null, PositionSeconds);
+        RaisePropertyChanged(nameof(AnalysisPanelStartSeconds));
+        RaisePropertyChanged(nameof(IsAnalysisPanelOpen));
+        RaisePropertyChanged(nameof(IsRbpAnalysisPanelOpen));
+        RaisePropertyChanged(nameof(IsStftAnalysisPanelOpen));
+        RaisePropertyChanged(nameof(IsTnkAnalysisPanelOpen));
+        RaisePropertyChanged(nameof(AnalysisPanelTitle));
+    }
+
+    private async Task PrepareAnalysisAsync(string algorithmId, CancellationToken cancellationToken)
+    {
+        analysisPreparation?.Cancel();
+        using var preparation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, analysisLifetime.Token);
+        analysisPreparation = preparation;
+        var token = preparation.Token;
+        var revision = analysisConfigurationRevision;
+        try
+        {
+            await analysisPreparationGate.WaitAsync(token);
+            try
+            {
+                token.ThrowIfCancellationRequested();
+                if (activeAnalysisId != algorithmId || revision != analysisConfigurationRevision) return;
+                await DetachAnalysisAsync();
+                token.ThrowIfCancellationRequested();
+                analysisCoordinator = analysisCoordinators[algorithmId];
+                SubscribeTnkPlaybackEvents(analysisCoordinator);
+                AnalysisPreparationText = $"正在准备 {analysisCoordinator.AlgorithmDisplayName}…";
+                if (analysisRecordingDirectory is null)
+                    throw new InvalidOperationException("当前回溯记录不支持算法注册。");
+                analysisRecording ??= await analysisCoordinator.RegisterAsync(analysisRecordingDirectory, token,
+                    CompatibleViewingMontages.ToArray());
+                token.ThrowIfCancellationRequested();
+                var algorithm = await analysisCoordinator.GetAlgorithmAsync(token);
+                token.ThrowIfCancellationRequested();
+                var montage = ResolveAnalysisMontage(analysisRecording, CurrentViewingMontage);
+                hasUnresolvedAnalysisMontage = CurrentViewingMontage is not null && montage is null;
+                if (hasUnresolvedAnalysisMontage)
+                    throw new InvalidOperationException("后端没有当前导联快照，不能沿用旧导联结果。");
+                var panel = analysisPanels[algorithmId];
+                loadingAnalysisParameters = true;
+                try { panel.Initialize(analysisRecording, algorithm, montage); }
+                finally { loadingAnalysisParameters = false; }
+                var duration = analysisRecording.DurationSeconds ?? DurationSeconds;
+                var rate = analysisRecording.SamplingRateHz ?? samplingRateHz;
+                var config = panel.BuildConfiguration(duration, rate);
+                await AttachOnDemandAnalysisAsync(new AnalysisRunRequest(analysisRecording.Id, "official_algorithm", config), token);
+                token.ThrowIfCancellationRequested();
+                AnalysisPreparationText = CurrentAnalysisWindow is null ? AnalysisStatusText : "";
+            }
+            finally { analysisPreparationGate.Release(); }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (cancellationToken.IsCancellationRequested || analysisLifetime.IsCancellationRequested || (revision is not null && revision != analysisConfigurationRevision)) return;
-            PsdPreparationText = $"PSD 准备失败：{exception.Message}";
+            if (token.IsCancellationRequested || revision != analysisConfigurationRevision) return;
+            AnalysisPreparationText = $"算法准备失败：{exception.Message}";
             throw;
         }
-    }
-
-    private async Task OpenPsdAnalysisAsync()
-    {
-        await EnsurePsdParametersLoadedAsync();
-        IsPsdAnalysisPanelOpen = true;
-        await PrepareDefaultPsdAsync();
-    }
-
-    private Task EnsurePsdParametersLoadedAsync()
-    {
-        if (analysisRecording is not null && PsdParameters.Channels.Count > 0) return Task.CompletedTask;
-        if (analysisParameterLoadTask is { IsCompleted: false }) return analysisParameterLoadTask;
-        return analysisParameterLoadTask = LoadPsdParametersAsync();
-    }
-
-    private async Task LoadPsdParametersAsync()
-    {
-        if (analysisCoordinator is null || analysisRecordingDirectory is null)
-            throw new InvalidOperationException("当前回溯记录不支持算法注册。");
-        if (analysisRecording is not null && PsdParameters.Channels.Count > 0) return;
-
-        var registered = await analysisCoordinator.RegisterAsync(analysisRecordingDirectory, analysisLifetime.Token,
-            CompatibleViewingMontages.ToArray());
-        var algorithm = await analysisCoordinator.GetAlgorithmAsync(analysisLifetime.Token);
-        var selectedMontage = ResolveAnalysisMontage(registered, CurrentViewingMontage);
-        hasUnresolvedAnalysisMontage = CurrentViewingMontage is not null && selectedMontage is null;
-        if (hasUnresolvedAnalysisMontage)
-            throw new InvalidOperationException("后端没有登记当前回溯导联配置，不能安全地计算 PSD。");
-        PsdParameters.Initialize(registered, algorithm, selectedMontage);
-        AnalysisSettings.Initialize(algorithm.DynamicPolicy);
-        analysisRecording = registered;
-        PsdPreparationText = "PSD 参数已加载。";
-    }
-
-    public async Task<AnalysisRunResponse> EnsurePsdAnalysisAsync(
-        AnalysisRunRequest request,
-        Action<AnalysisRunResponse>? onStatusChanged = null,
-        CancellationToken cancellationToken = default,
-        long? expectedConfigurationRevision = null)
-    {
-        if (analysisCoordinator is null)
-            throw new InvalidOperationException("当前回溯页未配置分析 provider。");
-        if (!string.Equals(request.AnalysisType, "official_algorithm", StringComparison.Ordinal) ||
-            !request.Config.TryGetProperty("algorithm_id", out var algorithm) ||
-            !string.Equals(algorithm.GetString(), "psd", StringComparison.Ordinal))
+        finally
         {
-            throw new ArgumentException("当前回溯入口只接受 PSD 官方算法配置。", nameof(request));
+            if (ReferenceEquals(analysisPreparation, preparation)) analysisPreparation = null;
         }
-
-        var revision = expectedConfigurationRevision ?? analysisConfigurationRevision;
-        var run = await analysisCoordinator.EnsureRunAsync(request, onStatusChanged, cancellationToken);
-        if (run.Status is not ("completed" or "gate_failed"))
-            throw new InvalidOperationException($"PSD 分析未完成：{run.Status}。");
-        if (!analysisLifetime.IsCancellationRequested &&
-            revision == analysisConfigurationRevision)
-            await AttachAnalysisAsync(run.RunId, cancellationToken);
-        return run;
     }
 
     private void OnAnalysisConfigurationChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ReviewPsdParameters.Channel) or nameof(ReviewPsdParameters.Montage) or
-            nameof(ReviewAnalysisSettings.WindowSeconds))
+        if (loadingAnalysisParameters || activeAnalysisId is not { } activeId ||
+            !analysisPanels.TryGetValue(activeId, out var panel) || !ReferenceEquals(sender, panel.Configuration)) return;
+        if (e.PropertyName is nameof(ReviewRbpParameters.Channel) or nameof(ReviewRbpParameters.Montage) or
+            nameof(ReviewScalarParameters.Channel) or nameof(ReviewScalarParameters.SecondaryChannel) or
+            nameof(ReviewScalarParameters.Montage) or nameof(ReviewStftParameters.Channel) or
+            nameof(ReviewTnkParameters.RoleMapping) or nameof(ReviewTnkParameters.Montage))
             InvalidateAnalysisConfiguration();
     }
 
-    private static HistoricalMontageDescriptor? ResolveAnalysisMontage(
-        RegisteredRecording recording, MontageProfile? selected)
-    {
-        if (selected is null) return null;
-        return recording.MontageCatalogue?.FirstOrDefault(item =>
+    private static HistoricalMontageDescriptor? ResolveAnalysisMontage(RegisteredRecording recording, MontageProfile? selected) =>
+        selected is null ? null : recording.MontageCatalogue?.FirstOrDefault(item =>
             string.Equals(item.Id, selected.Id, StringComparison.Ordinal) ||
             string.Equals(item.SourceProfileId, selected.Id, StringComparison.Ordinal));
-    }
 
     private void InvalidateAnalysisConfiguration()
     {
+        analysisPreparation?.Cancel();
+        analysisBinding?.DetachRun();
         analysisConfigurationRevision++;
         isAnalysisStale = true;
-        PsdPreparationText = "参数已改变，等待自动分析。";
+        foreach (var panel in analysisPanels.Values) panel.Apply(null, PositionSeconds);
+        AnalysisPreparationText = "参数已改变，等待自动分析。";
         RaiseAnalysisPropertiesChanged();
-        if (!IsPsdAnalysisPanelOpen || analysisLifetime.IsCancellationRequested) return;
+        if (activeAnalysisId is not { } algorithmId || analysisLifetime.IsCancellationRequested) return;
+        var revision = analysisConfigurationRevision;
         analysisUpdater.Schedule(TimeSpan.FromMilliseconds(300), async token =>
         {
-            if (!IsPsdAnalysisPanelOpen || analysisLifetime.IsCancellationRequested) return;
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, analysisLifetime.Token);
-            try { await PreparePsdAsync(linked.Token); }
-            catch (Exception exception) when (!linked.IsCancellationRequested) { ReportCommandError(exception); }
+            if (activeAnalysisId != algorithmId || revision != analysisConfigurationRevision || analysisLifetime.IsCancellationRequested) return;
+            try { await PrepareAnalysisAsync(algorithmId, token); }
+            catch (Exception exception) when (!token.IsCancellationRequested) { ReportCommandError(exception); }
         });
     }
 }

@@ -40,11 +40,17 @@ public sealed class RbpChart : UserControl
         nameof(IsTrend), typeof(bool), typeof(RbpChart), new PropertyMetadata(false, OnDataChanged));
     public static readonly DependencyProperty IsStackedHistoryProperty = DependencyProperty.Register(
         nameof(IsStackedHistory), typeof(bool), typeof(RbpChart), new PropertyMetadata(false, OnDataChanged));
+    public static readonly DependencyProperty VisibleStartSecondsProperty = DependencyProperty.Register(
+        nameof(VisibleStartSeconds), typeof(double?), typeof(RbpChart), new PropertyMetadata(null, OnDataChanged));
+    public static readonly DependencyProperty ShowAxisTitlesProperty = DependencyProperty.Register(
+        nameof(ShowAxisTitles), typeof(bool), typeof(RbpChart), new PropertyMetadata(true, OnDataChanged));
 
     public IReadOnlyList<RbpBandPoint>? Bands { get => (IReadOnlyList<RbpBandPoint>?)GetValue(BandsProperty); set => SetValue(BandsProperty, value); }
     public IReadOnlyList<RbpWindowPoint>? Windows { get => (IReadOnlyList<RbpWindowPoint>?)GetValue(WindowsProperty); set => SetValue(WindowsProperty, value); }
     public bool IsTrend { get => (bool)GetValue(IsTrendProperty); set => SetValue(IsTrendProperty, value); }
     public bool IsStackedHistory { get => (bool)GetValue(IsStackedHistoryProperty); set => SetValue(IsStackedHistoryProperty, value); }
+    public double? VisibleStartSeconds { get => (double?)GetValue(VisibleStartSecondsProperty); set => SetValue(VisibleStartSecondsProperty, value); }
+    public bool ShowAxisTitles { get => (bool)GetValue(ShowAxisTitlesProperty); set => SetValue(ShowAxisTitlesProperty, value); }
 
     public RbpChart()
     {
@@ -70,6 +76,7 @@ public sealed class RbpChart : UserControl
         stackedWindowsSource = null;
         stackedSeries.Clear();
         RecordingTimeAxisPresentation.SetAxis(this, null);
+        yAxis.AxisTitle = ShowAxisTitles ? "相对功率（%）" : "";
         surface.RenderableSeries.Clear();
         if (IsStackedHistory)
         {
@@ -88,12 +95,12 @@ public sealed class RbpChart : UserControl
     {
         var windows = Windows ?? [];
         var bands = Bands ?? [];
-        xAxis.AxisTitle = "窗口结束时间（s）";
+        var startSeconds = ChartStartSeconds(windows);
+        xAxis.AxisTitle = ShowAxisTitles ? "窗口结束时间（s）" : "";
         xAxis.LabelProvider = new NumericLabelProvider();
         xAxis.AutoTicks = true;
-        xAxis.VisibleRange = windows.Count > 0
-            ? new DoubleRange(Math.Max(0, windows[0].StartSeconds), Math.Max(windows[0].StartSeconds + 1, windows[^1].EndSeconds + 0.5))
-            : new DoubleRange(0, 10);
+        xAxis.VisibleRange = new DoubleRange(startSeconds, Math.Max(startSeconds + 1,
+            windows.Count > 0 ? windows[^1].EndSeconds + 0.5 : startSeconds + 10));
         RecordingTimeAxisPresentation.SetAxis(this, xAxis);
         foreach (var (band, index) in bands.Select((value, index) => (value, index)))
         {
@@ -168,16 +175,18 @@ public sealed class RbpChart : UserControl
 
     private void UpdateStackedRange(IReadOnlyList<RbpWindowPoint> windows)
     {
-        xAxis.VisibleRange = windows.Count > 0
-            ? new DoubleRange(Math.Max(0, windows[0].StartSeconds),
-                Math.Max(windows[0].StartSeconds + 1, windows[^1].EndSeconds + 0.5))
-            : new DoubleRange(0, 10);
+        var startSeconds = ChartStartSeconds(windows);
+        xAxis.VisibleRange = new DoubleRange(startSeconds, Math.Max(startSeconds + 1,
+            windows.Count > 0 ? windows[^1].EndSeconds + 0.5 : startSeconds + 10));
     }
+
+    private double ChartStartSeconds(IReadOnlyList<RbpWindowPoint> windows) =>
+        Math.Max(0, VisibleStartSeconds ?? windows.FirstOrDefault()?.StartSeconds ?? 0);
 
     private void BuildBars()
     {
         var bands = Bands ?? [];
-        xAxis.AxisTitle = "频段";
+        xAxis.AxisTitle = ShowAxisTitles ? "频段" : "";
         xAxis.LabelProvider = new BandLabelProvider(bands.Select(band => band.Label).ToArray());
         xAxis.AutoTicks = false;
         xAxis.MajorDelta = 1;
@@ -202,7 +211,7 @@ public sealed class RbpChart : UserControl
     {
         var windows = Windows ?? [];
         var bands = Bands ?? [];
-        xAxis.AxisTitle = "窗口结束时间（s）";
+        xAxis.AxisTitle = ShowAxisTitles ? "窗口结束时间（s）" : "";
         xAxis.LabelProvider = new NumericLabelProvider();
         xAxis.AutoTicks = true;
         xAxis.VisibleRange = windows.Count > 0

@@ -117,7 +117,7 @@ public sealed class AlgorithmListViewModelTests
     [Fact]
     public void StftConfig_ContainsSharedFrequencyAndNotchControls()
     {
-        var algorithm = new AlgorithmCatalogItem("official", "stft", "spectrogram-v2", "时频分析", "STFT", "", [], ["static", "dynamic"],
+        var algorithm = new AlgorithmCatalogItem("official", "stft", "spectrogram-v3-bounded", "时频分析", "STFT", "", [], ["static", "dynamic"],
             default, new DynamicAnalysisPolicy(4, [], 10, 1, true), "available", true, null, null, null);
         var config = AlgorithmRunConfiguration.BuildRunConfig(
             algorithm, "O1", new TimeRange(0, 20), "static",

@@ -26,7 +26,7 @@ class OfficialSyntheticRecordingService(RecordingService):
         super().__init__(*args, **kwargs)
         self.open_access_session_calls = 0
 
-    def open_access_session(self, _recording, *, analysis_montage_id=None):
+    def open_access_session(self, _recording, *, analysis_montage_id=None, verify_content_hash=True):
         self.open_access_session_calls += 1
         sfreq = self.synthetic_sfreq_hz
         time_s = np.arange(int(30 * sfreq)) / sfreq
@@ -186,8 +186,8 @@ def test_official_rbp_run_returns_all_five_backend_band_shares(tmp_path: Path):
     artifact = service.list_artifacts(completed.run_id)[0]
     arrays = service.artifacts.read_npz(artifact)
     assert sum(float(arrays[name][0]) for name in ("delta", "theta", "alpha", "beta", "gamma")) == pytest.approx(1.0)
-    assert completed.scientific_version == "official-rbp-v3"
-    assert completed.definition_version == "2.0.2"
+    assert completed.scientific_version == "official-rbp-v4"
+    assert completed.definition_version == "2.0.4"
     assert completed.filters["bandpass_hz"] == [1.0, 50.0]
     assert completed.filters["notch_hz"] == 50.0
 
@@ -236,7 +236,9 @@ def test_official_rbp_matches_psd_five_band_shares_with_identical_preprocessing(
     evidence = rbp.result_summary["structured"]["spectral_evidence"]
     assert evidence["filter_contract"]["bandpass_hz"] == [1.0, 50.0]
     assert evidence["filter_contract"]["notch_hz"] == 50.0
-    assert evidence["rbp_denominator_uv2"] == pytest.approx(sum(evidence["band_power"].values()))
+    trace = rbp.result_summary["structured"]["calculation_trace"]
+    channel = rbp.result_summary["structured"]["channel_order"][0]
+    assert trace["denominator_uv2"][channel] == pytest.approx(sum(trace["band_powers_uv2"][channel].values()))
 
 
 def test_official_psd_run_returns_structured_frequency_artifact(tmp_path: Path):

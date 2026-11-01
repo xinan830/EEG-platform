@@ -11,6 +11,8 @@ public sealed class AnalysisPanelShell : ContentControl
         nameof(Title), typeof(string), typeof(AnalysisPanelShell), new PropertyMetadata("分析"));
     public static readonly DependencyProperty ParametersProperty = DependencyProperty.Register(
         nameof(Parameters), typeof(object), typeof(AnalysisPanelShell));
+    public static readonly DependencyProperty HeaderContentProperty = DependencyProperty.Register(
+        nameof(HeaderContent), typeof(object), typeof(AnalysisPanelShell));
     public static readonly DependencyProperty StatusTextProperty = DependencyProperty.Register(
         nameof(StatusText), typeof(string), typeof(AnalysisPanelShell), new PropertyMetadata(""));
     public static readonly DependencyProperty ApplyCommandProperty = DependencyProperty.Register(
@@ -24,6 +26,7 @@ public sealed class AnalysisPanelShell : ContentControl
 
     public string Title { get => (string)GetValue(TitleProperty); set => SetValue(TitleProperty, value); }
     public object? Parameters { get => GetValue(ParametersProperty); set => SetValue(ParametersProperty, value); }
+    public object? HeaderContent { get => GetValue(HeaderContentProperty); set => SetValue(HeaderContentProperty, value); }
     public string StatusText { get => (string)GetValue(StatusTextProperty); set => SetValue(StatusTextProperty, value); }
     public ICommand? ApplyCommand { get => (ICommand?)GetValue(ApplyCommandProperty); set => SetValue(ApplyCommandProperty, value); }
     public ICommand? CloseCommand { get => (ICommand?)GetValue(CloseCommandProperty); set => SetValue(CloseCommandProperty, value); }

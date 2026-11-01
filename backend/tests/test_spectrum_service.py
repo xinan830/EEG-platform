@@ -17,7 +17,7 @@ def _service(tmp_path: Path) -> tuple[RecordingService, object]:
 
 
 def _provide_data(monkeypatch, service, data, sfreq, names):
-    def open_session(_recording):
+    def open_session(_recording, *, verify_content_hash=True):
         reader = ArraySampleReader(data, sfreq, names)
         return RecordingAccessSession(
             RecordingSourceIdentity("test", "test", "test"), reader, sfreq,
@@ -134,7 +134,7 @@ def test_spectrum_separates_filter_range_from_output_axis_and_reuses_filter_cach
     assert first["filter_contract"]["bandpass_hz"] == second["filter_contract"]["bandpass_hz"]
 
 
-def test_spectrogram_reuses_preprocess_cache_with_explicit_notch(tmp_path, monkeypatch):
+def test_spectrogram_uses_explicit_notch_without_whole_record_cache(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
     sfreq = 200.0
     times = np.arange(12 * int(sfreq)) / sfreq
@@ -146,6 +146,7 @@ def test_spectrogram_reuses_preprocess_cache_with_explicit_notch(tmp_path, monke
     assert payload["notch_hz"] == 50.0
     assert payload["frequency_range_hz"] == {"low_hz": 1.0, "high_hz": 50.0}
     assert payload["frequencies_hz"][-1] == 50.0
+    assert not service._analysis_preprocess_cache._entries
 
 
 def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch):
@@ -250,7 +251,7 @@ def test_spectrum_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypat
     assert len(service._analysis_preprocess_cache._entries) == 1
 
 
-def test_on_demand_spectrogram_reuses_full_preprocessed_source(tmp_path, monkeypatch):
+def test_on_demand_spectrogram_matches_static_without_whole_preprocessed_source(tmp_path, monkeypatch):
     from dataclasses import replace
 
     service, recording = _service(tmp_path)
@@ -278,14 +279,8 @@ def test_on_demand_spectrogram_reuses_full_preprocessed_source(tmp_path, monkeyp
 
     np.testing.assert_array_equal(on_demand["power_linear"]["Pz"], static["power_linear"]["Pz"])
     np.testing.assert_array_equal(on_demand["power_db"]["Pz"], static["power_db"]["Pz"])
-    prepared = [
-        entry for (recording_id, _identity), entry
-        in service._analysis_preprocess_cache._entries.items()
-        if recording_id == recording.id
-    ]
-    assert len(prepared) == 1
-    assert prepared[0].channel_names == ("Fz", "Pz")
-    assert prepared[0].data.shape == data.shape
+    assert not service._analysis_preprocess_cache._entries
+    assert on_demand["preprocessing"]["channel_order"] == ["Pz"]
 
 
 def test_configured_v4_defaults_equal_frozen_v3(tmp_path, monkeypatch):
@@ -341,12 +336,15 @@ def test_configured_spectrogram_accepts_one_sample_rounding_error(tmp_path, monk
     monkeypatch.setattr(service, "load_spectrogram", lambda *_args, **_kwargs: {
         "recording_id": recording.id, "window_start_s": 1.022, "window_duration_s": 6.612,
         "sfreq_hz": 500.0, "channels": ["F3"], "times_s": [1.022], "frequencies_hz": [1.0],
-        "power": {"F3": [[1.0]]}, "units": "uV^2/Hz", "algorithm_version": "spectrogram-v1",
+        "power": {"F3": [[1.0]]}, "units": "uV^2/Hz", "algorithm_version": "spectrogram-v3-bounded",
+        "frequency_range_hz": {"low_hz": 1.0, "high_hz": 50.0},
+        "filter_frequency_range_hz": {"low_hz": 1.0, "high_hz": 50.0},
+        "notch_hz": None, "preprocessing": {"scope": "bounded_window_with_finite_context"},
         "band_power_timeseries": {"F3": {"delta": [1.0], "theta": [1.0], "alpha": [1.0], "beta": [1.0]}},
         "segment_s": 4.0, "step_s": 1.0,
     })
     payload = service.load_configured_spectrogram(recording, config)
-    assert payload["algorithm_version"] == "spectrogram-v2-configurable"
+    assert payload["algorithm_version"] == "spectrogram-v3-bounded-configurable"
     assert payload["actual_end_s"] == 7.634
     assert payload["matrix_shape"] == [1, 1]
     assert payload["first_center_s"] == 1.022

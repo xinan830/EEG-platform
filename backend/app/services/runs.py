@@ -314,9 +314,9 @@ class RunService:
             definition = {
                 "kind": request.analysis_type,
                 "contract": dict(ANALYSIS_CONTRACT),
-                "spectrogram_contract": "spectrogram-v2" if request.analysis_type == "spectrogram" else None,
+                "spectrogram_contract": "spectrogram-v3-bounded" if request.analysis_type == "spectrogram" else None,
             }
-            scientific_version = "spectrogram-v2" if request.analysis_type == "spectrogram" else str(ANALYSIS_CONTRACT["algorithm_version"])
+            scientific_version = "spectrogram-v3-bounded" if request.analysis_type == "spectrogram" else str(ANALYSIS_CONTRACT["algorithm_version"])
             window = {
                 "segment_s": 4.0,
                 "step_s": 1.0 if request.analysis_type == "spectrogram" else 2.0,
@@ -335,6 +335,15 @@ class RunService:
         if request.analysis_type == "official_algorithm":
             filters = execution_snapshot.filters
             quality_rules = execution_snapshot.quality_rules
+        elif request.analysis_type == "spectrogram":
+            from app.scientific.contracts.spectrogram import STFT_PREPROCESSING_VERSION, stft_context_s
+
+            filters.update({
+                "bandpass_hz": [1.0, 50.0], "notch_hz": None,
+                "preprocessing_version": STFT_PREPROCESSING_VERSION,
+                "preprocessing_scope": "bounded_window_with_finite_context",
+                "context_s": stft_context_s(1.0), "boundary_policy": "clamp_to_recording",
+            })
         signal_source = self.recordings.analysis_signal_provenance(recording)
         if signal_source["signal_mode"] == "acquisition_montage":
             definition = {**definition, "signal_source": signal_source}

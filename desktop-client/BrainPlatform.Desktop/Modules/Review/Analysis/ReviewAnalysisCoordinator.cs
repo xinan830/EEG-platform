@@ -11,12 +11,21 @@ public sealed class ReviewAnalysisCoordinator
     private readonly IReviewAlgorithmAdapter? provider;
     private long revision;
     private JsonElement? activeDynamicIdentity;
+    public event Action<DynamicWindowResponse>? TnkWindowCompleted;
+    public event Action<TnkPlaybackGap>? TnkGapReported;
 
     public ReviewAnalysisCoordinator(Func<string, long?, double?, CancellationToken, Task<WindowPreviewResponse>> loadWindow)
         => this.loadWindow = loadWindow ?? throw new ArgumentNullException(nameof(loadWindow));
 
     public ReviewAnalysisCoordinator(IReviewAlgorithmAdapter provider)
-        => this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
+    {
+        this.provider = provider ?? throw new ArgumentNullException(nameof(provider));
+        if (provider is IReviewTnkPlaybackEvents tnk)
+        {
+            tnk.WindowCompleted += response => TnkWindowCompleted?.Invoke(response);
+            tnk.GapReported += gap => TnkGapReported?.Invoke(gap);
+        }
+    }
 
     public ReviewAnalysisContext? Context { get; private set; }
     public ReviewAnalysisSnapshot? CurrentSnapshot { get; private set; }
@@ -103,6 +112,12 @@ public sealed class ReviewAnalysisCoordinator
 
     public Task ReleaseOnDemandAsync(CancellationToken cancellationToken = default) =>
         provider?.ReleaseOnDemandAsync(cancellationToken) ?? Task.CompletedTask;
+
+    public bool IsCurrentTnkEvent(DynamicWindowResponse response) =>
+        provider is IReviewTnkPlaybackEvents tnk && tnk.IsCurrent(response);
+
+    public bool IsCurrentTnkEvent(TnkPlaybackGap gap) =>
+        provider is IReviewTnkPlaybackEvents tnk && tnk.IsCurrent(gap);
 
     public void Reset()
     {

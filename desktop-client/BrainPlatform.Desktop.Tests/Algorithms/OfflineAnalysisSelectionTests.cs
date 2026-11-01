@@ -249,7 +249,7 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         {
             Respond = OnDemandDetailClient.RbpResponse,
             RespondFullRun = request => new AnalysisRunResponse(
-                "full-run-1", request.RecordingId, request.AnalysisType, "completed", "official-rbp-v3", null, null,
+                "full-run-1", request.RecordingId, request.AnalysisType, "completed", "official-rbp-v4", null, null,
             JsonSerializer.SerializeToElement(new { result_contract_version = "official-algorithm-result-v1", metric = new { mode = "dynamic", result_contract_version = "dynamic-analysis-frame-v6", actual_range = new { start_s = 0d, end_s = 30d }, output = new { value = (double?)null, unit = "ratio" }, series = Array.Empty<object>() } }),
                 null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 10, 10,
                 "completed", "已完成"),
@@ -258,10 +258,12 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         var catalog = OnDemandDetailClient.Catalog(client, "rbp");
         catalog.SelectedAlgorithm = catalog.SelectedAlgorithm! with
         {
-            Version = "official-rbp-v3",
-            ImplementationIdentity = "rbp-runtime-v3-montage-multi-channel",
+            Version = "official-rbp-v4",
+            ImplementationIdentity = "rbp-runtime-v5-channel-quality",
             DynamicCapabilities = JsonDocument.Parse("{\"on_demand\":{\"implementation\":\"implemented\",\"validation\":\"validated\"},\"combined_preview_background_full\":{\"implementation\":\"implemented\",\"validation\":\"validated\"},\"full_result_to_preview\":{\"implementation\":\"implemented\",\"validation\":\"validated\"}}").RootElement.Clone(),
         };
+        // Selecting a catalog descriptor resets the analysis mode to static.
+        catalog.SelectedAnalysisMode = "动态";
         catalog.SelectedDynamicExecutionMode = "按需预览 + 后台全量";
 
         await OnDemandDetailClient.Run(catalog);
@@ -269,9 +271,9 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         catalog.DynamicTimeProgressPercent = 50;
         await catalog.CurrentWindowLoad;
 
-        Assert.True(client.StructuredPreviewCalls >= 1);
+        Assert.True(client.StructuredPreviewCalls >= 1, catalog.BackgroundFullRunStatusText);
         Assert.Equal(requestCountAfterFullCache, client.Requests.Count);
-        Assert.Contains("全量窗口", catalog.DynamicPreviewSourceText);
+        Assert.Equal("全量已完成窗口（本地缓存）", catalog.DynamicPreviewSourceText);
         Assert.StartsWith("full-cache:", catalog.DisplayedAnalysisWindow!.SessionId);
         Assert.Equal("ready", catalog.DisplayedAnalysisWindow.State);
         await catalog.ReleaseWindowAnalysisAsync();
@@ -445,15 +447,15 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
     }
 
     [Fact]
-    public void Review_shares_psd_availability_and_preserves_injected_override()
+    public void Review_shares_rbp_availability_and_preserves_injected_override()
     {
         var client = new OnDemandDetailClient();
-        Assert.True(new PsdReviewAnalysisAdapter(client).SupportsOnDemandWindows);
-        Environment.SetEnvironmentVariable(Flag("psd"), "0");
-        Assert.False(new PsdReviewAnalysisAdapter(client).SupportsOnDemandWindows);
-        Assert.True(new PsdReviewAnalysisAdapter(client, enableOnDemand: true).SupportsOnDemandWindows);
-        Environment.SetEnvironmentVariable(Flag("psd"), "1");
-        Assert.False(new PsdReviewAnalysisAdapter(client, enableOnDemand: false).SupportsOnDemandWindows);
+        Assert.True(new ReviewWindowAnalysisAdapter(client, "rbp", "RBP").SupportsOnDemandWindows);
+        Environment.SetEnvironmentVariable(Flag("rbp"), "0");
+        Assert.False(new ReviewWindowAnalysisAdapter(client, "rbp", "RBP").SupportsOnDemandWindows);
+        Assert.True(new ReviewWindowAnalysisAdapter(client, "rbp", "RBP", enableOnDemand: true).SupportsOnDemandWindows);
+        Environment.SetEnvironmentVariable(Flag("rbp"), "1");
+        Assert.False(new ReviewWindowAnalysisAdapter(client, "rbp", "RBP", enableOnDemand: false).SupportsOnDemandWindows);
     }
 
     [Fact]
@@ -462,8 +464,8 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         Assert.False(OfflineAnalysisAvailability.IsOnDemandEnabled("future"));
         Environment.SetEnvironmentVariable(Flag("future"), "1");
         Assert.True(OfflineAnalysisAvailability.IsOnDemandEnabled("future"));
-        Environment.SetEnvironmentVariable(Flag("psd"), "");
-        Assert.True(new PsdReviewAnalysisAdapter(new OnDemandDetailClient()).SupportsOnDemandWindows);
+        Environment.SetEnvironmentVariable(Flag("rbp"), "");
+        Assert.True(new ReviewWindowAnalysisAdapter(new OnDemandDetailClient(), "rbp", "RBP").SupportsOnDemandWindows);
     }
 
     private static string Flag(string id) => $"BRAIN_WPF_ON_DEMAND_{id.ToUpperInvariant()}";

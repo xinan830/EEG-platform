@@ -47,6 +47,9 @@ public sealed class TnkAnalysisPlotView : UserControl
     public static readonly DependencyProperty PositionSecondsProperty = DependencyProperty.Register(nameof(PositionSeconds), typeof(double),
         typeof(TnkAnalysisPlotView), new PropertyMetadata(0d, (owner, _) => ((TnkAnalysisPlotView)owner).UpdateCursor()));
     public double PositionSeconds { get => (double)GetValue(PositionSecondsProperty); set => SetValue(PositionSecondsProperty, value); }
+    public static readonly DependencyProperty VisibleStartSecondsProperty = DependencyProperty.Register(
+        nameof(VisibleStartSeconds), typeof(double), typeof(TnkAnalysisPlotView), new PropertyMetadata(double.NaN));
+    public double VisibleStartSeconds { get => (double)GetValue(VisibleStartSecondsProperty); set => SetValue(VisibleStartSecondsProperty, value); }
 
     public TnkAnalysisPlotView()
     {
@@ -220,6 +223,13 @@ public sealed class TnkAnalysisPlotView : UserControl
         // Initial range only. Subsequent returned windows are appended without
         // rebuilding axes or resetting the operator's zoom/pan state.
         surface.ZoomExtents();
+        if (panel.Chart.IsTimeline && double.IsFinite(VisibleStartSeconds))
+        {
+            var latest = panel.Chart.Series.SelectMany(series => series.Points)
+                .Select(point => point.X).DefaultIfEmpty(VisibleStartSeconds).Max();
+            xAxis.AutoRange = AutoRange.Never;
+            xAxis.VisibleRange = TnkTimelineRange.FromVisibleStart(VisibleStartSeconds, latest);
+        }
         // ZoomExtents can override the explicit percentage display bounds when
         // the first returned window contains only one valid band. RBP remains
         // a 0-100% display even when later windows fill the other bands.
@@ -291,7 +301,7 @@ public sealed class TnkAnalysisPlotView : UserControl
                 else
                 {
                     rebuilt = true;
-                    // A late recovered window or bounded-history trim changed the prefix.
+                    // A late recovered window or explicit history reset changed the prefix.
                     // Rebuild only for this explicit reconciliation/reset case.
                     var replacement = new XyDataSeries<double, double> { SeriesName = dataSeries[index].SeriesName };
                     AppendAll(replacement, points);
@@ -302,7 +312,10 @@ public sealed class TnkAnalysisPlotView : UserControl
                 hasChanges = true;
             }
             if (!hasChanges) return "unchanged";
-            var advancedRange = TnkTimelineRange.AdvanceIfFollowing(xAxis?.VisibleRange as DoubleRange, previousEnd, nextEnd);
+            var advancedRange = double.IsFinite(VisibleStartSeconds)
+                ? TnkTimelineRange.AdvanceFromVisibleStart(xAxis?.VisibleRange as DoubleRange,
+                    VisibleStartSeconds, previousEnd, nextEnd)
+                : TnkTimelineRange.AdvanceIfFollowing(xAxis?.VisibleRange as DoubleRange, previousEnd, nextEnd);
             if (advancedRange is not null) xAxis!.VisibleRange = advancedRange;
             return rebuilt ? "stacked_rebuild" : "stacked_append";
         }
@@ -413,6 +426,22 @@ public sealed class TnkAnalysisPlotView : UserControl
 
 internal static class TnkTimelineRange
 {
+    internal static DoubleRange FromVisibleStart(double startSeconds, double latestSeconds)
+    {
+        if (!double.IsFinite(startSeconds) || !double.IsFinite(latestSeconds) || latestSeconds < startSeconds)
+            throw new ArgumentOutOfRangeException(nameof(startSeconds));
+        return new(startSeconds, Math.Max(startSeconds + 1, latestSeconds));
+    }
+
+    internal static DoubleRange? AdvanceFromVisibleStart(DoubleRange? visible, double startSeconds,
+        double previousEnd, double nextEnd)
+    {
+        if (visible is null || !double.IsFinite(startSeconds) || !double.IsFinite(previousEnd) ||
+            !double.IsFinite(nextEnd) || visible.Max < previousEnd - .001 || nextEnd <= visible.Max)
+            return null;
+        return new(startSeconds, nextEnd);
+    }
+
     public static DoubleRange? AdvanceIfFollowing(DoubleRange? visible, double previousEnd, double nextEnd)
     {
         if (visible is null || !double.IsFinite(previousEnd) || !double.IsFinite(nextEnd)
