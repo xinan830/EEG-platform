@@ -21,6 +21,35 @@ This roadmap evolves the existing EEG viewer into a local, single-user research 
 | 12 | `improve-core-research-workbench-ux` | Task-oriented navigation and ordinary/developer presentation separation | Complete, archived 2026-09-14 |
 | 13 | `add-research-metric-formula-builder` | Chinese user-facing feature selection and safe formula composition | Complete, archived 2026-09-14 |
 | 14 | `improve-algorithm-library-readability` | Readable saved formulas and provenance-safe private deletion | Complete, archived 2026-09-14 |
+| 15 | `clean-platform-architecture-debt` | Remove only confirmed obsolete compatibility paths, decouple feature navigation from MainWindow, keep composition ownership explicit, and contain generated build output | Planned after existing in-progress changes are reconciled |
+
+## Next Planned Direction
+
+`clean-platform-architecture-debt` is queued, not active. Before opening its
+OpenSpec change, reconcile the existing in-progress change directories so this
+roadmap's single-active-change rule is true again. Implement one slice at a time:
+
+1. Inventory compatibility paths and classify each as required historical-file
+   support, current scientific implementation, active adapter, or obsolete
+   fallback. Remove only the last category after caller and persisted-data
+   checks. In particular, ANT-derived Crimson and Zenlite TNK algorithms are
+   current calculations and are not compatibility code merely because their
+   source names contain `legacy`.
+2. Remove transitional WPF type namespaces only after their `x:Class`, generated
+   BAML, and composition references have been migrated and tested together.
+3. Move feature navigation requests out of Views' direct `MainWindow` casts to
+   the narrowest command/navigation boundary that fits each workflow. Keep
+   `Window.GetWindow` where it only supplies modal-dialog ownership.
+4. Keep one application composition root while reducing its feature-specific
+   construction detail. Avoid service locators, duplicate state owners, and a
+   new dependency-injection framework.
+5. Route isolated build/test output under the existing ignored temporary root;
+   clean only verified generated directories after no process is using them.
+
+Each slice requires focused dependency/build tests, OpenSpec strict validation,
+`git diff --check`, and a recorded manual check where user-visible navigation or
+WPF resource loading changes. Preserve recording formats, persisted results,
+algorithm identities, units, time semantics, and scientific behavior.
 
 ## Change gate
 
