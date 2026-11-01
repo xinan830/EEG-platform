@@ -47,6 +47,9 @@ public sealed class TnkAnalysisPlotView : UserControl
     public static readonly DependencyProperty PositionSecondsProperty = DependencyProperty.Register(nameof(PositionSeconds), typeof(double),
         typeof(TnkAnalysisPlotView), new PropertyMetadata(0d, (owner, _) => ((TnkAnalysisPlotView)owner).UpdateCursor()));
     public double PositionSeconds { get => (double)GetValue(PositionSecondsProperty); set => SetValue(PositionSecondsProperty, value); }
+    public static readonly DependencyProperty ShowPlaybackCursorProperty = DependencyProperty.Register(nameof(ShowPlaybackCursor), typeof(bool),
+        typeof(TnkAnalysisPlotView), new PropertyMetadata(true, (owner, _) => ((TnkAnalysisPlotView)owner).ScheduleRefresh()));
+    public bool ShowPlaybackCursor { get => (bool)GetValue(ShowPlaybackCursorProperty); set => SetValue(ShowPlaybackCursorProperty, value); }
     public static readonly DependencyProperty VisibleStartSecondsProperty = DependencyProperty.Register(
         nameof(VisibleStartSeconds), typeof(double), typeof(TnkAnalysisPlotView), new PropertyMetadata(double.NaN));
     public double VisibleStartSeconds { get => (double)GetValue(VisibleStartSecondsProperty); set => SetValue(VisibleStartSecondsProperty, value); }
@@ -155,9 +158,10 @@ public sealed class TnkAnalysisPlotView : UserControl
             }
             var targetVisibility = panel.Chart.HasValues ? Visibility.Collapsed : Visibility.Visible;
             if (empty.Visibility != targetVisibility) empty.Visibility = targetVisibility;
-            if (updateKind != "unchanged")
+            if (updateKind != "unchanged" && ShowPlaybackCursor)
                 UpdateCursor(force: true);
         }
+        valuesAtCursor.Visibility = ShowPlaybackCursor ? Visibility.Visible : Visibility.Collapsed;
         if (started != 0) RecordChartUpdate(started, updateKind);
     }
 
@@ -175,8 +179,8 @@ public sealed class TnkAnalysisPlotView : UserControl
             $" elapsed_ms={elapsed.ToString("0.000", CultureInfo.InvariantCulture)}");
     }
 
-    private static string StructureKey(TnkPlotPanel panel) =>
-        $"{panel.Chart.IsTimeline}|{panel.IsStacked}|" + string.Join("|", panel.Chart.Series.Select((series, index) =>
+    private string StructureKey(TnkPlotPanel panel) =>
+        $"{panel.Chart.IsTimeline}|{panel.IsStacked}|{ShowPlaybackCursor}|" + string.Join("|", panel.Chart.Series.Select((series, index) =>
             $"{series.Name}:{series.Unit}:{(panel.IsStacked && panel.Chart.IsTimeline ? "area" : "line")}"));
 
     private void BuildStructure(TnkPlotPanel panel, string key)
@@ -219,7 +223,7 @@ public sealed class TnkAnalysisPlotView : UserControl
             toggle.Unchecked += (_, _) => line.IsVisible = false;
             legend.Children.Add(toggle);
         }
-        if (panel.Chart.IsTimeline) surface.Annotations.Add(cursor);
+        if (ShowPlaybackCursor && panel.Chart.IsTimeline) surface.Annotations.Add(cursor);
         // Initial range only. Subsequent returned windows are appended without
         // rebuilding axes or resetting the operator's zoom/pan state.
         surface.ZoomExtents();
@@ -340,7 +344,7 @@ public sealed class TnkAnalysisPlotView : UserControl
 
     private void UpdateCursor(bool force = false)
     {
-        if (!IsLoaded || !IsVisible || Panel is not { } panel) return;
+        if (!ShowPlaybackCursor || !IsLoaded || !IsVisible || Panel is not { } panel) return;
         if (!force && !CanRefreshPlaybackCursor()) return;
 
         lastPlaybackCursorRefresh = Stopwatch.GetTimestamp();

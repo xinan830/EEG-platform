@@ -8,6 +8,7 @@ using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
 using SciChart.Charting.Visuals.Annotations;
 using SciChart.Charting.Visuals.RenderableSeries;
+using SciChart.Data.Model;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
@@ -113,6 +114,24 @@ public sealed class TnkChartLifecycleTests(WpfApplicationFixture fixture)
             Assert.Equal(new[] { "bands", "bands" }, stacked.Select(series => series.StackedGroupId));
             Assert.Equal(["delta (%)", "theta (%)"],
                 surface.RenderableSeries.Select(series => series.DataSeries.SeriesName));
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
+    public void Review_chart_does_not_expand_to_the_shared_playback_cursor() => fixture.Run(() =>
+    {
+        var plot = new TnkAnalysisPlotView
+        {
+            Panel = Panel(1, 2), PositionSeconds = 60, ShowPlaybackCursor = false, VisibleStartSeconds = 0,
+        };
+        var surface = Surface(plot);
+        var window = Host(plot);
+        try
+        {
+            Assert.Empty(surface.Annotations.OfType<VerticalLineAnnotation>());
+            var axis = Assert.Single(surface.XAxes);
+            Assert.Equal(2d, ((DoubleRange)axis.VisibleRange).Max);
         }
         finally { window.Close(); }
     });

@@ -5,8 +5,8 @@
   "reviews": {
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Views/Shared/TnkAnalysisPlotView.cs": {
       "decision": "keep",
-      "max_lines": 450,
-      "reason": "当前约 432 行，单一 TNK SciChart 呈现控件。此次增加每面板的可见生命周期订阅和后台合并刷新，避免隐藏图表持续更新；不引入科学计算、历史所有权或新调用路径。保留同一控件内的图表结构、增量更新和生命周期，避免为少量超线机械拆分；后续扩展前重新评估。"
+      "max_lines": 470,
+      "reason": "当前约 470 行，单一 TNK SciChart 呈现控件。此次仅增加 Review 专用游标可见性分支和对应结构刷新，不引入科学计算、历史所有权或新调用路径。保留同一控件内的图表结构、增量更新和生命周期，避免为少量超线机械拆分；后续扩展前重新评估。"
     },
     "backend/tests/test_official_algorithm_runs.py": {
       "decision": "keep",

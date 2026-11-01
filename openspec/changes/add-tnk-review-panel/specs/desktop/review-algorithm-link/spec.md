@@ -10,6 +10,12 @@ session, without a fixed window-count limit. The panel-open cursor filters the
 visible projection only; it SHALL NOT evict earlier accepted windows from the
 session history. Session reset or panel close clears that history.
 
+The Review TNK chart SHALL not render an algorithm-owned playback cursor or
+expand its time axis to the Review playback position. Its visible right edge
+SHALL follow the latest accepted result window, while the waveform remains the
+single visible owner of the shared playback cursor. The Review summary may use
+the shared cursor to select the current result and report analysis lag.
+
 When TNK is active, Review SHALL dock its algorithm panel below the waveform preview. Inside that panel, Review SHALL place the selected group trend in the main chart area, show the composite meditation score, state-duration distribution, and recent valid metrics in a right-side summary alongside the five role-channel selectors, and place all nine metric-group selectors along the bottom. Other algorithm panels SHALL retain the existing side-by-side dock. The chart, recent-valid metrics, and state-duration summary SHALL exclude results before panel open; prior windows may only seed backend state and SHALL not contribute to visible history or panel-open-relative duration totals.
 
 #### Scenario: Open TNK after playback has advanced
@@ -40,6 +46,13 @@ When TNK is active, Review SHALL dock its algorithm panel below the waveform pre
 - **WHEN** the active delivery session accepts more than 600 canonical windows
 - **THEN** the earliest accepted result remains in session history
 - **AND** the chart continues to show all accepted windows at or after panel open.
+
+#### Scenario: Review playback is ahead of TNK results
+
+- **WHEN** the Review playback cursor advances beyond the latest accepted TNK window
+- **THEN** the TNK chart keeps its right edge at the latest accepted result
+- **AND** it shows no algorithm-owned cursor or blank future region
+- **AND** the waveform cursor remains visible and continues to follow Review playback.
 
 #### Scenario: TNK playback seeks backward
 - **WHEN** the Review cursor moves backward while TNK is active

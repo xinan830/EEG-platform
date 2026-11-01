@@ -10,6 +10,7 @@
 - [x] 2.2 Register TNK in Review menu, toolbar, panel composition, and configuration-change lifecycle.
 - [x] 2.3 Add regressions for open-at-cursor chart start, missing/duplicate roles, gap visibility, stale event rejection, and close/switch behavior.
 - [x] 2.4 Dock the TNK panel below the Review waveform preview; use a compact header with role selectors beside dock/close controls, keep the nine metric tabs and chart in the left column beside the right summary, and present summary values as separate rows; limit summary totals to results after panel open.
+- [x] 2.5 Keep the Review TNK chart right edge at the latest published result and leave the shared playback cursor visible only on the waveform.
 
 ## 3. Validation
 

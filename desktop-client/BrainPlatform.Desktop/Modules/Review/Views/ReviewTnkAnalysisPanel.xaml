@@ -86,8 +86,7 @@
                 <ItemsControl ItemsSource="{Binding TnkAnalysis.ActivePlots}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <tnk:TnkAnalysisPlotView Panel="{Binding}"
-                                PositionSeconds="{Binding DataContext.PositionSeconds, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            <tnk:TnkAnalysisPlotView Panel="{Binding}" ShowPlaybackCursor="False"
                                 VisibleStartSeconds="{Binding DataContext.AnalysisPanelStartSeconds, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Margin="0,0,0,3" />
                         </DataTemplate>

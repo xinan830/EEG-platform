@@ -180,6 +180,19 @@ session.
 - **AND** the newest window is added without removing earlier accepted windows
 - **AND** the visible Review series still begins at its captured panel-open time.
 
+### Requirement: Keep the Review TNK chart bounded by published results
+
+The Review TNK chart SHALL use the shared Review playback coordinator only for
+selection and lag reporting. It SHALL not render a second playback cursor or
+expand its visible time range into a future interval with no accepted result;
+the chart right edge SHALL remain at the latest accepted result window.
+
+#### Scenario: Playback is ahead of published analysis
+
+- **WHEN** the Review playback position is later than the latest accepted TNK result
+- **THEN** the waveform shows the shared playback cursor
+- **AND** the TNK chart contains no algorithm-owned cursor or blank future region.
+
 ### Requirement: Preserve static workflows
 
 Adding dynamic controls SHALL NOT change static request payloads or existing
