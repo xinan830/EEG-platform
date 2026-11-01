@@ -15,4 +15,5 @@
 ## 3. Validation
 
 - [x] 3.1 Run focused Review tests and a desktop build; run OpenSpec strict validation and `git diff --check`.
-- [ ] 3.2 Record manual local-recording acceptance for playback, seek backward/forward, role mapping, close/switch, and waveform independence.
+- [x] 3.2 Record manual local-recording acceptance for playback, seek backward/forward, role mapping, close/switch, and waveform independence.
+  - 2026-11-01: User completed the local-recording acceptance and reported no remaining issue for the shared waveform cursor and TNK Review chart behavior.

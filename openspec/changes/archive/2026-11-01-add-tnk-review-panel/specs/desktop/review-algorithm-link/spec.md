@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Review exposes accepted algorithm panels through the shared lifecycle
 Review SHALL expose only algorithm panels whose current catalog entry and adapter support the declared on-demand contract. It SHALL keep one active panel, one registered recording identity, and one playback time coordinator. Each algorithm panel SHALL own its request configuration and result projection; Review SHALL NOT calculate scientific metrics or instantiate the standalone algorithm workspace.
@@ -16,7 +16,7 @@ SHALL follow the latest accepted result window, while the waveform remains the
 single visible owner of the shared playback cursor. The Review summary may use
 the shared cursor to select the current result and report analysis lag.
 
-When TNK is active, Review SHALL dock its algorithm panel below the waveform preview. Inside that panel, Review SHALL place the selected group trend in the main chart area, show the composite meditation score, state-duration distribution, and recent valid metrics in a right-side summary alongside the five role-channel selectors, and place all nine metric-group selectors along the bottom. Other algorithm panels SHALL retain the existing side-by-side dock. The chart, recent-valid metrics, and state-duration summary SHALL exclude results before panel open; prior windows may only seed backend state and SHALL not contribute to visible history or panel-open-relative duration totals.
+When TNK is active, Review SHALL dock its algorithm panel below the waveform preview. Inside that panel, Review SHALL place the selected group trend in the left algorithm column and show the composite meditation score, state-duration distribution, and recent valid metrics in a right-side summary alongside the five role-channel selectors. All nine metric-group selectors SHALL appear in one row above the trend chart and remain within the left algorithm column. Other algorithm panels SHALL retain the existing side-by-side dock. The chart, recent-valid metrics, and state-duration summary SHALL exclude results before panel open; prior windows may only seed backend state and SHALL not contribute to visible history or panel-open-relative duration totals.
 
 #### Scenario: Open TNK after playback has advanced
 - **WHEN** the user opens TNK at recording time 30 seconds
@@ -27,7 +27,7 @@ When TNK is active, Review SHALL dock its algorithm panel below the waveform pre
 #### Scenario: TNK summary and metric navigation are shown in Review
 - **WHEN** the TNK panel is open
 - **THEN** the selected metric group is plotted in the main area and the composite score summary with role-channel selectors appears at the right
-- **AND** the nine metric groups are selectable from the bottom row
+- **AND** the nine metric groups are selectable from one row above the chart within the left column
 - **AND** the score-state durations and recent-valid values include only results at or after the panel-open cursor.
 
 #### Scenario: TNK roles are missing or duplicated
