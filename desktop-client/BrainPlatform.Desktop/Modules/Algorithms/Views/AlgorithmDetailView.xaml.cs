@@ -1,6 +1,6 @@
 using System.Windows.Controls;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
-using BrainPlatform.Desktop.ViewModels;
+using BrainPlatform.Desktop.Application;
 
 namespace BrainPlatform.Desktop.Modules.Algorithms.Views;
 

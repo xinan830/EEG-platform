@@ -33,7 +33,7 @@ public static class SlimScrollBarBehavior
 
     private static void ApplyToVerticalScrollBars(DependencyObject root)
     {
-        var style = Application.Current?.TryFindResource("SlimTableScrollBarStyle") as Style;
+        var style = System.Windows.Application.Current?.TryFindResource("SlimTableScrollBarStyle") as Style;
         if (style is null)
         {
             return;

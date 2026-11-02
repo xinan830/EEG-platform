@@ -41,6 +41,10 @@ public interface IReviewAlgorithmAdapter
 
     Task ReleaseOnDemandAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    Task<TopomapResponse> LoadTopomapAsync(WindowPreviewResponse window,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException($"算法 {AlgorithmId} 未注册地形图适配器。");
+
     Task<WindowPreviewResponse> LoadOnDemandAsync(string recordingId, AnalysisRunRequest request,
         long cursorSample, CancellationToken cancellationToken, IProgress<DynamicWindowResponse>? progress) =>
         LoadOnDemandAsync(recordingId, request, cursorSample, cancellationToken);

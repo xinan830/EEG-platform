@@ -222,3 +222,47 @@ Every current dynamic result SHALL provide an explicit canonical state for every
 - **THEN** validation fails with a structured execution error
 - **AND** the runtime does not infer state from legacy warmup flags or quality strings
 
+### Requirement: Version FAA continuous preprocessing scope
+FAA v2 SHALL preprocess the selected raw channel pair over the entire recording
+before slicing static or dynamic windows and then remove each paired Epoch's
+mean. It SHALL record this scope, filter settings, numerical identity and quality
+evidence without rewriting historical v1 results.
+
+#### Scenario: Static and dynamic share the same range
+- **WHEN** static FAA and a dynamic FAA window use identical channels, filters and bounds
+- **THEN** both consume the same continuously preprocessed samples and return equal science
+
+#### Scenario: Read a historical FAA Run
+- **WHEN** a caller retrieves a saved v1 result
+- **THEN** its original identity, evidence and artifact remain readable without v2 execution
+
+### Requirement: Describe actual preprocessing independently of analysis bands
+An algorithm execution snapshot SHALL record the preprocessing actually
+performed. Search or integration band fields SHALL NOT be inferred to be
+filter settings. Explicit notch settings SHALL override default policies.
+
+#### Scenario: Record a peak search
+- **WHEN** peak frequency searches 8-13 Hz over its frozen 1-30 Hz signal
+- **THEN** the snapshot records filter 1-30 Hz and search band 8-13 Hz separately.
+
+#### Scenario: Record an explicit notch selection
+- **WHEN** PSD or STFT executes with notch disabled or 60 Hz
+- **THEN** its execution snapshot records null or 60 Hz respectively, consistent with actual spectral evidence.
+
+### Requirement: Validate desktop inputs using backend catalog bounds
+The desktop SHALL validate provided numeric config fields against catalog bounds
+before submitting a Run or clearing the previous preview. Limits SHALL come from
+the backend catalog rather than algorithm-specific desktop constants.
+
+#### Scenario: Unsupported search band
+- **WHEN** a requested frequency exceeds the catalog maximum
+- **THEN** no Run is submitted and a Chinese parameter label and limit are shown.
+
+### Requirement: Preserve structured HTTP failures
+The desktop SHALL report HTTP failures without assuming detail is a string.
+
+#### Scenario: Validation list
+- **WHEN** the server returns an array of validation errors
+- **THEN** the client exposes an AlgorithmApiException with the HTTP status and
+  available details, without throwing a JSON kind conversion exception.
+

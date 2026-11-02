@@ -1,6 +1,6 @@
 using System.Windows;
 using BrainPlatform.Desktop.Modules.Channels.ViewModels;
-using BrainPlatform.Desktop.ViewModels;
+using BrainPlatform.Desktop.Application;
 
 namespace BrainPlatform.Desktop.Modules.Channels.Views;
 

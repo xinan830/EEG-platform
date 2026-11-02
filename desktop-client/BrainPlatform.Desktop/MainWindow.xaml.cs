@@ -13,7 +13,7 @@ using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 namespace BrainPlatform.Desktop;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, IDesktopNavigation
 {
     private bool isApprovedClose;
     private bool isConfirmingChannelDraftExit;
@@ -37,23 +37,25 @@ public partial class MainWindow : Window
     private EegSessionWindow? reviewSessionWindow;
     private readonly IRecordingReviewFilter? recordingReviewFilter;
 
-    public MainWindow(IRecordingReviewFilter? recordingReviewFilter = null)
+    public MainWindow(IRecordingReviewFilter? recordingReviewFilter, MainWindowViewSet views)
     {
+        ArgumentNullException.ThrowIfNull(views);
         this.recordingReviewFilter = recordingReviewFilter;
         InitializeComponent();
 
-        // Initialize view instances immediately for instant UI display
-        projectListView = new ProjectListView();
-        projectDetailView = new ProjectDetailView();
-        settingsView = new SettingsView();
-        screenCalibrationView = new ScreenCalibrationView();
-        channelListView = new ChannelListView();
-        channelDetailView = new ChannelDetailView();
-        montageListView = new MontageListView();
-        montageDetailView = new MontageDetailView();
-        eventListView = new EventListView();
-        algorithmWorkspaceView = new AlgorithmWorkspaceView();
-        overviewView = new DeviceOverviewView();
+        acquisitionPreparationView = views.AcquisitionPreparation;
+        overviewView = views.Overview;
+        projectListView = views.ProjectList;
+        projectDetailView = views.ProjectDetail;
+        settingsView = views.Settings;
+        screenCalibrationView = views.ScreenCalibration;
+        channelListView = views.ChannelList;
+        channelDetailView = views.ChannelDetail;
+        montageListView = views.MontageList;
+        montageDetailView = views.MontageDetail;
+        eventListView = views.EventList;
+        eventDefinitionEditorView = views.EventDefinitionEditor;
+        algorithmWorkspaceView = views.AlgorithmWorkspace;
         MainContentHost.Content = overviewView;
     }
 

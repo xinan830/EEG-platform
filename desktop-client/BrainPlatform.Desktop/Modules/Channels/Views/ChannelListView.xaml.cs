@@ -12,9 +12,9 @@ public partial class ChannelListView : UserControl
 
     private void OnBackToSettingsClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowSettingsView();
+            navigation.ShowSettingsView();
         }
     }
 
@@ -29,9 +29,9 @@ public partial class ChannelListView : UserControl
     private void OnOpenChannelDetailClick(object sender, RoutedEventArgs e)
     {
         SelectProfile(sender);
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowChannelDetailView();
+            navigation.ShowChannelDetailView();
         }
     }
 
@@ -58,9 +58,9 @@ public partial class ChannelListView : UserControl
         {
             viewModel.ChannelConfigurations.PendingDeviceSelection = picker.SelectedDevice;
             viewModel.ChannelConfigurations.ConfirmPendingDeviceSelection();
-            if (Window.GetWindow(this) is MainWindow mainWindow)
+            if (Window.GetWindow(this) is IDesktopNavigation navigation)
             {
-                mainWindow.ShowChannelDetailView(preserveDraft: true);
+                navigation.ShowChannelDetailView(preserveDraft: true);
             }
         }
         catch (Exception exception)
@@ -80,9 +80,9 @@ public partial class ChannelListView : UserControl
         try
         {
             viewModel.ChannelConfigurations.ConfirmPendingDeviceSelection();
-            if (Window.GetWindow(this) is MainWindow mainWindow)
+            if (Window.GetWindow(this) is IDesktopNavigation navigation)
             {
-                mainWindow.ShowChannelDetailView(preserveDraft: true);
+                navigation.ShowChannelDetailView(preserveDraft: true);
             }
         }
         catch (Exception exception)
@@ -129,12 +129,12 @@ public partial class ChannelListView : UserControl
     private void OnCopyProfileClick(object sender, RoutedEventArgs e)
     {
         SelectProfile(sender);
-        if (DataContext is DesktopWorkspaceViewModel viewModel && Window.GetWindow(this) is MainWindow mainWindow)
+        if (DataContext is DesktopWorkspaceViewModel viewModel && Window.GetWindow(this) is IDesktopNavigation navigation)
         {
             try
             {
                 viewModel.ChannelConfigurations.BeginCopySelected();
-                mainWindow.ShowChannelDetailView(preserveDraft: true);
+                navigation.ShowChannelDetailView(preserveDraft: true);
             }
             catch (Exception exception)
             {

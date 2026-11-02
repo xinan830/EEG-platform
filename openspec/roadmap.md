@@ -21,30 +21,39 @@ This roadmap evolves the existing EEG viewer into a local, single-user research 
 | 12 | `improve-core-research-workbench-ux` | Task-oriented navigation and ordinary/developer presentation separation | Complete, archived 2026-09-14 |
 | 13 | `add-research-metric-formula-builder` | Chinese user-facing feature selection and safe formula composition | Complete, archived 2026-09-14 |
 | 14 | `improve-algorithm-library-readability` | Readable saved formulas and provenance-safe private deletion | Complete, archived 2026-09-14 |
-| 15 | `clean-platform-architecture-debt` | Remove only confirmed obsolete compatibility paths, decouple feature navigation from MainWindow, keep composition ownership explicit, and contain generated build output | Planned after existing in-progress changes are reconciled |
+| 15 | `clean-platform-architecture-debt` | Remove only confirmed obsolete compatibility paths, decouple feature navigation from MainWindow, keep composition ownership explicit, and contain generated build output | Ready to open as the next active change; queue reconciled 2026-11-01 |
 
 ## Next Planned Direction
 
-`clean-platform-architecture-debt` is queued, not active. Before opening its
-OpenSpec change, reconcile the existing in-progress change directories so this
-roadmap's single-active-change rule is true again. Implement one slice at a time:
+`clean-platform-architecture-debt` is ready to open as the next active change.
+The pre-existing OpenSpec queue was reconciled and archived on 2026-11-01; the
+change is not active until its OpenSpec directory is created. Implement one
+slice at a time:
 
-1. Inventory compatibility paths and classify each as required historical-file
-   support, current scientific implementation, active adapter, or obsolete
-   fallback. Remove only the last category after caller and persisted-data
-   checks. In particular, ANT-derived Crimson and Zenlite TNK algorithms are
-   current calculations and are not compatibility code merely because their
-   source names contain `legacy`.
-2. Remove transitional WPF type namespaces only after their `x:Class`, generated
-   BAML, and composition references have been migrated and tested together.
-3. Move feature navigation requests out of Views' direct `MainWindow` casts to
-   the narrowest command/navigation boundary that fits each workflow. Keep
-   `Window.GetWindow` where it only supplies modal-dialog ownership.
-4. Keep one application composition root while reducing its feature-specific
-   construction detail. Avoid service locators, duplicate state owners, and a
-   new dependency-injection framework.
-5. Route isolated build/test output under the existing ignored temporary root;
-   clean only verified generated directories after no process is using them.
+1. **Remove confirmed obsolete compatibility paths.** Inventory each path and
+   classify it as required historical-file support, a current scientific
+   implementation, an active adapter, or an obsolete fallback. Remove only
+   confirmed obsolete internal fallbacks after caller, stored-data, API, and
+   provenance checks. Migrate transitional WPF type namespaces only after their
+   `x:Class`, generated BAML, and composition references move together. Keep
+   historical EEG file support. ANT-derived Crimson and Zenlite TNK children
+   are current scientific calculations, not compatibility code merely because
+   their source names contain `legacy`.
+2. **Reduce composition-root responsibilities.** Map construction, lifecycle,
+   and navigation responsibilities currently held by `App` and `MainWindow`.
+   Keep one composition root and one owner for shared state; move feature-owned
+   construction detail behind explicit module composition only where it reduces
+   coupling. Do not add a service locator or a dependency-injection framework.
+3. **Tighten navigation boundaries.** Move feature navigation requests out of
+   Views' direct `MainWindow` casts to the narrowest command/navigation
+   boundary that fits each workflow. Keep view event handling in code-behind
+   only where it is presentation-specific. Preserve `Window.GetWindow` when it
+   is used solely to assign modal-dialog ownership.
+4. **Contain generated build output.** Route isolated build/test output under
+   the existing ignored temporary root. Add ignore rules only for verified
+   generated paths. Remove existing isolated outputs only after confirming no
+   build, test, or desktop process is using them; never clean recordings,
+   logs, or other user data as part of this work.
 
 Each slice requires focused dependency/build tests, OpenSpec strict validation,
 `git diff --check`, and a recorded manual check where user-visible navigation or

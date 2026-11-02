@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
@@ -5,6 +7,7 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 /// <summary>Review cursor binding and presentation ownership, shared by panel algorithms.</summary>
 public sealed partial class RecordingReviewViewModel
 {
+    private CancellationTokenSource? topomapCancellation;
     public async Task AttachAnalysisAsync(string runId, CancellationToken cancellationToken = default)
     {
         var coordinator = analysisCoordinator ?? throw new InvalidOperationException("当前回溯页未配置分析 provider。");
@@ -54,6 +57,10 @@ public sealed partial class RecordingReviewViewModel
     public async ValueTask DetachAnalysisAsync()
     {
         UnsubscribeTnkPlaybackEvents();
+        topomapCancellation?.Cancel();
+        topomapCancellation?.Dispose();
+        topomapCancellation = null;
+        RbpAnalysis.ClearTopomap();
         var binding = analysisBinding;
         if (binding is null) return;
         analysisBinding = null;
@@ -73,10 +80,60 @@ public sealed partial class RecordingReviewViewModel
         {
             if (activeAnalysisId is { } algorithmId && analysisPanels.TryGetValue(algorithmId, out var panel))
                 panel.Apply(CurrentAnalysisWindow, PositionSeconds);
+            if (activeAnalysisId == "rbp" && RbpAnalysis.IsTopomapSelected) _ = RefreshRbpTopomapAsync();
         }
         if (e.PropertyName == nameof(ReviewAnalysisBinding.StatusText))
             AnalysisPreparationText = CurrentAnalysisWindow is null ? AnalysisStatusText : "";
         RaiseAnalysisPropertiesChanged();
+    }
+
+    private async Task RefreshRbpTopomapAsync()
+    {
+        topomapCancellation?.Cancel();
+        topomapCancellation?.Dispose();
+        topomapCancellation = new CancellationTokenSource();
+        var token = topomapCancellation.Token;
+        var window = CurrentAnalysisWindow;
+        if (window is null || analysisCoordinator is null)
+        {
+            RbpAnalysis.ClearTopomap();
+            return;
+        }
+        try
+        {
+            var loadTimer = Stopwatch.StartNew();
+            var result = await analysisCoordinator.LoadTopomapAsync(window, token);
+            if (!token.IsCancellationRequested && RbpAnalysis.ApplyTopomapIfAvailable(result))
+            {
+                var bindTimer = Stopwatch.StartNew();
+                if (DesktopLog.PerformanceDiagnosticsEnabled)
+                {
+                    var gridCells = result?.Bands.Sum(band =>
+                        (long)(band.Grid?.Width ?? 0) * (band.Grid?.Height ?? 0)) ?? 0;
+                    DesktopLog.Info(
+                        $"review_topomap_perf stage=bind" +
+                        $" window_id={result?.RunId ?? "none"}" +
+                        $" cursor_sample={window.CursorSample}" +
+                        $" bands={result?.Bands.Count ?? 0}" +
+                        $" grid_cells={gridCells}" +
+                        $" load_ms={loadTimer.Elapsed.TotalMilliseconds:0.0}" +
+                        $" bind_ms={bindTimer.Elapsed.TotalMilliseconds:0.0}");
+                }
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception) when (!token.IsCancellationRequested)
+        {
+            RbpAnalysis.SetStatus($"地形图读取失败：{exception.Message}");
+            RbpAnalysis.ClearTopomap();
+        }
+    }
+
+    private void OnRbpTopomapPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RbpReviewAnalysisViewModel.IsTopomapSelected) &&
+            RbpAnalysis.IsTopomapSelected && activeAnalysisId == "rbp")
+            _ = RefreshRbpTopomapAsync();
     }
 
     private void RaiseAnalysisPropertiesChanged()

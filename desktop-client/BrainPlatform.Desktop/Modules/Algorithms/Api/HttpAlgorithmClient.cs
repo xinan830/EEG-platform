@@ -112,6 +112,22 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
             cancellationToken);
     }
 
+    public Task<TopomapResponse> GetRunTopomapAsync(string runId, long cursorSample,
+        CancellationToken cancellationToken)
+    {
+        return SendAsync<TopomapResponse>(HttpMethod.Get,
+            $"api/runs/{Uri.EscapeDataString(RequireId(runId))}/topomap?cursor_sample={cursorSample}",
+            null, cancellationToken);
+    }
+
+    public Task<TopomapResponse> GetDynamicTopomapAsync(string windowId, string? projectId,
+        CancellationToken cancellationToken)
+    {
+        var query = string.IsNullOrWhiteSpace(projectId) ? "" : $"?project_id={Uri.EscapeDataString(projectId)}";
+        return SendAsync<TopomapResponse>(HttpMethod.Get,
+            $"api/analysis-windows/{Uri.EscapeDataString(RequireId(windowId))}/topomap{query}", null, cancellationToken);
+    }
+
     public Task<DynamicWindowResponse> EnsureDynamicWindowAsync(
         DynamicWindowRequest request,
         CancellationToken cancellationToken)

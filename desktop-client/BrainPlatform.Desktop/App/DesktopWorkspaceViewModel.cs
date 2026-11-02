@@ -5,7 +5,7 @@ using BrainPlatform.Desktop.Infrastructure.Backend;
 using BrainPlatform.Desktop.Modules.Channels.Api;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
 
-namespace BrainPlatform.Desktop.ViewModels;
+namespace BrainPlatform.Desktop.Application;
 
 public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposable
 {

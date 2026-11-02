@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from app.services.wpf_recording import WpfRecordingError
+from app.services.electrode_locations import resolve_electrode_labels
 
 _LOGGER = logging.getLogger("brain_platform.recording_access.montage")
 
@@ -27,6 +29,41 @@ def _kind(value) -> str:
 
 def _channel_kind(value) -> str:
     return {"1": "reference", "2": "bipolar"}.get(str(value), str(value).casefold())
+
+
+def _map_position_entry(channel: dict) -> dict[str, object]:
+    location = _field(channel, "ElectrodeLocation") or {}
+    manual = _field(channel, "ManualMapPosition") or {}
+    manual_x, manual_y = _field(manual, "X"), _field(manual, "Y")
+    location_x, location_y = _field(location, "MapX"), _field(location, "MapY")
+    if all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in (manual_x, manual_y)):
+        return {"x": float(manual_x), "y": float(manual_y), "status": "available", "enabled": bool(_field(channel, "IsSelectedForDisplay")), "source": "manual",
+                "canonical_site": _field(location, "CanonicalSite"), "source_id": "manual", "source_version": "1"}
+    if all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in (location_x, location_y)):
+        return {"x": float(location_x), "y": float(location_y), "status": "available", "enabled": bool(_field(channel, "IsSelectedForDisplay")), "source": "template",
+                "canonical_site": _field(location, "CanonicalSite"), "source_id": _field(location, "SourceId"),
+                "source_version": _field(location, "SourceVersion")}
+    return {"x": None, "y": None, "status": "unavailable", "enabled": bool(_field(channel, "IsSelectedForDisplay")), "source": None,
+            "canonical_site": _field(location, "CanonicalSite"), "source_id": _field(location, "SourceId"),
+            "source_version": _field(location, "SourceVersion")}
+
+
+def _materialize_template_positions(map_positions: dict[str, dict[str, object]]) -> None:
+    missing = [label for label, position in map_positions.items()
+               if position.get("status") != "available" and label]
+    if not missing:
+        return
+    for resolved in resolve_electrode_labels(missing):
+        label = str(resolved.get("requested_label", "")).strip()
+        position = map_positions.get(label)
+        coordinates = resolved.get("map_coordinates")
+        if position is None or resolved.get("status") != "available" or not isinstance(coordinates, list) or len(coordinates) != 2:
+            continue
+        if not all(isinstance(value, (int, float)) and math.isfinite(float(value)) for value in coordinates):
+            continue
+        position.update({"x": float(coordinates[0]), "y": float(coordinates[1]), "status": "available",
+                         "source": "template", "canonical_site": resolved.get("canonical_site"),
+                         "source_id": resolved.get("source_id"), "source_version": resolved.get("source_version")})
 
 
 @dataclass(frozen=True)
@@ -111,6 +148,7 @@ def _catalogue_entry(resolved: AcquisitionSignalView) -> dict[str, object]:
         "formulas": provenance.get("formulas", []),
         "hardware_reference": provenance.get("hardware_reference"),
         "hardware_ground": provenance.get("hardware_ground"),
+        "map_positions": provenance.get("map_positions", {}),
         "snapshot_source": provenance.get("snapshot_source", "acquisition"),
         "source_profile_id": provenance.get("source_profile_id", profile_id),
     }
@@ -236,6 +274,21 @@ def read_acquisition_signal_view(
                 sources[label] = {"native_channel_index": native, "stream_index": int(_field(source, "StreamIndex")), "unit": "V", "kind": expected_kind}
             signals.append(AcquisitionSignal(name, positive, negatives, kind))
         canonical = json.dumps({"montage": montage, "channel_snapshot": recorded}, sort_keys=True, ensure_ascii=False)
+        map_positions = {
+            str(_field(channel, "ElectrodeLabel", "")).strip(): _map_position_entry(channel)
+            for channel in _field(bound, "Channels", [])
+            if str(_field(channel, "ElectrodeLabel", "")).strip()
+        }
+        for label, key in ((_field(recorded, "HardwareReferenceElectrodeLocation"), "ReferenceMapPosition"),
+                           (_field(recorded, "HardwareGroundElectrodeLocation"), "GroundMapPosition")):
+            position = _field(recorded, key) or {}
+            map_positions[str(label).strip()] = {
+                "x": _field(position, "X"), "y": _field(position, "Y"),
+                "status": "available" if _field(position, "X") is not None and _field(position, "Y") is not None else "unavailable",
+                "source": "hardware_landmark", "canonical_site": None, "source_id": "channel_configuration",
+                "source_version": str(_field(recorded, "Fingerprint") or "")
+            }
+        _materialize_template_positions(map_positions)
         return AcquisitionSignalView(tuple(signals), {
             "signal_mode": "acquisition_montage", "projection_version": "acquisition-montage-v1",
             "analysis_reference": "acquisition_montage_snapshot",
@@ -247,6 +300,7 @@ def read_acquisition_signal_view(
             "montage_label": _field(montage, "Name"), "source_mapping": sources,
             "hardware_reference": _field(recorded, "HardwareReferenceElectrodeLocation"),
             "hardware_ground": _field(recorded, "HardwareGroundElectrodeLocation"),
+            "map_positions": map_positions,
             "formulas": [{"name": s.name, "positive": s.positive, "negative_kind": s.kind, "negative_labels": list(s.negatives)} for s in signals],
         })
     except (OSError, KeyError, TypeError, ValueError, AttributeError) as exc:

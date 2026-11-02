@@ -97,7 +97,7 @@ public sealed class ChannelConfigurationProfileTests
     }
 
     [Fact]
-    public void Fingerprint_IgnoresManualDiagramPositionBecauseItIsDisplayOnly()
+    public void Fingerprint_ChangesWhenManualDiagramPositionChanges()
     {
         var timestamp = DateTimeOffset.UtcNow;
         var profile = new ChannelConfigurationProfile(
@@ -108,7 +108,24 @@ public sealed class ChannelConfigurationProfileTests
             Channels = [profile.Channels.Single() with { ManualMapPosition = new ElectrodeMapPosition(0.2, -0.3) }]
         };
 
-        Assert.Equal(ChannelConfigurationFingerprint.Create(profile), ChannelConfigurationFingerprint.Create(positioned));
+        Assert.NotEqual(ChannelConfigurationFingerprint.Create(profile), ChannelConfigurationFingerprint.Create(positioned));
+    }
+
+    [Fact]
+    public void Fingerprint_ChangesWhenHardwareLandmarkPositionChanges()
+    {
+        var timestamp = DateTimeOffset.UtcNow;
+        var profile = new ChannelConfigurationProfile(
+            "landmarks", "硬件位置", "test", ChannelConfigurationSource.User, "layout",
+            [new ChannelConfigurationEntry(0, AcquisitionChannelKind.Reference, "F3", true, 0)], timestamp, timestamp);
+
+        var positioned = profile with
+        {
+            ReferenceMapPosition = new ElectrodeMapPosition(-0.1, 0.3),
+            GroundMapPosition = new ElectrodeMapPosition(0.1, -0.8),
+        };
+
+        Assert.NotEqual(ChannelConfigurationFingerprint.Create(profile), ChannelConfigurationFingerprint.Create(positioned));
     }
 
     [Fact]

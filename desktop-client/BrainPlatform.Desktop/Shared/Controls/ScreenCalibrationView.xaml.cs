@@ -23,7 +23,7 @@ public partial class ScreenCalibrationView : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        if (DataContext is BrainPlatform.Desktop.ViewModels.DesktopWorkspaceViewModel workspace)
+        if (DataContext is BrainPlatform.Desktop.Application.DesktopWorkspaceViewModel workspace)
         {
             workspace.ScreenCalibration.PersistValidDraftBeforeLeaving();
         }
@@ -44,7 +44,7 @@ public partial class ScreenCalibrationView : UserControl
 
     private void UpdateDisplayContext(Window window)
     {
-        if (DataContext is BrainPlatform.Desktop.ViewModels.DesktopWorkspaceViewModel workspace)
+        if (DataContext is BrainPlatform.Desktop.Application.DesktopWorkspaceViewModel workspace)
         {
             workspace.ScreenCalibration.UpdateDisplayContext(
                 ScreenCalibrationMetrics.GetDisplayMetrics(window));
@@ -53,9 +53,9 @@ public partial class ScreenCalibrationView : UserControl
 
     private void OnBackClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowSettingsView();
+            navigation.ShowSettingsView();
         }
     }
 }

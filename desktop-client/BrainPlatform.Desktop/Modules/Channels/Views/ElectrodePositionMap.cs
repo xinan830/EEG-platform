@@ -57,7 +57,9 @@ public sealed class ElectrodePositionMap : FrameworkElement
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
-        var headBounds = ScalpMapRenderer.DrawHead(drawingContext, ActualWidth, ActualHeight, 5, 24, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        var headBounds = ScalpMapRenderer.DrawHead(drawingContext, ActualWidth, ActualHeight,
+            ScalpMapRenderer.VerticalOffset, ScalpMapRenderer.ReservedHeight,
+            VisualTreeHelper.GetDpi(this).PixelsPerDip);
         if (headBounds.IsEmpty) return;
 
         foreach (var point in ElectrodeMapProjection.ProjectWithHardwareLandmarks(Rows ?? [], ReferencePosition, GroundPosition))
@@ -121,8 +123,8 @@ public sealed class ElectrodePositionMap : FrameworkElement
 
     private void PlaceSelectedRow(Point pointer)
     {
-        var center = new Point(ActualWidth / 2, ActualHeight / 2 + 5);
-        var radius = Math.Min(ActualWidth, ActualHeight - 24) * 0.39;
+        var center = new Point(ActualWidth / 2, ActualHeight / 2 + ScalpMapRenderer.VerticalOffset);
+        var radius = Math.Min(ActualWidth, ActualHeight - ScalpMapRenderer.ReservedHeight) * ScalpMapRenderer.RadiusScale;
         if (radius <= 0 || SelectedRow is not { } row || !CanPlaceRow(row))
         {
             return;
@@ -138,8 +140,8 @@ public sealed class ElectrodePositionMap : FrameworkElement
 
     private void MoveHardwareLandmark(Point pointer)
     {
-        var center = new Point(ActualWidth / 2, ActualHeight / 2 + 5);
-        var radius = Math.Min(ActualWidth, ActualHeight - 24) * 0.39;
+        var center = new Point(ActualWidth / 2, ActualHeight / 2 + ScalpMapRenderer.VerticalOffset);
+        var radius = Math.Min(ActualWidth, ActualHeight - ScalpMapRenderer.ReservedHeight) * ScalpMapRenderer.RadiusScale;
         if (radius <= 0)
         {
             return;
@@ -172,8 +174,8 @@ public sealed class ElectrodePositionMap : FrameworkElement
         ElectrodeMapPosition groundPosition,
         double hitRadius)
     {
-        var center = new Point(width / 2, height / 2 + 5);
-        var radius = Math.Min(width, height - 24) * 0.39;
+        var center = new Point(width / 2, height / 2 + ScalpMapRenderer.VerticalOffset);
+        var radius = Math.Min(width, height - ScalpMapRenderer.ReservedHeight) * ScalpMapRenderer.RadiusScale;
         if (radius <= 0 || hitRadius < 0)
         {
             return null;

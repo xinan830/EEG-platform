@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp;
 
@@ -13,16 +14,97 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
     private double cursorSeconds;
     private string? windowSession;
     private WindowPreviewResponse? appliedResponse;
+    private TopomapResponse? topomap;
+    private string selectedChart = "堆叠历史图";
+    private string selectedTopomapBandId = "";
 
     public IReadOnlyList<RbpBandPoint> Bands => preview.BandsAt(cursorSeconds);
     public IReadOnlyList<RbpWindowPoint> Trend => preview.Windows
         .Where(window => window.EndSeconds <= cursorSeconds + 1e-9).ToArray();
     public IReadOnlyList<RbpChannelHistory> ChannelHistories => channelHistories;
+    public ObservableCollection<TopomapBandDisplayItem> TopomapBands { get; } = [];
     public bool HasResult => Bands.Any(band => band.Share is not null);
+    public IReadOnlyList<string> ChartOptions { get; } = ["堆叠历史图", "脑电地形图"];
+    public string SelectedChart
+    {
+        get => selectedChart;
+        set
+        {
+            if (!SetProperty(ref selectedChart, value)) return;
+            RaisePropertyChanged(nameof(IsStackedChartSelected));
+            RaisePropertyChanged(nameof(IsTopomapSelected));
+        }
+    }
+    public bool IsStackedChartSelected => SelectedChart == "堆叠历史图";
+    public bool IsTopomapSelected => SelectedChart == "脑电地形图";
+    public TopomapResponse? Topomap { get => topomap; private set => SetProperty(ref topomap, value); }
+    public IReadOnlyList<TopomapBandOption> TopomapBandOptions { get; } =
+    [
+        new("", "全部频段"),
+        new("delta", "Delta 波"), new("theta", "Theta 波"), new("alpha", "Alpha 波"),
+        new("beta", "Beta 波"), new("gamma", "Gamma 波"),
+    ];
+    public string SelectedTopomapBandId
+    {
+        get => selectedTopomapBandId;
+        set
+        {
+            if (!SetProperty(ref selectedTopomapBandId, value)) return;
+            RaisePropertyChanged(nameof(SelectedTopomapBand));
+            RaisePropertyChanged(nameof(IsAllTopomapBandsSelected));
+        }
+    }
+    public TopomapBand? SelectedTopomapBand => Topomap?.Bands.FirstOrDefault(band =>
+        !string.IsNullOrEmpty(SelectedTopomapBandId) &&
+        string.Equals(band.BandId, SelectedTopomapBandId, StringComparison.OrdinalIgnoreCase));
+    public bool IsAllTopomapBandsSelected => string.IsNullOrEmpty(SelectedTopomapBandId);
+    public string TopomapWindowText => Topomap is { } map
+        ? $"{map.WindowStartSeconds:0.###}–{map.WindowEndSeconds:0.###} s"
+        : "暂无窗口";
+    public string TopomapStatusText => Topomap?.Status == "ready" ? $"标准模板位置 · {TopomapWindowText}" : "暂无地形图";
     public string StatusText { get => statusText; private set => SetProperty(ref statusText, value); }
     public string WindowText { get => windowText; private set => SetProperty(ref windowText, value); }
 
     public void SetStatus(string value) => StatusText = value;
+
+    public void ApplyTopomap(TopomapResponse response)
+    {
+        if (response is { Bands.Count: > 0 } && !string.IsNullOrEmpty(SelectedTopomapBandId) && !response.Bands.Any(band =>
+                string.Equals(band.BandId, SelectedTopomapBandId, StringComparison.OrdinalIgnoreCase)))
+            SelectedTopomapBandId = "";
+        SetTopomap(response);
+    }
+
+    public bool ApplyTopomapIfAvailable(TopomapResponse? response)
+    {
+        if (response is null) return false;
+        ApplyTopomap(response);
+        return true;
+    }
+
+    public void ClearTopomap() => SetTopomap(null);
+
+    private void SetTopomap(TopomapResponse? response)
+    {
+        Topomap = response;
+        UpdateTopomapBands(response?.Bands ?? Array.Empty<TopomapBand>());
+        RaisePropertyChanged(nameof(SelectedTopomapBand));
+        RaisePropertyChanged(nameof(TopomapWindowText));
+        RaisePropertyChanged(nameof(TopomapStatusText));
+    }
+
+    private void UpdateTopomapBands(IReadOnlyList<TopomapBand> bands)
+    {
+        for (var index = 0; index < bands.Count; index++)
+        {
+            if (index < TopomapBands.Count)
+                TopomapBands[index].Band = bands[index];
+            else
+                TopomapBands.Add(new TopomapBandDisplayItem(bands[index]));
+        }
+        while (TopomapBands.Count > bands.Count)
+            TopomapBands.RemoveAt(TopomapBands.Count - 1);
+    }
 
     public void Apply(WindowPreviewResponse? response, double cursorSeconds)
     {
@@ -37,6 +119,7 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
             windowSession = null;
             WindowText = "尚未到达分析窗口";
             RaiseChanged();
+            ClearTopomap();
             return;
         }
 
@@ -78,5 +161,21 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         RaisePropertyChanged(nameof(Bands));
         RaisePropertyChanged(nameof(Trend));
         RaisePropertyChanged(nameof(HasResult));
+    }
+}
+
+public sealed record TopomapBandOption(string Id, string Label)
+{
+    public override string ToString() => Label;
+}
+
+public sealed class TopomapBandDisplayItem(TopomapBand band) : ObservableObject
+{
+    private TopomapBand band = band;
+
+    public TopomapBand Band
+    {
+        get => band;
+        set => SetProperty(ref band, value);
     }
 }

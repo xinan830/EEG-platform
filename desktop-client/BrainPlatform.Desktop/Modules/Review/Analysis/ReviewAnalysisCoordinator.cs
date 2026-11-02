@@ -113,6 +113,16 @@ public sealed class ReviewAnalysisCoordinator
     public Task ReleaseOnDemandAsync(CancellationToken cancellationToken = default) =>
         provider?.ReleaseOnDemandAsync(cancellationToken) ?? Task.CompletedTask;
 
+    public async Task<TopomapResponse?> LoadTopomapAsync(WindowPreviewResponse window,
+        CancellationToken cancellationToken)
+    {
+        if (provider is null) throw new NotSupportedException("当前回放没有分析 adapter。");
+        var requestedRevision = Interlocked.Increment(ref revision);
+        var response = await provider.LoadTopomapAsync(window, cancellationToken);
+        return requestedRevision == Volatile.Read(ref revision) &&
+            ReferenceEquals(CurrentWindow, window) ? response : null;
+    }
+
     public bool IsCurrentTnkEvent(DynamicWindowResponse response) =>
         provider is IReviewTnkPlaybackEvents tnk && tnk.IsCurrent(response);
 

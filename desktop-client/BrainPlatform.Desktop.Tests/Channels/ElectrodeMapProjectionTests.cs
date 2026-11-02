@@ -1,11 +1,40 @@
 using BrainPlatform.Desktop.Modules.Channels.Domain;
 using BrainPlatform.Desktop.Modules.Channels.ViewModels;
 using BrainPlatform.Desktop.Modules.Channels.Views;
+using BrainPlatform.Desktop.Shared.Controls;
+using System.Windows;
 
 namespace BrainPlatform.Desktop.Tests.Channels;
 
 public sealed class ElectrodeMapProjectionTests
 {
+    [Fact]
+    public void Uses_shared_normalized_map_coordinates_without_rescaling()
+    {
+        var row = Row("T7", -0.05, 0.02, mapX: -0.7443692497530177, mapY: 0.015341043672666392);
+
+        var point = Assert.Single(ElectrodeMapProjection.Project([row]));
+
+        Assert.Equal(-0.7443692497530177, point.X, 12);
+        Assert.Equal(0.015341043672666392, point.Y, 12);
+    }
+
+    [Fact]
+    public void Shared_scalp_geometry_preserves_relative_projection_across_views()
+    {
+        var map = new Point(-0.33, -0.56);
+        var channelBounds = ScalpMapRenderer.GetHeadBounds(400, 400, ScalpMapRenderer.VerticalOffset,
+            ScalpMapRenderer.ReservedHeight, ScalpMapRenderer.RadiusScale);
+        var topomapBounds = ScalpMapRenderer.GetHeadBounds(800, 500, ScalpMapRenderer.VerticalOffset,
+            ScalpMapRenderer.ReservedHeight, ScalpMapRenderer.RadiusScale);
+
+        var channelPoint = ScalpMapRenderer.ToCanvas(map.X, map.Y, channelBounds);
+        var topomapPoint = ScalpMapRenderer.ToCanvas(map.X, map.Y, topomapBounds);
+
+        Assert.Equal(map.X, (channelPoint.X - channelBounds.X - channelBounds.Width / 2) / (channelBounds.Width / 2), 12);
+        Assert.Equal(map.Y, (topomapPoint.Y - topomapBounds.Y - topomapBounds.Height / 2) / (topomapBounds.Height / 2), 12);
+    }
+
     [Fact]
     public void UsesMneLayoutCoordinatesWithAnteriorUpAndPatientLeftOnViewerLeft()
     {
@@ -163,8 +192,8 @@ public sealed class ElectrodeMapProjectionTests
         const double width = 400;
         const double height = 400;
         var centerX = width / 2;
-        var centerY = height / 2 + 5;
-        var radius = Math.Min(width, height - 24) * 0.39;
+        var centerY = height / 2 + ScalpMapRenderer.VerticalOffset;
+        var radius = Math.Min(width, height - ScalpMapRenderer.ReservedHeight) * ScalpMapRenderer.RadiusScale;
         var pointer = new System.Windows.Point(centerX + x * radius, centerY + y * radius);
 
         var result = ElectrodePositionMap.HitTestHardwareLandmark(

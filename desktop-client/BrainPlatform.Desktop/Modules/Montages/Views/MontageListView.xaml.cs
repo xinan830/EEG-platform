@@ -12,9 +12,9 @@ public partial class MontageListView : UserControl
 
     private void OnBackToSettingsClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowSettingsView();
+            navigation.ShowSettingsView();
         }
     }
 
@@ -29,17 +29,17 @@ public partial class MontageListView : UserControl
     private void OnOpenMontageDetailClick(object sender, RoutedEventArgs e)
     {
         SelectMontageProfile(sender);
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowMontageDetailView();
+            navigation.ShowMontageDetailView();
         }
     }
 
     private void OnNewMontageProfileClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowMontageDetailView(newProfile: true);
+            navigation.ShowMontageDetailView(newProfile: true);
         }
     }
 
@@ -73,12 +73,12 @@ public partial class MontageListView : UserControl
     private void OnCopyMontageProfileClick(object sender, RoutedEventArgs e)
     {
         SelectMontageProfile(sender);
-        if (DataContext is DesktopWorkspaceViewModel viewModel && Window.GetWindow(this) is MainWindow mainWindow)
+        if (DataContext is DesktopWorkspaceViewModel viewModel && Window.GetWindow(this) is IDesktopNavigation navigation)
         {
             try
             {
                 viewModel.MontageConfigurations.BeginCopySelected();
-                mainWindow.ShowMontageDetailView(preserveDraft: true);
+                navigation.ShowMontageDetailView(preserveDraft: true);
             }
             catch (Exception exception)
             {

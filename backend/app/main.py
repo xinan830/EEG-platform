@@ -37,10 +37,12 @@ from app.api.algorithm_presets import router as algorithm_presets_router
 from app.api.live_filters import router as live_filters_router
 from app.api.live_recordings import router as live_recordings_router
 from app.api.analysis_windows import router as analysis_windows_router
+from app.api.topomap import router as topomap_router, dynamic_router as dynamic_topomap_router
 from app.services.live_filter import LiveFilterService
 from app.services.live_recording_access import LiveRecordingAccessService
 from app.services.on_demand_dynamic import DynamicWindowService
 from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
+from app.services.topomap import TopomapService
 from app.bootstrap import build_builtin_registry
 from app.services.algorithm_presets import AlgorithmPresetService
 from app.core.config import DATABASE_PATH, STORAGE_DIR, on_demand_algorithm_enabled
@@ -122,6 +124,9 @@ app.state.dynamic_window_service = DynamicWindowService(
     },
     compute_coordinator=app.state.scientific_compute_coordinator,
 )
+app.state.topomap_service = TopomapService(
+    app.state.result_service, app.state.run_service, app.state.dynamic_window_service,
+)
 app.include_router(recordings_router)
 app.include_router(signal_preview_router)
 app.include_router(electrode_locations_router)
@@ -141,6 +146,8 @@ app.include_router(algorithm_presets_router)
 app.include_router(live_filters_router)
 app.include_router(live_recordings_router)
 app.include_router(analysis_windows_router)
+app.include_router(topomap_router)
+app.include_router(dynamic_topomap_router)
 
 
 @app.get("/api/health")

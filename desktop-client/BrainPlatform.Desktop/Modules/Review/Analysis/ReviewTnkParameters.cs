@@ -38,6 +38,7 @@ public sealed class ReviewTnkParameters : ObservableObject
     public string? ScientificVersion { get; private set; }
     public double WindowSeconds { get; private set; }
     public double StepSeconds { get; private set; }
+    public bool IsInitialized => algorithm is not null;
 
     public ReviewTnkParameters()
     {
@@ -81,8 +82,10 @@ public sealed class ReviewTnkParameters : ObservableObject
 
     public void SelectMontage(RegisteredRecording recording, HistoricalMontageDescriptor? montage)
     {
+        // Review can change its viewing montage before TNK is opened; Initialize receives the current montage when the panel is prepared.
+        if (algorithm is null) return;
         if (Montage?.Id == montage?.Id && Montage?.Fingerprint == montage?.Fingerprint) return;
-        Initialize(recording, algorithm ?? throw new InvalidOperationException("TNK 算法目录尚未初始化。"), montage);
+        Initialize(recording, algorithm, montage);
     }
 
     public JsonElement BuildConfig(double durationSeconds, double samplingRateHz)

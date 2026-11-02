@@ -3,17 +3,24 @@
 ## Purpose
 
 Lock the current spectrogram time-axis, matrix, quality, unit, and display contract separately from the underlying spectral algorithm version.
-
 ## Requirements
-
 ### Requirement: Separate analysis and spectrogram versions
-
-The API SHALL expose `analysis_algorithm_version = offline-spectral-v3` and `spectrogram_contract_version = spectrogram-v2` as separate version concepts.
+The API SHALL expose `analysis_algorithm_version = spectral-window-v1` and `spectrogram_contract_version = spectrogram-v3-bounded` as separate version concepts. Current STFT SHALL use bounded finite-context preprocessing rather than whole-record preparation: target sample range plus `ceil(max(2, 3 / low_hz) * sfreq)` samples per side, clamped to the source. It SHALL preserve notch-then-bandpass order, zero-phase filtering and existing quality rules, and report read/target bounds and context. Runtime current identities SHALL invalidate prior scientific cache reuse without converting historical results.
 
 #### Scenario: Change spectrogram serialization
 
 - **WHEN** matrix or time-coordinate semantics change without changing preprocessing or PSD mathematics
 - **THEN** the spectrogram contract version changes independently of the analysis algorithm version
+
+#### Scenario: First window in a long recording
+- **WHEN** a short STFT request is submitted for a long recording
+- **THEN** preparation work depends on target length, configured filters and context rather than total recording duration
+- **AND** the service does not wait for whole-record scientific preparation
+
+#### Scenario: Change preprocessing boundaries
+- **WHEN** a bounded STFT result differs from historical whole-record filtering
+- **THEN** the result carries the new scientific identity and explicit finite-context provenance
+- **AND** it does not claim numerical equivalence to the old contract
 
 ### Requirement: Produce centered four-second time bins
 
@@ -50,3 +57,30 @@ The backend response SHALL retain the complete frequency grid while the frontend
 
 - **WHEN** the user selects 8-13 Hz
 - **THEN** the chart displays only that range without modifying backend spectral values
+
+### Requirement: Supplementary bands must not invalidate a valid output range
+The spectrogram service SHALL compute supplementary standard-band integrals on
+the uncropped grid of the selected filtered signal before masking the returned
+matrix to the requested frequency range. It SHALL return null for bands whose
+full edges are not supported by the recording frequency grid, without clipping
+or extrapolating their edges.
+
+#### Scenario: Request an Alpha-only STFT
+- **WHEN** a static or dynamic Run requests 8-13 Hz with valid input quality
+- **THEN** it completes with frequencies confined to 8-13 Hz
+- **AND** supplementary Delta, Theta or Beta integration does not fail the Run
+
+#### Scenario: Recording cannot support a standard band
+- **WHEN** recording Nyquist is below the full Beta band but the requested
+  output range is valid
+- **THEN** that supplementary band is unavailable rather than zero or a Run error
+
+### Requirement: Dynamic failure axes match the requested STFT range
+The STFT module SHALL build exception-path frequency axes with the same frame
+length and requested frequency bounds as successful windows.
+
+#### Scenario: Initial quality failure followed by a clean window
+- **WHEN** the first 8-13 Hz dynamic window fails the quality gate and a later
+  window succeeds
+- **THEN** both windows use the same frequency grid, rejected values remain
+  unavailable, and the later matrix is preserved

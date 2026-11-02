@@ -50,4 +50,5 @@ ANT-Amplify/
 # Test and temporary output
 **/TestResults/
 **/_temp*/
+**/.isolated-build/
 /.tmp/

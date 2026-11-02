@@ -42,16 +42,33 @@ rules or infer channel roles from display names or channel positions.
 
 ### Requirement: WPF submits a traceable offline Run
 
-The WPF workspace SHALL submit an official Run only for a successfully
-registered Recording and SHALL include the selected algorithm ID, exact
-scientific version, explicit source channels, requested range, mode, and
-validated parameter values.
+The WPF workspace SHALL submit an official Run only for a successfully registered Recording
+and SHALL include the selected algorithm ID, exact scientific version, explicit source
+channel roles, selected historical analysis montage identity, exact analysis output
+channels, requested range, mode, and validated parameter values. The montage identity
+and output mapping SHALL be part of the scientific configuration and SHALL NOT be inferred
+from the display montage. Explicit current compatible profiles SHALL be submitted for backend
+validation and separate immutable persistence before they can be selected for a Run; the
+response SHALL identify acquisition versus analysis-configuration snapshot provenance.
 
 #### Scenario: Static Run is submitted
 
-- **WHEN** a user selects a runnable official algorithm and a valid range
-- **THEN** WPF creates one Run and retains its `run_id`
+- **WHEN** a client selects a runnable official algorithm, a valid historical montage,
+  valid analysis outputs, and a valid range
+- **THEN** WPF creates one Run containing the selected montage and output mapping
 - **AND** WPF does not calculate any scientific value locally
+
+#### Scenario: Montage changes before submission
+
+- **WHEN** the user changes the historical montage from REF to AV before submitting
+- **THEN** the request contains AV and the corresponding output channel names
+- **AND** the request does not contain the prior REF output as the active analysis input
+
+#### Scenario: Montage mapping is unavailable
+
+- **WHEN** the requested montage cannot resolve one of the recorded source channels
+- **THEN** WPF refuses submission with a structured mapping error
+- **AND** no Run is created
 
 ### Requirement: WPF tracks Run and result provenance
 
@@ -586,3 +603,37 @@ spectrum values, band shares and dynamic windows without recomputation.
 - **WHEN** the user seeks to a rejected window
 - **THEN** the spectrum and band-share projection do not retain the previous
   valid window's values
+
+### Requirement: PSD filter controls are independent from trend display range
+The PSD detail configuration MUST send high-pass, low-pass, and notch values as
+filter parameters. The dynamic trend display range MUST remain a display
+contract and MUST NOT overwrite those filter values.
+
+#### Scenario: Dynamic PSD preserves configured filters
+- **GIVEN** a user selects high-pass, low-pass, and notch values in the PSD
+  detail page
+- **WHEN** WPF submits a dynamic PSD Run
+- **THEN** it sends the selected filter values unchanged
+- **AND** the backend independently returns the fixed 1-50 Hz trend axis
+
+### Requirement: Algorithm-owned WPF run integration
+The WPF common Run orchestration SHALL resolve an explicitly registered
+algorithm adapter for algorithm-specific input checks and completion
+integration. It SHALL NOT add concrete algorithm ID branches for those
+responsibilities. Scientific computation SHALL remain in the backend.
+
+#### Scenario: Add an algorithm using existing scalar capabilities
+- **WHEN** an algorithm supplies its own input and result adapter and is registered
+- **THEN** common Run orchestration invokes that adapter without a new algorithm ID branch
+- **AND** the backend request retains the declared algorithm ID and scientific version
+
+### Requirement: Module-owned scalar window adaptation
+The IAPF, Peak Frequency and RBP modules SHALL parse their backend window
+results and pass generic window rows to the shared playback timeline.
+Existing initial-cursor, unavailable-result and rerun behavior SHALL be
+preserved during this structural refactor.
+
+#### Scenario: A rejected backend window reaches the cursor
+- **WHEN** the cursor reaches a backend-rejected scalar window
+- **THEN** the module retains the rejection reason and unavailable value
+- **AND** the shared timeline receives the backend window bounds without recomputing science

@@ -160,13 +160,9 @@ public static class ChannelConfigurationFingerprint
 {
     /// <summary>Hashes semantic mapping fields only; timestamps and profile name are not signal identity.</summary>
     public static string Create(ChannelConfigurationProfile profile)
-        => CreateCore(profile, includeManualDiagramPosition: false);
+        => CreateCore(profile);
 
-    /// <summary>Reads fingerprints written before manual diagram positions became display-only metadata.</summary>
-    internal static string CreateLegacyIncludingManualDiagramPosition(ChannelConfigurationProfile profile)
-        => CreateCore(profile, includeManualDiagramPosition: true);
-
-    private static string CreateCore(ChannelConfigurationProfile profile, bool includeManualDiagramPosition)
+    private static string CreateCore(ChannelConfigurationProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
         var canonical = new StringBuilder()
@@ -198,20 +194,35 @@ public static class ChannelConfigurationFingerprint
             {
                 canonical.Append(":LOC:UNAVAILABLE");
             }
-            if (includeManualDiagramPosition && channel.ManualMapPosition is { } diagramPosition)
+            if (channel.ManualMapPosition is { } diagramPosition)
             {
                 canonical.Append(":MAP:")
                     .Append(diagramPosition.X.ToString("R", CultureInfo.InvariantCulture)).Append(':')
                     .Append(diagramPosition.Y.ToString("R", CultureInfo.InvariantCulture));
             }
-            else if (includeManualDiagramPosition)
+            else
             {
                 canonical.Append(":MAP:UNSET");
             }
         }
 
+        AppendMapPosition(canonical, "REFMAP", profile.ReferenceMapPosition);
+        AppendMapPosition(canonical, "GNDMAP", profile.GroundMapPosition);
+
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString())))
             .ToLowerInvariant();
+    }
+
+    private static void AppendMapPosition(StringBuilder canonical, string name, ElectrodeMapPosition? position)
+    {
+        canonical.Append('|').Append(name).Append(':');
+        if (position is null)
+        {
+            canonical.Append("UNSET");
+            return;
+        }
+        canonical.Append(position.X.ToString("R", CultureInfo.InvariantCulture)).Append(':')
+            .Append(position.Y.ToString("R", CultureInfo.InvariantCulture));
     }
 }
 

@@ -75,7 +75,7 @@ public sealed partial class RecordingReviewViewModel
 
     private static void DispatchTnkEvent(Action action)
     {
-        var dispatcher = Application.Current?.Dispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is null) return;
         if (dispatcher.CheckAccess()) action();
         else _ = dispatcher.BeginInvoke(DispatcherPriority.Background, action);

@@ -40,9 +40,9 @@ public partial class MontageDetailView : UserControl
 
     private void OnBackToMontageListClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowMontageListView();
+            navigation.ShowMontageListView();
         }
     }
 
@@ -53,9 +53,9 @@ public partial class MontageDetailView : UserControl
             viewModel.MontageConfigurations.CloseDraft();
         }
 
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowMontageListView();
+            navigation.ShowMontageListView();
         }
     }
 

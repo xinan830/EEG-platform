@@ -9,23 +9,23 @@ public partial class EventListView : UserControl
 
     private void OnBackClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow) mainWindow.ShowSettingsView();
+        if (Window.GetWindow(this) is IDesktopNavigation navigation) navigation.ShowSettingsView();
     }
 
     private void OnNewClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowEventDefinitionEditorView();
+            navigation.ShowEventDefinitionEditorView();
         }
     }
 
     private void OnEditClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: EventDefinitionListRow row } &&
-            Window.GetWindow(this) is MainWindow mainWindow)
+            Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowEventDefinitionEditorView(row.Definition);
+            navigation.ShowEventDefinitionEditorView(row.Definition);
         }
     }
 

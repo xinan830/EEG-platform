@@ -64,7 +64,7 @@ public partial class ProjectListView : UserControl
 
         if (Workspace.Projects.SelectedProject is not null)
         {
-            (Window.GetWindow(this) as MainWindow)?.ShowProjectDetailView();
+            (Window.GetWindow(this) as IDesktopNavigation)?.ShowProjectDetailView();
         }
     }
 
@@ -112,7 +112,7 @@ public partial class ProjectListView : UserControl
 
         workspace.Acquisition.SelectedProject = project;
         workspace.Notifications.PublishSuccess($"已为采集选择项目“{project.Name}”。");
-        (Window.GetWindow(this) as MainWindow)?.ShowAcquisitionPreparationView();
+        (Window.GetWindow(this) as IDesktopNavigation)?.ShowAcquisitionPreparationView();
     }
 
     private void OnRefreshRecordingsClick(object sender, RoutedEventArgs e) => Workspace.Projects.RefreshRecordings();
@@ -137,9 +137,9 @@ public partial class ProjectListView : UserControl
 
         try
         {
-            if (Window.GetWindow(this) is MainWindow mainWindow)
+            if (Window.GetWindow(this) is IDesktopNavigation navigation)
             {
-                await mainWindow.ShowRecordingReviewViewAsync(
+                await navigation.ShowRecordingReviewViewAsync(
                     recording,
                     workspace.MontageConfigurations.Profiles);
             }

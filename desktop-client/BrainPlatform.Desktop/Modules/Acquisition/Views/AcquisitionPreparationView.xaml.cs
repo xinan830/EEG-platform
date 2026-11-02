@@ -13,10 +13,10 @@ public partial class AcquisitionPreparationView : UserControl
     }
 
     private void OnBackClick(object sender, RoutedEventArgs e) =>
-        (Window.GetWindow(this) as MainWindow)?.ShowProjectDetailView();
+        (Window.GetWindow(this) as IDesktopNavigation)?.ShowProjectDetailView();
 
     private void OnViewProjectClick(object sender, RoutedEventArgs e) =>
-        (Window.GetWindow(this) as MainWindow)?.ShowProjectDetailView();
+        (Window.GetWindow(this) as IDesktopNavigation)?.ShowProjectDetailView();
 
     private async void OnStartClick(object sender, RoutedEventArgs e)
     {
@@ -25,12 +25,12 @@ public partial class AcquisitionPreparationView : UserControl
             return;
         }
 
-        var window = Window.GetWindow(this) as MainWindow;
+        var navigation = Window.GetWindow(this) as IDesktopNavigation;
         startInProgress = true;
         try
         {
             await workspace.Acquisition.StartPreparedPreviewAsync();
-            window?.ShowAcquisitionView();
+            navigation?.ShowAcquisitionView();
         }
         catch (Exception exception)
         {

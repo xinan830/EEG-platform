@@ -30,7 +30,7 @@ global using BrainPlatform.Desktop.Modules.Review.Scheduling;
 global using BrainPlatform.Desktop.Modules.Review.ViewModels;
 global using BrainPlatform.Desktop.Modules.Review.Waveform;
 global using BrainPlatform.Desktop.Modules.Review.Views;
-global using BrainPlatform.Desktop.ViewModels;
+global using BrainPlatform.Desktop.Application;
 global using BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 global using BrainPlatform.Desktop.Modules.Acquisition.Contracts;
 global using BrainPlatform.Desktop.Modules.Acquisition.Runtime;

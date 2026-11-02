@@ -93,6 +93,35 @@ def test_registration_exposes_only_saved_outputs_and_preserves_raw(tmp_path):
         np.testing.assert_array_equal(data, values[:, [1, 0]])
 
 
+def test_signal_provenance_contains_one_saved_map_position_per_channel(tmp_path):
+    root = tmp_path / "recording"
+    _, manifest = fixture_recording(root)
+    hardware = manifest["HardwareConfiguration"]
+    recorded = json.loads(hardware["channel_configuration_snapshot_json"])
+    montage = json.loads(hardware["montage_configuration_snapshot_json"])
+    for snapshot in (recorded, montage["ChannelConfigurationSnapshot"]):
+        snapshot["Channels"][0]["ElectrodeLocation"] = {
+            "CanonicalSite": "F3", "MapX": -0.3, "MapY": -0.5,
+            "SourceId": "mne.colin27_1020", "SourceVersion": "1.12.1",
+        }
+        snapshot["Channels"][0]["ManualMapPosition"] = {"X": 0.2, "Y": -0.4}
+        snapshot["Channels"][1]["ElectrodeLocation"] = {
+            "CanonicalSite": "F7", "MapX": -0.7, "MapY": -0.2,
+            "SourceId": "mne.colin27_1020", "SourceVersion": "1.12.1",
+        }
+    hardware["channel_configuration_snapshot_json"] = json.dumps(recorded)
+    hardware["montage_configuration_snapshot_json"] = json.dumps(montage)
+    (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    view = read_acquisition_signal_view(root)
+
+    assert view.provenance["map_positions"]["F3"]["source"] == "manual"
+    assert view.provenance["map_positions"]["F3"]["x"] == 0.2
+    assert view.provenance["map_positions"]["F7"]["source"] == "template"
+    assert view.provenance["map_positions"]["Cz"]["status"] == "available"
+    assert view.provenance["map_positions"]["Cz"]["source"] == "template"
+
+
 def test_record_without_alternate_catalogue_reads_default_but_rejects_switch(tmp_path):
     root = tmp_path / "recording"
     values, _ = fixture_recording(root)

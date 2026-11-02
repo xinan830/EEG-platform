@@ -17,9 +17,9 @@ public partial class EventDefinitionEditorView : UserControl
             workspace.EventDefinitions.CancelCommand.Execute(null);
         }
 
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowEventListView(refreshDefinitions: false);
+            navigation.ShowEventListView(refreshDefinitions: false);
         }
     }
 
@@ -33,9 +33,9 @@ public partial class EventDefinitionEditorView : UserControl
         try
         {
             await workspace.EventDefinitions.SaveDraftAsync();
-            if (!workspace.EventDefinitions.IsEditing && Window.GetWindow(this) is MainWindow mainWindow)
+            if (!workspace.EventDefinitions.IsEditing && Window.GetWindow(this) is IDesktopNavigation navigation)
             {
-                mainWindow.ShowEventListView(refreshDefinitions: false);
+                navigation.ShowEventListView(refreshDefinitions: false);
             }
         }
         catch (Exception exception)

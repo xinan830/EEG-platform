@@ -71,6 +71,72 @@ public sealed class RbpReviewPresentationTests
         Assert.False(model.HasResult);
     }
 
+    [Fact]
+    public void Topomap_payload_contains_all_bands_without_client_side_selection()
+    {
+        var model = new RbpReviewAnalysisViewModel();
+        var bands = new[] { "delta", "theta", "alpha", "beta", "gamma" }
+            .Select(id => new TopomapBand(id, "ratio", [], null, "ready", [], [], null, null)).ToArray();
+        var response = new TopomapResponse("window-1", "recording", 5, 10,
+            "ready", "rbp-v2", "build", "mne.colin27_1020", "mri", "m",
+            bands, null, null);
+        model.ApplyTopomap(response);
+
+        Assert.Same(response, model.Topomap);
+        Assert.Equal(5, model.Topomap!.Bands.Count);
+        Assert.True(model.IsAllTopomapBandsSelected);
+        Assert.Contains("标准模板位置", model.TopomapStatusText);
+        Assert.Contains("5", model.TopomapWindowText);
+
+        var firstBandSlot = model.TopomapBands[0];
+        var nextBands = bands.Select(band => band with { Points = new List<TopomapPoint>() }).ToArray();
+        var next = response with
+        {
+            RunId = "window-2",
+            WindowStartSeconds = 10,
+            WindowEndSeconds = 15,
+            Bands = nextBands,
+        };
+        Assert.True(model.ApplyTopomapIfAvailable(next));
+        Assert.Same(firstBandSlot, model.TopomapBands[0]);
+        Assert.Same(nextBands[0], firstBandSlot.Band);
+        Assert.False(model.ApplyTopomapIfAvailable(null));
+        Assert.Same(next, model.Topomap);
+
+        model.ClearTopomap();
+        Assert.Empty(model.TopomapBands);
+        Assert.Null(model.Topomap);
+    }
+
+    [Fact]
+    public void Chart_selector_switches_between_stacked_history_and_topomap_pages()
+    {
+        var model = new RbpReviewAnalysisViewModel();
+
+        Assert.True(model.IsStackedChartSelected);
+        Assert.False(model.IsTopomapSelected);
+
+        model.SelectedChart = "脑电地形图";
+
+        Assert.False(model.IsStackedChartSelected);
+        Assert.True(model.IsTopomapSelected);
+    }
+
+    [Fact]
+    public void Topomap_band_selector_changes_only_the_displayed_band()
+    {
+        var model = new RbpReviewAnalysisViewModel();
+        var bands = new[] { "delta", "theta", "alpha", "beta", "gamma" }
+            .Select(id => new TopomapBand(id, "ratio", [], null, "ready", [], [], null, null)).ToArray();
+        model.ApplyTopomap(new TopomapResponse("window", "recording", 0, 5, "ready", "v1", "build",
+            "mne", "mri", "m", bands, null, null));
+
+        model.SelectedTopomapBandId = "alpha";
+
+        Assert.Equal("alpha", model.SelectedTopomapBand!.BandId);
+        Assert.Equal("window", model.Topomap!.RunId);
+    }
+
     internal static WindowPreviewResponse Ready(double end, double alpha = 0.6)
     {
         var channels = Enumerable.Range(1, 21).Select(i => $"CH{i}").ToArray();

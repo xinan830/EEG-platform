@@ -15,19 +15,19 @@ public sealed class WpfApplicationFixture
 
 internal static class WpfTestApplication
 {
-    private static Application application = null!;
+    private static System.Windows.Application application = null!;
 
     // Application/pack resources are process-wide, including tests outside this collection.
     // Keep the background dispatcher alive until the test host exits.
     [ModuleInitializer]
     internal static void Initialize()
     {
-        var ready = new TaskCompletionSource<Application>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ready = new TaskCompletionSource<System.Windows.Application>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
             try
             {
-                var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+                var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 {
                     Source = new Uri("/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml",

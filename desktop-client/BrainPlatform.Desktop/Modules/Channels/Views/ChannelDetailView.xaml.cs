@@ -16,10 +16,10 @@ public partial class ChannelDetailView : UserControl
 
     private async void OnBackToChannelListClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow &&
-            await mainWindow.ConfirmChannelDraftLeaveAsync())
+        if (Window.GetWindow(this) is IDesktopNavigation navigation &&
+            await navigation.ConfirmChannelDraftLeaveAsync())
         {
-            mainWindow.ShowChannelListView();
+            navigation.ShowChannelListView();
         }
     }
 
@@ -55,9 +55,9 @@ public partial class ChannelDetailView : UserControl
         {
             viewModel.ChannelConfigurations.CancelDeviceSelection();
             if (viewModel.ChannelConfigurations.DraftDevice is null &&
-                Window.GetWindow(this) is MainWindow mainWindow)
+                Window.GetWindow(this) is IDesktopNavigation navigation)
             {
-                mainWindow.ShowChannelListView();
+                navigation.ShowChannelListView();
             }
         }
     }
@@ -117,9 +117,9 @@ public partial class ChannelDetailView : UserControl
         try
         {
             await viewModel.ChannelConfigurations.DeleteSelectedAsync();
-            if (Window.GetWindow(this) is MainWindow mainWindow)
+            if (Window.GetWindow(this) is IDesktopNavigation navigation)
             {
-                mainWindow.ShowChannelListView();
+                navigation.ShowChannelListView();
             }
         }
         catch (Exception exception)

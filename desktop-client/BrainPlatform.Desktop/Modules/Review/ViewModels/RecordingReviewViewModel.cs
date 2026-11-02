@@ -126,6 +126,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         IapfParameters.PropertyChanged += OnAnalysisConfigurationChanged;
         ThetaBetaParameters.PropertyChanged += OnAnalysisConfigurationChanged;
         BrainbeatParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        RbpAnalysis.PropertyChanged += OnRbpTopomapPropertyChanged;
         OpenEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = true, () => CanEditSelectedEvent);
         CloseEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = false);
         displaySettings.PropertyChanged += OnDisplaySettingsChanged;
@@ -630,7 +631,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
                 IapfParameters.SelectMontage(registered, selectedMontage);
                 ThetaBetaParameters.SelectMontage(registered, selectedMontage);
                 BrainbeatParameters.SelectMontage(registered, selectedMontage);
-                TnkParameters.SelectMontage(registered, selectedMontage);
+                if (TnkParameters.IsInitialized)
+                    TnkParameters.SelectMontage(registered, selectedMontage);
             }
         }
         if (!ReferenceEquals(publishedFrame, session.CurrentFrame))

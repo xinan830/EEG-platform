@@ -6,7 +6,7 @@ using SciChart.Charting.Visuals;
 
 namespace BrainPlatform.Desktop;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private BackendProcessManager? _backendProcess;
     private DesktopWorkspaceViewModel? workspace;
@@ -83,7 +83,9 @@ public partial class App : Application
             BaseAddress = backendEndpoint,
             Timeout = TimeSpan.FromSeconds(15),
         };
-        var window = new MainWindow(new Modules.Review.Filtering.HttpRecordingReviewFilter(reviewFilterClient))
+        var window = new MainWindow(
+            new Modules.Review.Filtering.HttpRecordingReviewFilter(reviewFilterClient),
+            new MainWindowViewSet())
         {
             DataContext = workspace,
         };

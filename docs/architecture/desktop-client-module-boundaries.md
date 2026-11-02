@@ -28,6 +28,22 @@ retain their existing behavior.
 - `Infrastructure` contains external-system boundaries such as backend HTTP
   clients and persistence adapters. It must not become a second domain layer.
 
+## Composition and Navigation Boundaries
+
+- `App` is the application composition root. It constructs the shared workspace,
+  backend clients, and the shell's persistent feature views through
+  `MainWindowViewSet`.
+- `MainWindow` owns shell layout, window/session lifetime, and presentation
+  state. It does not construct persistent feature views or duplicate shared
+  workspace state.
+- Feature Views request shell navigation through `IDesktopNavigation`. They do
+  not cast their host window to `MainWindow`. `Window.GetWindow(this)` remains
+  valid when a dialog needs its WPF owner; that use does not grant feature
+  navigation access.
+- `BrainPlatform.Desktop.ViewModels` is retired. Application-level workspace
+  state belongs under `BrainPlatform.Desktop.Application`; feature ViewModels
+  remain in their owning module.
+
 ## Prohibited Catch-All Locations
 
 Do not add new root-level `Services`, `ViewModels`, `Models`, `Helpers`,

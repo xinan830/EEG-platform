@@ -8,6 +8,19 @@ namespace BrainPlatform.Desktop.Tests.Review;
 public sealed class ReviewTnkParametersTests
 {
     [Fact]
+    public void Selecting_montage_before_tnk_catalog_initialization_is_deferred()
+    {
+        var parameters = new ReviewTnkParameters();
+        var recording = new RegisteredRecording("recording", "fixture", ".wpf", "now", 500, 100,
+            ["Fz-REF", "Pz-REF"], "sha");
+
+        parameters.SelectMontage(recording, null);
+
+        Assert.False(parameters.IsInitialized);
+        Assert.Null(parameters.Montage);
+    }
+
+    [Fact]
     public void Configuration_keeps_all_five_distinct_roles_and_catalog_window_policy()
     {
         var parameters = Parameters();

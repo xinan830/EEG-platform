@@ -14,7 +14,7 @@ public partial class ProjectDetailView : UserControl
         ?? throw new InvalidOperationException("项目详情页尚未连接工作区。");
 
     private void OnBackToProjectListClick(object sender, RoutedEventArgs e) =>
-        (Window.GetWindow(this) as MainWindow)?.ShowProjectListView();
+        (Window.GetWindow(this) as IDesktopNavigation)?.ShowProjectListView();
 
     private async void OnEditProjectClick(object sender, RoutedEventArgs e)
     {
@@ -52,7 +52,7 @@ public partial class ProjectDetailView : UserControl
         {
             if (Workspace.Acquisition.SelectedProject?.Id == project.Id) Workspace.Acquisition.SelectedProject = null;
             await Workspace.Projects.DeleteSelectedAsync();
-            (Window.GetWindow(this) as MainWindow)?.ShowProjectListView();
+            (Window.GetWindow(this) as IDesktopNavigation)?.ShowProjectListView();
         }
         catch (Exception exception) { Workspace.Notifications.PublishError(exception.Message); }
     }
@@ -67,7 +67,7 @@ public partial class ProjectDetailView : UserControl
             return;
         }
         Workspace.Acquisition.SelectedProject = project;
-        (Window.GetWindow(this) as MainWindow)?.ShowAcquisitionPreparationView();
+        (Window.GetWindow(this) as IDesktopNavigation)?.ShowAcquisitionPreparationView();
     }
 
     private void OnOpenProjectDirectoryClick(object sender, RoutedEventArgs e)
@@ -115,8 +115,8 @@ public partial class ProjectDetailView : UserControl
         try
         {
             Workspace.Projects.SelectedRecording = recording;
-            if (Window.GetWindow(this) is MainWindow window)
-                await window.ShowRecordingReviewViewAsync(recording, Workspace.MontageConfigurations.Profiles);
+            if (Window.GetWindow(this) is IDesktopNavigation navigation)
+                await navigation.ShowRecordingReviewViewAsync(recording, Workspace.MontageConfigurations.Profiles);
         }
         catch (Exception exception) { Workspace.Notifications.PublishError(exception.Message); }
     }

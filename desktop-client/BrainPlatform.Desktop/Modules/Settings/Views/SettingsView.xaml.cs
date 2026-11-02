@@ -12,33 +12,33 @@ public partial class SettingsView : UserControl
 
     private void OnOpenChannelListClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowChannelListView();
+            navigation.ShowChannelListView();
         }
     }
 
     private void OnOpenMontageListClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowMontageListView();
+            navigation.ShowMontageListView();
         }
     }
 
     private void OnOpenScreenCalibrationClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowScreenCalibrationView();
+            navigation.ShowScreenCalibrationView();
         }
     }
 
     private void OnOpenEventListClick(object sender, RoutedEventArgs e)
     {
-        if (Window.GetWindow(this) is MainWindow mainWindow)
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
-            mainWindow.ShowEventListView();
+            navigation.ShowEventListView();
         }
     }
 }

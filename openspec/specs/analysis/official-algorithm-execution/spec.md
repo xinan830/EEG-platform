@@ -7,37 +7,43 @@
 ### Requirement: Run official IAPF and individualized Theta/Beta
 
 The system SHALL execute official IAPF, Theta/Beta, RBP and FAA through their
-own registered backend modules and the existing Run lifecycle. Algorithm
-modules SHALL declare their client-safe inputs, output unit/shape, time
-semantics and quality behavior.
+own registered backend modules and the existing Run lifecycle. Validated montage inputs
+SHALL include persisted explicit analysis snapshots as well as acquisition snapshots;
+their source and immutable content identity SHALL remain traceable. Algorithm
+modules SHALL declare their client-safe inputs, including historical montage
+and output-channel mapping, output unit/shape, time semantics and quality
+behavior. The backend SHALL project the selected montage in V/float64 from
+immutable recorded source channels before algorithm preprocessing. Each module
+SHALL retain its own mathematical formula and quality rules.
 
 #### Scenario: Select an executable official algorithm
 
-- **WHEN** a client selects a catalog item marked runnable
+- **WHEN** a client selects a catalog item marked runnable and a validated
+  historical montage output
 - **THEN** it submits only the parameters declared by that item's backend
   schema
-- **AND THEN** the Run records actual inputs, output evidence and the module's
-  scientific and implementation identities
+- **AND THEN** the Run records the actual montage, source mapping, output
+  evidence and module identities
 
 #### Scenario: Preserve a specialized algorithm contract
 
-- **WHEN** RBP, FAA, IAPF or Theta/Beta execute
+- **WHEN** RBP, FAA, IAPF or Theta/Beta execute under a selected montage
 - **THEN** each algorithm retains its own mathematical formula and quality
-  rules
+  rules over the projected signal
 - **AND THEN** the shared runtime does not coerce multi-value RBP or paired FAA
   into an unrelated single-channel scalar contract
 
 #### Scenario: Static IAPF
 
-- **WHEN** a valid recording, one selected raw channel, and analysis range are
-  submitted for `iapf`
-- **THEN** the completed Run returns IAPF in Hz, the selected raw channel,
+- **WHEN** a valid recording, one selected historical montage output, and
+  analysis range are submitted for iapf
+- **THEN** the completed Run returns IAPF in Hz, the selected resolved output,
   spectral evidence, quality, algorithm identity, and an Artifact
 
 #### Scenario: Dynamic Theta/Beta
 
-- **WHEN** a valid recording, one selected raw channel, and dynamic
-  `theta_beta` configuration are submitted
+- **WHEN** a valid recording, one selected historical montage output, and
+  dynamic theta_beta configuration are submitted
 - **THEN** the Run returns real window bounds and one individualized ratio per
   refresh point without fabricating values for rejected windows
 - **AND THEN** every point's trend time is the end of its actual analysis
@@ -68,25 +74,26 @@ semantics and quality behavior.
 
 #### Scenario: Missing logical mapping
 
-- **WHEN** Theta/Beta is requested without a global semantic mapping
-- **THEN** the Run uses the explicitly selected raw channel
-- **AND THEN** it does not return `OFFICIAL_CHANNEL_MAPPING_REQUIRED` or infer
-  a channel by position or alias
+- **WHEN** Theta/Beta is requested without a global semantic mapping but with a
+  validated explicitly selected montage output
+- **THEN** the Run uses the explicitly selected resolved output
+- **AND THEN** it does not return OFFICIAL_CHANNEL_MAPPING_REQUIRED or infer a
+  channel by position or alias
 
 #### Scenario: Dynamic Theta/Beta on one source channel
 
-- **WHEN** a valid recording, raw channel `O2`, and dynamic Theta/Beta config
-  are submitted
+- **WHEN** a valid recording, one selected historical montage output sourced
+  from O2, and dynamic Theta/Beta config are submitted
 - **THEN** each returned point records its actual window range and reports one
-  `Theta/Beta` value sourced from `O2`
-- **AND THEN** the system does not relabel `O2` as `Oz`, compute Fz/Pz/Oz
-  role outputs, or average any channels
+  Theta/Beta value sourced from the resolved O2 output
+- **AND THEN** the system does not relabel O2 as Oz, compute Fz/Pz/Oz role
+  outputs, or average any channels outside the selected montage formula
 
 #### Scenario: Unavailable dynamic point
 
 - **WHEN** a dynamic window fails the PSD quality gate, lacks IAPF, or has an
   invalid Beta denominator
-- **THEN** that point's value is `null` with a stable backend reason and is
+- **THEN** that point's value is null with a stable backend reason and is
   never represented as zero
 
 ### Requirement: Catalog state matches executable scope

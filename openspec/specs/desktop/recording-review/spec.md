@@ -361,3 +361,77 @@ preserve values, units, temporal extrema and genuine missing-data breaks.
 - **WHEN** the immutable frame and physical vertical scale are unchanged
 - **THEN** SciChart trace data SHALL remain unchanged
 - **AND** a changed frame or physical scale SHALL still refresh the waveform.
+
+### Requirement: Review follows the playhead at the viewport center
+Review SHALL center the playback position within the visible recording window
+whenever recording bounds permit. The viewport SHALL NOT extend outside the
+recording. Navigation SHALL preserve sample time, gaps, filtering and analysis
+configuration, with no independent playhead animation.
+
+#### Scenario: Drag from start through middle to end
+- **GIVEN** a 100-second recording with a 10-second visible window
+- **WHEN** the bottom navigator selects 0, 2, 5, 50, 95, 98 and 100 seconds
+- **THEN** viewport starts SHALL be 0, 0, 0, 45, 90, 90 and 90 seconds
+- **AND** playhead fractions SHALL be 0, 0.2, 0.5, 0.5, 0.5, 0.8 and 1
+- **AND** reverse navigation SHALL produce the same positions in reverse order
+
+#### Scenario: Short recording
+- **GIVEN** the recording is shorter than the configured visible duration
+- **WHEN** the user navigates from its first to last recorded time
+- **THEN** the viewport SHALL remain at the start and the playhead SHALL move from left to right
+
+### Requirement: Navigator selects the full recording position
+The bottom navigator SHALL bind the actual playback position. Thumb travel
+SHALL map to the full 0..duration range, not viewport-start range. Existing
+bounded drag scheduling and atomic track-click loading SHALL remain intact.
+
+#### Scenario: Drag begins without an offset
+- **WHEN** dragging begins at the current thumb position
+- **THEN** rate limiting SHALL start at the current recording position
+- **AND** the thumb mapping SHALL round-trip that position without a viewport offset
+
+#### Scenario: Both endpoints are reachable
+- **WHEN** the thumb reaches either end of its available travel
+- **THEN** the selected time SHALL be exactly 0 or recording duration respectively
+- **AND** this SHALL also hold for short recordings
+
+### Requirement: Playhead is visually distinct and plot aligned
+Review SHALL display the playhead as a dark-gray thin dashed line with a small
+downward top marker inside the waveform plot. It SHALL NOT intercept waveform
+input or overlap axis labels. Switching time-label modes SHALL preserve its
+recording coordinate and plot alignment.
+
+#### Scenario: Chart layout changes
+- **WHEN** the chart resizes or its axis labels change
+- **THEN** the playhead SHALL use the actual plot area rather than chart-host width
+- **AND** its start, middle and end positions SHALL remain within that plot
+
+### Requirement: Review can display adaptive markers for real projected samples
+
+The desktop SHALL keep the continuous review waveform as the default display and SHALL provide a user-controlled point-and-line mode. When enabled, the desktop SHALL draw markers only at actual samples in the current bounded, montage-projected review frame, and SHALL hide the markers when the horizontal distance between adjacent samples is below 5 device-independent pixels (DIP). Hiding markers SHALL NOT remove or alter the continuous waveform. Markers SHALL preserve the frame's recording-time coordinates, output-channel order, and V/float64 values mapped through the existing display scale. Missing samples and recorded gaps SHALL remain unmarked and SHALL NOT be bridged.
+
+The review workspace SHALL provide subsecond timebase choices of 0.1, 0.25, and 0.5 seconds per screen, in addition to its existing wider timebases, so users can zoom in far enough to inspect individual samples. Timebase selection SHALL affect only the visible review window.
+
+#### Scenario: Point-and-line mode is off by default
+- **WHEN** a recording is opened in the review workspace
+- **THEN** the review waveform SHALL show continuous lines without sample markers
+
+#### Scenario: User zooms in to reveal sample markers
+- **WHEN** the user selects a subsecond timebase and enables point-and-line mode
+- **THEN** the review viewport SHALL narrow to the selected timebase and display markers whenever actual samples are at least 5 DIP apart
+
+#### Scenario: Markers appear when samples are visually separated
+- **WHEN** the user enables point-and-line mode and adjacent samples are at least 5 DIP apart horizontally
+- **THEN** the waveform SHALL show a marker at each visible real sample while retaining the continuous line
+
+#### Scenario: Markers adaptively disappear when zoomed out
+- **WHEN** point-and-line mode is enabled and adjacent samples are less than 5 DIP apart
+- **THEN** the waveform SHALL hide sample markers and SHALL continue to show the continuous line
+
+#### Scenario: Display-level extrema are used for the line
+- **WHEN** the waveform line is rendered from an extrema-reduced display level
+- **THEN** reduced extrema SHALL NOT be presented as sample markers
+
+#### Scenario: A gap is present
+- **WHEN** the projected review frame contains a non-finite sample or a sample-counter gap
+- **THEN** no marker SHALL be drawn at the missing sample and the line SHALL remain discontinuous across the gap

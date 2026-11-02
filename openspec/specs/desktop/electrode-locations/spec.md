@@ -29,13 +29,36 @@ The system SHALL resolve recognized electrode labels by exact case-insensitive m
 - **AND** the manual position is identified as diagram-only and is never stored as an MNE or measured XYZ location
 - **AND** changing the channel label clears its previous manual position
 
+#### Scenario: Override a standard-template position in the diagram
+- **WHEN** the user selects an EEG channel with a resolved standard-template location and clicks or drags within the head outline
+- **THEN** the diagram uses and saves the normalized 2D manual position for that channel while retaining its resolved standard XYZ snapshot unchanged
+- **AND** the override is identified as diagram-only and is never treated as measured or standard XYZ coordinates
+- **AND** the manually overridden point is visually distinguishable from an unmodified standard-template point
+- **AND** changing the diagram-only position changes the saved spatial snapshot identity, so new analysis montage runs use a new position version while existing runs retain their original snapshot
+
+#### Scenario: Restore all default template positions
+- **WHEN** the user activates restore all default template positions
+- **THEN** every EEG channel's manual 2D override is cleared
+- **AND** standard-template channels return to their resolved standard-template diagram positions without changing their XYZ snapshots
+- **AND** custom channels without standard-template positions are omitted from the diagram
+
 #### Scenario: Hide a channel from the position diagram
 - **WHEN** a configured EEG channel has a standard or manual position but its display toggle is off
 - **THEN** the channel remains selectable for editing or placement
 - **AND** its position is omitted from the electrode diagram until display is enabled again
 
+#### Scenario: Show and move hardware reference and ground landmarks
+- **WHEN** the user opens the floating electrode map for a channel configuration
+- **THEN** it shows separate REF and GND landmarks at the configured positions, defaulting to the Pz/Cz midpoint and Fz/Fpz midpoint
+- **AND** the user can drag either landmark independently without selecting an EEG channel
+- **AND** moving a landmark updates the profile's saved 2D diagram position
+- **AND** the landmark positions are persisted as normalized diagram metadata with the profile
+- **AND** these landmarks are not EEG channel rows, sample columns, MNE scalp snapshots, or signal-fingerprint inputs
+- **AND** existing hardware REF/GND wiring labels and acquisition provenance remain unchanged
+- **AND** restoring default positions returns the landmarks to the default diagram positions
+
 ### Requirement: Electrode locations are preserved with configuration identity
-The system SHALL persist the resolved site identity, coordinate values, coordinate convention, and coordinate-source version with the channel configuration entry and any recording snapshot that carries that configuration. These fields SHALL participate in the channel configuration fingerprint. Older snapshots without location fields SHALL remain readable and SHALL resolve to unavailable; loading them SHALL NOT trigger resolution.
+The system SHALL persist the resolved site identity, coordinate values, coordinate convention, coordinate-source version, and normalized MapX/MapY position with the channel configuration entry and any recording snapshot that carries that configuration. Channel and REF/GND map positions SHALL participate in the channel configuration fingerprint. Older snapshots without location fields SHALL remain readable; the unified recording-access layer MAY materialize standard-template MapX/MapY from the authoritative resolver and SHALL expose its source and version in provenance, while loading them SHALL NOT change raw samples.
 
 #### Scenario: Save and reload channel configuration
 - **WHEN** a user saves a configuration containing recognized electrode labels and reloads it

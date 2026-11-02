@@ -3,9 +3,7 @@
 ## Purpose
 
 Lock the existing `offline-spectral-v3` PSD, band-power, relative-power, time-range, and quality semantics during platform migration.
-
 ## Requirements
-
 ### Requirement: Apply the frozen spectral preprocessing contract
 
 `offline-spectral-v3` SHALL use the original recording reference without software rereference, whole-recording zero-phase 1-30 Hz filtering, no notch filter, and `float64` calculations in volts.
@@ -83,3 +81,17 @@ Scientific output rejected by a quality gate SHALL serialize as null/non-value w
 
 - **WHEN** insufficient clean segments remain for PSD averaging
 - **THEN** PSD, band power, and relative power are unavailable, quality explains the rejection, and zero is not emitted as a substitute measurement
+
+### Requirement: Separate spectral preprocessing and output frequency ranges
+The spectral loading boundary MUST accept independent filter and output
+frequency ranges. The preprocessing cache identity MUST include the filter
+range and notch setting, while output clipping MUST use only the output range.
+
+#### Scenario: Dynamic PSD uses configured filtering with a fixed trend axis
+- **GIVEN** a dynamic PSD config with high-pass 0.5 Hz, low-pass 40 Hz, and
+  notch 50 Hz
+- **WHEN** a dynamic window is loaded
+- **THEN** preprocessing uses 0.5-40 Hz and 50 Hz notch
+- **AND** returned frequency bins are clipped to the configured trend axis
+  1-50 Hz
+- **AND** evidence records both filter and output ranges
