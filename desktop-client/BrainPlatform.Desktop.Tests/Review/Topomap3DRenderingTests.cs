@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Windows.Media.Media3D;
-using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Channels.Api;
 using BrainPlatform.Desktop.Shared.Controls.Topomap;
 
@@ -11,30 +10,11 @@ namespace BrainPlatform.Desktop.Tests.Review;
 public sealed class Topomap3DRenderingTests
 {
     [Fact]
-    public void Scene_is_frozen_and_declared_mesh_identity_is_checked()
+    public void Channel_settings_scene_shows_selected_mapped_locations_and_centers_the_head()
     {
         OnSta(() =>
         {
-            var presentation = CreatePresentation();
-            var scene = Topomap3DScenePreparer.Prepare(presentation, "alpha", CancellationToken.None);
-            Assert.True(scene.IsFrozen);
-            Assert.Single(scene.Children);
-
-            var invalid = presentation with
-            {
-                Result = presentation.Result with { MeshGeometrySha256 = new string('0', 64) },
-            };
-            Assert.Throws<InvalidDataException>(() =>
-                Topomap3DScenePreparer.Prepare(invalid, "alpha", CancellationToken.None));
-        });
-    }
-
-    [Fact]
-    public void Model_only_scene_shows_selected_mapped_locations_and_centers_the_head()
-    {
-        OnSta(() =>
-        {
-            var model = CreatePresentation().Model with
+            var model = CreateModel() with
             {
                 ElectrodeLocations =
                 [
@@ -93,33 +73,37 @@ public sealed class Topomap3DRenderingTests
         Assert.Equal(42, fieldOfView);
     }
 
-    private static Topomap3DPresentation CreatePresentation()
+    [Fact]
+    public void Shift_pan_maps_drag_delta_to_camera_plane()
+    {
+        var offset = Topomap3DView.CalculatePanOffset(10, 20, 100, 42,
+            new Vector3D(0, 0, 2), new Vector3D(0, 1, 0));
+        var unitsPerPixel = 4 * Math.Tan(42 * Math.PI / 360) / 100;
+
+        Assert.Equal(-10 * unitsPerPixel, offset.X, 10);
+        Assert.Equal(20 * unitsPerPixel, offset.Y, 10);
+        Assert.Equal(0, offset.Z, 10);
+        Assert.Equal(default, Topomap3DView.CalculatePanOffset(10, 20, 0, 42,
+            new Vector3D(0, 0, 2), new Vector3D(0, 1, 0)));
+    }
+
+    private static ElectrodeScalpModel3D CreateModel()
     {
         var vertices = new IReadOnlyList<double>[]
         {
-            new[] { -0.5, 0d, 0d }, new[] { 0.5, 0d, 0d }, new[] { 0d, 0.5, 0d },
+            new[] { -0.5, 0d, 0d }, new[] { 0.5, 0d, 0d },
+            new[] { 0d, 0.5, 0d }, new[] { 0d, -0.5, 0d },
         };
-        var triangles = new IReadOnlyList<int>[] { new[] { 0, 1, 2 } };
+        var triangles = new IReadOnlyList<int>[] { new[] { 0, 1, 2 }, new[] { 0, 3, 1 } };
         var geometryHash = GeometryHash(vertices, triangles);
         const string mappingHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         const string assetHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        var model = new ElectrodeScalpModel3D(
+        return new ElectrodeScalpModel3D(
             "model", "v1", "mapping", 4, mappingHash, assetHash, geometryHash,
             "colin27_1020", "1.13.2", "head", "m", "gnm_native", "GNM model units",
             "standard_template_visualization", "measured contour fractions; anatomical review required",
             new[] { 0d, 0d, 0d }, new[] { 1d, 0d, 0d }, new[] { 0d, 0d, -1d },
             new[] { 0d, 1d, 0d }, Array.Empty<ElectrodeLocation3D>(), vertices, triangles);
-        var band = new Topomap3DBand("alpha", "ratio", "ready", new double?[] { 0, 0.5, 1 },
-            Array.Empty<Topomap3DElectrode>(), Array.Empty<string>(), Array.Empty<Topomap3DExcludedChannel>(),
-            0, 1, null);
-        var result = new Topomap3DResponse(
-            "run", "recording", 0, 5, "ready", "rbp", "rbp-v1", "build", "relative", "clean",
-            "model", "v1", "mapping", 4, mappingHash, assetHash, geometryHash,
-            "colin27_1020", "1.13.2", "head", "m", "gnm_native", "GNM model units",
-            "gnm_upper_scalp_gnomonic_linear_v1", new Dictionary<string, System.Text.Json.JsonElement>(),
-            "standard_template_visualization", "measured contour fractions; anatomical review required",
-            new[] { band }, null, null);
-        return new Topomap3DPresentation(model, result);
     }
 
     private static string GeometryHash(IReadOnlyList<IReadOnlyList<double>> vertices,

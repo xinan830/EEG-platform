@@ -109,7 +109,7 @@
                     <Style TargetType="Border">
                         <Setter Property="Visibility" Value="Visible" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding RbpAnalysis.IsAnyTopomapSelected}" Value="True">
+                            <DataTrigger Binding="{Binding RbpAnalysis.IsTopomapSelected}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
                         </Style.Triggers>
@@ -138,40 +138,6 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
-            </Border>
-            <Border Margin="4,2,4,4" Padding="8" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding RbpAnalysis.Is3DTopomapSelected}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="4,0,0,4">
-                        <ComboBox Width="120" Height="32" Margin="0,0,8,0"
-                                  ItemsSource="{Binding RbpAnalysis.TopomapPowerTypeOptions}"
-                                  DisplayMemberPath="Label" SelectedValuePath="Id"
-                                  SelectedValue="{Binding RbpAnalysis.SelectedTopomapPowerType, UpdateSourceTrigger=PropertyChanged}"
-                                  ToolTip="选择功率类型" Style="{StaticResource AppFilterComboBoxStyle}" />
-                        <ComboBox Width="120" Height="32"
-                                  ItemsSource="{Binding RbpAnalysis.Topomap3DBandOptions}"
-                                  DisplayMemberPath="Label" SelectedValuePath="Id"
-                                  SelectedValue="{Binding RbpAnalysis.SelectedTopomap3DBandId, UpdateSourceTrigger=PropertyChanged}"
-                                  ToolTip="选择三维地形图频段" Style="{StaticResource AppFilterComboBoxStyle}" />
-                    </StackPanel>
-                    <topomap:Topomap3DView Grid.Row="1"
-                        Presentation="{Binding RbpAnalysis.Topomap3D}"
-                        BandId="{Binding RbpAnalysis.SelectedTopomap3DBandId}"
-                        ColorScaleState="{Binding RbpAnalysis.Topomap3DColorScales}" />
-                </Grid>
             </Border>
         </Grid>
     </shared:AnalysisPanelShell>

@@ -26,25 +26,7 @@
             <TextBlock x:Name="WindowText" FontSize="11" Foreground="#475569" />
             <TextBlock Text="标准模板可视化 · 非个体定位" FontSize="10" Foreground="#64748B" />
         </StackPanel>
-        <StackPanel x:Name="ColorLegend" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12"
-                    IsHitTestVisible="False">
-            <Border Height="10" Width="150" CornerRadius="3" BorderBrush="#64748B" BorderThickness="0.5">
-                <Border.Background>
-                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                        <GradientStop Color="#304FFE" Offset="0" />
-                        <GradientStop Color="#00BFA5" Offset="0.35" />
-                        <GradientStop Color="#FFEB3B" Offset="0.68" />
-                        <GradientStop Color="#F44336" Offset="1" />
-                    </LinearGradientBrush>
-                </Border.Background>
-            </Border>
-            <DockPanel Width="150">
-                <TextBlock x:Name="MinimumText" DockPanel.Dock="Left" FontSize="10" Foreground="#334155" />
-                <TextBlock x:Name="UnitText" HorizontalAlignment="Center" FontSize="10" Foreground="#334155" />
-                <TextBlock x:Name="MaximumText" DockPanel.Dock="Right" FontSize="10" Foreground="#334155" />
-            </DockPanel>
-        </StackPanel>
-        <TextBlock x:Name="UnavailableText" Text="等待三维地形图" HorizontalAlignment="Center"
+        <TextBlock x:Name="UnavailableText" Text="等待头模" HorizontalAlignment="Center"
                    VerticalAlignment="Center" Foreground="#64748B" FontSize="14"
                    IsHitTestVisible="False" />
     </Grid>

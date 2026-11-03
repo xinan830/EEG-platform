@@ -45,10 +45,6 @@ public interface IReviewAlgorithmAdapter
         CancellationToken cancellationToken, string powerType = "relative", string? bandId = null) =>
         throw new NotSupportedException($"算法 {AlgorithmId} 未注册地形图适配器。");
 
-    Task<Topomap3DPresentation> LoadTopomap3DAsync(WindowPreviewResponse window,
-        CancellationToken cancellationToken, string powerType, string bandId) =>
-        throw new NotSupportedException($"算法 {AlgorithmId} 未注册三维地形图适配器。");
-
     Task<WindowPreviewResponse> LoadOnDemandAsync(string recordingId, AnalysisRunRequest request,
         long cursorSample, CancellationToken cancellationToken, IProgress<DynamicWindowResponse>? progress) =>
         LoadOnDemandAsync(recordingId, request, cursorSample, cancellationToken);

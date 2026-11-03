@@ -15,32 +15,4 @@ public sealed partial class HttpAlgorithmClient
             "api/topomap/3d/locations", request, cancellationToken);
     }
 
-    public Task<Topomap3DResponse> GetRunTopomap3DAsync(string runId, long cursorSample,
-        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
-    {
-        Validate3DSelection(cursorSample, powerType, bandId);
-        var query = $"cursor_sample={cursorSample}&power_type={Uri.EscapeDataString(powerType)}";
-        if (bandId is not null) query += $"&band_id={Uri.EscapeDataString(bandId)}";
-        return SendAsync<Topomap3DResponse>(HttpMethod.Get,
-            $"api/runs/{Uri.EscapeDataString(RequireId(runId))}/topomap/3d?{query}", null, cancellationToken);
-    }
-
-    public Task<Topomap3DResponse> GetDynamicTopomap3DAsync(string windowId, string? projectId,
-        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
-    {
-        Validate3DSelection(0, powerType, bandId);
-        var query = $"power_type={Uri.EscapeDataString(powerType)}";
-        if (!string.IsNullOrWhiteSpace(projectId)) query += $"&project_id={Uri.EscapeDataString(projectId)}";
-        if (bandId is not null) query += $"&band_id={Uri.EscapeDataString(bandId)}";
-        return SendAsync<Topomap3DResponse>(HttpMethod.Get,
-            $"api/analysis-windows/{Uri.EscapeDataString(RequireId(windowId))}/topomap/3d?{query}", null, cancellationToken);
-    }
-
-    private static void Validate3DSelection(long cursorSample, string powerType, string? bandId)
-    {
-        if (cursorSample < 0) throw new ArgumentOutOfRangeException(nameof(cursorSample));
-        if (powerType is not ("relative" or "absolute")) throw new ArgumentOutOfRangeException(nameof(powerType));
-        if (bandId is not (null or "delta" or "theta" or "alpha" or "beta" or "gamma"))
-            throw new ArgumentOutOfRangeException(nameof(bandId));
-    }
 }

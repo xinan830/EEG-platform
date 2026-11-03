@@ -17,11 +17,11 @@ The system SHALL provide a typed read-only 3D location resolution path for exact
 - **THEN** the API returns a stable structured error/unavailable status and leaves the existing 2D location behavior unchanged
 
 ### Requirement: Channel Settings can inspect mapped locations in 2D or 3D
-The Channel Settings electrode-position window SHALL allow switching between its existing editable 2D diagram and a read-only 3D view of the shared GNM model. The 3D view SHALL use the same verified model and mapping as the RBP topomap and SHALL show only currently enabled EEG inputs with exact mapped locations, including mapped A1/A2/M1/M2 when configured. Location resolution SHALL use the shared `is_scalp_field_site` classification; display availability MUST NOT be conflated with RBP interpolation eligibility. It MUST NOT derive 3D coordinates from editable `MapX`/`MapY`. REF/GND and unmapped labels SHALL remain unavailable in 3D with no inferred position. The camera target and rotation pivot SHALL share the normalized model origin. Zoom SHALL change the camera field of view while keeping the camera outside a bounding sphere enclosing the complete displayed model.
+The Channel Settings electrode-position window SHALL allow switching between its existing editable 2D diagram and a read-only 3D view of the shared GNM model. The 3D view SHALL use the verified standard model and mapping and SHALL show only currently enabled EEG inputs with exact mapped locations, including mapped A1/A2/M1/M2 when configured. Location resolution SHALL use the shared `is_scalp_field_site` classification; display availability MUST NOT be conflated with scalp-field eligibility. It MUST NOT derive 3D coordinates from editable `MapX`/`MapY`. REF/GND and unmapped labels SHALL remain unavailable in 3D with no inferred position. The camera target and rotation pivot SHALL share the normalized model origin. Zoom SHALL change the camera field of view while keeping the camera outside a bounding sphere enclosing the complete displayed model.
 
 #### Scenario: Switch to the 3D electrode view
 - **WHEN** the operator selects 3D in the Channel Settings electrode-position window
-- **THEN** the shared head model is displayed with the mapped positions for currently enabled EEG inputs, using the same model identity as RBP
+- **THEN** the shared head model is displayed with the mapped positions for currently enabled EEG inputs
 - **AND** switching back to 2D preserves the existing editable diagram and draft positions
 
 #### Scenario: A configured channel has no 3D scalp site
@@ -31,7 +31,7 @@ The Channel Settings electrode-position window SHALL allow switching between its
 #### Scenario: A mapped mastoid channel is enabled
 - **WHEN** A1, A2, M1, or M2 is enabled as an EEG input and has an exact standard mapping
 - **THEN** Channel Settings displays its mapped 3D location marker
-- **AND** the channel remains excluded from RBP scalp-field interpolation
+- **AND** its scalp-field-site classification remains false
 
 #### Scenario: Channel Settings uses mapped markers without floating labels
 - **WHEN** the operator views mapped EEG inputs in Channel Settings 3D
@@ -44,6 +44,10 @@ The Channel Settings electrode-position window SHALL allow switching between its
 - **WHEN** the operator zooms in repeatedly
 - **THEN** the view magnifies by narrowing the field of view while the camera remains outside the model's enclosing sphere
 - **AND** the camera does not pass through the head surface at any supported zoom level
+
+#### Scenario: The operator pans the model with Shift-drag
+- **WHEN** the operator drags the pointer while holding Shift
+- **THEN** the model follows the pointer in both horizontal and vertical screen directions
 
 #### Scenario: The operator edits 2D positions or hardware landmarks
 - **WHEN** the operator drags an EEG marker, REF, or GND in the 2D view

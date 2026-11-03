@@ -1,6 +1,6 @@
-from types import SimpleNamespace
 import hashlib
 import json
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -41,24 +41,56 @@ def _service(values, channels, formulas=None, status="available", arrays=None, a
     return TopomapService(result_service, queue)
 
 
-def _bind_dynamic_source_context(payload, channels):
+def _set_dynamic_configuration(payload, configuration):
+    encoded = json.dumps(configuration, sort_keys=True, separators=(",", ":"))
+    payload["scientific_configuration_json"] = encoded
+    payload["identity"]["configuration_sha256"] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return payload
+
+
+def _bind_dynamic_source_context(payload, channels, *, selected_montage=True):
     positions = {
         channel: {"x": x, "y": y, "status": "available", "enabled": True, "source": "snapshot"}
         for channel, (x, y) in {"Fz": (0.0, -0.8), "Cz": (0.0, 0.0), "Pz": (0.0, 0.8)}.items()
     }
     source = {
-        "formulas": [], "map_positions": positions, "montage_id": "montage-1",
-        "montage_revision": "2", "montage_fingerprint": "fingerprint-1",
-        "snapshot_sha256": "fingerprint-1",
+        "signal_mode": "acquisition_montage", "formulas": [], "map_positions": positions,
     }
-    configuration = {"context": {"signal_mapping": {
-        "channels": channels, "signal_source": source,
-        "analysis_montage": {"id": "montage-1", "revision": 2, "fingerprint": "fingerprint-1"},
-    }}}
-    encoded = json.dumps(configuration, sort_keys=True, separators=(",", ":"))
-    payload["scientific_configuration_json"] = encoded
-    payload["identity"]["configuration_sha256"] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
-    return payload
+    signal_mapping = {"channels": channels, "signal_source": source}
+    if selected_montage:
+        source.update({
+            "analysis_reference": "analysis_configuration_snapshot", "montage_id": "montage-1",
+            "montage_revision": "2", "montage_fingerprint": "source-profile-fingerprint",
+            "snapshot_sha256": "fingerprint-1",
+        })
+        signal_mapping["analysis_montage"] = {
+            "id": "montage-1", "revision": 2, "fingerprint": "fingerprint-1",
+        }
+    else:
+        source.update({
+            "analysis_reference": "acquisition_montage_snapshot", "montage_id": "saved-montage",
+            "montage_revision": None, "montage_fingerprint": None,
+            "snapshot_sha256": "snapshot-content-hash",
+        })
+    configuration = {"context": {"signal_mapping": signal_mapping}}
+    return _set_dynamic_configuration(payload, configuration)
+
+
+def _dynamic_window_payload(channels, *, absolute=False, selected_montage=True):
+    bands = ("delta", "theta", "alpha", "beta", "gamma")
+    values = {f"{band}_absolute_power" if absolute else band: [1.0, 2.0, 3.0] if absolute else [0.2, 0.3, 0.5]
+              for band in bands}
+    payload = {
+        "identity": {"algorithm_id": "rbp", "recording_id": "recording-1",
+                     "scientific_version": "official-rbp-v4", "implementation_identity": "build"},
+        "state": "ready", "plan": {"start_s": 10.0, "end_s": 15.0},
+        "result": {
+            "arrays": values,
+            "array_units": {name: "uV^2" if absolute else "ratio" for name in values},
+            "evidence": {"extensions": {"channel_order": {"channels": channels}}},
+        },
+    }
+    return _bind_dynamic_source_context(payload, channels, selected_montage=selected_montage)
 
 
 def test_rbp_topomap_uses_snapshot_positions_and_returns_bounded_grid():
@@ -91,19 +123,8 @@ def test_absolute_power_type_selects_structured_values_and_unit_for_same_window(
 
 
 def test_dynamic_window_topomap_selects_absolute_power_without_changing_window():
-    names = ("delta", "theta", "alpha", "beta", "gamma")
     channels = ["Fz", "Cz", "Pz"]
-    payload = {
-        "identity": {"algorithm_id": "rbp", "recording_id": "recording-1",
-                     "scientific_version": "official-rbp-v4", "implementation_identity": "build"},
-        "state": "ready", "plan": {"start_s": 10.0, "end_s": 15.0},
-        "result": {
-            "arrays": {f"{band}_absolute_power": [1.0, 2.0, 3.0] for band in names},
-            "array_units": {f"{band}_absolute_power": "uV^2" for band in names},
-            "evidence": {"extensions": {"channel_order": {"channels": channels}}},
-        },
-    }
-    _bind_dynamic_source_context(payload, channels)
+    payload = _dynamic_window_payload(channels, absolute=True)
     service = _service([0.2, 0.3, 0.5], channels)
     recordings = service.run_queue.recordings
     recordings.require_recording = lambda *_args: pytest.fail("dynamic topomap must use its window source snapshot")
@@ -117,26 +138,45 @@ def test_dynamic_window_topomap_selects_absolute_power_without_changing_window()
     assert result.power_type == "absolute"
     assert result.window_start_s == 10.0 and result.window_end_s == 15.0
     assert all(band.unit == "uV^2" for band in result.bands)
-    assert result.provenance["montage_fingerprint"] == "fingerprint-1"
+    assert result.provenance["montage_fingerprint"] == "source-profile-fingerprint"
+
+
+def test_dynamic_window_topomap_accepts_default_acquisition_snapshot_without_duplicate_montage():
+    channels = ["Fz", "Cz", "Pz"]
+    payload = _dynamic_window_payload(channels, selected_montage=False)
+    service = _service([0.2, 0.3, 0.5], channels)
+    service.run_queue.recordings.require_recording = lambda *_args: pytest.fail("dynamic topomap must use its window source snapshot")
+    service.run_queue.recordings.analysis_signal_provenance = lambda *_args: pytest.fail("dynamic topomap must use its window source snapshot")
+    service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
+
+    result = service.build_dynamic_window("window-1")
+
+    assert result.status == "ready"
+    assert result.provenance["montage_id"] == "saved-montage"
+    assert result.provenance["montage_revision"] is None
+
+
+def test_dynamic_window_topomap_rejects_acquisition_source_without_snapshot_hash():
+    channels = ["Fz", "Cz", "Pz"]
+    payload = _dynamic_window_payload(channels, selected_montage=False)
+    configuration = json.loads(payload["scientific_configuration_json"])
+    del configuration["context"]["signal_mapping"]["signal_source"]["snapshot_sha256"]
+    _set_dynamic_configuration(payload, configuration)
+    service = _service([0.2, 0.3, 0.5], channels)
+    service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
+
+    with pytest.raises(TopomapUnavailable) as exc_info:
+        service.build_dynamic_window("window-1")
+
+    assert exc_info.value.code == "TOPOMAP_SOURCE_CONTEXT_INVALID"
 
 
 def test_dynamic_window_topomap_rejects_montage_identity_mismatch():
     channels = ["Fz", "Cz", "Pz"]
-    payload = _bind_dynamic_source_context({
-        "identity": {"algorithm_id": "rbp", "recording_id": "recording-1",
-                     "scientific_version": "official-rbp-v4", "implementation_identity": "build"},
-        "state": "ready", "plan": {"start_s": 10.0, "end_s": 15.0},
-        "result": {
-            "arrays": {band: [0.2, 0.3, 0.5] for band in ("delta", "theta", "alpha", "beta", "gamma")},
-            "array_units": {band: "ratio" for band in ("delta", "theta", "alpha", "beta", "gamma")},
-            "evidence": {"extensions": {"channel_order": {"channels": channels}}},
-        },
-    }, channels)
+    payload = _dynamic_window_payload(channels)
     configuration = json.loads(payload["scientific_configuration_json"])
     configuration["context"]["signal_mapping"]["analysis_montage"]["fingerprint"] = "stale"
-    encoded = json.dumps(configuration, sort_keys=True, separators=(",", ":"))
-    payload["scientific_configuration_json"] = encoded
-    payload["identity"]["configuration_sha256"] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    _set_dynamic_configuration(payload, configuration)
     service = _service([0.2, 0.3, 0.5], channels)
     service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
 
@@ -149,19 +189,8 @@ def test_dynamic_window_topomap_rejects_montage_identity_mismatch():
 def test_dynamic_window_topomap_logs_request_correlated_service_stages(caplog):
     import logging
 
-    names = ("delta", "theta", "alpha", "beta", "gamma")
     channels = ["Fz", "Cz", "Pz"]
-    payload = {
-        "identity": {"algorithm_id": "rbp", "recording_id": "recording-1",
-                     "scientific_version": "official-rbp-v4", "implementation_identity": "build"},
-        "state": "ready", "plan": {"start_s": 10.0, "end_s": 15.0},
-        "result": {
-            "arrays": {f"{band}_absolute_power": [1.0, 2.0, 3.0] for band in names},
-            "array_units": {f"{band}_absolute_power": "uV^2" for band in names},
-            "evidence": {"extensions": {"channel_order": {"channels": channels}}},
-        },
-    }
-    _bind_dynamic_source_context(payload, channels)
+    payload = _dynamic_window_payload(channels, absolute=True)
     service = _service([0.2, 0.3, 0.5], channels)
     service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
 

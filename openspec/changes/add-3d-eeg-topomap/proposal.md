@@ -1,26 +1,23 @@
+# Shared 3D Electrode-Position Preview
+
 ## Why
 
-The platform can place EEG values on a shared 2D scalp map, but it has no reusable path from the standard `colin27_1020` XYZ locations to a registered GNM head surface. A versioned 3D location and rendering contract lets RBP become the first consumer without recalculating its EEG results or treating editable 2D diagram positions as physical 3D coordinates.
+Channel Settings needs a read-only 3D view of standard electrode locations on the registered GNM head model. The current RBP 3D scalp-field view is visually unsatisfactory, so this change keeps the validated model and coordinate capability for Channel Settings and removes RBP's 3D field presentation from the active product.
 
 ## What Changes
 
-- Add a shared, versioned mapping from exact MNE `colin27_1020` electrode sites to a named GNM head model and its declared coordinate frame and units.
-- Add a typed 3D topomap result for existing per-channel algorithm values, including time window, units, included/excluded channels, mapping/model identity, spatial method, and structured unavailable reasons.
-- Add a reusable desktop 3D scalp renderer and connect RBP as its first algorithm consumer; retain the existing 2D map as a separate view.
-- Expose the same standard 3D model and mapped positions in Channel Settings through a read-only 2D/3D view switch, using the current enabled EEG channels.
-- Keep manual `MapX`/`MapY` positions confined to the 2D configuration diagram. A missing or invalid 3D mapping must not fall back to manual 2D or an approximate registration.
-- Treat the user-provided standard mapping file as a required implementation and acceptance input. Confirm its schema, coordinate conventions, model identity, and provenance before adding a loader or shipping model assets.
+- Keep a versioned mapping from exact MNE colin27_1020 locations to the declared GNM head model.
+- Expose typed model and electrode-location responses with mapping, mesh, coordinate-frame, and unit identity.
+- Keep the editable 2D channel-position diagram and add a separate read-only 3D standard-location view for enabled EEG channels.
+- Remove the RBP 3D field selector, playback refresh path, surface interpolation endpoints, and field-rendering contract. The existing 2D RBP topomap remains available.
+
+RBP 3D scalp-field visualization is explicitly deferred. It is not part of the current shipped surface and must be proposed again only after its projection, coverage, and visual acceptance criteria are redesigned.
 
 ## Capabilities
 
-### New Capabilities
-- `analysis/eeg-3d-topomap`: Versioned GNM surface topomaps built from existing algorithm outputs and rendered through a reusable desktop view.
-
 ### Modified Capabilities
-- `desktop/electrode-locations`: Resolve and expose validated standard 3D GNM coordinates alongside the existing MNE XYZ and 2D projection, without conflating their sources or coordinate frames.
+- desktop/electrode-locations: Expose validated standard 3D electrode locations alongside the existing 2D configuration view.
 
 ## Impact
 
-Expected code areas are the backend electrode-location and topomap models/services/APIs, desktop shared electrode-model client/contracts, Channel Settings position view, shared WPF 3D renderer, and RBP presentation. Tests must cover coordinate-frame/unit validation, exact channel matching, missing/duplicate mappings, invalid model identity, unchanged RBP values, and the read-only Channel Settings projection. The GNM mesh and its required license/attribution may become application assets only after distribution rights and the standard mapping are verified.
-
-This adds a separate 3D presentation contract. Existing 2D topomap routes, persisted algorithm results, scientific algorithm versions, units, and historical result reading remain unchanged. The feature is a standard-template visualization, not individualized electrode localization or clinical validation. No 3D fallback or old mapping compatibility path is added.
+Expected code areas are the GNM mapping/model asset loader and typed location API, the Channel Settings model client and position window, and the shared WPF head-model renderer. RBP's 3D-only API, calculation, view, and contracts are removed; RBP's 2D topomap and saved algorithm results are unchanged. No database migration or scientific algorithm change is required.

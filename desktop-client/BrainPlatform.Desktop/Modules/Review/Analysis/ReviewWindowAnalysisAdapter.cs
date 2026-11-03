@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
-using BrainPlatform.Desktop.Modules.Channels.Api;
 using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Review.Analysis;
@@ -11,12 +10,11 @@ namespace BrainPlatform.Desktop.Modules.Review.Analysis;
 public sealed class ReviewWindowAnalysisAdapter : IReviewAlgorithmAdapter
 {
     private readonly IAlgorithmClient client;
-    private readonly IElectrodeLocationClient? electrodeLocationClient;
     private readonly bool? enableOnDemand;
     private readonly DynamicWindowTargetCoordinator targets;
 
     public ReviewWindowAnalysisAdapter(IAlgorithmClient client, string algorithmId, string displayName,
-        bool? enableOnDemand = null, IElectrodeLocationClient? electrodeLocationClient = null)
+        bool? enableOnDemand = null)
     {
         this.client = client ?? throw new ArgumentNullException(nameof(client));
         ArgumentException.ThrowIfNullOrWhiteSpace(algorithmId);
@@ -24,7 +22,6 @@ public sealed class ReviewWindowAnalysisAdapter : IReviewAlgorithmAdapter
         AlgorithmId = algorithmId;
         DisplayName = displayName;
         this.enableOnDemand = enableOnDemand;
-        this.electrodeLocationClient = electrodeLocationClient;
         targets = new DynamicWindowTargetCoordinator(client);
     }
 
@@ -96,20 +93,6 @@ public sealed class ReviewWindowAnalysisAdapter : IReviewAlgorithmAdapter
         if (window.DynamicResponse is { } dynamic)
             return client.GetDynamicTopomapAsync(dynamic.WindowId, null, cancellationToken, powerType, bandId);
         return client.GetRunTopomapAsync(window.RunId, window.CursorSample, cancellationToken, powerType, bandId);
-    }
-
-    public async Task<Topomap3DPresentation> LoadTopomap3DAsync(WindowPreviewResponse window,
-        CancellationToken cancellationToken, string powerType, string bandId)
-    {
-        ArgumentNullException.ThrowIfNull(window);
-        var modelClient = electrodeLocationClient ??
-            throw new InvalidOperationException("三维电极模型客户端未配置。");
-        var modelTask = modelClient.GetScalpModel3DAsync(CancellationToken.None);
-        var field = window.DynamicResponse is { } dynamic
-            ? client.GetDynamicTopomap3DAsync(dynamic.WindowId, null, cancellationToken, powerType, bandId)
-            : client.GetRunTopomap3DAsync(window.RunId, window.CursorSample, cancellationToken, powerType, bandId);
-        await Task.WhenAll(modelTask, field).ConfigureAwait(false);
-        return new Topomap3DPresentation(await modelTask.ConfigureAwait(false), await field.ConfigureAwait(false));
     }
 
     private void ValidateRequest(string recordingId, AnalysisRunRequest request, long cursorSample)

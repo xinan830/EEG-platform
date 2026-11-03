@@ -19,8 +19,6 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
     private string selectedChart = "堆叠历史图";
     private string selectedTopomapBandId = "";
     private string selectedTopomapPowerType = "relative";
-    private string selectedTopomap3DBandId = "alpha";
-    private Topomap3DPresentation? topomap3D;
 
     public IReadOnlyList<RbpBandPoint> Bands => preview.BandsAt(cursorSeconds);
     public IReadOnlyList<RbpWindowPoint> Trend => preview.Windows
@@ -28,9 +26,8 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
     public IReadOnlyList<RbpChannelHistory> ChannelHistories => channelHistories;
     public ObservableCollection<TopomapBandDisplayItem> TopomapBands { get; } = [];
     public TopomapColorScaleState TopomapColorScales { get; } = new();
-    public Topomap3DColorScaleState Topomap3DColorScales { get; } = new();
     public bool HasResult => Bands.Any(band => band.Share is not null);
-    public IReadOnlyList<string> ChartOptions { get; } = ["堆叠历史图", "脑电地形图", "3D 脑电地形图"];
+    public IReadOnlyList<string> ChartOptions { get; } = ["堆叠历史图", "脑电地形图"];
     public string SelectedChart
     {
         get => selectedChart;
@@ -39,55 +36,11 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
             if (!SetProperty(ref selectedChart, value)) return;
             RaisePropertyChanged(nameof(IsStackedChartSelected));
             RaisePropertyChanged(nameof(IsTopomapSelected));
-            RaisePropertyChanged(nameof(Is3DTopomapSelected));
-            RaisePropertyChanged(nameof(IsAnyTopomapSelected));
         }
     }
     public bool IsStackedChartSelected => SelectedChart == "堆叠历史图";
     public bool IsTopomapSelected => SelectedChart == "脑电地形图";
-    public bool Is3DTopomapSelected => SelectedChart == "3D 脑电地形图";
-    public bool IsAnyTopomapSelected => IsTopomapSelected || Is3DTopomapSelected;
     public TopomapResponse? Topomap { get => topomap; private set => SetProperty(ref topomap, value); }
-    public Topomap3DPresentation? Topomap3D { get => topomap3D; private set => SetProperty(ref topomap3D, value); }
-    public IReadOnlyList<TopomapBandOption> Topomap3DBandOptions { get; } =
-    [
-        new("delta", "Delta 波"), new("theta", "Theta 波"), new("alpha", "Alpha 波"),
-        new("beta", "Beta 波"), new("gamma", "Gamma 波"),
-    ];
-    public string SelectedTopomap3DBandId
-    {
-        get => selectedTopomap3DBandId;
-        set
-        {
-            if (!SetProperty(ref selectedTopomap3DBandId, value)) return;
-            RaisePropertyChanged(nameof(SelectedTopomap3DBand));
-        }
-    }
-    public Topomap3DBand? SelectedTopomap3DBand => Topomap3D?.Result.Bands.FirstOrDefault(band =>
-        string.Equals(band.BandId, SelectedTopomap3DBandId, StringComparison.OrdinalIgnoreCase));
-
-    public void ApplyTopomap3D(Topomap3DPresentation presentation)
-    {
-        if (topomap3D is { } previous && (previous.Result.RunId != presentation.Result.RunId ||
-            previous.Result.RecordingId != presentation.Result.RecordingId))
-            Topomap3DColorScales.Reset();
-        Topomap3D = presentation;
-        RaisePropertyChanged(nameof(SelectedTopomap3DBand));
-    }
-
-    public bool ApplyTopomap3DIfAvailable(Topomap3DPresentation? presentation)
-    {
-        if (presentation is null) return false;
-        ApplyTopomap3D(presentation);
-        return true;
-    }
-
-    public void ClearTopomap3D()
-    {
-        Topomap3D = null;
-        Topomap3DColorScales.Reset();
-        RaisePropertyChanged(nameof(SelectedTopomap3DBand));
-    }
     public IReadOnlyList<TopomapBandOption> TopomapBandOptions { get; } =
     [
         new("", "全部频段"),
@@ -179,7 +132,6 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         if (response is null)
         {
             TopomapColorScales.Reset();
-            Topomap3DColorScales.Reset();
             preview = RbpResultPreview.Parse(null);
             appliedResponse = null;
             channelHistories = [];
@@ -194,7 +146,6 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         if (!string.Equals(windowSession, response.RunId, StringComparison.Ordinal))
         {
             TopomapColorScales.Reset();
-            Topomap3DColorScales.Reset();
         }
         var previous = windowSession == response.RunId && appliedResponse?.RecordingId == response.RecordingId ? preview : null;
         preview = RbpResultPreview.FromReviewWindow(response, previous);

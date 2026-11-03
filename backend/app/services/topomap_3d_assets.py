@@ -35,7 +35,6 @@ class Topomap3DAssets:
     channel_locations: dict[str, dict[str, object]]
     vertices: np.ndarray
     triangles: np.ndarray
-    projected_vertices: np.ndarray
     head_origin: np.ndarray
     right_axis: np.ndarray
     forward_axis: np.ndarray
@@ -139,11 +138,7 @@ def load_topomap_3d_assets() -> Topomap3DAssets:
         raise MappingAssetsInvalid("GNM mapping accuracy status is missing or unexpected")
 
     origin, right, forward, up = _head_frame(core)
-    local = (vertices - origin) @ np.column_stack((right, forward, up))
-    projected = np.full((len(vertices), 2), np.nan, dtype=float)
-    upper_scalp = local[:, 2] > 1e-8
-    projected[upper_scalp] = local[upper_scalp, :2] / local[upper_scalp, 2, None]
-    for array in (vertices, triangles, projected, origin, right, forward, up):
+    for array in (vertices, triangles, origin, right, forward, up):
         array.setflags(write=False)
-    return Topomap3DAssets(document, full, locations, vertices, triangles, projected,
+    return Topomap3DAssets(document, full, locations, vertices, triangles,
         origin, right, forward, up, mapping_hash, mesh_hash, geometry_hash, mne.__version__)

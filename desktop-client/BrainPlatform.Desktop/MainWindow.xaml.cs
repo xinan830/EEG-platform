@@ -17,6 +17,7 @@ public partial class MainWindow : Window, IDesktopNavigation
 {
     private bool isApprovedClose;
     private bool isConfirmingChannelDraftExit;
+    private bool isWindowCloseConfirmationPending;
     private AcquisitionPreparationView? acquisitionPreparationView;
     private DeviceOverviewView? overviewView;
     private ProjectListView? projectListView;
@@ -321,8 +322,7 @@ public partial class MainWindow : Window, IDesktopNavigation
         }
         var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
         ReviewAnalysisCoordinator[]? analysisCoordinators = (DataContext as DesktopWorkspaceViewModel) is { } analysisWorkspace
-            ? [new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "rbp", "RBP",
-                   electrodeLocationClient: analysisWorkspace.ElectrodeLocationClient)),
+            ? [new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "rbp", "RBP")),
                new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "psd", "PSD")),
                new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "stft", "STFT")),
                new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "faa", "FAA")),
@@ -416,7 +416,7 @@ public partial class MainWindow : Window, IDesktopNavigation
         }
     }
 
-    private async void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (isApprovedClose || DataContext is not DesktopWorkspaceViewModel workspace ||
             !ReferenceEquals(MainContentHost.Content, channelDetailView) ||
@@ -426,10 +426,35 @@ public partial class MainWindow : Window, IDesktopNavigation
         }
 
         e.Cancel = true;
-        if (await ConfirmChannelDraftLeaveAsync())
+        if (isWindowCloseConfirmationPending)
         {
-            isApprovedClose = true;
-            Close();
+            return;
+        }
+
+        isWindowCloseConfirmationPending = true;
+        Dispatcher.BeginInvoke(() => _ = ConfirmCloseAfterClosingAsync(workspace));
+    }
+
+    private async Task ConfirmCloseAfterClosingAsync(DesktopWorkspaceViewModel workspace)
+    {
+        try
+        {
+            if (await ConfirmChannelDraftLeaveAsync())
+            {
+                isApprovedClose = true;
+                Close();
+            }
+        }
+        catch (Exception exception)
+        {
+            workspace.Notifications.PublishError($"无法关闭窗口：{exception.Message}");
+        }
+        finally
+        {
+            if (!isApprovedClose)
+            {
+                isWindowCloseConfirmationPending = false;
+            }
         }
     }
 
