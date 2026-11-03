@@ -80,7 +80,11 @@
                             <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate><topomap:TopomapCanvas Band="{Binding Band}" Margin="8,2" /></DataTemplate>
+                            <DataTemplate>
+                                <topomap:TopomapCanvas Band="{Binding Band}"
+                                    ColorScaleState="{Binding DataContext.RbpAnalysis.TopomapColorScales, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    Margin="8,2" />
+                            </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <Viewbox Grid.Row="1" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -95,6 +99,7 @@
                             </Style>
                         </Viewbox.Style>
                         <topomap:TopomapCanvas Band="{Binding RbpAnalysis.SelectedTopomapBand}"
+                                               ColorScaleState="{Binding RbpAnalysis.TopomapColorScales}"
                                                Width="640" Height="640" />
                     </Viewbox>
                 </Grid>

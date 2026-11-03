@@ -31,7 +31,8 @@ internal static class TopomapVisualPreparer
         TopomapBand band,
         double canvasWidth,
         double canvasHeight,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        (double Minimum, double Maximum)? scaleBounds = null)
     {
         var timer = Stopwatch.StartNew();
         var bounds = ScalpMapRenderer.GetHeadBounds(canvasWidth, canvasHeight,
@@ -40,7 +41,18 @@ internal static class TopomapVisualPreparer
             return new TopomapVisualSnapshot(band, bounds, null, canvasWidth, canvasHeight,
                 null, null, null, 0, 1, false, 0, 0, timer.Elapsed.TotalMilliseconds);
 
-        var (minimum, maximum, hasValues) = ValueRange(grid, cancellationToken);
+        double minimum;
+        double maximum;
+        bool hasValues;
+        if (scaleBounds is { } fixedBounds)
+        {
+            (minimum, maximum) = fixedBounds;
+            hasValues = HasGridValues(grid, cancellationToken);
+        }
+        else
+        {
+            (minimum, maximum, hasValues) = ValueRange(grid, cancellationToken);
+        }
         if (maximum <= minimum) maximum = minimum + 1;
 
         var rasterTimer = Stopwatch.StartNew();
@@ -145,6 +157,16 @@ internal static class TopomapVisualPreparer
             }
         }
         return double.IsFinite(minimum) ? (minimum, maximum, true) : (0, 1, false);
+    }
+
+    private static bool HasGridValues(TopomapGrid grid, CancellationToken cancellationToken)
+    {
+        foreach (var row in grid.Values)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (row.Any(value => value is { } finite && double.IsFinite(finite))) return true;
+        }
+        return false;
     }
 
     private static StreamGeometry BuildContours(TopomapGrid grid, Rect bounds,

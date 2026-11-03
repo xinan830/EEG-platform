@@ -23,26 +23,22 @@ This roadmap evolves the existing EEG viewer into a local, single-user research 
 | 14 | `improve-algorithm-library-readability` | Readable saved formulas and provenance-safe private deletion | Complete, archived 2026-09-14 |
 | 15 | `clean-platform-architecture-debt` | Remove only confirmed obsolete compatibility paths, decouple feature navigation from MainWindow, keep composition ownership explicit, and contain generated build output | Deferred until active EEG topomap changes are complete |
 | 16 | `add-rbp-absolute-power-topomap` | Expose RBP per-channel absolute band power and add an absolute/relative power selector to the existing 2D topomap | Complete, archived 2026-11-03 |
-| 17 | `add-3d-eeg-topomap` | Add validated MNE-to-GNM coordinates, backend surface fields, and a reusable RBP 3D presentation | Queued; standard mapping file pending from user |
+| 17 | `stabilize-rbp-topomap-color-scales` | Keep relative and absolute RBP topomap color meanings stable during playback | Active |
+| 18 | `add-3d-eeg-topomap` | Add validated MNE-to-GNM coordinates, backend surface fields, and a reusable RBP 3D presentation | Queued; standard mapping file pending from user |
 
 ## Next Planned Direction
 
-`add-rbp-absolute-power-topomap` is active. The 3D `add-3d-eeg-topomap` change
-is queued until the user supplies its required standard mapping file. The
-existing candidate mapping is explicitly an approximate demo in MNE `head`
-coordinates with non-SI GNM units, while the platform's standard resolver
-returns MNE `mri` coordinates in meters; it must not be used as the production
-mapping.
+`stabilize-rbp-topomap-color-scales` is active. The 3D
+`add-3d-eeg-topomap` change remains queued until the user supplies its required
+standard mapping file. The existing candidate mapping is explicitly an
+approximate demo in MNE `head` coordinates with non-SI GNM units, while the
+platform's standard resolver returns MNE `mri` coordinates in meters; it must
+not be used as the production mapping.
 
-Implementation order:
-
-1. Promote the RBP per-channel absolute band powers already calculated by its
-   shared frame into declared structured outputs while retaining the existing
-   relative-power outputs and formulas.
-2. Let the 2D topomap select absolute or relative power independently from the
-   frequency-band selector, using the same current window and montage snapshot.
-3. Validate structured outputs, units, channel order, unavailable values, API
-   selection, and the WPF playback presentation.
+The active color-scale change fixes relative power at `0–1` and calibrates the
+absolute scale independently for each frequency band at the first ready window
+of an RBP analysis session. Later windows keep those endpoints; a new session
+calibrates again. This affects display mapping only and does not alter results.
 
 After this change, resume the queued 3D work only after validating the supplied
 mapping and target mesh identities, frames, units, transform, site coverage,

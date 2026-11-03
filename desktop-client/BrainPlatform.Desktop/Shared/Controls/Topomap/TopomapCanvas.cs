@@ -22,6 +22,10 @@ public sealed class TopomapCanvas : FrameworkElement
         nameof(Band), typeof(TopomapBand), typeof(TopomapCanvas),
         new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnBandChanged));
 
+    public static readonly DependencyProperty ColorScaleStateProperty = DependencyProperty.Register(
+        nameof(ColorScaleState), typeof(TopomapColorScaleState), typeof(TopomapCanvas),
+        new FrameworkPropertyMetadata(null, OnScaleConfigurationChanged));
+
     public TopomapCanvas()
     {
         Loaded += (_, _) => SchedulePreparation();
@@ -38,6 +42,12 @@ public sealed class TopomapCanvas : FrameworkElement
     {
         get => (TopomapBand?)GetValue(BandProperty);
         set => SetValue(BandProperty, value);
+    }
+
+    public TopomapColorScaleState? ColorScaleState
+    {
+        get => (TopomapColorScaleState?)GetValue(ColorScaleStateProperty);
+        set => SetValue(ColorScaleStateProperty, value);
     }
 
     protected override void OnRender(DrawingContext drawingContext)
@@ -95,6 +105,9 @@ public sealed class TopomapCanvas : FrameworkElement
         canvas.SchedulePreparation();
     }
 
+    private static void OnScaleConfigurationChanged(DependencyObject dependencyObject,
+        DependencyPropertyChangedEventArgs args) => ((TopomapCanvas)dependencyObject).SchedulePreparation();
+
     private void SchedulePreparation(bool clearSnapshot = false)
     {
         CancelPreparation();
@@ -129,8 +142,9 @@ public sealed class TopomapCanvas : FrameworkElement
         var published = false;
         try
         {
+            var scaleBounds = ColorScaleState?.GetBounds(band);
             var snapshot = await Task.Run(() => TopomapVisualPreparer.Prepare(
-                band, width, height, cancellation.Token), cancellation.Token).ConfigureAwait(false);
+                band, width, height, cancellation.Token, scaleBounds), cancellation.Token).ConfigureAwait(false);
             if (DesktopLog.PerformanceDiagnosticsEnabled && band.Grid is { } grid)
                 DesktopLog.Info($"review_topomap_perf stage=prepare band={band.BandId}" +
                                 $" grid={grid.Width}x{grid.Height}" +
@@ -145,6 +159,8 @@ public sealed class TopomapCanvas : FrameworkElement
                     return;
                 _preparationCancellation = null;
                 _snapshot = snapshot;
+                if (snapshot.HasGridValues)
+                    ColorScaleState?.Remember(band, snapshot.Minimum, snapshot.Maximum);
                 published = true;
                 InvalidateVisual();
             }, DispatcherPriority.Render).Task.ConfigureAwait(false);

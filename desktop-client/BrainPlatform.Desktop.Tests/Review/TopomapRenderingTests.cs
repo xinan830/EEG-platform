@@ -69,4 +69,74 @@ public sealed class TopomapRenderingTests
         Assert.Throws<OperationCanceledException>(() => TopomapVisualPreparer.Prepare(
             band, 160, 160, cancellation.Token));
     }
+
+    [Fact]
+    public void Relative_scale_is_fixed_to_ratio_domain()
+    {
+        var state = new TopomapColorScaleState();
+        var band = CreateBand("alpha", "ratio", 0.2, 0.7);
+
+        Assert.Equal((0d, 1d), state.GetBounds(band));
+    }
+
+    [Fact]
+    public async Task Absolute_scale_is_locked_per_band_until_reset()
+    {
+        var state = new TopomapColorScaleState();
+
+        var alpha = CreateBand("alpha", "uV^2", 2, 8);
+        var laterAlpha = CreateBand("alpha", "uV^2", 1, 20);
+        var alphaSnapshot = await Task.Run(() => TopomapVisualPreparer.Prepare(
+            alpha, 160, 160, CancellationToken.None));
+        var alphaBounds = (alphaSnapshot.Minimum, alphaSnapshot.Maximum);
+        state.Remember(alpha, alphaBounds.Item1, alphaBounds.Item2);
+        var laterAlphaBounds = state.GetBounds(laterAlpha);
+        var beta = CreateBand("beta", "uV^2", 4, 12);
+        var betaSnapshot = await Task.Run(() => TopomapVisualPreparer.Prepare(
+            beta, 160, 160, CancellationToken.None));
+        state.Remember(beta, betaSnapshot.Minimum, betaSnapshot.Maximum);
+        var betaBounds = state.GetBounds(beta);
+
+        Assert.Equal((2d, 8d), alphaBounds);
+        Assert.Equal(alphaBounds, laterAlphaBounds);
+        Assert.Equal((4d, 12d), betaBounds);
+
+        state.Reset();
+        Assert.Null(state.GetBounds(laterAlpha));
+        state.Remember(laterAlpha, 1, 20);
+        Assert.Equal((1d, 20d), state.GetBounds(laterAlpha));
+    }
+
+    [Fact]
+    public void Prepared_absolute_scale_clamps_values_to_endpoint_colors()
+    {
+        var grid = CreateGrid(-2, 12);
+        var pixels = TopomapVisualPreparer.BuildGridPixels(grid, 0, 10);
+
+        Assert.Equal(TopomapVisualPreparer.ColorValue(0), ColorAt(pixels, 0));
+        Assert.Equal(TopomapVisualPreparer.ColorValue(1), ColorAt(pixels, 2));
+    }
+
+    [Fact]
+    public void Prepared_visual_uses_locked_bounds_for_legend_and_contours()
+    {
+        var band = CreateBand("alpha", "uV^2", 1, 9);
+
+        var snapshot = TopomapVisualPreparer.Prepare(band, 180, 180, CancellationToken.None, (0d, 10d));
+
+        Assert.Equal(0, snapshot.Minimum);
+        Assert.Equal(10, snapshot.Maximum);
+        Assert.True(snapshot.HasGridValues);
+    }
+
+    private static TopomapBand CreateBand(string id, string unit, double minimum, double maximum) =>
+        new(id, unit, Array.Empty<TopomapPoint>(), CreateGrid(minimum, maximum), "ready",
+            Array.Empty<string>(), Array.Empty<string>(), null, null);
+
+    private static TopomapGrid CreateGrid(double minimum, double maximum) =>
+        new("test", 3, 1, -1, 1, 0, 0, 1,
+            new IReadOnlyList<double?>[] { new double?[] { minimum, (minimum + maximum) / 2, maximum } });
+
+    private static System.Windows.Media.Color ColorAt(byte[] pixels, int column) =>
+        System.Windows.Media.Color.FromRgb(pixels[column * 4 + 2], pixels[column * 4 + 1], pixels[column * 4]);
 }

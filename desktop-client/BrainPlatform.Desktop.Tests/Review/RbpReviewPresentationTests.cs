@@ -171,6 +171,22 @@ public sealed class RbpReviewPresentationTests
         Assert.Equal("绝对功率", new TopomapPowerTypeOption("absolute", "绝对功率").ToString());
     }
 
+    [Fact]
+    public void Topomap_absolute_scale_is_cleared_only_when_analysis_session_changes()
+    {
+        var model = new RbpReviewAnalysisViewModel();
+        var band = new TopomapBand("alpha", "uV^2", [], null, "ready", [], [], null, null);
+        model.Apply(Ready(5) with { RunId = "session-1" }, 5);
+        model.TopomapColorScales.Remember(band, 1, 5);
+        Assert.Equal((1d, 5d), model.TopomapColorScales.GetBounds(band));
+
+        model.Apply(Ready(6) with { RunId = "session-1" }, 6);
+        Assert.Equal((1d, 5d), model.TopomapColorScales.GetBounds(band));
+
+        model.Apply(Ready(5) with { RunId = "session-2" }, 5);
+        Assert.Null(model.TopomapColorScales.GetBounds(band));
+    }
+
     internal static WindowPreviewResponse Ready(double end, double alpha = 0.6)
     {
         var channels = Enumerable.Range(1, 21).Select(i => $"CH{i}").ToArray();

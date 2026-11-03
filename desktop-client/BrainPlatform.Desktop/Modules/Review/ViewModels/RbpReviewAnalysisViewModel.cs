@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp;
+using BrainPlatform.Desktop.Shared.Controls.Topomap;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
@@ -24,6 +25,7 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         .Where(window => window.EndSeconds <= cursorSeconds + 1e-9).ToArray();
     public IReadOnlyList<RbpChannelHistory> ChannelHistories => channelHistories;
     public ObservableCollection<TopomapBandDisplayItem> TopomapBands { get; } = [];
+    public TopomapColorScaleState TopomapColorScales { get; } = new();
     public bool HasResult => Bands.Any(band => band.Share is not null);
     public IReadOnlyList<string> ChartOptions { get; } = ["堆叠历史图", "脑电地形图"];
     public string SelectedChart
@@ -113,7 +115,9 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         for (var index = 0; index < bands.Count; index++)
         {
             if (index < TopomapBands.Count)
+            {
                 TopomapBands[index].Band = bands[index];
+            }
             else
                 TopomapBands.Add(new TopomapBandDisplayItem(bands[index]));
         }
@@ -127,6 +131,7 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         this.cursorSeconds = cursorSeconds;
         if (response is null)
         {
+            TopomapColorScales.Reset();
             preview = RbpResultPreview.Parse(null);
             appliedResponse = null;
             channelHistories = [];
@@ -138,6 +143,8 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
             return;
         }
 
+        if (!string.Equals(windowSession, response.RunId, StringComparison.Ordinal))
+            TopomapColorScales.Reset();
         var previous = windowSession == response.RunId && appliedResponse?.RecordingId == response.RecordingId ? preview : null;
         preview = RbpResultPreview.FromReviewWindow(response, previous);
         appliedResponse = response;
