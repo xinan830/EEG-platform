@@ -47,4 +47,5 @@ public sealed record TopomapResponse(
     [property: JsonPropertyName("coordinate_unit")] string CoordinateUnit,
     [property: JsonPropertyName("bands")] IReadOnlyList<TopomapBand> Bands,
     [property: JsonPropertyName("failure")] JsonElement? Failure,
-    [property: JsonPropertyName("provenance")] IReadOnlyDictionary<string, JsonElement>? Provenance);
+    [property: JsonPropertyName("provenance")] IReadOnlyDictionary<string, JsonElement>? Provenance,
+    [property: JsonPropertyName("power_type")] string PowerType = "relative");

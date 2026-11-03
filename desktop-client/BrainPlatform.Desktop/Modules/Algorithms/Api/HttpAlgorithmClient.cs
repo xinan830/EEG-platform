@@ -113,19 +113,28 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
     }
 
     public Task<TopomapResponse> GetRunTopomapAsync(string runId, long cursorSample,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
     {
+        RequireTopomapPowerType(powerType);
+        RequireTopomapBandId(bandId);
+        var query = $"cursor_sample={cursorSample}&power_type={Uri.EscapeDataString(powerType)}";
+        if (bandId is not null) query += $"&band_id={Uri.EscapeDataString(bandId)}";
         return SendAsync<TopomapResponse>(HttpMethod.Get,
-            $"api/runs/{Uri.EscapeDataString(RequireId(runId))}/topomap?cursor_sample={cursorSample}",
+            $"api/runs/{Uri.EscapeDataString(RequireId(runId))}/topomap?{query}",
             null, cancellationToken);
     }
 
     public Task<TopomapResponse> GetDynamicTopomapAsync(string windowId, string? projectId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
     {
-        var query = string.IsNullOrWhiteSpace(projectId) ? "" : $"?project_id={Uri.EscapeDataString(projectId)}";
+        RequireTopomapPowerType(powerType);
+        RequireTopomapBandId(bandId);
+        var query = $"power_type={Uri.EscapeDataString(powerType)}";
+        if (!string.IsNullOrWhiteSpace(projectId)) query += $"&project_id={Uri.EscapeDataString(projectId)}";
+        if (bandId is not null) query += $"&band_id={Uri.EscapeDataString(bandId)}";
         return SendAsync<TopomapResponse>(HttpMethod.Get,
-            $"api/analysis-windows/{Uri.EscapeDataString(RequireId(windowId))}/topomap{query}", null, cancellationToken);
+            $"api/analysis-windows/{Uri.EscapeDataString(RequireId(windowId))}/topomap?{query}",
+            null, cancellationToken);
     }
 
     public Task<DynamicWindowResponse> EnsureDynamicWindowAsync(
@@ -295,4 +304,16 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
         string.IsNullOrWhiteSpace(value)
             ? throw new ArgumentException("资源 ID 不能为空。", nameof(value))
             : value;
+
+    private static void RequireTopomapPowerType(string value)
+    {
+        if (value is not ("relative" or "absolute"))
+            throw new ArgumentOutOfRangeException(nameof(value), "地形图功率类型必须是 relative 或 absolute。");
+    }
+
+    private static void RequireTopomapBandId(string? value)
+    {
+        if (value is not null and not ("delta" or "theta" or "alpha" or "beta" or "gamma"))
+            throw new ArgumentOutOfRangeException(nameof(value), "地形图频段必须是 delta、theta、alpha、beta 或 gamma。");
+    }
 }

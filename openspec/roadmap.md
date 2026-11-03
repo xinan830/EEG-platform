@@ -21,14 +21,36 @@ This roadmap evolves the existing EEG viewer into a local, single-user research 
 | 12 | `improve-core-research-workbench-ux` | Task-oriented navigation and ordinary/developer presentation separation | Complete, archived 2026-09-14 |
 | 13 | `add-research-metric-formula-builder` | Chinese user-facing feature selection and safe formula composition | Complete, archived 2026-09-14 |
 | 14 | `improve-algorithm-library-readability` | Readable saved formulas and provenance-safe private deletion | Complete, archived 2026-09-14 |
-| 15 | `clean-platform-architecture-debt` | Remove only confirmed obsolete compatibility paths, decouple feature navigation from MainWindow, keep composition ownership explicit, and contain generated build output | Ready to open as the next active change; queue reconciled 2026-11-01 |
+| 15 | `clean-platform-architecture-debt` | Remove only confirmed obsolete compatibility paths, decouple feature navigation from MainWindow, keep composition ownership explicit, and contain generated build output | Deferred until active EEG topomap changes are complete |
+| 16 | `add-rbp-absolute-power-topomap` | Expose RBP per-channel absolute band power and add an absolute/relative power selector to the existing 2D topomap | Complete, archived 2026-11-03 |
+| 17 | `add-3d-eeg-topomap` | Add validated MNE-to-GNM coordinates, backend surface fields, and a reusable RBP 3D presentation | Queued; standard mapping file pending from user |
 
 ## Next Planned Direction
 
-`clean-platform-architecture-debt` is ready to open as the next active change.
-The pre-existing OpenSpec queue was reconciled and archived on 2026-11-01; the
-change is not active until its OpenSpec directory is created. Implement one
-slice at a time:
+`add-rbp-absolute-power-topomap` is active. The 3D `add-3d-eeg-topomap` change
+is queued until the user supplies its required standard mapping file. The
+existing candidate mapping is explicitly an approximate demo in MNE `head`
+coordinates with non-SI GNM units, while the platform's standard resolver
+returns MNE `mri` coordinates in meters; it must not be used as the production
+mapping.
+
+Implementation order:
+
+1. Promote the RBP per-channel absolute band powers already calculated by its
+   shared frame into declared structured outputs while retaining the existing
+   relative-power outputs and formulas.
+2. Let the 2D topomap select absolute or relative power independently from the
+   frequency-band selector, using the same current window and montage snapshot.
+3. Validate structured outputs, units, channel order, unavailable values, API
+   selection, and the WPF playback presentation.
+
+After this change, resume the queued 3D work only after validating the supplied
+mapping and target mesh identities, frames, units, transform, site coverage,
+scalp region, and distribution license. Do not use the existing approximate
+demo mapping as production input.
+
+`clean-platform-architecture-debt` remains queued for after this change. Its
+planned slices are:
 
 1. **Remove confirmed obsolete compatibility paths.** Inventory each path and
    classify it as required historical-file support, a current scientific

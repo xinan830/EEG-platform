@@ -8,10 +8,10 @@ MANIFEST = AlgorithmManifest(
     algorithm_id="rbp",
     display_name_zh="相对频段功率",
     abbreviation="RBP",
-    purpose_zh="按所选导联展示 Delta、Theta、Alpha、Beta、Gamma 在 1–50 Hz 五频段总功率中的相对占比。",
+    purpose_zh="按所选导联输出 Delta、Theta、Alpha、Beta、Gamma 的相对占比与绝对功率。",
     scientific_version="official-rbp-v4",
     is_current_version=True,
-    implementation_identity="rbp-runtime-v5-channel-quality",
+    implementation_identity="rbp-runtime-v6-absolute-power-output",
     supported_modes=["static", "dynamic"],
     signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="channel_set", preprocessing_scope="fixed_continuous_before_slice"),
     dynamic_capabilities=official_dynamic_capabilities(
@@ -20,9 +20,9 @@ MANIFEST = AlgorithmManifest(
     ),
     output_schema={"window_output_kind": "algorithm_group",
                    "window_axes": [{"name": "time_s", "unit": "s"}, {"name": "channel_index", "unit": "index"}],
-                   "window_shapes": {"time_s": ["window"], "channel_index": ["channel"], **{name: ["channel"] for name in ("delta", "theta", "alpha", "beta", "gamma")}},
-                   "static_shapes": {"time_s": [1], "channel_index": ["channel"], **{name: ["channel"] for name in ("delta", "theta", "alpha", "beta", "gamma")}},
-                   "on_demand_shapes": {"time_s": [1], "channel_index": ["channel"], **{name: ["channel"] for name in ("delta", "theta", "alpha", "beta", "gamma")}},
+                   "window_shapes": {"time_s": ["window"], "channel_index": ["channel"], **{name: ["channel"] for band, *_ in RBP_BANDS for name in (band, f"{band}_absolute_power")}},
+                   "static_shapes": {"time_s": [1], "channel_index": ["channel"], **{name: ["channel"] for band, *_ in RBP_BANDS for name in (band, f"{band}_absolute_power")}},
+                   "on_demand_shapes": {"time_s": [1], "channel_index": ["channel"], **{name: ["channel"] for band, *_ in RBP_BANDS for name in (band, f"{band}_absolute_power")}},
                    "fields": [
         {"name": "time_s", "unit": "s", "meaning": "窗口结束时间"},
         {"name": "channel_index", "unit": "index", "meaning": "导联顺序索引", "shape": ["channel"]},
@@ -31,9 +31,11 @@ MANIFEST = AlgorithmManifest(
         {"name": "alpha", "unit": "ratio", "meaning": "Alpha 相对功率", "shape": ["channel"]},
         {"name": "beta", "unit": "ratio", "meaning": "Beta 相对功率", "shape": ["channel"]},
         {"name": "gamma", "unit": "ratio", "meaning": "Gamma 相对功率", "shape": ["channel"]},
+        *[{"name": f"{band}_absolute_power", "unit": "uV^2", "meaning": f"{band.title()} 绝对功率", "shape": ["channel"]}
+          for band, *_ in RBP_BANDS],
     ]},
     definition_persistence={
-        "name": "Official RBP", "version": "2.0.4",
+        "name": "Official RBP", "version": "2.0.5",
         "definition_metadata": {
             "inputs": ["PSD"],
             "formula": "band_power / sum(five_band_powers_1_50)",
@@ -46,7 +48,10 @@ MANIFEST = AlgorithmManifest(
         },
         "graph": rbp_definition_graph(),
         "inputs": {"psd": {"type": "PSDSeries", "unit": "V^2/Hz", "channel_order": "preserved"}},
-        "outputs": {name: {"type": "RelativePower", "unit": "ratio"} for name, *_ in RBP_BANDS},
+        "outputs": {
+            **{name: {"type": "RelativePower", "unit": "ratio"} for name, *_ in RBP_BANDS},
+            **{f"{name}_absolute_power": {"type": "BandPower", "unit": "uV^2"} for name, *_ in RBP_BANDS},
+        },
         "quality_rules": {"policy": "per_channel_annotation", "execution_kind": "generic_research_primitives"},
         "references": ["docs/algorithms/04-spectral-metrics.md"],
     },

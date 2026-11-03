@@ -33,12 +33,15 @@ class WindowExecutionControl:
     def __init__(self, check: Callable[[], None], prepared: Callable[[], None],
                  resource_policy: DynamicWindowResourcePolicy | None = None,
                  compute_coordinator: Any | None = None,
-                 on_compute_slot_acquired: Callable[[float], None] | None = None) -> None:
+                 on_compute_slot_acquired: Callable[[float], None] | None = None,
+                 request_id: str | None = None, window_id: str | None = None) -> None:
         self.check = check
         self.prepared = prepared
         self.preparation_resource_policy = resource_policy
         self.compute_coordinator = compute_coordinator
         self.on_compute_slot_acquired = on_compute_slot_acquired
+        self.request_id = request_id
+        self.window_id = window_id
         self._compute_lease: Any | None = None
 
     def source_preparation_completed(self) -> None:
@@ -160,6 +163,7 @@ def execute_window_job(
         control = WindowExecutionControl(
             check, prepared, resource_policy, compute_coordinator,
             on_compute_slot_acquired=record_compute_slot_wait,
+            request_id=request_id, window_id=window_id,
         )
         inputs.execution_context = control
         if hasattr(inputs.payload, "execution_context"):

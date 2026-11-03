@@ -87,12 +87,12 @@ public sealed class ReviewWindowAnalysisAdapter : IReviewAlgorithmAdapter
         targets.ResetAsync().WaitAsync(cancellationToken);
 
     public Task<TopomapResponse> LoadTopomapAsync(WindowPreviewResponse window,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
     {
         ArgumentNullException.ThrowIfNull(window);
         if (window.DynamicResponse is { } dynamic)
-            return client.GetDynamicTopomapAsync(dynamic.WindowId, null, cancellationToken);
-        return client.GetRunTopomapAsync(window.RunId, window.CursorSample, cancellationToken);
+            return client.GetDynamicTopomapAsync(dynamic.WindowId, null, cancellationToken, powerType, bandId);
+        return client.GetRunTopomapAsync(window.RunId, window.CursorSample, cancellationToken, powerType, bandId);
     }
 
     private void ValidateRequest(string recordingId, AnalysisRunRequest request, long cursorSample)

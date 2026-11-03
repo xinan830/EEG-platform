@@ -60,8 +60,35 @@ def test_rbp_continuous_source_each_window_matches_full_run_and_loads_only_one_f
         validate_window_result(window, algorithm.manifest)
         for name in ("delta", "theta", "alpha", "beta", "gamma"):
             np.testing.assert_allclose(window.arrays[name], [full.arrays[name][index, 0]], rtol=1e-12, atol=1e-12)
+            absolute_name = f"{name}_absolute_power"
+            np.testing.assert_allclose(window.arrays[absolute_name], [full.arrays[absolute_name][index, 0]], rtol=1e-12, atol=1e-12)
+            assert window.array_units[name] == "ratio"
+            assert window.array_units[absolute_name] == "uV^2"
         assert window.provenance["filter_bandpass_hz"] == [1, 50]
-        assert sum(value[0] for value in window.arrays.values()) == pytest.approx(1)
+    assert sum(window.arrays[name][0] for name in ("delta", "theta", "alpha", "beta", "gamma")) == pytest.approx(1)
+
+
+def test_rbp_window_logs_request_and_window_correlated_stage_timings(caplog):
+    caplog.set_level("INFO")
+    spectrum = SimpleNamespace(
+        freqs=np.arange(1.0, 51.0), psd=np.ones((1, 50)), clean_epochs=1,
+        total_epochs=1, signal_quality=1.0, rejected_reasons=(), evidence={}, gate_failed=None,
+    )
+    source = inputs(lambda **_: spectrum)
+    source.execution_context = SimpleNamespace(
+        request_id="rbp-request", window_id="rbp-window", check_cancelled=lambda: None,
+    )
+
+    _, result = execute(RbpAlgorithm(), source, 1000)
+
+    assert result.state == "ready"
+    assert any(
+        "rbp_frame_perf request_id=rbp-request window_id=rbp-window" in record.getMessage()
+        and "recording_id=recording" in record.getMessage()
+        and "spectrum_load_ms=" in record.getMessage()
+        and "band_integration_ms=" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 @pytest.mark.parametrize("cursor", [0, 799])

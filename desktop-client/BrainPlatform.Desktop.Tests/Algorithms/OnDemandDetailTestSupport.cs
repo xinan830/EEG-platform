@@ -59,14 +59,21 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
         var state = end < 4 ? "insufficient_data" : "ready";
         string[] names = ["delta", "theta", "alpha", "beta", "gamma"];
         double[] shares = [0.1, 0.1, 0.6, 0.15, 0.05];
+        var arrays = new Dictionary<string, JsonElement>();
+        var units = new Dictionary<string, string>();
+        for (var index = 0; index < names.Length; index++)
+        {
+            arrays[names[index]] = JsonSerializer.SerializeToElement(new[] { shares[index] });
+            arrays[$"{names[index]}_absolute_power"] = JsonSerializer.SerializeToElement(new[] { (index + 1d) * 10 });
+            units[names[index]] = "ratio";
+            units[$"{names[index]}_absolute_power"] = "uV^2";
+        }
         var result = new DynamicWindowResultResponse(null, state, "algorithm_group",
             new Dictionary<string, JsonElement> {
                 ["time_s"] = JsonSerializer.SerializeToElement(new[] { end }),
                 ["channel_index"] = JsonSerializer.SerializeToElement(new[] { 0d }) },
             new Dictionary<string, string> { ["time_s"] = "s", ["channel_index"] = "index" },
-            names.Select((name, i) => (name, value: JsonSerializer.SerializeToElement(new[] { shares[i] })))
-                .ToDictionary(pair => pair.name, pair => pair.value),
-            names.ToDictionary(name => name, _ => "ratio"), "clean", null,
+            arrays, units, "clean", null,
             JsonSerializer.SerializeToElement(new { extensions = new { channel_order = new { channels = new[] { request.Config.TryGetProperty("channel", out var selected) ? selected.GetString() : "F3" } }, channel_failures = new { by_channel = new { } } } }),
             JsonSerializer.SerializeToElement(new { analysis_state = "Partial" }));
         return new DynamicWindowResponse("session", $"window-{request.CursorSample}", request.RequestId!, state,

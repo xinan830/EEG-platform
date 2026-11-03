@@ -36,14 +36,20 @@ class RbpWindowCapability:
             return DynamicWindowResult(identity=identity, state="insufficient_data",
                 output_kind="algorithm_group", quality="insufficient_data",
                 failure={"code": "RBP_WINDOW_INSUFFICIENT_DATA", "message": plan.reason or "window unavailable"})
-        frame = execute_rbp_frame(inputs, plan.start_s, plan.end_s, check_cancelled)
+        execution_context = inputs.execution_context
+        frame = execute_rbp_frame(
+            inputs, plan.start_s, plan.end_s, check_cancelled,
+            request_id=getattr(execution_context, "request_id", None),
+            window_id=getattr(execution_context, "window_id", None),
+        )
         configured_window_s = config.window_s or self.manifest.dynamic_policy.default_window_s
         return DynamicWindowResult(
             identity=identity, state=frame.state, output_kind="algorithm_group",
             axes={"time_s": np.asarray([plan.end_s]),
                   "channel_index": np.arange(len(inputs.channels), dtype=float)},
             axis_units={"time_s": "s", "channel_index": "index"},
-            arrays=frame.arrays, array_units={name: "ratio" for name, *_ in RBP_BANDS},
+            arrays=frame.arrays, array_units={output: "ratio" if output == band else "uV^2"
+                for band, *_ in RBP_BANDS for output in (band, f"{band}_absolute_power")},
             quality=frame.quality,
             failure={"code": frame.failure.code, "message": frame.failure.message,
                      "details": frame.failure.detail} if frame.failure else None,

@@ -47,13 +47,16 @@ public sealed partial class RbpResultPreview
         if (response.State == "ready")
         {
             var result = response.Result ?? throw new InvalidOperationException("RBP 可用窗口缺少结果。");
+            var hasAbsoluteArrays = CurrentBands.Any(band => result.Arrays?.ContainsKey($"{band.Key}_absolute_power") == true ||
+                result.ArrayUnits?.ContainsKey($"{band.Key}_absolute_power") == true);
+            var expectedFieldCount = CurrentBands.Length * (hasAbsoluteArrays ? 2 : 1);
             if (range is null || result.OutputKind != "algorithm_group" ||
                 result.Axes is null || result.AxisUnits is null || result.Arrays is null || result.ArrayUnits is null ||
                 result.Axes.Count != 2 || result.AxisUnits.Count != 2 || result.AxisUnits.GetValueOrDefault("time_s") != "s" ||
                 result.AxisUnits.GetValueOrDefault("channel_index") != "index" ||
                 !result.Axes.TryGetValue("time_s", out var time) || SingleValue(time) != range.EndSeconds ||
                 !result.Axes.TryGetValue("channel_index", out var channelIndices) || channelIndices.ValueKind != JsonValueKind.Array ||
-                result.Arrays.Count != CurrentBands.Length || result.ArrayUnits.Count != CurrentBands.Length)
+                result.Arrays.Count != expectedFieldCount || result.ArrayUnits.Count != expectedFieldCount)
                 throw new InvalidOperationException("RBP 按需结果的字段、轴、范围或单位无效。");
             var channels = ReadChannelOrder(result);
             if (channelIndices.GetArrayLength() != channels.Length)
@@ -66,6 +69,14 @@ public sealed partial class RbpResultPreview
                     result.ArrayUnits.GetValueOrDefault(name) != "ratio" ||
                     values.ValueKind != JsonValueKind.Array || values.GetArrayLength() != channels.Length)
                     throw new InvalidOperationException($"RBP {name} 矩阵形状或单位无效。");
+                if (hasAbsoluteArrays)
+                {
+                    var absoluteName = $"{name}_absolute_power";
+                    if (!result.Arrays.TryGetValue(absoluteName, out var absoluteValues) ||
+                        result.ArrayUnits.GetValueOrDefault(absoluteName) != "uV^2" ||
+                        absoluteValues.ValueKind != JsonValueKind.Array || absoluteValues.GetArrayLength() != channels.Length)
+                        throw new InvalidOperationException($"RBP {absoluteName} 矩阵形状或单位无效。");
+                }
             }
             var failures = ReadChannelFailures(result.Evidence);
             var warnings = ReadChannelWarnings(result.Evidence);

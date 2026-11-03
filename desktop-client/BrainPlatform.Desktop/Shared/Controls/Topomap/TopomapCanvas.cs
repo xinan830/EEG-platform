@@ -198,24 +198,40 @@ public sealed class TopomapCanvas : FrameworkElement
         TopomapVisualSnapshot? snapshot)
     {
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var title = band is null ? "" : BandName(band.BandId);
-        context.DrawText(new FormattedText(title, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI Semibold"), 11, new SolidColorBrush(Color.FromRgb(15, 23, 42)), dpi),
-            new Point(bounds.X, Math.Max(0, bounds.Y - 28)));
+        var title = new FormattedText(band is null ? "" : BandName(band.BandId),
+            CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+            new Typeface("Segoe UI Semibold"), 11, new SolidColorBrush(Color.FromRgb(15, 23, 42)), dpi);
+        context.DrawText(title,
+            new Point(Math.Max(0, (bounds.X - title.Width) / 2),
+                bounds.Y + (bounds.Height - title.Height) / 2));
         if (snapshot is not { HasGridValues: true }) return;
 
-        var bar = new Rect(bounds.Right + 20, bounds.Y + 8, 7, Math.Max(20, bounds.Height - 16));
+        var bar = new Rect(bounds.Right + 20, bounds.Y + 4, 18, Math.Max(20, bounds.Height - 8));
         for (var index = 0; index < ColorScaleBrushes.Length; index++)
             context.DrawRectangle(ColorScaleBrushes[index], null,
                 new Rect(bar.X, bar.Y + bar.Height * index / ColorScaleBrushes.Length,
                     bar.Width, bar.Height / ColorScaleBrushes.Length + 1));
-        context.DrawText(new FormattedText($"{snapshot.Maximum:0.##}", CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight, new Typeface("Segoe UI"), 8, Brushes.SlateGray, dpi),
-            new Point(bar.Right + 3, bar.Y - 5));
-        context.DrawText(new FormattedText($"{snapshot.Minimum:0.##}", CultureInfo.CurrentUICulture,
-            FlowDirection.LeftToRight, new Typeface("Segoe UI"), 8, Brushes.SlateGray, dpi),
-            new Point(bar.Right + 3, bar.Bottom - 6));
+        var unitLabel = new FormattedText(DisplayUnit(band?.Unit), CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), 13, Brushes.SlateGray, dpi);
+        context.DrawText(unitLabel, new Point(
+            Math.Clamp(bar.X + (bar.Width - unitLabel.Width) / 2, 0, Math.Max(0, ActualWidth - unitLabel.Width)),
+            Math.Max(0, bar.Y - 25)));
+        var maximumLabel = new FormattedText($"{snapshot.Maximum:0.##}", CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), 14, Brushes.SlateGray, dpi);
+        var minimumLabel = new FormattedText($"{snapshot.Minimum:0.##}", CultureInfo.CurrentUICulture,
+            FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), 14, Brushes.SlateGray, dpi);
+        var labelsFitRight = bar.Right + 6 + Math.Max(maximumLabel.Width, minimumLabel.Width) <= ActualWidth;
+        context.DrawText(maximumLabel, new Point(
+            labelsFitRight ? bar.Right + 6 : Math.Max(0, bar.X - maximumLabel.Width - 6), bar.Y - 4));
+        context.DrawText(minimumLabel, new Point(
+            labelsFitRight ? bar.Right + 6 : Math.Max(0, bar.X - minimumLabel.Width - 6), bar.Bottom - 15));
     }
+
+    private static string DisplayUnit(string? unit) => unit switch
+    {
+        "uV^2" => "µV²",
+        _ => unit ?? "",
+    };
 
     private static Brush[] CreateColorScaleBrushes()
     {

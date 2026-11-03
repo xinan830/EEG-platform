@@ -144,12 +144,42 @@ public sealed class RbpOnDemandDetailTests : IDisposable
         var wrongUnits = new Dictionary<string, string>(result.ArrayUnits!) { ["alpha"] = "Hz" };
         Assert.Throws<InvalidOperationException>(() => RbpResultPreview.FromWindow(response with
             { Result = result with { ArrayUnits = wrongUnits } }));
+        var wrongAbsoluteUnits = new Dictionary<string, string>(result.ArrayUnits!) { ["alpha_absolute_power"] = "ratio" };
+        Assert.Throws<InvalidOperationException>(() => RbpResultPreview.FromWindow(response with
+            { Result = result with { ArrayUnits = wrongAbsoluteUnits } }));
         var wrongArrays = new Dictionary<string, JsonElement>(result.Arrays!) { ["alpha"] = JsonSerializer.SerializeToElement(new[] { 0.2, 0.4 }) };
         Assert.Throws<InvalidOperationException>(() => RbpResultPreview.FromWindow(response with
             { Result = result with { Arrays = wrongArrays } }));
+        var missingAbsolute = new Dictionary<string, JsonElement>(result.Arrays!);
+        missingAbsolute.Remove("alpha_absolute_power");
+        Assert.Throws<InvalidOperationException>(() => RbpResultPreview.FromWindow(response with
+            { Result = result with { Arrays = missingAbsolute } }));
         RbpResultPreview? preview = null;
         for (var index = 0; index < 300; index++)
             preview = RbpResultPreview.FromWindow(response with { Range = new DynamicWindowRange(0, 1200, -index, 6) }, preview);
         Assert.Equal(256, preview!.Windows.Length);
+    }
+
+    [Fact]
+    public void Historical_relative_only_window_remains_usable()
+    {
+        using var config = JsonDocument.Parse("{\"channel\":\"F3\"}");
+        var response = OnDemandDetailClient.RbpResponse(new DynamicWindowRequest("recording", "rbp", null, null,
+            config.RootElement.Clone(), 1200, RequestId: "request"));
+        var result = response.Result!;
+        var arrays = new Dictionary<string, JsonElement>(result.Arrays!);
+        var units = new Dictionary<string, string>(result.ArrayUnits!);
+        foreach (var band in new[] { "delta", "theta", "alpha", "beta", "gamma" })
+        {
+            arrays.Remove($"{band}_absolute_power");
+            units.Remove($"{band}_absolute_power");
+        }
+
+        var preview = RbpResultPreview.FromWindow(response with
+        {
+            Result = result with { Arrays = arrays, ArrayUnits = units },
+        });
+
+        Assert.Equal(0.6, Assert.Single(preview.Windows).Shares[2]);
     }
 }

@@ -123,18 +123,52 @@ public sealed class RbpReviewPresentationTests
     }
 
     [Fact]
-    public void Topomap_band_selector_changes_only_the_displayed_band()
+    public void Topomap_band_selector_keeps_the_selected_single_band_response()
     {
         var model = new RbpReviewAnalysisViewModel();
         var bands = new[] { "delta", "theta", "alpha", "beta", "gamma" }
             .Select(id => new TopomapBand(id, "ratio", [], null, "ready", [], [], null, null)).ToArray();
-        model.ApplyTopomap(new TopomapResponse("window", "recording", 0, 5, "ready", "v1", "build",
-            "mne", "mri", "m", bands, null, null));
+        var response = new TopomapResponse("window", "recording", 0, 5, "ready", "v1", "build",
+            "mne", "mri", "m", bands, null, null);
+        model.ApplyTopomap(response);
 
+        var bandPropertyChanged = false;
+        model.PropertyChanged += (_, e) =>
+            bandPropertyChanged |= e.PropertyName == nameof(model.SelectedTopomapBandId);
         model.SelectedTopomapBandId = "alpha";
 
         Assert.Equal("alpha", model.SelectedTopomapBand!.BandId);
         Assert.Equal("window", model.Topomap!.RunId);
+        Assert.True(bandPropertyChanged);
+
+        var singleBandResponse = response with { Bands = [bands[2]] };
+        model.ApplyTopomap(singleBandResponse);
+
+        Assert.Equal("alpha", model.SelectedTopomapBand!.BandId);
+        Assert.Single(model.TopomapBands);
+    }
+
+    [Fact]
+    public void Topomap_power_selector_is_independent_from_band_selector()
+    {
+        var model = new RbpReviewAnalysisViewModel();
+
+        model.SelectedTopomapBandId = "alpha";
+        model.SelectedTopomapPowerType = "absolute";
+
+        Assert.Equal("alpha", model.SelectedTopomapBandId);
+        Assert.Equal("absolute", model.SelectedTopomapPowerType);
+        Assert.Equal("uV^2", model.SelectedTopomapPowerUnit);
+
+        model.SelectedTopomapPowerType = "relative";
+        Assert.Equal("ratio", model.SelectedTopomapPowerUnit);
+    }
+
+    [Fact]
+    public void Topomap_power_selector_displays_the_option_label()
+    {
+        Assert.Equal("相对功率", new TopomapPowerTypeOption("relative", "相对功率").ToString());
+        Assert.Equal("绝对功率", new TopomapPowerTypeOption("absolute", "绝对功率").ToString());
     }
 
     internal static WindowPreviewResponse Ready(double end, double alpha = 0.6)
@@ -142,6 +176,16 @@ public sealed class RbpReviewPresentationTests
         var channels = Enumerable.Range(1, 21).Select(i => $"CH{i}").ToArray();
         string[] names = ["delta", "theta", "alpha", "beta", "gamma"];
         double[] shares = [0.1, 0.1, alpha, 0.15, 0.65 - alpha];
+        var arrays = names.Select((name, index) => (name, values: JsonSerializer.SerializeToElement(
+            Enumerable.Repeat(shares[index], channels.Length).ToArray())))
+            .ToDictionary(item => item.name, item => item.values);
+        var metadata = names.ToDictionary(name => name, _ => JsonSerializer.SerializeToElement(new { unit = "ratio" }));
+        foreach (var name in names)
+        {
+            arrays[$"{name}_absolute_power"] = JsonSerializer.SerializeToElement(
+                Enumerable.Repeat(10d, channels.Length).ToArray());
+            metadata[$"{name}_absolute_power"] = JsonSerializer.SerializeToElement(new { unit = "uV^2" });
+        }
         return new WindowPreviewResponse("session", "recording", (long)(end * 200), end,
             "available", [], new WindowPreviewWindow($"w-{end}", 0,
                 (long)((end - 5) * 200), (long)(end * 200), "ready", "clean", []), false, null, null,
@@ -150,9 +194,7 @@ public sealed class RbpReviewPresentationTests
                 ["time_s"] = JsonSerializer.SerializeToElement(new[] { end }),
                 ["channel_index"] = JsonSerializer.SerializeToElement(Enumerable.Range(0, channels.Length).ToArray()),
             }, null,
-            names.Select((name, index) => (name, index)).ToDictionary(p => p.name,
-                p => JsonSerializer.SerializeToElement(Enumerable.Repeat(shares[p.index], channels.Length).ToArray())),
-            names.ToDictionary(name => name, _ => JsonSerializer.SerializeToElement(new { unit = "ratio" })),
+            arrays, metadata,
             "rbp-fixture", "fixture", Evidence: JsonSerializer.SerializeToElement(new
             {
                 extensions = new { channel_order = new { channels } },

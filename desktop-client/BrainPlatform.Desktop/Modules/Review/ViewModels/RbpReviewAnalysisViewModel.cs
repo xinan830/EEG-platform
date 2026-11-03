@@ -17,6 +17,7 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
     private TopomapResponse? topomap;
     private string selectedChart = "堆叠历史图";
     private string selectedTopomapBandId = "";
+    private string selectedTopomapPowerType = "relative";
 
     public IReadOnlyList<RbpBandPoint> Bands => preview.BandsAt(cursorSeconds);
     public IReadOnlyList<RbpWindowPoint> Trend => preview.Windows
@@ -44,6 +45,20 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         new("delta", "Delta 波"), new("theta", "Theta 波"), new("alpha", "Alpha 波"),
         new("beta", "Beta 波"), new("gamma", "Gamma 波"),
     ];
+    public IReadOnlyList<TopomapPowerTypeOption> TopomapPowerTypeOptions { get; } =
+    [
+        new("relative", "相对功率"), new("absolute", "绝对功率"),
+    ];
+    public string SelectedTopomapPowerType
+    {
+        get => selectedTopomapPowerType;
+        set
+        {
+            if (!SetProperty(ref selectedTopomapPowerType, value)) return;
+            RaisePropertyChanged(nameof(SelectedTopomapPowerUnit));
+        }
+    }
+    public string SelectedTopomapPowerUnit => SelectedTopomapPowerType == "absolute" ? "uV^2" : "ratio";
     public string SelectedTopomapBandId
     {
         get => selectedTopomapBandId;
@@ -165,6 +180,11 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
 }
 
 public sealed record TopomapBandOption(string Id, string Label)
+{
+    public override string ToString() => Label;
+}
+
+public sealed record TopomapPowerTypeOption(string Id, string Label)
 {
     public override string ToString() => Label;
 }

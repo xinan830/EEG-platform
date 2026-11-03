@@ -1,6 +1,11 @@
 """Persisted current official Definition metadata is immutable and idempotent."""
 
-from app.algorithms.catalog import ensure_official_definitions, official_definition, official_definition_draft
+from app.algorithms.catalog import (
+    OFFICIAL_ALGORITHM_MANIFESTS,
+    ensure_official_definitions,
+    official_definition,
+    official_definition_draft,
+)
 from app.services.definitions import DefinitionService
 
 
@@ -16,8 +21,11 @@ def test_official_definitions_are_immutable_published_records(tmp_path):
     first = ensure_official_definitions(service)
     second = ensure_official_definitions(service)
     assert first == second
-    assert len(service.list()) == 9
+    assert len(service.list()) == len(OFFICIAL_ALGORITHM_MANIFESTS)
     assert official_definition_draft("rbp").graph["outputs"] == [
         "delta_rbp", "theta_rbp", "alpha_rbp", "beta_rbp", "gamma_rbp",
     ]
+    assert all(official_definition_draft("rbp").outputs[f"{band}_absolute_power"] == {
+        "type": "BandPower", "unit": "uV^2",
+    } for band in ("delta", "theta", "alpha", "beta", "gamma"))
     assert official_definition_draft("iapf").quality_rules["execution_kind"] == "official_composite_run_adapter"

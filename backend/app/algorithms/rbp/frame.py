@@ -2,6 +2,8 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import logging
+from time import perf_counter
 from types import SimpleNamespace
 from typing import Any
 
@@ -12,10 +14,12 @@ from app.scientific.quality import SpectralQualityGateError
 
 from . import official
 
+logger = logging.getLogger("brain_platform.rbp")
+
 
 @dataclass(frozen=True)
 class RbpFrame:
-    """Ordered ratio arrays with the same failures/evidence for every adapter."""
+    """Ordered relative and absolute band-power arrays for every execution path."""
 
     arrays: dict[str, np.ndarray]
     quality: str
@@ -33,13 +37,16 @@ class RbpFrame:
 def execute_rbp_frame(
     inputs: AlgorithmInputs, start_s: float, end_s: float,
     check_cancelled: Callable[[], None] | None = None,
+    *, request_id: str | None = None, window_id: str | None = None,
 ) -> RbpFrame:
     """Read one batched continuous-source spectrum, then integrate each channel."""
+    started = perf_counter()
     check = check_cancelled or (inputs.execution_context.check_cancelled if inputs.execution_context else None)
     if check:
         check()
     spectrum = None
     gate_quality: dict[str, Any] | None = None
+    spectrum_started = perf_counter()
     try:
         spectrum = inputs.payload.load_spectrum(
             start_s=start_s, window_s=end_s - start_s, channels=list(inputs.channels),
@@ -50,6 +57,7 @@ def execute_rbp_frame(
         )
     except SpectralQualityGateError as exc:
         gate_quality = dict(exc.quality)
+    spectrum_load_ms = (perf_counter() - spectrum_started) * 1000
     if check:
         check()
     if spectrum is not None:
@@ -59,11 +67,16 @@ def execute_rbp_frame(
         if spectrum.gate_failed:
             gate_quality = {"reason": spectrum.gate_failed}
 
-    arrays = {name: np.full(len(inputs.channels), np.nan) for name, *_ in official.RBP_BANDS}
+    arrays = {
+        output: np.full(len(inputs.channels), np.nan)
+        for band, *_ in official.RBP_BANDS
+        for output in (band, f"{band}_absolute_power")
+    }
     failures: dict[str, dict[str, Any]] = {}
     channel_quality = dict(getattr(spectrum, "evidence", {}).get("channel_quality", {})) if spectrum is not None else {}
     warnings = {channel: item for channel, item in channel_quality.items() if item["status"] == "warning"}
     band_powers: dict[str, dict[str, float]] = {}
+    band_started = perf_counter()
     for index, channel in enumerate(inputs.channels):
         if check:
             check()
@@ -85,10 +98,13 @@ def execute_rbp_frame(
             failures[channel] = {"code": "RBP_CHANNEL_UNAVAILABLE", "message": str(exc)}
             continue
         band_powers[channel] = powers
+        for name, value in powers.items():
+            arrays[f"{name}_absolute_power"][index] = value
         for name, value in shares.items():
             arrays[name][index] = value
     if check:
         check()
+    band_integration_ms = (perf_counter() - band_started) * 1000
 
     all_failed = len(failures) == len(inputs.channels)
     quality = ("gate_failed" if gate_quality is not None else "unavailable") if all_failed else (
@@ -129,4 +145,11 @@ def execute_rbp_frame(
             "denominator_uv2": {channel: sum(powers.values()) for channel, powers in band_powers.items()},
         },
     }
+    if request_id or window_id:
+        logger.info(
+            "rbp_frame_perf request_id=%s window_id=%s recording_id=%s start_s=%.6f end_s=%.6f "
+            "channel_count=%d spectrum_load_ms=%.1f band_integration_ms=%.1f total_ms=%.1f",
+            request_id or "unknown", window_id or "unknown", inputs.recording_id, start_s, end_s,
+            len(inputs.channels), spectrum_load_ms, band_integration_ms, (perf_counter() - started) * 1000,
+        )
     return RbpFrame(arrays, quality, failure, evidence, provenance)

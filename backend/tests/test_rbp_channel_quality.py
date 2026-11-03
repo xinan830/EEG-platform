@@ -62,7 +62,11 @@ def test_healthy_channel_is_independent_and_strict_default_is_unchanged(kind, mo
         assert set(extensions["channel_failures"]["by_channel"]) == {"Fp1-REF"}
     else:
         assert all(np.isfinite(array[0]) for array in result.arrays.values())
-        assert sum(array[0] for array in result.arrays.values()) == pytest.approx(1.)
+        assert sum(result.arrays[band][0] for band in ("delta", "theta", "alpha", "beta", "gamma")) == pytest.approx(1.)
+        for band in ("delta", "theta", "alpha", "beta", "gamma"):
+            assert result.array_units[f"{band}_absolute_power"] == "uV^2"
+            assert result.arrays[f"{band}_absolute_power"][0] == pytest.approx(
+                result.evidence["calculation_trace"]["band_powers_uv2"]["Fp1-REF"][band])
         assert set(extensions["channel_warnings"]["by_channel"]) == {"Fp1-REF"}
         assert not extensions["channel_failures"]["by_channel"]
     with pytest.raises(SpectralQualityGateError):

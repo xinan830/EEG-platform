@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import threading
+from time import perf_counter
 import zipfile
 from pathlib import Path
 from uuid import uuid4
@@ -28,7 +29,7 @@ class DynamicWindowArtifactStore:
     def __init__(self, directory: Path, repository: DynamicWindowRepository):
         self.directory = directory.resolve()
         self.repository = repository
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger("brain_platform.dynamic_window_artifacts")
         self.directory.mkdir(parents=True, exist_ok=True)
         with self._usage_lock:
             if self.directory not in self._directory_usage:
@@ -117,17 +118,23 @@ class DynamicWindowArtifactStore:
         return hashlib.sha256((self.directory / f"{artifact_id}.json").read_bytes()).hexdigest()
 
     def read(self, artifact_id: str, *, manifest_sha256: str | None = None) -> dict:
+        started = perf_counter()
         path = self.directory / f"{artifact_id}.json"
         payload_path = path.with_suffix(".npz")
         try:
             if path.stat().st_size > self.MAX_METADATA_BYTES or payload_path.stat().st_size > self.MAX_PAYLOAD_BYTES:
                 raise ValueError("dynamic window artifact exceeds the single-window budget")
+            metadata_started = perf_counter()
             content = path.read_bytes()
+            metadata = json.loads(content)
+            metadata_read_ms = (perf_counter() - metadata_started) * 1000
+            checksum_started = perf_counter()
             if manifest_sha256 and hashlib.sha256(content).hexdigest() != manifest_sha256:
                 raise ValueError("dynamic window metadata checksum mismatch")
-            metadata = json.loads(content)
             if metadata.get("sha256") != hashlib.sha256(payload_path.read_bytes()).hexdigest():
                 raise ValueError("dynamic window result artifact checksum mismatch")
+            checksum_ms = (perf_counter() - checksum_started) * 1000
+            decode_started = perf_counter()
             axes, arrays = {}, {}
             with zipfile.ZipFile(payload_path) as archive:
                 members = archive.infolist()
@@ -148,8 +155,17 @@ class DynamicWindowArtifactStore:
                         arrays[name] = value.tolist()
                     else:
                         raise ValueError("dynamic window artifact contains an unknown field")
+            decode_ms = (perf_counter() - decode_started) * 1000
             metadata["axes"], metadata["arrays"] = axes, arrays
+            validation_started = perf_counter()
             DynamicWindowResult.model_validate(metadata)
+            validation_ms = (perf_counter() - validation_started) * 1000
+            self.logger.info(
+                "dynamic_artifact_read_perf artifact_id=%s metadata_read_ms=%.1f checksum_ms=%.1f "
+                "decode_ms=%.1f validation_ms=%.1f total_ms=%.1f",
+                artifact_id, metadata_read_ms, checksum_ms, decode_ms, validation_ms,
+                (perf_counter() - started) * 1000,
+            )
             return metadata
         except (OSError, TypeError, KeyError, ValueError, zipfile.BadZipFile) as exc:
             raise ValueError(f"dynamic window artifact is invalid: {exc}") from exc

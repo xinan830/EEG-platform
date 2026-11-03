@@ -53,12 +53,18 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <ComboBox Grid.Row="0" Width="120" Height="32" Margin="4,0,0,4"
-                              HorizontalAlignment="Left" VerticalAlignment="Top"
-                              ItemsSource="{Binding RbpAnalysis.TopomapBandOptions}"
-                              DisplayMemberPath="Label" SelectedValuePath="Id"
-                              SelectedValue="{Binding RbpAnalysis.SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"
-                              ToolTip="选择地形图频段" Style="{StaticResource AppFilterComboBoxStyle}" />
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="4,0,0,4">
+                        <ComboBox Width="120" Height="32" Margin="0,0,8,0"
+                                  ItemsSource="{Binding RbpAnalysis.TopomapPowerTypeOptions}"
+                                  DisplayMemberPath="Label" SelectedValuePath="Id"
+                                  SelectedValue="{Binding RbpAnalysis.SelectedTopomapPowerType, UpdateSourceTrigger=PropertyChanged}"
+                                  ToolTip="选择功率类型" Style="{StaticResource AppFilterComboBoxStyle}" />
+                        <ComboBox Width="120" Height="32"
+                                  ItemsSource="{Binding RbpAnalysis.TopomapBandOptions}"
+                                  DisplayMemberPath="Label" SelectedValuePath="Id"
+                                  SelectedValue="{Binding RbpAnalysis.SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"
+                                  ToolTip="选择地形图频段" Style="{StaticResource AppFilterComboBoxStyle}" />
+                    </StackPanel>
                     <ItemsControl Grid.Row="1" ItemsSource="{Binding RbpAnalysis.TopomapBands}">
                         <ItemsControl.Style>
                             <Style TargetType="ItemsControl">

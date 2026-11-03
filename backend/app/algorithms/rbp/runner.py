@@ -70,7 +70,7 @@ class RbpAlgorithm(RbpWindowCapability):
             axes={"time_s": np.asarray([config.end_s]),
                   "channel_index": np.arange(len(inputs.channels), dtype=float)},
             axis_units={"time_s": "s", "channel_index": "index"},
-            arrays=frame.arrays, array_units={name: "ratio" for name, *_ in RBP_BANDS},
+            arrays=frame.arrays, array_units=_rbp_array_units(),
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
             actual_range={"start_s": config.start_s, "end_s": config.end_s},
             quality=frame.quality, failure=frame.failure, evidence=frame.evidence,
@@ -87,7 +87,7 @@ class RbpAlgorithm(RbpWindowCapability):
         )
         windows: list[StructuredSeriesWindow] = []
         per_window_failures = []
-        values = {name: [] for name, *_ in RBP_BANDS}
+        values = {name: [] for name in _rbp_array_units()}
         for frame in controlled_frames(frames, inputs.execution_context):
             result = execute_rbp_frame(inputs, frame.window_start_s, frame.window_end_s)
             for name in values:
@@ -107,7 +107,7 @@ class RbpAlgorithm(RbpWindowCapability):
                   "channel_index": np.arange(len(inputs.channels), dtype=float)},
             axis_units={"time_s": "s", "channel_index": "index"},
             arrays={name: np.asarray(rows, dtype=float) for name, rows in values.items()},
-            array_units={name: "ratio" for name, *_ in RBP_BANDS}, windows=windows,
+            array_units=_rbp_array_units(), windows=windows,
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
             actual_range={"start_s": frames[0].window_start_s, "end_s": frames[-1].window_end_s} if frames else None,
             quality="clean" if windows and all(window.quality == "clean" for window in windows) else "partial",
@@ -118,3 +118,8 @@ class RbpAlgorithm(RbpWindowCapability):
                 "bands": [name for name, *_ in RBP_BANDS], "window_s": window_s, "step_s": step_s,
             }},
         )
+
+
+def _rbp_array_units() -> dict[str, str]:
+    return {output: "ratio" if output == band else "uV^2"
+            for band, *_ in RBP_BANDS for output in (band, f"{band}_absolute_power")}

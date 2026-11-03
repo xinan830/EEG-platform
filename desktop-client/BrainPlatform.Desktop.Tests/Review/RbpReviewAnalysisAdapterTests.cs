@@ -48,6 +48,25 @@ public sealed class RbpReviewAnalysisAdapterTests
             CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Current_dynamic_window_topomap_request_carries_power_type_and_band_without_changing_window()
+    {
+        var client = new FixtureClient();
+        var adapter = new ReviewWindowAnalysisAdapter(client, "rbp", "RBP", enableOnDemand: true);
+        var window = new WindowPreviewResponse("run", "recording-1", 1_000, 5, "available", [], null,
+            false, null, null, null, null, null, null, "rbp-v1", "impl-v1")
+        {
+            DynamicResponse = ReadyResponse(),
+        };
+
+        var result = await adapter.LoadTopomapAsync(window, CancellationToken.None, "absolute", "alpha");
+
+        Assert.Same(client.Topomap, result);
+        Assert.Equal("window-1", client.TopomapWindowId);
+        Assert.Equal("absolute", client.TopomapPowerType);
+        Assert.Equal("alpha", client.TopomapBandId);
+    }
+
     private static DynamicWindowResponse ReadyResponse() => new(
         "session-1", "window-1", "request-1", "ready",
         JsonSerializer.SerializeToElement(new { recording_id = "recording-1" }),
@@ -87,6 +106,11 @@ public sealed class RbpReviewAnalysisAdapterTests
         public bool DeclaresDynamicCapability { get; init; } = true;
         public DynamicWindowResponse Response { get; init; } = ReadyResponse();
         public DynamicWindowRequest? LastRequest { get; private set; }
+        public TopomapResponse Topomap { get; init; } = new("window", "recording-1", 0, 5,
+            "ready", "rbp-v1", "impl-v1", "montage_position_snapshot", "mri", "m", [], null, null);
+        public string? TopomapWindowId { get; private set; }
+        public string? TopomapPowerType { get; private set; }
+        public string? TopomapBandId { get; private set; }
 
         public Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AlgorithmCatalogItem>>([CatalogItem()]);
@@ -96,6 +120,15 @@ public sealed class RbpReviewAnalysisAdapterTests
         {
             LastRequest = request;
             return Task.FromResult(Response with { RequestId = request.RequestId ?? "request-1" });
+        }
+
+        public Task<TopomapResponse> GetDynamicTopomapAsync(string windowId, string? projectId,
+            CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
+        {
+            TopomapWindowId = windowId;
+            TopomapPowerType = powerType;
+            TopomapBandId = bandId;
+            return Task.FromResult(Topomap);
         }
 
         public Task<DynamicSubscriptionResponse> CancelDynamicSubscriptionAsync(

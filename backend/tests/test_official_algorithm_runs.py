@@ -183,11 +183,17 @@ def test_official_rbp_run_returns_all_five_backend_band_shares(tmp_path: Path):
     assert structured["output"]["kind"] == "algorithm_group"
     assert structured["channel_order"]
     assert {"delta", "theta", "alpha", "beta", "gamma"}.issubset(structured["arrays"])
+    assert {f"{band}_absolute_power" for band in ("delta", "theta", "alpha", "beta", "gamma")} <= set(structured["arrays"])
+    assert all(structured["arrays"][f"{band}_absolute_power"]["unit"] == "uV^2"
+               for band in ("delta", "theta", "alpha", "beta", "gamma"))
     artifact = service.list_artifacts(completed.run_id)[0]
     arrays = service.artifacts.read_npz(artifact)
     assert sum(float(arrays[name][0]) for name in ("delta", "theta", "alpha", "beta", "gamma")) == pytest.approx(1.0)
+    trace = structured["calculation_trace"]["band_powers_uv2"][structured["channel_order"][0]]
+    for band in ("delta", "theta", "alpha", "beta", "gamma"):
+        assert float(arrays[f"{band}_absolute_power"][0]) == pytest.approx(trace[band])
     assert completed.scientific_version == "official-rbp-v4"
-    assert completed.definition_version == "2.0.4"
+    assert completed.definition_version == "2.0.5"
     assert completed.filters["bandpass_hz"] == [1.0, 50.0]
     assert completed.filters["notch_hz"] == 50.0
 
@@ -203,6 +209,8 @@ def test_official_dynamic_rbp_returns_five_band_shares_per_window(tmp_path: Path
     artifact = service.list_artifacts(completed.run_id)[0]
     arrays = service.artifacts.read_npz(artifact)
     assert sum(float(arrays[name][6, 0]) for name in ("delta", "theta", "alpha", "beta", "gamma")) == pytest.approx(1.0)
+    assert all(structured["arrays"][f"{band}_absolute_power"]["unit"] == "uV^2"
+               for band in ("delta", "theta", "alpha", "beta", "gamma"))
     assert series[0]["state"] == "Partial"
     assert series[6]["state"] == "Complete"
 

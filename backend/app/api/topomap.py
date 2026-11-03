@@ -1,11 +1,40 @@
+import logging
+from time import perf_counter
 from fastapi import APIRouter, Query, Request
+from typing import Literal
+from starlette.responses import Response
 
 from app.core.api_contract import error_response
 from app.services.artifacts import ArtifactIntegrityError, WindowIndexUnavailable
 from app.services.topomap import TopomapUnavailable
 
+logger = logging.getLogger("brain_platform.topomap")
+BandId = Literal["delta", "theta", "alpha", "beta", "gamma"]
+
 
 router = APIRouter(prefix="/api/runs", tags=["topomap"])
+
+
+def _request_id(request: Request) -> str:
+    return str(getattr(request.state, "request_id", None)
+               or request.headers.get("X-Request-ID") or "unknown")
+
+
+def _json_response(request: Request, response, *, result_id: str, band_id: str | None,
+                   started: float) -> Response:
+    service_ms = (perf_counter() - started) * 1000
+    serialization_started = perf_counter()
+    payload = response.model_dump_json()
+    serialization_ms = (perf_counter() - serialization_started) * 1000
+    grid_cells = sum((band.grid.width * band.grid.height) if band.grid else 0 for band in response.bands)
+    logger.info(
+        "topomap_api_perf request_id=%s result_id=%s recording_id=%s power_type=%s band_id=%s "
+        "band_count=%d grid_cells=%d service_ms=%.1f serialization_ms=%.1f",
+        _request_id(request),
+        result_id, response.recording_id, response.power_type, band_id or "all", len(response.bands),
+        grid_cells, service_ms, serialization_ms,
+    )
+    return Response(content=payload, media_type="application/json")
 
 
 @router.get("/{run_id}/topomap")
@@ -14,13 +43,18 @@ def rbp_topomap(
     request: Request,
     cursor_sample: int | None = Query(default=None, ge=0),
     cursor_s: float | None = Query(default=None, ge=0),
+    power_type: Literal["relative", "absolute"] = Query(default="relative"),
+    band_id: BandId | None = Query(default=None),
 ):
     if (cursor_sample is None) == (cursor_s is None):
         return error_response(request, 422, "TOPOMAP_CURSOR_INVALID", "地形图必须且只能提供一种游标坐标。")
     try:
-        return request.app.state.topomap_service.build_rbp_window(
-            run_id, cursor_sample=cursor_sample, cursor_s=cursor_s,
-        ).model_dump(mode="json")
+        started = perf_counter()
+        response = request.app.state.topomap_service.build_rbp_window(
+            run_id, cursor_sample=cursor_sample, cursor_s=cursor_s, power_type=power_type,
+            band_id=band_id, request_id=_request_id(request),
+        )
+        return _json_response(request, response, result_id=run_id, band_id=band_id, started=started)
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
     except TopomapUnavailable as exc:
@@ -43,11 +77,16 @@ def dynamic_topomap(
     window_id: str,
     request: Request,
     project_id: str | None = Query(default=None),
+    power_type: Literal["relative", "absolute"] = Query(default="relative"),
+    band_id: BandId | None = Query(default=None),
 ):
     try:
-        return request.app.state.topomap_service.build_dynamic_window(
-            window_id, project_id=project_id,
-        ).model_dump(mode="json")
+        started = perf_counter()
+        response = request.app.state.topomap_service.build_dynamic_window(
+            window_id, project_id=project_id, power_type=power_type, band_id=band_id,
+            request_id=_request_id(request),
+        )
+        return _json_response(request, response, result_id=window_id, band_id=band_id, started=started)
     except KeyError:
         return error_response(request, 404, "WINDOW_NOT_FOUND", "分析窗口不存在")
     except TopomapUnavailable as exc:

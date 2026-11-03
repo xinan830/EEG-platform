@@ -114,11 +114,11 @@ public sealed class ReviewAnalysisCoordinator
         provider?.ReleaseOnDemandAsync(cancellationToken) ?? Task.CompletedTask;
 
     public async Task<TopomapResponse?> LoadTopomapAsync(WindowPreviewResponse window,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
     {
         if (provider is null) throw new NotSupportedException("当前回放没有分析 adapter。");
         var requestedRevision = Interlocked.Increment(ref revision);
-        var response = await provider.LoadTopomapAsync(window, cancellationToken);
+        var response = await provider.LoadTopomapAsync(window, cancellationToken, powerType, bandId);
         return requestedRevision == Volatile.Read(ref revision) &&
             ReferenceEquals(CurrentWindow, window) ? response : null;
     }

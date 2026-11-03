@@ -166,10 +166,13 @@ def test_all_nine_current_runs_retrieve_preview_export_and_provenance(tmp_path, 
             assert payload["result_summary"] == run.result_summary
             assert payload["analysis_provenance"]["official_algorithm_identity"]["algorithm_id"] == algorithm_id
             assert payload["analysis_provenance"]["actual_range"] is not None
-        if algorithm_id in {"psd", "stft"}:
+        if algorithm_id in {"psd", "stft", "rbp"}:
             preview = client.get(f"/api/runs/{run.run_id}/structured-preview?max_cells=1000000")
             assert preview.status_code == 200, preview.text
             assert preview.json()["arrays"] and preview.json()["axes"]
+            if algorithm_id == "rbp":
+                for band in ("delta", "theta", "alpha", "beta", "gamma"):
+                    assert preview.json()["array_metadata"][f"{band}_absolute_power"]["unit"] == "uV^2"
             if dynamic:
                 window = client.get(f"/api/runs/{run.run_id}/window-preview?cursor_sample=4000")
                 assert window.status_code == 200, window.text

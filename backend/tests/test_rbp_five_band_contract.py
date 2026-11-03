@@ -49,7 +49,11 @@ def test_static_quality_failure_returns_all_five_shares_as_null() -> None:
 
     assert result.quality == "gate_failed"
     assert result.failure is not None
-    assert set(result.arrays) == {"delta", "theta", "alpha", "beta", "gamma"}
+    assert set(result.arrays) == {
+        "delta", "theta", "alpha", "beta", "gamma",
+        "delta_absolute_power", "theta_absolute_power", "alpha_absolute_power",
+        "beta_absolute_power", "gamma_absolute_power",
+    }
     assert all(np.isnan(value).all() for value in result.arrays.values())
     assert result.evidence["extensions"]["channel_failures"]["by_channel"]["Fz"]["code"] == "PSD_QUALITY_GATE_FAILED"
 
@@ -85,3 +89,8 @@ def test_static_multi_channel_preserves_order_and_isolates_bad_channel():
     assert result.channel_order == ["F3-REF", "F4-REF"]
     assert all(np.isfinite(array[0]) and np.isnan(array[1]) for array in result.arrays.values())
     assert result.quality == "partial"
+    for name in ("delta", "theta", "alpha", "beta", "gamma"):
+        assert result.array_units[name] == "ratio"
+        assert result.array_units[f"{name}_absolute_power"] == "uV^2"
+        assert np.isfinite(result.arrays[f"{name}_absolute_power"][0])
+        assert np.isnan(result.arrays[f"{name}_absolute_power"][1])

@@ -10,6 +10,31 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 public sealed class HttpAlgorithmClientTests
 {
     [Fact]
+    public async Task RunTopomapSerializesSelectedPowerType()
+    {
+        using var client = new HttpClient(new StubHandler(request =>
+        {
+            Assert.Contains("power_type=absolute", request.RequestUri!.Query);
+            Assert.Contains("band_id=alpha", request.RequestUri.Query);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new
+                {
+                    run_id = "run", recording_id = "recording", window_start_s = 0d, window_end_s = 5d,
+                    status = "unavailable", algorithm_version = "official-rbp-v4", implementation_version = "build",
+                    power_type = "absolute", coordinate_source = "montage_position_snapshot",
+                    coordinate_frame = "mri", coordinate_unit = "m", bands = Array.Empty<object>(),
+                }),
+            };
+        })) { BaseAddress = new Uri("http://localhost/") };
+
+        var result = await new HttpAlgorithmClient(client).GetRunTopomapAsync(
+            "run", 1000, CancellationToken.None, "absolute", "alpha");
+
+        Assert.Equal("absolute", result.PowerType);
+    }
+
+    [Fact]
     public async Task SignalPreviewPostsMontageChannelsAndAbsoluteTime()
     {
         using var client = new HttpClient(new StubHandler(request =>

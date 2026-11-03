@@ -50,7 +50,7 @@ class _RecordingStub:
 
 
 def test_service_ensures_and_publishes_one_psd_window(tmp_path, caplog):
-    caplog.set_level("INFO", logger="brain_platform")
+    caplog.set_level("INFO")
     database = tmp_path / "catalog.sqlite3"
     migrate_database(database)
     with sqlite3.connect(database) as connection:
@@ -80,6 +80,17 @@ def test_service_ensures_and_publishes_one_psd_window(tmp_path, caplog):
         assert current["result"]["sha256"]
         assert current["result"]["arrays"]["psd"]
         messages = [record.getMessage() for record in caplog.records]
+        assert any(
+            record.name == "brain_platform.dynamic_window_artifacts"
+            and "dynamic_artifact_read_perf" in record.getMessage()
+            and "artifact_id=" in record.getMessage()
+            and "metadata_read_ms=" in record.getMessage()
+            and "checksum_ms=" in record.getMessage()
+            and "decode_ms=" in record.getMessage()
+            and "validation_ms=" in record.getMessage()
+            and "total_ms=" in record.getMessage()
+            for record in caplog.records
+        )
         assert any(
             "dynamic_window_queued" in message
             and "algorithm_id=psd" in message

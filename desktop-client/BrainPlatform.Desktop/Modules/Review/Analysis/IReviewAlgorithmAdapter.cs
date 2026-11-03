@@ -42,7 +42,7 @@ public interface IReviewAlgorithmAdapter
     Task ReleaseOnDemandAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     Task<TopomapResponse> LoadTopomapAsync(WindowPreviewResponse window,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null) =>
         throw new NotSupportedException($"算法 {AlgorithmId} 未注册地形图适配器。");
 
     Task<WindowPreviewResponse> LoadOnDemandAsync(string recordingId, AnalysisRunRequest request,

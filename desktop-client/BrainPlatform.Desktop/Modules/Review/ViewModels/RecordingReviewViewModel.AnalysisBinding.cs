@@ -102,7 +102,11 @@ public sealed partial class RecordingReviewViewModel
         try
         {
             var loadTimer = Stopwatch.StartNew();
-            var result = await analysisCoordinator.LoadTopomapAsync(window, token);
+            var bandId = string.IsNullOrEmpty(RbpAnalysis.SelectedTopomapBandId)
+                ? null
+                : RbpAnalysis.SelectedTopomapBandId;
+            var result = await analysisCoordinator.LoadTopomapAsync(
+                window, token, RbpAnalysis.SelectedTopomapPowerType, bandId);
             if (!token.IsCancellationRequested && RbpAnalysis.ApplyTopomapIfAvailable(result))
             {
                 var bindTimer = Stopwatch.StartNew();
@@ -131,8 +135,10 @@ public sealed partial class RecordingReviewViewModel
 
     private void OnRbpTopomapPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(RbpReviewAnalysisViewModel.IsTopomapSelected) &&
-            RbpAnalysis.IsTopomapSelected && activeAnalysisId == "rbp")
+        if (activeAnalysisId == "rbp" && RbpAnalysis.IsTopomapSelected &&
+            e.PropertyName is nameof(RbpReviewAnalysisViewModel.IsTopomapSelected) or
+                nameof(RbpReviewAnalysisViewModel.SelectedTopomapPowerType) or
+                nameof(RbpReviewAnalysisViewModel.SelectedTopomapBandId))
             _ = RefreshRbpTopomapAsync();
     }
 
