@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace BrainPlatform.Desktop.Shared.Controls;
 
@@ -13,6 +14,15 @@ public sealed class EegToolButton : Button
     {
         get => (string)GetValue(GlyphProperty);
         set => SetValue(GlyphProperty, value);
+    }
+
+    public static readonly DependencyProperty IconSourceProperty = DependencyProperty.Register(
+        nameof(IconSource), typeof(ImageSource), typeof(EegToolButton), new PropertyMetadata(null));
+
+    public ImageSource? IconSource
+    {
+        get => (ImageSource?)GetValue(IconSourceProperty);
+        set => SetValue(IconSourceProperty, value);
     }
 
     static EegToolButton() => DefaultStyleKeyProperty.OverrideMetadata(

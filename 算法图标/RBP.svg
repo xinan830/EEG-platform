@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="155" viewBox="0 0 180 155">
+
+  <!-- 坐标轴 -->
+  <g stroke="#000" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 12 V126 H167"></path>
+    <path d="M15 22 L22 12 L29 22"></path>
+    <path d="M157 119 L167 126 L157 133"></path>
+  </g>
+
+  <!-- RBP 柱形 -->
+  <g fill="#000">
+    <rect x="39" y="83" width="17" height="43" rx="2"></rect>
+    <rect x="70" y="61" width="17" height="65" rx="2"></rect>
+    <rect x="101" y="32" width="17" height="94" rx="2"></rect>
+    <rect x="132" y="72" width="17" height="54" rx="2"></rect>
+  </g>
+
+  <!-- 频段希腊字母：柱子上方 -->
+  <g fill="#000" font-family="Arial, sans-serif" font-size="17" font-weight="bold" text-anchor="middle">
+    <text x="47.5" y="74">δ</text>
+    <text x="78.5" y="52">θ</text>
+    <text x="109.5" y="23">α</text>
+    <text x="140.5" y="63">β</text>
+  </g>
+
+</svg>

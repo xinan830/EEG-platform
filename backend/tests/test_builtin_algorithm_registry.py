@@ -78,6 +78,18 @@ def test_official_registration_gate_covers_every_backend_module() -> None:
     assert official_registration_report(root) == []
 
 
+def test_psd_catalog_filter_defaults_match_current_config_model() -> None:
+    from app.algorithms.psd.config import PsdConfig
+
+    module = build_builtin_registry().get("psd")
+    parameters = {item.key: item.default for item in module.parameter_schema().parameters}
+    config = PsdConfig(channel="F3", mode="dynamic", start_s=0, end_s=10, window_s=5, step_s=1)
+
+    assert parameters["low_hz"] == config.low_hz == 1.0
+    assert parameters["high_hz"] == config.high_hz == 30.0
+    assert parameters["notch_hz"] == config.notch_hz == 50.0
+
+
 def test_directional_reuse_gate_requires_wpf_implementation_to_match_manifest() -> None:
     assert find_directional_reuse_gap("psd", True, "public bool SupportsFullRunWindowPreview => true;") is None
     assert find_directional_reuse_gap("faa", False, "public bool SupportsFullRunWindowPreview => true;") is not None

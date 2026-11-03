@@ -13,7 +13,6 @@ public sealed partial class RecordingReviewViewModel
     {
         if (isTimelineDragging) return;
         isTimelineDragging = true;
-        RaisePlaybackPropertiesChanged();
     }
 
     public void EndTimelineDrag()
@@ -21,7 +20,6 @@ public sealed partial class RecordingReviewViewModel
         if (!isTimelineDragging) return;
         isTimelineDragging = false;
         analysisBinding?.OnCursorDragCompleted(PositionSeconds, playback.Snapshot.Generation);
-        RaisePlaybackPropertiesChanged();
     }
 
     public Task SeekAsync(double positionSeconds)
@@ -63,9 +61,11 @@ public sealed partial class RecordingReviewViewModel
 
     public void TogglePlayback()
     {
+        var wasPlaying = playback.IsPlaying;
+        var wasCompleted = playback.IsCompleted;
         if (playback.IsPlaying) playback.Pause();
         else playback.Play();
-        RaisePlaybackPropertiesChanged();
+        PublishPlaybackChanges(wasPlaying, wasCompleted);
     }
 
     public void CyclePlaybackSpeed()
@@ -77,11 +77,13 @@ public sealed partial class RecordingReviewViewModel
 
     public void TickPlayback()
     {
+        var wasPlaying = playback.IsPlaying;
+        var wasCompleted = playback.IsCompleted;
         if (isDisposing || !playback.Update()) return;
         UpdateViewportStart(GetFollowViewportStart(playback.PositionSeconds));
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
-        RaisePlaybackPropertiesChanged();
+        PublishPlaybackChanges(wasPlaying, wasCompleted);
         // Property notifications can close the view before this tick resumes.
         if (isDisposing) return;
         analysisBinding?.OnPlaybackCursorAdvanced(PositionSeconds, playback.Snapshot.Generation);
@@ -133,12 +135,14 @@ public sealed partial class RecordingReviewViewModel
 
     private void SetPreviewPositionCore(double positionSeconds, bool updateViewport, bool requestAnalysis = true)
     {
+        var wasPlaying = playback.IsPlaying;
+        var wasCompleted = playback.IsCompleted;
         playback.SeekSeconds(positionSeconds);
         if (updateViewport)
             UpdateViewportStart(GetFollowViewportStart(playback.PositionSeconds));
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
-        RaisePlaybackPropertiesChanged();
+        PublishPlaybackChanges(wasPlaying, wasCompleted);
         if (requestAnalysis) analysisBinding?.OnCursorPositionSelected(PositionSeconds, playback.Snapshot.Generation);
     }
 

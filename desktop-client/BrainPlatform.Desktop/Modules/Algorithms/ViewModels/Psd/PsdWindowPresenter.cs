@@ -26,7 +26,7 @@ internal static class PsdWindowPresenter
                  result.ArrayUnits.GetValueOrDefault("band_share") != "ratio"))
                 throw new InvalidOperationException("PSD 频段占比的形状或单位不符合展示契约。");
             state.FrequencyUnit = "Hz";
-            state.ValueUnit = "uV^2/Hz";
+            state.ValueUnit = "µV²/Hz";
             PsdPointProjection.Apply(state, frequencies.EnumerateArray().ToArray(),
                 values.EnumerateArray().ToArray(), unit == "V^2/Hz");
             if (result.Arrays.TryGetValue("band_share", out var shares) && shares.ValueKind == JsonValueKind.Array)

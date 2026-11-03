@@ -19,6 +19,7 @@
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
             <DataTemplate x:Key="RbpPanelTemplate"><analysis:RbpReviewAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="PsdPanelTemplate"><analysis:PsdReviewAnalysisPanel /></DataTemplate>
             <DataTemplate x:Key="StftPanelTemplate"><analysis:StftReviewAnalysisPanel /></DataTemplate>
             <DataTemplate x:Key="ScalarPanelTemplate"><analysis:ReviewScalarAnalysisPanel /></DataTemplate>
             <DataTemplate x:Key="TnkPanelTemplate"><analysis:ReviewTnkAnalysisPanel /></DataTemplate>
@@ -33,6 +34,7 @@
             </MenuItem>
             <MenuItem Header="算法">
                 <MenuItem Header="RBP 相对频段功率" Command="{Binding OpenRbpAnalysisCommand}" />
+                <MenuItem Header="PSD 功率谱密度" Command="{Binding OpenPsdAnalysisCommand}" />
                 <MenuItem Header="STFT 时频分析" Command="{Binding OpenStftAnalysisCommand}" />
                 <MenuItem Header="额叶 Alpha 不对称性" Command="{Binding OpenFaaAnalysisCommand}" />
                 <MenuItem Header="个体 Alpha 峰频率" Command="{Binding OpenIapfAnalysisCommand}" />
@@ -64,17 +66,19 @@
                                                 IsEnabled="{Binding CanEditSelectedEvent}"
                                                 ToolTip="在当前位置添加人工事件标记" />
                         <controls:EegToolButton Content="测量" Glyph="&#xED5E;" ToolTip="测量波幅与周期" />
-                        <controls:EegToolButton Content="RBP 算法" Glyph="&#xE7C4;" Command="{Binding OpenRbpAnalysisCommand}"
+                        <controls:EegToolButton Content="RBP 算法" IconSource="pack://application:,,,/Assets/AlgorithmIcons/rbp.png" Command="{Binding OpenRbpAnalysisCommand}"
                                                 ToolTip="打开相对频段功率算法面板" />
-                        <controls:EegToolButton Content="STFT 时频" Glyph="&#xE7C4;" Command="{Binding OpenStftAnalysisCommand}"
+                        <controls:EegToolButton Content="PSD" IconSource="pack://application:,,,/Assets/AlgorithmIcons/psd.png" Command="{Binding OpenPsdAnalysisCommand}"
+                                                ToolTip="打开功率谱密度算法面板" />
+                        <controls:EegToolButton Content="STFT 时频" IconSource="pack://application:,,,/Assets/AlgorithmIcons/stft.png" Command="{Binding OpenStftAnalysisCommand}"
                                                 ToolTip="打开当前窗口的时频算法面板" />
-                        <controls:EegToolButton Content="FAA" Glyph="&#xE7C4;" Command="{Binding OpenFaaAnalysisCommand}"
+                        <controls:EegToolButton Content="FAA" IconSource="pack://application:,,,/Assets/AlgorithmIcons/faa.png" Command="{Binding OpenFaaAnalysisCommand}"
                                                 ToolTip="打开额叶 Alpha 不对称性面板" />
-                        <controls:EegToolButton Content="IAPF" Glyph="&#xE7C4;" Command="{Binding OpenIapfAnalysisCommand}"
+                        <controls:EegToolButton Content="IAPF" IconSource="pack://application:,,,/Assets/AlgorithmIcons/iapf.png" Command="{Binding OpenIapfAnalysisCommand}"
                                                 ToolTip="打开个体 Alpha 峰频率面板" />
-                        <controls:EegToolButton Content="Theta/Beta" Glyph="&#xE7C4;" Command="{Binding OpenThetaBetaAnalysisCommand}"
+                        <controls:EegToolButton Content="Theta/Beta" IconSource="pack://application:,,,/Assets/AlgorithmIcons/theta-beta.png" Command="{Binding OpenThetaBetaAnalysisCommand}"
                                                 ToolTip="打开 Theta/Beta 比值面板" />
-                        <controls:EegToolButton Content="脑节律" Glyph="&#xE7C4;" Command="{Binding OpenBrainbeatAnalysisCommand}"
+                        <controls:EegToolButton Content="脑节律" IconSource="pack://application:,,,/Assets/AlgorithmIcons/brainbeat.png" Command="{Binding OpenBrainbeatAnalysisCommand}"
                                                 ToolTip="打开脑节律指标面板" />
                         <controls:EegToolButton Content="TNK 指标组" Glyph="&#xE7C4;" Command="{Binding OpenTnkAnalysisCommand}"
                                                 ToolTip="打开 TNK 脑指标组面板" />
@@ -261,6 +265,9 @@
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsRbpAnalysisPanelOpen}" Value="True">
                                         <Setter Property="ContentTemplate" Value="{StaticResource RbpPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsPsdAnalysisPanelOpen}" Value="True">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource PsdPanelTemplate}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding IsStftAnalysisPanelOpen}" Value="True">
                                         <Setter Property="ContentTemplate" Value="{StaticResource StftPanelTemplate}" />

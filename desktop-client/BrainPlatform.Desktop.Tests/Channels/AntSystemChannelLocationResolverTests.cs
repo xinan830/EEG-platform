@@ -92,5 +92,8 @@ public sealed class AntSystemChannelLocationResolverTests
             RequestedLabels = labels.ToArray();
             return Task.FromResult(resolve(labels));
         }
+
+        public Task<ElectrodeScalpModel3D> GetScalpModel3DAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

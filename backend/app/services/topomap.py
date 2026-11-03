@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import math
-import json
 import logging
 from time import perf_counter
 from dataclasses import dataclass
-from types import SimpleNamespace
 from typing import Any, Literal, Protocol
 
 import numpy as np
 
 from app.models.topomap import TopomapBand, TopomapGrid, TopomapPoint, TopomapResponse
+from app.services.topomap_context import DynamicTopomapContextError, resolve_dynamic_signal_provenance
 
 logger = logging.getLogger("brain_platform.topomap")
 TopomapBandId = Literal["delta", "theta", "alpha", "beta", "gamma"]
@@ -213,14 +212,17 @@ class TopomapService:
         )
         input_ms = (perf_counter() - input_started) * 1000
         context_started = perf_counter()
-        recording = self.run_queue.recordings.require_recording(spatial_input.recording_id)
         try:
-            config = json.loads(str(payload.get("scientific_configuration_json") or "{}"))
-        except json.JSONDecodeError:
-            config = {}
+            signal_provenance = resolve_dynamic_signal_provenance(payload, spatial_input.channel_order)
+        except DynamicTopomapContextError as exc:
+            raise TopomapUnavailable("TOPOMAP_SOURCE_CONTEXT_INVALID", str(exc)) from exc
         context_ms = (perf_counter() - context_started) * 1000
+        self._log_stage(
+            request_id=request_id, window_id=window_id, stage="signal_provenance",
+            total_ms=context_ms,
+        )
         response = self._build_response(window_id, spatial_input,
-            SimpleNamespace(recording_id=recording.id, config=config), request_id=request_id)
+            signal_provenance=signal_provenance, request_id=request_id)
         self._log_stage(
             request_id=request_id, window_id=window_id, stage="dynamic_window_total",
             payload_ms=payload_ms, input_ms=input_ms, context_ms=context_ms,
@@ -238,8 +240,9 @@ class TopomapService:
             "implementation_version": implementation_version, "coordinate_source": "montage_position_snapshot",
             "coordinate_frame": "mri", "coordinate_unit": "m", "power_type": power_type}
 
-    def _build_response(self, run_id: str, spatial_input: TopomapInput, run: Any,
-                        request_id: str | None = None) -> TopomapResponse:
+    def _build_response(self, run_id: str, spatial_input: TopomapInput, run: Any | None = None,
+                        request_id: str | None = None,
+                        signal_provenance: dict[str, object] | None = None) -> TopomapResponse:
         base = self._base(run_id, spatial_input.recording_id, spatial_input.algorithm_version,
                           spatial_input.implementation_version, spatial_input.window_start_s, spatial_input.window_end_s,
                           spatial_input.power_type)
@@ -250,7 +253,7 @@ class TopomapService:
             return TopomapResponse(**{**base, "status": "unavailable", "bands": bands,
                 "failure": spatial_input.unavailable, "provenance": {"power_type": spatial_input.power_type}})
         provenance_started = perf_counter()
-        signal_provenance = self._signal_provenance(run)
+        signal_provenance = signal_provenance if signal_provenance is not None else self._signal_provenance(run)
         self._log_stage(
             request_id=request_id, window_id=run_id, stage="signal_provenance",
             total_ms=(perf_counter() - provenance_started) * 1000,

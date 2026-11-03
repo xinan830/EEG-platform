@@ -123,6 +123,16 @@ public sealed class ReviewAnalysisCoordinator
             ReferenceEquals(CurrentWindow, window) ? response : null;
     }
 
+    public async Task<Topomap3DPresentation?> LoadTopomap3DAsync(WindowPreviewResponse window,
+        CancellationToken cancellationToken, string powerType, string bandId)
+    {
+        if (provider is null) throw new NotSupportedException("当前回放没有分析 adapter。");
+        var requestedRevision = Interlocked.Increment(ref revision);
+        var response = await provider.LoadTopomap3DAsync(window, cancellationToken, powerType, bandId);
+        return requestedRevision == Volatile.Read(ref revision) &&
+            ReferenceEquals(CurrentWindow, window) ? response : null;
+    }
+
     public bool IsCurrentTnkEvent(DynamicWindowResponse response) =>
         provider is IReviewTnkPlaybackEvents tnk && tnk.IsCurrent(response);
 

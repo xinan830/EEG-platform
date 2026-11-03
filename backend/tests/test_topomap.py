@@ -1,4 +1,6 @@
 from types import SimpleNamespace
+import hashlib
+import json
 
 import numpy as np
 import pytest
@@ -37,6 +39,26 @@ def _service(values, channels, formulas=None, status="available", arrays=None, a
     )
     result_service = SimpleNamespace(window_preview=lambda *_args, **_kwargs: preview)
     return TopomapService(result_service, queue)
+
+
+def _bind_dynamic_source_context(payload, channels):
+    positions = {
+        channel: {"x": x, "y": y, "status": "available", "enabled": True, "source": "snapshot"}
+        for channel, (x, y) in {"Fz": (0.0, -0.8), "Cz": (0.0, 0.0), "Pz": (0.0, 0.8)}.items()
+    }
+    source = {
+        "formulas": [], "map_positions": positions, "montage_id": "montage-1",
+        "montage_revision": "2", "montage_fingerprint": "fingerprint-1",
+        "snapshot_sha256": "fingerprint-1",
+    }
+    configuration = {"context": {"signal_mapping": {
+        "channels": channels, "signal_source": source,
+        "analysis_montage": {"id": "montage-1", "revision": 2, "fingerprint": "fingerprint-1"},
+    }}}
+    encoded = json.dumps(configuration, sort_keys=True, separators=(",", ":"))
+    payload["scientific_configuration_json"] = encoded
+    payload["identity"]["configuration_sha256"] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return payload
 
 
 def test_rbp_topomap_uses_snapshot_positions_and_returns_bounded_grid():
@@ -81,7 +103,12 @@ def test_dynamic_window_topomap_selects_absolute_power_without_changing_window()
             "evidence": {"extensions": {"channel_order": {"channels": channels}}},
         },
     }
+    _bind_dynamic_source_context(payload, channels)
     service = _service([0.2, 0.3, 0.5], channels)
+    recordings = service.run_queue.recordings
+    recordings.require_recording = lambda *_args: pytest.fail("dynamic topomap must use its window source snapshot")
+    recordings.select_analysis_montage = lambda *_args: pytest.fail("dynamic topomap must not resolve montage again")
+    recordings.analysis_signal_provenance = lambda *_args: pytest.fail("dynamic topomap must not resolve provenance again")
     service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
 
     result = service.build_dynamic_window("window-1", power_type="absolute")
@@ -90,6 +117,33 @@ def test_dynamic_window_topomap_selects_absolute_power_without_changing_window()
     assert result.power_type == "absolute"
     assert result.window_start_s == 10.0 and result.window_end_s == 15.0
     assert all(band.unit == "uV^2" for band in result.bands)
+    assert result.provenance["montage_fingerprint"] == "fingerprint-1"
+
+
+def test_dynamic_window_topomap_rejects_montage_identity_mismatch():
+    channels = ["Fz", "Cz", "Pz"]
+    payload = _bind_dynamic_source_context({
+        "identity": {"algorithm_id": "rbp", "recording_id": "recording-1",
+                     "scientific_version": "official-rbp-v4", "implementation_identity": "build"},
+        "state": "ready", "plan": {"start_s": 10.0, "end_s": 15.0},
+        "result": {
+            "arrays": {band: [0.2, 0.3, 0.5] for band in ("delta", "theta", "alpha", "beta", "gamma")},
+            "array_units": {band: "ratio" for band in ("delta", "theta", "alpha", "beta", "gamma")},
+            "evidence": {"extensions": {"channel_order": {"channels": channels}}},
+        },
+    }, channels)
+    configuration = json.loads(payload["scientific_configuration_json"])
+    configuration["context"]["signal_mapping"]["analysis_montage"]["fingerprint"] = "stale"
+    encoded = json.dumps(configuration, sort_keys=True, separators=(",", ":"))
+    payload["scientific_configuration_json"] = encoded
+    payload["identity"]["configuration_sha256"] = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    service = _service([0.2, 0.3, 0.5], channels)
+    service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
+
+    with pytest.raises(TopomapUnavailable) as exc_info:
+        service.build_dynamic_window("window-1")
+
+    assert exc_info.value.code == "TOPOMAP_SOURCE_CONTEXT_INVALID"
 
 
 def test_dynamic_window_topomap_logs_request_correlated_service_stages(caplog):
@@ -107,6 +161,7 @@ def test_dynamic_window_topomap_logs_request_correlated_service_stages(caplog):
             "evidence": {"extensions": {"channel_order": {"channels": channels}}},
         },
     }
+    _bind_dynamic_source_context(payload, channels)
     service = _service([0.2, 0.3, 0.5], channels)
     service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
 

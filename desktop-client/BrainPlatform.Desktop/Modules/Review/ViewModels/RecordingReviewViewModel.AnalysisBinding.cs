@@ -60,7 +60,11 @@ public sealed partial class RecordingReviewViewModel
         topomapCancellation?.Cancel();
         topomapCancellation?.Dispose();
         topomapCancellation = null;
+        topomap3DCancellation?.Cancel();
+        topomap3DCancellation?.Dispose();
+        topomap3DCancellation = null;
         RbpAnalysis.ClearTopomap();
+        RbpAnalysis.ClearTopomap3D();
         var binding = analysisBinding;
         if (binding is null) return;
         analysisBinding = null;
@@ -80,7 +84,11 @@ public sealed partial class RecordingReviewViewModel
         {
             if (activeAnalysisId is { } algorithmId && analysisPanels.TryGetValue(algorithmId, out var panel))
                 panel.Apply(CurrentAnalysisWindow, PositionSeconds);
-            if (activeAnalysisId == "rbp" && RbpAnalysis.IsTopomapSelected) _ = RefreshRbpTopomapAsync();
+            if (activeAnalysisId == "rbp" && RbpAnalysis.IsAnyTopomapSelected)
+            {
+                if (RbpAnalysis.Is3DTopomapSelected) _ = RefreshRbpTopomap3DAsync();
+                else _ = RefreshRbpTopomapAsync();
+            }
         }
         if (e.PropertyName == nameof(ReviewAnalysisBinding.StatusText))
             AnalysisPreparationText = CurrentAnalysisWindow is null ? AnalysisStatusText : "";
@@ -89,6 +97,7 @@ public sealed partial class RecordingReviewViewModel
 
     private async Task RefreshRbpTopomapAsync()
     {
+        topomap3DCancellation?.Cancel();
         topomapCancellation?.Cancel();
         topomapCancellation?.Dispose();
         topomapCancellation = new CancellationTokenSource();
@@ -135,11 +144,21 @@ public sealed partial class RecordingReviewViewModel
 
     private void OnRbpTopomapPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (activeAnalysisId == "rbp" && RbpAnalysis.IsTopomapSelected &&
-            e.PropertyName is nameof(RbpReviewAnalysisViewModel.IsTopomapSelected) or
+        if (activeAnalysisId == "rbp" && e.PropertyName is nameof(RbpReviewAnalysisViewModel.SelectedChart) or
                 nameof(RbpReviewAnalysisViewModel.SelectedTopomapPowerType) or
                 nameof(RbpReviewAnalysisViewModel.SelectedTopomapBandId))
-            _ = RefreshRbpTopomapAsync();
+        {
+            if (RbpAnalysis.Is3DTopomapSelected) _ = RefreshRbpTopomap3DAsync();
+            else if (RbpAnalysis.IsTopomapSelected) _ = RefreshRbpTopomapAsync();
+            else
+            {
+                topomapCancellation?.Cancel();
+                topomap3DCancellation?.Cancel();
+            }
+        }
+        if (activeAnalysisId == "rbp" && RbpAnalysis.Is3DTopomapSelected &&
+            e.PropertyName == nameof(RbpReviewAnalysisViewModel.SelectedTopomap3DBandId))
+            _ = RefreshRbpTopomap3DAsync();
     }
 
     private void RaiseAnalysisPropertiesChanged()
@@ -152,6 +171,7 @@ public sealed partial class RecordingReviewViewModel
         RaisePropertyChanged(nameof(IsAnalysisLoading));
         RaisePropertyChanged(nameof(AnalysisStatusText));
         RaisePropertyChanged(nameof(IsAnalysisAttached));
+        RaisePropertyChanged(nameof(IsPsdAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsFaaAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsIapfAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsThetaBetaAnalysisPanelOpen));

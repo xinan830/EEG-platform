@@ -30,6 +30,7 @@ include = ["app", "app.*"]
 
 [tool.setuptools.package-data]
 "app.algorithms.tnk" = ["assets/*.tflite"]
+"app.assets.topomap_3d" = ["*.json", "*.npz", "LICENSE", "NOTICE"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

@@ -1,0 +1,31 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.PsdReviewAnalysisPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
+             xmlns:psd="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Psd">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <shared:AnalysisPanelShell Title="" CloseCommand="{Binding CloseAnalysisCommand}"
+                               StatusText="{Binding AnalysisPreparationText}">
+        <shared:AnalysisPanelShell.HeaderContent>
+            <ComboBox ItemsSource="{Binding PsdParameters.Channels}"
+                      SelectedItem="{Binding PsdParameters.Channel}"
+                      Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="120"
+                      VerticalAlignment="Center" />
+        </shared:AnalysisPanelShell.HeaderContent>
+        <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <psd:PsdSpectrumChart Grid.Row="0" MinHeight="180" Points="{Binding PsdAnalysis.Points}"
+                                  Unit="{Binding PsdAnalysis.ValueUnit}" />
+            <TextBlock Grid.Row="1" Text="{Binding PsdAnalysis.StatusText}" TextWrapping="Wrap"
+                       Foreground="#64748B" FontSize="11" Margin="2,4,0,0" />
+        </Grid>
+    </shared:AnalysisPanelShell>
+</UserControl>

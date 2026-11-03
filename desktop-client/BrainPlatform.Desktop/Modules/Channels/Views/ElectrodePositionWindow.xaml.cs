@@ -1,6 +1,5 @@
 using System.Windows;
 using BrainPlatform.Desktop.Modules.Channels.ViewModels;
-using BrainPlatform.Desktop.Application;
 
 namespace BrainPlatform.Desktop.Modules.Channels.Views;
 
@@ -9,6 +8,13 @@ public partial class ElectrodePositionWindow : Window
     public ElectrodePositionWindow()
     {
         InitializeComponent();
+        Closed += (_, _) => (DataContext as IDisposable)?.Dispose();
+    }
+
+    private async void OnThreeDimensionalChecked(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is ElectrodePositionWindowViewModel viewModel)
+            await viewModel.LoadModelAsync();
     }
 
     private void ResetAllPositions_Click(object sender, RoutedEventArgs e)
@@ -17,9 +23,9 @@ public partial class ElectrodePositionWindow : Window
         {
             row.ResetToTemplatePosition();
         }
-        if (DataContext is DesktopWorkspaceViewModel workspace)
+        if (DataContext is ElectrodePositionWindowViewModel viewModel)
         {
-            workspace.ChannelConfigurations.ResetDraftMapPositionsToDefaults();
+            viewModel.ChannelConfigurations.ResetDraftMapPositionsToDefaults();
         }
     }
 }

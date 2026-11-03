@@ -31,10 +31,12 @@ public partial class ChannelDetailView : UserControl
             return;
         }
 
+        if (DataContext is not DesktopWorkspaceViewModel workspace) return;
         electrodePositionWindow = new ElectrodePositionWindow
         {
             Owner = Window.GetWindow(this),
-            DataContext = DataContext,
+            DataContext = new ElectrodePositionWindowViewModel(
+                workspace.ChannelConfigurations, workspace.ElectrodeLocationClient),
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
         electrodePositionWindow.Closed += (_, _) => electrodePositionWindow = null;

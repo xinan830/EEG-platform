@@ -113,6 +113,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         SaveEditedEventCommand = new AsyncRelayCommand(SaveEditedEventAsync, ReportCommandError);
         OpenRbpAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("rbp"), ReportCommandError);
         OpenStftAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("stft"), ReportCommandError);
+        InitializePsdAnalysis();
         OpenTnkAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("tnk_biofeedback"), ReportCommandError);
         OpenFaaAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("faa"), ReportCommandError);
         OpenIapfAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("iapf"), ReportCommandError);
@@ -222,6 +223,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public bool IsAnalysisPanelOpen => activeAnalysisId is not null;
     public bool IsRbpAnalysisPanelOpen => activeAnalysisId == "rbp";
+    public bool IsPsdAnalysisPanelOpen => activeAnalysisId == "psd";
     public bool IsStftAnalysisPanelOpen => activeAnalysisId == "stft";
     public bool IsTnkAnalysisPanelOpen => activeAnalysisId == "tnk_biofeedback";
     public bool IsFaaAnalysisPanelOpen => activeAnalysisId == "faa";
@@ -248,6 +250,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public string AnalysisPanelTitle => activeAnalysisId switch
     {
         "rbp" => "RBP 相对频段功率",
+        "psd" => "功率谱密度",
         "stft" => "STFT 时频分析",
         "tnk_biofeedback" => "TNK 脑指标",
         "faa" => "额叶 Alpha 不对称性",
@@ -626,6 +629,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
             else
             {
                 RbpParameters.SelectMontage(registered, selectedMontage);
+                PsdParameters.SelectMontage(registered, selectedMontage);
                 StftParameters.SelectMontage(registered, selectedMontage);
                 FaaParameters.SelectMontage(registered, selectedMontage);
                 IapfParameters.SelectMontage(registered, selectedMontage);
@@ -663,14 +667,14 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         RaisePropertyChanged(nameof(StatusText));
         RaisePropertyChanged(nameof(PreparationState));
         RaisePropertyChanged(nameof(PreparationProgress));
-        RaisePlaybackPropertiesChanged();
+        TnkAnalysis.SetCursor(PositionSeconds);
     }
 
 
-    private void RaisePlaybackPropertiesChanged()
+    private void PublishPlaybackChanges(bool wasPlaying, bool wasCompleted)
     {
-        RaisePropertyChanged(nameof(IsPlaying));
-        RaisePropertyChanged(nameof(IsCompleted));
+        if (wasPlaying != IsPlaying) RaisePropertyChanged(nameof(IsPlaying));
+        if (wasCompleted != IsCompleted) RaisePropertyChanged(nameof(IsCompleted));
         TnkAnalysis.SetCursor(PositionSeconds);
     }
 

@@ -20,6 +20,7 @@ public sealed class PsdSpectrumChart : FrameworkElement
 
     private const double PlotLeft = 0;
     private const double PlotTop = 0;
+    private const double HoverHitTolerance = 8.0;
 
     public static readonly DependencyProperty PointsProperty = DependencyProperty.Register(
         nameof(Points), typeof(IEnumerable), typeof(PsdSpectrumChart),
@@ -27,7 +28,7 @@ public sealed class PsdSpectrumChart : FrameworkElement
 
     public static readonly DependencyProperty UnitProperty = DependencyProperty.Register(
         nameof(Unit), typeof(string), typeof(PsdSpectrumChart),
-        new FrameworkPropertyMetadata("μV²/Hz", FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata("µV²/Hz", FrameworkPropertyMetadataOptions.AffectsRender));
 
     public PsdSpectrumChart()
     {
@@ -101,6 +102,12 @@ public sealed class PsdSpectrumChart : FrameworkElement
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
+        ClearHover();
+    }
+
+    private void ClearHover()
+    {
+        if (!isHovered && !hoverScreenPoint.HasValue && !hoverFreq.HasValue && !hoverVal.HasValue) return;
         isHovered = false;
         hoverScreenPoint = null;
         hoverFreq = null;
@@ -110,36 +117,72 @@ public sealed class PsdSpectrumChart : FrameworkElement
 
     private void UpdateHover(Point pos)
     {
-        if (ActualWidth <= 1 || ActualHeight <= 1) return;
+        if (ActualWidth <= 1 || ActualHeight <= 1)
+        {
+            ClearHover();
+            return;
+        }
 
         if (pos.X < 0 || pos.X > ActualWidth || pos.Y < 0 || pos.Y > ActualHeight)
         {
-            if (isHovered)
-            {
-                isHovered = false;
-                hoverScreenPoint = null;
-                hoverFreq = null;
-                hoverVal = null;
-                InvalidateVisual();
-            }
+            ClearHover();
             return;
         }
 
         var (points, minX, maxX, minY, maxY) = GetCurrentData();
-        if (points.Length < 2) return;
+        if (points.Length < 2)
+        {
+            ClearHover();
+            return;
+        }
 
-        var xRatio = Math.Clamp((pos.X - PlotLeft) / Math.Max(ActualWidth - PlotLeft, 1.0), 0.0, 1.0);
-        var freq = minX + xRatio * (maxX - minX);
-        var val = InterpolateValue(points, freq);
+        var nearest = FindNearestCurveSample(points, pos, minX, maxX - minX, minY, maxY - minY);
+        if (nearest.DistanceSquared > HoverHitTolerance * HoverHitTolerance)
+        {
+            ClearHover();
+            return;
+        }
 
-        var screenX = PlotLeft + (freq - minX) / (maxX - minX) * Math.Max(ActualWidth - PlotLeft, 1.0);
-        var screenY = PlotTop + ActualHeight - (val - minY) / (maxY - minY) * Math.Max(ActualHeight - PlotTop, 1.0);
-
-        hoverFreq = freq;
-        hoverVal = val;
-        hoverScreenPoint = new Point(screenX, screenY);
+        hoverFreq = nearest.Frequency;
+        hoverVal = nearest.Value;
+        hoverScreenPoint = nearest.ScreenPoint;
         isHovered = true;
         InvalidateVisual();
+    }
+
+    private (Point ScreenPoint, double Frequency, double Value, double DistanceSquared) FindNearestCurveSample(
+        (double Frequency, double Value)[] points, Point pointer, double minX, double xRange, double minY, double yRange)
+    {
+        var nearestScreenPoint = default(Point);
+        var nearestFrequency = 0.0;
+        var nearestValue = 0.0;
+        var nearestDistanceSquared = double.PositiveInfinity;
+
+        for (var index = 0; index < points.Length - 1; index++)
+        {
+            var firstScreen = ToPoint(points[index], minX, xRange, minY, yRange);
+            var secondScreen = ToPoint(points[index + 1], minX, xRange, minY, yRange);
+            var deltaX = secondScreen.X - firstScreen.X;
+            var deltaY = secondScreen.Y - firstScreen.Y;
+            var segmentLengthSquared = deltaX * deltaX + deltaY * deltaY;
+            var progress = segmentLengthSquared <= double.Epsilon ? 0.0 : Math.Clamp(
+                ((pointer.X - firstScreen.X) * deltaX + (pointer.Y - firstScreen.Y) * deltaY) /
+                segmentLengthSquared, 0.0, 1.0);
+            var closestX = firstScreen.X + progress * deltaX;
+            var closestY = firstScreen.Y + progress * deltaY;
+            var distanceX = pointer.X - closestX;
+            var distanceY = pointer.Y - closestY;
+            var distanceSquared = distanceX * distanceX + distanceY * distanceY;
+            if (distanceSquared >= nearestDistanceSquared) continue;
+
+            var sample = progress < 0.5 ? points[index] : points[index + 1];
+            nearestScreenPoint = ToPoint(sample, minX, xRange, minY, yRange);
+            nearestFrequency = sample.Frequency;
+            nearestValue = sample.Value;
+            nearestDistanceSquared = distanceSquared;
+        }
+
+        return (nearestScreenPoint, nearestFrequency, nearestValue, nearestDistanceSquared);
     }
 
     private ( (double Frequency, double Value)[] Points, double MinX, double MaxX, double MinY, double MaxY ) GetCurrentData()
@@ -175,28 +218,6 @@ public sealed class PsdSpectrumChart : FrameworkElement
         var maxY = points.Length == 0 ? 55.0 : Math.Max(55.0, Math.Ceiling(points.Max(item => item.Value) / 10.0) * 10.0);
 
         return (points, minX, maxX, minY, maxY);
-    }
-
-    private static double InterpolateValue((double Frequency, double Value)[] points, double targetFreq)
-    {
-        if (points.Length == 0) return 0.0;
-        if (targetFreq <= points[0].Frequency) return points[0].Value;
-        if (targetFreq >= points[^1].Frequency) return points[^1].Value;
-
-        for (int i = 0; i < points.Length - 1; i++)
-        {
-            if (targetFreq >= points[i].Frequency && targetFreq <= points[i + 1].Frequency)
-            {
-                var f0 = points[i].Frequency;
-                var f1 = points[i + 1].Frequency;
-                var v0 = points[i].Value;
-                var v1 = points[i + 1].Value;
-                var t = (f1 - f0) > double.Epsilon ? (targetFreq - f0) / (f1 - f0) : 0.0;
-                return v0 + t * (v1 - v0);
-            }
-        }
-
-        return points[^1].Value;
     }
 
     protected override void OnRender(DrawingContext drawingContext)
@@ -269,11 +290,11 @@ public sealed class PsdSpectrumChart : FrameworkElement
         {
             var y = ActualHeight - ActualHeight * i / (double)yTicks;
             dc.DrawLine(gridPen, new Point(0, y), new Point(ActualWidth, y));
-            DrawAxisText(dc, FormatAxisValue(minY + (maxY - minY) * i / yTicks), new Point(4, y - 8), 11);
+            DrawAxisText(dc, FormatAxisValue(minY + (maxY - minY) * i / yTicks), new Point(4, y), 11, ActualHeight);
         }
         dc.DrawLine(axisPen, new Point(0, 0), new Point(0, ActualHeight));
         dc.DrawLine(axisPen, new Point(0, ActualHeight - 1), new Point(ActualWidth, ActualHeight - 1));
-        var unit = string.IsNullOrWhiteSpace(Unit) ? "μV²/Hz" : Unit;
+        var unit = FormatUnit(Unit);
         var label = new FormattedText($"功率谱密度 ({unit})", CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
             new Typeface("Segoe UI, Microsoft YaHei"), 11, new SolidColorBrush(Color.FromRgb(71, 85, 105)), 1.0);
         dc.PushTransform(new RotateTransform(-90, 14, ActualHeight / 2));
@@ -281,10 +302,14 @@ public sealed class PsdSpectrumChart : FrameworkElement
         dc.Pop();
     }
 
-    private static void DrawAxisText(DrawingContext dc, string text, Point point, double size)
+    private static void DrawAxisText(DrawingContext dc, string text, Point point, double size, double? verticalBounds = null)
     {
-        dc.DrawText(new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI, Microsoft YaHei"), size, new SolidColorBrush(Color.FromRgb(71, 85, 105)), 1.0), point);
+        var formattedText = new FormattedText(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+            new Typeface("Segoe UI, Microsoft YaHei"), size, new SolidColorBrush(Color.FromRgb(71, 85, 105)), 1.0);
+        var y = verticalBounds is double height
+            ? Math.Clamp(point.Y - formattedText.Height / 2, 0, Math.Max(0, height - formattedText.Height))
+            : point.Y;
+        dc.DrawText(formattedText, new Point(point.X, y));
     }
 
     private static string FormatAxisValue(double value) => value switch
@@ -294,6 +319,11 @@ public sealed class PsdSpectrumChart : FrameworkElement
         >= 1 => value.ToString("0.#", CultureInfo.InvariantCulture),
         _ => value.ToString("0.##", CultureInfo.InvariantCulture)
     };
+
+    internal static string FormatTooltipNumber(double value) => value.ToString("0.0", CultureInfo.InvariantCulture);
+
+    internal static string FormatUnit(string? unit) =>
+        string.IsNullOrWhiteSpace(unit) || unit is "uV^2/Hz" or "μV^2/Hz" ? "µV²/Hz" : unit;
 
     private void RenderTooltip(DrawingContext dc, Point hPoint, double freq, double val)
     {
@@ -308,10 +338,10 @@ public sealed class PsdSpectrumChart : FrameworkElement
         }
 
         var typeface = new Typeface(new FontFamily("Segoe UI, Microsoft YaHei"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
-        var unitStr = string.IsNullOrWhiteSpace(Unit) ? "μV²/Hz" : Unit;
+        var unitStr = FormatUnit(Unit);
 
         var textFreq = new FormattedText(
-            $"频率： {freq:0.1f} Hz",
+            $"频率： {FormatTooltipNumber(freq)} Hz",
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
             typeface,
@@ -320,7 +350,7 @@ public sealed class PsdSpectrumChart : FrameworkElement
             pixelsPerDip);
 
         var textVal = new FormattedText(
-            $"功率谱密度： {val:0.1f} {unitStr}",
+            $"功率谱密度： {FormatTooltipNumber(val)} {unitStr}",
             CultureInfo.CurrentCulture,
             FlowDirection.LeftToRight,
             typeface,

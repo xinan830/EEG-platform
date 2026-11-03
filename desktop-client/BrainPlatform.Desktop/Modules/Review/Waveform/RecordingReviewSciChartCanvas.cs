@@ -224,17 +224,28 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             if (viewModel?.IsPlaying != true)
                 StartDisplayFrameLoad(viewModel);
         }
-        else if (e.PropertyName == nameof(RecordingReviewViewModel.IsPlaying) &&
-                 (sender as RecordingReviewViewModel)?.IsPlaying != true)
+        else if (e.PropertyName == nameof(RecordingReviewViewModel.IsPlaying))
         {
-            StartDisplayFrameLoad(sender as RecordingReviewViewModel);
+            if (sender is not RecordingReviewViewModel viewModel) return;
+            if (viewModel.IsPlaying)
+            {
+                CancelDisplayFrameLoad();
+                renderedDisplayFrame = null;
+                renderedFrame = null;
+                ApplyFrame(viewModel.CurrentFrame, viewModel);
+            }
+            else
+            {
+                StartDisplayFrameLoad(viewModel);
+            }
         }
     }
 
     private void ApplyFrame(RecordingReviewFrame? frame, RecordingReviewViewModel? viewModel)
     {
         UpdateTimePresentation(viewModel);
-        if (!ReferenceEquals(renderedFrame, frame))
+        var hasSameFrameData = HasSameFrameData(renderedFrame, frame);
+        if (!hasSameFrameData)
         {
             renderedDisplayFrame = null;
             CancelDisplayFrameLoad();
@@ -265,7 +276,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
         var plotHeight = WaveformPlotLayout.GetPlotArea(surface).Height;
         var sensitivity = viewModel?.SensitivityMicrovoltsPerMillimeter ?? 10;
-        if (!ReferenceEquals(renderedFrame, frame) || renderedPlotHeight != plotHeight ||
+        if (!hasSameFrameData || renderedPlotHeight != plotHeight ||
             renderedSensitivity != sensitivity || renderedMillimetersPerDip != screenScale.MillimetersPerDipY)
         {
             using (surface.SuspendUpdates())
@@ -273,30 +284,43 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
                 for (var traceIndex = 0; traceIndex < traceSeries.Count; traceIndex++)
                     UpdateSeries(traceSeries[traceIndex], frame, traceIndex, names.Length);
             }
-            renderedFrame = frame;
             renderedPlotHeight = plotHeight;
             renderedSensitivity = sensitivity;
             renderedMillimetersPerDip = screenScale.MillimetersPerDipY;
         }
+        renderedFrame = frame;
 
         RefreshSampleMarkers(frame, viewModel);
         UpdatePlaybackCursor(viewModel);
         eventMarkers.Rebuild(viewModel);
         if (renderedDisplayFrame is { } display &&
-            ReferenceEquals(displayAttemptFrame, frame) &&
+            HasSameFrameData(displayAttemptFrame, frame) &&
             Math.Abs(display.WindowStartSeconds - (viewModel?.ViewportStartSeconds ?? double.NaN)) < 0.000_001)
             RenderDisplayFrame(display, viewModel!);
         StartDisplayFrameLoad(viewModel);
     }
 
+    private static bool HasSameFrameData(RecordingReviewFrame? left, RecordingReviewFrame? right) =>
+        left is not null && right is not null &&
+        left.RecordingSessionId == right.RecordingSessionId &&
+        left.Revision == right.Revision &&
+        left.SamplingRateHz == right.SamplingRateHz &&
+        left.WindowStartSampleCounter == right.WindowStartSampleCounter &&
+        left.WindowStartSeconds == right.WindowStartSeconds &&
+        left.WindowEndSeconds == right.WindowEndSeconds &&
+        string.Equals(left.SourceRevision, right.SourceRevision, StringComparison.Ordinal) &&
+        string.Equals(left.DisplaySourceIdentity, right.DisplaySourceIdentity, StringComparison.Ordinal) &&
+        left.OutputChannelNames.SequenceEqual(right.OutputChannelNames, StringComparer.Ordinal) &&
+        ReferenceEquals(left.Segments, right.Segments);
+
     private void StartDisplayFrameLoad(RecordingReviewViewModel? viewModel)
     {
-        if (viewModel?.CurrentFrame is not { } frame || chartHost.ActualWidth <= 0 ||
+        if (viewModel is null || viewModel.IsPlaying || viewModel.CurrentFrame is not { } frame || chartHost.ActualWidth <= 0 ||
             string.IsNullOrWhiteSpace(frame.DisplaySourceIdentity))
             return;
 
         var width = Math.Max(1, (int)Math.Round(chartHost.ActualWidth));
-        if (ReferenceEquals(displayAttemptFrame, frame) &&
+        if (HasSameFrameData(displayAttemptFrame, frame) &&
             Math.Abs(displayAttemptViewportStart - viewModel.ViewportStartSeconds) < 0.000_001 &&
             Math.Abs(displayAttemptVisibleDuration - viewModel.VisibleDurationSeconds) < 0.000_001 &&
             displayAttemptWidth == width)
@@ -327,7 +351,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
                 displayAttemptWidth,
                 load.Token);
             if (load.IsCancellationRequested || request != Volatile.Read(ref displayFrameRequest) ||
-                !ReferenceEquals(DataContext, viewModel) || !ReferenceEquals(viewModel.CurrentFrame, frame))
+                !ReferenceEquals(DataContext, viewModel) || !HasSameFrameData(viewModel.CurrentFrame, frame))
                 return;
             if (display is null)
             {

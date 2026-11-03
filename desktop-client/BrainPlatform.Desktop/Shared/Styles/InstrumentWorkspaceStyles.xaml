@@ -180,11 +180,18 @@
                 <ControlTemplate TargetType="{x:Type controls:EegToolButton}">
                     <Border x:Name="Surface" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="{TemplateBinding Glyph}" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,3" />
+                            <Image x:Name="ToolIconImage" Source="{TemplateBinding IconSource}" Width="24" Height="24"
+                                   Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,3" />
+                            <TextBlock x:Name="ToolGlyph" FontFamily="Segoe MDL2 Assets" Text="{TemplateBinding Glyph}" FontSize="18"
+                                       HorizontalAlignment="Center" Margin="0,0,0,3" Visibility="Collapsed" />
                             <ContentPresenter HorizontalAlignment="Center" RecognizesAccessKey="True" />
                         </StackPanel>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IconSource" Value="{x:Null}">
+                            <Setter TargetName="ToolIconImage" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="ToolGlyph" Property="Visibility" Value="Visible" />
+                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Surface" Property="Background" Value="#F1F5F9" />
                             <Setter Property="Foreground" Value="#0F172A" />
@@ -221,11 +228,18 @@
                     <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="{TemplateBinding Glyph}" FontSize="18" HorizontalAlignment="Center" Margin="0,0,0,3" />
+                            <Image x:Name="ToolIconImage" Source="{TemplateBinding IconSource}" Width="24" Height="24"
+                                   Stretch="Uniform" HorizontalAlignment="Center" Margin="0,0,0,3" />
+                            <TextBlock x:Name="ToolGlyph" FontFamily="Segoe MDL2 Assets" Text="{TemplateBinding Glyph}" FontSize="18"
+                                       HorizontalAlignment="Center" Margin="0,0,0,3" Visibility="Collapsed" />
                             <ContentPresenter HorizontalAlignment="Center" RecognizesAccessKey="True" />
                         </StackPanel>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IconSource" Value="{x:Null}">
+                            <Setter TargetName="ToolIconImage" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="ToolGlyph" Property="Visibility" Value="Visible" />
+                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Surface" Property="Background" Value="#BAE6FD" />
                         </Trigger>

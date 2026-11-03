@@ -236,7 +236,8 @@ public sealed partial class RecordingReviewViewModelTests
         public async Task<AlgorithmCatalogItem> GetAlgorithmAsync(CancellationToken cancellationToken)
         {
             if (deferCatalog) await WaitIgnoringCancellation(cancellationToken);
-            return new AlgorithmCatalogItem("official", algorithmId, "fixture-v1", algorithmId, "", "", [], ["dynamic"],
+            var parameters = algorithmId == "psd" ? ReviewPsdAnalysisTests.CatalogParameters() : [];
+            return new AlgorithmCatalogItem("official", algorithmId, "fixture-v1", algorithmId, "", "", parameters, ["dynamic"],
                 default, new DynamicAnalysisPolicy(4, [5], 5, 1, true),
                 "available", true, "definition", "1", "impl");
         }

@@ -30,6 +30,11 @@ The 3D topomap SHALL consume existing per-channel values and their declared chan
 - **WHEN** a channel's value is missing, non-finite, or has no valid mapped site
 - **THEN** that channel is excluded from the surface field with its reason while other valid channels remain usable
 
+#### Scenario: A mapped mastoid location is used only as a display marker
+- **WHEN** A1, A2, M1, or M2 has a mapped GNM coordinate
+- **THEN** the shared model exposes that coordinate with `is_scalp_field_site=false` for Channel Settings markers
+- **AND** the RBP scalp field continues to exclude it as a non-scalp interpolation site
+
 ### Requirement: The backend publishes a bounded, reproducible surface field
 The backend SHALL project valid channel values onto the declared GNM scalp region with a deterministic, versioned spatial method. Each response SHALL identify the method and parameters, preserve exact values at mapped electrode sites, identify its mesh vertex ordering, and leave unsupported surface locations unavailable rather than extrapolating beyond the declared scalp region.
 

@@ -18,5 +18,7 @@
   <ItemGroup>
     <None Remove="Assets\*.png" />
     <Resource Include="Assets\*.png" />
+    <None Remove="Assets\AlgorithmIcons\*.png" />
+    <Resource Include="Assets\AlgorithmIcons\*.png" />
   </ItemGroup>
 </Project>

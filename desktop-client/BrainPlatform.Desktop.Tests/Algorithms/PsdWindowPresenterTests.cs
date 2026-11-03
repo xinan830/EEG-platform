@@ -1,5 +1,9 @@
 using System.Text.Json;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
+using System.Windows;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Psd;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
@@ -14,10 +18,68 @@ public sealed class PsdWindowPresenterTests
         var state = new PsdPreviewState();
         PsdWindowPresenter.Apply(state, Response(unit: unit));
         Assert.Equal(factor, state.Points[0]!.Value);
-        Assert.Equal("uV^2/Hz", state.ValueUnit);
+        Assert.Equal("µV²/Hz", state.ValueUnit);
         Assert.Equal("Hz", state.FrequencyUnit);
         Assert.Equal(0.2, state.BandShares[0].Share);
         Assert.Null(state.StructuredPreview);
+    }
+
+    [Fact]
+    public void Tooltip_formats_decimal_values_without_format_specifier_suffix_and_uses_display_unit()
+    {
+        Assert.Equal("10.1", PsdSpectrumChart.FormatTooltipNumber(10.1));
+        Assert.Equal("33.1", PsdSpectrumChart.FormatTooltipNumber(33.1));
+        Assert.Equal("µV²/Hz", PsdSpectrumChart.FormatUnit("uV^2/Hz"));
+    }
+
+    [Fact]
+    public void Hover_snaps_to_nearest_sample_only_when_pointer_is_near_the_spectrum()
+    {
+        OnSta(() =>
+        {
+            var chart = new PsdSpectrumChart
+            {
+                Points = Enumerable.Range(0, 51).Select(value => new PsdPreviewPoint(value, value)).ToArray(),
+            };
+            chart.Measure(new Size(400, 200));
+            chart.Arrange(new Rect(0, 0, 400, 200));
+            chart.UpdateLayout();
+            var mousePosition = new Point(200, 108);
+
+            UpdateHover(chart, mousePosition);
+
+            var marker = (Point?)typeof(PsdSpectrumChart).GetField("hoverScreenPoint",
+                BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(chart);
+            Assert.NotNull(marker);
+            Assert.NotEqual(mousePosition, marker);
+            Assert.Equal(200, marker.Value.X);
+            Assert.InRange(marker.Value.Y, 109, 110);
+            Assert.Equal(25d, typeof(PsdSpectrumChart).GetField("hoverFreq",
+                BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(chart));
+            Assert.Equal(25d, typeof(PsdSpectrumChart).GetField("hoverVal",
+                BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(chart));
+
+            UpdateHover(chart, new Point(200, 10));
+
+            Assert.False((bool)typeof(PsdSpectrumChart).GetField("isHovered",
+                BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(chart)!);
+            Assert.Null(typeof(PsdSpectrumChart).GetField("hoverScreenPoint",
+                BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(chart));
+        });
+    }
+
+    private static void UpdateHover(PsdSpectrumChart chart, Point position) =>
+        typeof(PsdSpectrumChart).GetMethod("UpdateHover", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(chart, new object?[] { position });
+
+    private static void OnSta(Action action)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() => { try { action(); } catch (Exception exception) { failure = exception; } });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     [Theory]

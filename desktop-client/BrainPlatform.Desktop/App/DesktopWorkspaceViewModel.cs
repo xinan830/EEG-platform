@@ -27,6 +27,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         this.backendHealthClient = backendHealthClient;
         Notifications = notifications ?? new OperationNotificationCenter();
         Acquisition = acquisition;
+        ElectrodeLocationClient = electrodeLocationClient;
         montageStore ??= new MontageProfileStore(projectStore: projectStore);
         Algorithms = algorithmClient ?? throw new ArgumentNullException(nameof(algorithmClient));
         RecordingSessions = recordingSessionManager ?? new RecordingSessionManager();
@@ -66,6 +67,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     public RecordingTimeDisplaySettings TimeDisplaySettings { get; } = new();
 
     public IAlgorithmClient Algorithms { get; }
+
+    public IElectrodeLocationClient? ElectrodeLocationClient { get; }
 
     /// <summary>唯一的工作区录音访问所有者；Review 与算法工作台共享其 lease。</summary>
     public RecordingSessionManager RecordingSessions { get; }

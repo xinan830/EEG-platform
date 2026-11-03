@@ -1,0 +1,51 @@
+<UserControl x:Class="BrainPlatform.Desktop.Shared.Controls.Topomap.Topomap3DView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Background="#F8FAFC" ClipToBounds="True">
+        <Viewport3D x:Name="SurfaceViewport" ClipToBounds="True"
+                    MouseDown="OnViewportMouseDown" MouseMove="OnViewportMouseMove"
+                    MouseUp="OnViewportMouseUp" MouseWheel="OnViewportMouseWheel"
+                    SizeChanged="OnViewportSizeChanged">
+            <Viewport3D.Camera>
+                <PerspectiveCamera x:Name="Camera" Position="0,0.18,-1.7" LookDirection="0,-0.08,1"
+                                   UpDirection="0,1,0" FieldOfView="42" />
+            </Viewport3D.Camera>
+            <ModelVisual3D>
+                <ModelVisual3D.Content>
+                    <Model3DGroup>
+                        <AmbientLight Color="#777777" />
+                        <DirectionalLight Color="#FFFFFF" Direction="-0.4,-0.7,1" />
+                        <Model3DGroup x:Name="SceneRoot" />
+                    </Model3DGroup>
+                </ModelVisual3D.Content>
+            </ModelVisual3D>
+        </Viewport3D>
+        <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10"
+                    Background="#EFFFFFFF" IsHitTestVisible="False">
+            <TextBlock x:Name="BandText" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" />
+            <TextBlock x:Name="WindowText" FontSize="11" Foreground="#475569" />
+            <TextBlock Text="标准模板可视化 · 非个体定位" FontSize="10" Foreground="#64748B" />
+        </StackPanel>
+        <StackPanel x:Name="ColorLegend" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12"
+                    IsHitTestVisible="False">
+            <Border Height="10" Width="150" CornerRadius="3" BorderBrush="#64748B" BorderThickness="0.5">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                        <GradientStop Color="#304FFE" Offset="0" />
+                        <GradientStop Color="#00BFA5" Offset="0.35" />
+                        <GradientStop Color="#FFEB3B" Offset="0.68" />
+                        <GradientStop Color="#F44336" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+            <DockPanel Width="150">
+                <TextBlock x:Name="MinimumText" DockPanel.Dock="Left" FontSize="10" Foreground="#334155" />
+                <TextBlock x:Name="UnitText" HorizontalAlignment="Center" FontSize="10" Foreground="#334155" />
+                <TextBlock x:Name="MaximumText" DockPanel.Dock="Right" FontSize="10" Foreground="#334155" />
+            </DockPanel>
+        </StackPanel>
+        <TextBlock x:Name="UnavailableText" Text="等待三维地形图" HorizontalAlignment="Center"
+                   VerticalAlignment="Center" Foreground="#64748B" FontSize="14"
+                   IsHitTestVisible="False" />
+    </Grid>
+</UserControl>

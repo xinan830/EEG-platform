@@ -369,10 +369,7 @@ public sealed partial class AlgorithmListViewModel
         if (preview is null)
             return;
         if (!preview.Arrays.TryGetValue("band_share", out var values) || values.ValueKind != JsonValueKind.Array)
-        {
-            SetLegacyPsdBandShares(preview);
             return;
-        }
         var row = values;
         if (values.GetArrayLength() > 0 && values[0].ValueKind == JsonValueKind.Array)
         {
@@ -393,28 +390,6 @@ public sealed partial class AlgorithmListViewModel
             }
             share = Math.Clamp(share, 0, 1);
             PsdBandSharePoints.Add(new PsdBandSharePoint(label.Item1, label.Item2, share, $"{share:P1}", label.Item3));
-        }
-        RaisePropertyChanged(nameof(PsdBandSharePoints));
-    }
-
-    private void SetLegacyPsdBandShares(StructuredPreviewResponse preview)
-    {
-        if (preview.SpectralEvidence is not { } evidence || evidence.ValueKind != JsonValueKind.Object ||
-            !evidence.TryGetProperty("relative_band_power", out var relative) || relative.ValueKind != JsonValueKind.Object)
-            return;
-        var channel = preview.ChannelOrder.FirstOrDefault();
-        var values = !string.IsNullOrWhiteSpace(channel) && relative.TryGetProperty(channel, out var channelValues)
-            ? channelValues
-            : relative;
-        var labels = new[] { ("Delta", "1–4 Hz", "#4F8EDC", "delta"), ("Theta", "4–8 Hz", "#56B88A", "theta"), ("Alpha", "8–13 Hz", "#E77B88", "alpha"), ("Beta", "13–30 Hz", "#D99A38", "beta") };
-        foreach (var label in labels)
-        {
-            if (!values.TryGetProperty(label.Item4, out var item) || item.ValueKind != JsonValueKind.Number || !item.TryGetDouble(out var share) || !double.IsFinite(share))
-            {
-                PsdBandSharePoints.Add(new PsdBandSharePoint(label.Item1, label.Item2, 0, "不可用", label.Item3, false));
-                continue;
-            }
-            PsdBandSharePoints.Add(new PsdBandSharePoint(label.Item1, label.Item2, Math.Clamp(share, 0, 1), $"{share:P1}", label.Item3));
         }
         RaisePropertyChanged(nameof(PsdBandSharePoints));
     }

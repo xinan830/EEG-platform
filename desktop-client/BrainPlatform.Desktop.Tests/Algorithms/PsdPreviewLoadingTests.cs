@@ -46,6 +46,25 @@ public sealed class PsdPreviewLoadingTests
     }
 
     [Fact]
+    public async Task Preview_does_not_read_retired_band_shares_from_spectral_evidence()
+    {
+        var current = Preview(dynamic: false);
+        var arrays = current.Arrays.Where(pair => pair.Key != "band_share")
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
+        var retiredEvidence = JsonSerializer.SerializeToElement(new
+        {
+            relative_band_power = new { O1 = new { delta = 0.2, theta = 0.3, alpha = 0.4, beta = 0.1 } },
+        });
+        var client = new PreviewClient(current with { Arrays = arrays, SpectralEvidence = retiredEvidence });
+        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter());
+
+        await catalog.LoadStructuredPreviewAsync("run");
+
+        Assert.True(catalog.HasPsdPreview);
+        Assert.Empty(catalog.PsdBandSharePoints);
+    }
+
+    [Fact]
     public async Task LongDynamicPreview_LoadsSpectrumBandSharesAndSeekableWindows()
     {
         var client = new PreviewClient(Preview(dynamic: true));

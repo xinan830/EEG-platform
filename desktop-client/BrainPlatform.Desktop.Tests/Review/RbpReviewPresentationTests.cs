@@ -123,6 +123,21 @@ public sealed class RbpReviewPresentationTests
     }
 
     [Fact]
+    public void Three_dimensional_topomap_is_a_separate_chart_with_a_single_default_band()
+    {
+        var model = new RbpReviewAnalysisViewModel();
+
+        Assert.Equal("alpha", model.SelectedTopomap3DBandId);
+        Assert.Equal(5, model.Topomap3DBandOptions.Count);
+        model.SelectedChart = "3D 脑电地形图";
+
+        Assert.False(model.IsStackedChartSelected);
+        Assert.False(model.IsTopomapSelected);
+        Assert.True(model.Is3DTopomapSelected);
+        Assert.True(model.IsAnyTopomapSelected);
+    }
+
+    [Fact]
     public void Topomap_band_selector_keeps_the_selected_single_band_response()
     {
         var model = new RbpReviewAnalysisViewModel();

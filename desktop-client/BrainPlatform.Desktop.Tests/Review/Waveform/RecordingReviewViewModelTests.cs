@@ -117,6 +117,55 @@ public sealed partial class RecordingReviewViewModelTests
     }
 
     [Fact]
+    public async Task Playback_state_notifications_are_emitted_only_when_state_changes()
+    {
+        var now = 0d;
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        await using var viewModel = new RecordingReviewViewModel(
+            new FakeReader(Manifest(configuration)), catalog, playbackClockSeconds: () => now);
+        await viewModel.InitializeAsync();
+
+        var isPlayingChanges = 0;
+        var isCompletedChanges = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(viewModel.IsPlaying)) isPlayingChanges++;
+            if (args.PropertyName == nameof(viewModel.IsCompleted)) isCompletedChanges++;
+        };
+
+        viewModel.TogglePlayback();
+        for (var index = 0; index < 20; index++)
+        {
+            now += 0.01;
+            viewModel.TickPlayback();
+        }
+
+        Assert.Equal(1, isPlayingChanges);
+        Assert.Equal(0, isCompletedChanges);
+
+        viewModel.TogglePlayback();
+
+        Assert.Equal(2, isPlayingChanges);
+        Assert.False(viewModel.IsPlaying);
+
+        viewModel.TogglePlayback();
+        now = 20;
+        viewModel.TickPlayback();
+
+        Assert.Equal(4, isPlayingChanges);
+        Assert.Equal(1, isCompletedChanges);
+        Assert.False(viewModel.IsPlaying);
+        Assert.True(viewModel.IsCompleted);
+    }
+
+    [Fact]
     public async Task ContinuousNavigatorDragCoalescesToTheLatestBoundedRead()
     {
         var configuration = Configuration();

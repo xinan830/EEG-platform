@@ -47,6 +47,18 @@ public interface IAlgorithmClient
         CancellationToken cancellationToken, string powerType = "relative", string? bandId = null) =>
         throw new NotSupportedException("当前算法客户端不支持按需地形图。");
 
+    Task<Topomap3DLocationResponse> ResolveTopomap3DLocationsAsync(
+        Topomap3DLocationRequest request, CancellationToken cancellationToken) =>
+        throw new NotSupportedException("当前算法客户端不支持三维电极位置解析。");
+
+    Task<Topomap3DResponse> GetRunTopomap3DAsync(string runId, long cursorSample,
+        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null) =>
+        throw new NotSupportedException("当前算法客户端不支持运行三维地形图。");
+
+    Task<Topomap3DResponse> GetDynamicTopomap3DAsync(string windowId, string? projectId,
+        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null) =>
+        throw new NotSupportedException("当前算法客户端不支持按需三维地形图。");
+
     Task<DynamicWindowResponse> EnsureDynamicWindowAsync(
         DynamicWindowRequest request,
         CancellationToken cancellationToken) =>

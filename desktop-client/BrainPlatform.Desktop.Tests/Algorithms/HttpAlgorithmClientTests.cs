@@ -10,6 +10,45 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 public sealed class HttpAlgorithmClientTests
 {
     [Fact]
+    public async Task Three_dimensional_location_resolution_uses_typed_contract_and_keeps_channel_order()
+    {
+        using var client = new HttpClient(new StubHandler(request =>
+        {
+            Assert.Equal("/api/topomap/3d/locations", request.RequestUri!.AbsolutePath);
+            using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            Assert.Equal(new[] { "Fp1", "A1" }, body.RootElement.GetProperty("channels").EnumerateArray()
+                .Select(item => item.GetString()).ToArray());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new
+                {
+                    mapping_id = "mne.colin27_1020-to-gnm-head", mapping_version = 4,
+                    mapping_sha256 = new string('a', 64), model_id = "gnm-colin27-head", model_version = "gnm-skin-mesh-v1",
+                    source_montage = "colin27_1020", source_coordinate_frame = "head", source_coordinate_unit = "m",
+                    target_coordinate_frame = "gnm_native", target_coordinate_unit = "GNM model units",
+                    locations = new[]
+                    {
+                        new { channel = "Fp1", canonical_channel = "Fp1", source_coordinate_mne = (double[]?)new[] { 0d, 0d, 0d },
+                            target_coordinate_gnm = (double[]?)new[] { 1d, 2d, 3d }, mapping_method = "anchor", is_scalp_field_site = true,
+                            status = "available", reason = (string?)null },
+                        new { channel = "A1", canonical_channel = "A1", source_coordinate_mne = (double[]?)new[] { 0.1, 0.2, 0.3 },
+                            target_coordinate_gnm = (double[]?)new[] { 3d, 2d, 1d }, mapping_method = "picked-ear", is_scalp_field_site = false,
+                            status = "available", reason = (string?)null },
+                    },
+                }),
+            };
+        })) { BaseAddress = new Uri("http://localhost/") };
+
+        var result = await new HttpAlgorithmClient(client).ResolveTopomap3DLocationsAsync(
+            new Topomap3DLocationRequest(["Fp1", "A1"]), CancellationToken.None);
+
+        Assert.Equal(new[] { "Fp1", "A1" }, result.Locations.Select(location => location.Channel));
+        Assert.Equal("GNM model units", result.TargetCoordinateUnit);
+        Assert.Equal(new[] { 3d, 2d, 1d }, result.Locations[1].TargetCoordinateGnm);
+        Assert.False(result.Locations[1].IsScalpFieldSite);
+    }
+
+    [Fact]
     public async Task RunTopomapSerializesSelectedPowerType()
     {
         using var client = new HttpClient(new StubHandler(request =>
