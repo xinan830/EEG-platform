@@ -33,6 +33,15 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
         "refresh_step_options_s": [1.0, 2.0, 5.0],
         "allow_warmup": True,
     }
+    for algorithm_id in ("psd", "rbp"):
+        assert by_id[algorithm_id]["dynamic_policy"] == {
+            "minimum_window_s": 4.0,
+            "window_options_s": [5.0, 10.0, 20.0, 30.0],
+            "default_window_s": 10.0,
+            "refresh_step_s": 1.0,
+            "refresh_step_options_s": [1.0, 2.0, 5.0],
+            "allow_warmup": True,
+        }
     assert by_id["psd"]["dynamic_capabilities"]["combined_preview_background_full"]["implementation"] == "implemented"
     assert by_id["psd"]["dynamic_capabilities"]["combined_preview_background_full"]["validation"] == "validated"
     assert by_id["faa"]["dynamic_capabilities"]["full_result_to_preview"]["implementation"] == "unsupported"
@@ -145,7 +154,7 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
         "peak_frequency": ("official-peak-frequency-v2", "peak-frequency-runtime-v3-shared-1-50-notch"),
         "psd": ("offline-spectral-v6-shared-1-50-notch", "psd-runtime-v6-shared-1-50-notch"),
         "rbp": ("official-rbp-v4", "rbp-runtime-v7-configurable-notch"),
-        "stft": ("spectrogram-v4-bounded-notch", "stft-runtime-v7-bounded-notch"),
+        "stft": ("spectrogram-v4-bounded-notch", "stft-runtime-v8-bounded-notch"),
         "theta_beta": ("official-theta-beta-v3", "theta-beta-runtime-v2"),
     }
     modules = {module.manifest.algorithm_id: module for module in build_builtin_modules()}

@@ -39,7 +39,7 @@ def test_combined_matches_uncached_full_and_isolates_preview_cancellation(tmp_pa
         assert entered.wait(10), "background did not enter execution"
         ensured = ensure_preview(client, recording, config)
         preview = wait_window(client, ensured["window_id"])
-        artifact_rejected = rejected and algorithm_id != "rbp"
+        artifact_rejected = rejected and algorithm_id not in {"rbp", "psd"}
         assert preview["state"] == ("rejected" if artifact_rejected else "ready"), preview
         if rejected and algorithm_id == "rbp":
             assert preview["quality"] == "partial"

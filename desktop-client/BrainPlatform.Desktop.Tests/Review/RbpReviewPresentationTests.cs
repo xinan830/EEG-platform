@@ -12,6 +12,7 @@ public sealed class RbpReviewPresentationTests
     {
         var model = new RbpReviewAnalysisViewModel();
         model.Apply(Ready(5), 5);
+        Assert.Equal("0–5 s", model.CurrentWindowRangeText);
         var histories = model.ChannelHistories;
         var changes = new List<string?>();
         model.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
@@ -29,6 +30,17 @@ public sealed class RbpReviewPresentationTests
         Assert.DoesNotContain(nameof(model.ChannelHistories), changes);
         Assert.Equal(21, collections);
         Assert.All(histories, history => Assert.Equal(new[] { 5d, 6d }, history.Windows.Select(w => w.EndSeconds)));
+    }
+
+    [Fact]
+    public void Missing_backend_window_range_is_not_inferred_from_the_cursor()
+    {
+        var model = new RbpReviewAnalysisViewModel();
+
+        model.Apply(new WindowPreviewResponse("session", "recording", 1600, 8, "insufficient_data", [],
+            null, false, null, null, null, null, null, null, "rbp-fixture", "fixture"), 8);
+
+        Assert.Equal("分析范围不可用", model.CurrentWindowRangeText);
     }
 
     [Fact]
@@ -106,6 +118,7 @@ public sealed class RbpReviewPresentationTests
         Assert.True(model.IsAllTopomapBandsSelected);
         Assert.Contains("标准模板位置", model.TopomapStatusText);
         Assert.Contains("5", model.TopomapWindowText);
+        Assert.Equal("5–10 s", model.TopomapWindowText);
 
         var firstBandSlot = model.TopomapBands[0];
         var nextBands = bands.Select(band => band with { Points = new List<TopomapPoint>() }).ToArray();

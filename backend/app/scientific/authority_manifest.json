@@ -51,7 +51,7 @@
       "canonical_import": "app.algorithms.stft.runner.StftAlgorithm",
       "owner": "algorithms",
       "scientific_version": "spectrogram-v4-bounded-notch",
-      "implementation_identity": "stft-runtime-v7-bounded-notch",
+      "implementation_identity": "stft-runtime-v8-bounded-notch",
       "authority": true,
       "executable": true,
       "reference_only": false

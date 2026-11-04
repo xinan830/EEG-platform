@@ -1,4 +1,4 @@
-from app.algorithm_runtime.contracts import AlgorithmManifest, SignalRequirements
+from app.algorithm_runtime.contracts import AlgorithmManifest, DynamicAnalysisPolicy, SignalRequirements
 from app.algorithms.capabilities import declared_output_contract, official_dynamic_capabilities, official_result_graph
 
 
@@ -11,6 +11,7 @@ MANIFEST = AlgorithmManifest(
     is_current_version=True,
     implementation_identity="psd-runtime-v6-shared-1-50-notch",
     supported_modes=["static", "dynamic"],
+    dynamic_policy=DynamicAnalysisPolicy(default_window_s=10.0),
     signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="channel_set", preprocessing_scope="configured_continuous_before_slice"),
     dynamic_capabilities=official_dynamic_capabilities(
         full_to_preview=True,

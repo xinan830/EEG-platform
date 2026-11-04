@@ -11,7 +11,7 @@ from tests.access_fixtures import array_access_session
 
 class HighAmplitudeRecordingService(RecordingService):
     def open_access_session(self, recording, *, analysis_montage_id=None):
-        sfreq = 100.0
+        sfreq = 200.0
         time_s = np.arange(int(30 * sfreq)) / sfreq
         signal = 400e-6 * np.sin(2 * np.pi * 10 * time_s)
         return array_access_session(recording, signal[:, None], sfreq, ["Fz"])
@@ -22,7 +22,7 @@ def test_dynamic_peak_frequency_preserves_backend_failure_per_window(tmp_path: P
     recording = recordings.create_recording("quality.edf", ".edf", b"source")
     with recordings._connect() as connection:
         connection.execute(
-            "UPDATE recordings SET sfreq = 100, duration_s = 30, channels_json = '[\"Fz\"]' WHERE id = ?",
+            "UPDATE recordings SET sfreq = 200, duration_s = 30, channels_json = '[\"Fz\"]' WHERE id = ?",
             (recording.id,),
         )
     service = RunService(recordings, recordings.database_path, tmp_path / "artifacts")

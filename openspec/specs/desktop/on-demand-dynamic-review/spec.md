@@ -65,3 +65,37 @@ Dynamic analysis preparation, foreground window execution, and result binding SH
 - **THEN** the UI reports a structured analysis status/error
 - **AND** review play, pause, seek, waveform rendering, and lifecycle controls continue to work
 
+### Requirement: PSD and RBP Review use a ten-second default analysis window
+The data Review PSD and RBP panels SHALL default to a 10-second dynamic analysis window and a 1-second refresh step, as declared by each algorithm's official catalog policy. This outer analysis window SHALL remain distinct from the four-second Welch segment with 50% overlap; this requirement does not alter Welch computation parameters.
+
+#### Scenario: Open the PSD Review panel with catalog defaults
+- **WHEN** the user opens the data Review PSD panel without changing its dynamic policy values
+- **THEN** the desktop request uses a 10-second dynamic analysis window and a 1-second refresh step
+- **AND** the PSD calculation retains its declared four-second Welch segment and 50% overlap
+
+#### Scenario: Open the RBP Review panel with catalog defaults
+- **WHEN** the user opens the data Review RBP panel without changing its dynamic policy values
+- **THEN** the desktop request uses a 10-second dynamic analysis window and a 1-second refresh step
+- **AND** the RBP calculation retains its declared four-second Welch segment and 50% overlap
+
+### Requirement: Show the actual analysis range on PSD and RBP Review visualizations
+The data Review PSD spectrum and topomap, and the RBP history charts and topomap, SHALL show the current visualization's actual analysis start and end times in seconds at the lower-left. The displayed range SHALL come from the corresponding backend result response. If that response does not provide a valid range, the visualization SHALL show an unavailable state rather than infer a range from the playback cursor or display history, and it SHALL not show a stale successful result as the target result.
+
+#### Scenario: Display a PSD spectrum range
+- **WHEN** a PSD dynamic-window response with an actual start and end is rendered as a spectrum
+- **THEN** the PSD spectrum shows that returned range in seconds at its lower-left
+
+#### Scenario: Display a PSD topomap range
+- **WHEN** a PSD topomap response with an actual start and end is rendered
+- **THEN** the PSD topomap shows the topomap response's returned range in seconds at its lower-left
+
+#### Scenario: Display RBP ranges
+- **WHEN** an RBP dynamic-window response is rendered as history charts or a topomap
+- **THEN** each RBP history chart and the topomap view show the corresponding current result range in seconds at the lower-left
+
+#### Scenario: Backend range is missing
+- **WHEN** a PSD or RBP visualization has no valid backend-returned analysis range
+- **THEN** it shows that the range is unavailable
+- **AND** it does not derive a substitute from the cursor or visible history
+- **AND** it does not show a stale successful result as the target result
+

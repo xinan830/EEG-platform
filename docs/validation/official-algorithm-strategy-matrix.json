@@ -4,10 +4,10 @@
   "generated_from_current_manifests": true,
   "contract_snapshot": {
     "band_ratio": {
-      "scientific_version": "official-band-ratio-v1",
-      "implementation_identity": "band-ratio-runtime-v2-frequency-contract",
-      "manifest_sha256": "7be1f58eaa98472350750c4363ee8f9999cc541b21c22734e475bc717c06b19e",
-      "parameter_schema_sha256": "ffea6132a618e9c8547de3a3c0db54319f4455b8dcd81d8fd2a9112ced39c51f",
+      "scientific_version": "official-band-ratio-v2",
+      "implementation_identity": "band-ratio-runtime-v3-shared-1-50-notch",
+      "manifest_sha256": "49e27e80ee55a9b00e18daf347e77fb962a10e0a3d9d858b675855e24c1d1bc6",
+      "parameter_schema_sha256": "99b7938846049e44f16cc1a7f4e53eaf1ce9afd11598ccdd28c237fd4e43d345",
       "output_schema_sha256": "79914734c5843be1535c9b7b6de6c1c75542ace70090cb840fffe4bb38190268",
       "supported_modes": [
         "static",
@@ -15,9 +15,9 @@
       ]
     },
     "brainbeat": {
-      "scientific_version": "official-brainbeat-v1",
-      "implementation_identity": "brainbeat-runtime-v1",
-      "manifest_sha256": "630b2f5351ad817733a94e34a9acc4746ea8fb3e19d1accd4b5be04319d166cc",
+      "scientific_version": "official-brainbeat-v4",
+      "implementation_identity": "brainbeat-runtime-v4-shared-1-50-notch",
+      "manifest_sha256": "ffebe315f75b824e974f84ddd0e4de9d2bd9036d571d46107974157bc943d5aa",
       "parameter_schema_sha256": "29a27f951c645c93236641cc63a8e8b4ccb71e9a40bed675604172a54c9a5706",
       "output_schema_sha256": "3d678590301e64d35eb2976eddcafdd9ffe679e511b55bcaf5c7b2cf4cef1494",
       "supported_modes": [
@@ -28,7 +28,7 @@
     "faa": {
       "scientific_version": "official-faa-v2",
       "implementation_identity": "faa-runtime-v2",
-      "manifest_sha256": "52ab58ac2dadf67bbeda9349b0e9dad662f7f349a2cfecd1351784a733f0294b",
+      "manifest_sha256": "658e2db7c26f47c6728b994205d61f7fcbbbde79d51e65f1ee9b3bb6c6f0d243",
       "parameter_schema_sha256": "b40b57565e25b2dd8821d693ff2b002151631e1b868b262a6e9f8a82b0d7fc7e",
       "output_schema_sha256": "423bdd833b5e5687246e1f8f968207b1170c967ed05c81ec9ae1264bd4cda109",
       "supported_modes": [
@@ -37,9 +37,9 @@
       ]
     },
     "iapf": {
-      "scientific_version": "official-iapf-v2",
-      "implementation_identity": "iapf-runtime-v3",
-      "manifest_sha256": "a6fdfbd93338dc3830a624e464c9a56d7d154bfb713e52251ec51d9d0485931e",
+      "scientific_version": "official-iapf-v4",
+      "implementation_identity": "iapf-runtime-v5-shared-1-50-notch",
+      "manifest_sha256": "5a51cd55ccd269dc568d51d306f954ebaf43ea1e12630d0043257f38ef1a7393",
       "parameter_schema_sha256": "225dae1352a22e3023c86d72094d91f103e465e8d348f659e7bdfa08b54f9462",
       "output_schema_sha256": "7255731ece9fdd7acbc59321b99efb0a22c47ad99ed89d1c6dd2689753591e6f",
       "supported_modes": [
@@ -48,10 +48,10 @@
       ]
     },
     "peak_frequency": {
-      "scientific_version": "official-peak-frequency-v1",
-      "implementation_identity": "peak-frequency-runtime-v2-frequency-contract",
-      "manifest_sha256": "9ccb754ca9aede99cab4aee4a6d7f3b9d65ce1ad49ecfbf0f5e2b73b2fb8d88c",
-      "parameter_schema_sha256": "87a512aa6382d03cfc8b8f4660c14a123632271d3842b6c347ab7c504a6ab511",
+      "scientific_version": "official-peak-frequency-v2",
+      "implementation_identity": "peak-frequency-runtime-v3-shared-1-50-notch",
+      "manifest_sha256": "34ca9c7c45ff6103ef7efe4614aa731706832aa2f811f2ef590eba76fffdad39",
+      "parameter_schema_sha256": "a7ab3923871e0f05213e465c40c7cb2a1839a0677041e8b452e495447a5fd770",
       "output_schema_sha256": "fbedac20cfc59f606b1043a217bfa7a26f8ef70b842b4d4efcdc4622a6003ebc",
       "supported_modes": [
         "static",
@@ -59,31 +59,31 @@
       ]
     },
     "psd": {
-      "scientific_version": "offline-spectral-v3",
-      "implementation_identity": "psd-runtime-v3-explicit-filters",
-      "manifest_sha256": "731dac6b75a2aa31fb6773e25936a41008e1f834108462a3ada9b3e327a6d025",
-      "parameter_schema_sha256": "daf6d0a736bf2f6f539d9a980b9cf2c992d8cece05c6e50d1b84335c3e63a948",
-      "output_schema_sha256": "28f67460d17414333eb209bbd8b59b28d0e4e15e9b99fc22004bdfda8c3cc095",
+      "scientific_version": "offline-spectral-v6-shared-1-50-notch",
+      "implementation_identity": "psd-runtime-v6-shared-1-50-notch",
+      "manifest_sha256": "df5cfd5018fc30346a8094f832f7db1ddc144f2a142a48d21f3e99f9cd380534",
+      "parameter_schema_sha256": "757df72c6b96bac461b41381ff5f2e55aba3054df5e6dc1aca94345dd817aca3",
+      "output_schema_sha256": "8224d17f766bda2d1b64bdb4a7d465e35613ad4bb0a16aa44d99d2b9fdc07baa",
       "supported_modes": [
         "static",
         "dynamic"
       ]
     },
     "rbp": {
-      "scientific_version": "official-rbp-v2",
-      "implementation_identity": "rbp-runtime-v2-five-band",
-      "manifest_sha256": "c551c1f71a5f8ea062b4256d77d61af2741b6103e2d6417b055652f9ffac7dd7",
-      "parameter_schema_sha256": "d7d52676acc1a894e186d7a35e822b12da47d32abd984a7308045dda112f3d07",
-      "output_schema_sha256": "f0859ac76bfd84af34c05d5de706d77c664b9c54b149dcf7f37fb80bdfa8f536",
+      "scientific_version": "official-rbp-v4",
+      "implementation_identity": "rbp-runtime-v7-configurable-notch",
+      "manifest_sha256": "be0fafde3f21edb01ae455f77ffa229fa01b7d2d027ff5bedfc00a6197d6b423",
+      "parameter_schema_sha256": "aa7ba1506d548bd1a55dc194f9341a666cba1ba6bab17e599ac03031213893d5",
+      "output_schema_sha256": "954c8d3b2eff431de966b5c90525679c92b1602f20cecf5a141e560cf642b156",
       "supported_modes": [
         "static",
         "dynamic"
       ]
     },
     "stft": {
-      "scientific_version": "spectrogram-v2",
-      "implementation_identity": "stft-runtime-v4-relative-window-times",
-      "manifest_sha256": "7e4dc8ebaa52f86b2f0853ed9ee74eb3a2c3fcef70c8d404e28920d2d7ef4b3f",
+      "scientific_version": "spectrogram-v4-bounded-notch",
+      "implementation_identity": "stft-runtime-v8-bounded-notch",
+      "manifest_sha256": "2144a689d79cf5bae5c41981e5af439123bd5743a958e9fffc884b3dcdba9aee",
       "parameter_schema_sha256": "6c633b8e08bf0d1bbc706b593927d3eb87ed1be4b7afa5eac23e336666ca01be",
       "output_schema_sha256": "0bc3780ab29d3e15cbf895a089a0299a2bc63b2ab797aade33bd6ffd33921624",
       "supported_modes": [
@@ -92,13 +92,23 @@
       ]
     },
     "theta_beta": {
-      "scientific_version": "official-theta-beta-v2",
-      "implementation_identity": "theta-beta-runtime-v1",
-      "manifest_sha256": "7cb88d64a36768ea86e11cb402936e5d05676b94726fea3ceefd22e4cfdd4517",
+      "scientific_version": "official-theta-beta-v3",
+      "implementation_identity": "theta-beta-runtime-v2",
+      "manifest_sha256": "019d8ea113ae001bc051bb95be58a795c397465d8c35615dd2e24f071e3bde3e",
       "parameter_schema_sha256": "225dae1352a22e3023c86d72094d91f103e465e8d348f659e7bdfa08b54f9462",
       "output_schema_sha256": "126d1f3f7a0c6ec788fa3d48b9ab09e5d82afaea2956d2a14e76bb2a616a8925",
       "supported_modes": [
         "static",
+        "dynamic"
+      ]
+    },
+    "tnk_biofeedback": {
+      "scientific_version": "tnk-biofeedback-group-v3",
+      "implementation_identity": "tnk-biofeedback-group-v3-shared-1-50-notch-tnk-child-graph-v1:245e554753a8ccc872594cb14d47c5b2109d4eb8d8ea3ec0667f0e8a359fa546",
+      "manifest_sha256": "41ea13d6d4c3fce921fad78e5fd8aeebb61e3e754b8ecd1e26e33f263177c9a0",
+      "parameter_schema_sha256": "4e0764b15e744ce696627d4fec3b6628bcc4e1d0536a3e2a8d40a21af1e06e72",
+      "output_schema_sha256": "14cdbf7b8b7285eba86c71a6b95146a99fea51db1d6cf9a63f432369cdf64b3c",
+      "supported_modes": [
         "dynamic"
       ]
     }
@@ -485,6 +495,44 @@
           "implementation": "unsupported",
           "tests": [],
           "reason": "The algorithm does not provide an on-demand window reuse validator for full Runs."
+        }
+      }
+    },
+    "tnk_biofeedback": {
+      "paths": {
+        "full": {
+          "status": "unvalidated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_tnk_group.py"
+          ],
+          "reason": "组级执行图与结果契约已有测试；完整真实录音验收尚未完成。"
+        },
+        "on_demand": {
+          "status": "unvalidated",
+          "implementation": "implemented",
+          "tests": [
+            "backend/tests/test_tnk_group.py"
+          ],
+          "reason": "目标窗回放使用相同组帧执行器；真实录音验收尚未完成。"
+        },
+        "combined_preview_background_full": {
+          "status": "unvalidated",
+          "implementation": "implemented",
+          "tests": [],
+          "reason": "组级 combined parity 尚待验收。"
+        },
+        "full_result_to_preview": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "组结果不能从单个标量预览中反向投影。"
+        },
+        "on_demand_result_to_full": {
+          "status": "unsupported",
+          "implementation": "unsupported",
+          "tests": [],
+          "reason": "组级精确窗口反向复用未声明。"
         }
       }
     }

@@ -31,6 +31,14 @@ The spectrogram SHALL use a 4-second demeaned Hann frame and a 1-second step. Ea
 - **WHEN** a 30-second range from `10.0 s` through `40.0 s` is analyzed
 - **THEN** 27 rows represent windows `10-14` through `36-40` with centers `12` through `38 s`
 
+### Requirement: Normalize one-sided STFT density for odd and even frame lengths
+
+The STFT SHALL return a correctly normalized one-sided power spectral density in V^2/Hz. It SHALL double positive-frequency bins excluding DC; for an even frame length it SHALL leave the Nyquist bin undoubled, while for an odd frame length it SHALL double every bin after DC because no Nyquist bin exists.
+
+#### Scenario: Normalize an odd-length frame
+- **WHEN** an STFT frame has an odd number of samples
+- **THEN** every returned positive-frequency density bin, including the last bin, is doubled while DC remains unchanged
+
 ### Requirement: Preserve matrix alignment across bad windows
 
 The spectrogram SHALL keep every valid time-bin coordinate. A bad window SHALL retain its row and quality metadata while unavailable power cells are non-values, not zeros.

@@ -20,6 +20,7 @@
 | [策略输出基线](official-algorithm-strategy-baseline.json) | [NPZ](official-algorithm-strategy-baseline.npz) | 九算法动态系列输出冻结 |
 | [策略与契约矩阵](official-algorithm-strategy-matrix.json) | 无 | manifest/schema 指纹、声明及验证入口 |
 | [结果边界基线](algorithm-result-boundary-baseline.json) | [NPZ](algorithm-result-boundary-baseline.npz) | 结构整理前后完整结果对照 |
+| [结果边界 v4 基线](algorithm-result-boundary-v4-baseline.json) | [NPZ](algorithm-result-boundary-v4-baseline.npz) | 当前 1–50 Hz / 默认 50 Hz 陷波合同的 Run 与制品回归 |
 
 JSON 中记录 checksum、环境与参考身份；实际容差必须读对应基线，不能将 API 参考端点的容差与测试基线混用。本轮文档整理不改写任何 JSON/NPZ，13 件文件的 SHA-256 前后核对见[整理记录](../../openspec/changes/refresh-current-project-documentation/validation-report.md)。
 

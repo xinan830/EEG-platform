@@ -50,24 +50,29 @@ def iapf_details(freq, density):
 
 
 def check_quality(path, evidence, clean, total, checks):
-    checks.exact(path + ".clean_segments", evidence["clean_segments"], clean)
-    checks.exact(path + ".total_segments", evidence["total_segments"], total)
-    checks.numeric(path + ".clean_ratio", evidence["clean_ratio"], clean / total)
+    # Structured RBP evidence names Welch epochs explicitly; scalar algorithms
+    # retain the common segment names. Validate either contract, not a fallback.
+    clean_key, total_key = (("clean_epochs", "total_epochs") if "clean_epochs" in evidence
+                            else ("clean_segments", "total_segments"))
+    checks.exact(path + ".clean_segments", evidence[clean_key], clean)
+    checks.exact(path + ".total_segments", evidence[total_key], total)
+    if "clean_ratio" in evidence:
+        checks.numeric(path + ".clean_ratio", evidence["clean_ratio"], clean / total)
+    else:
+        checks.numeric(path + ".signal_quality", evidence["signal_quality"], clean / total)
 
 
 def check_spectrum(path, evidence, freq, density, checks, *, rbp=False):
     checks.numeric(path + ".frequencies_hz", evidence["frequencies_hz"], freq, rtol=0, atol=0)
     checks.numeric(path + ".psd_uv2_per_hz", evidence["psd_uV2_per_hz"],
                    density[0] * 1e12, atol=1e-10)
-    bands = BANDS if rbp else {key: value for key, value in BANDS.items() if key != "gamma"}
+    bands = {key: value for key, value in BANDS.items() if key != "gamma"}
     powers = {name: ref.integrate(freq, density[0], *edges) * 1e12
               for name, edges in bands.items()}
     checks.tree(path + ".band_power", evidence["band_power"], powers)
     total = sum(powers.values())
     checks.tree(path + ".relative_band_power", evidence["relative_band_power"],
                 {name: value / total for name, value in powers.items()})
-    if rbp:
-        checks.numeric(path + ".rbp_denominator_uv2", evidence["rbp_denominator_uv2"], total)
 
 
 def check_extensions(path, point, algorithm, freq, density, checks):
@@ -149,9 +154,10 @@ def check_frame(path, point, start, end, fs, structured, checks):
 
 def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
     kind, algorithm, mode = key.split("/")
-    dynamic, structured = mode == "dynamic", algorithm in {"psd", "stft"}
+    dynamic, structured = mode == "dynamic", algorithm in {"psd", "stft", "rbp"}
     bounds = schedule(algorithm, mode)
-    high, notch = (50, 50) if algorithm in {"psd", "stft", "rbp", "faa"} else (30, None)
+    high, notch = 50, 50
+    output_high = 30 if algorithm in {"iapf", "brainbeat"} else 50
     roles = ["F3", "F4"] if algorithm == "faa" else ["Fz", "Pz"] if algorithm == "brainbeat" else ["Fz"]
     selected = [f"{role}-{kind}" for role in roles]
     checks.exact(key + ".channel_order", snapshot["channels"]["channels"], selected)
@@ -173,7 +179,7 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
     checks.exact(key + ".notch", snapshot["filters"]["notch_hz"], notch)
     if dynamic and not structured:
         checks.numeric(key + ".metric_time_s", arrays["metric_time_s"], [end for _, end in bounds], rtol=0, atol=0)
-    if structured:
+    if algorithm in {"psd", "stft"}:
         frequency = np.fft.rfftfreq(round(4 * fs), 1 / fs)
         frequency = frequency[(frequency >= 1) & (frequency <= high)]
         checks.numeric(key + ".frequency_axis", arrays["axis_frequency_hz"], frequency, rtol=0, atol=0)
@@ -185,7 +191,16 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
             check_frame(path, point, start, end, fs, structured, checks)
         else:
             checks.exact(path + ".actual", point["actual_range"], dict(start_s=start, end_s=end))
-        values = prepared[round(start * fs):round(end * fs)]
+        if algorithm == "stft":
+            target_start, target_end = round(start * fs), round(end * fs)
+            context = int(np.ceil(max(2.0, 3.0) * fs))
+            read_start, read_end = max(0, target_start - context), min(len(source), target_end + context)
+            bounded = ref.filtered(
+                source[read_start:read_end], fs, 1, high, notch,
+            )[:, [labels.index(role) for role in roles]]
+            values = bounded[target_start - read_start:target_end - read_start]
+        else:
+            values = prepared[round(start * fs):round(end * fs)]
         evidence = snapshot["result"]["window_evidence"][index] if dynamic and structured else point
         scalar_value = None
         if algorithm == "faa":
@@ -202,7 +217,10 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
             checks.exact(path + ".preprocessing_range", detail["preprocessing_range_s"],
                          dict(start_s=0, end_s=len(source) / fs))
         else:
-            freq, density, clean, total = ref.welch(values, fs, 1, high)
+            annotated = algorithm in {"psd", "rbp"}
+            freq, density, clean, total = ref.welch(
+                values, fs, 1, output_high, annotate_artifacts=annotated,
+            )
             gate = freq is not None
             quality = evidence["source_quality"]
             if not quality and not gate:
@@ -215,7 +233,9 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
                 expected = density[0] if gate else np.full(len(frequency), np.nan)
                 shares = ref.shares(freq, density) if gate else np.full(5, np.nan)
                 for name, expected_array in (("psd", expected), ("band_share", shares)):
-                    checks.numeric(path + "." + name, arrays[name][index] if dynamic else arrays[name],
+                    actual = arrays[name][index] if dynamic else arrays[name]
+                    expected_array = np.asarray(expected_array)[None, :]
+                    checks.numeric(path + "." + name, actual,
                                    expected_array, atol=1e-22 if name == "psd" else 1e-12)
             elif algorithm == "stft":
                 window_arrays = {name: array[index] if dynamic and name in {"power_linear", "power_db"} else array
@@ -224,9 +244,14 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
             elif algorithm == "rbp":
                 shares = ref.shares(freq, density) if gate else [None] * 5
                 expected = dict(zip(BANDS, shares))
-                checks.tree(path + ".band_values", point["band_values"], expected)
-                if not dynamic:
-                    checks.numeric(path + ".band_share_values", arrays["band_share_values"], list(expected.values()))
+                for name, value in expected.items():
+                    actual = arrays[name][index] if dynamic else arrays[name]
+                    checks.numeric(path + "." + name, actual, [value] if value is not None else [np.nan])
+                powers = {name: ref.integrate(freq, density[0], *edges) * 1e12
+                          for name, edges in BANDS.items()} if gate else {}
+                for name, value in powers.items():
+                    actual = arrays[f"{name}_absolute_power"][index] if dynamic else arrays[f"{name}_absolute_power"]
+                    checks.numeric(path + "." + name + "_absolute_power", actual, [value])
             elif gate:
                 config = SimpleNamespace(low_hz=8, high_hz=13, numerator_low_hz=4, numerator_high_hz=8,
                                          denominator_low_hz=13, denominator_high_hz=30)
@@ -242,7 +267,7 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
                 checks.numeric(path + ".value", actual, scalar_value)
             checks.numeric(path + ".artifact_value", arrays["metric_values" if dynamic else "metric_value"][index],
                            np.nan if scalar_value is None else scalar_value)
-        expected_quality = "clean" if gate else "gate_failed"
+        expected_quality = ("partial" if clean < total and algorithm in {"psd", "rbp"} else "clean") if gate else "gate_failed"
         if algorithm != "stft":
             checks.exact(path + ".quality", point["quality"] if dynamic and structured else point["quality"]["status"], expected_quality)
         checks.exact(path + ".has_failure", point["failure"] is not None, not gate)
@@ -256,8 +281,12 @@ def validate_scenario(key, snapshot, arrays, source, labels, fs, checks, cache):
             typed = (evidence["calculation_trace"] if algorithm == "stft" else evidence["spectral_evidence"]).get("typed_source_request", {})
             expected = dict(roles=roles if algorithm == "brainbeat" else selected, channel_order=selected,
                             start_sample=round(start * fs), end_sample=round(end * fs), sfreq_hz=fs,
-                            filter_low_hz=1., filter_high_hz=float(high), output_low_hz=1., output_high_hz=float(high),
-                            notch_hz=notch, preprocessing_scope="configured_continuous_before_slice",
+                            filter_low_hz=1., filter_high_hz=float(high), output_low_hz=1., output_high_hz=float(output_high),
+                            notch_hz=notch, preprocessing_scope=(
+                                "bounded_window_with_finite_context" if algorithm == "stft"
+                                else "configured_continuous_before_slice"
+                            ),
+                            quality_policy="per_channel_annotation" if algorithm in {"psd", "rbp"} else "strict",
                             signal_input_unit="V", algorithm_density_unit="V^2/Hz", service_density_unit="uV^2/Hz",
                             representation="spectrogram" if algorithm == "stft" else "spectrum")
             source_identity = snapshot["channels"]["signal_source"]

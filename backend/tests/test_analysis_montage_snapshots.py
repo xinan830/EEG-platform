@@ -203,7 +203,7 @@ def test_dynamic_window_projects_selected_snapshot_and_isolates_default_cache(tm
         results = []
         for profile in recording.montage_catalogue:
             output = next(item for item in profile["outputs"] if item["role"] == "F3")
-            config = {"channel": output["id"], "mode": "dynamic", "time": {"start_s": 0, "end_s": 12},
+            config = {"channels": [output["id"]], "mode": "dynamic", "time": {"start_s": 0, "end_s": 12},
                       "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30,
                       "analysis_montage_id": profile["id"], "analysis_montage_revision": profile["revision"],
                       "analysis_montage_fingerprint": profile["fingerprint"],

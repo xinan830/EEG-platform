@@ -13,7 +13,7 @@ from pathlib import Path
 def test_builtin_registry_contains_the_current_executable_official_modules() -> None:
     registry = build_builtin_registry()
     assert [item.manifest.algorithm_id for item in registry.list()] == ["band_ratio", "brainbeat", "faa", "iapf", "peak_frequency", "psd", "rbp", "stft", "theta_beta", "tnk_biofeedback"]
-    assert registry.get("theta_beta").manifest.scientific_version == "official-theta-beta-v2"
+    assert registry.get("theta_beta").manifest.scientific_version == "official-theta-beta-v3"
 
 
 def test_each_builtin_official_algorithm_explicitly_declares_its_current_version() -> None:
@@ -86,7 +86,7 @@ def test_psd_catalog_filter_defaults_match_current_config_model() -> None:
     config = PsdConfig(channels=["F3"], mode="dynamic", start_s=0, end_s=10, window_s=5, step_s=1)
 
     assert parameters["low_hz"] == config.low_hz == 1.0
-    assert parameters["high_hz"] == config.high_hz == 30.0
+    assert parameters["high_hz"] == config.high_hz == 50.0
     assert parameters["notch_hz"] == config.notch_hz == 50.0
 
 

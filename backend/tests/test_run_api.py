@@ -18,7 +18,7 @@ from tests.access_fixtures import array_access_session
 
 class SyntheticRecordingService(RecordingService):
     def open_access_session(self, recording, *, analysis_montage_id=None):
-        sfreq = 100.0
+        sfreq = 200.0
         times = np.arange(10 * int(sfreq)) / sfreq
         values = np.column_stack([
             10e-6 * np.sin(2 * np.pi * 10 * times),
@@ -35,7 +35,7 @@ def _configure_services(tmp_path: Path) -> tuple[TestClient, RecordingSummary]:
     recording = service.create_recording("synthetic.edf", ".edf", b"synthetic-source")
     with service._connect() as connection:
         connection.execute(
-            """UPDATE recordings SET sfreq = 100, duration_s = 10, channels_json = '[\"F3\", \"Fz\"]',
+            """UPDATE recordings SET sfreq = 200, duration_s = 10, channels_json = '[\"F3\", \"Fz\"]',
                raw_channel_labels_json = '[\"F3\", \"Fz\"]', canonical_channel_labels_json = '[\"F3\", \"Fz\"]',
                channel_types_json = '[\"eeg\", \"eeg\"]', channel_units_json = '[\"V\", \"V\"]' WHERE id = ?""",
             (recording.id,),
@@ -165,7 +165,9 @@ def test_validation_api_persists_pointwise_evidence_and_report_scope(tmp_path: P
 def test_gate_failed_run_uses_null_outputs_and_structured_quality_reasons(tmp_path: Path):
     client, recording = _configure_services(tmp_path)
     service = app.state.recording_service
-    service.load_data = lambda _recording: (np.ones((1000, 2)) * 2e-6, 100.0, ["F3", "Fz"], [])
+    service.open_access_session = lambda recording, **_kwargs: array_access_session(
+        recording, np.ones((2000, 2)) * 2e-6, 200.0, ["F3", "Fz"],
+    )
 
     response = client.post("/api/runs", json={
         "recording_id": recording.id,

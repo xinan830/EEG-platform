@@ -81,9 +81,14 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <topomap:TopomapCanvas Field="{Binding Field}"
-                                    ColorScaleState="{Binding DataContext.RbpAnalysis.TopomapColorScales, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    Margin="8,2" />
+                                <Grid Margin="8,2">
+                                    <topomap:TopomapCanvas Field="{Binding Field}"
+                                        ColorScaleState="{Binding DataContext.RbpAnalysis.TopomapColorScales, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                    <TextBlock Text="{Binding DataContext.RbpAnalysis.TopomapWindowText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4"
+                                               Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                                               IsHitTestVisible="False" Panel.ZIndex="2" />
+                                </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -98,9 +103,14 @@
                                 </Style.Triggers>
                             </Style>
                         </Viewbox.Style>
-                        <topomap:TopomapCanvas Field="{Binding RbpAnalysis.SelectedTopomapField}"
-                                               ColorScaleState="{Binding RbpAnalysis.TopomapColorScales}"
-                                               Width="640" Height="640" />
+                        <Grid Width="640" Height="640">
+                            <topomap:TopomapCanvas Field="{Binding RbpAnalysis.SelectedTopomapField}"
+                                                   ColorScaleState="{Binding RbpAnalysis.TopomapColorScales}" />
+                            <TextBlock Text="{Binding RbpAnalysis.TopomapWindowText}"
+                                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                                       Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                                       IsHitTestVisible="False" Panel.ZIndex="2" />
+                        </Grid>
                     </Viewbox>
                 </Grid>
             </Border>
@@ -131,9 +141,15 @@
                         <DataTemplate>
                             <StackPanel Margin="0,0,0,6" ToolTip="{Binding QualitySummary}">
                                 <TextBlock Text="{Binding Channel}" FontSize="11" FontWeight="SemiBold" Foreground="#0F172A" />
-                                <rbp:RbpChart Height="120" IsStackedHistory="True" ShowAxisTitles="False"
-                                              VisibleStartSeconds="{Binding DataContext.AnalysisPanelStartSeconds, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                              Bands="{Binding Bands}" Windows="{Binding Windows}" />
+                                <Grid Height="120">
+                                    <rbp:RbpChart IsStackedHistory="True" ShowAxisTitles="False"
+                                                  VisibleStartSeconds="{Binding DataContext.AnalysisPanelStartSeconds, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                  Bands="{Binding Bands}" Windows="{Binding Windows}" />
+                                    <TextBlock Text="{Binding DataContext.RbpAnalysis.CurrentWindowRangeText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4"
+                                               Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                                               IsHitTestVisible="False" Panel.ZIndex="2" />
+                                </Grid>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

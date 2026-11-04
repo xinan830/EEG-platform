@@ -11,30 +11,10 @@ from result_boundary_support import compare_value, snapshot_run
 
 
 ROOT = Path(__file__).resolve().parents[2]
-REPORT = json.loads((ROOT / "docs/validation/algorithm-result-boundary-baseline.json").read_text())
+REPORT = json.loads((ROOT / "docs/validation/algorithm-result-boundary-v4-baseline.json").read_text())
 ARTIFACT = ROOT / REPORT["artifact"]["path"]
-ORIGINAL_REPORT = json.loads((ROOT / "docs/validation/official-algorithm-strategy-baseline.json").read_text())
-ORIGINAL_ARTIFACT = ROOT / ORIGINAL_REPORT["artifact"]["path"]
-
-
 def current_contract_expectation(snapshot):
-    """Project only the approved wire-shape changes in the frozen test oracle.
-
-    This is test-only: frozen bytes, numeric arrays, coordinates, states, quality
-    and scientific provenance are never regenerated or normalized.
-    """
-    summary = snapshot["summary"]
-    if snapshot["status"] == "completed":
-        summary["result_contract_version"] = "official-algorithm-result-v1"
-    metric = summary.get("metric")
-    if metric:
-        for item in [metric, *metric.get("series", [])]:
-            if "value" in item:
-                assert item.pop("value") == item["output"]["value"]
-            item.pop("warmup", None)
-            if "result_contract_version" in item:
-                assert item["result_contract_version"] == "dynamic-analysis-frame-v5"
-                item["result_contract_version"] = "dynamic-analysis-frame-v6"
+    """V4 snapshots already use the current wire and scientific contracts."""
     return snapshot
 
 
@@ -66,12 +46,6 @@ def test_current_run_and_artifact_match_frozen_boundary(tmp_path, case, record_p
                    "failed_coordinates": np.argwhere(~passing).tolist(), "point_count": int(values.size)}
             diagnostics.append(row)
             assert passing.all(), row
-            if case["mode"] == "dynamic" and not case["rejected"]:
-                assert hashlib.sha256(ORIGINAL_ARTIFACT.read_bytes()).hexdigest() == ORIGINAL_REPORT["artifact"]["sha256"]
-                with np.load(ORIGINAL_ARTIFACT, allow_pickle=False) as original:
-                    historical = original[case["algorithm_id"] + "__" + name]
-                    assert historical.shape == values.shape, name
-                    np.testing.assert_allclose(values, historical, **ORIGINAL_REPORT["tolerances"], equal_nan=True)
     record_property("array_comparison", json.dumps(diagnostics))
     record_property("summary_comparison", json.dumps({
         "maximum_absolute_error": max((item["absolute_error"] for item in errors), default=0.0),

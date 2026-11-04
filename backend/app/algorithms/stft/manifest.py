@@ -9,7 +9,7 @@ MANIFEST = AlgorithmManifest(
     purpose_zh="使用有限上下文和显式陷波配置计算所选原始通道的时频功率。",
     scientific_version="spectrogram-v4-bounded-notch",
     is_current_version=True,
-    implementation_identity="stft-runtime-v7-bounded-notch",
+    implementation_identity="stft-runtime-v8-bounded-notch",
     supported_modes=["static", "dynamic"],
     signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrogram", source_shape="single", preprocessing_scope="bounded_window_with_finite_context"),
     dynamic_capabilities=official_dynamic_capabilities(

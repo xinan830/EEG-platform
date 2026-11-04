@@ -85,8 +85,22 @@
                     </Style>
                 </topomap:TopomapCanvas.Style>
             </topomap:TopomapCanvas>
+            <TextBlock Grid.Row="0" Text="{Binding PsdAnalysis.CurrentRangeText}"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                       Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                       IsHitTestVisible="False" Panel.ZIndex="2" />
             <TextBlock Grid.Row="1" Text="{Binding PsdAnalysis.StatusText}" TextWrapping="Wrap"
-                       Foreground="#64748B" FontSize="11" Margin="2,4,0,0" />
+                       Foreground="#64748B" FontSize="11" Margin="2,4,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PsdAnalysis.StatusText}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </Grid>
     </shared:AnalysisPanelShell>
 </UserControl>

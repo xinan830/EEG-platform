@@ -175,7 +175,10 @@ class StftAlgorithm(StftWindowCapability):
             windows=windows,
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
             actual_range={"start_s": windows[0].start_s, "end_s": windows[-1].end_s},
-            quality="clean" if all(window.state == "Complete" for window in windows) else "partial",
+            quality=("gate_failed" if all(window.quality == "gate_failed" for window in windows)
+                     else "partial" if any(window.quality != "clean" for window in windows) else "clean"),
+            failure=(next((window.failure for window in windows if window.failure is not None), None)
+                     if all(window.quality == "gate_failed" for window in windows) else None),
             evidence={"source_quality": {}, "spectral_evidence": {}, "calculation_trace": {
                 "spectrogram_contract_version": MANIFEST.scientific_version, "window_s": window_s,
                 "step_s": step_s, "inner_time_padding": "nan_unavailable",

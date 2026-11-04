@@ -34,7 +34,7 @@ public sealed class ReviewPsdAnalysisTests
         Assert.Equal(new[] { "F3-REF", "F7-REF" },
             config.GetProperty("channels").EnumerateArray().Select(item => item.GetString()));
         Assert.Equal("dynamic", config.GetProperty("mode").GetString());
-        Assert.Equal(5, config.GetProperty("dynamic_window_s").GetDouble());
+        Assert.Equal(10, config.GetProperty("dynamic_window_s").GetDouble());
         Assert.Equal(1, config.GetProperty("refresh_step_s").GetDouble());
         Assert.Equal(1, config.GetProperty("low_hz").GetDouble());
         Assert.Equal(30, config.GetProperty("high_hz").GetDouble());
@@ -59,7 +59,8 @@ public sealed class ReviewPsdAnalysisTests
         Assert.True(model.HasResult);
         Assert.Equal([1e12, 2e12, 1e12], model.Points.Cast<PsdPreviewPoint>().Select(point => point.Value));
         Assert.Equal("µV²/Hz", model.ValueUnit);
-        Assert.Contains("5–10 s", model.StatusText);
+        Assert.Empty(model.StatusText);
+        Assert.Equal("5–10 s", model.CurrentRangeText);
 
         client.Respond = pending => OnDemandDetailClient.PsdResponse(pending) with
         {
@@ -71,6 +72,21 @@ public sealed class ReviewPsdAnalysisTests
         Assert.False(model.HasResult);
         Assert.Empty(model.Points);
         Assert.Contains("PSD_QUALITY_REJECTED", model.StatusText);
+    }
+
+    [Fact]
+    public void Current_range_tracks_the_backend_topomap_window_and_is_unavailable_when_cleared()
+    {
+        var model = new PsdReviewAnalysisViewModel();
+        model.ApplyTopomap(new TopomapResponse("window", "recording", 10, 20, "ready", "v1", "build",
+            "mne", "mri", "m", [], null, null));
+        model.SelectedView = "脑电地形图";
+
+        Assert.Equal("10–20 s", model.CurrentRangeText);
+
+        model.ClearTopomap();
+
+        Assert.Equal("分析范围不可用", model.CurrentRangeText);
     }
 
     [Theory]
@@ -117,7 +133,7 @@ public sealed class ReviewPsdAnalysisTests
     ];
 
     private static AlgorithmCatalogItem Algorithm() => new("official", "psd", "fixture-psd-v1", "功率谱密度",
-        "PSD", "", CatalogParameters(), ["dynamic"], default, new DynamicAnalysisPolicy(4, [5, 10], 5, 1, true),
+        "PSD", "", CatalogParameters(), ["dynamic"], default, new DynamicAnalysisPolicy(4, [5, 10, 20, 30], 10, 1, true),
         "available", true, "psd-definition", "1", "psd-runtime-v1");
 }
 

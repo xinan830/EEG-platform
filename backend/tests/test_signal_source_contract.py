@@ -200,7 +200,7 @@ def test_spectral_loader_rounds_seconds_to_floor_start_and_rounded_duration():
     context = _RecordingAlgorithmContext(recording, recording)
     with pytest.raises(RuntimeError, match="stop after observing"):
         context.load_spectrum(start_s=1.29, window_s=1.06, channels=["F4", "F3"],
-                              low_hz=1, high_hz=4)
+                              low_hz=1, high_hz=4, notch_hz=None)
     assert calls == [(1.2, 1.1, ["F4", "F3"])]
 
 

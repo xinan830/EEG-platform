@@ -6,7 +6,7 @@ STFT 属独立算法模块；通过 typed spectrogram 请求进入共享记录�
 
 静态、全量动态和按需窗口共用 `stft/frame.py` 的一次科学源读取、坐标/矩阵校验、单位转换和质量证据。`runner.py` 与 `window.py` 只负责各自结果结构；调度准入、取消、缓存身份、持久化和发布仍由现有统一执行通道拥有，不新增 STFT 队列。
 
-当前科学版本为 `spectrogram-v4-bounded-notch`，预处理版本为 `spectral-window-v1`，实现身份为 `stft-runtime-v7-bounded-notch`，窗口策略为 `stft-dynamic-window-v3-bounded`，Definition 为 1.1.0。v4 显式记录 1–50 Hz 默认基线和默认 50 Hz/Q=30 陷波；可通过算法设置关闭陷波。新执行不复用旧身份缓存，也不转换历史结果。
+当前科学版本为 `spectrogram-v4-bounded-notch`，预处理版本为 `spectral-window-v1`，实现身份为 `stft-runtime-v8-bounded-notch`，窗口策略为 `stft-dynamic-window-v3-bounded`，Definition 为 1.1.0。v4 显式记录 1–50 Hz 默认基线和默认 50 Hz/Q=30 陷波；可通过算法设置关闭陷波。新执行不复用旧身份缓存，也不转换历史结果。
 
 科学源只读取所选通道的目标区间和两侧有限滤波上下文；每侧上下文为 `max(2, 3 / low_hz)` 秒，向上取整到样本，遇录音边界截断。对该读取块执行原有陷波及四阶零相位 Butterworth 带通，再裁出目标样本；随后使用原有 Welch 总体质量门与 4 s STFT 内窗质量规则。目标区间或上下文含缺样则拒绝，不插值。TNK 继续使用其原有两秒上下文和科学身份。
 
@@ -25,6 +25,8 @@ STFT 属独立算法模块；通过 typed spectrogram 请求进入共享记录�
 线性功率与 dB 各带单位；`uV^2/Hz` 线性功率的 dB 表示为 `10*log10(P/(1 uV^2/Hz))`。不能对已经是 V²/Hz 的数组直接套用显示 dB 标尺。
 
 同一预处理信号、样本、去均值、窗函数与归一化下，单个 FFT 行可以与相同单段 PSD 比较；Welch 多段平均与任意时频行通常不等价。
+
+单边谱密度将 DC 以外的正频率点乘 2；偶数样本长度的 Nyquist 点不乘 2，奇数样本长度没有 Nyquist 点，最后一个频点也必须乘 2。
 
 坏窗和缺样要保留真实坐标与状态，不删除时间轴后挪动后续窗口，不以零功率填补。JSON 中不可用值与 artifact 中非有限数组的表达分别服从结果契约。
 

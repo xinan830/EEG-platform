@@ -15,7 +15,7 @@ from app.algorithms.brainbeat.official import segment_brainbeat
 class FakeRecording:
     id = "brainbeat-test"
     channel_names = ["FZ", "PZ", "O1"]
-    sfreq_hz = 100.0
+    sfreq_hz = 200.0
     duration_s = 20.0
 
     def __init__(self, *, gate_failed: str | None = None):
@@ -76,7 +76,7 @@ def test_static_brainbeat_uses_explicit_fz_pz_and_preserves_ratio_result():
     request, role_map = recording.requests[0]
     assert request.roles == ("Fz", "Pz")
     assert role_map == {"Fz": "FZ", "Pz": "PZ"}
-    assert (request.start_sample, request.end_sample) == (0, 1000)
+    assert (request.start_sample, request.end_sample) == (0, 2000)
     assert result.evidence["extensions"]["brainbeat_evidence"]["formula"] == "relative_theta(Fz) / relative_alpha(Pz)"
 
 

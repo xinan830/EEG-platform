@@ -11,7 +11,7 @@ from test_on_demand_psd_api import wait_window
 
 
 @pytest.mark.parametrize("changes", [
-    {"channel": "F7-REF"}, {"low_hz": 2}, {"high_hz": 40}, {"notch_hz": 50},
+    {"channels": ["F7-REF"]}, {"low_hz": 2}, {"high_hz": 40}, {"notch_hz": 50},
     {"dynamic_window_s": 10}, {"refresh_step_s": 2},
 ])
 def test_full_scientific_configuration_never_reuses_another_window(tmp_path, changes):
@@ -49,7 +49,7 @@ def test_source_policy_and_implementation_build_isolate_published_windows(tmp_pa
         changed = service.ensure(request)
         assert changed["session_id"] != first["session_id"]
         assert changed["window_id"] != first["window_id"]
-        assert wait_window(client, changed["window_id"])["state"] == "ready"
+        assert wait_window(client, changed["window_id"])["state"] == ("unavailable" if identity == "source" else "ready")
         assert service.get(first["window_id"])["result"] == ready["result"]
     finally:
         service.close()

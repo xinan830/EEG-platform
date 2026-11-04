@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from pathlib import Path
 
 from app.algorithm_runtime.on_demand import (
     DynamicSessionIdentity,
@@ -11,6 +12,8 @@ from app.algorithm_runtime.on_demand import (
 from app.algorithm_runtime.offline_execution import scientific_cache_key
 from app.algorithm_runtime.errors import DynamicWindowResourceExceededError
 from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _session(context_identity: str = "context-a") -> DynamicSessionIdentity:
@@ -119,7 +122,7 @@ def test_tnk_strategy_matrix_declares_each_algorithm_and_explicit_segment_bounda
     import json
     from pathlib import Path
 
-    matrix = Path("docs/algorithms/tnk-strategy-matrix.md").read_text(encoding="utf-8")
+    matrix = (ROOT / "docs/algorithms/tnk-strategy-matrix.md").read_text(encoding="utf-8")
     expected = {
         "IAPF", "放松度", "空间分布", "节律稳定性", "综合冥想指数", "BrainBeat 窗口模式",
         "BrainBeat Flat", "疲劳指数", "HAI", "FAA", "固定频段 RBP", "1/f 非周期指数",
@@ -130,8 +133,8 @@ def test_tnk_strategy_matrix_declares_each_algorithm_and_explicit_segment_bounda
     assert "任意游标窗明确不支持" in faa
     assert "已注册" in matrix
     assert "仅支持 `dynamic`" in matrix
-    structured = json.loads(Path("docs/algorithms/tnk-strategy-matrix.json").read_text(encoding="utf-8"))
-    assert len(structured["algorithms"]) == 12
+    structured = json.loads((ROOT / "docs/algorithms/tnk-strategy-matrix.json").read_text(encoding="utf-8"))
+    assert len(structured["algorithms"]) == 16
     assert structured["public_boundary"]["supported_modes"] == ["dynamic"]
     assert structured["algorithms"]["tnk_faa"]["on_demand"]["intent"] == "unsupported"
     assert structured["algorithms"]["tnk_faa"]["on_demand"]["reason"]["code"] == "TNK_FAA_SEGMENT_SCOPE_REQUIRED"

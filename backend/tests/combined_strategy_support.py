@@ -21,12 +21,16 @@ def setup_strategy(tmp_path, algorithm_id, *, rejected=False):
     services = configure_api(tmp_path, duration_s=30, labels=labels, rejected=rejected)
     _, recording, _, _, _ = services
     config = {
-        "algorithm_id": algorithm_id, "channel": f"{labels[0]}-REF", "mode": "dynamic",
+        "algorithm_id": algorithm_id, "mode": "dynamic",
         "time": {"start_s": 0, "end_s": 30},
         "dynamic_window_s": 10, "refresh_step_s": 2,
     }
+    if algorithm_id == "psd":
+        config["channels"] = [f"{labels[0]}-REF"]
+    else:
+        config["channel"] = f"{labels[0]}-REF"
     if algorithm_id in {"psd", "stft", "faa"}:
-        config.update(low_hz=1, high_hz=30, notch_hz=None)
+        config.update(low_hz=1, high_hz=50, notch_hz=50)
     if algorithm_id == "faa":
         config["f4_channel"] = "F4-REF"
         config["dynamic_window_s"] = 20

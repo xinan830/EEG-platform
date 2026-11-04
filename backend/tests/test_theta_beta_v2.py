@@ -15,7 +15,7 @@ def _recording_with_spectrum(*, gate_failed=None, psd=None):
     freqs = np.linspace(1.0, 30.0, 117)
     spectrum = SimpleNamespace(gate_failed=gate_failed, freqs=freqs, psd=np.asarray(psd if psd is not None else np.ones((1, 117)), dtype=float))
 
-    def load_spectrum(*, start_s, window_s, channels):
+    def load_spectrum(*, start_s, window_s, channels, **_preprocessing):
         return spectrum
 
     return SimpleNamespace(id="r1", channel_names=["Fz", "Pz", "O2"], sfreq_hz=500.0, duration_s=30.0, load_spectrum=load_spectrum)
@@ -64,7 +64,7 @@ def test_theta_beta_dynamic_keeps_a_rejected_window_and_continues(monkeypatch) -
     spectrum = SimpleNamespace(gate_failed=None, freqs=np.linspace(1.0, 30.0, 117), psd=np.ones((1, 117), dtype=float))
     calls = 0
 
-    def load_spectrum(*, start_s, window_s, channels):
+    def load_spectrum(*, start_s, window_s, channels, **_preprocessing):
         nonlocal calls
         calls += 1
         if calls == 1:

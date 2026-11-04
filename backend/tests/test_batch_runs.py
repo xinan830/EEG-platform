@@ -17,15 +17,15 @@ from app.models.run import RunStatus, StructuredRunError
 
 class SyntheticRecordings(RecordingService):
     def open_access_session(self, recording, *, analysis_montage_id=None):
-        time_s = np.arange(int((recording.duration_s or 10) * 100)) / 100
+        time_s = np.arange(int((recording.duration_s or 10) * 200)) / 200
         values = (10e-6 * np.sin(2 * np.pi * 10 * time_s))[:, None]
-        return array_access_session(recording, values, 100.0, ["F3"])
+        return array_access_session(recording, values, 200.0, ["F3"])
 
 
 def _recording(service: RecordingService, name: str, channels: str, duration: float) -> str:
     item = service.create_recording(name, ".edf", name.encode())
     with service._connect() as connection:
-        connection.execute("UPDATE recordings SET sfreq = 100, duration_s = ?, channels_json = ? WHERE id = ?", (duration, channels, item.id))
+        connection.execute("UPDATE recordings SET sfreq = 200, duration_s = ?, channels_json = ? WHERE id = ?", (duration, channels, item.id))
     return item.id
 
 

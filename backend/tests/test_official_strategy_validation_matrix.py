@@ -18,6 +18,7 @@ from app.algorithms.builtin_modules import build_builtin_modules
 from app.algorithms.completeness import official_capability_report
 from app.algorithm_runtime.offline_execution import scientific_configuration_sha256
 from app.algorithm_runtime.on_demand import DynamicWindowIdentity
+from combined_strategy_support import ALGORITHM_IDS
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,7 +50,7 @@ def _contract_snapshot() -> dict[str, dict[str, object]]:
 def test_frozen_contract_matrix_matches_all_current_official_modules() -> None:
     frozen = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
     assert frozen["contract_snapshot"] == _contract_snapshot()
-    assert len(frozen["contract_snapshot"]) == 9
+    assert len(frozen["contract_snapshot"]) == 10
 
 
 def test_every_declared_reuse_path_has_algorithm_scoped_test_evidence() -> None:
@@ -119,14 +120,14 @@ def test_numeric_reference_report_has_frozen_environment_tolerances_and_checksum
     assert report["environment"]["numpy"] == "2.3.4"
     assert report["environment"]["scipy"] == "1.16.3"
     assert report["array_artifact"]["sha256"]
-    assert set(report["algorithms"]) == {module.manifest.algorithm_id for module in build_builtin_modules()}
+    assert set(report["algorithms"]) == set(ALGORITHM_IDS)
 
 
 def test_strategy_baseline_freezes_all_nine_algorithm_series_and_artifact_arrays() -> None:
     report = json.loads((ROOT / "docs/validation/official-algorithm-strategy-baseline.json").read_text(encoding="utf-8"))
     artifact_path = ROOT / report["artifact"]["path"]
     assert hashlib.sha256(artifact_path.read_bytes()).hexdigest() == report["artifact"]["sha256"]
-    expected_ids = {module.manifest.algorithm_id for module in build_builtin_modules()}
+    expected_ids = set(ALGORITHM_IDS)
     assert set(report["algorithms"]) == expected_ids
     with np.load(artifact_path, allow_pickle=False) as artifact:
         for algorithm_id in expected_ids:
@@ -145,6 +146,10 @@ def test_capability_report_validates_only_explicit_algorithm_scoped_evidence() -
     report = official_capability_report(ROOT)
     for algorithm_id, item in report.items():
         combined = item["paths"]["combined_preview_background_full"]
+        if algorithm_id == "tnk_biofeedback":
+            assert combined["status"] == "unvalidated"
+            assert item["release_ready"] is False
+            continue
         assert combined["status"] == "validated", algorithm_id
         assert item["release_ready"] is True, algorithm_id
 
@@ -156,4 +161,4 @@ def test_new_modules_do_not_inherit_combined_or_inverse_validation() -> None:
     declared = official_dynamic_capabilities(full_to_preview=True, on_demand_to_full=True)
     assert declared.combined_preview_background_full.validation == "unvalidated"
     assert declared.on_demand_result_to_full.validation == "unvalidated"
-    assert {module.manifest.algorithm_id for module in build_builtin_modules()} == set(ALGORITHM_IDS)
+    assert set(module.manifest.algorithm_id for module in build_builtin_modules()) == set(ALGORITHM_IDS) | {"tnk_biofeedback"}

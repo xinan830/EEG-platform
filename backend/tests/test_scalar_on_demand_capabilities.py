@@ -87,8 +87,15 @@ def test_scalar_window_matches_full_dynamic_point(algorithm_id, algorithm_type, 
     algorithm = algorithm_type()
     config = _config(algorithm_id)
     source = _spectrum()
-    inputs = _inputs(lambda **_: source)
+    requests = []
+
+    def load_spectrum(**request):
+        requests.append(request)
+        return source
+
+    inputs = _inputs(load_spectrum)
     full = algorithm.execute_dynamic(inputs, config)
+    assert all(request["notch_hz"] == config.notch_hz for request in requests)
     session = _session(algorithm)
 
     assert full.values

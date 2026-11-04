@@ -11,7 +11,7 @@ from test_on_demand_window_contracts import _identity
 def result():
     return DynamicWindowResult(identity=_identity(), state="ready", output_kind="frequency_series",
         axes={"frequency_hz": [1, 2]}, axis_units={"frequency_hz": "Hz"},
-        arrays={"psd": [1, 2], "band_share": [0.2] * 5},
+        arrays={"psd": [[1, 2]], "band_share": [[0.2] * 5]},
         array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="clean",
         provenance={"preprocessing_scope": "whole_recording_before_window_slice"})
 
@@ -20,11 +20,11 @@ def result():
 def test_invalid_window_shape_kind_axis_or_unit_is_not_publishable(damage):
     current = result()
     if damage == "axis_length":
-        current.arrays["psd"] = [1]
+        current.arrays["psd"] = [[1]]
     elif damage == "band_length":
-        current.arrays["band_share"] = [0.2]
+        current.arrays["band_share"] = [[0.2]]
     elif damage == "rank":
-        current.arrays["psd"] = [[1, 2]]
+        current.arrays["psd"] = [1, 2]
     elif damage == "kind":
         current.output_kind = "scalar"
     elif damage == "axis_order":

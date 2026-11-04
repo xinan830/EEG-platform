@@ -211,7 +211,7 @@ def estimate_spectrogram(data: np.ndarray, sfreq: float, *, low_hz: float = 1.0,
         centered = frame - np.mean(frame, axis=0, keepdims=True)
         transformed = np.fft.rfft(centered * window[:, None], axis=0)
         density = np.abs(transformed) ** 2 / (sfreq * np.sum(window ** 2))
-        density[1:-1] *= 2.0
+        density[1:-1 if segment_samples % 2 == 0 else None] *= 2.0
         spectra.append(density.T)
     if low_hz < 0.0 or high_hz <= low_hz or high_hz >= sfreq / 2.0:
         raise ValueError("时频分析频率范围无效或超出奈奎斯特频率")
@@ -267,7 +267,7 @@ def estimate_spectrogram_with_quality(data: np.ndarray, sfreq: float, *, low_hz:
         centered = centered - np.mean(centered, axis=0, keepdims=True)
         transformed = np.fft.rfft(centered * window[:, None], axis=0)
         density = np.abs(transformed) ** 2 / (sfreq * np.sum(window ** 2))
-        density[1:-1] *= 2.0
+        density[1:-1 if segment_samples % 2 == 0 else None] *= 2.0
         power = density.T[:, mask]
         spectra.append(power)
         center = (float(start) + segment_samples / 2.0) / sfreq

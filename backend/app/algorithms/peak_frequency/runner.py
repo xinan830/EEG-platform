@@ -27,7 +27,7 @@ class PeakFrequencyAlgorithm(ScalarDynamicWindowCapability):
                        start_s: float, end_s: float) -> AlgorithmResult:
         return compute_peak_frequency(
             self._load(inputs.payload, channel=inputs.channel, start_s=start_s,
-                       window_s=end_s - start_s),
+                       window_s=end_s - start_s, notch_hz=config.notch_hz),
             channel=inputs.channel, low_hz=config.low_hz, high_hz=config.high_hz,
             requested_range={"start_s": start_s, "end_s": end_s},
             actual_range={"start_s": start_s, "end_s": end_s},

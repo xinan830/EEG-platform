@@ -110,7 +110,9 @@ def test_all_algorithms_two_montages_replay_and_detect_tampering(tmp_path):
     assert result["scenarios"] == 36
     snapshot, arrays = load_baseline(baseline)
     assert "private display label" not in json.dumps(snapshot)
-    assert snapshot["scenarios"]["REF/psd/dynamic"]["result"]["structured"]["windows"][0]["state"] == "Rejected"
+    psd_result = snapshot["scenarios"]["REF/psd/dynamic"]["result"]
+    assert psd_result["structured"]["windows"][0]["state"] == "Partial"
+    assert psd_result["window_evidence"][0]["extensions"]["channel_quality"]["by_channel"]["Fz-REF"]["status"] == "warning"
     # A second disposable database must not cause allocation identity mismatches.
     result = cli.execute("compare", recording, baseline, report, progress=lambda _: None)
     assert result["passed"], [row for row in result["comparison"]["checks"] if row["failed"]][:10]

@@ -121,7 +121,7 @@ def test_ready_window_requires_finite_payload_and_provenance():
             axes={"frequency": [1, 2]}, axis_units={"frequency": "Hz"},
             arrays={"psd": [1, 2]}, array_units={"psd": "V^2/Hz"}, quality="clean",
         )
-    with pytest.raises(ValidationError, match="non-finite"):
+    with pytest.raises(ValidationError, match="without partial evidence"):
         DynamicWindowResult(
             identity=identity, state="ready", output_kind="frequency_series",
             axes={"frequency": [1, 2]}, axis_units={"frequency": "Hz"},

@@ -117,7 +117,12 @@ class AnalysisMontageSnapshots:
                 (recording_id,),
             ).fetchall()
         entries = []
-        seen = {_catalogue_projection_key(entry) for entry in historical_montage_catalogue(directory)}
+        try:
+            seen = {_catalogue_projection_key(entry) for entry in historical_montage_catalogue(directory)}
+        except (OSError, KeyError, TypeError, ValueError):
+            # A damaged source still needs to reach analysis admission so it can
+            # publish a structured unavailable result instead of failing catalog lookup.
+            seen = set()
         for row in rows:
             view = self.resolve(recording_id, directory, row["snapshot_id"])
             entry = _catalogue_entry(view)

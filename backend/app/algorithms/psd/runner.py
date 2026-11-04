@@ -370,7 +370,15 @@ class PsdAlgorithm:
                 band_share_rows.append(band_share)
                 evidence = self._dynamic_evidence(spectrum)
                 evidence["extensions"] = {"channel_quality": {"by_channel": dict(zip(inputs.channels, channel_quality, strict=True))}}
-                quality = "clean" if all(item.get("status") == "clean" for item in channel_quality) else "partial"
+                if all(item.get("status") == "unavailable" for item in channel_quality):
+                    quality = "unavailable"
+                    state = "Unavailable"
+                    failure = AlgorithmFailure(
+                        code="PSD_WINDOW_CHANNELS_UNAVAILABLE",
+                        message="当前动态窗口的所有请求通道均不可用",
+                    )
+                else:
+                    quality = "clean" if all(item.get("status") == "clean" for item in channel_quality) else "partial"
             except SpectralQualityGateError as exc:
                 row = np.full((len(inputs.channels), frequencies.size), np.nan, dtype=float)
                 band_share_rows.append(np.full((len(inputs.channels), 5), np.nan, dtype=float))

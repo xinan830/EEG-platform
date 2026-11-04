@@ -149,29 +149,55 @@ def test_interactive_burst_gives_waiting_batch_a_turn():
     )
     holder = coordinator.acquire("interactive")
     batch_acquired = threading.Event()
+    interactive_acquired = threading.Event()
+    acquired_lanes: list[str] = []
+    acquired_lanes_lock = threading.Lock()
     errors: list[BaseException] = []
 
     def wait_for_batch() -> None:
         try:
             lease = coordinator.acquire("batch")
+            with acquired_lanes_lock:
+                acquired_lanes.append("batch")
             batch_acquired.set()
             lease.release()
         except BaseException as exc:  # pragma: no cover - surfaced below
             errors.append(exc)
 
-    thread = threading.Thread(target=wait_for_batch)
-    thread.start()
-    time.sleep(0.02)
+    def wait_for_interactive() -> None:
+        try:
+            lease = coordinator.acquire("interactive")
+            with acquired_lanes_lock:
+                acquired_lanes.append("interactive")
+            lease.release()
+        except BaseException as exc:  # pragma: no cover - surfaced below
+            errors.append(exc)
+        finally:
+            interactive_acquired.set()
+
+    batch_thread = threading.Thread(target=wait_for_batch)
+    batch_thread.start()
+    interactive_threads = [threading.Thread(target=wait_for_interactive) for _ in range(4)]
+    for thread in interactive_threads:
+        thread.start()
+
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline:
+        waiting = coordinator.snapshot()["waiting"]
+        if waiting == {"interactive": 4, "batch": 1}:
+            break
+        time.sleep(0.001)
+    assert coordinator.snapshot()["waiting"] == {"interactive": 4, "batch": 1}
     holder.release()
 
-    for _ in range(4):
-        lease = coordinator.acquire("interactive")
-        lease.release()
-
-    thread.join(timeout=1.0)
+    batch_thread.join(timeout=1.0)
+    for thread in interactive_threads:
+        thread.join(timeout=1.0)
     coordinator.close()
 
     assert batch_acquired.is_set()
+    assert interactive_acquired.is_set()
+    assert all(not thread.is_alive() for thread in [batch_thread, *interactive_threads])
     assert errors == []
     metrics = coordinator.snapshot()["metrics"]
     assert metrics["acquired"]["batch"] == 1
@@ -181,4 +207,5 @@ def test_interactive_burst_gives_waiting_batch_a_turn():
     assert metrics["completed"]["batch"] == 1
     assert metrics["batch_yields"] >= 1
     assert metrics["max_hold_s"]["interactive"] >= 0
+    assert acquired_lanes.index("batch") >= 3
 

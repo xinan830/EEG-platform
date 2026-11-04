@@ -17,6 +17,8 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     private int selectedFrequencyIndex;
     private string selectedView = "频谱";
     private TopomapResponse? topomap;
+    private string analysisRangeText = "分析范围不可用";
+    private string topomapRangeText = "分析范围不可用";
 
     public ObservableCollection<PsdPreviewPoint?> Points => preview.Points;
     public string ValueUnit => preview.ValueUnit;
@@ -29,7 +31,7 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
         get => selectedFrequencyIndex;
         set { if (SetProperty(ref selectedFrequencyIndex, value)) RaisePropertyChanged(nameof(SelectedFrequencyFieldId)); }
     }
-    public string SelectedView { get => selectedView; set { if (SetProperty(ref selectedView, value)) { RaisePropertyChanged(nameof(IsTopomapSelected)); RaisePropertyChanged(nameof(IsSpectrumSelected)); } } }
+    public string SelectedView { get => selectedView; set { if (SetProperty(ref selectedView, value)) { RaisePropertyChanged(nameof(IsTopomapSelected)); RaisePropertyChanged(nameof(IsSpectrumSelected)); RaisePropertyChanged(nameof(CurrentRangeText)); } } }
     public IReadOnlyList<string> ViewOptions { get; } = ["频谱", "脑电地形图"];
     public bool IsTopomapSelected => SelectedView == "脑电地形图";
     public bool IsSpectrumSelected => !IsTopomapSelected;
@@ -37,6 +39,7 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     public TopomapColorScaleState TopomapColorScales { get; } = new();
     public string SelectedFrequencyFieldId => $"psd.frequency-bin.{SelectedFrequencyIndex.ToString(CultureInfo.InvariantCulture)}";
     public TopomapField? TopomapField => Topomap?.Fields.FirstOrDefault(item => item.FieldId == SelectedFrequencyFieldId);
+    public string CurrentRangeText => IsTopomapSelected ? topomapRangeText : analysisRangeText;
 
     public void SetChannels(IEnumerable<string> value)
     {
@@ -49,6 +52,8 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     public void Apply(WindowPreviewResponse? response)
     {
         preview.Clear();
+        analysisRangeText = response is null ? "分析范围不可用" : FormatRange(response);
+        RaisePropertyChanged(nameof(CurrentRangeText));
         if (response is null)
         {
             StatusText = "PSD 尚未准备。";
@@ -76,7 +81,7 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
             PsdWindowPresenter.Apply(preview, dynamic, channelIndex);
             UpdateFrequencies(dynamic);
             StatusText = preview.HasPreview
-                ? $"{FormatRange(response)} · {preview.ValueUnit}"
+                ? string.Empty
                 : "当前 PSD 窗口没有可显示的有限频谱值。";
         }
         catch (InvalidOperationException exception)
@@ -87,8 +92,21 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
         RaiseResultChanged();
     }
 
-    public void ApplyTopomap(TopomapResponse response) { Topomap = response; RaisePropertyChanged(nameof(TopomapField)); }
-    public void ClearTopomap() { TopomapColorScales.Reset(); Topomap = null; }
+    public void ApplyTopomap(TopomapResponse response)
+    {
+        Topomap = response;
+        topomapRangeText = FormatRange(response.WindowStartSeconds, response.WindowEndSeconds);
+        RaisePropertyChanged(nameof(TopomapField));
+        RaisePropertyChanged(nameof(CurrentRangeText));
+    }
+
+    public void ClearTopomap()
+    {
+        TopomapColorScales.Reset();
+        Topomap = null;
+        topomapRangeText = "分析范围不可用";
+        RaisePropertyChanged(nameof(CurrentRangeText));
+    }
     public void SetStatus(string value) => StatusText = value;
 
     private void UpdateFrequencies(DynamicWindowResponse response)
@@ -130,10 +148,13 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     {
         var start = response.WindowStartSeconds ?? response.DynamicResponse?.Range?.StartSeconds;
         var end = response.WindowEndSeconds ?? response.DynamicResponse?.Range?.EndSeconds;
-        return start is double from && end is double to
-            ? $"{from:0.###}–{to:0.###} s"
-            : "实际窗口范围不可用";
+        return FormatRange(start, end);
     }
+
+    private static string FormatRange(double? start, double? end) =>
+        start is double from && end is double to && double.IsFinite(from) && double.IsFinite(to) && to >= from
+            ? $"{from:0.###}–{to:0.###} s"
+            : "分析范围不可用";
 }
 
 public sealed record PsdFrequencyOption(int Index, double FrequencyHz)

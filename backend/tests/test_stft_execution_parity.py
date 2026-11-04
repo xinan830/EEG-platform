@@ -35,7 +35,7 @@ def test_static_full_and_window_share_source_units_evidence_and_nonzero_coordina
     assert len(requests) == 3  # one source load per strategy for this nonzero range
     assert requests[0] == requests[1] == requests[2]
     assert requests[0] == dict(start_s=10, window_s=5, channels=["F3"], low_hz=1,
-                               high_hz=30, notch_hz=None, output_low_hz=1, output_high_hz=30)
+                               high_hz=50, notch_hz=None, output_low_hz=1, output_high_hz=30)
     assert static.actual_range == {"start_s": 10, "end_s": 15}
     np.testing.assert_array_equal(static.axes["time_center_s"], [12, 13])
     np.testing.assert_array_equal(window.axes["time_center_s"], [2, 3])
@@ -107,7 +107,7 @@ def test_malformed_source_is_unavailable_for_every_strategy(damage):
     static, full, window = _execute(loader)
     assert static.quality == "unavailable"
     assert static.failure.code == window.failure["code"] == "STFT_WINDOW_UNAVAILABLE"
-    assert static.actual_range is None
+    assert static.actual_range == static.requested_range
     assert all(item.state == "Unavailable" for item in full.windows)
     assert np.isnan(full.arrays["power_linear"]).all()
     assert window.state == "unavailable"

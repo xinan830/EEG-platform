@@ -9,6 +9,7 @@ import numpy as np
 from app.models.run import RunCreateRequest
 from app.services.analysis_provenance import build_analysis_provenance
 from app.services.recordings import RecordingService
+from app.services.recording_samples import WpfSampleReader
 from app.services.runs import RunService
 from scripts import recording_audit_reference as ref
 from scripts.regression_store import Differences, checksum
@@ -65,6 +66,9 @@ def scenario_config(identifier, mode, montage):
                   analysis_montage_fingerprint=montage["fingerprint"],
                   analysis_montage_outputs=[dict(role=role, output=out["id"], unit="V")
                                            for role, out in zip(roles, outputs)])
+    if identifier == "psd":
+        config["channels"] = [outputs[0]["id"]]
+        config.pop("channel")
     if identifier in {"psd", "stft", "faa"}:
         config.update(low_hz=1, high_hz=50, notch_hz=50)
     if identifier == "peak_frequency":

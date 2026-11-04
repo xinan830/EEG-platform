@@ -62,11 +62,11 @@ def _quality_failure(quality: dict[str, Any]) -> AlgorithmFailure:
 
 
 def _failed_frame(inputs: AlgorithmInputs, config: StftConfig, failure: AlgorithmFailure,
-                  quality: str, evidence: dict[str, Any]) -> StftFrame:
+                  quality: str, evidence: dict[str, Any], start_s: float, end_s: float) -> StftFrame:
     frequencies = frequency_axis(inputs.sfreq_hz, config.low_hz, config.high_hz)
     return StftFrame(np.empty(0), frequencies,
                      {name: np.empty((0, frequencies.size)) for name in ("power_linear", "power_db")},
-                     None, quality, failure, evidence, {})
+                     {"start_s": start_s, "end_s": end_s}, quality, failure, evidence, {})
 
 
 def execute_stft_frame(
@@ -96,14 +96,14 @@ def execute_stft_frame(
     if check:
         check()
     if failure is not None:
-        return _failed_frame(inputs, config, failure, quality, evidence)
+        return _failed_frame(inputs, config, failure, quality, evidence, start_s, end_s)
     try:
         frame = _validated_frame(inputs, config, payload, start_s, end_s)
     except (KeyError, TypeError, ValueError) as exc:
         if isinstance(payload, dict) and isinstance(payload.get("quality"), dict):
             evidence["source_quality"] = payload["quality"]
         failure = AlgorithmFailure(code="STFT_WINDOW_UNAVAILABLE", message=str(exc))
-        frame = _failed_frame(inputs, config, failure, "unavailable", evidence)
+        frame = _failed_frame(inputs, config, failure, "unavailable", evidence, start_s, end_s)
     if check:
         check()
     return frame

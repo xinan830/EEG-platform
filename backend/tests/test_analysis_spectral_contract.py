@@ -7,6 +7,7 @@ from app.algorithms.theta_beta.compute import compute_theta_beta
 from app.scientific.primitives.spectral import (
     SpectralEstimate,
     band_power,
+    estimate_spectrogram,
     estimate_spectrogram_with_quality,
     estimate_welch_psd,
     preprocess_offline,
@@ -163,6 +164,29 @@ def test_four_second_spectrogram_row_matches_single_welch_psd():
     assert centers.tolist() == [2.0]
     assert quality[0]["status"] == "clean"
     np.testing.assert_allclose(matrix[0], static.psd, rtol=1e-12, atol=1e-18)
+
+
+def test_odd_length_stft_matches_scipy_one_sided_density_in_both_paths():
+    sfreq = 100.2
+    sample_count = int(round(4.0 * sfreq))
+    assert sample_count % 2 == 1
+    times = np.arange(sample_count) / sfreq
+    values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    window = signal.get_window("hann", sample_count)
+    expected_freqs, expected_density = signal.periodogram(
+        values[:, 0], fs=sfreq, window=window, nfft=sample_count,
+        detrend="constant", return_onesided=True, scaling="density",
+    )
+    mask = (expected_freqs >= 1.0) & (expected_freqs <= 30.0)
+
+    _, frequencies, plain = estimate_spectrogram(values, sfreq)
+    _, quality_frequencies, checked, quality = estimate_spectrogram_with_quality(values, sfreq)
+
+    np.testing.assert_array_equal(frequencies, expected_freqs[mask])
+    np.testing.assert_array_equal(quality_frequencies, expected_freqs[mask])
+    np.testing.assert_allclose(plain[0, 0], expected_density[mask], rtol=1e-12, atol=1e-22)
+    np.testing.assert_allclose(checked[0, 0], expected_density[mask], rtol=1e-12, atol=1e-22)
+    assert quality[0]["status"] == "clean"
 
 
 def test_spectrogram_bad_window_preserves_gap_evidence_and_no_zero_imputation():

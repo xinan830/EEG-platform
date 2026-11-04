@@ -76,7 +76,7 @@ def test_polyphase_resampling_is_anti_aliased_and_records_realized_rate():
 def test_primitive_welch_matches_frozen_offline_spectral_v3_point_by_point():
     source = _signal()
     primitive = welch_psd(window(source, 4.0, 2.0))
-    legacy = estimate_welch_psd(source.values, source.sfreq_hz)
+    legacy = estimate_welch_psd(source.values, source.sfreq_hz, low_hz=1.0, high_hz=30.0)
 
     assert primitive.quality.is_available
     np.testing.assert_allclose(primitive.frequencies_hz, legacy.freqs, rtol=0.0, atol=0.0)

@@ -1,4 +1,4 @@
-from app.algorithm_runtime.contracts import AlgorithmManifest, SignalRequirements
+from app.algorithm_runtime.contracts import AlgorithmManifest, DynamicAnalysisPolicy, SignalRequirements
 from app.algorithms.capabilities import declared_output_contract, official_dynamic_capabilities, rbp_definition_graph
 from app.algorithms.rbp.official import RBP_BANDS
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
@@ -13,6 +13,7 @@ MANIFEST = AlgorithmManifest(
     is_current_version=True,
     implementation_identity="rbp-runtime-v7-configurable-notch",
     supported_modes=["static", "dynamic"],
+    dynamic_policy=DynamicAnalysisPolicy(default_window_s=10.0),
     signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="channel_set", preprocessing_scope="fixed_continuous_before_slice"),
     dynamic_capabilities=official_dynamic_capabilities(
         full_to_preview=True,

@@ -13,8 +13,8 @@ from tests.access_fixtures import array_access_session
 
 class SyntheticRecordingService(RecordingService):
     def open_access_session(self, recording, *, analysis_montage_id=None):
-        sfreq = 100.0
-        time_s = np.arange(1000) / sfreq
+        sfreq = 200.0
+        time_s = np.arange(2000) / sfreq
         values = np.column_stack([10e-6 * np.sin(2 * np.pi * 10 * time_s)])
         return array_access_session(recording, values, sfreq, ["F3"])
 
@@ -23,7 +23,7 @@ def _queue(tmp_path: Path) -> tuple[PersistentRunQueue, str]:
     recordings = SyntheticRecordingService(tmp_path / "recordings", tmp_path / "queue.sqlite3")
     recording = recordings.create_recording("source.edf", ".edf", b"queue-source")
     with recordings._connect() as connection:
-        connection.execute("UPDATE recordings SET sfreq = 100, duration_s = 10, channels_json = '[\"F3\"]' WHERE id = ?", (recording.id,))
+        connection.execute("UPDATE recordings SET sfreq = 200, duration_s = 10, channels_json = '[\"F3\"]' WHERE id = ?", (recording.id,))
     return PersistentRunQueue(recordings, recordings.database_path, tmp_path / "artifacts"), recording.id
 
 
@@ -81,7 +81,7 @@ def test_queue_persists_resolved_official_definition_identity(tmp_path: Path):
         analysis_type="official_algorithm",
         config={
             "algorithm_id": "iapf",
-            "scientific_version": "official-iapf-v2",
+            "scientific_version": "official-iapf-v4",
             "channel": "F3",
             "time": {"start_s": 0, "end_s": 10},
             "mode": "static",
@@ -95,8 +95,8 @@ def test_queue_persists_resolved_official_definition_identity(tmp_path: Path):
 
     assert queued.definition_id is not None
     assert queued.definition_version == "1.0.0"
-    assert frozen.scientific_version == "official-iapf-v2"
-    assert frozen.config["scientific_version"] == "official-iapf-v2"
+    assert frozen.scientific_version == "official-iapf-v4"
+    assert frozen.config["scientific_version"] == "official-iapf-v4"
     assert frozen.config["algorithm_id"] == "iapf"
     completed = queue.process_next()
     assert completed is not None and completed.status is RunStatus.COMPLETED

@@ -12,6 +12,7 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
     private IReadOnlyList<RbpChannelHistory> channelHistories = [];
     private string statusText = "RBP 尚未准备。";
     private string windowText = "尚未到达分析窗口";
+    private string currentWindowRangeText = "分析范围不可用";
     private double cursorSeconds;
     private string? windowSession;
     private WindowPreviewResponse? appliedResponse;
@@ -77,11 +78,12 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         string.Equals(item.FieldId, $"rbp.{SelectedTopomapPowerType}.{SelectedTopomapBandId}", StringComparison.OrdinalIgnoreCase));
     public bool IsAllTopomapBandsSelected => string.IsNullOrEmpty(SelectedTopomapBandId);
     public string TopomapWindowText => Topomap is { } map
-        ? $"{map.WindowStartSeconds:0.###}–{map.WindowEndSeconds:0.###} s"
-        : "暂无窗口";
+        ? FormatRange(map.WindowStartSeconds, map.WindowEndSeconds)
+        : "分析范围不可用";
     public string TopomapStatusText => Topomap?.Status == "ready" ? $"标准模板位置 · {TopomapWindowText}" : "暂无地形图";
     public string StatusText { get => statusText; private set => SetProperty(ref statusText, value); }
     public string WindowText { get => windowText; private set => SetProperty(ref windowText, value); }
+    public string CurrentWindowRangeText { get => currentWindowRangeText; private set => SetProperty(ref currentWindowRangeText, value); }
 
     public void SetStatus(string value) => StatusText = value;
 
@@ -148,6 +150,7 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
             RaisePropertyChanged(nameof(ChannelHistories));
             windowSession = null;
             WindowText = "尚未到达分析窗口";
+            CurrentWindowRangeText = "分析范围不可用";
             RaiseChanged();
             ClearTopomap();
             return;
@@ -161,6 +164,7 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         preview = RbpResultPreview.FromReviewWindow(response, previous);
         appliedResponse = response;
         windowSession = response.RunId;
+        CurrentWindowRangeText = FormatRange(response.WindowStartSeconds, response.WindowEndSeconds);
         var channelsMatch = channelHistories.Select(history => history.Channel)
             .SequenceEqual(preview.ChannelWindows.Select(point => point.Channel).Distinct(StringComparer.OrdinalIgnoreCase),
                 StringComparer.OrdinalIgnoreCase);
@@ -198,6 +202,11 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         RaisePropertyChanged(nameof(Trend));
         RaisePropertyChanged(nameof(HasResult));
     }
+
+    private static string FormatRange(double? start, double? end) =>
+        start is double from && end is double to && double.IsFinite(from) && double.IsFinite(to) && to >= from
+            ? $"{from:0.###}–{to:0.###} s"
+            : "分析范围不可用";
 }
 
 public sealed record TopomapBandOption(string Id, string Label)

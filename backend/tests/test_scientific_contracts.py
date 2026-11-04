@@ -99,8 +99,8 @@ def test_migrated_spectral_authority_matches_frozen_synthetic_baseline():
         8e-6 * np.sin(2.0 * np.pi * 6.0 * times),
     ))
 
-    filtered = preprocess_offline(source, sfreq_hz)[: int(30 * sfreq_hz)]
-    spectrum = estimate_welch_psd(filtered, sfreq_hz)
+    filtered = preprocess_offline(source, sfreq_hz, low_hz=1.0, high_hz=30.0, notch_hz=None)[: int(30 * sfreq_hz)]
+    spectrum = estimate_welch_psd(filtered, sfreq_hz, low_hz=1.0, high_hz=30.0)
     alpha_f3 = float(band_power(spectrum.freqs, spectrum.psd[0], 8.0, 13.0) * 1e12)
     theta_fz = float(band_power(spectrum.freqs, spectrum.psd[1], 4.0, 8.0) * 1e12)
     band_values = [
@@ -137,8 +137,8 @@ def test_migrated_array_axes_and_artifacts_match_independent_fft_reference():
         return density[(frequencies >= 1.0) & (frequencies <= 30.0)].T
 
     spectral = fixture["offline_spectral"]["array_baseline"]
-    filtered = preprocess_offline(source, sfreq_hz)[:3000]
-    estimate = estimate_welch_psd(filtered, sfreq_hz)
+    filtered = preprocess_offline(source, sfreq_hz, low_hz=1.0, high_hz=30.0, notch_hz=None)[:3000]
+    estimate = estimate_welch_psd(filtered, sfreq_hz, low_hz=1.0, high_hz=30.0)
     assert list(estimate.freqs.shape) == spectral["frequency_shape"]
     assert checksum(estimate.freqs) == spectral["frequency_sha256"]
     assert list(estimate.psd.shape) == spectral["psd_shape"]

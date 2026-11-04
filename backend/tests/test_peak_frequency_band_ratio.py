@@ -19,7 +19,7 @@ def _recording(psd: np.ndarray, freqs: np.ndarray | None = None):
         clean_epochs=4, total_epochs=4, signal_quality=1.0, rejected_reasons=(), evidence={"units": "V^2/Hz"},
     )
 
-    def load_spectrum(*, start_s, window_s, channels):
+    def load_spectrum(*, start_s, window_s, channels, **_preprocessing):
         return spectrum
 
     return SimpleNamespace(id="r1", channel_names=["Fz"], sfreq_hz=100.0, duration_s=30.0, load_spectrum=load_spectrum)

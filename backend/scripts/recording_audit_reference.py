@@ -64,15 +64,16 @@ def periodogram(epoch, fs):
     return density.T
 
 
-def welch(values, fs, low, high):
+def welch(values, fs, low, high, *, annotate_artifacts=False):
     size, step = round(4 * fs), round(2 * fs)
     epochs = [values[s:s + size] for s in range(0, len(values) - size + 1, step)]
     valid = [epoch for epoch in epochs if clean(epoch)]
-    if not valid or len(valid) / len(epochs) < .75:
+    accepted = [epoch for epoch in epochs if np.isfinite(epoch).all()] if annotate_artifacts else valid
+    if not accepted or (not annotate_artifacts and len(valid) / len(epochs) < .75):
         return None, None, len(valid), len(epochs)
     freq = np.fft.rfftfreq(size, 1 / fs)
     mask = (freq >= low) & (freq <= high)
-    density = np.maximum(np.mean([periodogram(e, fs) for e in valid], axis=0), 1e-20)
+    density = np.maximum(np.mean([periodogram(e, fs) for e in accepted], axis=0), 1e-20)
     return freq[mask], density[:, mask], len(valid), len(epochs)
 
 
