@@ -18,7 +18,7 @@
 - [x] 3.4 Show saved-profile EEG channels when no device draft is loaded.
 - [x] 3.5 Show mapped A1/A2/M1/M2 markers while keeping scalp-field eligibility separate.
 - [x] 3.6 Bound zoom and retain Shift-drag pan without floating electrode-name labels.
-- [ ] 3.7 Manually verify the Channel Settings switch, enabled-channel positions, and return to the editable 2D diagram with a real configured profile.
+- [x] 3.7 Manually verify the Channel Settings switch, enabled-channel positions, and return to the editable 2D diagram with a real configured profile.
 
 ## 4. Remove the RBP 3D scalp-field path
 
@@ -28,5 +28,5 @@
 
 ## 5. Verification
 
-- [ ] 5.1 Run focused backend tests, desktop tests, and a WPF build.
-- [ ] 5.2 Run OpenSpec strict validation and git diff --check; record the mapping/model hashes and manual Channel Settings acceptance.
+- [x] 5.1 Run focused backend tests, desktop tests, and a WPF build.
+- [x] 5.2 Run OpenSpec strict validation and git diff --check; record the mapping/model hashes and manual Channel Settings acceptance.

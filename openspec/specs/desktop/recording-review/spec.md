@@ -435,3 +435,20 @@ The review workspace SHALL provide subsecond timebase choices of 0.1, 0.25, and 
 #### Scenario: A gap is present
 - **WHEN** the projected review frame contains a non-finite sample or a sample-counter gap
 - **THEN** no marker SHALL be drawn at the missing sample and the line SHALL remain discontinuous across the gap
+
+### Requirement: Playback state notifications represent state transitions
+
+Review SHALL notify playback-state properties only when the shared playback coordinator changes those values. Advancing the render clock SHALL continue to publish the current recording position and algorithm cursor without publishing unchanged playback state or rebuilding waveform trace data.
+
+#### Scenario: Playback advances within the playing state
+
+- **WHEN** a render tick advances the recording cursor while playback remains active
+- **THEN** Review SHALL publish the new cursor position and algorithm cursor
+- **AND** SHALL NOT notify `IsPlaying` or `IsCompleted` with unchanged values
+- **AND** the waveform canvas SHALL retain its bound trace data.
+
+#### Scenario: Playback state changes
+
+- **WHEN** playback starts, pauses, or reaches the recording end
+- **THEN** Review SHALL notify each playback-state property whose value changed
+- **AND** starting playback SHALL restore the complete waveform frame once.

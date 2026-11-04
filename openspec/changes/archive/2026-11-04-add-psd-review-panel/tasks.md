@@ -18,6 +18,6 @@
 ## 4. Verification
 
 - [x] 4.1 Run focused Review tests, desktop build, and relevant backend capability/config tests; run OpenSpec strict validation and `git diff --check`.
-- [ ] 4.2 Record manual WPF acceptance and any unverified environment-dependent behavior.
+- [x] 4.2 Record manual WPF acceptance and any unverified environment-dependent behavior.
 - [x] 4.3 Format PSD tooltip values as decimals and present the display unit as `µV²/Hz` without changing API units.
 - [x] 4.4 Snap PSD hover to the nearest returned sample only within the rendered spectrum's hit tolerance; hide the marker and tooltip outside it.

@@ -8,5 +8,5 @@
 
 - [x] 2.1 Test that repeated playback ticks do not update waveform trace series.
 - [x] 2.2 Test that state notifications occur on playback transitions, not between them.
-- [ ] 2.3 Validate the same recording with an active Review algorithm panel in WPF.
-- [ ] 2.4 Run OpenSpec validation, focused WPF tests, desktop build, and `git diff --check`.
+- [x] 2.3 Validate the same recording with an active Review algorithm panel in WPF.
+- [x] 2.4 Run OpenSpec validation, focused WPF tests, desktop build, and `git diff --check`.
