@@ -7,15 +7,22 @@
 ## Requirements
 
 ### Requirement: Topomap input is an explicit windowed channel result
-地形图输入 MUST 是一个明确的文件绝对时间窗口结果，并包含 `recording_id`、`window_start_s`、`window_end_s`、通道原始名称顺序、每个通道的数值、公共单位、指标或频段标识、算法版本和结果质量状态。内部数值单位 MUST 遵守平台科学单位契约；公共响应 MUST 显式声明单位。地形图不得从显示坐标或前端计时器推断时间。
+Topomap input MUST be one selected scalar spatial field from an explicit file-absolute-time algorithm result. It MUST include `recording_id`, result/window identity, `window_start_s`, `window_end_s`, original channel order, one value and quality state per channel, a stable field identity, an explicit unit, algorithm version, and the bound montage snapshot identity. A frequency-resolved source MUST additionally identify the selected actual frequency bin and its `frequency_hz`. Internal values MUST follow the platform scientific-unit contract; public fields MUST declare their unit. The topomap MUST NOT infer time, channel positions, field identity, or values from the display clock or frontend.
 
 #### Scenario: Algorithm supplies a valid band result
-- **WHEN** 一个算法为同一绝对时间窗口返回逐通道 Delta、Theta、Alpha、Beta、Gamma 结果
-- **THEN** 地形图适配器一次保留该窗口边界、原始通道顺序、每个频段标识、单位、算法版本和每个通道质量状态，并为每个频段生成独立空间展示
+- **WHEN** an algorithm provides one complete window of per-channel values for a band or other scalar metric
+- **THEN** its adapter preserves the window identity, original channel order, field identity, unit, algorithm version, montage identity, and per-channel quality
+- **AND** the spatial projection consumes only that field's values
+
+#### Scenario: PSD supplies one actual frequency bin
+- **WHEN** PSD supplies its ordered channel-by-frequency result and a consumer selects one returned frequency bin
+- **THEN** the adapter selects that exact bin for every channel and reports its exact `frequency_hz` with unit `V^2/Hz`
+- **AND** it does not integrate, average, interpolate, or substitute values across frequency bins
 
 #### Scenario: Result has no usable numeric value
-- **WHEN** 某通道值为缺失、非有限、无效质量或结果窗口尚未完成
-- **THEN** 该通道被标记为不可用并从空间插值输入中排除，系统不得用零值、上一帧或邻近通道值替代
+- **WHEN** a channel value is missing, non-finite, quality-invalid, or its result window is incomplete
+- **THEN** that channel is marked unavailable and excluded from spatial interpolation
+- **AND** the system does not substitute zero, a previous window, a neighboring channel, or a value from another frequency bin
 
 ### Requirement: Spatial eligibility comes from authoritative channel metadata
 地形图 MUST 复用现有通道配置中的标准电极位置解析结果，不得维护第二套坐标表、别名表或根据通道文本猜测位置。只有具备有效标准或明确的图示位置、且与结果通道身份一致的 EEG 通道才可进入空间投影。参考、地线、未解析通道和没有明确定义空间含义的双极导联 MUST 标记为空间不可用。
@@ -81,11 +88,17 @@
 - **THEN** 回放视图忽略该空结果，不把它当作显式清空；只有显式解除分析或状态重置才清除地形图
 
 ### Requirement: Algorithms register data adapters instead of drawing maps
-支持地形图的算法 MUST 通过统一适配契约声明指标或频段、逐通道值的单位、窗口能力、参考方式和空间资格；算法模块不得包含 WPF 绘图代码或重复坐标解析。一个算法可以注册多个频段或指标，但每个展示项必须有稳定的标识和版本。
+Algorithms that support topomaps MUST register an adapter that identifies the source result, stable scalar field identifiers, units, window identity, channel order, quality, reference semantics, and spatial eligibility. An adapter MUST project values already present in the authoritative algorithm result; it MUST NOT implement WPF drawing, duplicate coordinate resolution, reread raw recording samples, or recompute the source algorithm. One algorithm MAY expose multiple fields, but every field MUST identify its value meaning and version.
 
 #### Scenario: RBP registers band outputs
-- **WHEN** RBP 声明 Delta、Theta、Alpha、Beta 或 Gamma 的逐通道相对功率结果
-- **THEN** 地形图框架一次消费五个频段并复用同一投影和渲染路径，每个频段独立显示，不为每个频段创建独立绘图实现
+- **WHEN** RBP exposes per-channel relative or absolute power for Delta, Theta, Alpha, Beta, or Gamma
+- **THEN** its adapter identifies each requested power/band field and reads only the matching structured RBP result array
+- **AND** it does not derive absolute power from relative shares or diagnostic evidence
+
+#### Scenario: PSD registers a frequency-bin field
+- **WHEN** PSD exposes its current ordered frequency axis and channel-resolved result
+- **THEN** its adapter registers the selected bin as one spatial field with the actual bin frequency and `V^2/Hz` unit
+- **AND** it shares the same interpolation and position path used by RBP
 
 ### Requirement: Topomap output is traceable and explicit about template positions
 地形图结果 MUST 记录来源算法、算法版本、参数快照、录音身份、绝对时间窗口、参与和排除的通道、坐标来源、空间方法、单位和质量/不可用原因。界面 MUST 使用实心黑点表示参与计算的电极；详细时间、单位和标准模板来源保留在结果契约与可追溯证据中，紧凑图表视图可以不重复显示这些文字。
@@ -99,51 +112,43 @@
 - **THEN** API 返回稳定错误码或结构化不可用状态及 request/session 关联信息，前端显示原因而不是空白或伪造颜色
 
 ### Requirement: Topomap visuals are prepared outside the UI dispatcher
-WPF 地形图 MUST 在后台生成网格位图、颜色范围和等值线几何，并冻结所有跨线程发布的 WPF 绘图资源。`OnRender` MUST NOT 遍历网格生成像素或计算等值线；它只绘制已准备的资源、头部/电极和轻量文字标尺。新的频段或画布尺寸到达时，系统 MUST 取消旧准备任务，并且只发布仍匹配当前频段、尺寸和代次的结果。
+WPF topomap visuals MUST prepare grid bitmaps, color ranges, and contour geometry outside the UI dispatcher and freeze every WPF drawing resource published across threads. `OnRender` MUST NOT traverse grid values to generate pixels or calculate contours; it SHALL draw prepared resources, head/electrode geometry, and lightweight scale labels. When the selected field, actual frequency bin, or canvas size changes, the system MUST cancel obsolete preparation and publish only a result that still matches the active field, window, size, and generation.
 
 #### Scenario: A topomap window updates during playback
-- **WHEN** 当前频段的网格结果或画布尺寸发生变化
-- **THEN** 位图和等值线在后台准备并冻结，UI 线程绘制已完成的快照；迟到的旧代次结果被丢弃，图表顺序和算法数值保持不变
+- **WHEN** the current window, selected field/frequency bin, or canvas size changes
+- **THEN** the bitmap and contours are prepared in the background and frozen before UI publication
+- **AND** a late result from an older field, window, or generation is discarded
 
 #### Scenario: A new visual preparation is superseded
-- **WHEN** 新窗口在旧窗口的位图或等值线准备完成前到达
-- **THEN** 旧任务被取消，旧结果不得覆盖新窗口；绘制资源仅在冻结后跨线程交给 UI
+- **WHEN** a new window or selected field arrives before old visual preparation completes
+- **THEN** obsolete preparation is cancelled and cannot replace the current field
+- **AND** drawing resources cross to the UI thread only after they are frozen
 
 ### Requirement: Playback updates preserve topomap visual instances
-五频段地形图的展示项身份 MUST 在同一回放分析会话内保持稳定。新窗口到达时只更新各展示项绑定的频段数据，不得每次替换整个 ItemsSource 并重建地形图控件；显式清除或改变频段数量时才增删展示项。
+Topomap presentation items MUST retain stable identity for the active Review session. When a new result window arrives, the client SHALL update the selected field data on the existing visual item and MUST NOT recreate the whole control collection. Adding or removing a requested field MAY add or remove only the corresponding field item.
 
 #### Scenario: A new topomap response arrives during playback
-- **WHEN** 同一分析会话收到下一窗口的五频段结果
-- **THEN** 五个地形图控件保持原有实例并更新 Band 输入，后台准备期间继续呈现上一张完整快照，完成后切换到新快照
+- **WHEN** the same analysis session receives the next result window for its active field selection
+- **THEN** the existing topomap control instances are updated with the new window's field data
+- **AND** the prior complete visual remains visible until the next frozen visual is ready
 
 ### Requirement: Select RBP topomap power representation
-The RBP topomap SHALL accept an explicit power representation, `relative` or `absolute`, independently from the selected frequency band. The response SHALL identify the selected representation and declare `ratio` for relative maps or `uV^2` for absolute maps. Both representations SHALL use the same RBP result window, recording identity, montage snapshot, channel order, spatial eligibility rules, and interpolation contract. Omitting the representation SHALL select `relative` for existing callers. The client SHALL request the selected representation from the backend and SHALL NOT derive absolute power from relative shares or diagnostic evidence.
+RBP topomap fields SHALL identify both power representation and band, using the current structured relative or absolute result arrays. Relative fields SHALL declare unit `ratio`; absolute fields SHALL declare unit `uV^2`. Both SHALL use the same RBP window, recording, result identity, montage snapshot, channel order, spatial eligibility, and interpolation contract. The client MUST request explicit field identifiers and MUST NOT derive absolute power from relative shares or diagnostic evidence. An absolute field absent from a stored result SHALL be unavailable; it MUST NOT be reconstructed from another source.
 
 #### Scenario: User selects absolute power
-- **WHEN** the user selects absolute power and a current RBP result contains structured absolute-power arrays
-- **THEN** the selected frequency band is rendered from the corresponding absolute-power array with unit `uV^2`
-- **AND THEN** the result uses the same current window and montage snapshot as the relative map
+- **WHEN** the user selects an absolute-power field and the current result contains its structured absolute array
+- **THEN** the response uses that exact array and declares unit `uV^2`
+- **AND** it preserves the same window and montage identity as the relative field
 
 #### Scenario: User selects relative power
-- **WHEN** the user selects relative power or an existing API caller omits the representation
-- **THEN** the selected frequency band is rendered from the existing ratio array with unit `ratio`
+- **WHEN** the user selects a relative-power field
+- **THEN** the response uses the matching structured ratio array and declares unit `ratio`
+- **AND** it uses the same result window and montage snapshot as an absolute field
 
 #### Scenario: Absolute output is absent from a stored result
-- **WHEN** absolute power is requested for a result that does not declare its structured absolute-power array
-- **THEN** the API returns a structured unavailable map with a stable reason
-- **AND THEN** it does not read or reconstruct a value from calculation-trace evidence, another window, or another montage version
-
-### Requirement: Limit topomap interpolation to the selected frequency band
-The run and dynamic topomap APIs SHALL accept an optional `band_id` from the closed set Delta, Theta, Alpha, Beta, and Gamma. When omitted, the response SHALL contain all five bands. When supplied, the response SHALL contain and interpolate only that band. Band selection SHALL be independent from power representation and SHALL use the same current result window, montage snapshot, channel order, units, and quality rules. It SHALL NOT trigger RBP recomputation. An unsupported band identifier SHALL be rejected as an invalid request.
-
-#### Scenario: User selects one band
-- **WHEN** the Review user selects Alpha and the active power representation is absolute
-- **THEN** the client requests only Alpha for the current window
-- **AND THEN** the backend returns and interpolates one `alpha` band in `uV^2`
-
-#### Scenario: User selects all bands or an existing caller omits band_id
-- **WHEN** the frequency-band selection is All or an API caller omits `band_id`
-- **THEN** the backend returns the existing five-band response
+- **WHEN** absolute power is requested for a result without the structured array
+- **THEN** that field is returned as unavailable with a stable reason
+- **AND** no diagnostic evidence, other window, or other montage is used as a substitute
 
 ### Requirement: Emit request-correlated topomap timing diagnostics
 For a successful topomap request, backend diagnostics SHALL report the request ID, result window ID, recording ID, power representation, requested band filter, backend service duration, per-band interpolation duration, and response serialization duration. Diagnostics SHALL NOT include raw samples or result value arrays. Timings SHALL remain operational metadata and SHALL NOT change scientific results, cache identity, or algorithm version.
@@ -173,3 +178,21 @@ Relative-power maps SHALL use the fixed domain `0–1` with unit `ratio`. Absolu
 - **WHEN** a later grid value is below or above the locked bounds
 - **THEN** its color is clamped to the lower or upper endpoint color
 - **AND THEN** the underlying EEG result value remains unchanged
+
+### Requirement: Topomap transport uses explicit scalar field identifiers
+The current topomap request MUST name one or more unique `field_ids` bound to a current result identity. The response MUST return those scalar spatial fields under `fields`, with each field's identifier, label, unit, field-specific metadata, per-channel points, quality, grid, and provenance. Frequency fields MUST report the exact selected `frequency_hz`. The current transport MUST NOT use the former `bands`, `power_type`, or `band_id` contract, infer a default field when `field_ids` are absent, or silently map an unknown field to another field. Unsupported identifiers MUST produce a structured invalid-request response; a known field with no usable values MUST produce an explicit unavailable field.
+
+#### Scenario: Request relative or absolute RBP fields
+- **WHEN** the client requests explicit relative or absolute RBP field identifiers for one or more bands
+- **THEN** the response contains only those requested fields with each source unit and RBP result identity preserved
+- **AND** the request does not use `power_type` or `band_id`
+
+#### Scenario: Request a PSD frequency field
+- **WHEN** the client requests a PSD field identifier for a bin present in the bound result
+- **THEN** the response contains one field for that exact bin, its actual frequency, the same PSD window, and unit `V^2/Hz`
+- **AND** the request does not start another PSD run or read raw recording samples
+
+#### Scenario: Request an absent or invalid field
+- **WHEN** a requested frequency bin is not present in the bound result or a field identifier is unsupported
+- **THEN** the API reports a structured invalid-field error
+- **AND** it does not choose the nearest frequency, a default band, or an older result

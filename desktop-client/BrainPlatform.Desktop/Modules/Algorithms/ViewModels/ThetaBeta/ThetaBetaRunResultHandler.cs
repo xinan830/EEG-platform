@@ -7,6 +7,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.ThetaBeta;
 internal sealed class ThetaBetaRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "theta_beta";
+    public bool SupportsNotch => true;
     public bool SupportsOnDemandWindows =>
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
     public FullRunMetricWindowSpec FullRunMetricWindowSpec => new("theta_beta");

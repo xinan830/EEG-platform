@@ -314,9 +314,9 @@ class RunService:
             definition = {
                 "kind": request.analysis_type,
                 "contract": dict(ANALYSIS_CONTRACT),
-                "spectrogram_contract": "spectrogram-v3-bounded" if request.analysis_type == "spectrogram" else None,
+                "spectrogram_contract": "spectrogram-v4-bounded-notch" if request.analysis_type == "spectrogram" else None,
             }
-            scientific_version = "spectrogram-v3-bounded" if request.analysis_type == "spectrogram" else str(ANALYSIS_CONTRACT["algorithm_version"])
+            scientific_version = "spectrogram-v4-bounded-notch" if request.analysis_type == "spectrogram" else str(ANALYSIS_CONTRACT["algorithm_version"])
             window = {
                 "segment_s": 4.0,
                 "step_s": 1.0 if request.analysis_type == "spectrogram" else 2.0,
@@ -325,7 +325,7 @@ class RunService:
             }
         filters = {key: ANALYSIS_CONTRACT[key] for key in (
             "bandpass_type", "bandpass_prototype_order", "bandpass_hz",
-            "preprocessing_phase", "filter_form",
+            "notch_hz", "notch_quality_factor", "preprocessing_phase", "filter_form",
         )}
         quality_rules = {
             "minimum_clean_ratio": ANALYSIS_CONTRACT["minimum_clean_epoch_ratio"],
@@ -339,7 +339,7 @@ class RunService:
             from app.scientific.contracts.spectrogram import STFT_PREPROCESSING_VERSION, stft_context_s
 
             filters.update({
-                "bandpass_hz": [1.0, 50.0], "notch_hz": None,
+                "bandpass_hz": [1.0, 50.0],
                 "preprocessing_version": STFT_PREPROCESSING_VERSION,
                 "preprocessing_scope": "bounded_window_with_finite_context",
                 "context_s": stft_context_s(1.0), "boundary_policy": "clamp_to_recording",

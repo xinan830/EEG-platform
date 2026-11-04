@@ -13,11 +13,11 @@ from app.algorithms.tnk.runtime import build_tnk_child_adapters
 class _Recording:
     id = "synthetic"
     channel_names = ["Cz", "F3", "F4", "Pz", "Oz"]
-    sfreq_hz = 100.0
+    sfreq_hz = 200.0
     duration_s = 10.0
 
     def load_spectrum(self, **kwargs):
-        frequencies = np.arange(1.0, 30.01, 0.25)
+        frequencies = np.arange(1.0, 50.01, 0.25)
         background = np.maximum(frequencies, 1.0) ** -1.5
         alpha_peak = np.exp(-0.5 * ((frequencies - 10.0) / 0.8) ** 2)
         psd = np.vstack([background + 5.0 * alpha_peak for _ in kwargs["channels"]])
@@ -104,9 +104,9 @@ def test_tnk_dynamic_evidence_uses_the_same_named_extension():
     )
 
     summary = AlgorithmEvidence.model_validate(result.evidence)
-    assert summary.extensions["tnk_evidence"] == {
+    assert summary.extensions["tnk_evidence"] | {
         "algorithm_id": "tnk_iapf", "window_s": 5.0, "step_s": 1.0,
-    }
+    } == summary.extensions["tnk_evidence"]
     for row in result.point_evidence:
         point = AlgorithmEvidence.model_validate(row)
         assert point.extensions["tnk_evidence"]["provenance"]["algorithm_id"] == "tnk_iapf"

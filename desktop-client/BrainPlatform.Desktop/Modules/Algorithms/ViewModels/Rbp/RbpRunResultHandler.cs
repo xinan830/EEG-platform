@@ -7,6 +7,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp;
 internal sealed class RbpRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "rbp";
+    public bool SupportsNotch => true;
     public bool SupportsOnDemandWindows =>
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
     public bool SupportsFullRunWindowPreview => true;

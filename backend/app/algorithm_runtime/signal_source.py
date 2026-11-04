@@ -90,10 +90,14 @@ class SpectralSourceRequest:
             raise ValueError("spectral source frequency bounds must be finite")
         if self.filter_low_hz <= 0 or self.filter_high_hz <= self.filter_low_hz:
             raise ValueError("spectral source filter range is invalid")
+        if self.filter_high_hz >= self.expected_sfreq_hz / 2:
+            raise ValueError("spectral source filter range reaches or exceeds Nyquist")
         if self.output_low_hz <= 0 or self.output_high_hz <= self.output_low_hz:
             raise ValueError("spectral source output range is invalid")
-        if self.notch_hz is not None and self.notch_hz <= 0:
-            raise ValueError("spectral source notch frequency must be positive")
+        if self.notch_hz is not None and self.notch_hz not in (50.0, 60.0):
+            raise ValueError("spectral source notch must be off, 50 Hz, or 60 Hz")
+        if self.notch_hz is not None and self.notch_hz >= self.expected_sfreq_hz / 2:
+            raise ValueError("spectral source notch reaches or exceeds Nyquist")
         if self.representation not in {"spectrum", "spectrogram"}:
             raise ValueError("spectral source representation is unsupported")
         if self.quality_policy not in {"strict", "per_channel_annotation"}:

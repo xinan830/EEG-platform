@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.scientific.quality import SpectralQualityGateError
 
 from .group_graph import TNK_ROLE_ORDER
@@ -33,6 +34,7 @@ def child_config(child: Any, config: Any, start_s: float, end_s: float,
         "iapf_hz": config.iapf_hz, "ema_alpha": config.ema_alpha,
         "warmup_count": config.warmup_count, "min_clean_epochs": config.min_clean_epochs,
         "fit_low_hz": config.fit_low_hz, "fit_high_hz": config.fit_high_hz,
+        "notch_hz": config.notch_hz,
     })
     return child.config_model.model_validate(payload)
 
@@ -80,8 +82,9 @@ def prewarm_shared_spectra(inputs: Any, config: Any,
         try:
             spectrum = inputs.payload.load_spectrum(
                 start_s=start_s, window_s=end_s - start_s, channels=list(channels),
-                filter_low_hz=1.0, filter_high_hz=30.0, output_low_hz=1.0,
-                output_high_hz=30.0, preprocessing_scope="tnk_window_scoped_v1",
+                filter_low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0],
+                filter_high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1], output_low_hz=1.0,
+                output_high_hz=30.0, notch_hz=config.notch_hz, preprocessing_scope="tnk_window_scoped_v1",
             )
         except SpectralQualityGateError as exc:
             shared[key] = (tuple(channel.casefold() for channel in channels), exc)
@@ -93,8 +96,9 @@ def prewarm_shared_spectra(inputs: Any, config: Any,
                 try:
                     estimate = inputs.payload.load_spectrum(
                         start_s=start_s, window_s=end_s - start_s, channels=[channel],
-                        filter_low_hz=1.0, filter_high_hz=30.0, output_low_hz=1.0,
-                        output_high_hz=30.0, preprocessing_scope="tnk_window_scoped_v1",
+                        filter_low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0],
+                        filter_high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1], output_low_hz=1.0,
+                        output_high_hz=30.0, notch_hz=config.notch_hz, preprocessing_scope="tnk_window_scoped_v1",
                     )
                 except SpectralQualityGateError as channel_error:
                     channel_results.append(None)

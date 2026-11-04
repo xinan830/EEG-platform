@@ -11,7 +11,7 @@ MANIFEST = AlgorithmManifest(
     purpose_zh="按所选导联输出 Delta、Theta、Alpha、Beta、Gamma 的相对占比与绝对功率。",
     scientific_version="official-rbp-v4",
     is_current_version=True,
-    implementation_identity="rbp-runtime-v6-absolute-power-output",
+    implementation_identity="rbp-runtime-v7-configurable-notch",
     supported_modes=["static", "dynamic"],
     signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="channel_set", preprocessing_scope="fixed_continuous_before_slice"),
     dynamic_capabilities=official_dynamic_capabilities(
@@ -35,12 +35,12 @@ MANIFEST = AlgorithmManifest(
           for band, *_ in RBP_BANDS],
     ]},
     definition_persistence={
-        "name": "Official RBP", "version": "2.0.5",
+        "name": "Official RBP", "version": "2.0.6",
         "definition_metadata": {
             "inputs": ["PSD"],
             "formula": "band_power / sum(five_band_powers_1_50)",
             "bands": {name: [low, high] for name, low, high in RBP_BANDS},
-            "preprocessing": {"reference": ANALYSIS_CONTRACT["reference"], "bandpass_hz": [1.0, 50.0], "notch_hz": 50.0, "notch_quality_factor": 30.0},
+            "preprocessing": {"reference": ANALYSIS_CONTRACT["reference"], "bandpass_hz": ANALYSIS_CONTRACT["bandpass_hz"], "notch_hz": ANALYSIS_CONTRACT["notch_hz"], "notch_quality_factor": ANALYSIS_CONTRACT["notch_quality_factor"]},
             "welch": {"segment_s": ANALYSIS_CONTRACT["welch_segment_s"], "overlap": ANALYSIS_CONTRACT["welch_segment_overlap"], "window": ANALYSIS_CONTRACT["welch_window"]},
             "quality": "per_channel_annotation",
             "artifact_policy": "retain_finite_segments_with_warnings",

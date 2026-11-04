@@ -8,9 +8,9 @@ MANIFEST = AlgorithmManifest(
     display_name_zh="Theta/Beta 比值",
     abbreviation="Theta/Beta",
     purpose_zh="根据同一选定通道的个体 Alpha 峰，计算 Theta 功率与 Beta 功率的比值。",
-    scientific_version="official-theta-beta-v2",
+    scientific_version="official-theta-beta-v3",
     is_current_version=True,
-    implementation_identity="theta-beta-runtime-v1",
+    implementation_identity="theta-beta-runtime-v2",
     supported_modes=["static", "dynamic"],
     signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="single", preprocessing_scope="module_defined"),
     dynamic_capabilities=official_dynamic_capabilities(

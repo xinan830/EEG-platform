@@ -13,6 +13,25 @@ Lock the existing `offline-spectral-v3` PSD, band-power, relative-power, time-ra
 - **WHEN** a valid recording range and channel list are submitted
 - **THEN** those fixed scientific parameters are echoed in the response and viewer filter settings do not alter them
 
+### Requirement: Apply the current versioned spectral preprocessing contract
+
+`offline-spectral-v4` SHALL process algorithm input independently from waveform display filters, use the original recording reference without software rereference, and provide a 1–50 Hz analysis bandpass baseline with zero-phase filtering on float64 values in volts. Algorithms MAY declare a scientifically required bandpass and SHALL record the effective range. V4 SHALL default to a 50 Hz notch with Q=30; an explicit user setting MAY disable it. The effective notch, bandpass, phase, and contract version SHALL be included in result provenance and cache/run identity. `offline-spectral-v3` SHALL remain frozen as a historical contract and SHALL NOT be reinterpreted or reused as v4.
+
+#### Scenario: Run with default analysis preprocessing
+- **WHEN** a spectral algorithm runs without overriding preprocessing defaults
+- **THEN** execution uses the v4 contract's 1–50 Hz baseline and 50 Hz notch at Q=30
+- **AND** result provenance records effective settings and the v4 contract version.
+
+#### Scenario: Disable the analysis notch
+- **WHEN** a user explicitly selects notch off for a compatible algorithm
+- **THEN** preprocessing skips the notch while retaining the declared bandpass
+- **AND** run identity and provenance distinguish it from a notched run.
+
+#### Scenario: Request coverage beyond Nyquist
+- **WHEN** the effective analysis high cutoff or requested spectral output reaches or exceeds Nyquist
+- **THEN** the backend returns a structured unavailable or validation result
+- **AND** it does not silently truncate or relabel the range as 1–50 Hz.
+
 ### Requirement: Compute Welch PSD with explicit segmentation
 
 Static and dynamic PSD SHALL use 4-second Hann segments with 2-second overlap/step and constant detrending. Static analysis defaults to a selected 30-second range; dynamic analysis uses the latest 10 seconds and refreshes at a 1-second product step.
@@ -47,7 +66,7 @@ PSD SHALL average only clean Welch segments. A result SHALL fail its quality gat
 
 ### Requirement: Return ordered, unit-bearing output
 
-The spectral API SHALL return requested channels in request order, PSD in `uV^2/Hz`, band power in `uV^2`, relative power as ratio, frequency points from 1 through 30 Hz, the algorithm version, and requested/actual time range.
+The spectral API SHALL return requested channels in request order, PSD in `uV^2/Hz`, band power in `uV^2`, relative power as ratio, the algorithm-requested frequency points supported by the effective analysis range, the algorithm version, and requested/actual time range. The shared spectral capability SHALL support 1–50 Hz coverage without requiring every algorithm to emit that entire range.
 
 #### Scenario: Request ordered channels
 
@@ -84,8 +103,11 @@ Scientific output rejected by a quality gate SHALL serialize as null/non-value w
 
 ### Requirement: Separate spectral preprocessing and output frequency ranges
 The spectral loading boundary MUST accept independent filter and output
-frequency ranges. The preprocessing cache identity MUST include the filter
-range and notch setting, while output clipping MUST use only the output range.
+frequency ranges. The preprocessing cache identity MUST include the effective
+filter range, notch setting, and contract version, while output clipping MUST
+use only the independently requested output range. Provenance SHALL report
+both ranges and the effective notch; algorithm window and Welch policy remain
+independently declared.
 
 #### Scenario: Dynamic PSD uses configured filtering with a fixed trend axis
 - **GIVEN** a dynamic PSD config with high-pass 0.5 Hz, low-pass 40 Hz, and

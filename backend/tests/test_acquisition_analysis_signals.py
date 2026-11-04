@@ -224,10 +224,15 @@ def test_official_algorithms_use_registered_montage_signals(tmp_path, algorithm_
     service = RecordingService(tmp_path / "stored", tmp_path / "db.sqlite3")
     recording = service.register_wpf_recording(str(root), signal_mode="acquisition_montage")
     runs = RunService(service, service.database_path, tmp_path / "artifacts")
-    run = runs.create(RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config={
-        "algorithm_id": algorithm_id, "channel": "F3-REF", "mode": mode,
+    config = {
+        "algorithm_id": algorithm_id, "mode": mode,
         "time": {"start_s": 0, "end_s": 12}, "dynamic_window_s": 5, "refresh_step_s": 1,
-    }))
+    }
+    if algorithm_id == "psd":
+        config["channels"] = ["F3-REF"]
+    else:
+        config["channel"] = "F3-REF"
+    run = runs.create(RunCreateRequest(recording_id=recording.id, analysis_type="official_algorithm", config=config))
     assert run.status in {"completed", "gate_failed"}, run.error
     assert run.channel_mapping["channels"] == ["F3-REF"]
     assert run.reference["mode"] == "acquisition_montage_snapshot"

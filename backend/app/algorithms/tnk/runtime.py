@@ -24,6 +24,7 @@ from app.algorithm_runtime.contracts import (
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.errors import UnsupportedAlgorithmModeError
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 from .contracts import TnkConfig, TnkSpectralWindow
 
@@ -85,7 +86,8 @@ class TnkRuntimeAdapter:
     def execution_snapshot(self, config: TnkRuntimeConfig) -> AlgorithmExecutionSnapshot:
         return AlgorithmExecutionSnapshot(
             window={"start_s": config.start_s, "end_s": config.end_s},
-            filters={"source": "recording.load_spectrum"},
+            filters={"source": "recording.load_spectrum", "bandpass_hz": ANALYSIS_CONTRACT["bandpass_hz"],
+                     "notch_hz": config.notch_hz, "notch_quality_factor": ANALYSIS_CONTRACT["notch_quality_factor"] if config.notch_hz is not None else None},
             quality_rules={"tnk_module": self.manifest.algorithm_id},
         )
 
@@ -107,7 +109,9 @@ class TnkRuntimeAdapter:
         channels = self.requested_channels(config)
         return inputs.payload.load_spectrum(
             start_s=start_s, window_s=end_s - start_s, channels=channels,
-            filter_low_hz=1.0, filter_high_hz=30.0, output_low_hz=1.0, output_high_hz=30.0,
+            filter_low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0],
+            filter_high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1], output_low_hz=1.0, output_high_hz=30.0,
+            notch_hz=config.notch_hz,
             preprocessing_scope=("tnk_window_scoped_v1" if bounded else "configured_continuous_before_slice"),
         )
 

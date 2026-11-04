@@ -202,14 +202,11 @@ class TestFaaBoundaries:
 
 
 class TestBrainbeatBoundaries:
-    def test_alpha_band_near_nyquist_edge_freezes_current_behaviour(self):
+    def test_alpha_band_near_nyquist_requires_denominator_coverage(self):
         freqs = np.array([1.0, 2.0, 3.0])
         psd = np.full(len(freqs), 1e-12)
-        # IAPF near 30 Hz makes the alpha band [28, 32] mostly uncovered;
-        # the legacy contract still returns a finite ratio, so this test
-        # freezes current behaviour explicitly.
-        value = segment_brainbeat(freqs, psd, psd, 30.0)
-        assert np.isfinite(value)
+        with pytest.raises(ValueError):
+            segment_brainbeat(freqs, psd, psd, 30.0)
 
     def test_zero_total_power_does_not_explode(self):
         freqs = np.linspace(1.0, 30.0, 117)
@@ -300,7 +297,7 @@ class TestSpectralPrimitiveBoundaries:
         result = estimate_welch_psd(data, sfreq)
         assert result.gate_failed is None
         assert result.psd.shape == (1, result.freqs.size)
-        assert result.freqs[0] >= 1.0 and result.freqs[-1] <= 30.0
+        assert result.freqs[0] >= 1.0 and result.freqs[-1] <= 50.0
         assert result.evidence["welch"]["scaling"] == "density"
 
     def test_welch_rejects_gap_without_imputation(self):
@@ -347,15 +344,15 @@ class TestPsdAndStftAdapters:
                     "power_db": {"Fz": matrix * 20.0},
                     "quality": {"bad_windows": 0, "total_windows": 3,
                                 "windows": [{"status": "clean"}] * 3},
-                    "spectrogram_contract_version": "spectrogram-v3-bounded",
+                    "spectrogram_contract_version": "spectrogram-v4-bounded-notch",
                     "segment_s": 4.0, "step_s": 1.0, "window_start_s": 10.0,
                     "window_duration_s": 6.0,
                     "preprocessing": {
                         "algorithm_version": "spectral-window-v1",
                         "scope": "bounded_window_with_finite_context",
-                        "context_s": 2.0, "context_samples": 200,
+                        "context_s": 3.0, "context_samples": 300,
                         "target_range_samples": {"start": 1000, "end": 1600},
-                        "read_range_samples": {"start": 800, "end": 1800},
+                        "read_range_samples": {"start": 700, "end": 1900},
                         "boundary_policy": "clamp_to_recording", "filter_phase": "zero_phase",
                         "unit": "V", "channel_order": ["Fz"], "gap_policy": "reject",
                     },

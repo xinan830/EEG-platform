@@ -3,7 +3,7 @@
 import math
 
 
-SPECTROGRAM_VERSION = "spectrogram-v3-bounded"
+SPECTROGRAM_VERSION = "spectrogram-v4-bounded-notch"
 STFT_PREPROCESSING_VERSION = "spectral-window-v1"
 STFT_PREPROCESSING_SCOPE = "bounded_window_with_finite_context"
 

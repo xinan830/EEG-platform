@@ -34,9 +34,11 @@ class SyntheticRecording:
 
     def __init__(self):
         self.spectrum_calls = []
+        self.spectrum_requests = []
 
     def load_spectrum(self, *, start_s, window_s, channels, **_):
         self.spectrum_calls.append((start_s, window_s, tuple(channels)))
+        self.spectrum_requests.append(dict(_))
         frequencies = np.arange(0.0, 32.0, 0.25)
         spectra = []
         for index, _channel in enumerate(channels):

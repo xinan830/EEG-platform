@@ -7,9 +7,9 @@ MANIFEST = AlgorithmManifest(
     display_name_zh="频段功率比",
     abbreviation="Band Ratio",
     purpose_zh="计算用户指定的两个频段功率之比。",
-    scientific_version="official-band-ratio-v1",
+    scientific_version="official-band-ratio-v2",
     is_current_version=True,
-    implementation_identity="band-ratio-runtime-v2-frequency-contract",
+    implementation_identity="band-ratio-runtime-v3-shared-1-50-notch",
     supported_modes=["static", "dynamic"],
     signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="single", preprocessing_scope="module_defined"),
     dynamic_capabilities=official_dynamic_capabilities(

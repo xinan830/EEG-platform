@@ -9,6 +9,7 @@ from app.algorithm_runtime.contracts import (
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.scientific.quality import SpectralQualityGateError
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
 from .compute import compute_brainbeat
@@ -39,7 +40,8 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
         return [config.channel, config.pz_channel]
 
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
-        snapshot = spectral_execution_snapshot(config)
+        low_hz, high_hz = ANALYSIS_CONTRACT["bandpass_hz"]
+        snapshot = spectral_execution_snapshot(config, low_hz=low_hz, high_hz=high_hz, notch_hz=config.notch_hz)
         snapshot.window.update({"brainbeat_windows_are_independent": True, "cross_window_ema": False})
         snapshot.quality_rules.update({"required_channels": ["Fz", "Pz"], "iapf_required": True})
         return snapshot
@@ -64,6 +66,7 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
         spectrum = load_brainbeat_spectrum(
             inputs, fz_channel=inputs.channel, pz_channel=config.pz_channel,
             start_s=config.start_s, end_s=config.end_s,
+            notch_hz=config.notch_hz,
         )
         return compute_brainbeat(spectrum, fz_channel=inputs.channel, pz_channel=config.pz_channel,
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
@@ -82,6 +85,7 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
                 spectrum = load_brainbeat_spectrum(
                     inputs, fz_channel=inputs.channel, pz_channel=config.pz_channel,
                     start_s=frame.window_start_s, end_s=frame.window_end_s,
+                    notch_hz=config.notch_hz,
                 )
                 results.append(compute_brainbeat(spectrum, fz_channel=inputs.channel, pz_channel=config.pz_channel,
                     requested_range=requested_range, actual_range=requested_range))

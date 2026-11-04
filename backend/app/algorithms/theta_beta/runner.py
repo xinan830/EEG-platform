@@ -25,7 +25,7 @@ class ThetaBetaAlgorithm(ScalarDynamicWindowCapability):
                        start_s: float, end_s: float) -> AlgorithmResult:
         return compute_theta_beta(
             self._load(inputs.payload, channel=inputs.channel, start_s=start_s,
-                       window_s=end_s - start_s),
+                       window_s=end_s - start_s, notch_hz=config.notch_hz),
             channel=inputs.channel,
             requested_range={"start_s": start_s, "end_s": end_s},
             actual_range={"start_s": start_s, "end_s": end_s},
@@ -61,14 +61,14 @@ class ThetaBetaAlgorithm(ScalarDynamicWindowCapability):
         )
 
     @staticmethod
-    def _load(recording: Any, *, channel: str, start_s: float, window_s: float) -> Any:
+    def _load(recording: Any, *, channel: str, start_s: float, window_s: float, notch_hz: float | None) -> Any:
         loader: Callable[..., Any] = getattr(recording, "load_spectrum")
-        return loader(start_s=start_s, window_s=window_s, channels=[channel])
+        return loader(start_s=start_s, window_s=window_s, channels=[channel], notch_hz=notch_hz)
 
     def execute_static(self, inputs: AlgorithmInputs, config: ThetaBetaConfig) -> AlgorithmResult:
         duration = config.end_s - config.start_s
         return compute_theta_beta(
-            self._load(inputs.payload, channel=inputs.channel, start_s=config.start_s, window_s=duration),
+            self._load(inputs.payload, channel=inputs.channel, start_s=config.start_s, window_s=duration, notch_hz=config.notch_hz),
             channel=inputs.channel,
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
             actual_range={"start_s": config.start_s, "end_s": config.end_s},
@@ -84,7 +84,7 @@ class ThetaBetaAlgorithm(ScalarDynamicWindowCapability):
             try:
                 spectrum = self._load(
                     inputs.payload, channel=inputs.channel,
-                    start_s=frame.window_start_s, window_s=frame.actual_window_s,
+                    start_s=frame.window_start_s, window_s=frame.actual_window_s, notch_hz=config.notch_hz,
                 )
                 results.append(compute_theta_beta(
                     spectrum, channel=inputs.channel,

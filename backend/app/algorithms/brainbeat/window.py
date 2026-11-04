@@ -74,6 +74,7 @@ class BrainbeatWindowCapability:
                 pz_channel=config.pz_channel,
                 start_s=plan.start_s,
                 end_s=plan.end_s,
+                notch_hz=config.notch_hz,
             )
             if check_cancelled is not None:
                 check_cancelled()

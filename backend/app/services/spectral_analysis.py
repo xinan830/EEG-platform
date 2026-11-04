@@ -34,14 +34,8 @@ FREQUENCY_BANDS = {
     "beta": (13.0, 30.0),
 }
 logger = logging.getLogger(__name__)
-POWERLINE_NOTCH_HZ = 50.0
-POWERLINE_NOTCH_Q = 30.0
-_AUTO_NOTCH = object()
-
-
-def _notch_for_requested_range(high_hz: float) -> float | None:
-    """Use the mains notch only for ranges that expose the power-line band."""
-    return POWERLINE_NOTCH_HZ if high_hz >= 45.0 else None
+POWERLINE_NOTCH_HZ = float(ANALYSIS_CONTRACT["notch_hz"])
+POWERLINE_NOTCH_Q = float(ANALYSIS_CONTRACT["notch_quality_factor"])
 
 
 def _spectral_cache_identity(low_hz: float, high_hz: float, notch_hz: float | None = None) -> str:
@@ -170,8 +164,8 @@ class SpectralAnalysisService:
         channels: list[str] | None = None,
         *,
         low_hz: float = 1.0,
-        high_hz: float = 30.0,
-        notch_hz: float | None | object = _AUTO_NOTCH,
+        high_hz: float = 50.0,
+        notch_hz: float | None = POWERLINE_NOTCH_HZ,
         filter_low_hz: float | None = None,
         filter_high_hz: float | None = None,
         output_low_hz: float | None = None,
@@ -181,7 +175,7 @@ class SpectralAnalysisService:
         quality_policy: str = "strict",
         _preprocessed: PreprocessedRecording | None = None,
     ) -> dict[str, object]:
-        """Return frozen v3 PSD, absolute band power, and relative power."""
+        """Return the current PSD, absolute band power, and relative power contract."""
         if quality_policy not in {"strict", "per_channel_annotation"}:
             raise ValueError("Unsupported spectrum quality policy")
         filter_low_hz = float(low_hz if filter_low_hz is None else filter_low_hz)
@@ -196,10 +190,15 @@ class SpectralAnalysisService:
         requested_end = requested_start + float(window_s)
         # Filtering is part of the scientific contract. Never reuse a 1-30 Hz
         # preprocessed signal for a requested 0.5-50 Hz PSD (or vice versa).
-        if notch_hz is _AUTO_NOTCH:
-            notch_hz = _notch_for_requested_range(filter_high_hz)
-        elif notch_hz is not None and float(notch_hz) not in (50.0, 60.0):
+        if notch_hz is not None and float(notch_hz) not in (50.0, 60.0):
             raise ValueError("陷波仅支持关闭、50Hz 或 60Hz")
+        metadata_sfreq = getattr(recording, "sfreq", None)
+        if metadata_sfreq is not None:
+            nyquist_hz = float(metadata_sfreq) / 2.0
+            if filter_high_hz >= nyquist_hz or output_high_hz >= nyquist_hz:
+                raise ValueError(f"PSD 最高频率必须低于奈奎斯特频率（{nyquist_hz:g}Hz）")
+            if notch_hz is not None and float(notch_hz) >= nyquist_hz:
+                raise ValueError(f"陷波频率必须低于奈奎斯特频率（{nyquist_hz:g}Hz）")
         bounded = preprocessing_scope == "tnk_window_scoped_v1"
         bounded_evidence: dict[str, object] | None = None
         bounded_start_sample: int | None = None
@@ -231,9 +230,11 @@ class SpectralAnalysisService:
         if not requested_names:
             raise ValueError("频谱分析至少需要一个通道")
         indexes = [names.index(item) for item in requested_names]
-        duration_s = float(recording.duration_s) if bounded else len(filtered_all) / sfreq
         if filter_high_hz >= sfreq / 2.0 or output_high_hz >= sfreq / 2.0:
             raise ValueError(f"PSD 最高频率必须低于奈奎斯特频率（{sfreq / 2:g}Hz）")
+        if notch_hz is not None and float(notch_hz) >= sfreq / 2.0:
+            raise ValueError(f"陷波频率必须低于奈奎斯特频率（{sfreq / 2:g}Hz）")
+        duration_s = float(recording.duration_s) if bounded else len(filtered_all) / sfreq
         validate_recording_analysis_input(
             duration_s,
             sfreq,
@@ -344,7 +345,7 @@ class SpectralAnalysisService:
         self, recording: RecordingSummary, start_s: float = 0.0,
         window_s: float = 30.0, channels: list[str] | None = None, *,
         low_hz: float = 1.0, high_hz: float = 50.0,
-        notch_hz: float | None = None, output_low_hz: float | None = None,
+        notch_hz: float | None = POWERLINE_NOTCH_HZ, output_low_hz: float | None = None,
         output_high_hz: float | None = None, execution_context: Any = None,
     ) -> dict[str, object]:
         """Execute current STFT without entering whole-record preprocessing."""
@@ -387,7 +388,7 @@ class SpectralAnalysisService:
         config_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper()
         payload.update({
             "algorithm_version": "offline-spectral-v4-configurable",
-            "baseline_algorithm_version": "offline-spectral-v3",
+            "baseline_algorithm_version": ANALYSIS_CONTRACT["algorithm_version"],
             "requested_config": requested,
             "execution_config": execution,
             "requested_start_s": config.time.start_s,
@@ -408,7 +409,7 @@ class SpectralAnalysisService:
         config: AnalysisConfigRequest,
         spectrogram_loader: Callable[..., dict[str, object]] | None = None,
     ) -> dict[str, object]:
-        """Add the configurable spectrogram-v3-bounded traceability envelope."""
+        """Add the current bounded spectrogram traceability envelope."""
         if config.mode != "spectrogram":
             raise ValueError("时频图配置的 mode 必须为 spectrogram")
         requested = config.model_dump(mode="json")
@@ -461,10 +462,10 @@ class SpectralAnalysisService:
         frequency_bins = len(payload["frequencies_hz"])
         config_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:12].upper()
         payload.update({
-            "algorithm_version": "spectrogram-v3-bounded-configurable",
+            "algorithm_version": "spectrogram-v4-bounded-notch-configurable",
             "analysis_algorithm_version": STFT_PREPROCESSING_VERSION,
-            "spectrogram_contract_version": "spectrogram-v3-bounded",
-            "baseline_algorithm_version": "spectrogram-v3-bounded",
+            "spectrogram_contract_version": "spectrogram-v4-bounded-notch",
+            "baseline_algorithm_version": "spectrogram-v4-bounded-notch",
             "requested_config": requested,
             "execution_config": execution,
             "requested_start_s": config.time.start_s,

@@ -65,13 +65,13 @@ class PeakFrequencyAlgorithm(ScalarDynamicWindowCapability):
                                sfreq_hz=float(recording.sfreq_hz), duration_s=float(recording.duration_s), payload=recording)
 
     @staticmethod
-    def _load(recording: Any, *, channel: str, start_s: float, window_s: float) -> Any:
+    def _load(recording: Any, *, channel: str, start_s: float, window_s: float, notch_hz: float | None) -> Any:
         loader: Callable[..., Any] = getattr(recording, "load_spectrum")
-        return loader(start_s=start_s, window_s=window_s, channels=[channel])
+        return loader(start_s=start_s, window_s=window_s, channels=[channel], notch_hz=notch_hz)
 
     def execute_static(self, inputs: AlgorithmInputs, config: PeakFrequencyConfig) -> AlgorithmResult:
         duration = config.end_s - config.start_s
-        return compute_peak_frequency(self._load(inputs.payload, channel=inputs.channel, start_s=config.start_s, window_s=duration), channel=inputs.channel,
+        return compute_peak_frequency(self._load(inputs.payload, channel=inputs.channel, start_s=config.start_s, window_s=duration, notch_hz=config.notch_hz), channel=inputs.channel,
                                       low_hz=config.low_hz, high_hz=config.high_hz,
                                       requested_range={"start_s": config.start_s, "end_s": config.end_s}, actual_range={"start_s": config.start_s, "end_s": config.end_s})
 
@@ -84,7 +84,7 @@ class PeakFrequencyAlgorithm(ScalarDynamicWindowCapability):
             requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
             try:
                 results.append(compute_peak_frequency(
-                    self._load(inputs.payload, channel=inputs.channel, start_s=frame.window_start_s, window_s=frame.actual_window_s),
+                    self._load(inputs.payload, channel=inputs.channel, start_s=frame.window_start_s, window_s=frame.actual_window_s, notch_hz=config.notch_hz),
                     channel=inputs.channel, low_hz=config.low_hz, high_hz=config.high_hz,
                     requested_range=requested_range, actual_range=requested_range,
                 ))

@@ -10,7 +10,7 @@ class PsdConfig(AlgorithmConfigBase):
     channels: list[str] = Field(min_length=1)
     mode: AlgorithmMode = "static"
     low_hz: float = Field(default=1.0, gt=0.0)
-    high_hz: float = Field(default=30.0, gt=0.0)
+    high_hz: float = Field(default=50.0, gt=0.0)
     notch_hz: float | None = Field(default=50.0)
 
     @model_validator(mode="after")

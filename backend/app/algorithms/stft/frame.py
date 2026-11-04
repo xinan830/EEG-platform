@@ -8,6 +8,7 @@ import numpy as np
 
 from app.algorithm_runtime.contracts import AlgorithmFailure, AlgorithmInputs
 from app.scientific.quality import SpectralQualityGateError
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.scientific.contracts.spectrogram import (
     SPECTROGRAM_VERSION, STFT_PREPROCESSING_SCOPE, STFT_PREPROCESSING_VERSION, stft_context_s,
 )
@@ -83,7 +84,7 @@ def execute_stft_frame(
     try:
         payload = inputs.payload.load_spectrogram(
             start_s=start_s, window_s=end_s - start_s, channels=[inputs.channel],
-            low_hz=config.low_hz, high_hz=config.high_hz, notch_hz=config.notch_hz,
+            low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0], high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1], notch_hz=config.notch_hz,
             output_low_hz=config.low_hz, output_high_hz=config.high_hz,
         )
     except SpectralQualityGateError as exc:
@@ -110,7 +111,7 @@ def execute_stft_frame(
 
 def _validate_preprocessing(evidence: dict[str, Any], inputs: AlgorithmInputs,
                             config: StftConfig, start_s: float, duration_s: float) -> None:
-    context_s = stft_context_s(config.low_hz)
+    context_s = stft_context_s(float(ANALYSIS_CONTRACT["bandpass_hz"][0]))
     context_samples = int(np.ceil(context_s * inputs.sfreq_hz))
     start = int(round(start_s * inputs.sfreq_hz))
     end = start + int(round(duration_s * inputs.sfreq_hz))

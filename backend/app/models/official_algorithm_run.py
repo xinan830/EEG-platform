@@ -29,8 +29,8 @@ class OfficialAlgorithmRunConfig(BaseModel):
     dynamic_window_s: float = Field(default=10, gt=0)
     refresh_step_s: float = Field(default=1, gt=0)
     low_hz: float | None = Field(default=1.0, ge=0)
-    high_hz: float | None = Field(default=30.0, ge=0)
-    notch_hz: float | None = Field(default=None)
+    high_hz: float | None = Field(default=50.0, ge=0)
+    notch_hz: float | None = Field(default=50.0)
     numerator_low_hz: float | None = Field(default=None, ge=0)
     numerator_high_hz: float | None = Field(default=None, ge=0)
     denominator_low_hz: float | None = Field(default=None, ge=0)
@@ -91,10 +91,10 @@ class OfficialAlgorithmRunConfig(BaseModel):
                 raise ValueError(f"{self.algorithm_id} frequency range must satisfy high_hz > low_hz")
             if self.algorithm_id in {"psd", "stft", "faa"} and self.low_hz <= 0.0:
                 raise ValueError(f"{self.algorithm_id} high-pass frequency must be greater than zero")
-        if self.algorithm_id in {"psd", "stft", "faa"} and self.notch_hz == 0:
+        if self.notch_hz == 0:
             self.notch_hz = None
-        if self.algorithm_id in {"psd", "stft", "faa"} and self.notch_hz is not None and self.notch_hz not in (50.0, 60.0):
-            raise ValueError(f"{self.algorithm_id} notch_hz must be null, 50, or 60")
+        if self.notch_hz is not None and self.notch_hz not in (50.0, 60.0):
+            raise ValueError("notch_hz must be null, 50, or 60")
         if self.algorithm_id == "band_ratio":
             bands = (
                 self.numerator_low_hz, self.numerator_high_hz,
@@ -131,7 +131,7 @@ class OfficialAlgorithmRunConfig(BaseModel):
             config["secondary_channel"] = str(self.secondary_channel)
         if self.algorithm_id in {"peak_frequency", "psd", "stft", "faa"}:
             config.update({"low_hz": float(self.low_hz), "high_hz": float(self.high_hz)})
-        if self.algorithm_id in {"psd", "stft", "faa"}:
+        if self.algorithm_id != "tnk_biofeedback":
             config["notch_hz"] = None if self.notch_hz is None else float(self.notch_hz)
         if self.algorithm_id == "band_ratio":
             config.update({

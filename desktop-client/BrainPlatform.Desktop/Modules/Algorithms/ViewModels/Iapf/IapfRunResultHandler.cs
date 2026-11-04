@@ -7,6 +7,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Iapf;
 internal sealed class IapfRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "iapf";
+    public bool SupportsNotch => true;
     public bool SupportsOnDemandWindows =>
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
     public FullRunMetricWindowSpec FullRunMetricWindowSpec => new("iapf_hz");

@@ -172,7 +172,7 @@ def get_spectrum(
     window_s: float = Query(30.0, ge=4.0),
     channels: Optional[str] = Query(None),
 ) -> dict:
-    """Return the frozen offline-spectral-v3 PSD and band-power contract."""
+    """Return the current offline spectral PSD and band-power contract."""
     try:
         recording = _service(request).require_recording(recording_id)
         requested = [item.strip() for item in channels.split(",") if item.strip()] if channels else None

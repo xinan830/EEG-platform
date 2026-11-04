@@ -7,9 +7,9 @@ MANIFEST = AlgorithmManifest(
     display_name_zh="频段峰频率",
     abbreviation="Peak Frequency",
     purpose_zh="在用户指定频段内，从 PSD 频率网格选择峰值频率。",
-    scientific_version="official-peak-frequency-v1",
+    scientific_version="official-peak-frequency-v2",
     is_current_version=True,
-    implementation_identity="peak-frequency-runtime-v2-frequency-contract",
+    implementation_identity="peak-frequency-runtime-v3-shared-1-50-notch",
     supported_modes=["static", "dynamic"],
     signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="single", preprocessing_scope="module_defined"),
     dynamic_capabilities=official_dynamic_capabilities(

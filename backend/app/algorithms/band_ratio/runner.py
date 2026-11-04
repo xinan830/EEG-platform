@@ -59,12 +59,12 @@ class BandRatioAlgorithm(ScalarDynamicWindowCapability):
         return AlgorithmInputs(recording_id=str(getattr(recording, "id", "unknown")), channel=selected, sfreq_hz=float(recording.sfreq_hz), duration_s=float(recording.duration_s), payload=recording)
 
     @staticmethod
-    def _load(recording: Any, *, channel: str, start_s: float, window_s: float) -> Any:
+    def _load(recording: Any, *, channel: str, start_s: float, window_s: float, notch_hz: float | None) -> Any:
         loader: Callable[..., Any] = getattr(recording, "load_spectrum")
-        return loader(start_s=start_s, window_s=window_s, channels=[channel])
+        return loader(start_s=start_s, window_s=window_s, channels=[channel], notch_hz=notch_hz)
 
     def _calculate(self, inputs: AlgorithmInputs, config: BandRatioConfig, start_s: float, end_s: float) -> AlgorithmResult:
-        return compute_band_ratio(self._load(inputs.payload, channel=inputs.channel, start_s=start_s, window_s=end_s - start_s), channel=inputs.channel,
+        return compute_band_ratio(self._load(inputs.payload, channel=inputs.channel, start_s=start_s, window_s=end_s - start_s, notch_hz=config.notch_hz), channel=inputs.channel,
                                   numerator_low_hz=config.numerator_low_hz, numerator_high_hz=config.numerator_high_hz,
                                   denominator_low_hz=config.denominator_low_hz, denominator_high_hz=config.denominator_high_hz,
                                   requested_range={"start_s": start_s, "end_s": end_s}, actual_range={"start_s": start_s, "end_s": end_s})

@@ -17,6 +17,7 @@ from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.scientific.contracts.types import SampleRange
 from app.scientific.contracts.spectrogram import stft_context_s
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 from .config import StftConfig
 from .frame import execute_stft_frame, frequency_axis, relative_time_axis
@@ -74,15 +75,15 @@ class StftAlgorithm(StftWindowCapability):
         return [config.channel]
 
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
-        snapshot = spectral_execution_snapshot(config, low_hz=config.low_hz,
-                                               high_hz=config.high_hz, notch_hz=config.notch_hz)
+        snapshot = spectral_execution_snapshot(config, low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0],
+                                               high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1], notch_hz=config.notch_hz)
         snapshot.window.update({"segment_s": 4.0, "step_s": 1.0, "time_axis": "window_center"})
         snapshot.filters.update({
             "preprocessing_scope": "bounded_window_with_finite_context",
-            "context_s": stft_context_s(config.low_hz),
+            "context_s": stft_context_s(float(ANALYSIS_CONTRACT["bandpass_hz"][0])),
             "boundary_policy": "clamp_to_recording",
         })
-        snapshot.quality_rules["spectrogram_contract_version"] = "spectrogram-v3-bounded"
+        snapshot.quality_rules["spectrogram_contract_version"] = MANIFEST.scientific_version
         snapshot.quality_rules["frequency_range_hz"] = [float(config.low_hz), float(config.high_hz)]
         snapshot.quality_rules["notch_hz"] = config.notch_hz
         return snapshot
@@ -176,7 +177,7 @@ class StftAlgorithm(StftWindowCapability):
             actual_range={"start_s": windows[0].start_s, "end_s": windows[-1].end_s},
             quality="clean" if all(window.state == "Complete" for window in windows) else "partial",
             evidence={"source_quality": {}, "spectral_evidence": {}, "calculation_trace": {
-                "spectrogram_contract_version": "spectrogram-v3-bounded", "window_s": window_s,
+                "spectrogram_contract_version": MANIFEST.scientific_version, "window_s": window_s,
                 "step_s": step_s, "inner_time_padding": "nan_unavailable",
             }},
         )

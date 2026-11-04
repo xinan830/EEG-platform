@@ -9,7 +9,7 @@ from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.algorithms.psd.runner import PsdAlgorithm
 
 
-def test_dynamic_psd_keeps_configured_filter_and_fixed_trend_axis() -> None:
+def test_dynamic_psd_uses_shared_analysis_filter_and_fixed_trend_axis() -> None:
     algorithm = PsdAlgorithm()
     calls: list[dict[str, object]] = []
     frequencies = algorithm._frequency_axis(200.0, 1.0, 50.0)
@@ -50,8 +50,8 @@ def test_dynamic_psd_keeps_configured_filter_and_fixed_trend_axis() -> None:
     assert result.axes["frequency_hz"][0] == 1.0
     assert result.axes["frequency_hz"][-1] == 50.0
     assert calls
-    assert all(call["filter_low_hz"] == 0.5 for call in calls)
-    assert all(call["filter_high_hz"] == 40.0 for call in calls)
+    assert all(call["filter_low_hz"] == 1.0 for call in calls)
+    assert all(call["filter_high_hz"] == 50.0 for call in calls)
     assert all(call["output_low_hz"] == 1.0 for call in calls)
     assert all(call["output_high_hz"] == 50.0 for call in calls)
     assert all(call["notch_hz"] == 60.0 for call in calls)
@@ -59,7 +59,7 @@ def test_dynamic_psd_keeps_configured_filter_and_fixed_trend_axis() -> None:
     assert result.arrays["psd"].shape[1:] == (2, len(frequencies))
     np.testing.assert_array_equal(result.arrays["psd"][-1, :, 0], [1.0, 2.0])
     trace = result.windows[-1].evidence["calculation_trace"]
-    assert trace["filter_frequency_range_hz"] == {"low_hz": 0.5, "high_hz": 40.0}
+    assert trace["filter_frequency_range_hz"] == {"low_hz": 1.0, "high_hz": 50.0}
     assert trace["output_frequency_range_hz"] == {"low_hz": 1.0, "high_hz": 50.0}
 
 

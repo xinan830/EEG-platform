@@ -24,6 +24,7 @@ from app.algorithm_runtime.errors import UnsupportedAlgorithmModeError
 from app.algorithm_runtime.group_execution import AlgorithmGroupExecutor
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterSchema
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 from .group_graph import TNK_ROLE_ORDER, build_tnk_group_graph
 from .group_results import (
@@ -82,8 +83,8 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
         self.manifest = AlgorithmManifest(
             algorithm_id="tnk_biofeedback", display_name_zh="TNK 脑指标",
             abbreviation="TNK", purpose_zh="统一来源通道映射的 TNK 脑指标组",
-            scientific_version="tnk-biofeedback-group-v2", is_current_version=True,
-            implementation_identity=f"tnk-biofeedback-group-{self.group_graph.identity}",
+            scientific_version="tnk-biofeedback-group-v3", is_current_version=True,
+            implementation_identity=f"tnk-biofeedback-group-v3-shared-1-50-notch-{self.group_graph.identity}",
             supported_modes=["dynamic"],
             dynamic_policy=DynamicAnalysisPolicy(
                 minimum_window_s=4.0,
@@ -203,7 +204,10 @@ class TnkBiofeedbackGroupAdapter(TnkGroupWindowCapability):
     def execution_snapshot(self, config: TnkGroupConfig) -> AlgorithmExecutionSnapshot:
         return AlgorithmExecutionSnapshot(
             window={"start_s": config.start_s, "end_s": config.end_s},
-            filters={"source": "recording.load_spectrum_or_time_series"},
+            filters={"source": "recording.load_spectrum_or_time_series",
+                     "bandpass_hz": ANALYSIS_CONTRACT["bandpass_hz"],
+                     "notch_hz": config.notch_hz,
+                     "notch_quality_factor": ANALYSIS_CONTRACT["notch_quality_factor"] if config.notch_hz is not None else None},
             quality_rules={"role_mapping": dict(config.role_mapping), "group_id": self.manifest.algorithm_id},
         )
 

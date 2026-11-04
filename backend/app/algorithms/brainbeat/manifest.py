@@ -7,9 +7,9 @@ MANIFEST = AlgorithmManifest(
     display_name_zh="脑节律指标",
     abbreviation="BrainBeat",
     purpose_zh="根据 Fz 相对 Theta 与 Pz 相对 Alpha 的关系计算脑节律指标。",
-    scientific_version="official-brainbeat-v2",
+    scientific_version="official-brainbeat-v4",
     is_current_version=True,
-    implementation_identity="brainbeat-runtime-v2",
+    implementation_identity="brainbeat-runtime-v4-shared-1-50-notch",
     supported_modes=["static", "dynamic"],
     signal_requirements=SignalRequirements(input_roles=["Fz", "Pz"], representation="spectrum", source_shape="paired", preprocessing_scope="configured_continuous_before_slice"),
     dynamic_capabilities=official_dynamic_capabilities(

@@ -1,4 +1,4 @@
-"""Independent SciPy/MNE reference evidence for the frozen spectral contract.
+"""Independent SciPy/MNE reference evidence for the current spectral contract.
 
 This module intentionally does not import production spectral calculation
 helpers.  It may read recording metadata through the application, but filtering,
@@ -23,7 +23,7 @@ from app.services.recordings import RecordingService
 from app.services.validations import ValidationService
 
 
-REFERENCE_IMPLEMENTATION = "independent-scipy-mne-spectral-reference-v1"
+REFERENCE_IMPLEMENTATION = "independent-scipy-mne-spectral-reference-v2"
 PSD_RTOL = 1e-7
 PSD_ATOL_UV2_HZ = 1e-9
 
@@ -108,6 +108,8 @@ class IndependentSpectralReferenceService:
                 "type": ANALYSIS_CONTRACT["bandpass_type"],
                 "order": ANALYSIS_CONTRACT["bandpass_prototype_order"],
                 "bandpass_hz": ANALYSIS_CONTRACT["bandpass_hz"],
+                "notch_hz": ANALYSIS_CONTRACT["notch_hz"],
+                "notch_quality_factor": ANALYSIS_CONTRACT["notch_quality_factor"],
                 "phase": ANALYSIS_CONTRACT["preprocessing_phase"],
                 "form": ANALYSIS_CONTRACT["filter_form"],
             },
@@ -150,7 +152,7 @@ class IndependentSpectralReferenceService:
         return self.validations.create(
             ValidationCreateRequest(
                 kind="independent_scipy_spectral_psd",
-                algorithm_id="offline-spectral-v3",
+                algorithm_id="offline-spectral-v4",
                 algorithm_version=str(ANALYSIS_CONTRACT["algorithm_version"]),
                 dataset_identity=identity,
                 config_sha256=sha256_json(config),
@@ -182,12 +184,19 @@ class IndependentSpectralReferenceService:
         low, high = (float(value) for value in ANALYSIS_CONTRACT["bandpass_hz"])
         if high >= sfreq / 2.0:
             raise ValueError("独立参考分析高切必须低于奈奎斯特频率")
+        notch_b, notch_a = signal.iirnotch(
+            float(ANALYSIS_CONTRACT["notch_hz"]), float(ANALYSIS_CONTRACT["notch_quality_factor"]), fs=sfreq,
+        )
+        try:
+            notched = signal.filtfilt(notch_b, notch_a, values, axis=0)
+        except ValueError as exc:
+            raise ValueError("记录太短，无法完成独立零相位陷波") from exc
         sos = signal.butter(
             int(ANALYSIS_CONTRACT["bandpass_prototype_order"]),
             [low, high], btype="bandpass", fs=sfreq, output="sos",
         )
         try:
-            filtered_all = signal.sosfiltfilt(sos, values, axis=0)
+            filtered_all = signal.sosfiltfilt(sos, notched, axis=0)
         except ValueError as exc:
             raise ValueError("记录太短，无法完成独立零相位滤波") from exc
 
@@ -222,7 +231,7 @@ class IndependentSpectralReferenceService:
                 axis=0,
             )
             individual_psd.append(density.T)
-        frequency_mask = (frequencies >= 1.0) & (frequencies <= 30.0)
+        frequency_mask = (frequencies >= 1.0) & (frequencies <= 50.0)
         averaged = np.maximum(np.mean(np.stack(individual_psd), axis=0)[:, frequency_mask], 1e-20)
         return _ReferencePSD(
             freqs=frequencies[frequency_mask],

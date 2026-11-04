@@ -8,6 +8,7 @@ from app.algorithm_runtime.parameter_schema import AlgorithmParameter, Parameter
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 from app.algorithm_runtime.scalar_window import ScalarDynamicWindowCapability
 from app.scientific.quality import SpectralQualityGateError
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
 from .compute import compute_iapf
@@ -25,7 +26,7 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
                        start_s: float, end_s: float) -> AlgorithmResult:
         return compute_iapf(
             self._load(inputs.payload, channel=inputs.channel, start_s=start_s,
-                       window_s=end_s - start_s),
+                       window_s=end_s - start_s, notch_hz=config.notch_hz),
             channel=inputs.channel,
             requested_range={"start_s": start_s, "end_s": end_s},
             actual_range={"start_s": start_s, "end_s": end_s},
@@ -45,7 +46,8 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
         return [config.channel]
 
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
-        return spectral_execution_snapshot(config)
+        low_hz, high_hz = ANALYSIS_CONTRACT["bandpass_hz"]
+        return spectral_execution_snapshot(config, low_hz=low_hz, high_hz=high_hz, notch_hz=config.notch_hz)
 
     def resolve_inputs(self, recording: Any, config: IapfConfig) -> AlgorithmInputs:
         labels = list(getattr(recording, "channel_names", getattr(recording, "channels", [])))
@@ -61,13 +63,17 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
         )
 
     @staticmethod
-    def _load(recording: Any, *, channel: str, start_s: float, window_s: float) -> Any:
+    def _load(recording: Any, *, channel: str, start_s: float, window_s: float, notch_hz: float | None) -> Any:
         loader: Callable[..., Any] = getattr(recording, "load_spectrum")
-        return loader(start_s=start_s, window_s=window_s, channels=[channel])
+        low_hz, high_hz = ANALYSIS_CONTRACT["bandpass_hz"]
+        return loader(start_s=start_s, window_s=window_s, channels=[channel],
+                      filter_low_hz=low_hz, filter_high_hz=high_hz,
+                      output_low_hz=1.0, output_high_hz=30.0, notch_hz=notch_hz)
 
     def execute_static(self, inputs: AlgorithmInputs, config: IapfConfig) -> AlgorithmResult:
         duration = config.end_s - config.start_s
-        spectrum = self._load(inputs.payload, channel=inputs.channel, start_s=config.start_s, window_s=duration)
+        spectrum = self._load(inputs.payload, channel=inputs.channel, start_s=config.start_s,
+                              window_s=duration, notch_hz=config.notch_hz)
         return compute_iapf(
             spectrum,
             channel=inputs.channel,
@@ -95,6 +101,7 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
                 spectrum = self._load(
                     inputs.payload, channel=inputs.channel,
                     start_s=frame.window_start_s, window_s=frame.actual_window_s,
+                    notch_hz=config.notch_hz,
                 )
                 results.append(compute_iapf(
                     spectrum, channel=inputs.channel,

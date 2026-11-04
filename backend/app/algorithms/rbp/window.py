@@ -41,6 +41,7 @@ class RbpWindowCapability:
             inputs, plan.start_s, plan.end_s, check_cancelled,
             request_id=getattr(execution_context, "request_id", None),
             window_id=getattr(execution_context, "window_id", None),
+            notch_hz=config.notch_hz,
         )
         configured_window_s = config.window_s or self.manifest.dynamic_policy.default_window_s
         return DynamicWindowResult(

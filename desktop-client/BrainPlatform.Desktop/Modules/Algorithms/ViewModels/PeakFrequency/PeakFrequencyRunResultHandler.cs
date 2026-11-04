@@ -7,6 +7,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.PeakFrequency;
 internal sealed class PeakFrequencyRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "peak_frequency";
+    public bool SupportsNotch => true;
     public bool SupportsOnDemandWindows =>
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
     public FullRunMetricWindowSpec FullRunMetricWindowSpec => new("peak_frequency_hz");

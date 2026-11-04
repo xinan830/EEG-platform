@@ -17,7 +17,7 @@ import importlib.metadata as _metadata
 from app.scientific.primitives.spectral import SpectralEstimate
 from app.scientific.primitives.spectral import estimate_spectrogram
 
-NUMPY_VERSION, SCIPY_VERSION = "2.3.4", "1.16.3"
+NUMPY_VERSION, SCIPY_VERSION = "2.5.4", "1.18.1"
 assert _metadata.version("numpy") == NUMPY_VERSION
 assert _metadata.version("scipy") == SCIPY_VERSION
 

@@ -58,7 +58,7 @@ def test_official_narrow_stft_completes_and_preserves_requested_axis(tmp_path: P
     np.testing.assert_array_equal(arrays[axis_key], expected_axis)
     assert arrays["power_linear"].shape[-1] == len(expected_axis)
     assert np.isfinite(arrays["power_linear"]).all()
-    assert queue.base.algorithm_runtime_registry.get("stft").manifest.implementation_identity == "stft-runtime-v6-bounded"
+    assert queue.base.algorithm_runtime_registry.get("stft").manifest.implementation_identity == "stft-runtime-v7-bounded-notch"
 
 
 def _independent_matrix(raw, sfreq, low, high, notch):
@@ -106,7 +106,9 @@ def test_crop_and_band_integrals_match_independent_full_grid(tmp_path, low, high
 def test_unsupported_auxiliary_band_is_null_without_failing_valid_request(tmp_path):
     service, recording_id = _service(tmp_path, sfreq_hz=40)
     recording = service.recordings.require_recording(recording_id)
-    payload = service.recordings.load_spectrogram(recording, 5, 10, ["Fz"], low_hz=8, high_hz=13)
+    payload = service.recordings.load_spectrogram(
+        recording, 5, 10, ["Fz"], low_hz=8, high_hz=13, notch_hz=None,
+    )
     assert payload["frequencies_hz"][0] == 8
     assert payload["frequencies_hz"][-1] == 13
     assert payload["band_power_timeseries"]["Fz"]["beta"] == [None] * 7

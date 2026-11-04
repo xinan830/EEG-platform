@@ -13,6 +13,11 @@
       "max_lines": 450,
       "reason": "当前 446 行，集中验证官方 Run 的执行、持久化和请求身份。本章仅将结果夹具改为当前版本及显式状态；不增加兼容读取。新增的结果 schema、旧格式拒绝和九算法读取/导出证据已放入独立 test_current_algorithm_result_contract.py，保留本文件完整的 Run 生命周期测试。"
     },
+    "backend/tests/test_tnk_group.py": {
+      "decision": "keep",
+      "max_lines": 611,
+      "reason": "当前 611 行，已按超过 600 行高风险线完成评审。全部场景验证同一个 TNK 组合算法的集成契约，共用合成记录、角色映射、动态执行与回放身份；拆分会分散同一套运行夹具，当前没有独立测试所有者。本次只扩展频谱请求记录断言。任何新增测试前必须重新评估拆分。"
+    },
     "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfflineAnalysisSelectionTests.cs": {
       "decision": "keep",
       "max_lines": 490,

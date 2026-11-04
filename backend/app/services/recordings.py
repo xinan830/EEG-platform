@@ -16,7 +16,7 @@ from app.services.recording_identity import (
     backfill_recording_identity,
     canonical_channel_label,
 )
-from app.services.spectral_analysis import SpectralAnalysisService, _AUTO_NOTCH
+from app.services.spectral_analysis import POWERLINE_NOTCH_HZ, SpectralAnalysisService
 from app.services.recording_samples import WpfRecordingFactsCache
 from app.services.recording_access import RecordingAccessService
 from app.services.wpf_recording import inspect_wpf_recording
@@ -296,8 +296,8 @@ class RecordingService:
         channels: list[str] | None = None,
         *,
         low_hz: float = 1.0,
-        high_hz: float = 30.0,
-        notch_hz: float | None | object = _AUTO_NOTCH,
+        high_hz: float = 50.0,
+        notch_hz: float | None = POWERLINE_NOTCH_HZ,
         filter_low_hz: float | None = None,
         filter_high_hz: float | None = None,
         output_low_hz: float | None = None,
@@ -318,12 +318,12 @@ class RecordingService:
         *,
         low_hz: float = 1.0,
         high_hz: float = 50.0,
-        notch_hz: float | None = None,
+        notch_hz: float | None = POWERLINE_NOTCH_HZ,
         output_low_hz: float | None = None,
         output_high_hz: float | None = None,
         execution_context=None,
     ) -> dict:
-        """Compatibility facade for the spectrogram-v3-bounded analysis use case."""
+        """Compatibility facade for the current bounded spectrogram analysis."""
         return self._spectral_analysis.load_spectrogram(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, execution_context=execution_context)
 
     def load_configured_spectrum(self, recording: RecordingSummary, config: AnalysisConfigRequest) -> dict:

@@ -33,8 +33,8 @@ def spectral_execution_snapshot(
             )
         } | {
             "bandpass_hz": [float(low_hz), float(high_hz)],
-            "notch_hz": notch_hz,
-            "notch_quality_factor": 30.0 if notch_hz is not None else None,
+            "notch_hz": getattr(config, "notch_hz", notch_hz),
+            "notch_quality_factor": ANALYSIS_CONTRACT["notch_quality_factor"] if getattr(config, "notch_hz", notch_hz) is not None else None,
         },
         quality_rules={
             "minimum_clean_ratio": ANALYSIS_CONTRACT["minimum_clean_epoch_ratio"],

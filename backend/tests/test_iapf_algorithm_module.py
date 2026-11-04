@@ -20,7 +20,7 @@ def _fake_recording(duration_s: float = 40.0):
         psd=np.ones((1, 117), dtype=float),
     )
 
-    def load_spectrum(*, start_s, window_s, channels):
+    def load_spectrum(*, start_s, window_s, channels, **_):
         return spectrum
 
     return SimpleNamespace(id="r1", channel_names=["Fz", "O2"], sfreq_hz=500.0, duration_s=duration_s, load_spectrum=load_spectrum)
@@ -63,7 +63,7 @@ def test_iapf_dynamic_uses_the_shared_ten_second_sliding_window_after_warmup(mon
     calls: list[tuple[float, float]] = []
     spectrum = SimpleNamespace(gate_failed=None, freqs=np.linspace(1.0, 30.0, 117), psd=np.ones((1, 117), dtype=float))
 
-    def load_spectrum(*, start_s, window_s, channels):
+    def load_spectrum(*, start_s, window_s, channels, **_):
         calls.append((start_s, window_s))
         return spectrum
 
@@ -97,7 +97,7 @@ def test_iapf_dynamic_keeps_a_rejected_window_and_continues(monkeypatch) -> None
     spectrum = SimpleNamespace(gate_failed=None, freqs=np.linspace(1.0, 30.0, 117), psd=np.ones((1, 117), dtype=float))
     calls = 0
 
-    def load_spectrum(*, start_s, window_s, channels):
+    def load_spectrum(*, start_s, window_s, channels, **_):
         nonlocal calls
         calls += 1
         if calls == 1:

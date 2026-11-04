@@ -30,6 +30,7 @@ from app.algorithm_runtime.windows import (
 )
 from app.scientific.contracts.types import SampleRange
 from app.scientific.quality import SpectralQualityGateError
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 from .config import PsdConfig
 from .manifest import MANIFEST
@@ -111,13 +112,13 @@ class PsdAlgorithm:
             spectrum = self._load(
                 inputs.payload, channels=list(inputs.channels), start_s=plan.start_s,
                 window_s=plan.end_s - plan.start_s,
-                filter_low_hz=config.low_hz, filter_high_hz=config.high_hz,
+                filter_low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0], filter_high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1],
                 output_low_hz=1.0, output_high_hz=50.0, notch_hz=config.notch_hz,
             )
             if check_cancelled is not None:
                 check_cancelled()
             frequencies = np.asarray(spectrum.freqs, dtype=float)
-            evidence = self._dynamic_evidence(spectrum, config)
+            evidence = self._dynamic_evidence(spectrum)
             if spectrum.gate_failed:
                 raise SpectralQualityGateError(evidence["source_quality"])
             values, band_share, channel_quality = self._channel_rows(spectrum, inputs.channels, frequencies)
@@ -209,7 +210,7 @@ class PsdAlgorithm:
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="low_hz", label_zh="高通截止频率", value_type="number", unit="Hz", minimum=0, default=1.0, step=0.1),
-            AlgorithmParameter(key="high_hz", label_zh="低通截止频率", value_type="number", unit="Hz", minimum=0, default=30.0, step=0.1),
+            AlgorithmParameter(key="high_hz", label_zh="低通截止频率", value_type="number", unit="Hz", minimum=0, default=50.0, step=0.1),
             AlgorithmParameter(key="notch_hz", label_zh="陷波频率", value_type="enum", required=False, default=50.0, options=[ParameterOption(value=0.0, label_zh="关闭"), ParameterOption(value=50.0, label_zh="50 Hz"), ParameterOption(value=60.0, label_zh="60 Hz")]),
             AlgorithmParameter(key="window_s", label_zh="动态窗口", value_type="number", unit="s", minimum=4, step=1),
             AlgorithmParameter(key="step_s", label_zh="动态步长", value_type="number", unit="s", minimum=1, step=1),
@@ -219,8 +220,10 @@ class PsdAlgorithm:
         return list(config.channels)
 
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
-        return spectral_execution_snapshot(config, low_hz=config.low_hz,
-                                           high_hz=config.high_hz, notch_hz=config.notch_hz)
+        snapshot = spectral_execution_snapshot(config, low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0],
+                                               high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1], notch_hz=config.notch_hz)
+        snapshot.window["output_frequency_range_hz"] = [config.low_hz, config.high_hz]
+        return snapshot
 
     def resolve_inputs(self, recording: Any, config: PsdConfig) -> AlgorithmInputs:
         labels = list(getattr(recording, "channel_names", getattr(recording, "channels", [])))
@@ -236,8 +239,8 @@ class PsdAlgorithm:
             raise ValueError("PSD 分析区间至少需要 4 秒")
         if config.high_hz >= float(recording.sfreq_hz) / 2.0:
             raise ValueError(f"PSD 最高频率必须低于奈奎斯特频率（{float(recording.sfreq_hz) / 2:g}Hz）")
-        if config.mode == "dynamic" and float(recording.sfreq_hz) / 2.0 <= 50.0:
-            raise ValueError("PSD 动态趋势轴固定为 1–50 Hz，记录奈奎斯特频率必须高于 50 Hz")
+        if float(recording.sfreq_hz) / 2.0 <= 50.0:
+            raise ValueError("PSD 共享分析预处理固定为 1–50 Hz，记录奈奎斯特频率必须高于 50 Hz")
         return AlgorithmInputs(
             recording_id=str(getattr(recording, "id", "unknown")), channel=ordered[0], channels=tuple(ordered),
             sfreq_hz=float(recording.sfreq_hz), duration_s=float(recording.duration_s), payload=recording,
@@ -256,7 +259,7 @@ class PsdAlgorithm:
         spectrum = self._load(
             inputs.payload, channels=list(inputs.channels), start_s=config.start_s,
             window_s=config.end_s - config.start_s,
-            filter_low_hz=config.low_hz, filter_high_hz=config.high_hz,
+            filter_low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0], filter_high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1],
             output_low_hz=config.low_hz, output_high_hz=config.high_hz,
             notch_hz=config.notch_hz,
         )
@@ -354,7 +357,7 @@ class PsdAlgorithm:
                 spectrum = self._load(
                     inputs.payload, channels=list(inputs.channels),
                     start_s=frame.window_start_s, window_s=frame.actual_window_s,
-                    filter_low_hz=config.low_hz, filter_high_hz=config.high_hz,
+                    filter_low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0], filter_high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1],
                     output_low_hz=trend_low_hz, output_high_hz=trend_high_hz,
                     notch_hz=config.notch_hz,
                 )
@@ -365,7 +368,7 @@ class PsdAlgorithm:
                     spectrum, inputs.channels, current_frequencies,
                 )
                 band_share_rows.append(band_share)
-                evidence = self._dynamic_evidence(spectrum, config)
+                evidence = self._dynamic_evidence(spectrum)
                 evidence["extensions"] = {"channel_quality": {"by_channel": dict(zip(inputs.channels, channel_quality, strict=True))}}
                 quality = "clean" if all(item.get("status") == "clean" for item in channel_quality) else "partial"
             except SpectralQualityGateError as exc:
@@ -406,7 +409,10 @@ class PsdAlgorithm:
                 "source_quality": {}, "spectral_evidence": {},
                 "calculation_trace": {
                     "algorithm": "welch_psd", "window_s": window_s, "step_s": step_s,
-                    "filter_frequency_range_hz": {"low_hz": config.low_hz, "high_hz": config.high_hz},
+                    "filter_frequency_range_hz": {
+                        "low_hz": ANALYSIS_CONTRACT["bandpass_hz"][0],
+                        "high_hz": ANALYSIS_CONTRACT["bandpass_hz"][1],
+                    },
                     "output_frequency_range_hz": {"low_hz": 1.0, "high_hz": 50.0},
                     "trend_frequency_range_hz": [float(trend_low_hz), float(trend_high_hz)] if fixed_trend_axis else None,
                     **self._band_share_trace(),
@@ -415,7 +421,7 @@ class PsdAlgorithm:
         )
 
     @staticmethod
-    def _dynamic_evidence(spectrum: Any, config: PsdConfig) -> dict[str, Any]:
+    def _dynamic_evidence(spectrum: Any) -> dict[str, Any]:
         spectral = dict(getattr(spectrum, "evidence", {}))
         quality = {"clean_segments": spectrum.clean_epochs, "total_segments": spectrum.total_epochs,
                    "clean_ratio": spectrum.signal_quality, "gate_failed": spectrum.gate_failed,
@@ -424,7 +430,10 @@ class PsdAlgorithm:
             quality["amplitude"] = spectral["amplitude"]
         return {"source_quality": quality, "spectral_evidence": spectral,
                 "calculation_trace": {
-                    "filter_frequency_range_hz": {"low_hz": config.low_hz, "high_hz": config.high_hz},
+                    "filter_frequency_range_hz": {
+                        "low_hz": ANALYSIS_CONTRACT["bandpass_hz"][0],
+                        "high_hz": ANALYSIS_CONTRACT["bandpass_hz"][1],
+                    },
                     "output_frequency_range_hz": {"low_hz": 1.0, "high_hz": 50.0}}}
 
     @staticmethod

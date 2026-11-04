@@ -13,7 +13,7 @@ from app.scientific.primitives import SpectralEstimate
 from on_demand_fixtures import configure_api, source_hashes
 
 
-SFREQ = 100.0
+SFREQ = 200.0
 
 
 class FakeRecording:
@@ -40,7 +40,7 @@ class FakeRecording:
 
     def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str]):
         self.calls.append({"start_s": start_s, "window_s": window_s, "channels": channels})
-        frequencies = np.arange(1.0, 30.25, 0.25)
+        frequencies = np.arange(1.0, 50.25, 0.25)
         fz = np.ones_like(frequencies)
         pz = np.ones_like(frequencies)
         fz[(frequencies >= 4.0) & (frequencies <= 8.0)] = 3.0
@@ -109,6 +109,8 @@ def test_brainbeat_window_matches_existing_dynamic_point_and_keeps_pair_order():
     assert request.roles == ("Fz", "Pz")
     assert role_map == {"Fz": "Fz", "Pz": "Pz"}
     assert request.representation == "spectrum"
+    assert (request.filter_low_hz, request.filter_high_hz) == (1.0, 50.0)
+    assert request.notch_hz == 50.0
     assert result.evidence["extensions"]["brainbeat_evidence"]["fz_channel"] == "Fz"
     assert result.evidence["extensions"]["brainbeat_evidence"]["pz_channel"] == "Pz"
     assert result.provenance["independent_windows"] is True
@@ -122,7 +124,7 @@ def test_brainbeat_window_quality_failure_is_rejected_and_null():
     recording = FakeRecording(gate_failed="amplitude_threshold")
     inputs = _inputs(recording)
     session = _session(algorithm)
-    plan = algorithm.plan_window(inputs, config, 500, session)
+    plan = algorithm.plan_window(inputs, config, 1000, session)
     result = algorithm.execute_window(inputs, config, plan, _identity(session, plan))
 
     assert result.state == "rejected"
@@ -137,7 +139,7 @@ def test_brainbeat_window_checks_cancellation_before_loading():
     config = _config()
     inputs = _inputs(FakeRecording())
     session = _session(algorithm)
-    plan = algorithm.plan_window(inputs, config, 500, session)
+    plan = algorithm.plan_window(inputs, config, 1000, session)
     with pytest.raises(RuntimeError, match="cancelled"):
         algorithm.execute_window(
             inputs, config, plan, _identity(session, plan),

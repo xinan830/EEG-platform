@@ -9,7 +9,8 @@ from app.algorithm_runtime.contracts import (AlgorithmConfigBase, AlgorithmExecu
     AlgorithmStructuredSeriesResult, StructuredSeriesWindow)
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
-from .official import RBP_BANDS, RBP_FILTER_LOW_HZ, RBP_FILTER_HIGH_HZ, RBP_NOTCH_HZ
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
+from .official import RBP_BANDS, RBP_FILTER_LOW_HZ, RBP_FILTER_HIGH_HZ
 from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
 
 from .config import RbpConfig
@@ -29,20 +30,24 @@ class RbpAlgorithm(RbpWindowCapability):
             AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
+            AlgorithmParameter(key="notch_hz", label_zh="分析陷波", value_type="enum", required=False, default=50.0, options=[ParameterOption(value=0.0, label_zh="关闭"), ParameterOption(value=50.0, label_zh="50 Hz"), ParameterOption(value=60.0, label_zh="60 Hz")]),
         ])
 
     def requested_channels(self, config: AlgorithmConfigBase) -> list[str]:
         return list(getattr(config, "channels", None) or [config.channel])
 
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
-        snapshot = spectral_execution_snapshot(config)
+        snapshot = spectral_execution_snapshot(config, low_hz=RBP_FILTER_LOW_HZ,
+                                               high_hz=RBP_FILTER_HIGH_HZ,
+                                               notch_hz=config.notch_hz)
         return snapshot.model_copy(update={"quality_rules": {
             "policy": "per_channel_annotation", "artifact_policy": "retain_with_warning",
             "artifact_peak_uv": snapshot.quality_rules["artifact_peak_uv"],
             "hard_rejections": ["missing_samples", "non_finite", "invalid_total_power"],
         }, "filters": snapshot.filters | {
             "bandpass_hz": [RBP_FILTER_LOW_HZ, RBP_FILTER_HIGH_HZ],
-            "notch_hz": RBP_NOTCH_HZ, "notch_quality_factor": 30.0,
+            "notch_hz": config.notch_hz,
+            "notch_quality_factor": ANALYSIS_CONTRACT["notch_quality_factor"] if config.notch_hz is not None else None,
         }})
 
     def resolve_inputs(self, recording: Any, config: RbpConfig) -> AlgorithmInputs:
@@ -64,7 +69,7 @@ class RbpAlgorithm(RbpWindowCapability):
             duration_s=float(getattr(recording, "duration_s", config.end_s)), payload=recording)
 
     def execute_static(self, inputs: AlgorithmInputs, config: RbpConfig) -> AlgorithmStructuredResult:
-        frame = execute_rbp_frame(inputs, config.start_s, config.end_s)
+        frame = execute_rbp_frame(inputs, config.start_s, config.end_s, notch_hz=config.notch_hz)
         return AlgorithmStructuredResult(
             output_kind="algorithm_group", channel_order=list(inputs.channels),
             axes={"time_s": np.asarray([config.end_s]),
@@ -89,7 +94,7 @@ class RbpAlgorithm(RbpWindowCapability):
         per_window_failures = []
         values = {name: [] for name in _rbp_array_units()}
         for frame in controlled_frames(frames, inputs.execution_context):
-            result = execute_rbp_frame(inputs, frame.window_start_s, frame.window_end_s)
+            result = execute_rbp_frame(inputs, frame.window_start_s, frame.window_end_s, notch_hz=config.notch_hz)
             for name in values:
                 values[name].append(result.arrays[name])
             per_window_failures.append(result.evidence["extensions"]["channel_failures"]["by_channel"])

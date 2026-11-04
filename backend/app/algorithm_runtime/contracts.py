@@ -40,6 +40,7 @@ class AlgorithmConfigBase(BaseModel):
     end_s: float = Field(gt=0)
     window_s: float | None = Field(default=None, gt=0)
     step_s: float | None = Field(default=None, gt=0)
+    notch_hz: float | None = Field(default=50.0)
 
     @model_validator(mode="after")
     def validate_range(self) -> "AlgorithmConfigBase":
@@ -47,6 +48,10 @@ class AlgorithmConfigBase(BaseModel):
             raise ValueError("analysis range must satisfy end_s > start_s")
         if self.mode == "dynamic" and (self.window_s is None or self.step_s is None):
             raise ValueError("dynamic analysis requires window_s and step_s")
+        if self.notch_hz == 0:
+            self.notch_hz = None
+        if self.notch_hz is not None and self.notch_hz not in (50.0, 60.0):
+            raise ValueError("notch_hz must be null, 50, or 60")
         return self
 
 

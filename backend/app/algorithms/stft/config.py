@@ -9,7 +9,7 @@ class StftConfig(AlgorithmConfigBase):
     mode: AlgorithmMode = "static"
     low_hz: float = Field(default=1.0, gt=0)
     high_hz: float = Field(default=50.0, gt=0)
-    notch_hz: float | None = None
+    notch_hz: float | None = 50.0
 
     @model_validator(mode="after")
     def validate_frequency_contract(self) -> "StftConfig":

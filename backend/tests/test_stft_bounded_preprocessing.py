@@ -80,7 +80,7 @@ def test_24_hour_source_reads_only_selected_window_and_context(tmp_path, monkeyp
     assert evidence["read_range_samples"] == dict(zip(("start", "end"), expected))
     assert evidence["target_range_samples"] == {"start": round(start_s * 200), "end": round((start_s + 5) * 200)}
     assert payload["channels"] == ["Pz", "Fz"]
-    assert payload["spectrogram_contract_version"] == "spectrogram-v3-bounded"
+    assert payload["spectrogram_contract_version"] == "spectrogram-v4-bounded-notch"
     assert np.isfinite(payload["power_linear"]["Pz"]).all()
 
 

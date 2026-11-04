@@ -30,7 +30,7 @@ def load_spectrogram(
     *,
     low_hz: float = 1.0,
     high_hz: float = 50.0,
-    notch_hz: float | None = None,
+    notch_hz: float | None = 50.0,
     output_low_hz: float | None = None,
     output_high_hz: float | None = None,
     execution_context: Any = None,

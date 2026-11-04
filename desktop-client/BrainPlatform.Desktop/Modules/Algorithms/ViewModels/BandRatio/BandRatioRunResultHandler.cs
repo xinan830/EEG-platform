@@ -7,6 +7,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.BandRatio;
 internal sealed class BandRatioRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "band_ratio";
+    public bool SupportsNotch => true;
     public bool SupportsOnDemandWindows =>
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
     public FullRunMetricWindowSpec FullRunMetricWindowSpec => new("ratio");

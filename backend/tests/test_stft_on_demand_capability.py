@@ -13,7 +13,7 @@ from app.algorithms.stft.runner import StftAlgorithm
 def _session() -> DynamicSessionIdentity:
     return DynamicSessionIdentity(
         recording_id="recording", source_sha256="source", algorithm_id="stft",
-        definition_id="definition", definition_version="1", scientific_version="spectrogram-v3-bounded",
+        definition_id="definition", definition_version="1", scientific_version="spectrogram-v4-bounded-notch",
         implementation_identity="implementation", configuration_sha256="config",
         window_policy_version="stft-dynamic-window-v3-bounded",
     )
@@ -49,7 +49,7 @@ def _payload(window_s=5.0, bad_windows=0, start_s=0.0):
         "frequencies_hz": frequencies.tolist(),
         "power_linear": {"F3": linear_uv.tolist()},
         "power_db": {"F3": db.tolist()},
-        "spectrogram_contract_version": "spectrogram-v3-bounded",
+        "spectrogram_contract_version": "spectrogram-v4-bounded-notch",
         "segment_s": 4.0,
         "step_s": 1.0,
         "frequency_range_hz": {"low_hz": 1.0, "high_hz": 30.0},

@@ -6,6 +6,7 @@ import numpy as np
 
 from app.algorithm_runtime.contracts import AlgorithmInputs
 from app.algorithm_runtime.signal_source import SpectralSourceRequest
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 
 def load_brainbeat_spectrum(
@@ -15,6 +16,7 @@ def load_brainbeat_spectrum(
     pz_channel: str,
     start_s: float,
     end_s: float,
+    notch_hz: float | None,
 ):
     """Load one paired Welch estimate without hiding role or sample order."""
     if not hasattr(inputs.payload, "load_spectral_source"):
@@ -26,6 +28,7 @@ def load_brainbeat_spectrum(
         start_sample + int(round((end_s - start_s) * sfreq)),
     )
     montage_id, montage_fingerprint = inputs.payload.signal_source_identity()
+    filter_low_hz, filter_high_hz = ANALYSIS_CONTRACT["bandpass_hz"]
     request = SpectralSourceRequest(
         roles=("Fz", "Pz"),
         start_sample=start_sample,
@@ -33,11 +36,11 @@ def load_brainbeat_spectrum(
         expected_sfreq_hz=sfreq,
         montage_id=montage_id,
         montage_fingerprint=montage_fingerprint,
-        filter_low_hz=1.0,
-        filter_high_hz=30.0,
+        filter_low_hz=filter_low_hz,
+        filter_high_hz=filter_high_hz,
         output_low_hz=1.0,
         output_high_hz=30.0,
-        notch_hz=None,
+        notch_hz=notch_hz,
     )
     return inputs.payload.load_spectral_source(
         request,

@@ -7,9 +7,9 @@ MANIFEST = AlgorithmManifest(
     display_name_zh="功率谱密度",
     abbreviation="PSD",
     purpose_zh="使用冻结的 Welch 契约计算所选原始通道的功率谱密度。",
-    scientific_version="offline-spectral-v5-channel-resolved-band-integration",
+    scientific_version="offline-spectral-v6-shared-1-50-notch",
     is_current_version=True,
-    implementation_identity="psd-runtime-v5-channel-resolved-band-integration",
+    implementation_identity="psd-runtime-v6-shared-1-50-notch",
     supported_modes=["static", "dynamic"],
     signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="channel_set", preprocessing_scope="configured_continuous_before_slice"),
     dynamic_capabilities=official_dynamic_capabilities(

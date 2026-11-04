@@ -6,7 +6,7 @@ STFT 属独立算法模块；通过 typed spectrogram 请求进入共享记录�
 
 静态、全量动态和按需窗口共用 `stft/frame.py` 的一次科学源读取、坐标/矩阵校验、单位转换和质量证据。`runner.py` 与 `window.py` 只负责各自结果结构；调度准入、取消、缓存身份、持久化和发布仍由现有统一执行通道拥有，不新增 STFT 队列。
 
-当前科学版本为 `spectrogram-v3-bounded`，预处理版本为 `spectral-window-v1`，实现身份为 `stft-runtime-v6-bounded`，窗口策略为 `stft-dynamic-window-v3-bounded`，Definition 为 1.1.0。新执行不复用旧身份缓存，也不转换历史结果。本次仅迁移独立时频页，未接入 Review 算法面板。
+当前科学版本为 `spectrogram-v4-bounded-notch`，预处理版本为 `spectral-window-v1`，实现身份为 `stft-runtime-v7-bounded-notch`，窗口策略为 `stft-dynamic-window-v3-bounded`，Definition 为 1.1.0。v4 显式记录 1–50 Hz 默认基线和默认 50 Hz/Q=30 陷波；可通过算法设置关闭陷波。新执行不复用旧身份缓存，也不转换历史结果。
 
 科学源只读取所选通道的目标区间和两侧有限滤波上下文；每侧上下文为 `max(2, 3 / low_hz)` 秒，向上取整到样本，遇录音边界截断。对该读取块执行原有陷波及四阶零相位 Butterworth 带通，再裁出目标样本；随后使用原有 Welch 总体质量门与 4 s STFT 内窗质量规则。目标区间或上下文含缺样则拒绝，不插值。TNK 继续使用其原有两秒上下文和科学身份。
 

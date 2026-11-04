@@ -5,13 +5,13 @@ public sealed class AlgorithmRunModuleTests
     [Theory]
     [InlineData("psd", true, false)]
     [InlineData("stft", true, false)]
-    [InlineData("peak_frequency", false, true)]
-    [InlineData("rbp", false, true)]
-    [InlineData("iapf", false, true)]
+    [InlineData("peak_frequency", true, true)]
+    [InlineData("rbp", true, true)]
+    [InlineData("iapf", true, true)]
     [InlineData("faa", true, true)]
-    [InlineData("band_ratio", false, true)]
-    [InlineData("theta_beta", false, true)]
-    [InlineData("brainbeat", false, true)]
+    [InlineData("band_ratio", true, true)]
+    [InlineData("theta_beta", true, true)]
+    [InlineData("brainbeat", true, true)]
     public void RegisteredModules_KeepExistingResultAndNotchCapabilities(string id, bool notch, bool scalar)
     {
         var module = AlgorithmRunResultHandlerRegistry.For(id);

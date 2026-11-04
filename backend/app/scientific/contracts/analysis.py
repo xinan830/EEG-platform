@@ -1,6 +1,6 @@
 """Public contracts for current offline quantitative analysis."""
 
-ANALYSIS_ALGORITHM_VERSION = "offline-spectral-v3"
+ANALYSIS_ALGORITHM_VERSION = "offline-spectral-v4"
 
 ANALYSIS_CONTRACT: dict[str, object] = {
     "algorithm_version": ANALYSIS_ALGORITHM_VERSION,
@@ -9,8 +9,9 @@ ANALYSIS_CONTRACT: dict[str, object] = {
     "filter_form": "second_order_sections",
     "bandpass_type": "butterworth",
     "bandpass_prototype_order": 4,
-    "bandpass_hz": [1.0, 30.0],
-    "notch_hz": None,
+    "bandpass_hz": [1.0, 50.0],
+    "notch_hz": 50.0,
+    "notch_quality_factor": 30.0,
     "welch_segment_s": 4.0,
     "welch_segment_overlap": 0.5,
     "welch_step_s": 2.0,

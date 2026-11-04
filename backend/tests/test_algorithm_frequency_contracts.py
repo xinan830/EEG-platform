@@ -40,15 +40,15 @@ def test_config_and_catalog_have_identical_domain(module):
     for parameter in module.parameter_schema().parameters:
         if parameter.key.endswith("_hz"):
             assert parameter.minimum == schema[parameter.key]["minimum"] == 1
-            assert parameter.maximum == schema[parameter.key]["maximum"] == 30
+            assert parameter.maximum == schema[parameter.key]["maximum"] == 50
 
 
 def test_peak_snapshot_does_not_treat_search_band_as_filter():
     module = PeakFrequencyAlgorithm()
     parsed = module.config_model.model_validate(config(module))
     snapshot = module.execution_snapshot(parsed)
-    assert snapshot.filters["bandpass_hz"] == [1, 30]
-    assert snapshot.filters["notch_hz"] is None
+    assert snapshot.filters["bandpass_hz"] == [1.0, 50.0]
+    assert snapshot.filters["notch_hz"] == 50.0
     assert snapshot.window["frequency_band_hz"] == [8, 13]
 
 
@@ -57,11 +57,20 @@ def test_peak_snapshot_does_not_treat_search_band_as_filter():
 @pytest.mark.parametrize("notch", [None, 50, 60])
 @pytest.mark.parametrize("high", [30, 50])
 def test_snapshot_preserves_explicit_notch_independently_of_high_cut(module, mode, notch, high):
-    parsed = module.config_model.model_validate(config(module, mode, low_hz=1, high_hz=high, notch_hz=notch))
-    filters = module.execution_snapshot(parsed).filters
-    assert filters["bandpass_hz"] == [1, high]
+    values = config(module, mode, low_hz=1, high_hz=high, notch_hz=notch)
+    if isinstance(module, PsdAlgorithm):
+        values["channels"] = ["F3"]
+        values.pop("channel", None)
+    parsed = module.config_model.model_validate(values)
+    snapshot = module.execution_snapshot(parsed)
+    filters = snapshot.filters
+    assert filters["bandpass_hz"] == [1.0, 50.0]
     assert filters["notch_hz"] == notch
     assert filters["notch_quality_factor"] == (None if notch is None else 30)
+    if isinstance(module, PsdAlgorithm):
+        assert snapshot.window["output_frequency_range_hz"] == [1, high]
+    else:
+        assert snapshot.quality_rules["frequency_range_hz"] == [1.0, high]
 
 
 @pytest.mark.parametrize("mode", ["static", "dynamic"])
@@ -70,11 +79,14 @@ def test_queue_rejects_unsupported_bands_before_loading_or_persisting(tmp_path, 
     service, recording_id = _service(tmp_path, sfreq_hz=250)
     queue = PersistentRunQueue(service.recordings, service.recordings.database_path, tmp_path / "queued")
     if algorithm == "peak_frequency":
-        extra = dict(low_hz=25, high_hz=40)
+        extra = dict(low_hz=25, high_hz=60)
     else:
-        extra = dict(numerator_low_hz=4, numerator_high_hz=8, denominator_low_hz=30, denominator_high_hz=50)
+        extra = dict(numerator_low_hz=4, numerator_high_hz=8, denominator_low_hz=50, denominator_high_hz=51)
     payload = dict(algorithm_id=algorithm, channel="F3", mode=mode,
                    time=dict(start_s=0, end_s=10), dynamic_window_s=5, refresh_step_s=1, **extra)
+    if algorithm == "psd":
+        payload.pop("channel")
+        payload["channels"] = ["F3"]
     with pytest.raises(ValueError):
         queue.enqueue(RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=payload))
     assert service.recordings.open_access_session_calls == 0
@@ -90,9 +102,12 @@ def test_queued_and_completed_filters_match_actual_contract(tmp_path, algorithm,
                    time=dict(start_s=0, end_s=10), dynamic_window_s=5, refresh_step_s=1)
     if algorithm == "peak_frequency":
         payload.update(low_hz=8, high_hz=13)
-        expected_band, expected_notch = [1, 30], None
+        expected_band, expected_notch = [1.0, 50.0], 50.0
     else:
         payload.update(low_hz=1, high_hz=50, notch_hz=60)
+        if algorithm == "psd":
+            payload.pop("channel")
+            payload["channels"] = ["F3"]
         expected_band, expected_notch = [1, 50], 60
     queued = queue.enqueue(RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=payload))
     assert queued.filters["bandpass_hz"] == expected_band

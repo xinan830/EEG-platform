@@ -12,6 +12,7 @@ internal sealed class TnkShadowRunResultHandler : IAlgorithmRunResultHandler
     public TnkShadowRunResultHandler(string algorithmId) => AlgorithmId = algorithmId;
 
     public string AlgorithmId { get; }
+    public bool SupportsNotch => true;
     public bool SupportsOnDemandWindows =>
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
     public AlgorithmRunParameters ParseParameters(AlgorithmRunInputs inputs)

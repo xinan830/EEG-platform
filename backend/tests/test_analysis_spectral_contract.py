@@ -20,11 +20,14 @@ def test_offline_preprocessing_matches_independent_scipy_reference():
         200e-6 + 15e-6 * np.sin(2 * np.pi * 10 * times),
         -100e-6 + 8e-6 * np.sin(2 * np.pi * 6 * times),
     ])
-    sos = signal.butter(4, [1.0, 30.0], btype="bandpass", fs=sfreq, output="sos")
+    sos = signal.butter(4, [1.0, 50.0], btype="bandpass", fs=sfreq, output="sos")
     expected = signal.sosfiltfilt(sos, source, axis=0)
 
     np.testing.assert_allclose(preprocess_offline(source, sfreq), expected, rtol=1e-12, atol=1e-15)
-    assert ANALYSIS_CONTRACT["algorithm_version"] == "offline-spectral-v3"
+    assert ANALYSIS_CONTRACT["algorithm_version"] == "offline-spectral-v4"
+    assert ANALYSIS_CONTRACT["bandpass_hz"] == [1.0, 50.0]
+    assert ANALYSIS_CONTRACT["notch_hz"] == 50.0
+    assert ANALYSIS_CONTRACT["notch_quality_factor"] == 30.0
     assert "iapf_window_s" not in ANALYSIS_CONTRACT
     assert "iapf_step_s" not in ANALYSIS_CONTRACT
     assert ANALYSIS_CONTRACT["faa_static_scope"] == "exact_requested_absolute_range"
@@ -127,7 +130,7 @@ def test_welch_uses_declared_internal_overlap_for_each_clean_epoch():
             scaling="density",
         )
         expected_rows.append(row)
-    mask = (frequencies >= 1.0) & (frequencies <= 30.0)
+    mask = (frequencies >= 1.0) & (frequencies <= 50.0)
 
     np.testing.assert_allclose(spectrum.freqs, frequencies[mask])
     expected = np.maximum(np.mean(expected_rows, axis=0), 1e-20)[mask]
@@ -154,8 +157,8 @@ def test_four_second_spectrogram_row_matches_single_welch_psd():
         8e-6 * np.sin(2 * np.pi * 6 * times),
     ])
 
-    centers, frequencies, matrix, quality = estimate_spectrogram_with_quality(values, sfreq)
-    static = estimate_welch_psd(values, sfreq)
+    centers, frequencies, matrix, quality = estimate_spectrogram_with_quality(values, sfreq, low_hz=1, high_hz=30)
+    static = estimate_welch_psd(values, sfreq, low_hz=1, high_hz=30)
 
     assert centers.tolist() == [2.0]
     assert quality[0]["status"] == "clean"

@@ -41,7 +41,7 @@ def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypa
 
     assert payload["channels"] == ["Oz", "Fz"]
     assert payload["units"] == {"psd": "uV^2/Hz", "absolute_power": "uV^2", "relative_power": "ratio"}
-    assert payload["algorithm_version"] == "offline-spectral-v3"
+    assert payload["algorithm_version"] == "offline-spectral-v4"
     np.testing.assert_allclose(
         sum(payload["relative_band_power"]["Oz"].values()), 1.0, rtol=1e-5
     )
@@ -49,7 +49,7 @@ def test_spectrum_preserves_requested_channel_order_and_units(tmp_path, monkeypa
 
 def test_spectrum_exposes_backend_declared_welch_step(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
-    sfreq = 100.0
+    sfreq = 200.0
     times = np.arange(10 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["F3"])
@@ -63,7 +63,7 @@ def test_spectrum_exposes_backend_declared_welch_step(tmp_path, monkeypatch):
 
 def test_spectrum_accepts_a_long_recording_range_without_a_fixed_cap(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
-    sfreq = 100.0
+    sfreq = 200.0
     times = np.arange(150 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["F3"])
@@ -76,7 +76,7 @@ def test_spectrum_accepts_a_long_recording_range_without_a_fixed_cap(tmp_path, m
 
 def test_spectrum_rejects_a_range_past_the_recording_end_instead_of_truncating(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
-    sfreq = 100.0
+    sfreq = 200.0
     times = np.arange(150 * int(sfreq)) / sfreq
     data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
     _provide_data(monkeypatch, service, data, sfreq, ["F3"])
@@ -93,7 +93,7 @@ def test_spectrum_uses_the_requested_frequency_range_for_filter_cache_and_output
     _provide_data(monkeypatch, service, data, sfreq, ["Fz"])
 
     wide = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=0.5, high_hz=50.0)
-    default = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=1.0, high_hz=30.0)
+    default = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], low_hz=1.0, high_hz=30.0, notch_hz=None)
 
     assert wide["frequencies_hz"][0] == 0.5
     assert wide["frequencies_hz"][-1] == 50.0
@@ -134,6 +134,24 @@ def test_spectrum_separates_filter_range_from_output_axis_and_reuses_filter_cach
     assert first["filter_contract"]["bandpass_hz"] == second["filter_contract"]["bandpass_hz"]
 
 
+def test_spectrum_notch_changes_signal_and_preprocessing_identity(tmp_path, monkeypatch):
+    service, recording = _service(tmp_path)
+    sfreq = 500.0
+    times = np.arange(20 * int(sfreq)) / sfreq
+    data = (20e-6 * np.sin(2 * np.pi * 50 * times) + 5e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    _provide_data(monkeypatch, service, data, sfreq, ["Fz"])
+
+    common = dict(filter_low_hz=1.0, filter_high_hz=80.0, output_low_hz=45.0, output_high_hz=55.0)
+    notched = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], notch_hz=50.0, **common)
+    unnotched = service.load_spectrum(recording, 0.0, 20.0, ["Fz"], notch_hz=None, **common)
+
+    notch_bin = int(np.argmin(np.abs(np.asarray(notched["frequencies_hz"]) - 50.0)))
+    assert notched["psd"]["Fz"][notch_bin] < unnotched["psd"]["Fz"][notch_bin] * 0.1
+    assert notched["filter_contract"]["notch_hz"] == 50.0
+    assert unnotched["filter_contract"]["notch_hz"] is None
+    assert len(service._analysis_preprocess_cache._entries) == 2
+
+
 def test_spectrogram_uses_explicit_notch_without_whole_record_cache(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
     sfreq = 200.0
@@ -151,7 +169,7 @@ def test_spectrogram_uses_explicit_notch_without_whole_record_cache(tmp_path, mo
 
 def test_spectrum_reuses_continuous_preprocessed_recording(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
-    sfreq = 100.0
+    sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = np.column_stack([
         10e-6 * np.sin(2 * np.pi * 10 * times),
@@ -178,7 +196,7 @@ def test_on_demand_spectrum_reuses_canonical_preprocessed_source(tmp_path, monke
     from dataclasses import replace
 
     service, recording = _service(tmp_path)
-    sfreq = 100.0
+    sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = np.column_stack([
         10e-6 * np.sin(2 * np.pi * 10 * times),
@@ -214,7 +232,7 @@ def test_spectrum_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypat
     from dataclasses import replace
 
     service, recording = _service(tmp_path)
-    sfreq = 100.0
+    sfreq = 200.0
     times = np.arange(30 * int(sfreq)) / sfreq
     data = np.column_stack([
         10e-6 * np.sin(2 * np.pi * 10 * times),
@@ -241,7 +259,7 @@ def test_spectrum_and_on_demand_spectrum_share_preprocessing(tmp_path, monkeypat
             pass
 
     service.load_spectrum(
-        recording, 0.0, 10.0, ["Pz"], notch_hz=None,
+        recording, 0.0, 10.0, ["Pz"], notch_hz=50.0,
         filter_low_hz=1.0, filter_high_hz=30.0,
         output_low_hz=1.0, output_high_hz=30.0,
         execution_context=OnDemandControl(),
@@ -283,9 +301,9 @@ def test_on_demand_spectrogram_matches_static_without_whole_preprocessed_source(
     assert on_demand["preprocessing"]["channel_order"] == ["Pz"]
 
 
-def test_configured_v4_defaults_equal_frozen_v3(tmp_path, monkeypatch):
+def test_configured_v4_defaults_record_current_baseline(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
-    sfreq = 100.0
+    sfreq = 200.0
     times = np.arange(40 * int(sfreq)) / sfreq
     data = np.column_stack([10e-6 * np.sin(2 * np.pi * 10 * times), 8e-6 * np.sin(2 * np.pi * 6 * times)])
     _provide_data(monkeypatch, service, data, sfreq, ["F3", "Fz"])
@@ -294,7 +312,7 @@ def test_configured_v4_defaults_equal_frozen_v3(tmp_path, monkeypatch):
         mode="static", channels=["F3", "Fz"], time={"start_s": 0, "end_s": 30}
     ))
     assert configured["algorithm_version"] == "offline-spectral-v4-configurable"
-    assert configured["baseline_algorithm_version"] == "offline-spectral-v3"
+    assert configured["baseline_algorithm_version"] == "offline-spectral-v4"
     assert len(configured["analysis_config_hash"]) == 12
     np.testing.assert_allclose(configured["psd"]["F3"], frozen["psd"]["F3"])
     assert configured["band_power"] == frozen["band_power"]
@@ -304,16 +322,20 @@ def test_configured_v4_defaults_equal_frozen_v3(tmp_path, monkeypatch):
     assert provenance["welch"]["step_s"] == 2.0
     assert provenance["actual_range"] == {"start_s": 0.0, "end_s": 30.0}
     # Golden values for the deterministic 10 Hz / 6 Hz synthetic fixture.
-    assert configured["band_power"]["F3"]["alpha"] == pytest.approx(49.99998294, rel=1e-7)
-    assert configured["band_power"]["Fz"]["theta"] == pytest.approx(32.00000006, rel=1e-7)
-    assert configured["relative_band_power"]["F3"]["alpha"] == pytest.approx(0.9999992453, rel=1e-7)
+    assert configured["band_power"]["F3"]["alpha"] == pytest.approx(49.9927616751, rel=1e-7)
+    assert configured["band_power"]["Fz"]["theta"] == pytest.approx(31.9984029486, rel=1e-7)
+    assert configured["relative_band_power"]["F3"]["alpha"] == pytest.approx(
+        configured["band_power"]["F3"]["alpha"] /
+        sum(value for value in configured["band_power"]["F3"].values() if value is not None),
+        rel=1e-12,
+    )
 
 
 def test_configured_static_range_rejects_file_overflow(tmp_path, monkeypatch):
     service, recording = _service(tmp_path)
     times = np.arange(1000) / 100.0
     values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
-    _provide_data(monkeypatch, service, values, 100.0, ["F3"])
+    _provide_data(monkeypatch, service, values, 200.0, ["F3"])
     config = AnalysisConfigRequest(mode="static", channels=["F3"], time={"start_s": 5, "end_s": 15})
     import pytest
     with pytest.raises(ValueError, match="超出文件范围"):
@@ -336,7 +358,7 @@ def test_configured_spectrogram_accepts_one_sample_rounding_error(tmp_path, monk
     monkeypatch.setattr(service, "load_spectrogram", lambda *_args, **_kwargs: {
         "recording_id": recording.id, "window_start_s": 1.022, "window_duration_s": 6.612,
         "sfreq_hz": 500.0, "channels": ["F3"], "times_s": [1.022], "frequencies_hz": [1.0],
-        "power": {"F3": [[1.0]]}, "units": "uV^2/Hz", "algorithm_version": "spectrogram-v3-bounded",
+        "power": {"F3": [[1.0]]}, "units": "uV^2/Hz", "algorithm_version": "spectrogram-v4-bounded-notch",
         "frequency_range_hz": {"low_hz": 1.0, "high_hz": 50.0},
         "filter_frequency_range_hz": {"low_hz": 1.0, "high_hz": 50.0},
         "notch_hz": None, "preprocessing": {"scope": "bounded_window_with_finite_context"},
@@ -344,7 +366,7 @@ def test_configured_spectrogram_accepts_one_sample_rounding_error(tmp_path, monk
         "segment_s": 4.0, "step_s": 1.0,
     })
     payload = service.load_configured_spectrogram(recording, config)
-    assert payload["algorithm_version"] == "spectrogram-v3-bounded-configurable"
+    assert payload["algorithm_version"] == "spectrogram-v4-bounded-notch-configurable"
     assert payload["actual_end_s"] == 7.634
     assert payload["matrix_shape"] == [1, 1]
     assert payload["first_center_s"] == 1.022
@@ -394,7 +416,7 @@ def test_spectrogram_times_are_window_centers_and_shape_is_stable():
 
 
 def test_spectrogram_quality_keeps_bad_window_position():
-    sfreq = 100.0
+    sfreq = 200.0
     values = np.zeros((8 * int(sfreq), 1))
     values[4 * int(sfreq):5 * int(sfreq)] = 200e-6
     centers, _freqs, power, quality = estimate_spectrogram_with_quality(values, sfreq)

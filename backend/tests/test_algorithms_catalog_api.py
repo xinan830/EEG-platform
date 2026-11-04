@@ -91,7 +91,7 @@ def test_public_official_catalog_matches_builtin_module_declarations() -> None:
         assert item["implementation_identity"] == module.manifest.implementation_identity
 
 
-def test_rbp_definition_upgrade_preserves_immutable_v201_and_adds_v205(tmp_path) -> None:
+def test_rbp_definition_upgrade_preserves_immutable_v201_and_adds_v206(tmp_path) -> None:
     from app.algorithms.catalog import ensure_official_definitions, official_definition_draft
 
     service = DefinitionService(tmp_path / "rbp-upgrade.sqlite3")
@@ -109,7 +109,7 @@ def test_rbp_definition_upgrade_preserves_immutable_v201_and_adds_v205(tmp_path)
     ensure_official_definitions(service)
 
     assert service.repository.get_version(definition.definition_id, "2.0.1").digest_sha256
-    installed = service.repository.get_version(definition.definition_id, "2.0.5")
+    installed = service.repository.get_version(definition.definition_id, "2.0.6")
     assert installed is not None and installed.state == "published"
     assert installed.digest_sha256 == __import__("app.core.provenance", fromlist=["sha256_json"]).sha256_json(
         official_definition_draft("rbp").model_dump(mode="json"))
@@ -138,15 +138,15 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
     from app.algorithms.builtin_modules import build_builtin_modules
 
     expected = {
-        "band_ratio": ("official-band-ratio-v1", "band-ratio-runtime-v2-frequency-contract"),
-        "brainbeat": ("official-brainbeat-v2", "brainbeat-runtime-v2"),
+        "band_ratio": ("official-band-ratio-v2", "band-ratio-runtime-v3-shared-1-50-notch"),
+        "brainbeat": ("official-brainbeat-v4", "brainbeat-runtime-v4-shared-1-50-notch"),
         "faa": ("official-faa-v2", "faa-runtime-v2"),
-        "iapf": ("official-iapf-v2", "iapf-runtime-v3"),
-        "peak_frequency": ("official-peak-frequency-v1", "peak-frequency-runtime-v2-frequency-contract"),
-        "psd": ("offline-spectral-v5-channel-resolved-band-integration", "psd-runtime-v5-channel-resolved-band-integration"),
-        "rbp": ("official-rbp-v4", "rbp-runtime-v6-absolute-power-output"),
-        "stft": ("spectrogram-v3-bounded", "stft-runtime-v6-bounded"),
-        "theta_beta": ("official-theta-beta-v2", "theta-beta-runtime-v1"),
+        "iapf": ("official-iapf-v4", "iapf-runtime-v5-shared-1-50-notch"),
+        "peak_frequency": ("official-peak-frequency-v2", "peak-frequency-runtime-v3-shared-1-50-notch"),
+        "psd": ("offline-spectral-v6-shared-1-50-notch", "psd-runtime-v6-shared-1-50-notch"),
+        "rbp": ("official-rbp-v4", "rbp-runtime-v7-configurable-notch"),
+        "stft": ("spectrogram-v4-bounded-notch", "stft-runtime-v7-bounded-notch"),
+        "theta_beta": ("official-theta-beta-v3", "theta-beta-runtime-v2"),
     }
     modules = {module.manifest.algorithm_id: module for module in build_builtin_modules()}
     assert set(expected).issubset(modules)

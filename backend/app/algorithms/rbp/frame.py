@@ -11,6 +11,7 @@ import numpy as np
 
 from app.algorithm_runtime.contracts import AlgorithmFailure, AlgorithmInputs
 from app.scientific.quality import SpectralQualityGateError
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
 
 from . import official
 
@@ -37,7 +38,7 @@ class RbpFrame:
 def execute_rbp_frame(
     inputs: AlgorithmInputs, start_s: float, end_s: float,
     check_cancelled: Callable[[], None] | None = None,
-    *, request_id: str | None = None, window_id: str | None = None,
+    *, notch_hz: float | None = 50.0, request_id: str | None = None, window_id: str | None = None,
 ) -> RbpFrame:
     """Read one batched continuous-source spectrum, then integrate each channel."""
     started = perf_counter()
@@ -52,7 +53,7 @@ def execute_rbp_frame(
             start_s=start_s, window_s=end_s - start_s, channels=list(inputs.channels),
             filter_low_hz=official.RBP_FILTER_LOW_HZ, filter_high_hz=official.RBP_FILTER_HIGH_HZ,
             output_low_hz=official.RBP_FILTER_LOW_HZ, output_high_hz=official.RBP_FILTER_HIGH_HZ,
-            notch_hz=official.RBP_NOTCH_HZ,
+            notch_hz=notch_hz,
             quality_policy="per_channel_annotation",
         )
     except SpectralQualityGateError as exc:
@@ -118,7 +119,8 @@ def execute_rbp_frame(
     provenance = {
         "preprocessing_scope": "whole_recording_before_window_slice",
         "filter_bandpass_hz": [official.RBP_FILTER_LOW_HZ, official.RBP_FILTER_HIGH_HZ],
-        "notch_hz": official.RBP_NOTCH_HZ, "notch_quality_factor": 30.0,
+        "notch_hz": notch_hz,
+        "notch_quality_factor": ANALYSIS_CONTRACT["notch_quality_factor"] if notch_hz is not None else None,
     }
     spectral_evidence = dict(getattr(spectrum, "evidence", {}) or {}) if spectrum is not None else dict(
         (gate_quality or {}).get("evidence", {}),

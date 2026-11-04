@@ -32,8 +32,8 @@ from app.scientific.primitives.spectral import (
 from app.services.validations import ValidationService
 
 
-NUMPY_VERSION = "2.3.4"
-SCIPY_VERSION = "1.16.3"
+NUMPY_VERSION = "2.5.4"
+SCIPY_VERSION = "1.18.1"
 RTOL = 1e-10
 ATOL_RATIO = 1e-12
 ATOL_PSD = 1e-24
@@ -158,7 +158,8 @@ def test_analytic_spectral_reference_max_error_and_failure_coordinates():
     n = 400
     window = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(n) / n)
     full_frequency = np.fft.rfftfreq(n, 1 / sfreq)
-    selected = (full_frequency >= 1) & (full_frequency <= 30)
+    selected = (full_frequency >= 1) & (full_frequency <= 50)
+    stft_selected = (full_frequency >= 1) & (full_frequency <= 30)
     reference_windows = []
     for start in (0, 200, 400):
         frequencies, density = _reference_periodogram(source[start:start + n], sfreq)
@@ -179,7 +180,7 @@ def test_analytic_spectral_reference_max_error_and_failure_coordinates():
     stft_expected = []
     for start in range(0, len(source) - n + 1, int(sfreq)):
         _, density = _reference_periodogram(source[start:start + n], sfreq)
-        stft_expected.append(density[:, selected])
+        stft_expected.append(density[:, stft_selected])
     stft_expected_array = np.stack(stft_expected)
     stft_actual = estimate_spectrogram(source, sfreq)[2]
     stft_abs, stft_abs_at = _max_error(stft_expected_array, stft_actual)
@@ -208,7 +209,7 @@ def test_independent_welch_periodogram_and_stft_match_exact_axes_and_matrices():
         for start in (0, 200, 400)
     ]
     full_f = np.fft.rfftfreq(400, 1 / sfreq)
-    selected = (full_f >= 1.0) & (full_f <= 30.0)
+    selected = (full_f >= 1.0) & (full_f <= 50.0)
     expected_f = full_f[selected]
     expected_psd = np.maximum(np.mean(np.stack(per_segment), axis=0)[:, selected], 1e-20)
     actual = estimate_welch_psd(source, sfreq)
@@ -341,7 +342,7 @@ def test_reference_validationrun_and_array_artifact_record_hashes_and_error_coor
     t = np.arange(4 * int(sfreq)) / sfreq
     raw = 8e-6 * np.sin(2 * np.pi * 10 * t)
     full_freqs, full_expected = _reference_periodogram(raw[:, None], sfreq)
-    selected = (full_freqs >= 1.0) & (full_freqs <= 30.0)
+    selected = (full_freqs >= 1.0) & (full_freqs <= 50.0)
     freqs, expected = full_freqs[selected], np.maximum(full_expected[:, selected], 1e-20)
     actual = estimate_welch_psd(raw[:, None], sfreq).psd
     error, coordinate = _max_error(expected, actual)
@@ -364,7 +365,7 @@ def test_reference_validationrun_and_array_artifact_record_hashes_and_error_coor
         ValidationCreateRequest(
             kind="synthetic_official_algorithm_reference",
             algorithm_id="psd",
-            algorithm_version="offline-spectral-v3",
+            algorithm_version="offline-spectral-v4",
             dataset_identity={"kind": "analytic_synthetic", "sha256": hashlib.sha256(raw.tobytes()).hexdigest()},
             config_sha256=config_hash,
             tolerances={"rtol": RTOL, "atol": ATOL_PSD},

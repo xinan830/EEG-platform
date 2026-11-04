@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 
 
 class OfficialSyntheticRecordingService(RecordingService):
-    synthetic_sfreq_hz = 100.0
+    synthetic_sfreq_hz = 200.0
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -42,7 +42,7 @@ class OfficialSyntheticRecordingService(RecordingService):
         )
 
 
-def _service(tmp_path: Path, *, sfreq_hz: float = 100.0) -> tuple[RunService, str]:
+def _service(tmp_path: Path, *, sfreq_hz: float = 200.0) -> tuple[RunService, str]:
     recordings = OfficialSyntheticRecordingService(tmp_path / "recordings", tmp_path / "official.sqlite3")
     recordings.synthetic_sfreq_hz = sfreq_hz
     recording = recordings.create_recording("official.edf", ".edf", b"official-source")
@@ -62,7 +62,7 @@ def _request(recording_id: str, algorithm_id: str, *, dynamic: bool = False) -> 
     if algorithm_id == "faa":
         config["f4_channel"] = "F4"
     if algorithm_id == "stft":
-        config.update({"low_hz": 1.0, "high_hz": 50.0, "notch_hz": None})
+        config.update({"low_hz": 1.0, "high_hz": 50.0})
     if dynamic:
         config.update({"dynamic_window_s": 10, "refresh_step_s": 1})
     return RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=config)
@@ -75,8 +75,8 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
     assert completed.status is RunStatus.COMPLETED
     assert completed.definition_id is not None
     assert completed.definition_version == "1.0.0"
-    assert completed.scientific_version == "official-iapf-v2"
-    assert completed.result_summary["implementation_identity"] == "iapf-runtime-v3"
+    assert completed.scientific_version == "official-iapf-v4"
+    assert completed.result_summary["implementation_identity"] == "iapf-runtime-v5-shared-1-50-notch"
     assert completed.result_summary["artifacts"][0]["sha256"]
     metric = completed.result_summary["metric"]
     assert metric["output"]["unit"] == "Hz"
@@ -141,7 +141,7 @@ def test_official_dynamic_iapf_uses_the_shared_dynamic_window_contract(tmp_path:
     assert all("value" in point["output"] and "quality" in point for point in series)
     assert all("value" not in point and "value" in point["output"] for point in series)
     provenance = serialize_analysis_run(completed)["analysis_provenance"]
-    assert provenance["sfreq_hz"] == 100.0
+    assert provenance["sfreq_hz"] == 200.0
     assert provenance["welch"] == {"segment_s": 4.0, "window": "hann", "overlap_fraction": 0.5, "step_s": 2.0}
     assert provenance["frequency"] == {"low_hz": 1.0, "high_hz": 30.0, "point_count": 117}
     assert provenance["quality"] == {"clean_segments": 4, "total_segments": 4, "clean_ratio": 1.0, "gate_failed": None, "rejected_reasons": []}
@@ -196,7 +196,7 @@ def test_official_rbp_run_returns_all_five_backend_band_shares(tmp_path: Path):
     for band in ("delta", "theta", "alpha", "beta", "gamma"):
         assert float(arrays[f"{band}_absolute_power"][0]) == pytest.approx(trace[band])
     assert completed.scientific_version == "official-rbp-v4"
-    assert completed.definition_version == "2.0.5"
+    assert completed.definition_version == "2.0.6"
     assert completed.filters["bandpass_hz"] == [1.0, 50.0]
     assert completed.filters["notch_hz"] == 50.0
 
@@ -271,6 +271,39 @@ def test_official_psd_run_returns_structured_frequency_artifact(tmp_path: Path):
     assert service.list_artifacts(completed.run_id)
 
 
+def test_psd_notch_choice_changes_scientific_run_identity(tmp_path: Path):
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
+    notched_request = _request(recording_id, "psd")
+    unnotched_request = _request(recording_id, "psd")
+    unnotched_request.config["notch_hz"] = None
+
+    notched = service.create(notched_request)
+    unnotched = service.create(unnotched_request)
+
+    assert notched.status is unnotched.status is RunStatus.COMPLETED
+    assert notched.cache_key != unnotched.cache_key
+    assert notched.filters["notch_hz"] == 50.0
+    assert unnotched.filters["notch_hz"] is None
+
+
+def test_review_display_state_does_not_change_scientific_run_identity(tmp_path: Path):
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
+    config = {"mode": "static", "channels": ["Fz"], "time": {"start_s": 0, "end_s": 10}}
+    first = service.create(RunCreateRequest(
+        recording_id=recording_id, analysis_type="spectrum", config=config,
+        display_state={"low_cut_hz": 1, "high_cut_hz": 30, "notch_hz": 50},
+    ))
+    second = service.create(RunCreateRequest(
+        recording_id=recording_id, analysis_type="spectrum", config=config,
+        display_state={"low_cut_hz": 8, "high_cut_hz": 13, "notch_hz": None},
+    ))
+
+    assert first.status is second.status is RunStatus.COMPLETED
+    assert first.cache_key == second.cache_key
+    assert second.reused_from_run_id == first.run_id
+    assert first.filters == second.filters
+
+
 def test_official_stft_run_returns_structured_time_frequency_artifact(tmp_path: Path):
     service, recording_id = _service(tmp_path, sfreq_hz=200.0)
     request = _request(recording_id, "stft")
@@ -287,7 +320,28 @@ def test_official_stft_run_returns_structured_time_frequency_artifact(tmp_path: 
     assert structured["axes"]["frequency_hz"]["unit"] == "Hz"
     assert structured["arrays"]["power_linear"]["unit"] == "V^2/Hz"
     assert structured["arrays"]["power_db"]["unit"] == "dB re 1 uV^2/Hz"
+    assert completed.filters["bandpass_hz"] == [1.0, 50.0]
+    assert completed.filters["notch_hz"] == 50.0
+    assert completed.filters["notch_quality_factor"] == 30.0
     assert service.list_artifacts(completed.run_id)
+
+
+@pytest.mark.parametrize("analysis_type", ["spectrum", "spectrogram"])
+def test_configured_spectral_run_records_its_default_preprocessing(tmp_path: Path, analysis_type: str):
+    service, recording_id = _service(tmp_path, sfreq_hz=200.0)
+    completed = service.create(RunCreateRequest(
+        recording_id=recording_id,
+        analysis_type=analysis_type,
+        config={
+            "mode": analysis_type if analysis_type == "spectrogram" else "static", "channels": ["Fz"],
+            "time": {"start_s": 0, "end_s": 10},
+        },
+    ))
+
+    assert completed.status is RunStatus.COMPLETED
+    assert completed.filters["bandpass_hz"] == [1.0, 50.0]
+    assert completed.filters["notch_hz"] == 50.0
+    assert completed.filters["notch_quality_factor"] == 30.0
 
 
 def test_official_stft_dynamic_run_returns_window_time_frequency_matrix_artifact(tmp_path: Path):
@@ -332,7 +386,7 @@ def test_psd_band_share_contract_changes_cache_identity(tmp_path: Path):
         service.definition_service, "psd"
     )
 
-    assert manifest.implementation_identity == "psd-runtime-v5-channel-resolved-band-integration"
+    assert manifest.implementation_identity == "psd-runtime-v6-shared-1-50-notch"
     assert "band_share" in {field["name"] for field in manifest.output_schema["fields"]}
     assert resolved["definition_sha256"] != sha256_json({
         "kind": "official_algorithm",
@@ -420,8 +474,8 @@ def test_official_dynamic_faa_keeps_paired_quality_per_window(tmp_path: Path):
     assert completed.filters == {
         "operation": "continuous_preprocess_then_per_epoch_mean_removal",
         "scope": "whole_recording_before_window_slice",
-        "software_bandpass": [1.0, 30.0],
-        "notch_hz": None,
+        "software_bandpass": [1.0, 50.0],
+        "notch_hz": 50.0,
     }
     assert completed.window["method"] == "paired_epoch_rfft_density"
 
@@ -443,8 +497,8 @@ def test_static_faa_loader_uses_the_exact_requested_absolute_range(tmp_path: Pat
         start_s=2.0, end_s=5.0, f3_channel="F3", f4_channel="F4",
     )
 
-    assert sfreq == 100.0
-    assert len(f3) == len(f4) == 300
+    assert sfreq == 200.0
+    assert len(f3) == len(f4) == 600
     assert evidence["time_scope"] == "exact_requested_absolute_range"
     assert evidence["requested_range_s"] == {"start_s": 2.0, "end_s": 5.0}
     assert evidence["actual_range_s"] == {"start_s": 2.0, "end_s": 5.0}

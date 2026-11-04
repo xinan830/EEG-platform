@@ -7,6 +7,7 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Brainbeat;
 internal sealed class BrainbeatRunResultHandler : IAlgorithmRunResultHandler
 {
     public string AlgorithmId => "brainbeat";
+    public bool SupportsNotch => true;
     public bool SupportsOnDemandWindows =>
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
 
