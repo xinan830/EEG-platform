@@ -21,7 +21,7 @@ public sealed class BrainbeatDetailTests
     {
         var catalog = new AlgorithmListViewModel(new UnusedClient(), new OperationNotificationCenter());
         var detail = new AlgorithmDetailViewModel(catalog);
-        catalog.SelectedAlgorithm = new AlgorithmCatalogItem("official", "brainbeat", "official-brainbeat-v1", "脑节律指标", "Brainbeat", "", [], ["static", "dynamic"], default,
+        catalog.SelectedAlgorithm = new AlgorithmCatalogItem("official", "brainbeat", "official-brainbeat-v2", "脑节律指标", "Brainbeat", "", [], ["static", "dynamic"], default,
             new DynamicAnalysisPolicy(4, [5], 5, 1, true), "available", true, null, null, null);
         catalog.SelectedAnalysisMode = "动态";
 
@@ -43,7 +43,7 @@ public sealed class BrainbeatDetailTests
     }
 
     private static AnalysisRunResponse Run(JsonElement summary) => new(
-        "run-1", "recording-1", "official_algorithm", "completed", "official-brainbeat-v1",
+        "run-1", "recording-1", "official_algorithm", "completed", "official-brainbeat-v2",
         new TimeRange(0, 6), new TimeRange(0, 6), summary, null, null,
         DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
 

@@ -105,7 +105,7 @@ public sealed class AlgorithmListViewModelTests
     {
         var algorithm = new AlgorithmCatalogItem("official", "psd", "offline-spectral-v3", "功率谱密度", "PSD", "", [], ["static", "dynamic"],
             default, new DynamicAnalysisPolicy(4, [5, 10, 20], 10, 1, true), "available", true, null, null, null);
-        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, "O1", new TimeRange(2, 18), "dynamic", windowSeconds: 10, stepSeconds: 1);
+        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, "O1", new TimeRange(2, 18), "dynamic", windowSeconds: 10, stepSeconds: 1, channels: ["O1"]);
 
         Assert.Equal("dynamic", config.GetProperty("mode").GetString());
         Assert.Equal(2, config.GetProperty("time").GetProperty("start_s").GetDouble());

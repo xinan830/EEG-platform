@@ -330,7 +330,7 @@ public sealed class DynamicWindowTargetCoordinatorTests
     }
 
     private static DynamicWindowRequest Request(long sample) => new(
-        "recording", "psd", null, null, JsonSerializer.SerializeToElement(new { channel = "F3" }),
+        "recording", "psd", null, null, JsonSerializer.SerializeToElement(new { channels = new[] { "F3" } }),
         sample, RequestId: Guid.NewGuid().ToString("N"));
 
     [Fact]

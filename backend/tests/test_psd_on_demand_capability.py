@@ -7,7 +7,8 @@ from app.algorithm_runtime.contracts import AlgorithmInputs
 from app.algorithm_runtime.on_demand import DynamicSessionIdentity, DynamicWindowIdentity
 from app.algorithms.psd.config import PsdConfig
 from app.algorithms.psd.runner import PsdAlgorithm
-from app.scientific.primitives.spectral import estimate_welch_psd, preprocess_offline
+from app.scientific.primitives.annotated_spectral import estimate_annotated_channel_psd
+from app.scientific.primitives.spectral import preprocess_offline
 
 
 def _session() -> DynamicSessionIdentity:
@@ -21,7 +22,7 @@ def _session() -> DynamicSessionIdentity:
 
 def _config() -> PsdConfig:
     return PsdConfig(
-        channel="F3", mode="dynamic", start_s=0, end_s=20,
+        channels=["F3"], mode="dynamic", start_s=0, end_s=20,
         window_s=5, step_s=1, low_hz=1, high_hz=30, notch_hz=None,
     )
 
@@ -57,9 +58,9 @@ def test_psd_capability_executes_one_window_with_explicit_provenance():
     frequencies = PsdAlgorithm._frequency_axis(200, 1, 50)
     recording = SimpleNamespace(
         load_spectrum=lambda **_: SimpleNamespace(
-            freqs=frequencies, psd=np.ones((1, frequencies.size)), clean_epochs=1,
+                freqs=frequencies, psd=np.ones((1, frequencies.size)), clean_epochs=1,
             total_epochs=1, signal_quality=1.0, gate_failed=None,
-            rejected_reasons=(), evidence={},
+            rejected_reasons=(), evidence={"channel_quality": {"F3": {"status": "clean", "reasons": []}}},
         )
     )
     algorithm = PsdAlgorithm()
@@ -68,7 +69,7 @@ def test_psd_capability_executes_one_window_with_explicit_provenance():
     assert result.state == "ready"
     assert result.array_units == {"psd": "V^2/Hz", "band_share": "ratio"}
     assert result.provenance["preprocessing_scope"] == "whole_recording_before_window_slice"
-    assert result.arrays["psd"].shape == frequencies.shape
+    assert result.arrays["psd"].shape == (1, frequencies.size)
 
 
 def test_psd_capability_preserves_quality_rejection_as_a_window_state():
@@ -110,7 +111,8 @@ def test_psd_window_matches_the_existing_dynamic_runner_for_each_frame():
         values = np.full((1, frequencies.size), 1.0 + start + duration / 100.0)
         return SimpleNamespace(
             freqs=frequencies, psd=values, clean_epochs=1, total_epochs=1,
-            signal_quality=1.0, gate_failed=None, rejected_reasons=(), evidence={},
+            signal_quality=1.0, gate_failed=None, rejected_reasons=(),
+            evidence={"channel_quality": {"F3": {"status": "clean", "reasons": []}}},
         )
 
     recording = SimpleNamespace(load_spectrum=spectrum)
@@ -150,12 +152,14 @@ def test_psd_equivalence_with_continuously_preprocessed_source_fixture():
     def spectrum(**kwargs):
         start = int(round(float(kwargs["start_s"]) * sfreq))
         length = int(round(float(kwargs["window_s"]) * sfreq))
-        estimate = estimate_welch_psd(prepared[start:start + length], sfreq, low_hz=1, high_hz=50)
+        estimate = estimate_annotated_channel_psd(prepared[start:start + length], sfreq, low_hz=1, high_hz=50)
+        evidence = dict(estimate.evidence)
+        evidence["channel_quality"] = dict(zip(kwargs["channels"], evidence["channel_quality"], strict=True))
         return SimpleNamespace(
             freqs=estimate.freqs, psd=estimate.psd, clean_epochs=estimate.clean_epochs,
             total_epochs=estimate.total_epochs, signal_quality=estimate.signal_quality,
             gate_failed=estimate.gate_failed, rejected_reasons=estimate.rejected_reasons,
-            evidence=estimate.evidence,
+            evidence=evidence,
         )
 
     algorithm = PsdAlgorithm()

@@ -139,11 +139,11 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
 
     expected = {
         "band_ratio": ("official-band-ratio-v1", "band-ratio-runtime-v2-frequency-contract"),
-        "brainbeat": ("official-brainbeat-v1", "brainbeat-runtime-v1"),
+        "brainbeat": ("official-brainbeat-v2", "brainbeat-runtime-v2"),
         "faa": ("official-faa-v2", "faa-runtime-v2"),
         "iapf": ("official-iapf-v2", "iapf-runtime-v3"),
         "peak_frequency": ("official-peak-frequency-v1", "peak-frequency-runtime-v2-frequency-contract"),
-        "psd": ("offline-spectral-v3", "psd-runtime-v3-explicit-filters"),
+        "psd": ("offline-spectral-v5-channel-resolved-band-integration", "psd-runtime-v5-channel-resolved-band-integration"),
         "rbp": ("official-rbp-v4", "rbp-runtime-v6-absolute-power-output"),
         "stft": ("spectrogram-v3-bounded", "stft-runtime-v6-bounded"),
         "theta_beta": ("official-theta-beta-v2", "theta-beta-runtime-v1"),

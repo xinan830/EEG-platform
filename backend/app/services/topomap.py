@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import math
 import logging
+import json
 from time import perf_counter
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
 import numpy as np
 
-from app.models.topomap import TopomapBand, TopomapGrid, TopomapPoint, TopomapResponse
+from app.models.topomap import TopomapField, TopomapGrid, TopomapPoint, TopomapResponse
 from app.services.topomap_context import DynamicTopomapContextError, resolve_dynamic_signal_provenance
 
 logger = logging.getLogger("brain_platform.topomap")
@@ -40,6 +41,8 @@ class TopomapInput:
     window_end_s: float
     algorithm_version: str
     implementation_version: str
+    metadata_by_field: dict[str, dict[str, object]] | None = None
+    quality_by_channel: dict[str, dict[str, object]] | None = None
     quality: str | None = None
     provenance: dict[str, object] | None = None
     power_type: str = "relative"
@@ -51,7 +54,7 @@ class TopomapAdapter(Protocol):
 
     def build_input(self, *, recording_id: str, payload: dict[str, Any],
                     window_start_s: float, window_end_s: float,
-                    power_type: str = "relative", band_id: str | None = None) -> TopomapInput: ...
+                    field_ids: list[str]) -> TopomapInput: ...
 
 
 class RbpTopomapAdapter:
@@ -60,7 +63,8 @@ class RbpTopomapAdapter:
 
     def build_input(self, *, recording_id: str, payload: dict[str, Any],
                     window_start_s: float, window_end_s: float,
-                    power_type: str = "relative", band_id: str | None = None) -> TopomapInput:
+                    field_ids: list[str]) -> TopomapInput:
+        power_type, band_id = TopomapService._resolve_rbp_field_ids(field_ids)
         if power_type not in {"relative", "absolute"}:
             raise TopomapUnavailable("TOPOMAP_POWER_TYPE_INVALID", "不支持的地形图功率类型。")
         if band_id is not None and band_id not in self.metrics:
@@ -91,8 +95,9 @@ class RbpTopomapAdapter:
             is_valid = isinstance(values, list) and len(values) == len(channels)
             if power_type == "absolute" and declared_unit != expected_unit:
                 is_valid = False
-            values_by_band[band] = values if is_valid else []
-            units_by_band[band] = expected_unit
+            field_id = f"rbp.{power_type}.{band}"
+            values_by_band[field_id] = values if is_valid else []
+            units_by_band[field_id] = expected_unit
             if not is_valid and power_type == "absolute":
                 missing.append(band)
         unavailable = None if not missing else {
@@ -112,6 +117,72 @@ class RbpTopomapAdapter:
         )
 
 
+class PsdTopomapAdapter:
+    algorithm_id = "psd"
+
+    def build_input(self, *, recording_id: str, payload: dict[str, Any],
+                    window_start_s: float, window_end_s: float,
+                    field_ids: list[str]) -> TopomapInput:
+        if len(field_ids) != 1 or not field_ids[0].startswith("psd.frequency-bin."):
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 地形图必须选择一个精确频率 bin。")
+        try:
+            frequency_index = int(field_ids[0].rsplit(".", 1)[1])
+        except ValueError as exc:
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 索引无效。") from exc
+        if frequency_index < 0 or field_ids[0] != f"psd.frequency-bin.{frequency_index}":
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 索引必须是非负十进制整数。")
+        result = payload.get("result") or payload
+        frequencies = np.asarray((payload.get("axes") or result.get("axes") or {}).get("frequency_hz", []), dtype=float)
+        arrays = result.get("arrays") or payload.get("arrays") or {}
+        values = np.asarray(arrays.get("psd", []), dtype=float)
+        channels = payload.get("channel_order") or result.get("channel_order")
+        if channels is None and isinstance(payload.get("scientific_configuration_json"), str):
+            try:
+                configuration = json.loads(payload["scientific_configuration_json"])
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 科学配置快照无效。") from exc
+            mapping = ((configuration.get("context") or {}).get("signal_mapping") or {})
+            channels = mapping.get("channels") or configuration.get("channels")
+        channels = channels or []
+        if (frequency_index >= frequencies.size or values.ndim != 2 or
+                values.shape != (len(channels), frequencies.size)):
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 不存在或通道矩阵形状无效。")
+        if values.shape[1] != frequencies.size or frequencies.ndim != 1 or not np.isfinite(frequencies).all() or np.any(np.diff(frequencies) <= 0):
+            raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 矩阵与严格递增的频率轴不匹配。")
+        psd_unit = (result.get("array_units") or {}).get("psd")
+        psd_unit = psd_unit.get("unit") if isinstance(psd_unit, dict) else psd_unit
+        if psd_unit != "V^2/Hz":
+            raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 数组单位必须是 V^2/Hz。")
+        evidence = result.get("evidence") or {}
+        extensions = evidence.get("extensions") if isinstance(evidence, dict) else None
+        channel_quality = extensions.get("channel_quality") if isinstance(extensions, dict) else None
+        by_channel = channel_quality.get("by_channel") if isinstance(channel_quality, dict) else None
+        if not isinstance(by_channel, dict) or set(by_channel) != set(channels):
+            raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 逐通道质量必须与 channel_order 完全对齐。")
+        axes = result.get("axes") or {}
+        frequency_unit = (result.get("axis_units") or {}).get("frequency_hz")
+        if frequency_unit != "Hz":
+            raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 频率轴单位必须是 Hz。")
+        if not channels or len(set(str(item).casefold() for item in channels)) != len(channels):
+            raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 通道顺序为空或包含重复通道。")
+        selected = values[:, frequency_index]
+        field_id = field_ids[0]
+        return TopomapInput(
+            algorithm_id=self.algorithm_id, recording_id=recording_id,
+            channel_order=[str(item) for item in channels],
+            values_by_band={field_id: selected.tolist()}, units_by_band={field_id: "V^2/Hz"},
+            window_start_s=window_start_s, window_end_s=window_end_s,
+            algorithm_version=str((payload.get("identity") or {}).get("scientific_version") or "unknown"),
+            implementation_version=str((payload.get("identity") or {}).get("implementation_identity") or "unknown"),
+            quality=result.get("quality"), provenance=result.get("provenance") or {},
+            quality_by_channel={str(channel): dict(by_channel[channel]) for channel in channels},
+            power_type="psd", metadata_by_field={field_id: {
+                "frequency_hz": float(frequencies[frequency_index]),
+                "label": f"{frequencies[frequency_index]:g} Hz",
+            }}, unavailable=None,
+        )
+
+
 class TopomapService:
     """Build a topomap from a saved dynamic RBP window without recomputing EEG."""
 
@@ -124,7 +195,7 @@ class TopomapService:
         self.result_service = result_service
         self.run_queue = run_queue
         self.dynamic_window_service = dynamic_window_service
-        self.adapters: dict[str, TopomapAdapter] = {"rbp": RbpTopomapAdapter()}
+        self.adapters: dict[str, TopomapAdapter] = {"rbp": RbpTopomapAdapter(), "psd": PsdTopomapAdapter()}
 
     def build_rbp_window(
         self,
@@ -132,17 +203,15 @@ class TopomapService:
         *,
         cursor_sample: int | None = None,
         cursor_s: float | None = None,
-        power_type: str = "relative",
-        band_id: str | None = None,
+        field_ids: list[str] | None = None,
         request_id: str | None = None,
     ) -> TopomapResponse:
-        if power_type not in {"relative", "absolute"}:
-            raise TopomapUnavailable("TOPOMAP_POWER_TYPE_INVALID", "不支持的地形图功率类型。")
-        if band_id is not None and band_id not in RbpTopomapAdapter.metrics:
-            raise TopomapUnavailable("TOPOMAP_BAND_ID_INVALID", "不支持的地形图频段。")
         run = self.run_queue.get(run_id)
-        if str((run.config or {}).get("algorithm_id", "")) != "rbp":
-            raise TopomapUnavailable("TOPOMAP_ALGORITHM_UNSUPPORTED", "当前运行不是 RBP 结果。")
+        algorithm_id = str((run.config or {}).get("algorithm_id", ""))
+        adapter = self.adapters.get(algorithm_id)
+        if adapter is None:
+            raise TopomapUnavailable("TOPOMAP_ALGORITHM_UNSUPPORTED", "当前算法没有注册地形图适配器。")
+        power_type = "psd" if algorithm_id == "psd" else self._resolve_rbp_field_ids(field_ids)[0]
         preview = self.result_service.window_preview(
             run_id, cursor_sample=cursor_sample, cursor_s=cursor_s,
         )
@@ -156,36 +225,34 @@ class TopomapService:
                           str(preview.get("implementation_version") or run.implementation_version), start_s, end_s,
                           power_type)
         if preview.get("status") != "available" or window is None:
-            return TopomapResponse(**base, bands=[], failure={
+            return TopomapResponse(**base, fields=[], failure={
                 "code": "TOPOMAP_WINDOW_UNAVAILABLE",
                 "message": "当前 RBP 窗口没有可用结果。",
                 "detail": {"status": preview.get("status"), "reason_codes": preview.get("reason_codes", [])},
             })
-        adapter = self.adapters["rbp"]
         try:
             spatial_input = adapter.build_input(recording_id=run.recording_id,
                 payload={"result": {"arrays": preview.get("arrays"), "array_units": preview.get("array_metadata"),
                                      "evidence": preview.get("evidence"), "provenance": preview.get("provenance"),
+                                     "axes": preview.get("axes"),
+                                     "axis_units": {name: metadata.get("unit") for name, metadata in
+                                                    (preview.get("axis_metadata") or {}).items()},
                                      "quality": preview.get("quality")},
                          "channel_order": list(((run.result_summary or {}).get("structured") or {}).get("channel_order") or []),
                          "identity": {"scientific_version": preview.get("scientific_version"),
                                       "implementation_identity": preview.get("implementation_version")}},
                 window_start_s=max(0.0, start_s), window_end_s=max(0.0, end_s),
-                power_type=power_type, band_id=band_id)
+                field_ids=field_ids)
         except TopomapUnavailable as exc:
-            return TopomapResponse(**base, bands=[], failure={
+            return TopomapResponse(**base, fields=[], failure={
                 "code": exc.code, "message": exc.message, "detail": exc.detail,
             })
         return self._build_response(run_id, spatial_input, run, request_id=request_id)
 
     def build_dynamic_window(self, window_id: str, *, project_id: str | None = None,
-                             power_type: str = "relative", band_id: str | None = None,
+                             field_ids: list[str] | None = None,
                              request_id: str | None = None) -> TopomapResponse:
         started = perf_counter()
-        if power_type not in {"relative", "absolute"}:
-            raise TopomapUnavailable("TOPOMAP_POWER_TYPE_INVALID", "不支持的地形图功率类型。")
-        if band_id is not None and band_id not in RbpTopomapAdapter.metrics:
-            raise TopomapUnavailable("TOPOMAP_BAND_ID_INVALID", "不支持的地形图频段。")
         if self.dynamic_window_service is None:
             raise TopomapUnavailable("TOPOMAP_DYNAMIC_UNAVAILABLE", "当前后端未启用按需窗口地形图。")
         payload_started = perf_counter()
@@ -198,17 +265,19 @@ class TopomapService:
             raise TopomapUnavailable("TOPOMAP_ALGORITHM_UNSUPPORTED", "当前算法没有注册地形图适配器。")
         plan = payload.get("plan") or payload.get("range") or {}
         if payload.get("state") != "ready" or not payload.get("result"):
+            power_type = "psd" if algorithm_id == "psd" else self._resolve_rbp_field_ids(field_ids)[0]
             return TopomapResponse(**self._base(
                 window_id, str(identity.get("recording_id", "")),
                 str(identity.get("scientific_version", "unknown")),
                 str(identity.get("implementation_identity", "unknown")),
                 float(plan.get("start_s", 0.0)), float(plan.get("end_s", 0.0)), power_type),
-                bands=[], failure={"code": "TOPOMAP_WINDOW_UNAVAILABLE", "message": "当前按需窗口没有可用结果。"})
+                fields=[], failure={"code": "TOPOMAP_WINDOW_UNAVAILABLE", "message": "当前按需窗口没有可用结果。"})
         input_started = perf_counter()
+        power_type = "psd" if algorithm_id == "psd" else self._resolve_rbp_field_ids(field_ids)[0]
         spatial_input = adapter.build_input(
             recording_id=str(identity.get("recording_id", "")), payload=payload,
             window_start_s=float(plan.get("start_s", 0.0)), window_end_s=float(plan.get("end_s", 0.0)),
-            power_type=power_type, band_id=band_id,
+            field_ids=field_ids,
         )
         input_ms = (perf_counter() - input_started) * 1000
         context_started = perf_counter()
@@ -231,6 +300,26 @@ class TopomapService:
         )
         return response
 
+    @staticmethod
+    def _resolve_rbp_field_ids(field_ids: list[str] | None) -> tuple[str, str | None]:
+        if not field_ids:
+            raise TopomapUnavailable("TOPOMAP_FIELD_IDS_REQUIRED", "地形图必须提供显式 field_ids。")
+        if len(field_ids) != len(set(field_ids)):
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "field_ids 不能重复。")
+        if any(not isinstance(value, str) or not value.startswith("rbp.") for value in field_ids):
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "地形图 field_id 不属于当前算法结果。")
+        parsed = []
+        for value in field_ids:
+            parts = value.split(".")
+            if len(parts) != 3 or parts[1] not in {"relative", "absolute"} or parts[2] not in RbpTopomapAdapter.metrics:
+                raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "RBP field_id 必须是 rbp.relative.<band> 或 rbp.absolute.<band>。")
+            parsed.append((parts[1], parts[2]))
+        if len(set(item[0] for item in parsed)) != 1:
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "一次请求只能选择同一功率表示。")
+        power_type = parsed[0][0]
+        bands = [item[1] for item in parsed]
+        return power_type, bands[0] if len(bands) == 1 else None
+
     def _base(self, run_id: str, recording_id: str, algorithm_version: str,
               implementation_version: str, start_s: float, end_s: float,
               power_type: str = "relative") -> dict[str, object]:
@@ -238,7 +327,7 @@ class TopomapService:
             "window_start_s": max(0.0, start_s), "window_end_s": max(0.0, end_s),
             "status": "unavailable", "algorithm_version": algorithm_version,
             "implementation_version": implementation_version, "coordinate_source": "montage_position_snapshot",
-            "coordinate_frame": "mri", "coordinate_unit": "m", "power_type": power_type}
+            "coordinate_frame": "mri", "coordinate_unit": "m"}
 
     def _build_response(self, run_id: str, spatial_input: TopomapInput, run: Any | None = None,
                         request_id: str | None = None,
@@ -247,10 +336,11 @@ class TopomapService:
                           spatial_input.implementation_version, spatial_input.window_start_s, spatial_input.window_end_s,
                           spatial_input.power_type)
         if spatial_input.unavailable:
-            bands = [TopomapBand(band_id=band, unit=spatial_input.units_by_band[band], points=[],
+            fields = [TopomapField(field_id=band, label=band, unit=spatial_input.units_by_band[band],
+                **(spatial_input.metadata_by_field or {}).get(band, {}), points=[],
                 status="unavailable", failure=spatial_input.unavailable)
                 for band in spatial_input.values_by_band]
-            return TopomapResponse(**{**base, "status": "unavailable", "bands": bands,
+            return TopomapResponse(**{**base, "status": "unavailable", "fields": fields,
                 "failure": spatial_input.unavailable, "provenance": {"power_type": spatial_input.power_type}})
         provenance_started = perf_counter()
         signal_provenance = signal_provenance if signal_provenance is not None else self._signal_provenance(run)
@@ -260,24 +350,25 @@ class TopomapService:
         )
         formulas = {str(item.get("name")): item for item in signal_provenance.get("formulas", [])
                     if isinstance(item, dict) and item.get("name")}
-        bands = []
+        fields = []
         for band_id, values in spatial_input.values_by_band.items():
             started = perf_counter()
             band = self._build_band(band_id, spatial_input.units_by_band.get(band_id, "ratio"), values,
                 spatial_input.channel_order, formulas, signal_provenance.get("map_positions") or {},
-                spatial_input.provenance or {})
+                spatial_input.provenance or {}, (spatial_input.metadata_by_field or {}).get(band_id, {}),
+                spatial_input.quality_by_channel or {})
             grid_cells = band.grid.width * band.grid.height if band.grid is not None else 0
             logger.info(
-                "topomap_interpolation_perf request_id=%s result_id=%s recording_id=%s power_type=%s "
-                "band_id=%s channel_count=%d grid_cells=%d elapsed_ms=%.1f",
-                request_id or "unknown", run_id, spatial_input.recording_id, spatial_input.power_type,
+                "topomap_interpolation_perf request_id=%s result_id=%s recording_id=%s field_id=%s "
+                "channel_count=%d grid_cells=%d elapsed_ms=%.1f",
+                request_id or "unknown", run_id, spatial_input.recording_id,
                 band_id, len(spatial_input.channel_order), grid_cells, (perf_counter() - started) * 1000,
             )
-            bands.append(band)
-        status = "ready" if any(band.status == "ready" for band in bands) else "unavailable"
-        failure = None if bands else {"code": "TOPOMAP_BANDS_MISSING", "message": "当前窗口没有逐通道频段结果。"}
-        return TopomapResponse(**{**base, "status": status, "bands": bands, "failure": failure,
-            "provenance": {"bands": list(spatial_input.values_by_band), "power_type": spatial_input.power_type,
+            fields.append(band)
+        status = "ready" if any(field.status == "ready" for field in fields) else "unavailable"
+        failure = None if fields else {"code": "TOPOMAP_FIELDS_MISSING", "message": "当前窗口没有逐通道空间字段。"}
+        return TopomapResponse(**{**base, "status": status, "fields": fields, "failure": failure,
+            "provenance": {"field_ids": list(spatial_input.values_by_band), "power_type": spatial_input.power_type,
                 "coordinate_source": "montage_position_snapshot",
                 "montage_id": signal_provenance.get("montage_id"),
                 "montage_revision": signal_provenance.get("montage_revision"),
@@ -299,18 +390,21 @@ class TopomapService:
 
     def _build_band(self, band_id: str, unit: str, values: list[object], channels: list[str],
                     formulas: dict[str, dict[str, object]], map_positions: dict[str, dict[str, object]],
-                    provenance: dict[str, object]) -> TopomapBand:
-        points, usable = self._build_points(channels, values, formulas, map_positions)
+                    provenance: dict[str, object], metadata: dict[str, object],
+                    quality_by_channel: dict[str, dict[str, object]]) -> TopomapField:
+        field_metadata = dict(metadata)
+        label = str(field_metadata.pop("label", band_id))
+        points, usable = self._build_points(channels, values, formulas, map_positions, quality_by_channel)
         included = [item.channel for item in points if item.status == "included"]
         excluded = [item.channel for item in points if item.status == "excluded"]
         if len(usable) < self.MINIMUM_POINTS:
-            return TopomapBand(band_id=band_id, unit=unit, points=points, status="unavailable",
+            return TopomapField(field_id=band_id, label=label, unit=unit, **field_metadata, points=points, status="unavailable",
                 included_channels=included, excluded_channels=excluded, failure={
                     "code": "TOPOMAP_INSUFFICIENT_POINTS",
                     "message": f"当前频段只有 {len(usable)} 个空间有效导联，至少需要 {self.MINIMUM_POINTS} 个。",
                 }, provenance={**provenance, "minimum_points": self.MINIMUM_POINTS})
         grid = self._interpolate(usable)
-        return TopomapBand(band_id=band_id, unit=unit, points=points, grid=grid, status="ready",
+        return TopomapField(field_id=band_id, label=label, unit=unit, **field_metadata, points=points, grid=grid, status="ready",
             included_channels=included, excluded_channels=excluded,
             provenance={**provenance, "metric_unit": unit, "interpolation": grid.method,
                 "head_radius": self.HEAD_RADIUS, "minimum_points": self.MINIMUM_POINTS})
@@ -329,6 +423,7 @@ class TopomapService:
         values: list[object],
         formulas: dict[str, dict[str, object]],
         map_positions: dict[str, dict[str, object]],
+        quality_by_channel: dict[str, dict[str, object]] | None = None,
     ) -> tuple[list[TopomapPoint], list[tuple[str, float, float, float]]]:
         labels = []
         for channel in channels:
@@ -346,6 +441,9 @@ class TopomapService:
             reason = None
             x = y = None
             numeric = float(value) if isinstance(value, (int, float)) and math.isfinite(float(value)) else None
+            quality = quality_by_channel.get(channel, {})
+            quality_status = str(quality.get("status") or "unknown")
+            quality_reasons = [str(item) for item in quality.get("reasons", [])]
             if not label:
                 reason = "bipolar_or_derived_output_has_no_spatial_rule"
             elif not location or location.get("status") != "available":
@@ -354,6 +452,8 @@ class TopomapService:
                 reason = "channel_not_enabled"
             elif numeric is None:
                 reason = "channel_value_unavailable"
+            elif quality_by_channel is not None and quality_status == "unavailable":
+                reason = quality_reasons[0] if quality_reasons else "channel_quality_unavailable"
             else:
                 x, y = float(location["x"]), float(location["y"])
                 key = (round(x, 12), round(y, 12))
@@ -365,10 +465,12 @@ class TopomapService:
                     coordinates.add(key)
             if reason:
                 points.append(TopomapPoint(channel=channel, electrode_label=label or None, x=x, y=y,
-                    value=numeric, status="excluded", reason=reason))
+                    value=numeric, status="excluded", reason=reason,
+                    quality_status=quality_status, quality_reasons=quality_reasons))
             else:
                 points.append(TopomapPoint(channel=channel, electrode_label=label, x=x, y=y,
-                    value=numeric, status="included"))
+                    value=numeric, status="included", quality_status=quality_status,
+                    quality_reasons=quality_reasons))
                 usable.append((channel, x, y, numeric))
         return points, usable
 

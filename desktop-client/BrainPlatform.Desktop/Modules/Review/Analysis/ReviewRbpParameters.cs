@@ -9,7 +9,28 @@ public sealed class ReviewRbpParameters : ObservableObject
     private string? channel;
 
     public IReadOnlyList<string> Channels { get; private set; } = [];
-    public string? Channel { get => channel; set => SetProperty(ref channel, value); }
+    public string? Channel
+    {
+        get => channel;
+        set
+        {
+            if (!SetProperty(ref channel, value)) return;
+            RaisePropertyChanged(nameof(AnalysisChannels));
+        }
+    }
+    public IReadOnlyList<string> AnalysisChannels
+    {
+        get
+        {
+            var channels = (Montage?.Outputs ?? [])
+                .Where(output => output.Available)
+                .Select(output => output.Id)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            return channels.Length > 0 ? channels : Channel is { Length: > 0 } selected ? [selected] : [];
+        }
+    }
     public double WindowSeconds { get; private set; } = 5;
     public double StepSeconds { get; private set; } = 1;
     public string? ScientificVersion { get; private set; }
@@ -28,6 +49,7 @@ public sealed class ReviewRbpParameters : ObservableObject
         RaisePropertyChanged(nameof(Channels));
         RaisePropertyChanged(nameof(WindowSeconds));
         RaisePropertyChanged(nameof(StepSeconds));
+        RaisePropertyChanged(nameof(AnalysisChannels));
     }
 
     public void SelectMontage(RegisteredRecording recording, HistoricalMontageDescriptor? montage)
@@ -45,6 +67,7 @@ public sealed class ReviewRbpParameters : ObservableObject
         RaisePropertyChanged(nameof(Montage));
         RaisePropertyChanged(nameof(Channels));
         RaisePropertyChanged(nameof(Channel));
+        RaisePropertyChanged(nameof(AnalysisChannels));
     }
 
     public JsonElement BuildConfig(double durationSeconds, double samplingRateHz)
@@ -58,13 +81,7 @@ public sealed class ReviewRbpParameters : ObservableObject
         if (!double.IsFinite(WindowSeconds) || !double.IsFinite(StepSeconds) || WindowSeconds <= 0 || StepSeconds <= 0)
             throw new InvalidOperationException("RBP 动态窗口参数无效。");
 
-        var channels = (Montage?.Outputs ?? [])
-            .Where(output => output.Available)
-            .Select(output => output.Id)
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (channels.Length == 0) channels = [Channel];
+        var channels = AnalysisChannels;
         return JsonSerializer.SerializeToElement(new
         {
             algorithm_id = "rbp", scientific_version = ScientificVersion,

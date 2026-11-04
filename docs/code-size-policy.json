@@ -150,6 +150,16 @@
       "reason": "持久队列仍是 Run 状态、完整窗口覆盖门禁、幂等复用和 artifact manifest 校验的单一事务边界；worker 执行、科学模块和 repository 已分离。结果边界整理复核：当前 435 行，本章仅增加输出契约错误码的持久化映射；验证器和结果序列化已归专属模块，不机械拆分事务状态。",
       "follow_up": "在 durable single-flight 与受控公平调度单独实现时，抽取队列策略和覆盖校验协作者，保持状态迁移唯一。"
     },
+    "backend/app/algorithms/psd/runner.py": {
+      "decision": "keep",
+      "max_lines": 420,
+      "reason": "当前 408 行。PSD 静态、动态和按需执行共享同一 Welch 配置、通道校验、频率轴及逐通道质量投影；拆开会分散同一算法的结果契约。本次仅扩展显式通道维度和每通道状态，未改变科学计算公式；继续增加执行策略前重新评估。"
+    },
+    "backend/app/services/topomap.py": {
+      "decision": "keep",
+      "max_lines": 470,
+      "reason": "当前 464 行。RBP/PSD 适配器和 TopomapService 共享同一个窗口化标量字段输入契约；字段校验、质量筛选、位置绑定和空间插值仍在统一服务边界内。本次将 band-only 请求替换为 field_ids，并增加精确 PSD bin 适配；当前低于 600 行评审线，继续扩展前应先评估适配器拆分。"
+    },
     "frontend/src/App.vue": {
       "decision": "split",
       "max_lines": 500,

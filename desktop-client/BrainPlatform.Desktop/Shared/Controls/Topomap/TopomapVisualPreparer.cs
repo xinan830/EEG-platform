@@ -8,7 +8,7 @@ using BrainPlatform.Desktop.Shared.Controls;
 namespace BrainPlatform.Desktop.Shared.Controls.Topomap;
 
 internal sealed record TopomapVisualSnapshot(
-    TopomapBand Band,
+    TopomapField Field,
     Rect HeadBounds,
     Geometry? HeadClip,
     double CanvasWidth,
@@ -28,7 +28,7 @@ internal static class TopomapVisualPreparer
     private static readonly Color ContourColor = Color.FromArgb(150, 255, 255, 255);
 
     internal static TopomapVisualSnapshot Prepare(
-        TopomapBand band,
+        TopomapField band,
         double canvasWidth,
         double canvasHeight,
         CancellationToken cancellationToken,
@@ -53,7 +53,7 @@ internal static class TopomapVisualPreparer
         {
             (minimum, maximum, hasValues) = ValueRange(grid, cancellationToken);
         }
-        if (maximum <= minimum) maximum = minimum + 1;
+        if (maximum <= minimum) maximum = minimum + Math.Max(Math.Abs(minimum) * 0.01, 1e-12);
 
         var rasterTimer = Stopwatch.StartNew();
         var pixels = BuildGridPixels(grid, minimum, maximum, cancellationToken);

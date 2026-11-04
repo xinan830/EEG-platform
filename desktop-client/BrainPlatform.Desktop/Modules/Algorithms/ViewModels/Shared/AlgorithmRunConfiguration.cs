@@ -77,8 +77,9 @@ internal static class AlgorithmRunConfiguration
         double? stepSeconds = null,
         double? notchHz = 50.0,
         HistoricalMontageDescriptor? montage = null,
-        IReadOnlyDictionary<string, string>? roleChannels = null) =>
-        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds, notchHz, montage, roleChannels));
+        IReadOnlyDictionary<string, string>? roleChannels = null,
+        IReadOnlyList<string>? channels = null) =>
+        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds, notchHz, montage, roleChannels, channels));
 
     internal static bool IsSupportedAlgorithm(AlgorithmCatalogItem? algorithm) =>
         algorithm is { IsRunnable: true } &&
@@ -115,7 +116,8 @@ internal static class AlgorithmRunConfiguration
         double? stepSeconds,
         double? notchHz,
         HistoricalMontageDescriptor? montage,
-        IReadOnlyDictionary<string, string>? roleChannels)
+        IReadOnlyDictionary<string, string>? roleChannels,
+        IReadOnlyList<string>? channels)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -140,21 +142,29 @@ internal static class AlgorithmRunConfiguration
         if (string.Equals(algorithm.Id, "rbp", StringComparison.OrdinalIgnoreCase) &&
             montage?.Outputs is { Count: > 0 })
         {
-            var channels = montage.Outputs.Where(output => output.Available)
+            var rbpChannels = montage.Outputs.Where(output => output.Available)
                 .Select(output => output.Id).Where(id => !string.IsNullOrWhiteSpace(id))
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            if (channels.Length > 0)
-                payload["channels"] = channels;
+            if (rbpChannels.Length > 0)
+                payload["channels"] = rbpChannels;
         }
 
         AlgorithmRunResultHandlerRegistry.For(algorithm.Id)
             .ApplyConfigFields(payload, channel, f4Channel, roleChannels);
 
-        var selectedOutputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        if (string.Equals(algorithm.Id, "psd", StringComparison.OrdinalIgnoreCase))
         {
-            (string)payload["channel"]!,
-        };
-        if (string.Equals(algorithm.Id, "rbp", StringComparison.OrdinalIgnoreCase) && payload.TryGetValue("channels", out var requested))
+            var orderedChannels = channels?.Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
+            if (orderedChannels.Length == 0 || orderedChannels.Any(string.IsNullOrWhiteSpace))
+                throw new InvalidOperationException("PSD 必须有序声明至少一个分析通道。");
+            payload.Remove("channel");
+            payload["channels"] = orderedChannels;
+        }
+
+        var selectedOutputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (payload.TryGetValue("channel", out var primary) && primary is string primaryChannel)
+            selectedOutputs.Add(primaryChannel);
+        if (payload.TryGetValue("channels", out var requested))
             selectedOutputs.UnionWith((IEnumerable<string>)requested!);
         if (!string.IsNullOrWhiteSpace(f4Channel)) selectedOutputs.Add(f4Channel);
         foreach (var roleChannel in roleChannels?.Values ?? [])

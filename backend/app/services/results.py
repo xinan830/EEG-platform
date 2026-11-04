@@ -144,6 +144,10 @@ class ResultService:
         response["arrays"] = {name: self._json_values(value) for name, value in arrays.items()}
         response["array_metadata"] = structured.get("arrays", {})
         response["axis_metadata"] = structured.get("axes", {})
+        if "window_evidence_json" in arrays:
+            evidence_items = json.loads(str(np.asarray(arrays["window_evidence_json"]).item()))
+            if isinstance(evidence_items, list) and selection.window.window_index < len(evidence_items):
+                response["evidence"] = evidence_items[selection.window.window_index]
         return response
 
     @staticmethod

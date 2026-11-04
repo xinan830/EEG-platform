@@ -7,7 +7,7 @@ using BrainPlatform.Desktop.Modules.Montages.Domain;
 namespace BrainPlatform.Desktop.Modules.Review.Analysis;
 
 /// <summary>Formula-free Review adapter for a declared dynamic-window algorithm.</summary>
-public sealed class ReviewWindowAnalysisAdapter : IReviewAlgorithmAdapter
+public class ReviewWindowAnalysisAdapter : IReviewAlgorithmAdapter
 {
     private readonly IAlgorithmClient client;
     private readonly bool? enableOnDemand;
@@ -85,15 +85,6 @@ public sealed class ReviewWindowAnalysisAdapter : IReviewAlgorithmAdapter
 
     public Task ReleaseOnDemandAsync(CancellationToken cancellationToken = default) =>
         targets.ResetAsync().WaitAsync(cancellationToken);
-
-    public Task<TopomapResponse> LoadTopomapAsync(WindowPreviewResponse window,
-        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
-    {
-        ArgumentNullException.ThrowIfNull(window);
-        if (window.DynamicResponse is { } dynamic)
-            return client.GetDynamicTopomapAsync(dynamic.WindowId, null, cancellationToken, powerType, bandId);
-        return client.GetRunTopomapAsync(window.RunId, window.CursorSample, cancellationToken, powerType, bandId);
-    }
 
     private void ValidateRequest(string recordingId, AnalysisRunRequest request, long cursorSample)
     {

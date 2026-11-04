@@ -21,7 +21,7 @@ def _context(**overrides):
 
 
 def test_scientific_configuration_identity_includes_value_context():
-    config = {"algorithm_id": "psd", "channel": "F3-REF", "mode": "dynamic"}
+    config = {"algorithm_id": "psd", "channels": ["F3-REF"], "mode": "dynamic"}
     baseline = scientific_configuration_sha256(config, _context())
     for key, changed in (
         ("sampling_rate_hz", 250.0),
@@ -46,7 +46,7 @@ def test_display_montage_label_does_not_change_scientific_context_identity():
 
 
 def test_scientific_configuration_json_is_the_exact_hashed_input():
-    config = {"algorithm_id": "psd", "channel": "F3-REF", "mode": "dynamic"}
+    config = {"algorithm_id": "psd", "channels": ["F3-REF"], "mode": "dynamic"}
     serialized = scientific_configuration_json(config, _context())
     import hashlib
     assert hashlib.sha256(serialized.encode("utf-8")).hexdigest() == scientific_configuration_sha256(config, _context())

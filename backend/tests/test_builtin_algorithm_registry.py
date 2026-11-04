@@ -83,7 +83,7 @@ def test_psd_catalog_filter_defaults_match_current_config_model() -> None:
 
     module = build_builtin_registry().get("psd")
     parameters = {item.key: item.default for item in module.parameter_schema().parameters}
-    config = PsdConfig(channel="F3", mode="dynamic", start_s=0, end_s=10, window_s=5, step_s=1)
+    config = PsdConfig(channels=["F3"], mode="dynamic", start_s=0, end_s=10, window_s=5, step_s=1)
 
     assert parameters["low_hz"] == config.low_hz == 1.0
     assert parameters["high_hz"] == config.high_hz == 30.0
@@ -128,12 +128,13 @@ def test_registration_gate_reports_algorithm_layer_and_exact_missing_item() -> N
 def test_capability_report_requires_explicit_combined_evidence() -> None:
     report = official_capability_report(Path(__file__).resolve().parents[2])
     for algorithm_id, item in report.items():
-        assert item["paths"]["full"]["status"] == "validated", algorithm_id
         if algorithm_id == "tnk_biofeedback":
+            assert item["paths"]["full"]["status"] == "unvalidated"
             assert item["paths"]["on_demand"]["status"] == "unvalidated"
             assert item["paths"]["combined_preview_background_full"]["status"] == "unvalidated"
             assert item["release_ready"] is False
             continue
+        assert item["paths"]["full"]["status"] == "validated", algorithm_id
         assert item["paths"]["on_demand"]["status"] == "validated", algorithm_id
         assert item["paths"]["combined_preview_background_full"]["status"] == "validated", algorithm_id
         assert "backend/tests/test_official_combined_strategies.py" in item["paths"]["combined_preview_background_full"]["evidence"]

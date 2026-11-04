@@ -18,9 +18,9 @@ public sealed class TopomapCanvas : FrameworkElement
     private CancellationTokenSource? _preparationCancellation;
     private int _generation;
 
-    public static readonly DependencyProperty BandProperty = DependencyProperty.Register(
-        nameof(Band), typeof(TopomapBand), typeof(TopomapCanvas),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnBandChanged));
+    public static readonly DependencyProperty FieldProperty = DependencyProperty.Register(
+        nameof(Field), typeof(TopomapField), typeof(TopomapCanvas),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnFieldChanged));
 
     public static readonly DependencyProperty ColorScaleStateProperty = DependencyProperty.Register(
         nameof(ColorScaleState), typeof(TopomapColorScaleState), typeof(TopomapCanvas),
@@ -38,10 +38,10 @@ public sealed class TopomapCanvas : FrameworkElement
         SizeChanged += (_, _) => SchedulePreparation(clearSnapshot: true);
     }
 
-    public TopomapBand? Band
+    public TopomapField? Field
     {
-        get => (TopomapBand?)GetValue(BandProperty);
-        set => SetValue(BandProperty, value);
+        get => (TopomapField?)GetValue(FieldProperty);
+        set => SetValue(FieldProperty, value);
     }
 
     public TopomapColorScaleState? ColorScaleState
@@ -61,7 +61,7 @@ public sealed class TopomapCanvas : FrameworkElement
             ScalpMapRenderer.VerticalOffset, ScalpMapRenderer.ReservedHeight, ScalpMapRenderer.RadiusScale);
         if (bounds.IsEmpty) return;
 
-        var band = snapshot?.Band ?? Band;
+        var field = snapshot?.Field ?? Field;
         var diagnostics = snapshot is not null && DesktopLog.PerformanceDiagnosticsEnabled &&
                           !ReferenceEquals(_diagnosticSnapshot, snapshot);
         var renderTimer = diagnostics ? Stopwatch.StartNew() : null;
@@ -77,12 +77,12 @@ public sealed class TopomapCanvas : FrameworkElement
         ScalpMapRenderer.DrawHead(drawingContext, ActualWidth, ActualHeight, ScalpMapRenderer.VerticalOffset,
             ScalpMapRenderer.ReservedHeight, VisualTreeHelper.GetDpi(this).PixelsPerDip,
             fill: false, showFrontLabel: false, radiusScale: ScalpMapRenderer.RadiusScale);
-        DrawElectrodes(drawingContext, band, bounds);
-        DrawTitleAndScale(drawingContext, band, bounds, snapshot);
+        DrawElectrodes(drawingContext, field, bounds);
+        DrawTitleAndScale(drawingContext, field, bounds, snapshot);
         if (diagnostics && renderTimer is not null && snapshot is not null)
         {
             _diagnosticSnapshot = snapshot;
-            var message = $"review_topomap_perf stage=render band={snapshot.Band.BandId}" +
+            var message = $"review_topomap_perf stage=render field={snapshot.Field.FieldId}" +
                           $" draw_ms={renderTimer.Elapsed.TotalMilliseconds:0.0}" +
                           $" raster_ms={snapshot.RasterMilliseconds:0.0}" +
                           $" contours_ms={snapshot.ContourMilliseconds:0.0}" +
@@ -91,7 +91,7 @@ public sealed class TopomapCanvas : FrameworkElement
         }
     }
 
-    private static void OnBandChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
+    private static void OnFieldChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
     {
         var canvas = (TopomapCanvas)dependencyObject;
         if (args.NewValue is null)
@@ -117,13 +117,13 @@ public sealed class TopomapCanvas : FrameworkElement
             _diagnosticSnapshot = null;
         }
 
-        if (!IsLoaded || Band is not { } band || ActualWidth < 80 || ActualHeight < 80)
+        if (!IsLoaded || Field is not { } field || ActualWidth < 80 || ActualHeight < 80)
         {
             InvalidateVisual();
             return;
         }
 
-        if (_snapshot is { } current && ReferenceEquals(current.Band, band) &&
+        if (_snapshot is { } current && ReferenceEquals(current.Field, field) &&
             current.CanvasWidth == ActualWidth && current.CanvasHeight == ActualHeight)
             return;
 
@@ -132,21 +132,21 @@ public sealed class TopomapCanvas : FrameworkElement
         var width = ActualWidth;
         var height = ActualHeight;
         _preparationCancellation = cancellation;
-        _ = PrepareVisualAsync(band, width, height, generation, cancellation);
+        _ = PrepareVisualAsync(field, width, height, generation, cancellation);
         InvalidateVisual();
     }
 
-    private async Task PrepareVisualAsync(TopomapBand band, double width, double height,
+    private async Task PrepareVisualAsync(TopomapField field, double width, double height,
         int generation, CancellationTokenSource cancellation)
     {
         var published = false;
         try
         {
-            var scaleBounds = ColorScaleState?.GetBounds(band);
+            var scaleBounds = ColorScaleState?.GetBounds(field);
             var snapshot = await Task.Run(() => TopomapVisualPreparer.Prepare(
-                band, width, height, cancellation.Token, scaleBounds), cancellation.Token).ConfigureAwait(false);
-            if (DesktopLog.PerformanceDiagnosticsEnabled && band.Grid is { } grid)
-                DesktopLog.Info($"review_topomap_perf stage=prepare band={band.BandId}" +
+                field, width, height, cancellation.Token, scaleBounds), cancellation.Token).ConfigureAwait(false);
+            if (DesktopLog.PerformanceDiagnosticsEnabled && field.Grid is { } grid)
+                DesktopLog.Info($"review_topomap_perf stage=prepare field={field.FieldId}" +
                                 $" grid={grid.Width}x{grid.Height}" +
                                 $" raster_ms={snapshot.RasterMilliseconds:0.0}" +
                                 $" contours_ms={snapshot.ContourMilliseconds:0.0}" +
@@ -155,12 +155,12 @@ public sealed class TopomapCanvas : FrameworkElement
             await Dispatcher.InvokeAsync(() =>
             {
                 if (cancellation.IsCancellationRequested || generation != _generation || !IsLoaded ||
-                    !ReferenceEquals(Band, band) || width != ActualWidth || height != ActualHeight)
+                    !ReferenceEquals(Field, field) || width != ActualWidth || height != ActualHeight)
                     return;
                 _preparationCancellation = null;
                 _snapshot = snapshot;
                 if (snapshot.HasGridValues)
-                    ColorScaleState?.Remember(band, snapshot.Minimum, snapshot.Maximum);
+                    ColorScaleState?.Remember(field, snapshot.Minimum, snapshot.Maximum);
                 published = true;
                 InvalidateVisual();
             }, DispatcherPriority.Render).Task.ConfigureAwait(false);
@@ -168,7 +168,7 @@ public sealed class TopomapCanvas : FrameworkElement
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            DesktopLog.Warning($"review_topomap_prepare_failed band={band.BandId}" +
+            DesktopLog.Warning($"review_topomap_prepare_failed field={field.FieldId}" +
                                $" exception_type={exception.GetType().Name}");
         }
         finally
@@ -199,10 +199,10 @@ public sealed class TopomapCanvas : FrameworkElement
         catch (ObjectDisposedException) { }
     }
 
-    private static void DrawElectrodes(DrawingContext context, TopomapBand? band, Rect bounds)
+    private static void DrawElectrodes(DrawingContext context, TopomapField? field, Rect bounds)
     {
-        if (band is null) return;
-        foreach (var point in band.Points)
+        if (field is null) return;
+        foreach (var point in field.Points)
         {
             if (point.Status != "included" || point.X is not { } x || point.Y is not { } y) continue;
             var position = ScalpMapRenderer.ToCanvas(x, y, bounds);
@@ -210,11 +210,11 @@ public sealed class TopomapCanvas : FrameworkElement
         }
     }
 
-    private void DrawTitleAndScale(DrawingContext context, TopomapBand? band, Rect bounds,
+    private void DrawTitleAndScale(DrawingContext context, TopomapField? field, Rect bounds,
         TopomapVisualSnapshot? snapshot)
     {
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var title = new FormattedText(band is null ? "" : BandName(band.BandId),
+        var title = new FormattedText(field is null ? "" : FieldName(field),
             CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
             new Typeface("Segoe UI Semibold"), 11, new SolidColorBrush(Color.FromRgb(15, 23, 42)), dpi);
         context.DrawText(title,
@@ -227,14 +227,14 @@ public sealed class TopomapCanvas : FrameworkElement
             context.DrawRectangle(ColorScaleBrushes[index], null,
                 new Rect(bar.X, bar.Y + bar.Height * index / ColorScaleBrushes.Length,
                     bar.Width, bar.Height / ColorScaleBrushes.Length + 1));
-        var unitLabel = new FormattedText(DisplayUnit(band?.Unit), CultureInfo.CurrentUICulture,
+        var unitLabel = new FormattedText(DisplayUnit(field?.Unit), CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), 13, Brushes.SlateGray, dpi);
         context.DrawText(unitLabel, new Point(
             Math.Clamp(bar.X + (bar.Width - unitLabel.Width) / 2, 0, Math.Max(0, ActualWidth - unitLabel.Width)),
             Math.Max(0, bar.Y - 25)));
-        var maximumLabel = new FormattedText($"{snapshot.Maximum:0.##}", CultureInfo.CurrentUICulture,
+        var maximumLabel = new FormattedText(FormatScaleValue(snapshot.Maximum, field?.Unit), CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), 14, Brushes.SlateGray, dpi);
-        var minimumLabel = new FormattedText($"{snapshot.Minimum:0.##}", CultureInfo.CurrentUICulture,
+        var minimumLabel = new FormattedText(FormatScaleValue(snapshot.Minimum, field?.Unit), CultureInfo.CurrentUICulture,
             FlowDirection.LeftToRight, new Typeface("Segoe UI Semibold"), 14, Brushes.SlateGray, dpi);
         var labelsFitRight = bar.Right + 6 + Math.Max(maximumLabel.Width, minimumLabel.Width) <= ActualWidth;
         context.DrawText(maximumLabel, new Point(
@@ -243,11 +243,16 @@ public sealed class TopomapCanvas : FrameworkElement
             labelsFitRight ? bar.Right + 6 : Math.Max(0, bar.X - minimumLabel.Width - 6), bar.Bottom - 15));
     }
 
-    private static string DisplayUnit(string? unit) => unit switch
+    internal static string DisplayUnit(string? unit) => unit switch
     {
         "uV^2" => "µV²",
+        "V^2/Hz" => "µV²/Hz",
         _ => unit ?? "",
     };
+
+    internal static string FormatScaleValue(double value, string? unit) =>
+        (unit == "V^2/Hz" ? value * 1_000_000_000_000d : value)
+        .ToString("G4", CultureInfo.CurrentUICulture);
 
     private static Brush[] CreateColorScaleBrushes()
     {
@@ -261,8 +266,13 @@ public sealed class TopomapCanvas : FrameworkElement
         return brushes;
     }
 
-    private static string BandName(string id) => id switch
+    private static string FieldName(TopomapField field)
     {
-        "delta" => "Delta", "theta" => "Theta", "alpha" => "Alpha", "beta" => "Beta", "gamma" => "Gamma", _ => id,
-    };
+        var id = field.FieldId.Split('.').Last();
+        return id switch
+        {
+            "delta" => "Delta", "theta" => "Theta", "alpha" => "Alpha",
+            "beta" => "Beta", "gamma" => "Gamma", _ => field.Label,
+        };
+    }
 }

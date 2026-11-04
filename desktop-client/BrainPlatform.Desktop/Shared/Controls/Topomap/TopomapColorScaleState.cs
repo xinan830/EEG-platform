@@ -4,22 +4,22 @@ namespace BrainPlatform.Desktop.Shared.Controls.Topomap;
 
 public sealed class TopomapColorScaleState
 {
-    private readonly Dictionary<(string BandId, string Unit), (double Minimum, double Maximum)> absoluteBounds = [];
+    private readonly Dictionary<(string FieldId, string Unit), (double Minimum, double Maximum)> absoluteBounds = [];
 
-    public (double Minimum, double Maximum)? GetBounds(TopomapBand band)
+    public (double Minimum, double Maximum)? GetBounds(TopomapField band)
     {
         if (band.Unit == "ratio") return (0, 1);
-        if (band.Unit != "uV^2") return null;
+        if (band.Unit is not ("uV^2" or "V^2/Hz")) return null;
 
         lock (absoluteBounds)
-            return absoluteBounds.TryGetValue((band.BandId, band.Unit), out var bounds) ? bounds : null;
+            return absoluteBounds.TryGetValue((band.FieldId, band.Unit), out var bounds) ? bounds : null;
     }
 
-    public void Remember(TopomapBand band, double minimum, double maximum)
+    public void Remember(TopomapField band, double minimum, double maximum)
     {
-        if (band.Unit != "uV^2" || !double.IsFinite(minimum) || !double.IsFinite(maximum)) return;
+        if (band.Unit is not ("uV^2" or "V^2/Hz") || !double.IsFinite(minimum) || !double.IsFinite(maximum)) return;
         lock (absoluteBounds)
-            absoluteBounds.TryAdd((band.BandId, band.Unit), (minimum, maximum));
+            absoluteBounds.TryAdd((band.FieldId, band.Unit), (minimum, maximum));
     }
 
     public void Reset()

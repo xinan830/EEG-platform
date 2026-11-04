@@ -38,7 +38,7 @@ def admission(tmp_path):
     service = DynamicWindowService(BlockingRecording(recording), registry, database,
                                   tmp_path / "artifacts", max_pending_windows=2)
     request = DynamicWindowRequest(recording_id="r", algorithm_id="psd", cursor_sample=800,
-        config={"time": {"start_s": 0, "end_s": 20}, "channel": "F3", "mode": "dynamic",
+        config={"time": {"start_s": 0, "end_s": 20}, "channels": ["F3"], "mode": "dynamic",
                 "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None})
     yield service, request, started, release
     release.set()

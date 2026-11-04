@@ -11,6 +11,30 @@ namespace BrainPlatform.Desktop.Tests.Review;
 public sealed class RbpReviewChartTests
 {
     [Fact]
+    public void Prepared_empty_chart_receives_first_window_without_rebuilding_series() => ReviewTimelineNavigatorTests.OnSta(() =>
+    {
+        var model = new RbpReviewAnalysisViewModel();
+        model.InitializeChannels(Enumerable.Range(1, 21).Select(index => $"CH{index}"));
+        var history = model.ChannelHistories[0];
+        var chart = new RbpChart { IsStackedHistory = true, Bands = history.Bands, Windows = history.Windows };
+        Load(chart);
+        var surface = Assert.IsType<SciChartSurface>(chart.Content);
+        var series = surface.RenderableSeries.Select(item => item.DataSeries).ToArray();
+        Assert.Equal(5, series.Length);
+        Assert.All(series, item => Assert.Empty(Assert.IsType<XyDataSeries<double, double>>(item).XValues));
+
+        model.Apply(new WindowPreviewResponse("session", "recording", 600, 3, "insufficient_data", [],
+            null, false, null, null, null, null, null, null, "rbp-fixture", "fixture"), 3);
+        model.Apply(RbpReviewPresentationTests.Ready(5), 5);
+
+        for (var index = 0; index < series.Length; index++)
+        {
+            Assert.Same(series[index], surface.RenderableSeries[index].DataSeries);
+            Assert.Equal(new[] { 5d }, Assert.IsType<XyDataSeries<double, double>>(series[index]).XValues);
+        }
+    });
+
+    [Fact]
     public void New_window_appends_to_existing_chart_series() => ReviewTimelineNavigatorTests.OnSta(() =>
     {
         var model = new RbpReviewAnalysisViewModel();
@@ -18,6 +42,8 @@ public sealed class RbpReviewChartTests
         var history = model.ChannelHistories[0];
         var chart = new RbpChart { IsStackedHistory = true, Bands = history.Bands, Windows = history.Windows };
         var surface = Assert.IsType<SciChartSurface>(chart.Content);
+        Assert.Empty(surface.RenderableSeries);
+        Load(chart);
         Assert.Equal("窗口结束时间（s）", Assert.Single(surface.XAxes).AxisTitle);
         Assert.Equal("相对功率（%）", Assert.Single(surface.YAxes).AxisTitle);
         var series = surface.RenderableSeries.ToArray();
@@ -48,6 +74,7 @@ public sealed class RbpReviewChartTests
             Windows = history.Windows,
         };
         var surface = Assert.IsType<SciChartSurface>(chart.Content);
+        Load(chart);
         var xAxis = Assert.Single(surface.XAxes);
         var initial = Assert.IsType<SciChart.Data.Model.DoubleRange>(xAxis.VisibleRange);
         Assert.Equal(30, initial.Min);
@@ -58,6 +85,27 @@ public sealed class RbpReviewChartTests
         var advanced = Assert.IsType<SciChart.Data.Model.DoubleRange>(xAxis.VisibleRange);
         Assert.Equal(30, advanced.Min);
         Assert.Equal(31.5, advanced.Max);
+    });
+
+    [Fact]
+    public void Unloaded_chart_rebuilds_from_current_history_when_loaded_again() => ReviewTimelineNavigatorTests.OnSta(() =>
+    {
+        var model = new RbpReviewAnalysisViewModel();
+        model.Apply(RbpReviewPresentationTests.Ready(5), 5);
+        var history = model.ChannelHistories[0];
+        var chart = new RbpChart { IsStackedHistory = true, Bands = history.Bands, Windows = history.Windows };
+        Load(chart);
+        var surface = Assert.IsType<SciChartSurface>(chart.Content);
+        var series = Assert.IsType<XyDataSeries<double, double>>(surface.RenderableSeries[0].DataSeries);
+
+        chart.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+        model.Apply(RbpReviewPresentationTests.Ready(6), 6);
+
+        Assert.Equal(new[] { 5d }, series.XValues);
+        Load(chart);
+
+        var reloaded = Assert.IsType<XyDataSeries<double, double>>(surface.RenderableSeries[0].DataSeries);
+        Assert.Equal(new[] { 5d, 6d }, reloaded.XValues);
     });
 
     [Theory]
@@ -77,6 +125,7 @@ public sealed class RbpReviewChartTests
                 Source = new Uri("/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml", UriKind.Relative),
             });
             Arrange(panel, height);
+            LoadCharts(panel);
             var list = Assert.IsType<ListBox>(panel.FindName("ChannelHistoryList"));
             var shell = Assert.Single(Descendants<AnalysisPanelShell>(panel));
             Assert.Empty(shell.Title);
@@ -89,6 +138,7 @@ public sealed class RbpReviewChartTests
 
             list.ScrollIntoView(model.ChannelHistories[20]);
             Arrange(panel, height);
+            LoadCharts(panel);
 
             Assert.NotNull(list.ItemContainerGenerator.ContainerFromIndex(20));
             Assert.InRange(Descendants<RbpChart>(list).Count(), 1, 8);
@@ -118,6 +168,14 @@ public sealed class RbpReviewChartTests
         element.Measure(new Size(620, height));
         element.Arrange(new Rect(0, 0, 620, height));
         element.UpdateLayout();
+    }
+
+    private static void Load(RbpChart chart) =>
+        chart.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+
+    private static void LoadCharts(DependencyObject root)
+    {
+        foreach (var chart in Descendants<RbpChart>(root)) Load(chart);
     }
 
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject

@@ -189,8 +189,8 @@ public sealed class PsdOnDemandDetailTests : IDisposable
             var result = new DynamicWindowResultResponse(null, state, "frequency_series",
                 new Dictionary<string, JsonElement> { ["frequency_hz"] = JsonSerializer.SerializeToElement(new[] { 1d, 2d }) },
                 new Dictionary<string, string> { ["frequency_hz"] = "Hz" },
-                new Dictionary<string, JsonElement> { ["psd"] = JsonSerializer.SerializeToElement(new[] { 4d, 5d }),
-                    ["band_share"] = JsonSerializer.SerializeToElement(new[] { 0.1, 0.1, 0.6, 0.15, 0.05 }) },
+                new Dictionary<string, JsonElement> { ["psd"] = JsonSerializer.SerializeToElement(new[] { new[] { 4d, 5d } }),
+                    ["band_share"] = JsonSerializer.SerializeToElement(new[] { new[] { 0.1, 0.1, 0.6, 0.15, 0.05 } }) },
                 new Dictionary<string, string> { ["psd"] = "V^2/Hz", ["band_share"] = "ratio" },
                 state == "rejected" ? "gate_failed" : "clean", null,
                 JsonSerializer.SerializeToElement(new { source_quality = new {

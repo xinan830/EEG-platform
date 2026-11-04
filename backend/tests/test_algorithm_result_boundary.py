@@ -29,7 +29,7 @@ def structured():
     return AlgorithmStructuredResult(
         output_kind="frequency_series", channel_order=["Fz"],
         axes={"frequency_hz": np.array([8.0, 9.0, 10.0])}, axis_units={"frequency_hz": "Hz"},
-        arrays={"psd": np.ones(3) * 1e-12, "band_share": np.ones(5) / 5},
+        arrays={"psd": np.ones((1, 3)) * 1e-12, "band_share": np.ones((1, 5)) / 5},
         array_units={"psd": "V^2/Hz", "band_share": "ratio"},
         requested_range={"start_s": 0, "end_s": 10}, quality="clean",
     )
@@ -88,7 +88,7 @@ def test_new_algorithm_identity_uses_the_same_validation_and_serialization():
     validate_algorithm_result(result, manifest, "static", ["fz"])
     summary, arrays = _serialize_structured_result(result, manifest.algorithm_id, "合成算法")
     assert summary["output"]["id"] == "synthetic_new_algorithm"
-    assert summary["arrays"]["psd"] == {"unit": "V^2/Hz", "shape": [3]}
+    assert summary["arrays"]["psd"] == {"unit": "V^2/Hz", "shape": [1, 3]}
     assert summary["axes"]["frequency_hz"]["array_key"] == "axis_frequency_hz"
     np.testing.assert_array_equal(arrays["axis_frequency_hz"], result.axes["frequency_hz"])
 

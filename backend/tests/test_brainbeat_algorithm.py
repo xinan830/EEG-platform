@@ -8,6 +8,8 @@ from app.algorithms.brainbeat.runner import BrainbeatAlgorithm
 from app.algorithm_runtime.contracts import AlgorithmInputs
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.scientific.primitives import SpectralEstimate
+from app.scientific.primitives.spectral import band_power
+from app.algorithms.brainbeat.official import segment_brainbeat
 
 
 class FakeRecording:
@@ -119,3 +121,17 @@ def test_official_run_boundary_accepts_brainbeat_secondary_channel():
             "algorithm_id": "brainbeat", "channel": "Fz",
             "time": {"start_s": 0.0, "end_s": 10.0},
         })
+
+
+def test_brainbeat_uses_shared_boundary_interpolated_band_power():
+    frequencies = np.arange(1.0, 30.25, 0.25)
+    fz = frequencies ** 2
+    pz = frequencies ** 1.5
+    iapf = 10.3
+    theta = band_power(frequencies, fz, max(4.0, iapf - 6.0), iapf - 2.0)
+    alpha = band_power(frequencies, pz, iapf - 2.0, iapf + 2.0)
+    expected = (theta / band_power(frequencies, fz, 1.0, 30.0)) / (
+        alpha / band_power(frequencies, pz, 1.0, 30.0) + 1e-20
+    )
+
+    assert segment_brainbeat(frequencies, fz, pz, iapf) == pytest.approx(expected)

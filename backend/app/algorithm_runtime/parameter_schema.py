@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 
-ParameterValueType = Literal["string", "number", "integer", "boolean", "enum"]
+ParameterValueType = Literal["string", "string_list", "number", "integer", "boolean", "enum"]
 ParameterVisibility = Literal["user", "advanced", "developer"]
 
 
@@ -67,6 +67,9 @@ class AlgorithmParameter(BaseModel):
             raise ValueError(f"parameter {self.key!r} requires a boolean value")
         if self.value_type == "string" and not isinstance(value, str):
             raise ValueError(f"parameter {self.key!r} requires a string value")
+        if self.value_type == "string_list":
+            if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+                raise ValueError(f"parameter {self.key!r} requires a string list")
         if self.value_type == "enum" and value not in [option.value for option in self.options]:
             raise ValueError(f"parameter {self.key!r} has an unsupported option")
         if self.value_type in {"number", "integer"}:

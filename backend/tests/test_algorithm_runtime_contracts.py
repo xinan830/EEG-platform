@@ -44,7 +44,7 @@ def test_dynamic_policy_accepts_documented_refresh_steps(step_s: float) -> None:
     config = AlgorithmRuntime.validate_config(
         module=PsdAlgorithm(),
         config={
-            "channel": "Fz", "mode": "dynamic", "start_s": 0.0, "end_s": 20.0,
+            "channels": ["Fz"], "mode": "dynamic", "start_s": 0.0, "end_s": 20.0,
             "window_s": 5.0, "step_s": step_s,
         },
     )
@@ -57,7 +57,7 @@ def test_dynamic_policy_rejects_refresh_step_outside_catalog() -> None:
         AlgorithmRuntime.validate_config(
             module=PsdAlgorithm(),
             config={
-                "channel": "Fz", "mode": "dynamic", "start_s": 0.0, "end_s": 20.0,
+                "channels": ["Fz"], "mode": "dynamic", "start_s": 0.0, "end_s": 20.0,
                 "window_s": 5.0, "step_s": 3.0,
             },
         )
@@ -177,14 +177,14 @@ def test_dynamic_psd_keeps_a_quality_gate_gap_as_a_rejected_matrix_window() -> N
                 })
             return SpectralEstimate(
                 frequencies, np.ones((1, len(frequencies))) * 1e-12,
-                1.0, 1, 1, None, evidence={},
+                1.0, 1, 1, None, evidence={"channel_quality": {"Fz": {"status": "clean", "reasons": []}}},
             )
 
     registry = AlgorithmRegistry()
     registry.register(PsdAlgorithm())
     result = AlgorithmRuntime(registry).execute(
         algorithm_id="psd", recording=Recording(),
-        config={"channel": "Fz", "mode": "dynamic", "start_s": 1, "end_s": 20, "window_s": 10, "step_s": 1},
+        config={"channels": ["Fz"], "mode": "dynamic", "start_s": 1, "end_s": 20, "window_s": 10, "step_s": 1},
     )
 
     assert result.quality == "partial"
@@ -209,21 +209,21 @@ def test_dynamic_psd_keeps_a_fixed_custom_frequency_axis_after_rejected_warmup()
             frequencies = PsdAlgorithm._frequency_axis(self.sfreq_hz, output_low_hz, output_high_hz)
             return SpectralEstimate(
                 frequencies, np.ones((1, len(frequencies))) * 1e-12,
-                1.0, 1, 1, None, evidence={},
+                1.0, 1, 1, None, evidence={"channel_quality": {"Fz": {"status": "clean", "reasons": []}}},
             )
 
     registry = AlgorithmRegistry()
     registry.register(PsdAlgorithm())
     result = AlgorithmRuntime(registry).execute(
         algorithm_id="psd", recording=Recording(),
-        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 20,
+        config={"channels": ["Fz"], "mode": "dynamic", "start_s": 0, "end_s": 20,
                 "window_s": 10, "step_s": 1, "low_hz": 0.5, "high_hz": 40.0},
     )
 
     assert result.quality == "partial"
     assert result.axes["frequency_hz"][0] == 1.0
     assert result.axes["frequency_hz"][-1] == 50.0
-    assert result.arrays["psd"].shape == (len(result.windows), len(result.axes["frequency_hz"]))
+    assert result.arrays["psd"].shape == (len(result.windows), 1, len(result.axes["frequency_hz"]))
     assert np.isnan(result.arrays["psd"][0]).all()
 
 

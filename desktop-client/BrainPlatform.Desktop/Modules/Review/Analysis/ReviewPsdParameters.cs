@@ -6,13 +6,11 @@ namespace BrainPlatform.Desktop.Modules.Review.Analysis;
 /// <summary>PSD-owned scientific inputs for the shared Review window channel.</summary>
 public sealed class ReviewPsdParameters : ObservableObject
 {
-    private string? channel;
     private double lowHz;
     private double highHz;
     private double notchHz;
 
     public IReadOnlyList<string> Channels { get; private set; } = [];
-    public string? Channel { get => channel; set => SetProperty(ref channel, value); }
     public HistoricalMontageDescriptor? Montage { get; private set; }
     public double WindowSeconds { get; private set; }
     public double StepSeconds { get; private set; }
@@ -45,8 +43,7 @@ public sealed class ReviewPsdParameters : ObservableObject
         if (!double.IsFinite(durationSeconds) || durationSeconds <= 0 ||
             !double.IsFinite(samplingRateHz) || samplingRateHz <= 100)
             throw new InvalidOperationException("PSD 需要有效录音时长与高于 100 Hz 的采样率。");
-        if (Channel is null || !Channels.Contains(Channel, StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException("请选择有效 PSD 导联。");
+        if (Channels.Count == 0) throw new InvalidOperationException("PSD 分析通道集为空。");
         if (string.IsNullOrWhiteSpace(ScientificVersion) ||
             !double.IsFinite(WindowSeconds) || !double.IsFinite(StepSeconds) || WindowSeconds <= 0 || StepSeconds <= 0)
             throw new InvalidOperationException("PSD 科学版本或动态窗口声明无效。");
@@ -54,28 +51,23 @@ public sealed class ReviewPsdParameters : ObservableObject
         return JsonSerializer.SerializeToElement(new
         {
             algorithm_id = "psd", scientific_version = ScientificVersion,
-            channel = Channel, mode = "dynamic", low_hz = LowHz, high_hz = HighHz,
+            channels = Channels, mode = "dynamic", low_hz = LowHz, high_hz = HighHz,
             notch_hz = NotchHz == 0 ? (double?)null : NotchHz,
             time = new { start_s = 0d, end_s = durationSeconds },
             dynamic_window_s = WindowSeconds, refresh_step_s = StepSeconds,
             analysis_montage_id = Montage?.Id, analysis_montage_revision = Montage?.Revision,
             analysis_montage_fingerprint = Montage?.Fingerprint,
             analysis_montage_outputs = Montage?.Outputs.Where(output => output.Available &&
-                string.Equals(output.Id, Channel, StringComparison.OrdinalIgnoreCase))
+                Channels.Contains(output.Id, StringComparer.OrdinalIgnoreCase))
                 .Select(output => new { role = output.Role, output = output.Id, unit = output.Unit }).ToArray(),
         });
     }
 
     private void UpdateChannels(RegisteredRecording recording, HistoricalMontageDescriptor? montage)
     {
-        var previousRole = Montage?.Outputs.FirstOrDefault(output => output.Id == Channel)?.Role;
         Montage = montage;
         Channels = montage is null ? recording.Channels : montage.Outputs
             .Where(output => output.Available).Select(output => output.Id).ToArray();
-        var mapped = previousRole is null ? Channel : montage?.Outputs.FirstOrDefault(output =>
-            output.Available && string.Equals(output.Role, previousRole, StringComparison.OrdinalIgnoreCase))?.Id;
-        Channel = Channels.FirstOrDefault(value => string.Equals(value, mapped, StringComparison.OrdinalIgnoreCase))
-            ?? Channels.FirstOrDefault();
         RaisePropertyChanged(nameof(Channels));
     }
 

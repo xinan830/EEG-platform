@@ -60,8 +60,18 @@ class OfficialAlgorithmRunConfig(BaseModel):
                 raise ValueError("Brainbeat requires explicit Fz and Pz source channels")
             if self.channel.casefold() == self.secondary_channel.casefold():
                 raise ValueError("Brainbeat Fz and Pz source channels must be different")
-        elif not self.channel:
+        elif not self.channel and not (self.algorithm_id == "psd" and self.channels):
             raise ValueError(f"{self.algorithm_id} requires an analysis channel")
+        if self.algorithm_id == "psd":
+            if not self.channels:
+                raise ValueError("psd requires an explicit ordered channels list")
+            normalized = [item.strip() for item in self.channels]
+            folded = [item.casefold() for item in normalized]
+            if any(not item for item in normalized) or len(folded) != len(set(folded)):
+                raise ValueError("psd channels must be non-empty and unique")
+            self.channels = normalized
+            if self.channel is not None:
+                raise ValueError("psd uses channels; channel is not supported")
         if self.algorithm_id == "rbp" and self.channels is not None:
             normalized = []
             seen = set()
@@ -104,12 +114,15 @@ class OfficialAlgorithmRunConfig(BaseModel):
 
     def runtime_config(self) -> dict[str, Any]:
         config: dict[str, Any] = {
-            "channel": str((self.tnk_role_mapping or {}).get("Fz") if self.algorithm_id == "tnk_biofeedback" else self.channel), "mode": self.mode,
+            "channel": str((self.tnk_role_mapping or {}).get("Fz") if self.algorithm_id == "tnk_biofeedback" else self.channel or (self.channels or [""])[0]), "mode": self.mode,
             "start_s": float(self.time.start_s), "end_s": float(self.time.end_s),
             "window_s": float(self.dynamic_window_s), "step_s": float(self.refresh_step_s),
         }
         if self.algorithm_id == "rbp" and self.channels:
             config["channels"] = list(self.channels)
+        if self.algorithm_id == "psd":
+            config["channels"] = list(self.channels or [])
+            config.pop("channel", None)
         if self.algorithm_id == "tnk_biofeedback":
             config["role_mapping"] = dict(self.tnk_role_mapping or {})
         elif self.algorithm_id == "faa":

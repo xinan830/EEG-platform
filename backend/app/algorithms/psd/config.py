@@ -4,8 +4,10 @@ from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmMode
 
 
 class PsdConfig(AlgorithmConfigBase):
-    """Static single-channel PSD configuration."""
+    """Channel-resolved PSD configuration with one explicit input order."""
 
+    channel: str | None = None
+    channels: list[str] = Field(min_length=1)
     mode: AlgorithmMode = "static"
     low_hz: float = Field(default=1.0, gt=0.0)
     high_hz: float = Field(default=30.0, gt=0.0)
@@ -13,6 +15,15 @@ class PsdConfig(AlgorithmConfigBase):
 
     @model_validator(mode="after")
     def validate_frequency_range(self) -> "PsdConfig":
+        normalized = [item.strip() for item in self.channels]
+        if any(not item for item in normalized):
+            raise ValueError("PSD channels must be non-empty")
+        folded = [item.casefold() for item in normalized]
+        if len(folded) != len(set(folded)):
+            raise ValueError("PSD channels must be unique and ordered")
+        self.channels = normalized
+        if self.channel is not None:
+            raise ValueError("PSD uses channels; channel is not supported")
         if self.low_hz <= 0.0 or self.high_hz <= self.low_hz:
             raise ValueError("PSD frequency range must satisfy high_hz > low_hz")
         if self.notch_hz == 0:

@@ -48,7 +48,8 @@ public sealed class AlgorithmParameterValidationTests
         var algorithm = Catalog() with { Id = id };
         var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, "F3", new TimeRange(0, 30), mode,
             new AlgorithmRunConfiguration.FrequencyBand(1, 50), windowSeconds: mode == "dynamic" ? 5 : null,
-            stepSeconds: mode == "dynamic" ? 1 : null, notchHz: notch);
+            stepSeconds: mode == "dynamic" ? 1 : null, notchHz: notch,
+            channels: id == "psd" ? ["F3"] : null);
         Assert.Equal(notch, config.GetProperty("notch_hz").GetDouble());
         Assert.Equal(mode, config.GetProperty("mode").GetString());
     }

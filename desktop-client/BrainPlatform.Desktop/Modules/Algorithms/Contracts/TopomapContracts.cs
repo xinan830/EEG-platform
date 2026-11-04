@@ -23,9 +23,11 @@ public sealed record TopomapGrid(
     [property: JsonPropertyName("head_radius")] double HeadRadius,
     [property: JsonPropertyName("values")] IReadOnlyList<IReadOnlyList<double?>> Values);
 
-public sealed record TopomapBand(
-    [property: JsonPropertyName("band_id")] string BandId,
+public sealed record TopomapField(
+    [property: JsonPropertyName("field_id")] string FieldId,
+    [property: JsonPropertyName("label")] string Label,
     [property: JsonPropertyName("unit")] string Unit,
+    [property: JsonPropertyName("frequency_hz")] double? FrequencyHz,
     [property: JsonPropertyName("points")] IReadOnlyList<TopomapPoint> Points,
     [property: JsonPropertyName("grid")] TopomapGrid? Grid,
     [property: JsonPropertyName("status")] string Status,
@@ -45,7 +47,6 @@ public sealed record TopomapResponse(
     [property: JsonPropertyName("coordinate_source")] string CoordinateSource,
     [property: JsonPropertyName("coordinate_frame")] string CoordinateFrame,
     [property: JsonPropertyName("coordinate_unit")] string CoordinateUnit,
-    [property: JsonPropertyName("bands")] IReadOnlyList<TopomapBand> Bands,
+    [property: JsonPropertyName("fields")] IReadOnlyList<TopomapField> Fields,
     [property: JsonPropertyName("failure")] JsonElement? Failure,
-    [property: JsonPropertyName("provenance")] IReadOnlyDictionary<string, JsonElement>? Provenance,
-    [property: JsonPropertyName("power_type")] string PowerType = "relative");
+    [property: JsonPropertyName("provenance")] IReadOnlyDictionary<string, JsonElement>? Provenance);

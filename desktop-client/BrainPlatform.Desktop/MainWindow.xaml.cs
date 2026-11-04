@@ -322,8 +322,8 @@ public partial class MainWindow : Window, IDesktopNavigation
         }
         var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
         ReviewAnalysisCoordinator[]? analysisCoordinators = (DataContext as DesktopWorkspaceViewModel) is { } analysisWorkspace
-            ? [new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "rbp", "RBP")),
-               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "psd", "PSD")),
+            ? [new(new RbpReviewAnalysisAdapter(analysisWorkspace.Algorithms)),
+               new(new PsdReviewAnalysisAdapter(analysisWorkspace.Algorithms)),
                new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "stft", "STFT")),
                new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "faa", "FAA")),
                new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "iapf", "IAPF")),

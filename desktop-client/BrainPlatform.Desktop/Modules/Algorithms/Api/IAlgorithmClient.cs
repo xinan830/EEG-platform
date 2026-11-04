@@ -40,11 +40,11 @@ public interface IAlgorithmClient
         throw new NotSupportedException("当前算法客户端不支持结果窗口读取。");
 
     Task<TopomapResponse> GetRunTopomapAsync(string runId, long cursorSample,
-        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null) =>
+        CancellationToken cancellationToken, IReadOnlyList<string> fieldIds) =>
         throw new NotSupportedException("当前算法客户端不支持运行地形图。");
 
     Task<TopomapResponse> GetDynamicTopomapAsync(string windowId, string? projectId,
-        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null) =>
+        CancellationToken cancellationToken, IReadOnlyList<string> fieldIds) =>
         throw new NotSupportedException("当前算法客户端不支持按需地形图。");
 
     Task<Topomap3DLocationResponse> ResolveTopomap3DLocationsAsync(

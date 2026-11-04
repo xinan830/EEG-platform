@@ -12,7 +12,7 @@
 
 默认频谱契约使用 4 阶 Butterworth SOS 零相位滤波、4 s Hann Welch 片段和 50% 重叠；频率范围、陷波和算法特定配置以冻结的执行快照为准。只平均通过质量检查的片段；非有限值、幅度异常、平线、削顶或缺样保留明确证据。质量门失败返回不可用，不伪造零值。
 
-通用 band-power 使用精确边界插值和梯形积分。Brainbeat 的当前公式保留其独立的 inclusive-bin 积分及 epsilon；不能在管理重构中替换为另一积分方式。
+所有调用共享 `scientific/primitives/spectral.py::band_power` 的频带积分：将边界 PSD 线性插值到精确频率，再做梯形积分。PSD 的频带占比和 Brainbeat 的动态 IAPF 频带都复用该实现；Brainbeat 仍使用其算法自有 IAPF 频带及 1–30 Hz 分母。数值规则变更记录在 Brainbeat v2 与当前 PSD 版本中，历史 Run 不重算或改写。
 
 ## 当前指标
 
@@ -22,7 +22,7 @@
 - Theta/Beta：当前为一个明确原始通道的 IAPF 相对频段比值，`theta=[max(4,IAPF-6),IAPF-2]`、`beta=[IAPF+2,30]`，不要求 Fz/Pz/Oz 三通道组合。
 - 独立 RBP（`official-rbp-v4`）：结构化结果输出 Delta、Theta、Alpha、Beta、Gamma 五频段相对比例（`ratio`）及绝对功率（`uV^2`）；绝对功率与比例来自同一 PSD 积分，地形图可切换显示类型而不重跑算法。频段边界和相对功率总分母由 RBP 模块声明。质量按通道独立评估，幅值超限、疑似削顶和低幅值等保留有限数据的计算值并标注警告，不再受 75% 干净片段比例限制。缺失/非有限样本、无效五频段总功率仍令该通道不可用；不插值、不补零。保留伪迹会改变数值含义，不能解释成经过伪迹剔除的干净脑电。TNK 和其他指标的质量策略不随之改变。
 - FAA：F3/F4 明确选择来源，使用请求绝对范围内的成对 2 s epoch、50% overlap 和质量门，默认至少十个 clean paired epochs；计算 `ln(P_F4_alpha)-ln(P_F3_alpha)`。不再保留历史起始丢弃或最长时长常量。
-- 离线 Brainbeat：同一窗内独立计算 Fz/Pz 频谱及 IAPF，得到 `relative_theta(Fz)/relative_alpha(Pz)`，不跨窗进行 IAPF 锁定、warm-up 累积或 EMA。
+- 离线 Brainbeat（`official-brainbeat-v2`）：同一窗内独立计算 Fz/Pz 频谱及 IAPF，使用共享 4 s Hann Welch / 50% overlap；定义记录为 2 s 的旧 Definition 元数据与实际共享计算不一致，当前 Definition 修正为 4 s。指标为 `relative_theta(Fz)/relative_alpha(Pz)`，分母仍是算法自有 1–30 Hz，不跨窗进行 IAPF 锁定、warm-up 累积或 EMA。
 
 ## 时间、质量与追溯
 

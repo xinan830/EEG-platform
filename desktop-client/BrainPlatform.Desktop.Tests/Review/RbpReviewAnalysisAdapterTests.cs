@@ -12,7 +12,7 @@ public sealed class RbpReviewAnalysisAdapterTests
     public async Task Dynamic_request_keeps_recording_algorithm_channel_and_ratio_unit()
     {
         var client = new FixtureClient { Response = ReadyResponse() };
-        var adapter = new ReviewWindowAnalysisAdapter(client, "rbp", "RBP", enableOnDemand: true);
+        var adapter = new RbpReviewAnalysisAdapter(client, enableOnDemand: true);
         var request = new AnalysisRunRequest("recording-1", "official_algorithm",
             JsonSerializer.SerializeToElement(new { algorithm_id = "rbp", channel = "F7" }));
 
@@ -31,7 +31,7 @@ public sealed class RbpReviewAnalysisAdapterTests
     public async Task Catalog_entry_must_declare_runnable_dynamic_capability()
     {
         var client = new FixtureClient { DeclaresDynamicCapability = false };
-        var adapter = new ReviewWindowAnalysisAdapter(client, "rbp", "RBP", enableOnDemand: true);
+        var adapter = new RbpReviewAnalysisAdapter(client, enableOnDemand: true);
 
         await Assert.ThrowsAsync<NotSupportedException>(() => adapter.GetAlgorithmAsync(CancellationToken.None));
     }
@@ -52,19 +52,28 @@ public sealed class RbpReviewAnalysisAdapterTests
     public async Task Current_dynamic_window_topomap_request_carries_power_type_and_band_without_changing_window()
     {
         var client = new FixtureClient();
-        var adapter = new ReviewWindowAnalysisAdapter(client, "rbp", "RBP", enableOnDemand: true);
+        var adapter = new RbpReviewAnalysisAdapter(client, enableOnDemand: true);
         var window = new WindowPreviewResponse("run", "recording-1", 1_000, 5, "available", [], null,
             false, null, null, null, null, null, null, "rbp-v1", "impl-v1")
         {
             DynamicResponse = ReadyResponse(),
         };
 
-        var result = await adapter.LoadTopomapAsync(window, CancellationToken.None, "absolute", "alpha");
+        var result = await adapter.LoadTopomapAsync(window, CancellationToken.None, ["rbp.absolute.alpha"]);
 
         Assert.Same(client.Topomap, result);
         Assert.Equal("window-1", client.TopomapWindowId);
-        Assert.Equal("absolute", client.TopomapPowerType);
-        Assert.Equal("alpha", client.TopomapBandId);
+        Assert.Equal(["rbp.absolute.alpha"], client.TopomapFieldIds);
+    }
+
+    [Fact]
+    public void Topomap_capability_is_owned_by_the_rbp_adapter()
+    {
+        var rbp = new RbpReviewAnalysisAdapter(new FixtureClient(), enableOnDemand: true);
+        var stft = new ReviewWindowAnalysisAdapter(new FixtureClient { AlgorithmId = "stft" }, "stft", "STFT");
+
+        Assert.Same(rbp, new ReviewAnalysisCoordinator(rbp).GetCapability<IReviewTopomapProvider>());
+        Assert.Null(new ReviewAnalysisCoordinator(stft).GetCapability<IReviewTopomapProvider>());
     }
 
     private static DynamicWindowResponse ReadyResponse() => new(
@@ -109,8 +118,7 @@ public sealed class RbpReviewAnalysisAdapterTests
         public TopomapResponse Topomap { get; init; } = new("window", "recording-1", 0, 5,
             "ready", "rbp-v1", "impl-v1", "montage_position_snapshot", "mri", "m", [], null, null);
         public string? TopomapWindowId { get; private set; }
-        public string? TopomapPowerType { get; private set; }
-        public string? TopomapBandId { get; private set; }
+        public IReadOnlyList<string>? TopomapFieldIds { get; private set; }
 
         public Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AlgorithmCatalogItem>>([CatalogItem()]);
@@ -123,11 +131,10 @@ public sealed class RbpReviewAnalysisAdapterTests
         }
 
         public Task<TopomapResponse> GetDynamicTopomapAsync(string windowId, string? projectId,
-            CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
+            CancellationToken cancellationToken, IReadOnlyList<string> fieldIds)
         {
             TopomapWindowId = windowId;
-            TopomapPowerType = powerType;
-            TopomapBandId = bandId;
+            TopomapFieldIds = fieldIds;
             return Task.FromResult(Topomap);
         }
 

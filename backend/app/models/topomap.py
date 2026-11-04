@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 
 TopomapStatus = Literal["ready", "unavailable"]
 TopomapPointStatus = Literal["included", "excluded"]
-TopomapPowerType = Literal["relative", "absolute"]
 
 
 class TopomapPoint(BaseModel):
@@ -18,6 +17,8 @@ class TopomapPoint(BaseModel):
     value: float | None = None
     status: TopomapPointStatus
     reason: str | None = None
+    quality_status: str = "unknown"
+    quality_reasons: list[str] = Field(default_factory=list)
 
 
 class TopomapGrid(BaseModel):
@@ -32,9 +33,11 @@ class TopomapGrid(BaseModel):
     values: list[list[float | None]]
 
 
-class TopomapBand(BaseModel):
-    band_id: str
+class TopomapField(BaseModel):
+    field_id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
     unit: str
+    frequency_hz: float | None = None
     points: list[TopomapPoint]
     grid: TopomapGrid | None = None
     status: TopomapStatus
@@ -55,7 +58,6 @@ class TopomapResponse(BaseModel):
     coordinate_source: Literal["montage_position_snapshot"]
     coordinate_frame: Literal["mri"]
     coordinate_unit: Literal["m"]
-    power_type: TopomapPowerType = "relative"
-    bands: list[TopomapBand] = Field(default_factory=list)
+    fields: list[TopomapField] = Field(default_factory=list)
     failure: dict[str, object] | None = None
     provenance: dict[str, object] = Field(default_factory=dict)

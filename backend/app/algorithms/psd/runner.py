@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import numpy as np
@@ -22,6 +22,7 @@ from app.algorithm_runtime.on_demand import (
 )
 from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
 from app.algorithms.spectral_snapshot import spectral_execution_snapshot
+from app.scientific.primitives.spectral import band_power
 from app.algorithm_runtime.windows import (
     build_dynamic_analysis_frames,
     controlled_frames,
@@ -100,7 +101,7 @@ class PsdAlgorithm:
             return DynamicWindowResult(
                 identity=identity, state="insufficient_data", output_kind="frequency_series",
                 axes={"frequency_hz": fixed_frequencies}, axis_units={"frequency_hz": "Hz"},
-                arrays={"psd": np.full(fixed_frequencies.shape, np.nan), "band_share": np.full(5, np.nan)},
+                arrays={"psd": np.full((len(inputs.channels), fixed_frequencies.size), np.nan), "band_share": np.full((len(inputs.channels), 5), np.nan)},
                 array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="insufficient_data",
                 failure={"code": "PSD_WINDOW_INSUFFICIENT_DATA", "message": plan.reason or "window unavailable"},
             )
@@ -108,7 +109,7 @@ class PsdAlgorithm:
             check_cancelled()
         try:
             spectrum = self._load(
-                inputs.payload, channel=inputs.channel, start_s=plan.start_s,
+                inputs.payload, channels=list(inputs.channels), start_s=plan.start_s,
                 window_s=plan.end_s - plan.start_s,
                 filter_low_hz=config.low_hz, filter_high_hz=config.high_hz,
                 output_low_hz=1.0, output_high_hz=50.0, notch_hz=config.notch_hz,
@@ -116,23 +117,24 @@ class PsdAlgorithm:
             if check_cancelled is not None:
                 check_cancelled()
             frequencies = np.asarray(spectrum.freqs, dtype=float)
-            values = np.asarray(spectrum.psd[0], dtype=float)
             evidence = self._dynamic_evidence(spectrum, config)
-            quality = evidence["source_quality"]
             if spectrum.gate_failed:
-                raise SpectralQualityGateError(quality)
+                raise SpectralQualityGateError(evidence["source_quality"])
+            values, band_share, channel_quality = self._channel_rows(spectrum, inputs.channels, frequencies)
+            window_quality = "clean" if all(item.get("status") == "clean" for item in channel_quality) else "partial"
             return DynamicWindowResult(
                 identity=identity, state="ready", output_kind="frequency_series",
                 axes={"frequency_hz": frequencies}, axis_units={"frequency_hz": "Hz"},
-                arrays={"psd": values, "band_share": self._band_shares(frequencies, values)},
-                array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="clean",
-                evidence=evidence, provenance={"preprocessing_scope": "whole_recording_before_window_slice"},
+                arrays={"psd": values, "band_share": band_share},
+                array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality=window_quality,
+                evidence={**evidence, "extensions": {"channel_quality": {"by_channel": dict(zip(inputs.channels, channel_quality, strict=True))}}},
+                provenance={"preprocessing_scope": "whole_recording_before_window_slice"},
             )
         except SpectralQualityGateError as exc:
             return DynamicWindowResult(
                 identity=identity, state="rejected", output_kind="frequency_series",
                 axes={"frequency_hz": fixed_frequencies}, axis_units={"frequency_hz": "Hz"},
-                arrays={"psd": np.full(fixed_frequencies.shape, np.nan), "band_share": np.full(5, np.nan)},
+                arrays={"psd": np.full((len(inputs.channels), fixed_frequencies.size), np.nan), "band_share": np.full((len(inputs.channels), 5), np.nan)},
                 array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="gate_failed",
                 evidence={"source_quality": dict(exc.quality), "spectral_evidence": dict(exc.quality.get("evidence", {})),
                           "calculation_trace": {"algorithm": "welch_psd", "window_policy_version": self.window_policy_version}},
@@ -143,7 +145,7 @@ class PsdAlgorithm:
             return DynamicWindowResult(
                 identity=identity, state="unavailable", output_kind="frequency_series",
                 axes={"frequency_hz": fixed_frequencies}, axis_units={"frequency_hz": "Hz"},
-                arrays={"psd": np.full(fixed_frequencies.shape, np.nan), "band_share": np.full(5, np.nan)},
+                arrays={"psd": np.full((len(inputs.channels), fixed_frequencies.size), np.nan), "band_share": np.full((len(inputs.channels), 5), np.nan)},
                 array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="unavailable",
                 failure={"code": "PSD_WINDOW_UNAVAILABLE", "message": str(exc)},
             )
@@ -161,10 +163,10 @@ class PsdAlgorithm:
         if not full_range_available:
             return powers
         for index, (low_hz, high_hz) in enumerate(cls.BAND_SHARE_RANGES):
-            mask = (frequencies >= low_hz) & (frequencies <= high_hz)
-            if mask.sum() < 2:
+            try:
+                powers[index] = float(band_power(frequencies, values, low_hz, high_hz))
+            except ValueError:
                 return np.full(5, np.nan, dtype=float)
-            powers[index] = float(np.trapezoid(values[mask], frequencies[mask]))
         finite = np.isfinite(powers)
         total = float(np.sum(powers[finite]))
         if total <= 0:
@@ -175,9 +177,34 @@ class PsdAlgorithm:
     def _band_share_trace(cls) -> dict[str, Any]:
         return {"band_share_labels": list(cls.BAND_SHARE_LABELS), "band_share_ranges_hz": [list(item) for item in cls.BAND_SHARE_RANGES]}
 
+    @classmethod
+    def _channel_rows(cls, spectrum: Any, channels: tuple[str, ...], frequencies: np.ndarray) -> tuple[np.ndarray, np.ndarray, list[dict[str, Any]]]:
+        values = np.asarray(spectrum.psd, dtype=float)
+        if values.ndim != 2 or values.shape != (len(channels), frequencies.size):
+            raise ValueError("PSD channel matrix does not match the ordered frequency axis")
+        raw_quality = getattr(spectrum, "evidence", {}).get("channel_quality", {})
+        if not isinstance(raw_quality, Mapping) or set(raw_quality) != set(channels):
+            raise ValueError("PSD channel quality must align with channel_order")
+        rows = values.copy()
+        shares = np.full((len(channels), 5), np.nan, dtype=float)
+        normalized: list[dict[str, Any]] = []
+        for index, channel in enumerate(channels):
+            item = raw_quality[channel]
+            quality = dict(item)
+            if quality.get("status") not in {"clean", "warning", "unavailable"}:
+                raise ValueError("PSD channel quality has an undeclared status")
+            if quality.get("status") == "unavailable" or not np.isfinite(rows[index]).all():
+                rows[index] = np.nan
+                quality["status"] = "unavailable"
+                quality.setdefault("reasons", ["non_finite"])
+            else:
+                shares[index] = cls._band_shares(frequencies, rows[index])
+            normalized.append(quality)
+        return rows, shares, normalized
+
     def parameter_schema(self) -> ParameterSchema:
         return ParameterSchema(parameters=[
-            AlgorithmParameter(key="channel", label_zh="分析通道", value_type="string", description_zh="从原始记录通道中选择一个通道。"),
+            AlgorithmParameter(key="channels", label_zh="分析通道", value_type="string_list", description_zh="按顺序提供一个或多个原始记录通道。"),
             AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
@@ -189,7 +216,7 @@ class PsdAlgorithm:
         ])
 
     def requested_channels(self, config: AlgorithmConfigBase) -> list[str]:
-        return [config.channel]
+        return list(config.channels)
 
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
         return spectral_execution_snapshot(config, low_hz=config.low_hz,
@@ -197,9 +224,12 @@ class PsdAlgorithm:
 
     def resolve_inputs(self, recording: Any, config: PsdConfig) -> AlgorithmInputs:
         labels = list(getattr(recording, "channel_names", getattr(recording, "channels", [])))
-        selected = next((str(label) for label in labels if str(label).casefold() == config.channel.casefold()), None)
-        if selected is None:
-            raise ValueError(f"未知原始通道: {config.channel}")
+        lookup = {str(label).casefold(): str(label) for label in labels}
+        selected = [lookup.get(item.casefold()) for item in config.channels]
+        if any(item is None for item in selected):
+            missing = [name for name, value in zip(config.channels, selected, strict=True) if value is None]
+            raise ValueError(f"未知原始通道: {', '.join(missing)}")
+        ordered = [str(item) for item in selected]
         if config.end_s > float(recording.duration_s):
             raise ValueError("PSD 分析范围超出记录时长")
         if config.end_s - config.start_s < 4.0:
@@ -209,22 +239,22 @@ class PsdAlgorithm:
         if config.mode == "dynamic" and float(recording.sfreq_hz) / 2.0 <= 50.0:
             raise ValueError("PSD 动态趋势轴固定为 1–50 Hz，记录奈奎斯特频率必须高于 50 Hz")
         return AlgorithmInputs(
-            recording_id=str(getattr(recording, "id", "unknown")), channel=selected,
+            recording_id=str(getattr(recording, "id", "unknown")), channel=ordered[0], channels=tuple(ordered),
             sfreq_hz=float(recording.sfreq_hz), duration_s=float(recording.duration_s), payload=recording,
         )
 
     @staticmethod
-    def _load(recording: Any, *, channel: str, start_s: float, window_s: float, filter_low_hz: float, filter_high_hz: float, output_low_hz: float, output_high_hz: float, notch_hz: float | None) -> Any:
+    def _load(recording: Any, *, channels: list[str], start_s: float, window_s: float, filter_low_hz: float, filter_high_hz: float, output_low_hz: float, output_high_hz: float, notch_hz: float | None) -> Any:
         return recording.load_spectrum(
-            start_s=start_s, window_s=window_s, channels=[channel],
+            start_s=start_s, window_s=window_s, channels=channels,
             filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz,
             output_low_hz=output_low_hz, output_high_hz=output_high_hz,
-            notch_hz=notch_hz,
+            notch_hz=notch_hz, quality_policy="per_channel_annotation",
         )
 
     def execute_static(self, inputs: AlgorithmInputs, config: PsdConfig) -> AlgorithmStructuredResult:
         spectrum = self._load(
-            inputs.payload, channel=inputs.channel, start_s=config.start_s,
+            inputs.payload, channels=list(inputs.channels), start_s=config.start_s,
             window_s=config.end_s - config.start_s,
             filter_low_hz=config.low_hz, filter_high_hz=config.high_hz,
             output_low_hz=config.low_hz, output_high_hz=config.high_hz,
@@ -246,6 +276,7 @@ class PsdAlgorithm:
             "spectral_evidence": spectral_evidence,
             "calculation_trace": {"algorithm": "welch_psd"},
         }
+        frequencies = np.asarray(spectrum.freqs, dtype=float)
         if spectrum.gate_failed:
             failure = AlgorithmFailure(
                 code="PSD_QUALITY_GATE_FAILED",
@@ -253,20 +284,21 @@ class PsdAlgorithm:
                 detail=source_quality,
             )
             return AlgorithmStructuredResult(
-                output_kind="frequency_series", channel_order=[inputs.channel],
-                axes={"frequency_hz": np.asarray([], dtype=float)}, axis_units={"frequency_hz": "Hz"},
-                arrays={"psd": np.empty((0,), dtype=float), "band_share": np.full(5, np.nan, dtype=float)}, array_units={"psd": "V^2/Hz", "band_share": "ratio"},
+                output_kind="frequency_series", channel_order=list(inputs.channels),
+                axes={"frequency_hz": frequencies}, axis_units={"frequency_hz": "Hz"},
+                arrays={"psd": np.full((len(inputs.channels), frequencies.size), np.nan), "band_share": np.full((len(inputs.channels), 5), np.nan)}, array_units={"psd": "V^2/Hz", "band_share": "ratio"},
                 requested_range=requested, actual_range=requested, quality="gate_failed",
                 failure=failure, evidence=evidence,
             )
-        values = np.asarray(spectrum.psd[0], dtype=float)
-        band_share = self._band_shares(np.asarray(spectrum.freqs, dtype=float), values)
+        values, band_share, channel_quality = self._channel_rows(spectrum, inputs.channels, frequencies)
+        overall_quality = "clean" if all(item.get("status") == "clean" for item in channel_quality) else "partial"
         evidence["calculation_trace"] = {"algorithm": "welch_psd", **self._band_share_trace()}
         return AlgorithmStructuredResult(
-            output_kind="frequency_series", channel_order=[inputs.channel],
-            axes={"frequency_hz": np.asarray(spectrum.freqs, dtype=float)}, axis_units={"frequency_hz": "Hz"},
+            output_kind="frequency_series", channel_order=list(inputs.channels),
+            axes={"frequency_hz": frequencies}, axis_units={"frequency_hz": "Hz"},
             arrays={"psd": values, "band_share": band_share}, array_units={"psd": "V^2/Hz", "band_share": "ratio"},
-            requested_range=requested, actual_range=requested, quality="clean", evidence=evidence,
+            requested_range=requested, actual_range=requested, quality=overall_quality,
+            evidence={**evidence, "extensions": {"channel_quality": {"by_channel": dict(zip(inputs.channels, channel_quality, strict=True))}}},
         )
 
     def execute_dynamic(self, inputs: AlgorithmInputs, config: PsdConfig) -> AlgorithmStructuredSeriesResult:
@@ -320,7 +352,7 @@ class PsdAlgorithm:
                         raise SpectralQualityGateError((cached.failure or {}).get("details", {}))
                     raise ValueError((cached.failure or {}).get("message", "cached PSD window unavailable"))
                 spectrum = self._load(
-                    inputs.payload, channel=inputs.channel,
+                    inputs.payload, channels=list(inputs.channels),
                     start_s=frame.window_start_s, window_s=frame.actual_window_s,
                     filter_low_hz=config.low_hz, filter_high_hz=config.high_hz,
                     output_low_hz=trend_low_hz, output_high_hz=trend_high_hz,
@@ -329,12 +361,16 @@ class PsdAlgorithm:
                 current_frequencies = np.asarray(spectrum.freqs, dtype=float)
                 if not np.array_equal(frequencies, current_frequencies):
                     raise ValueError("PSD 动态窗口返回的频率轴与本次 Welch 合同不一致")
-                row = np.asarray(spectrum.psd[0], dtype=float)
-                band_share_rows.append(self._band_shares(current_frequencies, row))
+                row, band_share, channel_quality = self._channel_rows(
+                    spectrum, inputs.channels, current_frequencies,
+                )
+                band_share_rows.append(band_share)
                 evidence = self._dynamic_evidence(spectrum, config)
+                evidence["extensions"] = {"channel_quality": {"by_channel": dict(zip(inputs.channels, channel_quality, strict=True))}}
+                quality = "clean" if all(item.get("status") == "clean" for item in channel_quality) else "partial"
             except SpectralQualityGateError as exc:
-                row = np.full(frequencies.shape, np.nan, dtype=float)
-                band_share_rows.append(np.full(5, np.nan, dtype=float))
+                row = np.full((len(inputs.channels), frequencies.size), np.nan, dtype=float)
+                band_share_rows.append(np.full((len(inputs.channels), 5), np.nan, dtype=float))
                 quality = "gate_failed"
                 state = "Rejected"
                 evidence = {"source_quality": dict(exc.quality), "spectral_evidence": dict(exc.quality.get("evidence", {}))}
@@ -344,8 +380,8 @@ class PsdAlgorithm:
                     detail=dict(exc.quality),
                 )
             except ValueError as exc:
-                row = np.full(frequencies.shape, np.nan, dtype=float)
-                band_share_rows.append(np.full(5, np.nan, dtype=float))
+                row = np.full((len(inputs.channels), frequencies.size), np.nan, dtype=float)
+                band_share_rows.append(np.full((len(inputs.channels), 5), np.nan, dtype=float))
                 quality = "unavailable"
                 state = "Unavailable"
                 failure = AlgorithmFailure(code="PSD_WINDOW_UNAVAILABLE", message=str(exc))
@@ -359,7 +395,7 @@ class PsdAlgorithm:
         state_values = {window.state for window in windows}
         overall = "clean" if state_values == {"Complete"} else "partial"
         return AlgorithmStructuredSeriesResult(
-            output_kind="frequency_series", channel_order=[inputs.channel],
+            output_kind="frequency_series", channel_order=list(inputs.channels),
             axes={"frequency_hz": frequencies}, axis_units={"frequency_hz": "Hz"},
             arrays={"psd": np.stack(rows), "band_share": np.stack(band_share_rows)}, array_units={"psd": "V^2/Hz", "band_share": "ratio"},
             windows=windows,
@@ -370,6 +406,8 @@ class PsdAlgorithm:
                 "source_quality": {}, "spectral_evidence": {},
                 "calculation_trace": {
                     "algorithm": "welch_psd", "window_s": window_s, "step_s": step_s,
+                    "filter_frequency_range_hz": {"low_hz": config.low_hz, "high_hz": config.high_hz},
+                    "output_frequency_range_hz": {"low_hz": 1.0, "high_hz": 50.0},
                     "trend_frequency_range_hz": [float(trend_low_hz), float(trend_high_hz)] if fixed_trend_axis else None,
                     **self._band_share_trace(),
                 },

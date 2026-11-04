@@ -8,6 +8,7 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 public sealed partial class RecordingReviewViewModel
 {
     private CancellationTokenSource? topomapCancellation;
+    private long topomapRequestRevision;
     public async Task AttachAnalysisAsync(string runId, CancellationToken cancellationToken = default)
     {
         var coordinator = analysisCoordinator ?? throw new InvalidOperationException("当前回溯页未配置分析 provider。");
@@ -57,10 +58,12 @@ public sealed partial class RecordingReviewViewModel
     public async ValueTask DetachAnalysisAsync()
     {
         UnsubscribeTnkPlaybackEvents();
+        Interlocked.Increment(ref topomapRequestRevision);
         topomapCancellation?.Cancel();
         topomapCancellation?.Dispose();
         topomapCancellation = null;
         RbpAnalysis.ClearTopomap();
+        PsdAnalysis.ClearTopomap();
         var binding = analysisBinding;
         if (binding is null) return;
         analysisBinding = null;
@@ -82,6 +85,8 @@ public sealed partial class RecordingReviewViewModel
                 panel.Apply(CurrentAnalysisWindow, PositionSeconds);
             if (activeAnalysisId == "rbp" && RbpAnalysis.IsTopomapSelected)
                 _ = RefreshRbpTopomapAsync();
+            if (activeAnalysisId == "psd" && PsdAnalysis.IsTopomapSelected)
+                _ = RefreshPsdTopomapAsync();
         }
         if (e.PropertyName == nameof(ReviewAnalysisBinding.StatusText))
             AnalysisPreparationText = CurrentAnalysisWindow is null ? AnalysisStatusText : "";
@@ -92,10 +97,13 @@ public sealed partial class RecordingReviewViewModel
     {
         topomapCancellation?.Cancel();
         topomapCancellation?.Dispose();
+        var requestRevision = Interlocked.Increment(ref topomapRequestRevision);
         topomapCancellation = new CancellationTokenSource();
         var token = topomapCancellation.Token;
+        var coordinator = analysisCoordinator;
         var window = CurrentAnalysisWindow;
-        if (window is null || analysisCoordinator is null)
+        var provider = coordinator?.GetCapability<IReviewTopomapProvider>();
+        if (window is null || coordinator is null || provider is null)
         {
             RbpAnalysis.ClearTopomap();
             return;
@@ -103,23 +111,25 @@ public sealed partial class RecordingReviewViewModel
         try
         {
             var loadTimer = Stopwatch.StartNew();
-            var bandId = string.IsNullOrEmpty(RbpAnalysis.SelectedTopomapBandId)
-                ? null
-                : RbpAnalysis.SelectedTopomapBandId;
-            var result = await analysisCoordinator.LoadTopomapAsync(
-                window, token, RbpAnalysis.SelectedTopomapPowerType, bandId);
-            if (!token.IsCancellationRequested && RbpAnalysis.ApplyTopomapIfAvailable(result))
+            var fields = string.IsNullOrEmpty(RbpAnalysis.SelectedTopomapBandId)
+                ? new[] { "delta", "theta", "alpha", "beta", "gamma" }
+                    .Select(band => $"rbp.{RbpAnalysis.SelectedTopomapPowerType}.{band}").ToArray()
+                : new[] { $"rbp.{RbpAnalysis.SelectedTopomapPowerType}.{RbpAnalysis.SelectedTopomapBandId}" };
+            var result = await provider.LoadTopomapAsync(window, token, fields);
+            if (!token.IsCancellationRequested && requestRevision == Volatile.Read(ref topomapRequestRevision) &&
+                ReferenceEquals(coordinator, analysisCoordinator) && ReferenceEquals(window, CurrentAnalysisWindow) &&
+                RbpAnalysis.ApplyTopomapIfAvailable(result))
             {
                 var bindTimer = Stopwatch.StartNew();
                 if (DesktopLog.PerformanceDiagnosticsEnabled)
                 {
-                    var gridCells = result?.Bands.Sum(band =>
-                        (long)(band.Grid?.Width ?? 0) * (band.Grid?.Height ?? 0)) ?? 0;
+                    var gridCells = result?.Fields.Sum(field =>
+                        (long)(field.Grid?.Width ?? 0) * (field.Grid?.Height ?? 0)) ?? 0;
                     DesktopLog.Info(
                         $"review_topomap_perf stage=bind" +
                         $" window_id={result?.RunId ?? "none"}" +
                         $" cursor_sample={window.CursorSample}" +
-                        $" bands={result?.Bands.Count ?? 0}" +
+                        $" fields={result?.Fields.Count ?? 0}" +
                         $" grid_cells={gridCells}" +
                         $" load_ms={loadTimer.Elapsed.TotalMilliseconds:0.0}" +
                         $" bind_ms={bindTimer.Elapsed.TotalMilliseconds:0.0}");
@@ -143,9 +153,48 @@ public sealed partial class RecordingReviewViewModel
             if (RbpAnalysis.IsTopomapSelected) _ = RefreshRbpTopomapAsync();
             else
             {
+                Interlocked.Increment(ref topomapRequestRevision);
                 topomapCancellation?.Cancel();
             }
         }
+    }
+
+    private async Task RefreshPsdTopomapAsync()
+    {
+        topomapCancellation?.Cancel();
+        topomapCancellation?.Dispose();
+        var requestRevision = Interlocked.Increment(ref topomapRequestRevision);
+        topomapCancellation = new CancellationTokenSource();
+        var token = topomapCancellation.Token;
+        var coordinator = analysisCoordinator;
+        var window = CurrentAnalysisWindow;
+        var provider = coordinator?.GetCapability<IReviewTopomapProvider>();
+        if (window is null || coordinator is null || provider is null || PsdAnalysis.FrequencyOptions.Count == 0)
+        {
+            PsdAnalysis.ClearTopomap();
+            return;
+        }
+        try
+        {
+            var fieldIds = new[] { PsdAnalysis.SelectedFrequencyFieldId };
+            var result = await provider.LoadTopomapAsync(window, token, fieldIds);
+            if (!token.IsCancellationRequested && requestRevision == Volatile.Read(ref topomapRequestRevision) &&
+                ReferenceEquals(coordinator, analysisCoordinator) && ReferenceEquals(window, CurrentAnalysisWindow))
+                PsdAnalysis.ApplyTopomap(result);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception exception) when (!token.IsCancellationRequested)
+        {
+            PsdAnalysis.SetStatus($"PSD 地形图读取失败：{exception.Message}");
+            PsdAnalysis.ClearTopomap();
+        }
+    }
+
+    private void CancelTopomapRequest()
+    {
+        Interlocked.Increment(ref topomapRequestRevision);
+        topomapCancellation?.Cancel();
+        PsdAnalysis.ClearTopomap();
     }
 
     private void RaiseAnalysisPropertiesChanged()

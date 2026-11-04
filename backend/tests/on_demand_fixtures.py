@@ -100,6 +100,6 @@ def configure_api(tmp_path: Path, *, gap: bool = False, rejected: bool = False,
 
 
 def psd_config(recording, *, channel: str = "F3-REF") -> dict:
-    return {"algorithm_id": "psd", "channel": channel, "mode": "dynamic",
+    return {"algorithm_id": "psd", "channels": [channel], "mode": "dynamic",
             "time": {"start_s": 0, "end_s": recording.duration_s},
             "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None}

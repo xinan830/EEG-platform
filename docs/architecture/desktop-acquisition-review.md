@@ -220,13 +220,16 @@ analysis requests. Playback remains active during a drag and its own refresh
 cadence continues; release submits the exact final cursor sample once. Drag
 requests are not quantized to playback refresh steps.
 
-`IReviewAlgorithmAdapter` owns each algorithm's review request mapping,
-typed result projection, units, quality and provenance presentation.
-`ReviewAnalysisCoordinator` owns only target lifecycle and stale-response
-fencing. A catalog entry alone does not register a review adapter. Unsupported
-algorithms remain unavailable until their on-demand capability and presenter
-are accepted. PSD scientific calculation remains backend-owned; the review
-layer does not fall back to a full Run when its on-demand adapter is unavailable.
+`IReviewAlgorithmAdapter` owns each algorithm's review request mapping.
+`ReviewAnalysisCoordinator` owns generic target lifecycle, identity validation
+and stale-response fencing; it does not forward algorithm-specific events or
+derived-data requests. Optional behavior uses a capability interface owned by
+the algorithm adapter: RBP exposes `IReviewTopomapProvider`, while TNK's Review
+view model subscribes directly to `IReviewTnkPlaybackEvents`. A catalog entry
+alone does not register a review adapter. Unsupported algorithms remain
+unavailable until their on-demand capability and presenter are accepted. PSD
+scientific calculation remains backend-owned; the review layer does not fall
+back to a full Run when its on-demand adapter is unavailable.
 
 PSD review registration submits the recording's compatible montage snapshots
 to the backend. The analysis channel is selected by electrode role from the

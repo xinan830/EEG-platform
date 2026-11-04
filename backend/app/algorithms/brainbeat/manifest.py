@@ -7,9 +7,9 @@ MANIFEST = AlgorithmManifest(
     display_name_zh="脑节律指标",
     abbreviation="BrainBeat",
     purpose_zh="根据 Fz 相对 Theta 与 Pz 相对 Alpha 的关系计算脑节律指标。",
-    scientific_version="official-brainbeat-v1",
+    scientific_version="official-brainbeat-v2",
     is_current_version=True,
-    implementation_identity="brainbeat-runtime-v1",
+    implementation_identity="brainbeat-runtime-v2",
     supported_modes=["static", "dynamic"],
     signal_requirements=SignalRequirements(input_roles=["Fz", "Pz"], representation="spectrum", source_shape="paired", preprocessing_scope="configured_continuous_before_slice"),
     dynamic_capabilities=official_dynamic_capabilities(
@@ -21,9 +21,9 @@ MANIFEST = AlgorithmManifest(
                    "window_shapes": {"time_s": [1], "brainbeat": [1]},
                    "fields": [{"name": "brainbeat", "unit": "ratio", "meaning": "Fz 相对 Theta 除以 Pz 相对 Alpha"}]},
     definition_persistence={
-        "name": "Official BRAINBEAT", "version": "1.0.0",
+        "name": "Official BRAINBEAT", "version": "2.0.0",
         "graph": official_result_graph(["brainbeat"]),
-        "definition_metadata": {"inputs": ["Fz", "Pz", "IAPF"], "formula": "relative_theta_Fz / relative_alpha_Pz", "welch_segment_s": 2.0, "overlap": 0.5, "independent_windows": True, "cross_window_ema": False},
+        "definition_metadata": {"inputs": ["Fz", "Pz", "IAPF"], "formula": "relative_theta_Fz / relative_alpha_Pz", "welch_segment_s": 4.0, "overlap": 0.5, "band_integration": "boundary_interpolated_trapezoid", "independent_windows": True, "cross_window_ema": False},
         "inputs": {"Fz": {"type": "TimeSeries", "unit": "V"}, "Pz": {"type": "TimeSeries", "unit": "V"}},
         "outputs": {"brainbeat": {"type": "Scalar", "unit": "ratio"}},
         "quality_rules": {"cross_window_ema": False},

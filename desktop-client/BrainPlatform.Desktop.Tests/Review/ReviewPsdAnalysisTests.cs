@@ -10,7 +10,13 @@ namespace BrainPlatform.Desktop.Tests.Review;
 public sealed class ReviewPsdAnalysisTests
 {
     [Fact]
-    public void Parameters_use_catalog_window_policy_and_one_exact_montage_source()
+    public void Frequency_option_exposes_a_human_readable_label()
+    {
+        Assert.Equal("6 Hz", new PsdFrequencyOption(5, 6).Label);
+    }
+
+    [Fact]
+    public void Parameters_capture_ordered_channels_from_the_montage_snapshot()
     {
         var recording = new RegisteredRecording("recording", "fixture", ".wpf", "now", 200, 40,
             ["F3-REF", "F7-REF"], "sha");
@@ -20,13 +26,13 @@ public sealed class ReviewPsdAnalysisTests
              new HistoricalMontageOutput("F7-REF", "F7", "F7", "V", true, null)]);
         var parameters = new ReviewPsdParameters();
         parameters.Initialize(recording, algorithm, montage);
-        parameters.Channel = "F7-REF";
 
         var config = parameters.BuildConfig(40, 200);
 
         Assert.Equal("psd", config.GetProperty("algorithm_id").GetString());
         Assert.Equal("fixture-psd-v1", config.GetProperty("scientific_version").GetString());
-        Assert.Equal("F7-REF", config.GetProperty("channel").GetString());
+        Assert.Equal(new[] { "F3-REF", "F7-REF" },
+            config.GetProperty("channels").EnumerateArray().Select(item => item.GetString()));
         Assert.Equal("dynamic", config.GetProperty("mode").GetString());
         Assert.Equal(5, config.GetProperty("dynamic_window_s").GetDouble());
         Assert.Equal(1, config.GetProperty("refresh_step_s").GetDouble());
@@ -34,10 +40,10 @@ public sealed class ReviewPsdAnalysisTests
         Assert.Equal(30, config.GetProperty("high_hz").GetDouble());
         Assert.Equal(50, config.GetProperty("notch_hz").GetDouble());
         Assert.Equal("ant-ref", config.GetProperty("analysis_montage_id").GetString());
-        var output = Assert.Single(config.GetProperty("analysis_montage_outputs").EnumerateArray());
-        Assert.Equal("F7-REF", output.GetProperty("output").GetString());
-        Assert.Equal("F7", output.GetProperty("role").GetString());
-        Assert.Equal("V", output.GetProperty("unit").GetString());
+        var outputs = config.GetProperty("analysis_montage_outputs").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "F3-REF", "F7-REF" }, outputs.Select(item => item.GetProperty("output").GetString()));
+        Assert.Equal(new[] { "F3", "F7" }, outputs.Select(item => item.GetProperty("role").GetString()));
+        Assert.All(outputs, output => Assert.Equal("V", output.GetProperty("unit").GetString()));
     }
 
     [Fact]
@@ -101,7 +107,7 @@ public sealed class ReviewPsdAnalysisTests
     }
 
     private static AnalysisRunRequest Request() => new("recording", "official_algorithm",
-        JsonSerializer.SerializeToElement(new { algorithm_id = "psd", channel = "F3" }));
+        JsonSerializer.SerializeToElement(new { algorithm_id = "psd", channels = new[] { "F3" } }));
 
     internal static IReadOnlyList<AlgorithmParameter> CatalogParameters() =>
     [
@@ -133,7 +139,8 @@ public sealed partial class RecordingReviewViewModelTests
 
         var config = Assert.Single(provider.Configurations);
         Assert.Equal("psd", config.GetProperty("algorithm_id").GetString());
-        Assert.Equal("F3", config.GetProperty("channel").GetString());
+        Assert.Equal(new[] { "F3", "F7" },
+            config.GetProperty("channels").EnumerateArray().Select(item => item.GetString()));
         Assert.Equal(10, vm.PositionSeconds);
         Assert.Equal(10, vm.AnalysisPanelStartSeconds);
         Assert.True(vm.IsPsdAnalysisPanelOpen);

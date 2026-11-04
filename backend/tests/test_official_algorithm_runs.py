@@ -55,7 +55,10 @@ def _service(tmp_path: Path, *, sfreq_hz: float = 100.0) -> tuple[RunService, st
 
 def _request(recording_id: str, algorithm_id: str, *, dynamic: bool = False) -> RunCreateRequest:
     config = {"algorithm_id": algorithm_id, "time": {"start_s": 0, "end_s": 30}, "mode": "dynamic" if dynamic else "static"}
-    config["channel"] = "O2" if algorithm_id == "theta_beta" else "F3" if algorithm_id == "faa" else "Fz"
+    if algorithm_id == "psd":
+        config["channels"] = ["Fz"]
+    else:
+        config["channel"] = "O2" if algorithm_id == "theta_beta" else "F3" if algorithm_id == "faa" else "Fz"
     if algorithm_id == "faa":
         config["f4_channel"] = "F4"
     if algorithm_id == "stft":
@@ -239,7 +242,7 @@ def test_official_rbp_matches_psd_five_band_shares_with_identical_preprocessing(
     actual = {name: float(rbp_arrays[name][0]) for name in ("delta", "theta", "alpha", "beta", "gamma")}
     np.testing.assert_allclose(
         [actual[band] for band in ("delta", "theta", "alpha", "beta", "gamma")],
-        psd_shares, rtol=1e-10, atol=1e-12,
+        psd_shares[0], rtol=1e-10, atol=1e-12,
     )
     evidence = rbp.result_summary["structured"]["spectral_evidence"]
     assert evidence["filter_contract"]["bandpass_hz"] == [1.0, 50.0]
@@ -254,7 +257,7 @@ def test_official_psd_run_returns_structured_frequency_artifact(tmp_path: Path):
     request = _request(recording_id, "iapf")
     request.config = {
         "algorithm_id": "psd", "time": {"start_s": 0, "end_s": 30},
-        "mode": "static", "channel": "Fz",
+        "mode": "static", "channels": ["Fz"],
     }
 
     completed = service.create(request)
@@ -310,13 +313,13 @@ def test_official_psd_dynamic_run_returns_window_frequency_matrix_artifact(tmp_p
     structured = completed.result_summary["structured"]
     assert structured["output"]["mode"] == "dynamic"
     assert structured["output"]["kind"] == "frequency_series"
-    assert structured["arrays"]["psd"]["shape"] == [27, 197]
-    assert structured["arrays"]["band_share"]["shape"] == [27, 5]
+    assert structured["arrays"]["psd"]["shape"] == [27, 1, 197]
+    assert structured["arrays"]["band_share"]["shape"] == [27, 1, 5]
     assert structured["window_state_counts"] == {"Partial": 6, "Complete": 21}
     artifact = service.list_artifacts(completed.run_id)[0]
     arrays = service.artifacts.read_npz(artifact)
-    assert arrays["band_share"].shape == (27, 5)
-    np.testing.assert_allclose(np.nansum(arrays["band_share"][6]), 1.0)
+    assert arrays["band_share"].shape == (27, 1, 5)
+    np.testing.assert_allclose(np.nansum(arrays["band_share"][6, 0]), 1.0)
     assert service.list_artifacts(completed.run_id)
 
 
@@ -329,7 +332,7 @@ def test_psd_band_share_contract_changes_cache_identity(tmp_path: Path):
         service.definition_service, "psd"
     )
 
-    assert manifest.implementation_identity == "psd-runtime-v3-explicit-filters"
+    assert manifest.implementation_identity == "psd-runtime-v5-channel-resolved-band-integration"
     assert "band_share" in {field["name"] for field in manifest.output_schema["fields"]}
     assert resolved["definition_sha256"] != sha256_json({
         "kind": "official_algorithm",
@@ -361,7 +364,13 @@ def test_one_window_dynamic_result_matches_static_result(tmp_path: Path, algorit
     static_arrays = service.artifacts.read_npz(static_artifact)
     dynamic_arrays = service.artifacts.read_npz(dynamic_artifact)
     if algorithm_id == "psd":
-        np.testing.assert_allclose(dynamic_arrays["psd"][0, :static_arrays["psd"].shape[0]], static_arrays["psd"], rtol=0, atol=1e-24)
+        dynamic_axis = dynamic_arrays["axis_frequency_hz"]
+        static_axis = static_arrays["axis_frequency_hz"]
+        indices = np.searchsorted(dynamic_axis, static_axis)
+        np.testing.assert_array_equal(dynamic_axis[indices], static_axis)
+        np.testing.assert_allclose(
+            dynamic_arrays["psd"][0][:, indices], static_arrays["psd"], rtol=0, atol=1e-24,
+        )
     else:
         np.testing.assert_allclose(dynamic_arrays["power_linear"][0], static_arrays["power_linear"], rtol=0, atol=1e-24)
         np.testing.assert_allclose(dynamic_arrays["power_db"][0], static_arrays["power_db"], rtol=0, atol=1e-12)

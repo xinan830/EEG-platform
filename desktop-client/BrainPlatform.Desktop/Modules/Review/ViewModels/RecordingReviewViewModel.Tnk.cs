@@ -11,6 +11,7 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 public sealed partial class RecordingReviewViewModel
 {
     private ReviewAnalysisCoordinator? tnkEventCoordinator;
+    private IReviewTnkPlaybackEvents? tnkEventSource;
     private Action<DynamicWindowResponse>? tnkWindowHandler;
     private Action<TnkPlaybackGap>? tnkGapHandler;
     private long tnkSubscriptionRevision;
@@ -18,8 +19,10 @@ public sealed partial class RecordingReviewViewModel
     private void SubscribeTnkPlaybackEvents(ReviewAnalysisCoordinator coordinator)
     {
         UnsubscribeTnkPlaybackEvents();
-        if (coordinator.AlgorithmId != "tnk_biofeedback") return;
+        if (coordinator.AlgorithmId != "tnk_biofeedback" ||
+            coordinator.GetCapability<IReviewTnkPlaybackEvents>() is not { } eventSource) return;
         tnkEventCoordinator = coordinator;
+        tnkEventSource = eventSource;
         var revision = analysisConfigurationRevision;
         tnkSubscriptionRevision = revision;
         tnkWindowHandler = response =>
@@ -28,7 +31,7 @@ public sealed partial class RecordingReviewViewModel
             DispatchTnkEvent(() =>
             {
                 var reason = !IsCurrentTnkSubscription(coordinator, revision) ? "stale_subscription"
-                    : !coordinator.IsCurrentTnkEvent(response) ? "stale_delivery"
+                    : !eventSource.IsCurrent(response) ? "stale_delivery"
                     : response.Identity is not { ValueKind: System.Text.Json.JsonValueKind.Object } identity ? "missing_identity"
                     : !identity.TryGetProperty("recording_id", out var id) || id.GetString() != analysisRecording?.Id
                         ? "recording_mismatch"
@@ -49,21 +52,24 @@ public sealed partial class RecordingReviewViewModel
         };
         tnkGapHandler = gap => DispatchTnkEvent(() =>
         {
-            if (IsCurrentTnkSubscription(coordinator, revision) && coordinator.IsCurrentTnkEvent(gap))
+            if (IsCurrentTnkSubscription(coordinator, revision) && eventSource.IsCurrent(gap))
                 TnkAnalysis.AddGap(gap, AnalysisPanelStartSeconds);
         });
-        coordinator.TnkWindowCompleted += tnkWindowHandler;
-        coordinator.TnkGapReported += tnkGapHandler;
+        eventSource.WindowCompleted += tnkWindowHandler;
+        eventSource.GapReported += tnkGapHandler;
     }
 
     private void UnsubscribeTnkPlaybackEvents()
     {
         if (tnkEventCoordinator is not null)
         {
-            if (tnkWindowHandler is not null) tnkEventCoordinator.TnkWindowCompleted -= tnkWindowHandler;
-            if (tnkGapHandler is not null) tnkEventCoordinator.TnkGapReported -= tnkGapHandler;
+            if (tnkEventSource is not null && tnkWindowHandler is not null)
+                tnkEventSource.WindowCompleted -= tnkWindowHandler;
+            if (tnkEventSource is not null && tnkGapHandler is not null)
+                tnkEventSource.GapReported -= tnkGapHandler;
         }
         tnkEventCoordinator = null;
+        tnkEventSource = null;
         tnkWindowHandler = null;
         tnkGapHandler = null;
     }

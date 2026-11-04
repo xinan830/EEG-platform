@@ -16,11 +16,19 @@ public sealed partial class RecordingReviewViewModel
         var registrations = new[]
         {
             new ReviewAlgorithmPanelRegistration("psd", PsdParameters,
-                (recording, algorithm, montage) => PsdParameters.Initialize(recording, algorithm, montage),
+                (recording, algorithm, montage) =>
+                {
+                    PsdParameters.Initialize(recording, algorithm, montage);
+                    PsdAnalysis.SetChannels(PsdParameters.Channels);
+                },
                 (duration, rate) => PsdParameters.BuildConfig(duration, rate),
                 (response, _) => PsdAnalysis.Apply(response)),
             new ReviewAlgorithmPanelRegistration("rbp", RbpParameters,
-                (recording, algorithm, montage) => RbpParameters.Initialize(recording, algorithm, montage),
+                (recording, algorithm, montage) =>
+                {
+                    RbpParameters.Initialize(recording, algorithm, montage);
+                    RbpAnalysis.InitializeChannels(RbpParameters.AnalysisChannels);
+                },
                 (duration, rate) => RbpParameters.BuildConfig(duration, rate),
                 (response, cursor) => RbpAnalysis.Apply(response, cursor)),
             new ReviewAlgorithmPanelRegistration("stft", StftParameters,
@@ -151,7 +159,6 @@ public sealed partial class RecordingReviewViewModel
         if (e.PropertyName is nameof(ReviewRbpParameters.Channel) or nameof(ReviewRbpParameters.Montage) or
             nameof(ReviewScalarParameters.Channel) or nameof(ReviewScalarParameters.SecondaryChannel) or
             nameof(ReviewScalarParameters.Montage) or nameof(ReviewStftParameters.Channel) or
-            nameof(ReviewPsdParameters.Channel) or
             nameof(ReviewTnkParameters.RoleMapping) or nameof(ReviewTnkParameters.Montage))
             InvalidateAnalysisConfiguration();
     }

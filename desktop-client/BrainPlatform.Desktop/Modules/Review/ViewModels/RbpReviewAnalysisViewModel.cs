@@ -58,6 +58,7 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         {
             if (!SetProperty(ref selectedTopomapPowerType, value)) return;
             RaisePropertyChanged(nameof(SelectedTopomapPowerUnit));
+            RaisePropertyChanged(nameof(SelectedTopomapField));
         }
     }
     public string SelectedTopomapPowerUnit => SelectedTopomapPowerType == "absolute" ? "uV^2" : "ratio";
@@ -67,13 +68,13 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         set
         {
             if (!SetProperty(ref selectedTopomapBandId, value)) return;
-            RaisePropertyChanged(nameof(SelectedTopomapBand));
+            RaisePropertyChanged(nameof(SelectedTopomapField));
             RaisePropertyChanged(nameof(IsAllTopomapBandsSelected));
         }
     }
-    public TopomapBand? SelectedTopomapBand => Topomap?.Bands.FirstOrDefault(band =>
+    public TopomapField? SelectedTopomapField => Topomap?.Fields.FirstOrDefault(item =>
         !string.IsNullOrEmpty(SelectedTopomapBandId) &&
-        string.Equals(band.BandId, SelectedTopomapBandId, StringComparison.OrdinalIgnoreCase));
+        string.Equals(item.FieldId, $"rbp.{SelectedTopomapPowerType}.{SelectedTopomapBandId}", StringComparison.OrdinalIgnoreCase));
     public bool IsAllTopomapBandsSelected => string.IsNullOrEmpty(SelectedTopomapBandId);
     public string TopomapWindowText => Topomap is { } map
         ? $"{map.WindowStartSeconds:0.###}–{map.WindowEndSeconds:0.###} s"
@@ -84,10 +85,19 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
 
     public void SetStatus(string value) => StatusText = value;
 
+    public void InitializeChannels(IEnumerable<string> channels)
+    {
+        var names = channels.Where(channel => !string.IsNullOrWhiteSpace(channel))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (channelHistories.Select(history => history.Channel).SequenceEqual(names, StringComparer.OrdinalIgnoreCase)) return;
+        channelHistories = names.Select(channel => new RbpChannelHistory(channel, [], RbpResultPreview.BandDefinitions)).ToArray();
+        RaisePropertyChanged(nameof(ChannelHistories));
+    }
+
     public void ApplyTopomap(TopomapResponse response)
     {
-        if (response is { Bands.Count: > 0 } && !string.IsNullOrEmpty(SelectedTopomapBandId) && !response.Bands.Any(band =>
-                string.Equals(band.BandId, SelectedTopomapBandId, StringComparison.OrdinalIgnoreCase)))
+        if (response is { Fields.Count: > 0 } && !string.IsNullOrEmpty(SelectedTopomapBandId) && !response.Fields.Any(field =>
+                string.Equals(field.FieldId, $"rbp.{SelectedTopomapPowerType}.{SelectedTopomapBandId}", StringComparison.OrdinalIgnoreCase)))
             SelectedTopomapBandId = "";
         SetTopomap(response);
     }
@@ -104,19 +114,19 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
     private void SetTopomap(TopomapResponse? response)
     {
         Topomap = response;
-        UpdateTopomapBands(response?.Bands ?? Array.Empty<TopomapBand>());
-        RaisePropertyChanged(nameof(SelectedTopomapBand));
+        UpdateTopomapBands(response?.Fields ?? Array.Empty<TopomapField>());
+            RaisePropertyChanged(nameof(SelectedTopomapField));
         RaisePropertyChanged(nameof(TopomapWindowText));
         RaisePropertyChanged(nameof(TopomapStatusText));
     }
 
-    private void UpdateTopomapBands(IReadOnlyList<TopomapBand> bands)
+    private void UpdateTopomapBands(IReadOnlyList<TopomapField> bands)
     {
         for (var index = 0; index < bands.Count; index++)
         {
             if (index < TopomapBands.Count)
             {
-                TopomapBands[index].Band = bands[index];
+            TopomapBands[index].Field = bands[index];
             }
             else
                 TopomapBands.Add(new TopomapBandDisplayItem(bands[index]));
@@ -151,14 +161,16 @@ public sealed class RbpReviewAnalysisViewModel : ObservableObject
         preview = RbpResultPreview.FromReviewWindow(response, previous);
         appliedResponse = response;
         windowSession = response.RunId;
-        var channels = preview.ChannelWindows.Select(point => point.Channel).Distinct(StringComparer.OrdinalIgnoreCase);
-        if (previous is null || !channelHistories.Select(history => history.Channel)
-                .SequenceEqual(channels, StringComparer.OrdinalIgnoreCase))
+        var channelsMatch = channelHistories.Select(history => history.Channel)
+            .SequenceEqual(preview.ChannelWindows.Select(point => point.Channel).Distinct(StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
+        var hasPreviousWindows = channelHistories.Any(history => history.Windows.Count > 0);
+        if (preview.ChannelWindows.Count > 0 && (!channelsMatch || previous is null && hasPreviousWindows))
         {
             channelHistories = RbpHistoryProjection.FromVisited(preview.ChannelWindows);
             RaisePropertyChanged(nameof(ChannelHistories));
         }
-        else if (response.Status == "available")
+        else if (preview.ChannelWindows.Count > 0 && response.Status == "available")
         {
             var current = preview.ChannelWindows.Where(point =>
                 point.Window.StartSeconds == response.WindowStartSeconds &&
@@ -198,11 +210,11 @@ public sealed record TopomapPowerTypeOption(string Id, string Label)
     public override string ToString() => Label;
 }
 
-public sealed class TopomapBandDisplayItem(TopomapBand band) : ObservableObject
+public sealed class TopomapBandDisplayItem(TopomapField band) : ObservableObject
 {
-    private TopomapBand band = band;
+    private TopomapField band = band;
 
-    public TopomapBand Band
+    public TopomapField Field
     {
         get => band;
         set => SetProperty(ref band, value);

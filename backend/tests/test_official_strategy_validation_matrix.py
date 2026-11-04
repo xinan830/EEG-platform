@@ -73,7 +73,7 @@ def test_every_declared_reuse_path_has_algorithm_scoped_test_evidence() -> None:
 
 
 def test_full_and_on_demand_cache_identity_matches_only_for_exact_scientific_context() -> None:
-    config = {"algorithm_id": "psd", "channel": "F3-REF", "mode": "dynamic", "low_hz": 1,
+    config = {"algorithm_id": "psd", "channels": ["F3-REF"], "mode": "dynamic", "low_hz": 1,
               "high_hz": 30, "notch_hz": None, "window_s": 5, "step_s": 1}
     context = {"sampling_rate_hz": 200, "signal_mapping": {"F3-REF": ["F3"]},
                "reference": {"kind": "acquisition_montage"}, "filters": {"low_hz": 1, "high_hz": 30},

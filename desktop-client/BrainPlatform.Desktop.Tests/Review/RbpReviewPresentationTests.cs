@@ -32,6 +32,25 @@ public sealed class RbpReviewPresentationTests
     }
 
     [Fact]
+    public void First_available_window_appends_to_prepared_channel_histories_after_insufficient_data()
+    {
+        var model = new RbpReviewAnalysisViewModel();
+        model.InitializeChannels(Enumerable.Range(1, 21).Select(index => $"CH{index}"));
+        var histories = model.ChannelHistories;
+
+        model.Apply(new WindowPreviewResponse("session", "recording", 600, 3, "insufficient_data", [],
+            null, false, null, null, null, null, null, null, "rbp-fixture", "fixture"), 3);
+
+        Assert.Same(histories, model.ChannelHistories);
+        Assert.All(histories, history => Assert.Empty(history.Windows));
+        model.Apply(Ready(5), 5);
+
+        Assert.Same(histories, model.ChannelHistories);
+        Assert.Equal(21, model.ChannelHistories.Count);
+        Assert.All(histories, history => Assert.Single(history.Windows));
+    }
+
+    [Fact]
     public void Reapplying_same_response_does_not_touch_history_or_notify_charts()
     {
         var model = new RbpReviewAnalysisViewModel();
@@ -76,14 +95,14 @@ public sealed class RbpReviewPresentationTests
     {
         var model = new RbpReviewAnalysisViewModel();
         var bands = new[] { "delta", "theta", "alpha", "beta", "gamma" }
-            .Select(id => new TopomapBand(id, "ratio", [], null, "ready", [], [], null, null)).ToArray();
+            .Select(id => new TopomapField($"rbp.relative.{id}", id, "ratio", null, [], null, "ready", [], [], null, null)).ToArray();
         var response = new TopomapResponse("window-1", "recording", 5, 10,
             "ready", "rbp-v2", "build", "mne.colin27_1020", "mri", "m",
             bands, null, null);
         model.ApplyTopomap(response);
 
         Assert.Same(response, model.Topomap);
-        Assert.Equal(5, model.Topomap!.Bands.Count);
+        Assert.Equal(5, model.Topomap!.Fields.Count);
         Assert.True(model.IsAllTopomapBandsSelected);
         Assert.Contains("标准模板位置", model.TopomapStatusText);
         Assert.Contains("5", model.TopomapWindowText);
@@ -95,11 +114,11 @@ public sealed class RbpReviewPresentationTests
             RunId = "window-2",
             WindowStartSeconds = 10,
             WindowEndSeconds = 15,
-            Bands = nextBands,
+            Fields = nextBands,
         };
         Assert.True(model.ApplyTopomapIfAvailable(next));
         Assert.Same(firstBandSlot, model.TopomapBands[0]);
-        Assert.Same(nextBands[0], firstBandSlot.Band);
+        Assert.Same(nextBands[0], firstBandSlot.Field);
         Assert.False(model.ApplyTopomapIfAvailable(null));
         Assert.Same(next, model.Topomap);
 
@@ -127,7 +146,7 @@ public sealed class RbpReviewPresentationTests
     {
         var model = new RbpReviewAnalysisViewModel();
         var bands = new[] { "delta", "theta", "alpha", "beta", "gamma" }
-            .Select(id => new TopomapBand(id, "ratio", [], null, "ready", [], [], null, null)).ToArray();
+            .Select(id => new TopomapField($"rbp.relative.{id}", id, "ratio", null, [], null, "ready", [], [], null, null)).ToArray();
         var response = new TopomapResponse("window", "recording", 0, 5, "ready", "v1", "build",
             "mne", "mri", "m", bands, null, null);
         model.ApplyTopomap(response);
@@ -137,14 +156,14 @@ public sealed class RbpReviewPresentationTests
             bandPropertyChanged |= e.PropertyName == nameof(model.SelectedTopomapBandId);
         model.SelectedTopomapBandId = "alpha";
 
-        Assert.Equal("alpha", model.SelectedTopomapBand!.BandId);
+        Assert.Equal("rbp.relative.alpha", model.SelectedTopomapField!.FieldId);
         Assert.Equal("window", model.Topomap!.RunId);
         Assert.True(bandPropertyChanged);
 
-        var singleBandResponse = response with { Bands = [bands[2]] };
+        var singleBandResponse = response with { Fields = [bands[2]] };
         model.ApplyTopomap(singleBandResponse);
 
-        Assert.Equal("alpha", model.SelectedTopomapBand!.BandId);
+        Assert.Equal("rbp.relative.alpha", model.SelectedTopomapField!.FieldId);
         Assert.Single(model.TopomapBands);
     }
 
@@ -175,7 +194,7 @@ public sealed class RbpReviewPresentationTests
     public void Topomap_absolute_scale_is_cleared_only_when_analysis_session_changes()
     {
         var model = new RbpReviewAnalysisViewModel();
-        var band = new TopomapBand("alpha", "uV^2", [], null, "ready", [], [], null, null);
+        var band = new TopomapField("rbp.absolute.alpha", "alpha", "uV^2", null, [], null, "ready", [], [], null, null);
         model.Apply(Ready(5) with { RunId = "session-1" }, 5);
         model.TopomapColorScales.Remember(band, 1, 5);
         Assert.Equal((1d, 5d), model.TopomapColorScales.GetBounds(band));

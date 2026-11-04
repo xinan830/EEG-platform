@@ -133,20 +133,31 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
     {
         var end = request.CursorSample / 200d;
         var frequencies = JsonSerializer.SerializeToElement(new[] { 1d, 2d, 3d });
-        var values = JsonSerializer.SerializeToElement(new[] { 1d, 2d, 1d });
+        var channels = request.Config.TryGetProperty("channels", out var configuredChannels) && configuredChannels.ValueKind == JsonValueKind.Array
+            ? configuredChannels.GetArrayLength()
+            : 1;
+        var values = JsonSerializer.SerializeToElement(Enumerable.Range(0, channels).Select(_ => new[] { 1d, 2d, 1d }).ToArray());
         var result = new DynamicWindowResultResponse(
             JsonSerializer.SerializeToElement(new { recording_id = request.RecordingId }),
             "ready", "frequency_series",
             new Dictionary<string, JsonElement> { ["frequency_hz"] = frequencies },
             new Dictionary<string, string> { ["frequency_hz"] = "Hz" },
-            new Dictionary<string, JsonElement> { ["psd"] = values },
-            new Dictionary<string, string> { ["psd"] = "V^2/Hz" },
+            new Dictionary<string, JsonElement> { ["psd"] = values,
+                ["band_share"] = JsonSerializer.SerializeToElement(Enumerable.Range(0, channels)
+                    .Select(_ => new[] { 0.2, 0.2, 0.2, 0.2, 0.2 }).ToArray()) },
+            new Dictionary<string, string> { ["psd"] = "V^2/Hz", ["band_share"] = "ratio" },
             "clean", null, null, null);
         return new DynamicWindowResponse(
             "session", $"window-{request.CursorSample}", request.RequestId!, "ready",
             JsonSerializer.SerializeToElement(new { recording_id = request.RecordingId }), null,
             new DynamicWindowRange(Math.Max(0, request.CursorSample - 1000), request.CursorSample,
-                Math.Max(0, end - 5), end), "clean", null, result, "subscription");
+                Math.Max(0, end - 5), end), "clean", null, result, "subscription",
+            JsonSerializer.Serialize(new
+            {
+                scientific_configuration_contract = "scientific-config-v1",
+                config = request.Config,
+                context = new { },
+            }));
     }
 
     internal static DynamicWindowResponse StftResponse(DynamicWindowRequest request)
@@ -202,7 +213,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
             },
             new Dictionary<string, JsonElement>
             {
-                ["psd"] = JsonSerializer.SerializeToElement(new[] { 9d, 8d, 7d }),
+                ["psd"] = JsonSerializer.SerializeToElement(new[] { new[] { new[] { 9d, 8d, 7d } } }),
             },
             new Dictionary<string, JsonElement>
             {

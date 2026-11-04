@@ -43,7 +43,16 @@ public sealed class OfficialCombinedStrategyTests
             Assert.Equal(previewRequest.Config.GetRawText(), fullRequest.Config.GetRawText());
             Assert.Equal(id, fullRequest.Config.GetProperty("algorithm_id").GetString());
             Assert.Equal("dynamic", fullRequest.Config.GetProperty("mode").GetString());
-            Assert.Equal(id == "brainbeat" ? "Fz" : "F3", fullRequest.Config.GetProperty("channel").GetString());
+            if (id == "psd")
+            {
+                Assert.Equal(new[] { "F3", "F4" }, fullRequest.Config.GetProperty("channels").EnumerateArray()
+                    .Select(channel => channel.GetString()).ToArray());
+                Assert.False(fullRequest.Config.TryGetProperty("channel", out _));
+            }
+            else
+            {
+                Assert.Equal(id == "brainbeat" ? "Fz" : "F3", fullRequest.Config.GetProperty("channel").GetString());
+            }
             if (id == "faa") Assert.Equal("F4", fullRequest.Config.GetProperty("f4_channel").GetString());
             if (id == "brainbeat") Assert.Equal("Pz", fullRequest.Config.GetProperty("secondary_channel").GetString());
             Assert.StartsWith("offline-full:", fullRequest.IdempotencyKey);

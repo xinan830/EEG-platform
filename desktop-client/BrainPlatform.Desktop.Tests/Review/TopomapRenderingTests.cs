@@ -42,8 +42,7 @@ public sealed class TopomapRenderingTests
                 .Select(column => (double?)(row + column)).ToArray())
             .ToArray();
         var grid = new TopomapGrid("test", 5, 5, -1, 1, -1, 1, 1, values);
-        var band = new TopomapBand("alpha", "ratio", Array.Empty<TopomapPoint>(), grid, "ready",
-            Array.Empty<string>(), Array.Empty<string>(), null, null);
+        var band = CreateField("rbp.relative.alpha", "alpha", "ratio", grid);
 
         var snapshot = await Task.Run(() => TopomapVisualPreparer.Prepare(
             band, 160, 160, CancellationToken.None));
@@ -61,8 +60,7 @@ public sealed class TopomapRenderingTests
     {
         var grid = new TopomapGrid("test", 1, 1, 0, 0, 0, 0, 1,
             new IReadOnlyList<double?>[] { new double?[] { 1 } });
-        var band = new TopomapBand("alpha", "ratio", Array.Empty<TopomapPoint>(), grid, "ready",
-            Array.Empty<string>(), Array.Empty<string>(), null, null);
+        var band = CreateField("rbp.relative.alpha", "alpha", "ratio", grid);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
@@ -77,6 +75,20 @@ public sealed class TopomapRenderingTests
         var band = CreateBand("alpha", "ratio", 0.2, 0.7);
 
         Assert.Equal((0d, 1d), state.GetBounds(band));
+    }
+
+    [Fact]
+    public void Psd_scale_preserves_backend_range_and_formats_values_as_microvolts_squared_per_hz()
+    {
+        var state = new TopomapColorScaleState();
+        var field = CreateBand("psd.frequency-bin.5", "V^2/Hz", 1e-12, 8e-12);
+
+        state.Remember(field, 1e-12, 8e-12);
+
+        Assert.Equal((1e-12, 8e-12), state.GetBounds(field));
+        Assert.Equal("µV²/Hz", TopomapCanvas.DisplayUnit(field.Unit));
+        Assert.Equal("1", TopomapCanvas.FormatScaleValue(1e-12, field.Unit));
+        Assert.Equal("8", TopomapCanvas.FormatScaleValue(8e-12, field.Unit));
     }
 
     [Fact]
@@ -129,8 +141,11 @@ public sealed class TopomapRenderingTests
         Assert.True(snapshot.HasGridValues);
     }
 
-    private static TopomapBand CreateBand(string id, string unit, double minimum, double maximum) =>
-        new(id, unit, Array.Empty<TopomapPoint>(), CreateGrid(minimum, maximum), "ready",
+    private static TopomapField CreateBand(string id, string unit, double minimum, double maximum) =>
+        CreateField($"rbp.absolute.{id}", id, unit, CreateGrid(minimum, maximum));
+
+    private static TopomapField CreateField(string id, string label, string unit, TopomapGrid grid) =>
+        new(id, label, unit, null, Array.Empty<TopomapPoint>(), grid, "ready",
             Array.Empty<string>(), Array.Empty<string>(), null, null);
 
     private static TopomapGrid CreateGrid(double minimum, double maximum) =>

@@ -113,25 +113,19 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
     }
 
     public Task<TopomapResponse> GetRunTopomapAsync(string runId, long cursorSample,
-        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
+        CancellationToken cancellationToken, IReadOnlyList<string> fieldIds)
     {
-        RequireTopomapPowerType(powerType);
-        RequireTopomapBandId(bandId);
-        var query = $"cursor_sample={cursorSample}&power_type={Uri.EscapeDataString(powerType)}";
-        if (bandId is not null) query += $"&band_id={Uri.EscapeDataString(bandId)}";
+        var query = $"cursor_sample={cursorSample}" + FieldQuery(fieldIds);
         return SendAsync<TopomapResponse>(HttpMethod.Get,
             $"api/runs/{Uri.EscapeDataString(RequireId(runId))}/topomap?{query}",
             null, cancellationToken);
     }
 
     public Task<TopomapResponse> GetDynamicTopomapAsync(string windowId, string? projectId,
-        CancellationToken cancellationToken, string powerType = "relative", string? bandId = null)
+        CancellationToken cancellationToken, IReadOnlyList<string> fieldIds)
     {
-        RequireTopomapPowerType(powerType);
-        RequireTopomapBandId(bandId);
-        var query = $"power_type={Uri.EscapeDataString(powerType)}";
+        var query = FieldQuery(fieldIds);
         if (!string.IsNullOrWhiteSpace(projectId)) query += $"&project_id={Uri.EscapeDataString(projectId)}";
-        if (bandId is not null) query += $"&band_id={Uri.EscapeDataString(bandId)}";
         return SendAsync<TopomapResponse>(HttpMethod.Get,
             $"api/analysis-windows/{Uri.EscapeDataString(RequireId(windowId))}/topomap?{query}",
             null, cancellationToken);
@@ -235,7 +229,8 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
         HttpResponseMessage response;
         try
         {
-            response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
@@ -247,10 +242,11 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
             DesktopLog.Info($"http_completed request_id={requestId} method={method.Method} path={relativePath} status={(int)response.StatusCode} elapsed_ms={started.Elapsed.TotalMilliseconds:0.0}");
         if (!response.IsSuccessStatusCode)
         {
-            throw await CreateExceptionAsync(response, cancellationToken);
+            throw await CreateExceptionAsync(response, cancellationToken).ConfigureAwait(false);
         }
 
-        var result = await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken);
+        var result = await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
         if (result is AnalysisRunResponse run) CurrentAlgorithmResult.Require(run);
         return result ?? throw new AlgorithmApiException(
             response.StatusCode, "EMPTY_RESPONSE", "算法服务返回了空响应。");
@@ -271,7 +267,8 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
         var message = $"算法服务请求失败（HTTP {(int)response.StatusCode}）。";
         try
         {
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            using var document = JsonDocument.Parse(
+                await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
             if (document.RootElement.ValueKind != JsonValueKind.Object)
                 return new AlgorithmApiException(response.StatusCode, code, message);
             if (document.RootElement.TryGetProperty("code", out var errorCode) && errorCode.ValueKind == JsonValueKind.String)
@@ -305,15 +302,10 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
             ? throw new ArgumentException("资源 ID 不能为空。", nameof(value))
             : value;
 
-    private static void RequireTopomapPowerType(string value)
+    private static string FieldQuery(IReadOnlyList<string> fieldIds)
     {
-        if (value is not ("relative" or "absolute"))
-            throw new ArgumentOutOfRangeException(nameof(value), "地形图功率类型必须是 relative 或 absolute。");
-    }
-
-    private static void RequireTopomapBandId(string? value)
-    {
-        if (value is not null and not ("delta" or "theta" or "alpha" or "beta" or "gamma"))
-            throw new ArgumentOutOfRangeException(nameof(value), "地形图频段必须是 delta、theta、alpha、beta 或 gamma。");
+        if (fieldIds is null || fieldIds.Count == 0 || fieldIds.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException("地形图必须提供 field_ids。", nameof(fieldIds));
+        return string.Concat(fieldIds.Select(id => $"&field_ids={Uri.EscapeDataString(id)}"));
     }
 }

@@ -45,7 +45,8 @@ class _RecordingStub:
             "units": {"psd": "uV^2/Hz"},
             "band_power": {channels[0]: {}},
             "relative_band_power": {channels[0]: {}},
-            "quality": {"clean_ratio": 1.0, "clean_segments": 1, "total_segments": 1, "gate_failed": False, "rejected_reasons": []},
+            "quality": {"clean_ratio": 1.0, "clean_segments": 1, "total_segments": 1, "gate_failed": False, "rejected_reasons": [],
+                        "by_channel": {channels[0]: {"status": "clean", "reasons": []}}},
         }
 
 
@@ -66,7 +67,7 @@ def test_service_ensures_and_publishes_one_psd_window(tmp_path, caplog):
         response = service.ensure(DynamicWindowRequest(
             recording_id="recording", algorithm_id="psd", cursor_sample=800,
             request_id="request", config={
-                "time": {"start_s": 0, "end_s": 20}, "channel": "F3", "mode": "dynamic",
+                "time": {"start_s": 0, "end_s": 20}, "channels": ["F3"], "mode": "dynamic",
                 "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None,
             },
         ))
@@ -138,7 +139,7 @@ def test_service_ensures_and_publishes_one_psd_window(tmp_path, caplog):
         reused = service.ensure(DynamicWindowRequest(
             recording_id="recording", algorithm_id="psd", cursor_sample=800,
             request_id="request-2", config={
-                "time": {"start_s": 0, "end_s": 20}, "channel": "F3", "mode": "dynamic",
+                "time": {"start_s": 0, "end_s": 20}, "channels": ["F3"], "mode": "dynamic",
                 "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None,
             },
         ))
@@ -173,7 +174,7 @@ def test_last_subscription_cancels_queued_window(tmp_path):
         response = service.ensure(DynamicWindowRequest(
             recording_id="recording", algorithm_id="psd", cursor_sample=800,
             request_id="request", config={
-                "time": {"start_s": 0, "end_s": 20}, "channel": "F3", "mode": "dynamic",
+                "time": {"start_s": 0, "end_s": 20}, "channels": ["F3"], "mode": "dynamic",
                 "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None,
             },
         ))
@@ -226,7 +227,7 @@ def test_concurrent_ensure_shares_one_window_and_attempt(tmp_path):
     payload = DynamicWindowRequest(
         recording_id="recording", algorithm_id="psd", cursor_sample=800,
         config={
-            "time": {"start_s": 0, "end_s": 20}, "channel": "F3", "mode": "dynamic",
+            "time": {"start_s": 0, "end_s": 20}, "channels": ["F3"], "mode": "dynamic",
             "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None,
         },
     )
@@ -268,7 +269,7 @@ def test_one_subscriber_cancellation_does_not_cancel_shared_work(tmp_path):
     payload = dict(
         recording_id="recording", algorithm_id="psd", cursor_sample=800,
         config={
-            "time": {"start_s": 0, "end_s": 20}, "channel": "F3", "mode": "dynamic",
+            "time": {"start_s": 0, "end_s": 20}, "channels": ["F3"], "mode": "dynamic",
             "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None,
         },
     )
@@ -315,7 +316,7 @@ def test_explicit_retry_after_cancel_creates_new_window_generation(tmp_path):
     payload = dict(
         recording_id="recording", algorithm_id="psd", cursor_sample=800,
         config={
-            "time": {"start_s": 0, "end_s": 20}, "channel": "F3", "mode": "dynamic",
+            "time": {"start_s": 0, "end_s": 20}, "channels": ["F3"], "mode": "dynamic",
             "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None,
         },
     )
@@ -372,7 +373,7 @@ def test_starting_new_service_recovers_expired_worker_lease(tmp_path):
     payload = DynamicWindowRequest(
         recording_id="recording", algorithm_id="psd", cursor_sample=800,
         config={
-            "time": {"start_s": 0, "end_s": 20}, "channel": "F3", "mode": "dynamic",
+            "time": {"start_s": 0, "end_s": 20}, "channels": ["F3"], "mode": "dynamic",
             "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30, "notch_hz": None,
         }, request_id="request-1",
     )

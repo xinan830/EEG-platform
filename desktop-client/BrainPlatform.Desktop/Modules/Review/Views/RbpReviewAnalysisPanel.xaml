@@ -81,7 +81,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <topomap:TopomapCanvas Band="{Binding Band}"
+                                <topomap:TopomapCanvas Field="{Binding Field}"
                                     ColorScaleState="{Binding DataContext.RbpAnalysis.TopomapColorScales, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                     Margin="8,2" />
                             </DataTemplate>
@@ -98,7 +98,7 @@
                                 </Style.Triggers>
                             </Style>
                         </Viewbox.Style>
-                        <topomap:TopomapCanvas Band="{Binding RbpAnalysis.SelectedTopomapBand}"
+                        <topomap:TopomapCanvas Field="{Binding RbpAnalysis.SelectedTopomapField}"
                                                ColorScaleState="{Binding RbpAnalysis.TopomapColorScales}"
                                                Width="640" Height="640" />
                     </Viewbox>

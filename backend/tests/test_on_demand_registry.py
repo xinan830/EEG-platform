@@ -9,18 +9,18 @@ def test_registry_only_exposes_declared_validated_capabilities():
     registry = DynamicWindowCapabilityRegistry.from_algorithm_registry(build_builtin_registry())
     assert [(item.manifest.algorithm_id, item.manifest.scientific_version) for item in registry.list()] == [
         ("band_ratio", "official-band-ratio-v1"),
-        ("brainbeat", "official-brainbeat-v1"),
+        ("brainbeat", "official-brainbeat-v2"),
         ("faa", "official-faa-v2"),
         ("iapf", "official-iapf-v2"),
         ("peak_frequency", "official-peak-frequency-v1"),
-        ("psd", "offline-spectral-v3"),
+        ("psd", "offline-spectral-v5-channel-resolved-band-integration"),
         ("rbp", "official-rbp-v4"),
         ("stft", "spectrogram-v3-bounded"),
         ("theta_beta", "official-theta-beta-v2"),
         ("tnk_biofeedback", "tnk-biofeedback-group-v2"),
     ]
-    assert registry.get("psd", "offline-spectral-v3").window_policy_version == "psd-dynamic-window-v1"
-    assert registry.get("brainbeat", "official-brainbeat-v1").window_policy_version == "brainbeat-dynamic-window-v1"
+    assert registry.get("psd", "offline-spectral-v5-channel-resolved-band-integration").window_policy_version == "psd-dynamic-window-v1"
+    assert registry.get("brainbeat", "official-brainbeat-v2").window_policy_version == "brainbeat-dynamic-window-v1"
 
 
 def test_unregistered_algorithm_does_not_fall_back_to_full_run():

@@ -106,7 +106,7 @@ public sealed class PsdWindowPresenterTests
         new DynamicWindowResultResponse(null, "ready", "frequency_series",
             new Dictionary<string, JsonElement> { ["frequency_hz"] = JsonSerializer.SerializeToElement(new[] { 1d, 2d }) },
             new Dictionary<string, string> { ["frequency_hz"] = axis },
-            new Dictionary<string, JsonElement> { ["psd"] = JsonSerializer.SerializeToElement(new[] { 1d, 2d }),
-                ["band_share"] = JsonSerializer.SerializeToElement(shares ?? [0.2, 0.2, 0.2, 0.2, 0.2]) },
+            new Dictionary<string, JsonElement> { ["psd"] = JsonSerializer.SerializeToElement(new[] { new[] { 1d, 2d } }),
+                ["band_share"] = JsonSerializer.SerializeToElement(new[] { shares ?? [0.2, 0.2, 0.2, 0.2, 0.2] }) },
             new Dictionary<string, string> { ["psd"] = unit, ["band_share"] = ratio }, "clean", null, null, null));
 }

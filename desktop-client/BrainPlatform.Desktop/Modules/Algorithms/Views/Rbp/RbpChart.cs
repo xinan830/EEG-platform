@@ -64,10 +64,24 @@ public sealed class RbpChart : UserControl
             ShowTooltipOn = ShowTooltipOptions.MouseOver,
         };
         Content = surface;
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
-    private static void OnDataChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
-        ((RbpChart)sender).Rebuild();
+    private static void OnDataChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        var chart = (RbpChart)sender;
+        if (chart.IsLoaded) chart.Rebuild();
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs args) => Rebuild();
+
+    private void OnUnloaded(object sender, RoutedEventArgs args)
+    {
+        if (stackedWindowsSource is null) return;
+        stackedWindowsSource.CollectionChanged -= OnStackedWindowsChanged;
+        stackedWindowsSource = null;
+    }
 
     private void Rebuild()
     {
