@@ -130,7 +130,7 @@ def completed_run(tmp_path, algorithm_id, dynamic):
     base, recording_id = _service(tmp_path, sfreq_hz=200)
     queue = PersistentRunQueue(base.recordings, base.repository.database_path, tmp_path / "artifacts")
     request = _request(recording_id, algorithm_id, dynamic=dynamic)
-    if algorithm_id == "brainbeat":
+    if algorithm_id in {"brainbeat", "brainbeat_individualized"}:
         request.config["secondary_channel"] = "Pz"
     if algorithm_id == "band_ratio":
         request.config.update(numerator_low_hz=8, numerator_high_hz=13,
@@ -154,7 +154,7 @@ def stored_bytes(queue, run):
 
 @pytest.mark.parametrize("algorithm_id", ALGORITHM_IDS)
 @pytest.mark.parametrize("dynamic", [False, True], ids=["static", "dynamic"])
-def test_all_nine_current_runs_retrieve_preview_export_and_provenance(tmp_path, algorithm_id, dynamic):
+def test_all_current_runs_retrieve_preview_export_and_provenance(tmp_path, algorithm_id, dynamic):
     queue, run = completed_run(tmp_path, algorithm_id, dynamic)
     try:
         before = stored_bytes(queue, run)
@@ -191,6 +191,36 @@ def test_all_nine_current_runs_retrieve_preview_export_and_provenance(tmp_path, 
             assert saved["result_summary"] == run.result_summary
             assert saved["analysis_provenance"] == payload["analysis_provenance"]
             assert any(name.endswith(".npz") for name in archive.namelist())
+        assert stored_bytes(queue, run) == before
+    finally:
+        queue.compute_coordinator.close()
+
+
+def test_historical_brainbeat_run_is_read_as_stored_without_reexecution(tmp_path, monkeypatch):
+    queue, run = completed_run(tmp_path, "brainbeat", False)
+    try:
+        historical = copy.deepcopy(run.result_summary)
+        historical["implementation_identity"] = "brainbeat-runtime-v5-iapf-v5-shared-1-50-notch"
+        historical["metric"]["official"]["brainbeat_evidence"].update({
+            "variant": "historical-relative",
+            "formula": "relative_theta(Fz) / relative_alpha(Pz)",
+        })
+        with queue.repository._connect() as connection:
+            connection.execute(
+                "UPDATE analysis_runs SET scientific_version = ?, result_summary_json = ? WHERE run_id = ?",
+                ("official-brainbeat-v5", json.dumps(historical), run.run_id),
+            )
+        before = stored_bytes(queue, run)
+
+        def unexpected_execution(*args, **kwargs):
+            pytest.fail("historical result reads must not execute a BrainBeat calculator")
+
+        monkeypatch.setattr(queue.base.executor, "execute", unexpected_execution)
+        response = api_for(queue).get(f"/api/runs/{run.run_id}")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["scientific_version"] == "official-brainbeat-v5"
+        assert response.json()["result_summary"] == historical
         assert stored_bytes(queue, run) == before
     finally:
         queue.compute_coordinator.close()

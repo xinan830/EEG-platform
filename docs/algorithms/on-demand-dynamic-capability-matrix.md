@@ -1,8 +1,8 @@
 # 按需动态能力与验证入口
 
-更新日期：2026-10-22。本文提供单窗边界和证据导航；完整三策略/双方向矩阵统一维护在[官方算法管理基线](official-algorithm-management.md)，机读声明见[策略矩阵](../validation/official-algorithm-strategy-matrix.json)。
+更新日期：2026-11-05。本文提供单窗边界和证据导航；完整三策略/双方向矩阵统一维护在[官方算法管理基线](official-algorithm-management.md)，机读声明见[策略矩阵](../validation/official-algorithm-strategy-matrix.json)。
 
-九算法都有完整动态 Run 与按需单窗能力，WPF 可选择全量、按需或组合。模块声明窗口能力，公共服务协调；不能从 supported_modes 自动推断单窗实现或复用能力。
+10 个独立算法都有完整动态 Run 与按需单窗能力；TNK 指标组作为第 11 个目录项也支持相应动态工作流。WPF 可选择全量、按需或组合。模块声明窗口能力，公共服务协调；不能从 supported_modes 自动推断单窗实现或复用能力。
 
 | 模块 | 单窗输入及专属规则 | Full→preview | On-demand→full |
 | --- | --- | --- | --- |
@@ -14,9 +14,10 @@
 | IAPF | 峰/COG、残差与失败证据 | 支持 | 不支持 |
 | Theta/Beta | IAPF 驱动频段及功率 | 支持 | 不支持 |
 | FAA | F3/F4 paired-epoch 与连续处理范围 | 不支持 | 不支持 |
-| Brainbeat | Fz/Pz、独立逐窗 IAPF，无跨窗 EMA | 不支持 | 不支持 |
+| Brainbeat / BrainBeat Individualized | Fz/Pz 成对频谱；经典固定绝对功率比不依赖 IAPF，个体化版本独立逐窗估计 IAPF；均无跨窗 EMA | 不支持 | 不支持 |
+| TNK 指标组 | 五角色映射；组内按子模块窗口和状态执行 | 不支持 | 不支持 |
 
-上表支持状态均限当前声明的工程验证路径；不能据此宣称所有真实记录和配置均验证过。最小窗口、Partial、尾窗、角色与滤波以各模块动态策略和 config 为准。
+原九算法冻结矩阵仍保留其原始覆盖范围；新增个体化 BrainBeat 的 on-demand/combined 行为有独立的后端数值对照与 WPF 请求契约测试，但不改写旧冻结基线。TNK 指标组的 full、on-demand 和 combined 路径已实现但尚未验证，不能视为已验收。上表不支持的反向复用方向仍不提供。不能据此宣称所有真实记录和配置均验证过。最小窗口、Partial、尾窗、角色与滤波以各模块动态策略和 config 为准。
 
 ## 当前证据
 

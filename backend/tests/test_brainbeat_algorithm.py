@@ -4,19 +4,19 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from app.algorithms.brainbeat.runner import BrainbeatAlgorithm
+from app.algorithms.brainbeat.runner import BrainbeatAlgorithm, IndividualizedBrainbeatAlgorithm
 from app.algorithm_runtime.contracts import AlgorithmInputs
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.scientific.primitives import SpectralEstimate
 from app.scientific.primitives.spectral import band_power
-from app.algorithms.brainbeat.official import segment_brainbeat
+from app.algorithms.brainbeat.official import classic_brainbeat, segment_brainbeat
 
 
 class FakeRecording:
     id = "brainbeat-test"
     channel_names = ["FZ", "PZ", "O1"]
     sfreq_hz = 200.0
-    duration_s = 20.0
+    duration_s = 22.0
 
     def __init__(self, *, gate_failed: str | None = None):
         self.calls: list[dict[str, object]] = []
@@ -56,7 +56,7 @@ class FakeRecording:
 def _config(**overrides):
     values = {
         "channel": "Fz", "secondary_channel": "Pz", "mode": "static",
-        "start_s": 0.0, "end_s": 10.0, "window_s": 5.0, "step_s": 1.0,
+        "start_s": 0.0, "end_s": 10.0, "window_s": 20.0, "step_s": 1.0,
     }
     values.update(overrides)
     return BrainbeatAlgorithm.config_model.model_validate(values)
@@ -77,7 +77,8 @@ def test_static_brainbeat_uses_explicit_fz_pz_and_preserves_ratio_result():
     assert request.roles == ("Fz", "Pz")
     assert role_map == {"Fz": "FZ", "Pz": "PZ"}
     assert (request.start_sample, request.end_sample) == (0, 2000)
-    assert result.evidence["extensions"]["brainbeat_evidence"]["formula"] == "relative_theta(Fz) / relative_alpha(Pz)"
+    assert result.evidence["extensions"]["brainbeat_evidence"]["formula"] == "absolute_power(Fz, 4-8 Hz) / absolute_power(Pz, 8-12 Hz)"
+    assert result.evidence["extensions"]["brainbeat_evidence"]["fz_theta_power_v2"] > 0
 
 
 def test_brainbeat_rejects_missing_or_identical_source_channels():
@@ -92,21 +93,21 @@ def test_brainbeat_rejects_missing_or_identical_source_channels():
         algorithm.resolve_inputs(recording, _config())
 
 
-def test_dynamic_brainbeat_calculates_independent_windows_and_keeps_quality_failure_null():
+def test_dynamic_brainbeat_waits_for_complete_window_and_keeps_quality_failure_null():
     recording = FakeRecording(gate_failed="low_quality")
     algorithm = BrainbeatAlgorithm()
-    config = _config(mode="dynamic", end_s=8.0)
+    config = _config(mode="dynamic", end_s=22.0)
     inputs = algorithm.resolve_inputs(recording, config)
 
     result = algorithm.execute_dynamic(inputs, config)
 
     assert len(result.values) == len(result.time_s) == len(result.windows)
-    assert len(result.values) == 5
+    assert len(result.values) == 3
     assert all(value is None for value in result.values)
     assert all(state == "Rejected" for state in result.states)
     assert all(failure is not None and failure.code == "PSD_QUALITY_GATE_FAILED" for failure in result.failures)
-    assert [call["start_s"] for call in recording.calls] == [0.0, 0.0, 1.0, 2.0, 3.0]
-    assert [call["window_s"] for call in recording.calls] == [4.0, 5.0, 5.0, 5.0, 5.0]
+    assert [call["start_s"] for call in recording.calls] == [0.0, 1.0, 2.0]
+    assert [call["window_s"] for call in recording.calls] == [20.0, 20.0, 20.0]
 
 
 def test_official_run_boundary_accepts_brainbeat_secondary_channel():
@@ -115,6 +116,12 @@ def test_official_run_boundary_accepts_brainbeat_secondary_channel():
         "time": {"start_s": 0.0, "end_s": 10.0}, "mode": "static",
     })
     assert config.runtime_config()["secondary_channel"] == "Pz"
+    dynamic = OfficialAlgorithmRunConfig.model_validate({
+        "algorithm_id": "brainbeat_individualized", "channel": "Fz", "secondary_channel": "Pz",
+        "time": {"start_s": 0.0, "end_s": 22.0}, "mode": "dynamic",
+    })
+    assert dynamic.dynamic_window_s == 20
+    assert dynamic.runtime_config()["window_s"] == 20
 
     with pytest.raises(ValidationError, match="Fz and Pz"):
         OfficialAlgorithmRunConfig.model_validate({
@@ -135,3 +142,24 @@ def test_brainbeat_uses_shared_boundary_interpolated_band_power():
     )
 
     assert segment_brainbeat(frequencies, fz, pz, iapf) == pytest.approx(expected)
+
+
+def test_classic_brainbeat_uses_absolute_fixed_band_powers_only():
+    frequencies = np.arange(1.0, 30.25, 0.25)
+    fz = np.ones_like(frequencies)
+    pz = np.ones_like(frequencies)
+    fz[(frequencies >= 4.0) & (frequencies <= 8.0)] = 3.0
+    pz[(frequencies >= 8.0) & (frequencies <= 12.0)] = 2.0
+    expected = band_power(frequencies, fz, 4.0, 8.0) / band_power(frequencies, pz, 8.0, 12.0)
+
+    actual = classic_brainbeat(frequencies, fz, pz)
+    fz[frequencies > 12.0] *= 1000.0
+    pz[(frequencies < 8.0) | (frequencies > 12.0)] *= 1000.0
+
+    assert actual == pytest.approx(expected)
+    assert classic_brainbeat(frequencies, fz, pz) == pytest.approx(expected)
+
+
+def test_individualized_identity_keeps_iapf_relative_formula():
+    assert IndividualizedBrainbeatAlgorithm.manifest.algorithm_id == "brainbeat_individualized"
+    assert IndividualizedBrainbeatAlgorithm.individualized is True

@@ -52,6 +52,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public ReviewScalarParameters IapfParameters { get; } = new("iapf");
     public ReviewScalarParameters ThetaBetaParameters { get; } = new("theta_beta");
     public ReviewScalarParameters BrainbeatParameters { get; } = new("brainbeat", "Fz", "Pz", "secondary_channel");
+    public ReviewScalarParameters IndividualizedBrainbeatParameters { get; } = new("brainbeat_individualized", "Fz", "Pz", "secondary_channel");
     public ReviewScalarAnalysisViewModel FaaAnalysis { get; } = new("无量纲", ReviewScalarProjectors.Faa);
     public ReviewScalarAnalysisViewModel IapfAnalysis { get; } = new("Hz", ReviewScalarProjectors.Iapf);
     public ReviewScalarAnalysisViewModel ThetaBetaAnalysis { get; } = new("无量纲", ReviewScalarProjectors.ThetaBeta);
@@ -119,6 +120,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         OpenIapfAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("iapf"), ReportCommandError);
         OpenThetaBetaAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("theta_beta"), ReportCommandError);
         OpenBrainbeatAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("brainbeat"), ReportCommandError);
+        OpenIndividualizedBrainbeatAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("brainbeat_individualized"), ReportCommandError);
         CloseAnalysisCommand = new AsyncRelayCommand(CloseAnalysisAsync, ReportCommandError);
         RbpParameters.PropertyChanged += OnAnalysisConfigurationChanged;
         StftParameters.PropertyChanged += OnAnalysisConfigurationChanged;
@@ -127,6 +129,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         IapfParameters.PropertyChanged += OnAnalysisConfigurationChanged;
         ThetaBetaParameters.PropertyChanged += OnAnalysisConfigurationChanged;
         BrainbeatParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        IndividualizedBrainbeatParameters.PropertyChanged += OnAnalysisConfigurationChanged;
         RbpAnalysis.PropertyChanged += OnRbpTopomapPropertyChanged;
         OpenEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = true, () => CanEditSelectedEvent);
         CloseEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = false);
@@ -218,6 +221,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public System.Windows.Input.ICommand OpenIapfAnalysisCommand { get; }
     public System.Windows.Input.ICommand OpenThetaBetaAnalysisCommand { get; }
     public System.Windows.Input.ICommand OpenBrainbeatAnalysisCommand { get; }
+    public System.Windows.Input.ICommand OpenIndividualizedBrainbeatAnalysisCommand { get; }
 
     public System.Windows.Input.ICommand CloseAnalysisCommand { get; }
 
@@ -229,13 +233,14 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public bool IsFaaAnalysisPanelOpen => activeAnalysisId == "faa";
     public bool IsIapfAnalysisPanelOpen => activeAnalysisId == "iapf";
     public bool IsThetaBetaAnalysisPanelOpen => activeAnalysisId == "theta_beta";
-    public bool IsBrainbeatAnalysisPanelOpen => activeAnalysisId == "brainbeat";
+    public bool IsBrainbeatAnalysisPanelOpen => activeAnalysisId is "brainbeat" or "brainbeat_individualized";
     public ReviewScalarParameters? ActiveScalarParameters => activeAnalysisId switch
     {
         "faa" => FaaParameters,
         "iapf" => IapfParameters,
         "theta_beta" => ThetaBetaParameters,
         "brainbeat" => BrainbeatParameters,
+        "brainbeat_individualized" => IndividualizedBrainbeatParameters,
         _ => null,
     };
     public ReviewScalarAnalysisViewModel? ActiveScalarAnalysis => activeAnalysisId switch
@@ -243,10 +248,10 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         "faa" => FaaAnalysis,
         "iapf" => IapfAnalysis,
         "theta_beta" => ThetaBetaAnalysis,
-        "brainbeat" => BrainbeatAnalysis,
+        "brainbeat" or "brainbeat_individualized" => BrainbeatAnalysis,
         _ => null,
     };
-    public bool HasSecondaryScalarChannel => activeAnalysisId is "faa" or "brainbeat";
+    public bool HasSecondaryScalarChannel => activeAnalysisId is "faa" or "brainbeat" or "brainbeat_individualized";
     public string AnalysisPanelTitle => activeAnalysisId switch
     {
         "rbp" => "RBP 相对频段功率",
@@ -256,7 +261,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         "faa" => "额叶 Alpha 不对称性",
         "iapf" => "个体 Alpha 峰频率",
         "theta_beta" => "Theta/Beta 比值",
-        "brainbeat" => "脑节律指标",
+        "brainbeat" => "经典 BrainBeat（绝对功率）",
+        "brainbeat_individualized" => "个体化 BrainBeat（IAPF 相对功率）",
         _ => "算法分析",
     };
 
@@ -635,6 +641,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
                 IapfParameters.SelectMontage(registered, selectedMontage);
                 ThetaBetaParameters.SelectMontage(registered, selectedMontage);
                 BrainbeatParameters.SelectMontage(registered, selectedMontage);
+        IndividualizedBrainbeatParameters.SelectMontage(registered, selectedMontage);
                 if (TnkParameters.IsInitialized)
                     TnkParameters.SelectMontage(registered, selectedMontage);
             }

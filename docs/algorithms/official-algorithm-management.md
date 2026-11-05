@@ -31,13 +31,14 @@
 | Theta/Beta | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
 | FAA | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
 | Brainbeat | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
+| TNK metrics group (`tnk_biofeedback`) | implemented / unvalidated | implemented / unvalidated | implemented / unvalidated | unsupported | unsupported |
 
-矩阵按当前 manifest 与专项证据核对。九算法 combined 由 `test_official_combined_strategies.py` 的真实队列/窗口服务合成集成测试及 WPF `OfficialCombinedStrategyTests` 验证；覆盖数值、状态、质量、范围、provenance 和双向取消隔离。PSD/STFT 的 on-demand→full 由 `test_official_directional_reuse.py` 对照无缓存全量，并检查损坏证据重算。其余复用方向的 unsupported 声明不变。能力构造器缺省仍为 unvalidated，新算法必须显式提交自己的证据。
+矩阵按当前 manifest 与专项证据核对。十个独立算法的 combined 路径由 `test_official_combined_strategies.py` 的真实队列/窗口服务合成集成测试及 WPF `OfficialCombinedStrategyTests` 验证；覆盖数值、状态、质量、范围、provenance 和双向取消隔离。TNK 组的 full、on-demand 和 combined 当前均为已实现但未验证；它的 manifest 明确声明两个反向复用方向不支持。PSD/STFT 的 on-demand→full 由 `test_official_directional_reuse.py` 对照无缓存全量，并检查损坏证据重算。能力构造器缺省仍为 unvalidated，新算法必须显式提交自己的证据。
 
 这些 validated 状态限定为可重跑的工程验证，不代表所有真实长记录、导联与滤波组合均通过压力或临床验证。2026-10-21 的九算法真实记录服务测量见 `docs/validation/2026-10-21-official-algorithm-real-recording-pressure.json`，仅证明该记录与环境。专门的真实记录组合调度压力报告见 PSD 的 `docs/validation/2026-10-17-background-full-orchestration-real-psd.md`；不能将其推广为九算法的完整组合压力结论。
 
 可机读、由回归测试核对的当前策略和契约矩阵见
-[official-algorithm-strategy-matrix.json](../validation/official-algorithm-strategy-matrix.json)。它冻结九个模块的 manifest、参数 schema、输出 schema 指纹，并逐条标出验证测试；只有共享生命周期证据的路径不能据此宣称算法专属数值等价。
+[official-algorithm-strategy-matrix.json](../validation/official-algorithm-strategy-matrix.json)。该冻结矩阵覆盖九个独立算法模块；TNK 组尚未纳入这组基线，按其 manifest 单独评估。只有共享生命周期证据的路径不能据此宣称算法专属数值等价。
 
 独立数值参考和当前合成输入/输出数组快照见
 [official-algorithm-numeric-baseline.json](../validation/official-algorithm-numeric-baseline.json) 与

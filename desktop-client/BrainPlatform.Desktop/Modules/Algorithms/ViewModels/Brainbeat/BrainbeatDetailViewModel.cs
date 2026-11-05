@@ -8,12 +8,22 @@ public sealed class BrainbeatDetailViewModel : AlgorithmSpecificDetailViewModel,
     private BrainbeatResultPreview? preview;
     private bool isFailureDetailsExpanded;
     private string? windowSession;
-    internal BrainbeatDetailViewModel(AlgorithmListViewModel catalog) : base(catalog, "brainbeat") => Refresh();
+    internal BrainbeatDetailViewModel(AlgorithmListViewModel catalog, string algorithmId = "brainbeat") : base(catalog, algorithmId) => Refresh();
     public BrainbeatPoint? CurrentPoint => preview?.IsDynamic == true
         ? preview.Points.LastOrDefault(point => point.TimeSeconds <= Catalog.DynamicPreviewCursorSeconds + 1e-9)
         : preview?.Points.LastOrDefault();
     public string ValueText => preview?.Value is double value ? value.ToString("0.######") : CurrentPoint?.Value?.ToString("0.######") ?? "不可用";
     public string UnitText => preview?.Unit ?? "ratio";
+    public string VariantText => AlgorithmId == "brainbeat_individualized"
+        ? "个体化 BrainBeat：IAPF 相对功率"
+        : "经典风格 BrainBeat：固定频带绝对功率";
+    public string FormulaText => AlgorithmId == "brainbeat_individualized"
+        ? "相对 Theta(Fz) ÷ 相对 Alpha(Pz)，频带由 IAPF 确定"
+        : "Fz 4–8 Hz 绝对功率 ÷ Pz 8–12 Hz 绝对功率";
+    public string ActualRangeText => CurrentPoint is { } point &&
+        double.IsFinite(point.StartSeconds) && double.IsFinite(point.EndSeconds)
+            ? $"实际分析范围：{point.StartSeconds:0.###}–{point.EndSeconds:0.###} s"
+            : "实际分析范围以运行结果为准";
     public string ChannelText => string.IsNullOrWhiteSpace(preview?.Channel) ? "Fz / Pz" : preview!.Channel;
     public string ResultText => preview is null ? "尚未生成结果" : preview.IsDynamic ? $"动态窗口：{preview.Points.Count} 个" : $"Brainbeat：{ValueText} {UnitText}";
     public IReadOnlyList<BrainbeatPoint> TrendPoints => preview?.IsDynamic == true
@@ -43,10 +53,10 @@ public sealed class BrainbeatDetailViewModel : AlgorithmSpecificDetailViewModel,
                 RaiseResultProperties();
                 return;
             }
-            if (Algorithm?.Id == "brainbeat" && Catalog.DisplayedAnalysisWindow is { } response)
+            if (Algorithm?.Id == AlgorithmId && Catalog.DisplayedAnalysisWindow is { } response)
             {
                 preview = BrainbeatResultPreview.FromWindow(response, SourceLabel(),
-                    windowSession == response.SessionId ? preview : null);
+                    windowSession == response.SessionId ? preview : null, AlgorithmId);
                 windowSession = response.SessionId;
             }
             else { windowSession = null; preview = null; }
@@ -57,14 +67,14 @@ public sealed class BrainbeatDetailViewModel : AlgorithmSpecificDetailViewModel,
     private void Refresh()
     {
         windowSession = null;
-        preview = Algorithm?.Id == "brainbeat"
+        preview = Algorithm?.Id == AlgorithmId
             ? CompletedBackgroundFullRun is { } fullRun
                 ? BrainbeatResultPreview.Parse(fullRun)
                 : Catalog.DisplayedAnalysisWindow is { } response
-                ? BrainbeatResultPreview.FromWindow(response, SourceLabel())
+                ? BrainbeatResultPreview.FromWindow(response, SourceLabel(), algorithmId: AlgorithmId)
                 : BrainbeatResultPreview.Parse(Catalog.LastRun)
             : null;
-        if (!IsServingCompletedBackgroundFullRun && Algorithm?.Id == "brainbeat" && Catalog.DisplayedAnalysisWindow is { } displayed)
+        if (!IsServingCompletedBackgroundFullRun && Algorithm?.Id == AlgorithmId && Catalog.DisplayedAnalysisWindow is { } displayed)
             windowSession = displayed.SessionId;
         RaisePropertyChanged(nameof(CurrentPoint)); RaisePropertyChanged(nameof(ValueText)); RaisePropertyChanged(nameof(UnitText));
         RaisePropertyChanged(nameof(ChannelText)); RaisePropertyChanged(nameof(ResultText)); RaisePropertyChanged(nameof(TrendPoints));
@@ -79,7 +89,7 @@ public sealed class BrainbeatDetailViewModel : AlgorithmSpecificDetailViewModel,
 
     private void RaiseResultProperties()
     {
-        foreach (var name in new[] { nameof(CurrentPoint), nameof(ValueText), nameof(ChannelText), nameof(ResultText), nameof(TrendPoints), nameof(TimelineStartSeconds), nameof(TimelineEndSeconds), nameof(FailureReasonText), nameof(FailureDetailsText), nameof(UnavailableWindowCount), nameof(RejectedWindowCount), nameof(WindowStateSummary), nameof(QualityText) })
+        foreach (var name in new[] { nameof(CurrentPoint), nameof(ValueText), nameof(ChannelText), nameof(ResultText), nameof(VariantText), nameof(FormulaText), nameof(ActualRangeText), nameof(TrendPoints), nameof(TimelineStartSeconds), nameof(TimelineEndSeconds), nameof(FailureReasonText), nameof(FailureDetailsText), nameof(UnavailableWindowCount), nameof(RejectedWindowCount), nameof(WindowStateSummary), nameof(QualityText) })
             RaisePropertyChanged(name);
     }
 }

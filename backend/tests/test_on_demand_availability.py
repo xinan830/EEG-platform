@@ -8,7 +8,7 @@ from app.core.config import on_demand_algorithm_enabled
 
 
 ACCEPTED = [
-    "band_ratio", "brainbeat", "faa", "iapf", "peak_frequency",
+    "band_ratio", "brainbeat", "brainbeat_individualized", "faa", "iapf", "peak_frequency",
     "psd", "rbp", "stft", "theta_beta", "tnk_biofeedback",
 ]
 

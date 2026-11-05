@@ -10,7 +10,7 @@ public sealed class OfficialCombinedStrategyTests
     public static TheoryData<string> Algorithms => new()
     {
         "psd", "stft", "rbp", "band_ratio", "peak_frequency", "iapf",
-        "theta_beta", "faa", "brainbeat",
+        "theta_beta", "faa", "brainbeat", "brainbeat_individualized",
     };
 
     [Theory, MemberData(nameof(Algorithms))]
@@ -31,8 +31,8 @@ public sealed class OfficialCombinedStrategyTests
                 null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 0, 10, "cancelled", "已取消"),
         };
         var catalog = OnDemandDetailClient.Catalog(client, id,
-            primaryChannel: id == "brainbeat" ? "Fz" : "F3",
-            secondaryChannel: id == "brainbeat" ? "Pz" : "F4");
+            primaryChannel: id.StartsWith("brainbeat", StringComparison.Ordinal) ? "Fz" : "F3",
+            secondaryChannel: id.StartsWith("brainbeat", StringComparison.Ordinal) ? "Pz" : "F4");
         try
         {
             catalog.SelectedDynamicExecutionMode = "按需预览 + 后台全量";
@@ -51,10 +51,10 @@ public sealed class OfficialCombinedStrategyTests
             }
             else
             {
-                Assert.Equal(id == "brainbeat" ? "Fz" : "F3", fullRequest.Config.GetProperty("channel").GetString());
+                Assert.Equal(id.StartsWith("brainbeat", StringComparison.Ordinal) ? "Fz" : "F3", fullRequest.Config.GetProperty("channel").GetString());
             }
             if (id == "faa") Assert.Equal("F4", fullRequest.Config.GetProperty("f4_channel").GetString());
-            if (id == "brainbeat") Assert.Equal("Pz", fullRequest.Config.GetProperty("secondary_channel").GetString());
+            if (id.StartsWith("brainbeat", StringComparison.Ordinal)) Assert.Equal("Pz", fullRequest.Config.GetProperty("secondary_channel").GetString());
             Assert.StartsWith("offline-full:", fullRequest.IdempotencyKey);
             Assert.Equal("cancelled", catalog.BackgroundFullRun!.Status);
             Assert.Null(catalog.LastRun);

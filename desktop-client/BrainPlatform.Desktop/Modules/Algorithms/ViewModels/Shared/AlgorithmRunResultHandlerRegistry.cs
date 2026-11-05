@@ -22,6 +22,7 @@ internal static class AlgorithmRunResultHandlerRegistry
             new IapfRunResultHandler(),
             new BandRatioRunResultHandler(),
             new BrainbeatRunResultHandler(),
+            new BrainbeatRunResultHandler("brainbeat_individualized"),
             new FaaRunResultHandler(),
             new ThetaBetaRunResultHandler(),
         }.Concat(new[]

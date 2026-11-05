@@ -225,11 +225,11 @@ class TestBrainbeatBoundaries:
         fz[(freqs >= 4) & (freqs <= 8)] *= 4
         pz[(freqs >= 8) & (freqs <= 13)] *= 4
         spectrum = _spectrum(freqs, np.vstack([fz, pz]))
-        first = compute_brainbeat(spectrum, fz_channel="Fz", pz_channel="Pz", requested_range=REQUESTED)
+        first = compute_brainbeat(spectrum, fz_channel="Fz", pz_channel="Pz", requested_range=REQUESTED, individualized=True)
         swapped = compute_brainbeat(spectrum.__class__(
             freqs, np.vstack([pz, fz]), 1.0, 4, 4, None,
             evidence=spectrum.evidence,
-        ), fz_channel="Pz", pz_channel="Fz", requested_range=REQUESTED)
+        ), fz_channel="Pz", pz_channel="Fz", requested_range=REQUESTED, individualized=True)
         assert first.value is not None and swapped.value is not None
         assert first.channel == "Fz/Pz"
         assert first.value != pytest.approx(swapped.value)
@@ -239,6 +239,7 @@ class TestBrainbeatBoundaries:
         result = compute_brainbeat(
             _spectrum(freqs, np.ones((1, len(freqs)))),
             fz_channel="Fz", pz_channel="Pz", requested_range=REQUESTED,
+            individualized=True,
         )
         assert result.value is None
         assert result.failure.code == "BRAINBEAT_CHANNEL_DATA_UNAVAILABLE"
@@ -256,12 +257,12 @@ class TestBrainbeatBoundaries:
         first = _spectrum(freqs, np.vstack([baseline + alpha * 0.4, baseline + alpha]))
         second = _spectrum(freqs, np.vstack([baseline + alpha * 0.8, baseline + alpha * 0.5]))
         forward = [
-            compute_brainbeat(spectrum, fz_channel="Fz", pz_channel="Pz", requested_range=REQUESTED).value
+            compute_brainbeat(spectrum, fz_channel="Fz", pz_channel="Pz", requested_range=REQUESTED, individualized=True).value
             for spectrum in (first, second)
         ]
         reverse_by_identity = {
             id(spectrum): compute_brainbeat(
-                spectrum, fz_channel="Fz", pz_channel="Pz", requested_range=REQUESTED
+                spectrum, fz_channel="Fz", pz_channel="Pz", requested_range=REQUESTED, individualized=True
             ).value
             for spectrum in (second, first)
         }

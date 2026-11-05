@@ -327,7 +327,7 @@ def test_faa_and_offline_brainbeat_match_independent_references_in_any_window_or
         expected = _reference_brainbeat(item.freqs, item.psd[0], item.psd[1], float(iapf_ref))
         actual = compute_brainbeat(item, fz_channel="Fz", pz_channel="Pz",
                                    requested_range={"start_s": 0, "end_s": 10},
-                                   actual_range={"start_s": 0, "end_s": 10})
+                                   actual_range={"start_s": 0, "end_s": 10}, individualized=True)
         assert actual.quality == "clean"
         assert actual.actual_range == {"start_s": 0, "end_s": 10}
         return expected, float(actual.value)

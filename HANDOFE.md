@@ -1,12 +1,20 @@
 # Brain Platform 交接文档
 
-更新时间：2026-10-28（Asia/Shanghai）
+更新时间：2026-11-05（Asia/Shanghai）
 
 本文写给没有当前会话上下文的新会话。源码、测试和 OpenSpec 是事实来源；本文件只提供工作背景和接手顺序。自动化测试通过不等于真实 EEG 录音上的人工验收通过。
 
-## 当前任务
+## 当前基线（2026-11-05）
 
-当前主线是完善脑电回顾与 TNK 按需分析的流式体验，同时保证波形显示在降采样时不遗漏尖峰等瞬态，并继续维护统一的通道、电极位置和导联关系配置。
+- 当前 HEAD：`368bcda Standardize spectral algorithm contracts`；本轮接手时源码工作区干净。
+- 当前官方目录有 10 个可运行项：9 个独立算法加 `tnk_biofeedback` TNK 指标组。TNK 的四个内部子指标不是独立公共算法 ID。
+- FAA 动态窗口默认值已对齐：省略 `dynamic_window_s` 时使用 manifest 的 20 秒默认，显式值保留；该变更已归档于 `openspec/changes/archive/2026-11-05-align-faa-dynamic-default/`。独立的 minimum-clean-epoch-ratio 决策仍未引入。
+- 最近一次针对该变更的验证记录：配置测试 3 项通过、OpenSpec strict validation 通过、`git diff --check` 通过。它们不代表全量回归、真实 EEG 或临床验证。
+- 继续工作前先检查 `git status --short --branch`、HEAD 和当前 OpenSpec changes；本文件以下 2026-10-28 内容是前一轮 TNK/信号预览工作的背景记录，不代表当前任务或工作区改动。
+
+## 历史交接记录：TNK 流式回顾与信号预览（2026-10-28）
+
+当时主线是完善脑电回顾与 TNK 按需分析的流式体验，同时保证波形显示在降采样时不遗漏尖峰等瞬态，并继续维护统一的通道、电极位置和导联关系配置。
 
 ### ANT-Amplify 三个时序指标迁移（2026-10-28）
 
@@ -94,13 +102,13 @@ WPF 展示入口已补齐：公共算法列表保留一个可选择的 `tnk_biof
 - WPF 桌面人工验收尚未完成：正常播放、延迟分析、前后 seek、暂停/恢复、通道角色或配置变化、取消和投递恢复都需要验证。
 - 构建仍可能出现 .NET 预览 SDK 以及 OpenTK/OpenTK.GLWpfControl/SkiaSharp.Views.WPF 的 NU1701 警告；这些不是当前构建错误，但应记录环境版本。
 
-## 工作区状态和注意事项
+## 前轮工作区记录（2026-10-28；仅作历史背景）
 
-当前工作区存在未提交改动，涉及后端信号预览、桌面波形控件、算法客户端测试和 `stream-tnk-review-analysis` OpenSpec。还存在 `_temp_build/`、`desktop-client/BrainPlatform.Desktop.Tests/TestResults/` 等生成物。不要执行 `git reset --hard`、整目录清理或覆盖其他改动；先用 `git status --short` 和 `git diff --name-only` 识别本会话范围。
+当时工作区存在未提交改动，涉及后端信号预览、桌面波形控件、算法客户端测试和 `stream-tnk-review-analysis` OpenSpec。该状态已经过期；后续会话应以实时 `git status` 为准。
 
-`HANDOFE.md` 本身原先在工作区处于删除状态，本次已恢复为交接文档。不要把恢复该文档误认为业务代码回退。
+以下后续事项是 2026-10-28 留下的历史清单，不代表当前待办；新任务应依据实时代码、测试和 OpenSpec 重新确定范围。
 
-## 下一步计划
+## 前轮后续事项（2026-10-28）
 
 1. 先查看 `git status --short`、`git log -1 --oneline --decorate` 和本文件，确认接手时的真实状态。
 2. 单进程运行信号预览相关后端测试、桌面 `SignalPreviewExtremaProjectionTests` 和通道配置 focused tests；不要并行启动多个 WPF 测试进程，避免生成文件锁冲突。

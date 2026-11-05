@@ -9,7 +9,7 @@
 | `GET /api/runs/{run_id}` | 生命周期与结果摘要 |
 | `GET /api/runs/{run_id}/result` | 经当前格式校验的结果视图 |
 | `POST /api/analysis-windows/ensure` | 按游标及模块能力获取单窗 |
-| `POST /api/recordings/{recording_id}/spectrum/configured`、`/spectrogram/configured` | 记录级可配置谱端点；不是九算法 Run 的统一请求 schema |
+| `POST /api/recordings/{recording_id}/spectrum/configured`、`/spectrogram/configured` | 记录级可配置谱端点；不是官方算法 Run 的统一请求 schema |
 
 请求字段和约束以当前 Pydantic schema、模块 config 与 OpenAPI 为准，不复制一份可能漂移的通用 JSON 模板。动态窗口规则不能从某个记录级谱端点推导到所有算法。
 

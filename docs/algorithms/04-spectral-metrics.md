@@ -2,7 +2,7 @@
 
 ## 当前执行与版本
 
-当前九算法的身份、科学版本、参数、输出和策略能力由 `backend/app/algorithms/<id>/manifest.py` 声明。共享运行时协调 full、on-demand 和 combined，算法模块负责科学计算；各方向的复用支持以 manifest 和验证矩阵为准，不能从 dynamic 模式推断。
+当前 10 个独立算法的身份、科学版本、参数、输出和策略能力由 `backend/app/algorithms/<id>/manifest.py` 声明；TNK 指标组由组 manifest 和运行时适配器提供一个目录项。共享运行时协调 full、on-demand 和 combined，算法模块负责科学计算；各方向的复用支持以 manifest 和验证矩阵为准，不能从 dynamic 模式推断。
 
 共享离线频谱基线当前为 `offline-spectral-v4`：分析预处理默认 1–50 Hz、50 Hz/Q=30 陷波、零相位；可用算法配置显式关闭陷波。Review 显示滤波不进入分析输入或身份。v3 保持冻结，仅用于解释历史结果。算法可因科学定义声明更窄或更宽的滤波范围，但必须记录有效范围；共享基线不统一算法窗口、Welch 参数、输出频段、频带和质量规则。新增算法流程见 [统一管理基线](official-algorithm-management.md)。
 
@@ -20,7 +20,7 @@
 
 默认频谱契约使用 4 阶 Butterworth SOS 零相位滤波与独立的 50 Hz/Q=30 零相位陷波。PSD 的 Welch 段长、重叠和算法特定频率输出由各模块声明；当前 PSD 使用 4 s Hann 段和 50% 重叠。只平均通过质量检查的片段；非有限值、幅度异常、平线、削顶或缺样保留明确证据。质量门失败返回不可用，不伪造零值。
 
-所有调用共享 `scientific/primitives/spectral.py::band_power` 的频带积分：将边界 PSD 线性插值到精确频率，再做梯形积分。PSD 的频带占比和 Brainbeat 的动态 IAPF 频带都复用该实现；Brainbeat（`official-brainbeat-v4`）仍使用其算法自有 IAPF 频带及 1–30 Hz 分母。历史 Run 不重算或改写。
+所有调用共享 `scientific/primitives/spectral.py::band_power` 的频带积分：将边界 PSD 线性插值到精确频率，再做梯形积分。BrainBeat 现有两个当前身份：经典风格 `brainbeat` 使用 Fz 4–8 Hz 与 Pz 8–12 Hz 绝对功率比；`brainbeat_individualized` 保留 IAPF 相对频带和各通道 1–30 Hz 分母。两者默认动态窗均为 20 s、每 1 s 更新，支持完整 10/20/30 s 窗口且不输出部分预热值。主文献页面当前可确认算法名称与研究背景，但可访问摘要没有足够方法细节证明经典身份是 Holm 等人完整方法的精确复现；该频带/绝对功率定义仍需对照论文全文验证。历史 Run 不重算或改写。
 
 ## 当前指标
 
@@ -30,7 +30,8 @@
 - Theta/Beta：当前为一个明确原始通道的 IAPF 相对频段比值，`theta=[max(4,IAPF-6),IAPF-2]`、`beta=[IAPF+2,30]`，不要求 Fz/Pz/Oz 三通道组合。
 - 独立 RBP（`official-rbp-v4`）：结构化结果输出 Delta、Theta、Alpha、Beta、Gamma 五频段相对比例（`ratio`）及绝对功率（`uV^2`）；绝对功率与比例来自同一 PSD 积分，地形图可切换显示类型而不重跑算法。频段边界和相对功率总分母由 RBP 模块声明。质量按通道独立评估，幅值超限、疑似削顶和低幅值等保留有限数据的计算值并标注警告，不再受 75% 干净片段比例限制。缺失/非有限样本、无效五频段总功率仍令该通道不可用；不插值、不补零。保留伪迹会改变数值含义，不能解释成经过伪迹剔除的干净脑电。TNK 和其他指标的质量策略不随之改变。
 - FAA：F3/F4 明确选择来源，使用请求绝对范围内的成对 2 s epoch、50% overlap 和质量门，默认至少十个 clean paired epochs；计算 `ln(P_F4_alpha)-ln(P_F3_alpha)`。不再保留历史起始丢弃或最长时长常量。
-- 离线 Brainbeat（`official-brainbeat-v4`）：同一窗内独立计算 Fz/Pz 频谱及 IAPF，使用共享 4 s Hann Welch / 50% overlap；指标为 `relative_theta(Fz)/relative_alpha(Pz)`，分母仍是算法自有 1–30 Hz，不跨窗进行 IAPF 锁定、warm-up 累积或 EMA。
+- 经典风格 BrainBeat（`official-brainbeat-v6-classic-absolute`）：共享 4 s Hann Welch / 50% overlap；指标为 Fz 4–8 Hz 绝对功率除以 Pz 8–12 Hz 绝对功率，V²/V² 为无量纲 ratio，不依赖 IAPF。研究背景见 [Holm et al. (2009)](https://pmc.ncbi.nlm.nih.gov/articles/PMC5823228/)；当前工程尚未依据论文全文逐项核实频带、功率定义和频谱估计细节，因此不宣称精确复现。
+- 个体化 BrainBeat（`official-brainbeat-individualized-v1-relative`）：每窗独立计算 Fz/Pz 频谱及 IAPF；指标为 `relative_theta(Fz)/relative_alpha(Pz)`，各自分母为 1–30 Hz，不跨窗进行 IAPF 锁定、warm-up 累积或 EMA。
 
 ## 时间、质量与追溯
 

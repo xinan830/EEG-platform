@@ -58,6 +58,13 @@ public sealed class ReviewScalarParametersTests
         Assert.Single(single.RootElement.GetProperty("channels").EnumerateArray());
         Assert.Equal(20, single.RootElement.GetProperty("dynamic_window_s").GetDouble());
         Assert.Equal(1, single.RootElement.GetProperty("refresh_step_s").GetDouble());
+
+        var individualized = new ReviewScalarParameters("brainbeat_individualized", "Fz", "Pz", "secondary_channel");
+        individualized.Initialize(Recording(), Algorithm("brainbeat_individualized"), montage);
+        using var individualConfig = JsonDocument.Parse(individualized.BuildConfig(100, 500).GetRawText());
+        Assert.Equal("brainbeat_individualized", individualConfig.RootElement.GetProperty("algorithm_id").GetString());
+        Assert.Equal(20, individualConfig.RootElement.GetProperty("dynamic_window_s").GetDouble());
+        Assert.Equal(1, individualConfig.RootElement.GetProperty("refresh_step_s").GetDouble());
     }
 
     [Fact]
@@ -81,6 +88,7 @@ public sealed class ReviewScalarParametersTests
     private static AlgorithmCatalogItem Algorithm(string id) => new(
         "official", id, "fixture-v1", id, id, "", [], ["dynamic"], default,
         id is "iapf" or "theta_beta" ? new DynamicAnalysisPolicy(20, [20, 30], 20, 1, false)
+            : id is "brainbeat" or "brainbeat_individualized" ? new DynamicAnalysisPolicy(10, [10, 20, 30], 20, 1, false)
             : new DynamicAnalysisPolicy(4, [5], 5, 1, false), "available", true,
         "definition", "1", "impl");
 

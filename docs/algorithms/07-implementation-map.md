@@ -4,8 +4,8 @@
 
 | 职责 | 路径 |
 | --- | --- |
-| 九算法身份、参数和独立计算 | `backend/app/algorithms/<id>/` |
-| 唯一后端组合表 | `backend/app/algorithms/builtin_modules.py` |
+| 10 个独立算法身份、参数和计算 | `backend/app/algorithms/<id>/` |
+| 官方目录组合；含 TNK 指标组运行时适配器 | `backend/app/algorithms/builtin_modules.py`、`backend/app/algorithms/tnk/runtime.py` |
 | typed 输入/结果、能力及校验 | `backend/app/algorithm_runtime/` |
 | 记录到算法输入的适配 | `backend/app/services/algorithm_recording_context.py` |
 | 连续预处理与谱服务 | `backend/app/services/spectral_analysis.py` |

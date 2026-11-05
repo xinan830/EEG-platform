@@ -8,7 +8,7 @@ from app.models.analysis_config import AnalysisTimeRange
 
 
 OfficialAlgorithmId = Literal[
-    "iapf", "theta_beta", "rbp", "faa", "brainbeat", "peak_frequency", "band_ratio", "psd", "stft",
+    "iapf", "theta_beta", "rbp", "faa", "brainbeat", "brainbeat_individualized", "peak_frequency", "band_ratio", "psd", "stft",
     "tnk_biofeedback",
 ]
 
@@ -46,7 +46,8 @@ class OfficialAlgorithmRunConfig(BaseModel):
     def apply_algorithm_dynamic_default(cls, values: Any) -> Any:
         if isinstance(values, dict) and values.get("mode", "static") == "dynamic":
             algorithm_id = values.get("algorithm_id")
-            default_window = {"theta_beta": 20, "faa": 20}.get(algorithm_id)
+            default_window = {"theta_beta": 20, "faa": 20,
+                              "brainbeat": 20, "brainbeat_individualized": 20}.get(algorithm_id)
             if default_window is None:
                 return values
             values = dict(values)
@@ -68,7 +69,7 @@ class OfficialAlgorithmRunConfig(BaseModel):
                 raise ValueError("FAA requires explicit F3 and F4 source channels")
             if self.channel.casefold() == self.f4_channel.casefold():
                 raise ValueError("FAA F3 and F4 source channels must be different")
-        elif self.algorithm_id == "brainbeat":
+        elif self.algorithm_id in {"brainbeat", "brainbeat_individualized"}:
             if not self.channel or not self.secondary_channel:
                 raise ValueError("Brainbeat requires explicit Fz and Pz source channels")
             if self.channel.casefold() == self.secondary_channel.casefold():
@@ -140,7 +141,7 @@ class OfficialAlgorithmRunConfig(BaseModel):
             config["role_mapping"] = dict(self.tnk_role_mapping or {})
         elif self.algorithm_id == "faa":
             config["f4_channel"] = str(self.f4_channel)
-        if self.algorithm_id == "brainbeat":
+        if self.algorithm_id in {"brainbeat", "brainbeat_individualized"}:
             config["secondary_channel"] = str(self.secondary_channel)
         if self.algorithm_id == "theta_beta":
             config["frequency_mode"] = self.frequency_mode

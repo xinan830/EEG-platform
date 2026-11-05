@@ -50,7 +50,8 @@ values are left blank rather than drawn as zero.
 
 For dynamic analysis, select “分析方式” in the shared parameter card: “全量分析”
 computes the selected interval, while “按需分析” loads the cursor's target window.
-All nine accepted modules offer both choices without environment commands;
+All ten catalog entries, including the TNK metrics group, offer both choices
+without environment commands;
 the initial choice remains full analysis. Review's PSD adapter uses the same
 availability policy. Per-module environment overrides remain for maintenance.
 

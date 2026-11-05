@@ -13,6 +13,8 @@ def test_official_definition_metadata_retains_distinct_faa_brainbeat_and_iapf_se
     assert official_definition("faa")["paired_quality"] is True
     assert official_definition("brainbeat")["independent_windows"] is True
     assert official_definition("brainbeat")["cross_window_ema"] is False
+    assert official_definition("brainbeat")["power_type"] == "absolute"
+    assert official_definition("brainbeat_individualized")["power_type"] == "relative"
     assert official_definition("iapf")["sources"] == ["peak", "cog"]
 
 

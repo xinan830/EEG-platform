@@ -111,6 +111,56 @@ offline capability SHALL NOT enable a stateful realtime Brainbeat path.
 - **AND** each reports its module-owned scientific and implementation identity
 - **AND** offline Brainbeat availability does not claim realtime IAPF-lock or EMA support
 
+### Requirement: Execute classic and individualized BrainBeat with distinct scientific contracts
+
+Official Run SHALL execute classic `brainbeat` and
+`brainbeat_individualized` through distinct current runtime modules and
+configuration identities. Classic BrainBeat SHALL return absolute Fz 4–8 Hz
+power divided by absolute Pz 8–12 Hz power and SHALL not require IAPF. The
+individualized variant SHALL retain its IAPF-relative relative-power
+calculation and return null when IAPF or effective bands are unavailable. Both
+SHALL use explicit distinct Fz/Pz source mappings, shared preprocessing and
+Welch quality rules, and the selected window's actual range. Historical stored
+Run payloads SHALL remain unchanged and SHALL NOT be recomputed or
+reinterpreted.
+
+#### Scenario: Create a classic BrainBeat Run
+- **WHEN** a valid recording and explicit distinct Fz/Pz channels are submitted for classic BrainBeat
+- **THEN** the Run reports fixed bands, absolute intermediate powers, a dimensionless ratio, quality, actual range, and current scientific identity
+- **AND** missing IAPF does not reject the classic result
+
+#### Scenario: Create an individualized BrainBeat Run
+- **WHEN** a valid recording and explicit distinct Fz/Pz channels are submitted for the individualized variant
+- **THEN** the Run uses its IAPF-relative bands and relative-power denominators
+- **AND** unavailable IAPF yields null with a stable structured reason
+
+#### Scenario: Reject incomplete or aliased role mappings
+- **WHEN** a Run omits Fz or Pz, maps both roles to one source, or names an unavailable source channel
+- **THEN** the request fails with a structured validation error
+- **AND** the runtime does not infer or substitute either channel
+
+#### Scenario: Preserve previously stored BrainBeat evidence
+- **WHEN** a historical BrainBeat Run created before this change is read
+- **THEN** the API returns its stored scientific identity and value without rewriting it
+- **AND** new requests use only current classic or individualized identities
+
+### Requirement: Use the declared BrainBeat dynamic policy for Run and on-demand windows
+
+Official Run and on-demand execution for each BrainBeat identity SHALL default
+to a 20-second trailing window and one-second step. Supported window values
+SHALL be 10, 20, and 30 seconds. No numeric warm-up result SHALL be emitted
+before a complete selected window exists. Every dynamic result SHALL carry the
+backend-computed absolute start/end range and endpoint time.
+
+#### Scenario: Align Run and review calculations
+- **WHEN** Official Run and on-demand review use the same BrainBeat identity, source channels, preprocessing, and actual range
+- **THEN** numerical values, quality, and calculation evidence match within the declared validation tolerance
+
+#### Scenario: Reject an unsupported BrainBeat window
+- **WHEN** a request supplies a BrainBeat dynamic window outside the declared supported values
+- **THEN** the request fails with a structured configuration error
+- **AND** the runtime does not silently clamp or substitute a different window
+
 ### Requirement: Preserve scientific contracts
 Official IAPF and Theta/Beta SHALL reuse frozen offline spectral preprocessing, quality gates, units, and time-window semantics. IAPF SHALL estimate its value from the PSD averaged across accepted Welch segments in the current analysis window. Theta/Beta SHALL support two explicit frequency modes on the same selected raw channel: standard mode SHALL use Theta `[4,8]` Hz and Beta `[13,30]` Hz; individualized mode SHALL estimate IAPF for the current window and use Theta `[IAPF-6,IAPF-4]` Hz and Beta `[IAPF+2,30]` Hz. The lower Theta edge SHALL NOT be clamped. An unavailable IAPF or band outside the actual frequency axis SHALL produce a null result with a structured reason. The default frequency mode SHALL be standard.
 

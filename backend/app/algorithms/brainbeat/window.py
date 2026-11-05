@@ -1,8 +1,7 @@
 """Brainbeat-owned single-window capability.
 
-Brainbeat is a two-source spectral metric: every window loads the explicit
-Fz/Pz pair and computes its own IAPF-driven ratio.  It must not inherit the
-one-channel scalar adapter or carry state from a previous window.
+Brainbeat variants are two-source metrics: each window loads the explicit
+Fz/Pz pair and computes an independent result under its own manifest.
 """
 
 from collections.abc import Callable
@@ -28,7 +27,7 @@ from .signal_source import load_brainbeat_spectrum
 class BrainbeatWindowCapability:
     """Plan and execute one independent Fz/Pz Brainbeat window."""
 
-    window_policy_version = "brainbeat-dynamic-window-v1"
+    window_policy_version = "brainbeat-dynamic-window-v2"
     manifest = MANIFEST
     config_model = BrainbeatConfig
 
@@ -44,7 +43,7 @@ class BrainbeatWindowCapability:
     ) -> DynamicWindowPlan:
         if not self.can_execute_window(config):
             raise ValueError("Brainbeat on-demand capability requires dynamic mode")
-        return plan_policy_window(inputs, config, cursor_sample, session_identity, MANIFEST.dynamic_policy)
+        return plan_policy_window(inputs, config, cursor_sample, session_identity, self.manifest.dynamic_policy)
 
     def execute_window(
         self,
@@ -84,6 +83,7 @@ class BrainbeatWindowCapability:
                 pz_channel=config.pz_channel,
                 requested_range={"start_s": plan.start_s, "end_s": plan.end_s},
                 actual_range={"start_s": plan.start_s, "end_s": plan.end_s},
+                individualized=getattr(self, "individualized", False),
             )
         except SpectralQualityGateError as exc:
             quality = dict(exc.quality)
@@ -114,13 +114,13 @@ class BrainbeatWindowCapability:
             provenance={
                 "preprocessing_scope": "whole_recording_before_window_slice",
                 "analysis_state": "Partial" if plan.end_s - plan.start_s < (
-                    config.window_s or MANIFEST.dynamic_policy.default_window_s
+                    config.window_s or self.manifest.dynamic_policy.default_window_s
                 ) - 1e-9 else "Complete",
                 "paired_sources": True,
                 "source_channels": {"fz": inputs.channel, "pz": config.pz_channel},
                 "independent_windows": True,
                 "cross_window_ema": False,
-                "iapf_dependency": True,
+                "iapf_dependency": getattr(self, "individualized", False),
             },
         )
 

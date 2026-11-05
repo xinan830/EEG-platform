@@ -39,7 +39,7 @@ WPF 参数 / 导联选择
 | Peak Frequency、IAPF、Band Ratio、Theta/Beta | 所选分析通道的 Welch spectrum | 经 typed Welch adapter；处理范围由各模块声明，各自负责峰值、频带积分/比值等科学规则 |
 | RBP | 所选分析通道的 Welch spectrum | 固定连续预处理后切片；频带积分和相对功率规则归模块所有 |
 | FAA | 按声明顺序的 F3/F4 角色时序 | 配对读取、声明的连续预处理、paired-epoch FFT 和配对质量门保持独立 |
-| Brainbeat | 显式 Fz/Pz 角色的频谱 | 模块按窗声明预处理与频谱需求，独立计算 IAPF 及比值；不隐式共享跨窗 EMA |
+| Brainbeat | 显式 Fz/Pz 角色的频谱 | `brainbeat` 是固定频带绝对功率比；`brainbeat_individualized` 按窗独立估计 IAPF 和相对功率比；均不隐式共享跨窗 EMA |
 
 时序数据是 `(samples, channels)`、V/float64；`channel_order` 与数组列、角色映射一致。频谱边界显式记录服务 uV²/Hz 与算法 V²/Hz 的换算。请求使用绝对样本边界和 Hz 采样率；秒到样本的既有取整规则需在测试中精确比较，不能以浮点容差掩盖一帧偏移。
 

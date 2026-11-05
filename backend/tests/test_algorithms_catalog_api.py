@@ -35,6 +35,18 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
         "refresh_step_options_s": [1.0, 2.0, 5.0],
         "allow_warmup": False,
     }
+    brainbeat_policy = {
+        "minimum_window_s": 10.0,
+        "window_options_s": [10.0, 20.0, 30.0],
+        "default_window_s": 20.0,
+        "refresh_step_s": 1.0,
+        "refresh_step_options_s": [1.0, 2.0, 5.0],
+        "allow_warmup": False,
+    }
+    assert by_id["brainbeat"]["dynamic_policy"] == brainbeat_policy
+    assert by_id["brainbeat_individualized"]["dynamic_policy"] == brainbeat_policy
+    assert by_id["brainbeat"]["output_schema"]["fields"][0]["meaning"] == "Fz 4-8 Hz absolute power / Pz 8-12 Hz absolute power"
+    assert by_id["brainbeat_individualized"]["output_schema"]["fields"][0]["meaning"] == "Fz IAPF-relative theta share / Pz IAPF-relative alpha share"
     assert next(item for item in by_id["iapf"]["parameters"] if item["key"] == "window_s")["minimum"] == 4
     for algorithm_id in ("psd", "rbp"):
         assert by_id[algorithm_id]["dynamic_policy"] == {
@@ -151,7 +163,8 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
 
     expected = {
         "band_ratio": ("official-band-ratio-v2", "band-ratio-runtime-v3-shared-1-50-notch"),
-        "brainbeat": ("official-brainbeat-v5", "brainbeat-runtime-v5-iapf-v5-shared-1-50-notch"),
+        "brainbeat": ("official-brainbeat-v6-classic-absolute", "brainbeat-runtime-v6-classic-fixed-band-absolute"),
+        "brainbeat_individualized": ("official-brainbeat-individualized-v1-relative", "brainbeat-individualized-runtime-v1-iapf-relative"),
         "faa": ("official-faa-v2", "faa-runtime-v2"),
         "iapf": ("official-iapf-v5", "iapf-runtime-v6-20s-alpha-evidence"),
         "peak_frequency": ("official-peak-frequency-v2", "peak-frequency-runtime-v3-shared-1-50-notch"),

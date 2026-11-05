@@ -10,7 +10,7 @@
 - 只有后端窗口实现、adapter、presenter、科学等价证据和桌面行为验收全部通过，才可注册。目录 `is_runnable` 或后端 `execute_window` 存在都不足以开放回溯。
 - 按需窗口 API 返回规范 `scientific_configuration_json` 及其 `configuration_sha256`。桌面端按原始 UTF-8 JSON 字节校验摘要，再验证请求配置与后端规范化配置一致后绑定快照；桌面端不得自行重建科学上下文或摘要。
 
-## 九算法后端能力与桌面接入状态
+## 官方目录项后端能力与桌面接入状态
 
 所有后端项来自当前 builtin manifest/config/window 实现；算法间共用 `channel`, `mode`, `start_s`, `end_s`, `window_s`, `step_s` 动态字段（按各模式适用），下表只列算法私有字段。
 

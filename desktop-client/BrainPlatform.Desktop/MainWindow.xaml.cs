@@ -329,6 +329,7 @@ public partial class MainWindow : Window, IDesktopNavigation
                new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "iapf", "IAPF")),
                new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "theta_beta", "Theta/Beta")),
                new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "brainbeat", "脑节律")),
+               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "brainbeat_individualized", "个体化 BrainBeat")),
                new(new ReviewTnkAnalysisAdapter(analysisWorkspace.Algorithms))]
             : null;
         var playbackCoordinator = new RecordingPlaybackTimeCoordinator(

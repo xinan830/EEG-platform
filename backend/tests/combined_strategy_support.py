@@ -10,14 +10,15 @@ from on_demand_fixtures import configure_api
 
 ALGORITHM_IDS = (
     "psd", "stft", "rbp", "band_ratio", "peak_frequency", "iapf",
-    "theta_beta", "faa", "brainbeat",
+    "theta_beta", "faa", "brainbeat", "brainbeat_individualized",
 )
 RTOL = 1e-10
 ATOL = 1e-20
 
 
 def setup_strategy(tmp_path, algorithm_id, *, rejected=False):
-    labels = ["Fz", "Pz"] if algorithm_id == "brainbeat" else ["F3", "F4"]
+    is_brainbeat = algorithm_id in {"brainbeat", "brainbeat_individualized"}
+    labels = ["Fz", "Pz"] if is_brainbeat else ["F3", "F4"]
     services = configure_api(tmp_path, duration_s=30, labels=labels, rejected=rejected)
     _, recording, _, _, _ = services
     config = {
@@ -34,7 +35,7 @@ def setup_strategy(tmp_path, algorithm_id, *, rejected=False):
     if algorithm_id == "faa":
         config["f4_channel"] = "F4-REF"
         config["dynamic_window_s"] = 20
-    if algorithm_id == "brainbeat":
+    if is_brainbeat:
         config["secondary_channel"] = "Pz-REF"
     if algorithm_id == "band_ratio":
         config.update(numerator_low_hz=8, numerator_high_hz=12,

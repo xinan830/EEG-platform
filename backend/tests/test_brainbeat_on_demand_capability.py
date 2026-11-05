@@ -8,7 +8,7 @@ from app.algorithm_runtime.contracts import AlgorithmInputs
 from app.algorithm_runtime.on_demand import DynamicSessionIdentity, DynamicWindowIdentity
 from app.algorithm_runtime.on_demand_result_validation import validate_window_result
 from app.algorithms.brainbeat.config import BrainbeatConfig
-from app.algorithms.brainbeat.runner import BrainbeatAlgorithm
+from app.algorithms.brainbeat.runner import BrainbeatAlgorithm, IndividualizedBrainbeatAlgorithm
 from app.scientific.primitives import SpectralEstimate
 from on_demand_fixtures import configure_api, source_hashes
 
@@ -20,7 +20,7 @@ class FakeRecording:
     id = "brainbeat-window-test"
     channel_names = ["Fz", "Pz"]
     sfreq_hz = SFREQ
-    duration_s = 20.0
+    duration_s = 22.0
 
     def __init__(self, gate_failed: str | None = None):
         self.gate_failed = gate_failed
@@ -60,7 +60,7 @@ class FakeRecording:
 def _config(**overrides) -> BrainbeatConfig:
     values = {
         "channel": "Fz", "secondary_channel": "Pz", "mode": "dynamic",
-        "start_s": 0.0, "end_s": 10.0, "window_s": 5.0, "step_s": 1.0,
+        "start_s": 0.0, "end_s": 22.0, "window_s": 20.0, "step_s": 1.0,
     }
     values.update(overrides)
     return BrainbeatConfig.model_validate(values)
@@ -113,8 +113,26 @@ def test_brainbeat_window_matches_existing_dynamic_point_and_keeps_pair_order():
     assert request.notch_hz == 50.0
     assert result.evidence["extensions"]["brainbeat_evidence"]["fz_channel"] == "Fz"
     assert result.evidence["extensions"]["brainbeat_evidence"]["pz_channel"] == "Pz"
+    assert result.evidence["extensions"]["brainbeat_evidence"]["variant"] == "classic"
     assert result.provenance["independent_windows"] is True
     assert result.provenance["cross_window_ema"] is False
+    assert result.provenance["iapf_dependency"] is False
+    validate_window_result(result, algorithm.manifest)
+
+
+def test_individualized_window_has_separate_identity_and_iapf_provenance():
+    algorithm = IndividualizedBrainbeatAlgorithm()
+    config = _config()
+    recording = FakeRecording()
+    inputs = _inputs(recording)
+    session = _session(algorithm)
+    plan = algorithm.plan_window(inputs, config, 4000, session)
+    result = algorithm.execute_window(inputs, config, plan, _identity(session, plan))
+
+    assert result.state == "ready"
+    assert result.identity.algorithm_id == "brainbeat_individualized"
+    assert result.evidence["extensions"]["brainbeat_evidence"]["variant"] == "individualized"
+    assert result.provenance["iapf_dependency"] is True
     validate_window_result(result, algorithm.manifest)
 
 
@@ -124,7 +142,7 @@ def test_brainbeat_window_quality_failure_is_rejected_and_null():
     recording = FakeRecording(gate_failed="amplitude_threshold")
     inputs = _inputs(recording)
     session = _session(algorithm)
-    plan = algorithm.plan_window(inputs, config, 1000, session)
+    plan = algorithm.plan_window(inputs, config, 4000, session)
     result = algorithm.execute_window(inputs, config, plan, _identity(session, plan))
 
     assert result.state == "rejected"
@@ -139,7 +157,7 @@ def test_brainbeat_window_checks_cancellation_before_loading():
     config = _config()
     inputs = _inputs(FakeRecording())
     session = _session(algorithm)
-    plan = algorithm.plan_window(inputs, config, 1000, session)
+    plan = algorithm.plan_window(inputs, config, 4000, session)
     with pytest.raises(RuntimeError, match="cancelled"):
         algorithm.execute_window(
             inputs, config, plan, _identity(session, plan),
@@ -147,15 +165,19 @@ def test_brainbeat_window_checks_cancellation_before_loading():
         )
 
 
-def test_brainbeat_real_recording_api_matches_each_full_dynamic_window(tmp_path):
+@pytest.mark.parametrize("algorithm_id, iapf_dependency", [
+    ("brainbeat", False),
+    ("brainbeat_individualized", True),
+])
+def test_brainbeat_real_recording_api_matches_each_full_dynamic_window(tmp_path, algorithm_id, iapf_dependency):
     client, recording, service, runs, root = configure_api(
         tmp_path, labels=["Fz", "Pz"], duration_s=12.35,
     )
     before = source_hashes(root)
     config = {
-        "algorithm_id": "brainbeat", "channel": "Fz-REF", "secondary_channel": "Pz-REF",
+        "algorithm_id": algorithm_id, "channel": "Fz-REF", "secondary_channel": "Pz-REF",
         "mode": "dynamic", "time": {"start_s": 0, "end_s": recording.duration_s},
-        "dynamic_window_s": 5, "refresh_step_s": 1,
+        "dynamic_window_s": 10, "refresh_step_s": 1,
     }
     try:
         submitted = client.post("/api/runs", json={
@@ -168,7 +190,7 @@ def test_brainbeat_real_recording_api_matches_each_full_dynamic_window(tmp_path)
         assert series
         for index, frame in enumerate(series):
             ensured = client.post("/api/analysis-windows/ensure", json={
-                "recording_id": recording.id, "algorithm_id": "brainbeat", "config": config,
+                "recording_id": recording.id, "algorithm_id": algorithm_id, "config": config,
                 "cursor_sample": round(frame["window_end_s"] * recording.sfreq),
                 "request_id": f"brainbeat-window-{index}",
             })
@@ -206,7 +228,7 @@ def test_brainbeat_real_recording_api_matches_each_full_dynamic_window(tmp_path)
                 assert result["provenance"]["paired_sources"] is True
                 assert result["provenance"]["independent_windows"] is True
                 assert result["provenance"]["cross_window_ema"] is False
-                assert result["provenance"]["iapf_dependency"] is True
+                assert result["provenance"]["iapf_dependency"] is iapf_dependency
                 assert result["evidence"]["extensions"]["brainbeat_evidence"] == frame["official"]["brainbeat_evidence"]
             client.delete(f"/api/analysis-windows/subscriptions/{ensured.json()['subscription_id']}")
         assert source_hashes(root) == before

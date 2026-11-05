@@ -14,13 +14,14 @@ from app.algorithms.spectral_snapshot import spectral_execution_snapshot
 
 from .compute import compute_brainbeat
 from .config import BrainbeatConfig
-from .manifest import MANIFEST
+from .manifest import INDIVIDUALIZED_MANIFEST, MANIFEST
 from .signal_source import load_brainbeat_spectrum
 from .window import BrainbeatWindowCapability
 
 
 class BrainbeatAlgorithm(BrainbeatWindowCapability):
     manifest = MANIFEST
+    individualized = False
     on_demand_default_enabled = True
     config_model = BrainbeatConfig
 
@@ -31,7 +32,7 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
             AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
-            AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=4, step=1, required=False),
+            AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=10, maximum=30, step=10, required=False),
             AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", minimum=0.1, maximum=10, step=0.1, required=False),
         ])
 
@@ -43,7 +44,8 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
         low_hz, high_hz = ANALYSIS_CONTRACT["bandpass_hz"]
         snapshot = spectral_execution_snapshot(config, low_hz=low_hz, high_hz=high_hz, notch_hz=config.notch_hz)
         snapshot.window.update({"brainbeat_windows_are_independent": True, "cross_window_ema": False})
-        snapshot.quality_rules.update({"required_channels": ["Fz", "Pz"], "iapf_required": True})
+        snapshot.quality_rules.update({"required_channels": ["Fz", "Pz"], "iapf_required": self.individualized})
+        snapshot.window["brainbeat_variant"] = "individualized" if self.individualized else "classic"
         return snapshot
 
     def resolve_inputs(self, recording: Any, config: BrainbeatConfig) -> AlgorithmInputs:
@@ -70,7 +72,8 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
         )
         return compute_brainbeat(spectrum, fz_channel=inputs.channel, pz_channel=config.pz_channel,
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
-            actual_range={"start_s": config.start_s, "end_s": config.end_s})
+            actual_range={"start_s": config.start_s, "end_s": config.end_s},
+            individualized=self.individualized)
 
     def execute_dynamic(self, inputs: AlgorithmInputs, config: BrainbeatConfig) -> AlgorithmSeriesResult:
         window_s = config.window_s or self.manifest.dynamic_policy.default_window_s
@@ -88,7 +91,8 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
                     notch_hz=config.notch_hz,
                 )
                 results.append(compute_brainbeat(spectrum, fz_channel=inputs.channel, pz_channel=config.pz_channel,
-                    requested_range=requested_range, actual_range=requested_range))
+                    requested_range=requested_range, actual_range=requested_range,
+                    individualized=self.individualized))
             except SpectralQualityGateError as exc:
                 quality = dict(exc.quality)
                 results.append(AlgorithmResult(value=None, unit="ratio", channel=f"{inputs.channel}/{config.pz_channel}",
@@ -98,5 +102,10 @@ class BrainbeatAlgorithm(BrainbeatWindowCapability):
         return AlgorithmSeriesResult(values=[item.value for item in results], time_s=[frame.time_s for frame in frames], unit="ratio",
             channel=f"{inputs.channel}/{config.pz_channel}", windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames],
             quality=[item.quality for item in results], failures=[item.failure for item in results],
-            states=["Rejected" if item.failure is not None else "Complete" for item in results], point_evidence=[item.evidence for item in results],
+            states=["Rejected" if item.quality == "gate_failed" else "Unavailable" if item.value is None else "Complete" for item in results], point_evidence=[item.evidence for item in results],
             evidence={"points": len(results), "independent_windows": True, "cross_window_ema": False})
+
+
+class IndividualizedBrainbeatAlgorithm(BrainbeatAlgorithm):
+    manifest = INDIVIDUALIZED_MANIFEST
+    individualized = True

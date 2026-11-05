@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Review.Analysis;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
@@ -18,7 +19,7 @@ public sealed class BrainbeatOnDemandDetailTests : IDisposable
     [Fact]
     public async Task Ready_window_binds_brainbeat_value_and_pair_evidence()
     {
-        var client = new OnDemandDetailClient { Respond = Response };
+        var client = new OnDemandDetailClient { Respond = request => Response(request) };
         var catalog = OnDemandDetailClient.Catalog(client, "brainbeat", primaryChannel: "Fz", secondaryChannel: "Pz");
         var detail = new AlgorithmDetailViewModel(catalog).Brainbeat;
 
@@ -46,6 +47,20 @@ public sealed class BrainbeatOnDemandDetailTests : IDisposable
     }
 
     [Fact]
+    public void Review_projects_individualized_value_from_the_shared_brainbeat_result_field()
+    {
+        var response = Response(new DynamicWindowRequest("recording", "brainbeat_individualized", null, null,
+            JsonSerializer.SerializeToElement(new { }), 4000, RequestId: "request"), individualized: true);
+
+        var point = Assert.Single(ReviewScalarProjectors.Brainbeat(response, "Fz", "Pz"));
+
+        Assert.Equal(0.75, point.Value);
+        Assert.Equal("Complete", point.State);
+        Assert.Equal(15, point.StartSeconds);
+        Assert.Equal(20, point.EndSeconds);
+    }
+
+    [Fact]
     public void Ready_window_rejects_unverified_source_roles_or_iapf_dependency()
     {
         var response = Response(new DynamicWindowRequest("recording", "brainbeat", null, null,
@@ -70,7 +85,7 @@ public sealed class BrainbeatOnDemandDetailTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => BrainbeatResultPreview.FromWindow(invalid, "Fz / Pz"));
     }
 
-    private static DynamicWindowResponse Response(DynamicWindowRequest request)
+    private static DynamicWindowResponse Response(DynamicWindowRequest request, bool individualized = false)
     {
         var end = request.CursorSample / 200d;
         var ready = end >= 5;
@@ -82,8 +97,11 @@ public sealed class BrainbeatOnDemandDetailTests : IDisposable
             new Dictionary<string, string> { ["brainbeat"] = "ratio" }, "clean", null,
             JsonSerializer.SerializeToElement(new
             {
-                extensions = new { brainbeat_evidence = new { fz_channel = "Fz", pz_channel = "Pz", iapf_hz = 10.0 } },
-                calculation_trace = new { formula = "Fz 相对 Theta ÷ Pz 相对 Alpha" },
+                extensions = new { brainbeat_evidence = new
+                    { variant = individualized ? "individualized" : "classic", fz_channel = "Fz", pz_channel = "Pz", iapf_hz = individualized ? 10.0 : (double?)null } },
+                calculation_trace = new { formula = individualized
+                    ? "relative_theta(Fz) / relative_alpha(Pz)"
+                    : "absolute_power(Fz, 4-8 Hz) / absolute_power(Pz, 8-12 Hz)" },
             }),
             JsonSerializer.SerializeToElement(new
             {
@@ -93,7 +111,7 @@ public sealed class BrainbeatOnDemandDetailTests : IDisposable
                 source_channels = new { fz = "Fz", pz = "Pz" },
                 independent_windows = true,
                 cross_window_ema = false,
-                iapf_dependency = true,
+                iapf_dependency = individualized,
             }));
         return new DynamicWindowResponse(
             "session", "window", request.RequestId ?? "request", ready ? "ready" : "insufficient_data",

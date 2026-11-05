@@ -17,7 +17,7 @@ WPF 参数/导联与策略选择
 
 公共层拥有身份、窗口规划、调度、取消、缓存/复用、结果校验及持久化。模块拥有公式、参数、通道角色、专属质量门和证据。组合策略不会增加第三份科学公式。
 
-## 九算法所有权
+## 十个独立算法
 
 包路径均相对 `backend/app/algorithms/`。每包提供 manifest、config 和 runner；必要时包含 compute、official、window 或 provenance。
 
@@ -31,7 +31,15 @@ WPF 参数/导联与策略选择
 | `iapf/` | 单通道 Welch spectrum | scalar / series |
 | `theta_beta/` | 单通道 Welch spectrum，IAPF 相对频带 | scalar / series |
 | `faa/` | F3/F4 配对时序，paired-epoch FFT | scalar / series |
-| `brainbeat/` | Fz/Pz 配对频谱，逐窗 IAPF 与比值 | scalar / series |
+| `brainbeat/` | `brainbeat`：Fz 4–8 Hz / Pz 8–12 Hz 绝对功率比；`brainbeat_individualized`：逐窗 IAPF 相对功率比 | scalar / series |
+
+## TNK 指标组目录项
+
+`tnk_biofeedback` 是额外的公共运行时目录项，由 `backend/app/algorithms/tnk/group.py` 组合内部 TNK 子指标；这些子指标不是独立公共算法 ID。
+
+| 目录项 | 输入 | 结果 |
+| --- | --- | --- |
+| `tnk_biofeedback` | Fz、Pz、Oz、F3、F4 五角色映射；组内按子模块声明处理 | algorithm-group 动态结果，含各子指标及状态 |
 
 ## 输入边界
 

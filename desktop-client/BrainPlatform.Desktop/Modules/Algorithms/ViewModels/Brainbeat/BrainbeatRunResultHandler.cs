@@ -6,14 +6,16 @@ namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Brainbeat;
 
 internal sealed class BrainbeatRunResultHandler : IAlgorithmRunResultHandler
 {
-    public string AlgorithmId => "brainbeat";
+    private readonly string algorithmId;
+    public BrainbeatRunResultHandler(string algorithmId = "brainbeat") => this.algorithmId = algorithmId;
+    public string AlgorithmId => algorithmId;
     public bool SupportsNotch => true;
     public bool SupportsOnDemandWindows =>
         OfflineAnalysisAvailability.IsOnDemandEnabled(AlgorithmId, enabledByDefault: true);
 
     public void ApplyWindowResult(AlgorithmListViewModel catalog, DynamicWindowResponse response) =>
         _ = BrainbeatResultPreview.FromWindow(response,
-            $"{catalog.SelectedChannel} / {catalog.SelectedF4Channel}");
+            $"{catalog.SelectedChannel} / {catalog.SelectedF4Channel}", algorithmId: AlgorithmId);
 
     public void ApplyConfigFields(IDictionary<string, object?> payload, string channel, string? secondaryChannel) =>
         payload["secondary_channel"] = secondaryChannel;

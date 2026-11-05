@@ -14,6 +14,7 @@ public sealed partial class RecordingReviewViewModelTests
     [InlineData("iapf", "F3", null)]
     [InlineData("theta_beta", "F3", null)]
     [InlineData("brainbeat", "Fz", "Pz")]
+    [InlineData("brainbeat_individualized", "Fz", "Pz")]
     public async Task Scalar_algorithm_panel_uses_review_cursor_and_its_declared_channel_roles(
         string algorithmId, string channel, string? secondaryChannel)
     {
@@ -256,7 +257,7 @@ public sealed partial class RecordingReviewViewModelTests
             var channels = algorithmId switch
             {
                 "faa" => new[] { "F3", "F4" },
-                "brainbeat" => new[] { "Fz", "Pz" },
+                "brainbeat" or "brainbeat_individualized" => new[] { "Fz", "Pz" },
                 _ => new[] { "F3", "F7" },
             };
             return Task.FromResult(new RegisteredRecording("registered", "fixture", ".wpf", "now", 500, 100, channels, "sha"));

@@ -28,11 +28,23 @@ public sealed class BrainbeatResultPreview
     public string Channel { get; }
     public bool IsDynamic => Points.Count > 0;
 
+    public static string VariantId(DynamicWindowResponse response)
+    {
+        var evidence = response.Result?.Evidence;
+        return evidence is { ValueKind: JsonValueKind.Object } &&
+            evidence.Value.TryGetProperty("extensions", out var extensions) &&
+            extensions.TryGetProperty("brainbeat_evidence", out var metric) &&
+            Text(metric, "variant") == "individualized"
+                ? "brainbeat_individualized"
+                : "brainbeat";
+    }
+
     public static BrainbeatResultPreview FromWindow(DynamicWindowResponse response, string channel,
-        BrainbeatResultPreview? previous = null)
+        BrainbeatResultPreview? previous = null, string algorithmId = "brainbeat")
     {
         var projection = ScalarWindowProjectionParser.Parse(response, "brainbeat", "ratio", "brainbeat_evidence");
         var sourceLabel = string.IsNullOrWhiteSpace(channel) ? "Fz / Pz" : channel;
+        var individualized = algorithmId == "brainbeat_individualized";
         if (response.State == "ready")
         {
             if (response.Result?.Provenance is not { ValueKind: JsonValueKind.Object } provenance ||
@@ -40,10 +52,12 @@ public sealed class BrainbeatResultPreview
                 !Bool(provenance, "paired_sources") ||
                 !Bool(provenance, "independent_windows") ||
                 !provenance.TryGetProperty("cross_window_ema", out var ema) || ema.ValueKind != JsonValueKind.False ||
-                !Bool(provenance, "iapf_dependency") ||
+                !provenance.TryGetProperty("iapf_dependency", out var iapfDependency) ||
+                iapfDependency.ValueKind != (individualized ? JsonValueKind.True : JsonValueKind.False) ||
                 !provenance.TryGetProperty("source_channels", out var sources) || sources.ValueKind != JsonValueKind.Object ||
                 !MatchesSources(sources, projection.Evidence, sourceLabel) ||
-                ScalarWindowProjectionParser.Number(projection.Evidence, "iapf_hz") is not > 0)
+                Text(projection.Evidence, "variant") != (individualized ? "individualized" : "classic") ||
+                (individualized && ScalarWindowProjectionParser.Number(projection.Evidence, "iapf_hz") is not > 0))
                 throw new InvalidOperationException("Brainbeat 按需结果缺少双通道独立窗口 provenance。");
         }
         var point = new BrainbeatPoint(

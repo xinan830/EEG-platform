@@ -59,12 +59,14 @@ def _request(recording_id: str, algorithm_id: str, *, dynamic: bool = False) -> 
         config["channels"] = ["Fz"]
     else:
         config["channel"] = "O2" if algorithm_id == "theta_beta" else "F3" if algorithm_id == "faa" else "Fz"
+    if algorithm_id in {"brainbeat", "brainbeat_individualized"}:
+        config["secondary_channel"] = "Pz"
     if algorithm_id == "faa":
         config["f4_channel"] = "F4"
     if algorithm_id == "stft":
         config.update({"low_hz": 1.0, "high_hz": 50.0})
     if dynamic:
-        config.update({"dynamic_window_s": 20 if algorithm_id == "iapf" else 10, "refresh_step_s": 1})
+        config.update({"dynamic_window_s": 20 if algorithm_id in {"iapf", "theta_beta", "brainbeat", "brainbeat_individualized"} else 10, "refresh_step_s": 1})
     return RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=config)
 
 
@@ -162,6 +164,20 @@ def test_official_runs_do_not_reuse_results_from_the_pre_evidence_contract(tmp_p
     assert resolved["definition_sha256"] != sha256_json(legacy_definition)
 
 
+def test_brainbeat_variants_have_separate_run_cache_identity(tmp_path: Path):
+    service, recording_id = _service(tmp_path)
+
+    classic = service.create(_request(recording_id, "brainbeat"))
+    individualized = service.create(_request(recording_id, "brainbeat_individualized"))
+
+    assert classic.status is individualized.status is RunStatus.COMPLETED
+    assert classic.scientific_version == "official-brainbeat-v6-classic-absolute"
+    assert individualized.scientific_version == "official-brainbeat-individualized-v1-relative"
+    assert classic.cache_key != individualized.cache_key
+    assert classic.result_summary["metric"]["official"]["brainbeat_evidence"]["variant"] == "classic"
+    assert individualized.result_summary["metric"]["official"]["brainbeat_evidence"]["variant"] == "individualized"
+
+
 def test_catalog_marks_official_composite_algorithms_runnable(tmp_path: Path):
     service, _recording_id = _service(tmp_path)
     catalog = {item.algorithm_id: item for item in official_algorithm_catalog(service.definition_service)}
@@ -172,6 +188,7 @@ def test_catalog_marks_official_composite_algorithms_runnable(tmp_path: Path):
     assert catalog["rbp"].availability == "available" and catalog["rbp"].is_runnable is True
     assert catalog["faa"].availability == "available" and catalog["faa"].is_runnable is True
     assert catalog["brainbeat"].availability == "available" and catalog["brainbeat"].is_runnable is True
+    assert catalog["brainbeat_individualized"].availability == "available" and catalog["brainbeat_individualized"].is_runnable is True
     assert catalog["iapf"].definition_id
     assert catalog["iapf"].definition_version == "1.0.0"
     assert catalog["iapf"].output_schema["fields"][0]["unit"] == "Hz"

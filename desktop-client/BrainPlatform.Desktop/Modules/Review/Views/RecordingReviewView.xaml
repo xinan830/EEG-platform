@@ -40,6 +40,7 @@
                 <MenuItem Header="个体 Alpha 峰频率" Command="{Binding OpenIapfAnalysisCommand}" />
                 <MenuItem Header="Theta/Beta 比值" Command="{Binding OpenThetaBetaAnalysisCommand}" />
                 <MenuItem Header="脑节律指标" Command="{Binding OpenBrainbeatAnalysisCommand}" />
+                <MenuItem Header="个体化 BrainBeat（IAPF 相对功率）" Command="{Binding OpenIndividualizedBrainbeatAnalysisCommand}" />
                 <MenuItem Header="TNK 脑指标组" Command="{Binding OpenTnkAnalysisCommand}" />
             </MenuItem>
             <MenuItem Header="报告" IsEnabled="False" />
@@ -80,6 +81,8 @@
                                                 ToolTip="打开 Theta/Beta 比值面板" />
                         <controls:EegToolButton Content="脑节律" IconSource="pack://application:,,,/Assets/AlgorithmIcons/brainbeat.png" Command="{Binding OpenBrainbeatAnalysisCommand}"
                                                 ToolTip="打开脑节律指标面板" />
+                        <controls:EegToolButton Content="个体化 BrainBeat" Glyph="&#xE9D2;" Command="{Binding OpenIndividualizedBrainbeatAnalysisCommand}"
+                                                ToolTip="打开 IAPF 相对功率 BrainBeat 面板" />
                         <controls:EegToolButton Content="TNK 指标组" Glyph="&#xE7C4;" Command="{Binding OpenTnkAnalysisCommand}"
                                                 ToolTip="打开 TNK 脑指标组面板" />
                         <controls:EegToolButton Content="事件列表" Glyph="&#xE8FD;" Click="OnSeekToEventClick" ToolTip="跳转或查看事件" />

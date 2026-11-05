@@ -25,7 +25,8 @@ public static class ReviewScalarProjectors
                 point.Value, point.State, point.Quality, point.Failure)).ToArray();
 
     public static IReadOnlyList<ReviewScalarPoint> Brainbeat(DynamicWindowResponse response, string? fz, string? pz) =>
-        BrainbeatResultPreview.FromWindow(response, $"{fz} / {pz}").Points.Select(point =>
+        BrainbeatResultPreview.FromWindow(response, $"{fz} / {pz}",
+            algorithmId: BrainbeatResultPreview.VariantId(response)).Points.Select(point =>
             Point(response, point.TimeSeconds, point.StartSeconds, point.EndSeconds,
                 point.Value, point.State, point.Quality, point.Failure)).ToArray();
 

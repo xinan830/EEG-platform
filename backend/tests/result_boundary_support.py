@@ -12,7 +12,7 @@ from tests.access_fixtures import array_access_session
 
 
 ALGORITHM_IDS = (
-    "band_ratio", "brainbeat", "faa", "iapf", "peak_frequency",
+    "band_ratio", "brainbeat", "brainbeat_individualized", "faa", "iapf", "peak_frequency",
     "psd", "rbp", "stft", "theta_beta",
 )
 
@@ -34,7 +34,7 @@ def snapshot_run(tmp_path, algorithm_id, mode, rejected, provenance_builder=buil
                               denominator_low_hz=13, denominator_high_hz=30)
     if algorithm_id == "peak_frequency":
         request.config.update(low_hz=8, high_hz=13)
-    if algorithm_id == "brainbeat":
+    if algorithm_id in {"brainbeat", "brainbeat_individualized"}:
         request.config["secondary_channel"] = "Pz"
     if algorithm_id == "faa" and mode == "dynamic":
         request.config["dynamic_window_s"] = 20

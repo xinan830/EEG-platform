@@ -42,6 +42,23 @@ public sealed class BrainbeatDetailTests
         Assert.Equal(2, catalog.DynamicPreviewRows.Count);
     }
 
+    [Theory]
+    [InlineData("brainbeat", "经典风格 BrainBeat：固定频带绝对功率")]
+    [InlineData("brainbeat_individualized", "个体化 BrainBeat：IAPF 相对功率")]
+    public void Detail_module_keeps_variant_formula_identity_visible(string algorithmId, string label)
+    {
+        var catalog = new AlgorithmListViewModel(new UnusedClient(), new OperationNotificationCenter());
+        var detail = new AlgorithmDetailViewModel(catalog);
+        catalog.SelectedAlgorithm = new AlgorithmCatalogItem("official", algorithmId, "fixture-v1", label, label, "", [],
+            ["static", "dynamic"], default, new DynamicAnalysisPolicy(10, [10, 20, 30], 20, 1, false),
+            "available", true, null, null, null);
+
+        var brainbeat = Assert.IsType<BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Brainbeat.BrainbeatDetailViewModel>(detail.CurrentModule);
+        Assert.Contains(label, brainbeat.VariantText);
+        Assert.Contains("Fz", brainbeat.FormulaText);
+        Assert.Contains("Pz", brainbeat.FormulaText);
+    }
+
     private static AnalysisRunResponse Run(JsonElement summary) => new(
         "run-1", "recording-1", "official_algorithm", "completed", "official-brainbeat-v2",
         new TimeRange(0, 6), new TimeRange(0, 6), summary, null, null,

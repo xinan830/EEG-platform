@@ -48,6 +48,7 @@ public sealed partial class RecordingReviewViewModel
             ScalarRegistration(IapfParameters, IapfAnalysis),
             ScalarRegistration(ThetaBetaParameters, ThetaBetaAnalysis),
             ScalarRegistration(BrainbeatParameters, BrainbeatAnalysis),
+            ScalarRegistration(IndividualizedBrainbeatParameters, BrainbeatAnalysis),
         };
         return registrations.ToDictionary(item => item.AlgorithmId, StringComparer.Ordinal);
     }

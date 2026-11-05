@@ -6,7 +6,7 @@
 | --- | --- |
 | 新增算法、维护与排查 | [官方算法接入指南](official-algorithm-development.md) |
 | 谁管理什么、三种策略、复用能力 | [管理基线](official-algorithm-management.md) |
-| 九算法模块、输入和输出归属 | [执行清单](official-algorithm-execution-inventory.md) |
+| 官方目录项、模块输入和输出归属 | [执行清单](official-algorithm-execution-inventory.md) |
 | 按需能力及验证入口 | [按需能力矩阵](on-demand-dynamic-capability-matrix.md) |
 | 原始数据到算法 | [数据链路](01-data-pipeline.md) |
 | 显示滤波与分析滤波 | [显示滤波](02-display-filter.md) |

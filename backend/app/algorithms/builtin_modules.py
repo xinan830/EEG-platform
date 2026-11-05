@@ -12,7 +12,7 @@ from collections.abc import Callable
 
 from app.algorithm_runtime.contracts import AlgorithmManifest, AlgorithmModule
 from app.algorithms.band_ratio.runner import BandRatioAlgorithm
-from app.algorithms.brainbeat.runner import BrainbeatAlgorithm
+from app.algorithms.brainbeat.runner import BrainbeatAlgorithm, IndividualizedBrainbeatAlgorithm
 from app.algorithms.faa.runner import FaaAlgorithm
 from app.algorithms.iapf.runner import IapfAlgorithm
 from app.algorithms.peak_frequency.runner import PeakFrequencyAlgorithm
@@ -26,6 +26,7 @@ from app.algorithms.tnk.runtime import build_tnk_runtime_adapters
 BUILTIN_ALGORITHM_FACTORIES: tuple[Callable[[], AlgorithmModule], ...] = (
     BandRatioAlgorithm,
     BrainbeatAlgorithm,
+    IndividualizedBrainbeatAlgorithm,
     FaaAlgorithm,
     IapfAlgorithm,
     PeakFrequencyAlgorithm,
