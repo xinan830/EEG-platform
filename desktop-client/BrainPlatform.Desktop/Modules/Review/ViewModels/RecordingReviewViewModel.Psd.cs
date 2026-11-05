@@ -12,7 +12,6 @@ public sealed partial class RecordingReviewViewModel
     private void InitializePsdAnalysis()
     {
         OpenPsdAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("psd"), ReportCommandError);
-        PsdParameters.PropertyChanged += OnAnalysisConfigurationChanged;
         PsdAnalysis.PropertyChanged += OnPsdPresentationChanged;
     }
 

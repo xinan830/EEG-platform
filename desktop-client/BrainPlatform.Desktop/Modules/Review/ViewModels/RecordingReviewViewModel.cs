@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
+using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Review.Waveform;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
 
@@ -73,7 +74,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         OperationNotificationCenter? notifications = null,
         IReadOnlyList<ReviewAnalysisCoordinator>? analysisCoordinators = null,
         RecordingTimeDisplaySettings? timeDisplaySettings = null,
-        RecordingPlaybackTimeCoordinator? playbackCoordinator = null)
+        RecordingPlaybackTimeCoordinator? playbackCoordinator = null,
+        IAlgorithmClient? algorithmClient = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -105,9 +107,13 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         eventStore = recordingDirectory is null ? null : new RecordingEventStore(recordingDirectory);
         EventDefinitionService = eventDefinitionService;
         this.notifications = notifications;
-        this.analysisCoordinators = (analysisCoordinators ?? []).ToDictionary(item => item.AlgorithmId);
-        analysisPanels = CreateAnalysisPanelRegistrations();
-        analysisCoordinator = analysisCoordinators?.FirstOrDefault();
+        analysisPanels = ReviewAlgorithmPanels.Create(this);
+        this.analysisCoordinators = analysisCoordinators is not null
+            ? analysisCoordinators.ToDictionary(item => item.AlgorithmId, StringComparer.Ordinal)
+            : algorithmClient is null ? new Dictionary<string, ReviewAnalysisCoordinator>()
+            : analysisPanels.Values.ToDictionary(item => item.AlgorithmId,
+                item => item.CreateCoordinator(algorithmClient), StringComparer.Ordinal);
+        analysisCoordinator = this.analysisCoordinators.Values.FirstOrDefault();
         analysisRecordingDirectory = recordingDirectory;
         MarkSelectedEventCommand = new AsyncRelayCommand(MarkSelectedEventAsync, ReportCommandError);
         DeleteSelectedEventCommand = new AsyncRelayCommand(DeleteSelectedEventWithNotificationAsync, ReportCommandError);
@@ -122,14 +128,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         OpenBrainbeatAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("brainbeat"), ReportCommandError);
         OpenIndividualizedBrainbeatAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("brainbeat_individualized"), ReportCommandError);
         CloseAnalysisCommand = new AsyncRelayCommand(CloseAnalysisAsync, ReportCommandError);
-        RbpParameters.PropertyChanged += OnAnalysisConfigurationChanged;
-        StftParameters.PropertyChanged += OnAnalysisConfigurationChanged;
-        TnkParameters.PropertyChanged += OnAnalysisConfigurationChanged;
-        FaaParameters.PropertyChanged += OnAnalysisConfigurationChanged;
-        IapfParameters.PropertyChanged += OnAnalysisConfigurationChanged;
-        ThetaBetaParameters.PropertyChanged += OnAnalysisConfigurationChanged;
-        BrainbeatParameters.PropertyChanged += OnAnalysisConfigurationChanged;
-        IndividualizedBrainbeatParameters.PropertyChanged += OnAnalysisConfigurationChanged;
+        foreach (var parameters in analysisPanels.Values.Select(item => item.Configuration).Distinct())
+            parameters.PropertyChanged += OnAnalysisConfigurationChanged;
         RbpAnalysis.PropertyChanged += OnRbpTopomapPropertyChanged;
         OpenEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = true, () => CanEditSelectedEvent);
         CloseEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = false);
@@ -226,45 +226,22 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public System.Windows.Input.ICommand CloseAnalysisCommand { get; }
 
     public bool IsAnalysisPanelOpen => activeAnalysisId is not null;
-    public bool IsRbpAnalysisPanelOpen => activeAnalysisId == "rbp";
-    public bool IsPsdAnalysisPanelOpen => activeAnalysisId == "psd";
-    public bool IsStftAnalysisPanelOpen => activeAnalysisId == "stft";
-    public bool IsTnkAnalysisPanelOpen => activeAnalysisId == "tnk_biofeedback";
-    public bool IsFaaAnalysisPanelOpen => activeAnalysisId == "faa";
-    public bool IsIapfAnalysisPanelOpen => activeAnalysisId == "iapf";
-    public bool IsThetaBetaAnalysisPanelOpen => activeAnalysisId == "theta_beta";
-    public bool IsBrainbeatAnalysisPanelOpen => activeAnalysisId is "brainbeat" or "brainbeat_individualized";
-    public ReviewScalarParameters? ActiveScalarParameters => activeAnalysisId switch
-    {
-        "faa" => FaaParameters,
-        "iapf" => IapfParameters,
-        "theta_beta" => ThetaBetaParameters,
-        "brainbeat" => BrainbeatParameters,
-        "brainbeat_individualized" => IndividualizedBrainbeatParameters,
-        _ => null,
-    };
-    public ReviewScalarAnalysisViewModel? ActiveScalarAnalysis => activeAnalysisId switch
-    {
-        "faa" => FaaAnalysis,
-        "iapf" => IapfAnalysis,
-        "theta_beta" => ThetaBetaAnalysis,
-        "brainbeat" or "brainbeat_individualized" => BrainbeatAnalysis,
-        _ => null,
-    };
+    public ReviewAlgorithmPanelRegistration? ActiveAnalysisPanel => activeAnalysisId is { } id &&
+        analysisPanels.TryGetValue(id, out var panel) ? panel : null;
+    public ReviewAnalysisPanelKind? ActiveAnalysisPanelKind => ActiveAnalysisPanel?.PanelKind;
+    public bool IsRbpAnalysisPanelOpen => ActiveAnalysisPanel?.PanelKind == ReviewAnalysisPanelKind.Rbp;
+    public bool IsPsdAnalysisPanelOpen => ActiveAnalysisPanel?.PanelKind == ReviewAnalysisPanelKind.Psd;
+    public bool IsStftAnalysisPanelOpen => ActiveAnalysisPanel?.PanelKind == ReviewAnalysisPanelKind.Stft;
+    public bool IsTnkAnalysisPanelOpen => ActiveAnalysisPanel?.PanelKind == ReviewAnalysisPanelKind.Tnk;
+    public bool IsFaaAnalysisPanelOpen => ActiveAnalysisPanel?.AlgorithmId == "faa";
+    public bool IsIapfAnalysisPanelOpen => ActiveAnalysisPanel?.AlgorithmId == "iapf";
+    public bool IsThetaBetaAnalysisPanelOpen => ActiveAnalysisPanel?.AlgorithmId == "theta_beta";
+    public bool IsBrainbeatAnalysisPanelOpen => ActiveAnalysisPanel?.AlgorithmId is "brainbeat" or "brainbeat_individualized";
+    public ReviewScalarParameters? ActiveScalarParameters => ActiveAnalysisPanel?.Configuration as ReviewScalarParameters;
+    public ReviewScalarAnalysisViewModel? ActiveScalarAnalysis => ActiveAnalysisPanel?.PanelKind == ReviewAnalysisPanelKind.Scalar
+        ? ActiveAnalysisPanel.Presentation as ReviewScalarAnalysisViewModel : null;
     public bool HasSecondaryScalarChannel => activeAnalysisId is "faa" or "brainbeat" or "brainbeat_individualized";
-    public string AnalysisPanelTitle => activeAnalysisId switch
-    {
-        "rbp" => "RBP 相对频段功率",
-        "psd" => "功率谱密度",
-        "stft" => "STFT 时频分析",
-        "tnk_biofeedback" => "TNK 脑指标",
-        "faa" => "额叶 Alpha 不对称性",
-        "iapf" => "个体 Alpha 峰频率",
-        "theta_beta" => "Theta/Beta 比值",
-        "brainbeat" => "经典 BrainBeat（绝对功率）",
-        "brainbeat_individualized" => "个体化 BrainBeat（IAPF 相对功率）",
-        _ => "算法分析",
-    };
+    public string AnalysisPanelTitle => ActiveAnalysisPanel?.DisplayName ?? "算法分析";
 
     public string AnalysisPreparationText
     {
@@ -604,9 +581,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         analysisLifetime.Cancel();
         analysisPreparation?.Cancel();
         analysisUpdater.Dispose();
-        RbpParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
-        StftParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
-        TnkParameters.PropertyChanged -= OnAnalysisConfigurationChanged;
+        foreach (var parameters in analysisPanels.Values.Select(item => item.Configuration).Distinct())
+            parameters.PropertyChanged -= OnAnalysisConfigurationChanged;
         TimeDisplay.PropertyChanged -= OnTimeDisplayChanged;
         viewportLoader.Dispose();
         filterUpdater.Dispose();

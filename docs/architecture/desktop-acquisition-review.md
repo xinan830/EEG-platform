@@ -29,6 +29,14 @@ The UI binds to state owned by these services. A page must not enumerate a
 device, read a recording format, or infer scientific state as a side effect of
 rendering.
 
+Review algorithm panels are registered in the Review module. Each registration
+owns one algorithm ID, display name, panel kind, configuration builder, result
+projection, and adapter factory. The window composition injects the algorithm
+client; it does not maintain a second adapter list. Review shares window and
+cursor lifecycle only; each registered adapter retains its algorithm route,
+and backend modules retain all scientific calculations. XAML templates remain
+explicit and select by the registered panel kind.
+
 ## 2. Device and acquisition state
 
 Keep these states separate:

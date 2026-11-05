@@ -207,6 +207,8 @@ public sealed partial class RecordingReviewViewModel
         RaisePropertyChanged(nameof(IsAnalysisLoading));
         RaisePropertyChanged(nameof(AnalysisStatusText));
         RaisePropertyChanged(nameof(IsAnalysisAttached));
+        RaisePropertyChanged(nameof(ActiveAnalysisPanel));
+        RaisePropertyChanged(nameof(ActiveAnalysisPanelKind));
         RaisePropertyChanged(nameof(IsPsdAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsFaaAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsIapfAnalysisPanelOpen));

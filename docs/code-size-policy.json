@@ -30,8 +30,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
-      "max_lines": 540,
-      "reason": "Top-level composition owns navigation, close interception and construction of the Review algorithm coordinators. Each coordinator delegates to the existing shared dynamic-window adapter; no scientific logic, request state, or playback clock is added here. Reassess navigation extraction before growing this composition further."
+      "max_lines": 550,
+      "reason": "Top-level composition owns navigation, close interception and Review session construction. This change removes the duplicate Review adapter list, reducing the file from 562 to 550 lines; the previous 540-line ledger was already below the source size. Adapter factories now belong to ReviewAlgorithmPanels. The shell injects the client and owns no scientific logic, request state or playback clock. Reassess navigation extraction before growing this composition further."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Views/RecordingReviewView.xaml": {
       "decision": "split",
@@ -212,7 +212,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Review/ViewModels/RecordingReviewViewModel.cs": {
       "decision": "split",
       "max_lines": 730,
-      "reason": "High-risk Review composition: playback notifications, waveform scheduling and event commands remain in the main partial, while algorithm preparation, identity/cancellation, input configuration, and result projectors are separate Review owners. This change adds only the PSD parameter/presentation references and montage refresh binding; PSD behavior remains in dedicated Review files and adds no scientific work or another clock.",
+      "reason": "High-risk Review composition: playback notifications, waveform scheduling and event commands remain in the main partial. Algorithm identities, adapter factories, panel kinds, configuration and projection callbacks now live in ReviewAlgorithmPanels; the main partial injects the client and owns registration subscription lifetime. This reduces the file to about 703 lines without expanding the reviewed maximum, changing science or adding another clock.",
       "follow_up": "Move event editing/commands into a review event controller and waveform viewport scheduling into its own owner before further growing this file. Keep the playback cursor unique and target a main composition below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Views/LiveSciChartCanvas.cs": {

@@ -5,6 +5,7 @@
              xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Views"
              xmlns:review="clr-namespace:BrainPlatform.Desktop.Modules.Review.Waveform"
              xmlns:analysis="clr-namespace:BrainPlatform.Desktop.Modules.Review.Views"
+             xmlns:reviewAnalysis="clr-namespace:BrainPlatform.Desktop.Modules.Review.Analysis"
              xmlns:tnk="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"
              xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
              xmlns:controls="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
@@ -266,22 +267,19 @@
                         <ContentControl.Style>
                             <Style TargetType="ContentControl">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsRbpAnalysisPanelOpen}" Value="True">
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Rbp}">
                                         <Setter Property="ContentTemplate" Value="{StaticResource RbpPanelTemplate}" />
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsPsdAnalysisPanelOpen}" Value="True">
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Psd}">
                                         <Setter Property="ContentTemplate" Value="{StaticResource PsdPanelTemplate}" />
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsStftAnalysisPanelOpen}" Value="True">
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Stft}">
                                         <Setter Property="ContentTemplate" Value="{StaticResource StftPanelTemplate}" />
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsTnkAnalysisPanelOpen}" Value="True">
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Tnk}">
                                         <Setter Property="ContentTemplate" Value="{StaticResource TnkPanelTemplate}" />
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsFaaAnalysisPanelOpen}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
-                                    <DataTrigger Binding="{Binding IsIapfAnalysisPanelOpen}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
-                                    <DataTrigger Binding="{Binding IsThetaBetaAnalysisPanelOpen}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
-                                    <DataTrigger Binding="{Binding IsBrainbeatAnalysisPanelOpen}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Scalar}"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </ContentControl.Style>

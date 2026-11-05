@@ -8,7 +8,6 @@ using BrainPlatform.Desktop.Modules.Montages.Views;
 using EventListView = BrainPlatform.Desktop.Modules.Events.Views.EventListView;
 using EventDefinitionEditorView = BrainPlatform.Desktop.Modules.Events.Views.EventDefinitionEditorView;
 using RecordingReviewView = BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView;
-using BrainPlatform.Desktop.Modules.Review.Analysis;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
 
 namespace BrainPlatform.Desktop;
@@ -321,17 +320,6 @@ public partial class MainWindow : Window, IDesktopNavigation
                 $"历史导联引用无法登记，记录仍可查看：{exception.Message}");
         }
         var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
-        ReviewAnalysisCoordinator[]? analysisCoordinators = (DataContext as DesktopWorkspaceViewModel) is { } analysisWorkspace
-            ? [new(new RbpReviewAnalysisAdapter(analysisWorkspace.Algorithms)),
-               new(new PsdReviewAnalysisAdapter(analysisWorkspace.Algorithms)),
-               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "stft", "STFT")),
-               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "faa", "FAA")),
-               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "iapf", "IAPF")),
-               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "theta_beta", "Theta/Beta")),
-               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "brainbeat", "脑节律")),
-               new(new ReviewWindowAnalysisAdapter(analysisWorkspace.Algorithms, "brainbeat_individualized", "个体化 BrainBeat")),
-               new(new ReviewTnkAnalysisAdapter(analysisWorkspace.Algorithms))]
-            : null;
         var playbackCoordinator = new RecordingPlaybackTimeCoordinator(
             loadedRecording.Manifest.SessionId.ToString("N"),
             loadedRecording.Manifest.SamplingRateHz,
@@ -348,7 +336,7 @@ public partial class MainWindow : Window, IDesktopNavigation
                 recordingDirectory: recording.RecordingDirectory,
                 eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
                 notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications,
-                analysisCoordinators: analysisCoordinators,
+                algorithmClient: workspace.Algorithms,
                 timeDisplaySettings: (DataContext as DesktopWorkspaceViewModel)?.TimeDisplaySettings,
                 playbackCoordinator: playbackCoordinator);
             await viewModel.InitializeAsync();

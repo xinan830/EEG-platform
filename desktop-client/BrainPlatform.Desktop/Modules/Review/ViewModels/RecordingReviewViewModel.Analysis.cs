@@ -11,54 +11,6 @@ public sealed partial class RecordingReviewViewModel
     private bool loadingAnalysisParameters;
     private readonly LatestDelayedTask analysisUpdater = new();
 
-    private IReadOnlyDictionary<string, ReviewAlgorithmPanelRegistration> CreateAnalysisPanelRegistrations()
-    {
-        var registrations = new[]
-        {
-            new ReviewAlgorithmPanelRegistration("psd", PsdParameters,
-                (recording, algorithm, montage) =>
-                {
-                    PsdParameters.Initialize(recording, algorithm, montage);
-                    PsdAnalysis.SetChannels(PsdParameters.Channels);
-                },
-                (duration, rate) => PsdParameters.BuildConfig(duration, rate),
-                (response, _) => PsdAnalysis.Apply(response)),
-            new ReviewAlgorithmPanelRegistration("rbp", RbpParameters,
-                (recording, algorithm, montage) =>
-                {
-                    RbpParameters.Initialize(recording, algorithm, montage);
-                    RbpAnalysis.InitializeChannels(RbpParameters.AnalysisChannels);
-                },
-                (duration, rate) => RbpParameters.BuildConfig(duration, rate),
-                (response, cursor) => RbpAnalysis.Apply(response, cursor)),
-            new ReviewAlgorithmPanelRegistration("stft", StftParameters,
-                (recording, algorithm, montage) => StftParameters.Initialize(recording, algorithm, montage),
-                (duration, rate) => StftParameters.BuildConfig(duration, rate),
-                (response, _) => StftAnalysis.Apply(response)),
-            new ReviewAlgorithmPanelRegistration("tnk_biofeedback", TnkParameters,
-                (recording, algorithm, montage) =>
-                {
-                    TnkParameters.Initialize(recording, algorithm, montage);
-                    TnkAnalysis.Initialize(algorithm);
-                    TnkAnalysis.SetVisibleStart(AnalysisPanelStartSeconds);
-                },
-                (duration, rate) => TnkParameters.BuildConfig(duration, rate),
-                (response, _) => TnkAnalysis.Apply(response, AnalysisPanelStartSeconds)),
-            ScalarRegistration(FaaParameters, FaaAnalysis),
-            ScalarRegistration(IapfParameters, IapfAnalysis),
-            ScalarRegistration(ThetaBetaParameters, ThetaBetaAnalysis),
-            ScalarRegistration(BrainbeatParameters, BrainbeatAnalysis),
-            ScalarRegistration(IndividualizedBrainbeatParameters, BrainbeatAnalysis),
-        };
-        return registrations.ToDictionary(item => item.AlgorithmId, StringComparer.Ordinal);
-    }
-
-    private static ReviewAlgorithmPanelRegistration ScalarRegistration(ReviewScalarParameters parameters,
-        ReviewScalarAnalysisViewModel presentation) => new(parameters.AlgorithmId, parameters,
-        (recording, algorithm, montage) => parameters.Initialize(recording, algorithm, montage),
-        (duration, rate) => parameters.BuildConfig(duration, rate),
-        (response, _) => presentation.Apply(response, parameters.Channel, parameters.SecondaryChannel));
-
     internal async Task OpenAnalysisAsync(string algorithmId)
     {
         if (!analysisCoordinators.ContainsKey(algorithmId) || !analysisPanels.ContainsKey(algorithmId))
@@ -95,6 +47,11 @@ public sealed partial class RecordingReviewViewModel
         RaisePropertyChanged(nameof(IsStftAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsTnkAnalysisPanelOpen));
         RaisePropertyChanged(nameof(AnalysisPanelTitle));
+        RaisePropertyChanged(nameof(ActiveAnalysisPanel));
+        RaisePropertyChanged(nameof(ActiveAnalysisPanelKind));
+        RaisePropertyChanged(nameof(ActiveScalarParameters));
+        RaisePropertyChanged(nameof(ActiveScalarAnalysis));
+        RaisePropertyChanged(nameof(HasSecondaryScalarChannel));
     }
 
     private async Task PrepareAnalysisAsync(string algorithmId, CancellationToken cancellationToken)
