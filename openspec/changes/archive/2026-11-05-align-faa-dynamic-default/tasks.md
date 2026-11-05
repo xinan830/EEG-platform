@@ -1,0 +1,3 @@
+- [x] Set omitted dynamic FAA windows to the manifest's 20-second default while retaining explicit overrides.
+- [x] Add a focused request-configuration regression test.
+- [x] Record the FAA window-default requirement and the deferred quality-ratio decision.

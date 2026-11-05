@@ -43,10 +43,14 @@ class OfficialAlgorithmRunConfig(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def apply_theta_beta_dynamic_default(cls, values: Any) -> Any:
-        if isinstance(values, dict) and values.get("algorithm_id") == "theta_beta" and values.get("mode", "static") == "dynamic":
+    def apply_algorithm_dynamic_default(cls, values: Any) -> Any:
+        if isinstance(values, dict) and values.get("mode", "static") == "dynamic":
+            algorithm_id = values.get("algorithm_id")
+            default_window = {"theta_beta": 20, "faa": 20}.get(algorithm_id)
+            if default_window is None:
+                return values
             values = dict(values)
-            values.setdefault("dynamic_window_s", 20)
+            values.setdefault("dynamic_window_s", default_window)
         return values
 
     @model_validator(mode="after")
