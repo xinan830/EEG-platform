@@ -5,7 +5,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using SharpEDFlib;
 using BrainPlatform.Desktop.Modules.Events.Views;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
 
@@ -125,6 +124,7 @@ public partial class RecordingReviewView : UserControl
     private async void OnExportClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel is not { } viewModel) return;
+        if (viewModel.IsSignalExporting) { viewModel.CancelSignalExport(); return; }
         var dialog = new SaveFileDialog
         {
             AddExtension = true,
@@ -136,7 +136,7 @@ public partial class RecordingReviewView : UserControl
         if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
 
         var isBdf = dialog.FilterIndex == 2;
-        var format = isBdf ? EDFileType.BDFPlus : EDFileType.EDFPlus;
+        var format = isBdf ? "bdf" : "edf";
         var targetPath = Path.ChangeExtension(dialog.FileName, isBdf ? ".bdf" : ".edf");
         try
         {

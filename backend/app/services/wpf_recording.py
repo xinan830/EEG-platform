@@ -5,6 +5,7 @@ import json
 import struct
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 
@@ -41,7 +42,7 @@ class WpfRecordingFacts:
     source_signature: tuple[tuple[str, int, int, int], ...]
 
 
-def inspect_wpf_recording(source_directory: str | Path) -> WpfRecordingFacts:
+def inspect_wpf_recording(source_directory: str | Path, check_cancelled: Callable[[], None] | None = None) -> WpfRecordingFacts:
     root = Path(source_directory).expanduser().resolve()
     if not root.is_dir():
         raise WpfRecordingError("WPF_RECORDING_DIRECTORY_MISSING", "WPF 记录目录不存在。")
@@ -84,7 +85,7 @@ def inspect_wpf_recording(source_directory: str | Path) -> WpfRecordingFacts:
     counters = [item.stream_index for item in channels if kind_name(item) == "samplecounter" and item.unit == "count"]
     if not eeg or len(counters) != 1:
         raise WpfRecordingError("WPF_RECORDING_CHANNELS_INVALID", "WPF 记录必须包含 V 单位 EEG 通道和唯一 count sample counter。")
-    batches = _index_batches(root, len(channels))
+    batches = _index_batches(root, len(channels), check_cancelled)
     if not batches:
         raise WpfRecordingError("WPF_RECORDING_EMPTY", "WPF 记录没有可读取的样本分块。")
     first = batches[0][0]
@@ -100,6 +101,8 @@ def inspect_wpf_recording(source_directory: str | Path) -> WpfRecordingFacts:
         digest.update(path.name.encode())
         with path.open("rb") as stream:
             for block in iter(lambda: stream.read(1024 * 1024), b""):
+                if check_cancelled is not None:
+                    check_cancelled()
                 digest.update(block)
     return WpfRecordingFacts(
         root, session_id, start_utc, sfreq, tuple(channels), eeg,
@@ -108,12 +111,14 @@ def inspect_wpf_recording(source_directory: str | Path) -> WpfRecordingFacts:
     )
 
 
-def _index_batches(root: Path, channel_count: int) -> list[tuple[int, int, int, int, int, Path]]:
+def _index_batches(root: Path, channel_count: int, check_cancelled: Callable[[], None] | None = None) -> list[tuple[int, int, int, int, int, Path]]:
     result = []
     for path in sorted(root.glob("samples-*.bin")):
         try:
             with path.open("rb") as stream:
                 while True:
+                    if check_cancelled is not None:
+                        check_cancelled()
                     header = stream.read(HEADER.size)
                     if not header:
                         break

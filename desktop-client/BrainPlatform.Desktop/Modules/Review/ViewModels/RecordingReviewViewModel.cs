@@ -77,7 +77,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         IReadOnlyList<ReviewAnalysisCoordinator>? analysisCoordinators = null,
         RecordingTimeDisplaySettings? timeDisplaySettings = null,
         RecordingPlaybackTimeCoordinator? playbackCoordinator = null,
-        IAlgorithmClient? algorithmClient = null)
+        IAlgorithmClient? algorithmClient = null,
+        BrainPlatform.Desktop.Modules.Review.Export.IRecordingSignalExportClient? signalExportClient = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -119,6 +120,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
                 item => item.CreateCoordinator(algorithmClient), StringComparer.Ordinal);
         analysisCoordinator = this.analysisCoordinators.Values.FirstOrDefault();
         analysisRecordingDirectory = recordingDirectory;
+        this.signalExportClient = signalExportClient ?? algorithmClient as BrainPlatform.Desktop.Modules.Review.Export.IRecordingSignalExportClient;
         MarkSelectedEventCommand = new AsyncRelayCommand(MarkSelectedEventAsync, ReportCommandError);
         DeleteSelectedEventCommand = new AsyncRelayCommand(DeleteSelectedEventWithNotificationAsync, ReportCommandError);
         SaveEditedEventCommand = new AsyncRelayCommand(SaveEditedEventAsync, ReportCommandError);

@@ -1,210 +1,136 @@
-using BrainPlatform.Desktop.Modules.Acquisition.Contracts;
-using BrainPlatform.Desktop.Modules.Events.Domain;
-using BrainPlatform.Desktop.Modules.Recordings.Access;
-using BrainPlatform.Desktop.Modules.Review.Export;
-using BrainPlatform.Desktop.Modules.Review.Playback;
+using System.IO.Compression;
+using System.Net;
+using System.Net.Http;
+using System.Text;
 using System.Text.Json;
-using SharpEDFlib;
+using BrainPlatform.Desktop.Modules.Algorithms.Api;
+using BrainPlatform.Desktop.Modules.Review.Export;
 
 namespace BrainPlatform.Desktop.Tests.Review;
 
 public sealed class RecordingReviewSignalExporterTests
 {
     [Fact]
-    public async Task Export_the_provided_recording_when_acceptance_paths_are_configured()
+    public async Task Provided_recording_exports_through_real_http_client_when_acceptance_is_configured()
     {
-        var recordingDirectory = Environment.GetEnvironmentVariable("BRAIN_PLATFORM_EXPORT_RECORDING");
-        var outputDirectory = Environment.GetEnvironmentVariable("BRAIN_PLATFORM_EXPORT_OUTPUT");
-        if (string.IsNullOrWhiteSpace(recordingDirectory) || string.IsNullOrWhiteSpace(outputDirectory))
-            throw Xunit.Sdk.SkipException.ForSkip("Set BRAIN_PLATFORM_EXPORT_RECORDING and BRAIN_PLATFORM_EXPORT_OUTPUT to run the local recording acceptance test.");
-
-        var manifestJson = await File.ReadAllTextAsync(Path.Combine(recordingDirectory, "manifest.json"));
-        using var manifestDocument = JsonDocument.Parse(manifestJson);
-        var recordingId = manifestDocument.RootElement.GetProperty("SessionId").GetGuid();
-        Directory.CreateDirectory(outputDirectory);
-
-        await using var recording = await LocalRawRecordingReader.OpenAsync(
-            recordingDirectory, recordingId, CancellationToken.None);
-        var eegChannels = recording.Manifest.Channels
-            .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
-            .OrderBy(channel => channel.StreamIndex)
-            .ToArray();
-        var sampleCount = checked((int)(recording.LastSampleCounter - recording.FirstSampleCounter + 1));
-        Assert.InRange(Math.Abs(149.982 - sampleCount / (double)recording.Manifest.SamplingRateHz), 0, 0.0001);
-        var range = new RecordingSampleRange(recording.FirstSampleCounter,
-            checked(recording.FirstSampleCounter + sampleCount));
-        var data = await recording.ReadSamplesAsync(range,
-            eegChannels.Select(channel => channel.StreamIndex).ToArray(), CancellationToken.None);
-
-        foreach (var (format, extension) in new[]
-                 {
-                     (EDFileType.EDFPlus, ".edf"),
-                     (EDFileType.BDFPlus, ".bdf"),
-                 })
+        var directory = Environment.GetEnvironmentVariable("BRAIN_PLATFORM_EXPORT_RECORDING");
+        var output = Environment.GetEnvironmentVariable("BRAIN_PLATFORM_EXPORT_OUTPUT");
+        var endpoint = Environment.GetEnvironmentVariable("BRAIN_PLATFORM_EXPORT_BACKEND");
+        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(output) || string.IsNullOrWhiteSpace(endpoint))
+            throw Xunit.Sdk.SkipException.ForSkip("Configure recording, output and backend to run real HTTP acceptance.");
+        Directory.CreateDirectory(output);
+        using var http = new HttpClient { BaseAddress = new Uri(endpoint) };
+        var client = new HttpAlgorithmClient(http);
+        foreach (var format in new[] { "edf", "bdf" })
         {
-            var path = Path.Combine(outputDirectory, "recording-review-acceptance" + extension);
-            await RecordingReviewSignalExporter.ExportAsync(path, format, recording.Manifest,
-                recording.Manifest.RecordingStartUtc, recording.FirstSampleCounter, 0,
-                data, [], CancellationToken.None);
-
-            using var reader = new EDFReader();
-            reader.Open(path, EDFReadFlag.DoNotReadAnnotations);
-            Assert.Equal(format, reader.Header.FileType);
-            Assert.Equal(eegChannels.Length, reader.Header.SignalCount);
-            Assert.Equal(sampleCount / reader.Header.Signals.SampleCountPerDataRecords[0], reader.Header.DataRecordCount);
-            Assert.Equal(sampleCount, reader.Header.Signals.SampleCountPerDataRecords[0] * reader.Header.DataRecordCount);
-            Assert.InRange(Math.Abs(sampleCount / (double)recording.Manifest.SamplingRateHz -
-                reader.Header.DataRecordCount * reader.Header.DataRecordDurationInSeconds), 0, 0.0001);
-            Assert.InRange(Math.Abs(recording.Manifest.SamplingRateHz -
-                reader.Header.Signals.SampleCountPerDataRecords[0] / reader.Header.DataRecordDurationInSeconds), 0, 1e-9);
-            Assert.All(reader.Header.Signals.Labels, label => Assert.False(string.IsNullOrWhiteSpace(label)));
-
-            using var mappings = JsonDocument.Parse(await File.ReadAllTextAsync(path + ".labels.json"));
-            var root = mappings.RootElement;
-            Assert.Equal("recording-review-export-metadata-v1", root.GetProperty("SchemaVersion").GetString());
-            Assert.Equal(recording.Manifest.SamplingRateHz, root.GetProperty("SamplingRateHz").GetInt32());
-            Assert.Equal(28, root.GetProperty("ChannelMappings").GetArrayLength());
-            Assert.True(root.GetProperty("HardwareConfiguration").TryGetProperty("channel_configuration_snapshot_json", out _));
-            Assert.False(root.GetProperty("HardwareConfiguration").TryGetProperty("serial_number", out _));
-            Assert.Equal("Bipolar", root.GetProperty("ChannelMappings")[24].GetProperty("Kind").GetString());
-            var labelMappings = root.GetProperty("ChannelMappings");
-            Assert.Equal(eegChannels.Count(channel => string.IsNullOrWhiteSpace(channel.Label)),
-                labelMappings.EnumerateArray().Count(item => item.GetProperty("SourceLabel").ValueKind == JsonValueKind.Null));
-            Assert.All(labelMappings.EnumerateArray().Where(item => item.GetProperty("SourceLabel").ValueKind == JsonValueKind.Null),
-                item => Assert.StartsWith("CH", item.GetProperty("ExportLabel").GetString(), StringComparison.Ordinal));
+            var target = Path.Combine(output, "desktop-http." + format);
+            await RecordingReviewSignalExporter.ExportAsync(target, format,
+                (stream, token) => client.DownloadRawSignalExportAsync(directory, format, stream, token), CancellationToken.None);
+            Assert.True(new FileInfo(target).Length > 1000000);
+            using var metadata = JsonDocument.Parse(await File.ReadAllTextAsync(target + ".labels.json"));
+            Assert.Equal(149982, metadata.RootElement.GetProperty("sample_count").GetInt32());
+            Assert.Equal(28, metadata.RootElement.GetProperty("channels").GetArrayLength());
         }
-    }
-
-    [Fact]
-    public void Review_toolbar_export_button_is_bound_to_the_edf_bdf_action()
-    {
-        var xaml = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "RecordingReviewView.xaml"));
-        Assert.Contains("Click=\"OnExportClick\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("EDF/BDF", xaml, StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData(EDFileType.EDFPlus, ".edf")]
-    [InlineData(EDFileType.BDFPlus, ".bdf")]
-    public async Task Export_round_trips_source_samples_and_annotations(EDFileType format, string extension)
+    [InlineData("edf")]
+    [InlineData("bdf")]
+    public async Task Registers_raw_source_and_publishes_only_expected_package_members(string format)
     {
-        var path = Path.Combine(Path.GetTempPath(), $"review-export-{Guid.NewGuid():N}{extension}");
-        var fixture = CreateFixture();
+        using var handler = new ExportHandler(format);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
+        var client = new HttpAlgorithmClient(http);
+        var root = Directory.CreateTempSubdirectory("export-test-").FullName;
         try
         {
-            await RecordingReviewSignalExporter.ExportAsync(path, format, fixture.Manifest,
-                fixture.StartUtc, fixture.FirstCounter, 2, fixture.Data, fixture.Events, CancellationToken.None);
+            var target = Path.Combine(root, "signal." + format);
+            await File.WriteAllTextAsync(target, "old signal");
+            await File.WriteAllTextAsync(target + ".labels.json", "old metadata");
+            await RecordingReviewSignalExporter.ExportAsync(target, format,
+                (stream, token) => client.DownloadRegisteredSignalAsync("source-path", format, stream, token), CancellationToken.None);
+            Assert.Equal("signal samples", await File.ReadAllTextAsync(target));
+            using var metadata = JsonDocument.Parse(await File.ReadAllTextAsync(target + ".labels.json"));
+            Assert.Equal("recording-signal-export-v2", metadata.RootElement.GetProperty("schema_version").GetString());
+            Assert.Equal(2, Directory.GetFiles(root).Length);
+            Assert.Empty(Directory.GetDirectories(root));
+            Assert.Equal(2, handler.Calls);
+        }
+        finally { Directory.Delete(root, true); }
+    }
 
-            using var reader = new EDFReader();
-            reader.Open(path, EDFReadFlag.ReadAnnotations);
-            Assert.Equal(format, reader.Header.FileType);
-            Assert.Equal(["CH0001", "CH0002"], reader.Header.Signals.Labels);
-            Assert.Equal(2, reader.Header.SignalCount);
-            Assert.Equal(2, reader.Header.Signals.SampleCountPerDataRecords[0]);
-            Assert.Equal(fixture.StartUtc.AddSeconds(1).UtcDateTime, reader.Header.RecordStartDateTime);
-            var actual = new double[2, 2];
-            Assert.Equal(2, reader.ReadPhysicalSamples(actual));
-            Assert.InRange(Math.Abs(actual[0, 0] - 1), 0, format == EDFileType.EDFPlus ? 0.001 : 0.00001);
-            Assert.InRange(Math.Abs(actual[1, 1] + 4), 0, format == EDFileType.EDFPlus ? 0.001 : 0.00001);
-            Assert.Equal(1, reader.GetAnnotationCount());
-            var annotations = Enumerable.Range(0, reader.GetAnnotationCount())
-                .Select(reader.ReadAnnotation).ToArray();
-            var annotation = Assert.Single(annotations, item => item.Annotation == "eyes closed");
-            Assert.Equal("eyes closed", annotation.Annotation);
-            Assert.Equal(500_000, annotation.OnsetInMicroseconds);
-            Assert.Equal(500_000, annotation.DurationInMicroseconds);
-            using var labelMap = JsonDocument.Parse(File.ReadAllText(path + ".labels.json"));
-            var mappings = labelMap.RootElement.GetProperty("ChannelMappings");
-            Assert.Equal("CH0001", mappings[0].GetProperty("ExportLabel").GetString());
-            Assert.Equal("EEG-Fp1-Long-Source-Label", mappings[0].GetProperty("SourceLabel").GetString());
-            Assert.Equal(JsonValueKind.Null, mappings[1].GetProperty("SourceLabel").ValueKind);
-        }
-        finally
+    [Theory]
+    [InlineData("bad-package")]
+    [InlineData("cancel")]
+    [InlineData("publish-failure")]
+    public async Task Failure_or_cancellation_preserves_existing_destination(string problem)
+    {
+        var root = Directory.CreateTempSubdirectory("export-test-").FullName;
+        var target = Path.Combine(root, "signal.edf");
+        await File.WriteAllTextAsync(target, "original");
+        if (problem == "publish-failure") Directory.CreateDirectory(target + ".labels.json");
+        else await File.WriteAllTextAsync(target + ".labels.json", "original metadata");
+        try
         {
-            File.Delete(path);
-            File.Delete(path + ".labels.json");
+            await Assert.ThrowsAnyAsync<Exception>(() => RecordingReviewSignalExporter.ExportAsync(target, "edf", async (stream, token) =>
+            {
+                if (problem == "cancel") throw new OperationCanceledException();
+                if (problem == "bad-package") await stream.WriteAsync(new byte[] { 1, 2 }, token);
+                else await stream.WriteAsync(Package("edf"), token);
+            }, CancellationToken.None));
+            Assert.Equal("original", await File.ReadAllTextAsync(target));
+            if (problem != "publish-failure")
+                Assert.Equal("original metadata", await File.ReadAllTextAsync(target + ".labels.json"));
+            Assert.DoesNotContain(Directory.GetDirectories(root), path => Path.GetFileName(path).StartsWith(".signal-export-"));
         }
+        finally { Directory.Delete(root, true); }
     }
 
     [Fact]
-    public async Task Export_rejects_gaps_and_unknown_units_without_leaving_a_file()
+    public async Task Backend_structured_failure_is_preserved()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"review-export-{Guid.NewGuid():N}.edf");
-        var fixture = CreateFixture();
-        var gapped = fixture.Data with
-        {
-            Window = fixture.Data.Window with
-            {
-                Segments =
-                [
-                    fixture.Data.Window.Segments[0] with { SampleCount = 1, SampleMajorValues = [0.000001, -0.000002] },
-                    new RecordingReviewSegment(1002, 1, 2, [0.000003, -0.000004]),
-                ],
-            },
-        };
-        try
-        {
-            await Assert.ThrowsAsync<InvalidDataException>(() => RecordingReviewSignalExporter.ExportAsync(
-                path, EDFileType.EDFPlus, fixture.Manifest, fixture.StartUtc, fixture.FirstCounter, 2,
-                gapped, fixture.Events, CancellationToken.None));
-            Assert.False(File.Exists(path));
-
-            var unknownUnit = fixture.Manifest with
-            {
-                Channels = fixture.Manifest.Channels.Select(channel =>
-                    channel.StreamIndex == 0 ? channel with { Unit = "mV" } : channel).ToArray(),
-            };
-            await Assert.ThrowsAsync<InvalidDataException>(() => RecordingReviewSignalExporter.ExportAsync(
-                path, EDFileType.EDFPlus, unknownUnit, fixture.StartUtc, fixture.FirstCounter, 2,
-                fixture.Data, fixture.Events, CancellationToken.None));
-            Assert.False(File.Exists(path));
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        using var http = new HttpClient(new ExportHandler("edf", fail: true)) { BaseAddress = new Uri("http://localhost/") };
+        var client = new HttpAlgorithmClient(http);
+        using var output = new MemoryStream();
+        var error = await Assert.ThrowsAsync<BrainPlatform.Desktop.Modules.Algorithms.Contracts.AlgorithmApiException>(() =>
+            client.DownloadRegisteredSignalAsync("source-path", "edf", output, CancellationToken.None));
+        Assert.Equal("RECORDING_EXPORT_BUSY", error.Code);
+        Assert.Equal(0, output.Length);
     }
 
-    private static ExportFixture CreateFixture()
+    private static byte[] Package(string format)
     {
-        var firstCounter = 1000L;
-        var range = new RecordingSampleRange(firstCounter + 2, firstCounter + 4);
-        var channels = new[]
+        using var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
-            new AcquisitionChannel(0, 0, "EEG-Fp1-Long-Source-Label", AcquisitionChannelKind.Reference, "V"),
-            new AcquisitionChannel(2, 2, null, AcquisitionChannelKind.Bipolar, "V"),
-        };
-        var manifestChannels =
-        new[]
-        {
-            channels[0],
-            new AcquisitionChannel(1, 1, "Counter", AcquisitionChannelKind.SampleCounter, "count"),
-            channels[1],
-        };
-        var startUtc = new DateTimeOffset(2025, 1, 2, 3, 4, 5, TimeSpan.Zero).AddMilliseconds(500);
-        var manifest = new LocalRawRecordingManifest(Guid.NewGuid(), "sample_major_float64_v1", "V", "test-device",
-            "Test EEG", 2, 1, startUtc,
-            manifestChannels,
-            new AcquisitionProjectContext("p1", "P-1", "Test", Path.GetTempPath(), "{}"),
-            new Dictionary<string, string>());
-        var segment = new RecordingReviewSegment(firstCounter + 2, 2, 2,
-            [0.000001, -0.000002, 0.000003, -0.000004]);
-        var data = new RecordingAccessReadResult(range, range, channels,
-            new RecordingReviewWindow(1, 1, 2, [segment]));
-        var events = new[]
-        {
-            new RecordingEvent("in", manifest.SessionId.ToString("N"), "eyes", new("eyes", "eyes closed", "#000000", 1),
-                EventSource.ManualButton, null, null, 3, 1, startUtc, startUtc),
-            new RecordingEvent("out", manifest.SessionId.ToString("N"), "other", new("other", "outside", "#000000", 1),
-                EventSource.ManualButton, null, null, 4, 0, startUtc, startUtc),
-        };
-        return new ExportFixture(manifest, data, events, startUtc, firstCounter);
+            using (var writer = new StreamWriter(archive.CreateEntry("recording." + format).Open())) writer.Write("signal samples");
+            using (var writer = new StreamWriter(archive.CreateEntry("recording." + format + ".labels.json").Open()))
+                writer.Write("{\"schema_version\":\"recording-signal-export-v2\"}");
+        }
+        return stream.ToArray();
     }
 
-    private sealed record ExportFixture(
-        LocalRawRecordingManifest Manifest,
-        RecordingAccessReadResult Data,
-        IReadOnlyList<RecordingEvent> Events,
-        DateTimeOffset StartUtc,
-        long FirstCounter);
+    private sealed class ExportHandler(string format, bool fail = false) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Calls++;
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+            if (Calls == 1)
+            {
+                Assert.Equal("/api/recordings/register-wpf", request.RequestUri!.AbsolutePath);
+                Assert.Equal("raw", body.RootElement.GetProperty("signal_mode").GetString());
+                return new HttpResponseMessage(HttpStatusCode.Created) { Content = new StringContent(
+                    "{\"id\":\"raw-id\",\"original_name\":\"test\",\"extension\":\".wpf\",\"created_at\":\"2026-11-05\",\"channels\":[\"Fp1\"]}", Encoding.UTF8, "application/json") };
+            }
+            Assert.Equal("/api/recordings/raw-id/signal-export", request.RequestUri!.AbsolutePath);
+            Assert.Equal(format, body.RootElement.GetProperty("format").GetString());
+            if (fail) return new HttpResponseMessage(HttpStatusCode.Conflict) { Content = new StringContent(
+                "{\"code\":\"RECORDING_EXPORT_BUSY\",\"message\":\"busy\"}", Encoding.UTF8, "application/json") };
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Package(format)) };
+            response.Content.Headers.ContentType = new("application/zip");
+            return response;
+        }
+    }
 }

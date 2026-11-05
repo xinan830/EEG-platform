@@ -7,6 +7,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.recordings import router as recordings_router
 from app.api.recording_signal_preview import router as signal_preview_router
+from app.api.recording_signal_export import router as signal_export_router
+from app.services.recording_signal_export import RecordingSignalExporter
 from app.api.electrode_locations import router as electrode_locations_router
 from app.api.tnk_workbench import router as tnk_workbench_router
 from app.api.playback import router as playback_router
@@ -87,6 +89,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.state.recording_service = RecordingService()
+app.state.recording_signal_exporter = RecordingSignalExporter(STORAGE_DIR / "signal-exports")
 app.state.waveform_playback_service = WaveformPlaybackService(app.state.recording_service)
 app.state.audit_service = AuditService()
 app.state.event_marker_service = EventMarkerService()
@@ -132,6 +135,7 @@ app.state.topomap_service = TopomapService(
 app.state.topomap_3d_service = Topomap3DService()
 app.include_router(recordings_router)
 app.include_router(signal_preview_router)
+app.include_router(signal_export_router)
 app.include_router(electrode_locations_router)
 app.include_router(tnk_workbench_router)
 app.include_router(playback_router)

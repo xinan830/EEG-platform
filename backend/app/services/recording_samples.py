@@ -164,9 +164,10 @@ class WpfSampleReader:
                 check_cancelled()
             path = group[0][5]
             mapped = self._mapped_file(path)
-            first_offset = group[0][4]
-            _last_counter, last_count, last_channels, _ticks, last_offset, _ = group[-1]
-            end_offset = last_offset + last_count * last_channels * 8
+            first_counter, _count, first_channels, _ticks, first_offset, _ = group[0]
+            first_offset += max(0, start - (first_counter - self.first_counter)) * first_channels * 8
+            last_counter, last_count, last_channels, _ticks, last_offset, _ = group[-1]
+            end_offset = last_offset + min(last_count, stop - (last_counter - self.first_counter)) * last_channels * 8
             if end_offset > len(mapped):
                 raise ValueError(f"WPF sample block is truncated: {path.name}")
             # WPF recordings contain tiny payloads; one contiguous copy avoids one I/O fault per batch.
@@ -178,14 +179,12 @@ class WpfSampleReader:
                 left, right = max(start, batch_start), min(stop, batch_start + count)
                 if right <= left:
                     continue
-                relative_offset = offset - first_offset
+                relative_offset = offset + (left - batch_start) * channel_count * 8 - first_offset
                 data = np.frombuffer(
-                    raw, dtype="<f8", count=count * channel_count,
+                    raw, dtype="<f8", count=(right - left) * channel_count,
                     offset=relative_offset,
-                ).reshape(count, channel_count)
-                values[left - start:right - start] = data[
-                    left - batch_start:right - batch_start, stream_indexes
-                ]
+                ).reshape(right - left, channel_count)
+                values[left - start:right - start] = data[:, stream_indexes]
 
         for batch in self.batches[first_batch:]:
             counter, count, channel_count, _ticks, _offset, path = batch

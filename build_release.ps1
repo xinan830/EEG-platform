@@ -64,6 +64,9 @@ Require $EntryScript "backend\app\server_entry.py is missing"
 Require $CsprojPath  "desktop-client project file not found"
 Require $SdkPath     "Provide -SdkSourcePath with the licensed x64 eego-SDK.dll"
 
+& $VenvPython -c "import sys, pyedflib; assert (3, 10) <= sys.version_info[:2] < (3, 13); assert pyedflib.__version__ == '0.1.42'"
+if ($LASTEXITCODE -ne 0) { throw "Backend requires Python 3.10-3.12 and pyEDFlib 0.1.42; run uv sync --project backend --python 3.12 --extra dev" }
+
 # Check / install PyInstaller into venv
 & $VenvPython -m PyInstaller --version 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
@@ -112,6 +115,7 @@ try {
         --log-level WARN `
         --collect-submodules app `
         --collect-submodules mne `
+        --collect-submodules pyedflib `
         --collect-data app `
         --collect-data mne `
         --hidden-import app.main `
