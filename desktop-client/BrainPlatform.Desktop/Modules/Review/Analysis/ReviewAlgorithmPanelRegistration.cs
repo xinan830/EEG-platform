@@ -8,7 +8,7 @@ namespace BrainPlatform.Desktop.Modules.Review.Analysis;
 
 /// <summary>Algorithm-owned configuration and presentation composed by the shared Review lifecycle.</summary>
 public sealed record ReviewAlgorithmPanelRegistration(
-    WorkspaceMontageSelection MontageSelection,
+    WorkspaceMontageSelection<MontageProfile> MontageSelection,
     string AlgorithmId,
     string DisplayName,
     ReviewAnalysisPanelKind PanelKind,
@@ -21,22 +21,22 @@ public sealed record ReviewAlgorithmPanelRegistration(
     Func<IAlgorithmClient, IReviewAlgorithmAdapter> CreateAdapter)
 {
     public void InitializeForSelection(RegisteredRecording recording, AlgorithmCatalogItem algorithm,
-        WorkspaceMontageSelectionSnapshot selection, HistoricalMontageDescriptor? montage)
+        WorkspaceMontageSelectionSnapshot<MontageProfile> selection, HistoricalMontageDescriptor? montage)
     {
         EnsureCurrent(selection);
         Initialize(recording, algorithm, montage);
     }
 
     public JsonElement BuildConfigurationForSelection(double durationSeconds, double samplingRateHz,
-        WorkspaceMontageSelectionSnapshot selection, HistoricalMontageDescriptor? montage)
+        WorkspaceMontageSelectionSnapshot<MontageProfile> selection, HistoricalMontageDescriptor? montage)
     {
         EnsureCurrent(selection);
         return BuildConfiguration(durationSeconds, samplingRateHz, montage);
     }
 
     public void RefreshForSelection(RegisteredRecording recording,
-        WorkspaceMontageSelectionSnapshot previousSelection,
-        WorkspaceMontageSelectionSnapshot selection,
+        WorkspaceMontageSelectionSnapshot<MontageProfile> previousSelection,
+        WorkspaceMontageSelectionSnapshot<MontageProfile> selection,
         HistoricalMontageDescriptor? previousMontage,
         HistoricalMontageDescriptor? montage)
     {
@@ -56,7 +56,7 @@ public sealed record ReviewAlgorithmPanelRegistration(
         return new ReviewAnalysisCoordinator(adapter);
     }
 
-    private void EnsureCurrent(WorkspaceMontageSelectionSnapshot selection)
+    private void EnsureCurrent(WorkspaceMontageSelectionSnapshot<MontageProfile> selection)
     {
         if (selection.RecordingId != MontageSelection.RecordingId ||
             !ReferenceEquals(MontageSelection.Capture(), selection))

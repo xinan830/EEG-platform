@@ -89,6 +89,36 @@ def test_psd_capability_preserves_quality_rejection_as_a_window_state():
     assert result.evidence["source_quality"]["clean_segments"] == 0
 
 
+def test_psd_capability_marks_window_unavailable_when_every_channel_is_unavailable():
+    frequencies = PsdAlgorithm._frequency_axis(200, 1, 50)
+    recording = SimpleNamespace(load_spectrum=lambda **_: SimpleNamespace(
+        freqs=frequencies, psd=np.ones((1, frequencies.size)), clean_epochs=0,
+        total_epochs=1, signal_quality=0.0, gate_failed=None,
+        rejected_reasons=("amplitude_threshold",),
+        evidence={"channel_quality": {"F3": {
+            "status": "unavailable", "reasons": ["amplitude_threshold"],
+        }}},
+    ))
+    algorithm = PsdAlgorithm()
+    plan = algorithm.plan_window(_inputs(recording), _config(), 1600, _session())
+
+    result = algorithm.execute_window(_inputs(recording), _config(), plan, _identity(plan))
+
+    assert result.state == "unavailable"
+    assert result.quality == "unavailable"
+    assert result.failure["code"] == "PSD_WINDOW_CHANNELS_UNAVAILABLE"
+    assert result.evidence["extensions"]["channel_quality"]["by_channel"]["F3"]["status"] == "unavailable"
+
+
+def test_psd_dynamic_snapshot_records_the_executed_frequency_range():
+    algorithm = PsdAlgorithm()
+    dynamic = algorithm.execution_snapshot(_config())
+    static = algorithm.execution_snapshot(_config().model_copy(update={"mode": "static"}))
+
+    assert dynamic.window["output_frequency_range_hz"] == [1.0, 50.0]
+    assert static.window["output_frequency_range_hz"] == [1.0, 30.0]
+
+
 def test_psd_capability_checks_cancellation_before_window_compute():
     recording = SimpleNamespace(load_spectrum=lambda **_: pytest.fail("cancelled work must not load data"))
     algorithm = PsdAlgorithm()

@@ -127,7 +127,7 @@ public sealed partial class RecordingReviewViewModel
     }
 
     private void UpdateAlgorithmMontageInputs(RegisteredRecording recording,
-        WorkspaceMontageSelectionSnapshot previousSelection, WorkspaceMontageSelectionSnapshot selectedSelection)
+        WorkspaceMontageSelectionSnapshot<MontageProfile> previousSelection, WorkspaceMontageSelectionSnapshot<MontageProfile> selectedSelection)
     {
         var previous = ResolveAnalysisMontage(recording, previousSelection.SelectedMontage);
         var selected = ResolveAnalysisMontage(recording, selectedSelection.SelectedMontage);

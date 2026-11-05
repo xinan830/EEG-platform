@@ -44,9 +44,21 @@
 - **THEN** 回放工作区报告结构化不可用原因
 - **AND** 依赖该映射的波形或算法操作不得替换为其他导联
 
-### Requirement: Link montage configuration to analysis channels
+### Requirement: Link algorithm workspace inputs to its public montage instance
 
-算法详情 SHALL 提供明确的分析导联选择；回放工作区中的算法输入 MUST 从工作区唯一导联选择、记录实际可用输出和算法声明的输入角色派生。算法面板 MAY 保留算法专属角色或通道子集选择，但不得保留独立导联选择。切换当前工作区导联时 SHALL 保留可映射的通道角色，并将每个角色解析到新快照中的对应输出。
+Standalone algorithm input channels SHALL be derived from the algorithm workspace's `WorkspaceMontageSelection` snapshot and the algorithm's declared roles. The catalog may retain role/channel subset choices, but SHALL NOT retain an independent montage selection or synchronize a second selector.
+
+#### Scenario: Switch the algorithm workspace montage
+
+- **WHEN** the user changes the algorithm workspace montage from REF to average reference
+- **THEN** selected roles remap to corresponding outputs in the new snapshot where available
+- **AND** the visible input channels and serialized request use that same snapshot
+
+#### Scenario: A required algorithm role is absent
+
+- **WHEN** the selected algorithm-workspace snapshot cannot resolve a required role
+- **THEN** the role is reported unavailable with a structured mapping reason
+- **AND** the algorithm does not keep the previous snapshot output or use a positional fallback
 
 #### Scenario: Switch REF to average reference
 
@@ -74,9 +86,15 @@
 - **THEN** 该角色以结构化原因标记不可用
 - **AND** 算法不得保留旧快照输入或替换成其他通道
 
-### Requirement: Recalculate every official algorithm after montage change
+### Requirement: Refresh algorithm work after selection changes
 
-算法详情中的导联配置变化 SHALL 创建新的科学配置修订并刷新当前算法。回放工作区中的导联变化 SHALL 刷新所有受影响的官方算法面板。静态、动态全量、按需和组合执行 MUST 遵循相同的导联快照身份与过期结果规则。
+A standalone algorithm montage change SHALL invalidate old preview/full-run state and use the existing supersede/cancellation path before scheduling new work.
+
+#### Scenario: Change algorithm montage while a request is active
+
+- **WHEN** the selection revision changes while a Run or preview is active
+- **THEN** the old work is cancelled or rejected by the current revision
+- **AND** its result cannot overwrite the new selection's state
 
 #### Scenario: Change montage while no run is active
 
@@ -87,7 +105,7 @@
 
 #### Scenario: Change the review montage while no algorithm request is active
 
-- **WHEN** 用户在回放工作区将共享导联从 REF 切换为 AV
+- **WHEN** 用户在回放工作区将共享导联从 REF 切换到 AV
 - **THEN** 所有算法面板的请求配置解析到 AV
 - **AND** REF 的输出被清除或标记为过期
 - **AND** 新计算使用 AV 输入且不复用 REF 结果

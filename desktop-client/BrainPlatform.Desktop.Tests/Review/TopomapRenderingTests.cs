@@ -130,6 +130,74 @@ public sealed class TopomapRenderingTests
     }
 
     [Fact]
+    public void Psd_density_uses_its_full_small_valued_range_for_colors()
+    {
+        const double minimum = 1.4665e-14;
+        const double maximum = 2.2015e-13;
+        var field = CreateField("psd.band-mean-density.gamma", "Gamma 波", "V^2/Hz",
+            CreateGrid(minimum, maximum));
+        var snapshot = TopomapVisualPreparer.Prepare(field, 180, 180, CancellationToken.None);
+        var pixels = new byte[3 * 4];
+        snapshot.GridBitmap!.CopyPixels(pixels, 3 * 4, 0);
+
+        Assert.Equal(minimum, snapshot.Minimum);
+        Assert.Equal(maximum, snapshot.Maximum);
+        Assert.Equal(TopomapVisualPreparer.ColorValue(0), ColorAt(pixels, 0));
+        Assert.Equal(TopomapVisualPreparer.ColorValue(0.5), ColorAt(pixels, 1));
+        Assert.Equal(TopomapVisualPreparer.ColorValue(1), ColorAt(pixels, 2));
+    }
+
+    [Fact]
+    public void Equivalent_psd_density_and_absolute_power_ranges_render_the_same_colors()
+    {
+        const double minimumDensity = 1.4665e-14;
+        const double maximumDensity = 2.2015e-13;
+        const double absolutePowerScale = 20e12;
+        var densityGrid = CreateGrid(minimumDensity, maximumDensity);
+        var powerGrid = CreateGrid(minimumDensity * absolutePowerScale,
+            maximumDensity * absolutePowerScale);
+        var densityPixels = TopomapVisualPreparer.BuildGridPixels(
+            densityGrid, minimumDensity, maximumDensity);
+        var powerPixels = TopomapVisualPreparer.BuildGridPixels(
+            powerGrid, minimumDensity * absolutePowerScale, maximumDensity * absolutePowerScale);
+
+        for (var index = 0; index < densityPixels.Length; index++)
+            Assert.InRange(Math.Abs(densityPixels[index] - powerPixels[index]), 0, 1);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1e-13)]
+    [InlineData(-1e-13)]
+    [InlineData(2)]
+    public void Constant_field_keeps_exact_scale_bounds_and_uses_midpoint_color(double value)
+    {
+        var field = CreateField("psd.band-mean-density.gamma", "Gamma 波", "V^2/Hz",
+            CreateGrid(value, value));
+        var snapshot = TopomapVisualPreparer.Prepare(
+            field, 180, 180, CancellationToken.None);
+        var pixels = new byte[3 * 4];
+        snapshot.GridBitmap!.CopyPixels(pixels, 3 * 4, 0);
+
+        Assert.Equal(value, snapshot.Minimum);
+        Assert.Equal(value, snapshot.Maximum);
+        Assert.All(Enumerable.Range(0, 3), index =>
+            Assert.Equal(TopomapVisualPreparer.ColorValue(0.5), ColorAt(pixels, index)));
+        Assert.True(snapshot.Contours!.IsEmpty());
+    }
+
+    [Fact]
+    public void Constant_locked_bounds_saturate_later_lower_and_upper_values()
+    {
+        const double bound = 1e-13;
+        var pixels = TopomapVisualPreparer.BuildGridPixels(CreateGrid(0, 2 * bound), bound, bound);
+
+        Assert.Equal(TopomapVisualPreparer.ColorValue(0), ColorAt(pixels, 0));
+        Assert.Equal(TopomapVisualPreparer.ColorValue(0.5), ColorAt(pixels, 1));
+        Assert.Equal(TopomapVisualPreparer.ColorValue(1), ColorAt(pixels, 2));
+    }
+
+    [Fact]
     public void Prepared_visual_uses_locked_bounds_for_legend_and_contours()
     {
         var band = CreateBand("alpha", "uV^2", 1, 9);

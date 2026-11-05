@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-05
+goal: Render one or all five PSD band-mean-density maps from the same dynamic
+  PSD window, retaining exact frequency ranges in field metadata.

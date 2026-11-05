@@ -16,6 +16,8 @@ public sealed partial class RecordingReviewViewModelTests
         await vm.DisposeAsync();
         var position = vm.PositionSeconds;
         vm.TickPlayback();
+        vm.TogglePlayback();
+        vm.CyclePlaybackSpeed();
         await vm.DisposeAsync();
 
         Assert.False(vm.IsPlaying);

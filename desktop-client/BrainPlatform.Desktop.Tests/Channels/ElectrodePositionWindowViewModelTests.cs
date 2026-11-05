@@ -22,12 +22,15 @@ public sealed class ElectrodePositionWindowViewModelTests
         configuration.DraftRows.Add(reference);
 
         Assert.True(viewModel.HasPositionRows);
+        Assert.Equal(["Fp1"], viewModel.PositionRows.Select(row => row.ElectrodeLabel));
         Assert.Equal(["Fp1"], viewModel.EnabledElectrodeLabels);
         viewModel.IsThreeDimensional = true;
         Assert.False(viewModel.IsTwoDimensional);
 
         enabled.IsEnabled = false;
 
+        Assert.Empty(viewModel.PositionRows);
+        Assert.False(viewModel.HasPositionRows);
         Assert.Empty(viewModel.EnabledElectrodeLabels);
         Assert.Contains("切换到 3D", viewModel.PositionViewHint);
     }

@@ -16,7 +16,7 @@ public sealed class FullResultFallbackTests
     [InlineData("empty")]
     public async Task Invalid_structured_cache_tries_indexed_read_without_computing(string defect)
     {
-        var preview = OnDemandDetailClient.FullPsdStructuredPreview();
+        var preview = OnDemandDetailClient.FullPsdStructuredPreview(windowCount: 6);
         preview = defect switch
         {
             "run" => preview with { RunId = "stale" },
@@ -58,7 +58,7 @@ public sealed class FullResultFallbackTests
         client.RespondFullRun = request => respondFullRun(request) with { ReusedFromRunId = "original-run" };
         client.RespondFullStructuredPreview = _ =>
         {
-            var preview = OnDemandDetailClient.FullPsdStructuredPreview();
+            var preview = OnDemandDetailClient.FullPsdStructuredPreview(windowCount: 6);
             return preview with { Artifact = preview.Artifact with { RunId = "original-run" } };
         };
         var catalog = OnDemandDetailClient.Catalog(client, "psd", "V^2/Hz");

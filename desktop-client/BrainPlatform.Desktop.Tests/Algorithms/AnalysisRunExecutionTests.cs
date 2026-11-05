@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Reflection;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
@@ -151,16 +152,25 @@ public sealed class AnalysisRunExecutionTests
 
     private static async Task<AlgorithmListViewModel> ReadyCatalog(ExecutionClient client)
     {
-        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter())
+        var profile = new HistoricalMontageDescriptor(
+            "fixture-montage", "revision-1", "fingerprint-fixture", "Fixture 导联", true, true, null,
+            [
+                new HistoricalMontageOutput("F3", "F3", "F3", "V", true, null),
+                new HistoricalMontageOutput("F4", "F4", "F4", "V", true, null),
+            ]);
+        var selection = new WorkspaceMontageSelection<HistoricalMontageDescriptor>(
+            "recording-1", profile, [profile]);
+        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter(),
+            initialMontageSelection: selection)
         {
             SelectedAlgorithm = new AlgorithmCatalogItem("official", "peak_frequency", "official-peak-frequency-v1",
                 "峰频率", "Peak", "", [], ["static", "dynamic"], default,
                 new DynamicAnalysisPolicy(4, [5, 10], 5, 1, true), "available", true, null, null, null),
         };
+        catalog.MontageProfiles.Add(profile);
         var recording = await client.RegisterWpfRecordingAsync("D:\\fixture", CancellationToken.None);
         typeof(AlgorithmListViewModel).GetProperty(nameof(AlgorithmListViewModel.RegisteredRecording))!
             .SetValue(catalog, recording);
-        foreach (var channel in recording.Channels) catalog.RegisteredChannels.Add(channel);
         catalog.SelectedChannel = "F3";
         catalog.EndSecondsText = "30";
         catalog.LowFrequencyText = "1";

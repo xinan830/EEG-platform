@@ -127,6 +127,45 @@ def test_full_psd_records_verified_on_demand_window_reuse(tmp_path):
         client.close()
 
 
+@pytest.mark.parametrize("algorithm_id", ["psd", "rbp"])
+def test_vertical_bipolar_repeated_electrode_roles_work_in_replay(tmp_path, algorithm_id):
+    pairs = [("Fp1", "F7"), ("F7", "T3"), ("T3", "T5"), ("T5", "O1"),
+             ("Fp2", "F8"), ("F8", "T4"), ("T4", "T6"), ("T6", "O2"),
+             ("Fp1", "F3"), ("F3", "C3"), ("C3", "P3"), ("P3", "O1"),
+             ("Fp2", "F4"), ("F4", "C4"), ("C4", "P4"), ("P4", "O2")]
+    client, recording, windows, runs, _ = configure_api(tmp_path, duration_s=12, montage_pairs=pairs)
+    profile = recording.montage_catalogue[0]
+    channels = [item["id"] for item in profile["outputs"]]
+    config = {"algorithm_id": algorithm_id, "mode": "dynamic", "channels": channels,
+              "time": {"start_s": 0, "end_s": recording.duration_s},
+              "dynamic_window_s": 5, "refresh_step_s": 1, "low_hz": 1, "high_hz": 30,
+              "notch_hz": None, "channel": channels[0] if algorithm_id == "rbp" else None,
+              "analysis_montage_id": profile["id"], "analysis_montage_revision": profile["revision"],
+              "analysis_montage_fingerprint": profile["fingerprint"],
+              "analysis_montage_outputs": [{"role": item["role"], "output": item["id"], "unit": item["unit"]}
+                                           for item in profile["outputs"]]}
+    config = {key: value for key, value in config.items() if value is not None}
+    try:
+        response = client.post("/api/analysis-windows/ensure", json={
+            "recording_id": recording.id, "algorithm_id": algorithm_id, "config": config,
+            "cursor_sample": 1000, "request_id": f"vertical-{algorithm_id}",
+        })
+        assert response.status_code in {200, 202}, response.text
+        window = wait_window(client, response.json()["window_id"])
+        assert window["state"] == "ready", window
+        channel_quality = window["result"]["evidence"]["extensions"]["channel_quality"]["by_channel"]
+        assert list(channel_quality) == channels
+
+        response = client.post("/api/runs", json={"recording_id": recording.id,
+            "analysis_type": "official_algorithm", "config": config})
+        assert response.status_code == 202, response.text
+        run = runs.process_next()
+        assert run.status.value == "completed", run.error
+    finally:
+        windows.close(wait=True)
+        client.close()
+
+
 def test_full_psd_recomputes_corrupt_on_demand_window_and_records_miss(tmp_path):
     client, recording, windows, runs, _ = configure_api(tmp_path)
     config = psd_config(recording)

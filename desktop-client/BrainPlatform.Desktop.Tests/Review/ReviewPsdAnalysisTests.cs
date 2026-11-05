@@ -10,12 +10,13 @@ namespace BrainPlatform.Desktop.Tests.Review;
 public sealed class ReviewPsdAnalysisTests
 {
     [Fact]
-    public void Topomap_options_expose_the_five_canonical_band_labels()
+    public void Topomap_options_expose_all_bands_and_concise_canonical_band_labels()
     {
         var options = new PsdReviewAnalysisViewModel().TopomapBandOptions;
 
-        Assert.Equal(new[] { "delta", "theta", "alpha", "beta", "gamma" }, options.Select(item => item.Id));
-        Assert.Equal("Gamma · 30–50 Hz", options[^1].Label);
+        Assert.Equal(new[] { "", "delta", "theta", "alpha", "beta", "gamma" }, options.Select(item => item.Id));
+        Assert.Equal(new[] { "全部频段", "Delta 波", "Theta 波", "Alpha 波", "Beta 波", "Gamma 波" },
+            options.Select(item => item.Label));
     }
 
     [Fact]
@@ -81,8 +82,10 @@ public sealed class ReviewPsdAnalysisTests
     public void Current_range_tracks_the_backend_topomap_window_and_is_unavailable_when_cleared()
     {
         var model = new PsdReviewAnalysisViewModel();
+        var field = new TopomapField("psd.band-mean-density.delta", "Delta 平均 PSD (1–4 Hz)", "V^2/Hz",
+            null, [], null, "unavailable", [], [], null, null, [1, 4]);
         model.ApplyTopomap(new TopomapResponse("window", "recording", 10, 20, "ready", "v1", "build",
-            "mne", "mri", "m", [], null, null));
+            "mne", "mri", "m", [field], null, null));
         model.SelectedView = "脑电地形图";
 
         Assert.Equal("10–20 s", model.CurrentRangeText);

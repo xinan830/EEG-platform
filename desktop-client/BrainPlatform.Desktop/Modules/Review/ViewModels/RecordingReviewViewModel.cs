@@ -11,7 +11,7 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly RecordingReviewSession session;
-    private readonly WorkspaceMontageSelection montageSelection;
+    private readonly WorkspaceMontageSelection<MontageProfile> montageSelection;
     private readonly IRecordingAccessSession reviewReader;
     private readonly RecordingMontageCatalogResult catalog;
     private readonly RecordingPlaybackTimeCoordinator playback;
@@ -85,7 +85,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         reviewReader = reader;
         this.catalog = catalog;
         recordingId = reader.Manifest.SessionId.ToString("N");
-        montageSelection = new WorkspaceMontageSelection(recordingId, catalog.AcquisitionMontage,
+        montageSelection = new WorkspaceMontageSelection<MontageProfile>(recordingId, catalog.AcquisitionMontage,
             catalog.CompatibleViewingMontages.Select(item => item.Profile));
         session = new RecordingReviewSession(reader, catalog, montageSelection, visibleDurationSeconds, filter);
         samplingRateHz = reader.Manifest.SamplingRateHz;
@@ -145,7 +145,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public IReadOnlyList<MontageProfile> CompatibleViewingMontages => montageSelection.AvailableMontages;
 
-    internal WorkspaceMontageSelection WorkspaceMontageSelection => montageSelection;
+    internal WorkspaceMontageSelection<MontageProfile> WorkspaceMontageSelection => montageSelection;
 
     public bool HasCompatibleViewingMontages => CompatibleViewingMontages.Count > 0;
 

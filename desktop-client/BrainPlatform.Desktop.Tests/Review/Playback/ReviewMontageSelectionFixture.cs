@@ -6,7 +6,7 @@ namespace BrainPlatform.Desktop.Tests.Review;
 
 internal static class ReviewMontageSelectionFixture
 {
-    public static WorkspaceMontageSelection Create(
+    public static WorkspaceMontageSelection<MontageProfile> Create(
         IRecordingAccessSession reader,
         RecordingMontageCatalogResult catalog) => new(
         reader.Manifest.SessionId.ToString("N"),

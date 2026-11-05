@@ -22,6 +22,21 @@ The current mapping SHALL require distinct Fz, Pz, and Oz source channels and SH
 - **WHEN** only F3 or only F4 is provided
 - **THEN** the system rejects the mapping with a validation error
 
+### Requirement: Preserve distinct montage outputs with shared electrode roles
+
+The system SHALL identify a montage input by its output ID and formula. Multiple
+distinct outputs MAY share the same positive-electrode role when their formulas
+differ; validation SHALL require output IDs to be unique and each output/role
+pair to match the selected montage snapshot.
+
+#### Scenario: Request a longitudinal bipolar montage with repeated positive electrodes
+
+- **WHEN** PSD or RBP requests every available output from a longitudinal bipolar montage
+- **AND** the montage contains outputs such as `Fp1-F7` and `Fp1-F3`
+- **THEN** both outputs are accepted as distinct algorithm inputs with role `Fp1`
+- **AND** the signal reader applies each output's own saved formula
+- **AND** duplicate output IDs or output/role pairs that disagree with the saved montage are rejected.
+
 ### Requirement: Separate display montage from analysis reference
 
 The system SHALL keep the acquisition montage, the recording-review workspace selection, and

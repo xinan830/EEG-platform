@@ -5,6 +5,7 @@ using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 using BrainPlatform.Desktop.Modules.Projects.ViewModels;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 using BrainPlatform.Desktop.Modules.Montages.Stores;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
 
@@ -40,7 +41,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     private string dynamicStepText = "1";
     private string selectedDynamicExecutionMode = "全量分析";
     private string selectedChannel = string.Empty;
-    private HistoricalMontageDescriptor? selectedMontageProfile;
+    private WorkspaceMontageSelection<HistoricalMontageDescriptor>? montageSelection;
     private string selectedF4Channel = string.Empty;
     private string startSecondsText = "0";
     private string endSecondsText = string.Empty;
@@ -69,7 +70,8 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     public AlgorithmListViewModel(IAlgorithmClient client, OperationNotificationCenter notifications, ProjectWorkspaceViewModel? projects = null,
         RecordingTimeDisplaySettings? timeDisplaySettings = null, MontageProfileStore? montageStore = null,
         RecordingPlaybackTimeCoordinator? playbackCoordinator = null,
-        RecordingSessionManager? recordingSessionManager = null)
+        RecordingSessionManager? recordingSessionManager = null,
+        WorkspaceMontageSelection<HistoricalMontageDescriptor>? initialMontageSelection = null)
     {
         InitializeTimeDisplay(timeDisplaySettings ?? new RecordingTimeDisplaySettings());
         this.client = client ?? throw new ArgumentNullException(nameof(client));
@@ -113,6 +115,12 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
         psdPreview.PropertyChanged += (_, args) => RelayPreviewPropertyChanged(args.PropertyName, "Psd");
         stftPreview.PropertyChanged += (_, args) => RelayPreviewPropertyChanged(args.PropertyName, "Stft");
         Projects = projects;
+        if (initialMontageSelection is not null)
+        {
+            montageSelection = initialMontageSelection;
+            montageSelection.SelectionChanged += OnAlgorithmMontageSelectionChanged;
+            ApplyAlgorithmMontageSelection(null, montageSelection.Capture());
+        }
     }
 
     private void RelayPreviewPropertyChanged(string? propertyName, string kind)
@@ -158,32 +166,17 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     public ObservableCollection<HistoricalMontageDescriptor> MontageProfiles { get; } = [];
     public HistoricalMontageDescriptor? SelectedMontageProfile
     {
-        get => selectedMontageProfile;
+        get => montageSelection?.SelectedMontage;
         set
         {
-            var previousRole = selectedMontageProfile?.Outputs?
-                .FirstOrDefault(output => string.Equals(output.Id, SelectedChannel, StringComparison.OrdinalIgnoreCase))?.Role
-                ?? SelectedChannel;
-            var previousSecondaryRole = selectedMontageProfile?.Outputs?
-                .FirstOrDefault(output => string.Equals(output.Id, SelectedF4Channel, StringComparison.OrdinalIgnoreCase))?.Role
-                ?? SelectedF4Channel;
-            if (!SetProperty(ref selectedMontageProfile, value)) return;
-            RegisteredChannels.Clear();
-            foreach (var output in value?.Outputs?.Where(output => output.Available) ?? [])
-                RegisteredChannels.Add(output.Id);
-            var mapped = value?.Outputs?.FirstOrDefault(output =>
-                string.Equals(output.Role, previousRole, StringComparison.OrdinalIgnoreCase))?.Id;
-            SelectedChannel = mapped ?? RegisteredChannels.FirstOrDefault() ?? string.Empty;
-            var mappedSecondary = value?.Outputs?.FirstOrDefault(output =>
-                string.Equals(output.Role, previousSecondaryRole, StringComparison.OrdinalIgnoreCase))?.Id;
-            if (!string.IsNullOrWhiteSpace(previousSecondaryRole))
-                SelectedF4Channel = mappedSecondary ?? string.Empty;
-            RefreshTnkRoleChannels();
-            RaisePropertyChanged(nameof(HasRegisteredChannels));
-            RaisePropertyChanged(nameof(AnalysisMontageText));
-            ScheduleAutomaticRun();
+            if (montageSelection is null)
+                throw new InvalidOperationException("算法工作区尚未创建导联选择实例。");
+            montageSelection.Select(value);
         }
     }
+    internal WorkspaceMontageSelection<HistoricalMontageDescriptor>? MontageSelection => montageSelection;
+    internal WorkspaceMontageSelectionSnapshot<HistoricalMontageDescriptor> CaptureMontageSelection() =>
+        montageSelection?.Capture() ?? throw new InvalidOperationException("算法工作区尚未创建导联选择实例。");
     public string AnalysisMontageText => SelectedMontageProfile?.Label ?? "未选择历史导联配置";
     public string AnalysisMontageDetailsText => SelectedMontageProfile is not { } profile
         ? "分析导联：未选择历史配置"
@@ -222,8 +215,8 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
                 RaisePropertyChanged(nameof(PlaybackCoordinator));
             }
             RegisteredChannels.Clear();
+            ClearAlgorithmMontageSelection();
             MontageProfiles.Clear();
-            SelectedMontageProfile = null;
             SelectedChannel = string.Empty;
             SelectedF4Channel = string.Empty;
             EndSecondsText = string.Empty;

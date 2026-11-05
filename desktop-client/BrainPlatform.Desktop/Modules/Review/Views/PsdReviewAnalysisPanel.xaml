@@ -38,7 +38,7 @@
                 <ComboBox ItemsSource="{Binding PsdAnalysis.TopomapBandOptions}"
                           SelectedValuePath="Id"
                           SelectedValue="{Binding PsdAnalysis.SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"
-                          Height="32" MinWidth="170" ToolTip="频带平均 PSD：频带积分除以完整带宽，单位 µV²/Hz"
+                          Height="32" MinWidth="130" ToolTip="频带平均 PSD，单位 µV²/Hz"
                           Margin="8,0,0,0" VerticalAlignment="Center">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
@@ -76,6 +76,33 @@
                     </Style>
                 </psd:PsdSpectrumChart.Style>
             </psd:PsdSpectrumChart>
+            <ItemsControl Grid.Row="0" ItemsSource="{Binding PsdAnalysis.TopomapBands}">
+                <ItemsControl.Style>
+                    <Style TargetType="ItemsControl">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True" />
+                                    <Condition Binding="{Binding PsdAnalysis.IsAllTopomapBandsSelected}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ItemsControl.Style>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <topomap:TopomapCanvas Field="{Binding Field}"
+                            ColorScaleState="{Binding DataContext.PsdAnalysis.TopomapColorScales, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
             <topomap:TopomapCanvas Grid.Row="0" Field="{Binding PsdAnalysis.TopomapField}"
                                    ColorScaleState="{Binding PsdAnalysis.TopomapColorScales}">
                 <topomap:TopomapCanvas.Style>
@@ -84,6 +111,9 @@
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True">
                                 <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding PsdAnalysis.IsAllTopomapBandsSelected}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>

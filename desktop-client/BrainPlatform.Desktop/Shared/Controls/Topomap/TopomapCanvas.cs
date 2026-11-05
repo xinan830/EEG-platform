@@ -266,9 +266,15 @@ public sealed class TopomapCanvas : FrameworkElement
         return brushes;
     }
 
-    private static string FieldName(TopomapField field)
+    internal static string FieldName(TopomapField field)
     {
-        if (field.FieldId.StartsWith("psd.band-mean-density.", StringComparison.Ordinal)) return field.Label;
+        const string psdBandPrefix = "psd.band-mean-density.";
+        if (field.FieldId.StartsWith(psdBandPrefix, StringComparison.Ordinal))
+            return field.FieldId[psdBandPrefix.Length..] switch
+            {
+                "delta" => "Delta 波", "theta" => "Theta 波", "alpha" => "Alpha 波",
+                "beta" => "Beta 波", "gamma" => "Gamma 波", _ => field.Label,
+            };
         var id = field.FieldId.Split('.').Last();
         return id switch
         {

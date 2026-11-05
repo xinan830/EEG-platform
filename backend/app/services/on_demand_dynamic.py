@@ -151,7 +151,6 @@ class DynamicWindowService:
             mapped_ids = [str(item.get("output", "")) for item in requested_outputs]
             mapped_roles = [str(item.get("role", "")) for item in requested_outputs]
             if (len(mapped_ids) != len(set(mapped_ids)) or
-                    len(mapped_roles) != len(set(mapped_roles)) or
                     any(not role for role in mapped_roles) or
                     set(mapped_ids) != {str(channel) for channel in requested}):
                 raise ValueError("ANALYSIS_MONTAGE_MAPPING_MISMATCH: 导联角色映射与算法请求输入不一致")

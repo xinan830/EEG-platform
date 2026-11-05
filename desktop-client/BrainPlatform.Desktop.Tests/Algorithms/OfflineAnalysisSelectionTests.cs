@@ -127,6 +127,7 @@ public sealed class OfflineAnalysisSelectionTests : IDisposable
         var client = new OnDemandDetailClient
         {
             Respond = OnDemandDetailClient.PsdResponse,
+            RespondFullStructuredPreview = _ => OnDemandDetailClient.FullPsdStructuredPreview(windowCount: 6),
             RespondFullRun = request => new AnalysisRunResponse(
                 "full-run-1", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,
                 null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 10, 10,

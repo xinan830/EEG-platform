@@ -54,6 +54,9 @@ public sealed partial class AlgorithmListViewModel
         {
             throw new InvalidOperationException("请先注册一条已完成的 WPF 记录。");
         }
+        var montageSelection = CaptureMontageSelection();
+        var selectedMontage = montageSelection.SelectedMontage
+            ?? throw new InvalidOperationException("请选择一个可用的分析导联配置。");
         var durationSeconds = RegisteredRecording.DurationSeconds ?? throw new InvalidOperationException("注册记录没有可用的时长。");
         var requestedRange = AlgorithmRunConfiguration.ParseStaticRangeOrThrow(StartSecondsText, EndSecondsText, durationSeconds);
         var runInputs = new AlgorithmRunInputs(requestedRange, SelectedChannel, SelectedF4Channel,
@@ -77,7 +80,7 @@ public sealed partial class AlgorithmListViewModel
         var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, runChannel, requestedRange,
             dynamic ? "dynamic" : "static", runParameters.FrequencyBand, runParameters.RatioBands,
             runParameters.F4Channel, dynamic ? SelectedDynamicWindowSeconds : null,
-            dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0, SelectedMontageProfile,
+            dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0, selectedMontage,
             runParameters.RoleChannels, psdChannels, SelectedThetaBetaFrequencyMode);
         AlgorithmParameterValidation.ValidateOrThrow(algorithm, config);
         ClearPreviews();

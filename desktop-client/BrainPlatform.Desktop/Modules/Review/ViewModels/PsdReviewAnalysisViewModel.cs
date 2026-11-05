@@ -19,16 +19,18 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     private string topomapRangeText = "分析范围不可用";
 
     public ObservableCollection<PsdPreviewPoint?> Points => preview.Points;
+    public ObservableCollection<TopomapBandDisplayItem> TopomapBands { get; } = [];
     public string ValueUnit => preview.ValueUnit;
     public bool HasResult => preview.HasPreview;
     public IReadOnlyList<string> Channels { get => channels; private set => SetProperty(ref channels, value); }
     public IReadOnlyList<PsdTopomapBandOption> TopomapBandOptions { get; } =
     [
-        new("delta", "Delta · 1–4 Hz"),
-        new("theta", "Theta · 4–8 Hz"),
-        new("alpha", "Alpha · 8–13 Hz"),
-        new("beta", "Beta · 13–30 Hz"),
-        new("gamma", "Gamma · 30–50 Hz"),
+        new("", "全部频段"),
+        new("delta", "Delta 波"),
+        new("theta", "Theta 波"),
+        new("alpha", "Alpha 波"),
+        new("beta", "Beta 波"),
+        new("gamma", "Gamma 波"),
     ];
     public string? SelectedChannel { get => selectedChannel; set { if (SetProperty(ref selectedChannel, value)) RaisePropertyChanged(nameof(TopomapField)); } }
     public string SelectedTopomapBandId
@@ -39,6 +41,8 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
             if (!TopomapBandOptions.Any(option => option.Id == value)) return;
             if (!SetProperty(ref selectedTopomapBandId, value)) return;
             RaisePropertyChanged(nameof(SelectedTopomapFieldId));
+            RaisePropertyChanged(nameof(SelectedTopomapFieldIds));
+            RaisePropertyChanged(nameof(IsAllTopomapBandsSelected));
             RaisePropertyChanged(nameof(TopomapField));
         }
     }
@@ -48,8 +52,17 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     public bool IsSpectrumSelected => !IsTopomapSelected;
     public TopomapResponse? Topomap { get => topomap; private set { if (SetProperty(ref topomap, value)) RaisePropertyChanged(nameof(TopomapField)); } }
     public TopomapColorScaleState TopomapColorScales { get; } = new();
-    public string SelectedTopomapFieldId => $"psd.band-mean-density.{SelectedTopomapBandId}";
-    public TopomapField? TopomapField => Topomap?.Fields.FirstOrDefault(item => item.FieldId == SelectedTopomapFieldId);
+    public string? SelectedTopomapFieldId => IsAllTopomapBandsSelected
+        ? null
+        : $"psd.band-mean-density.{SelectedTopomapBandId}";
+    public IReadOnlyList<string> SelectedTopomapFieldIds => IsAllTopomapBandsSelected
+        ? TopomapBandOptions.Where(option => !string.IsNullOrEmpty(option.Id))
+            .Select(option => $"psd.band-mean-density.{option.Id}").ToArray()
+        : SelectedTopomapFieldId is { } fieldId ? [fieldId] : [];
+    public bool IsAllTopomapBandsSelected => string.IsNullOrEmpty(SelectedTopomapBandId);
+    public TopomapField? TopomapField => SelectedTopomapFieldId is { } fieldId
+        ? Topomap?.Fields.FirstOrDefault(item => item.FieldId == fieldId)
+        : null;
     public string CurrentRangeText => IsTopomapSelected ? topomapRangeText : analysisRangeText;
 
     public void SetChannels(IEnumerable<string> value)
@@ -104,9 +117,12 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
 
     public void ApplyTopomap(TopomapResponse response)
     {
-        if (response.Fields.Any(field => field.FieldId != SelectedTopomapFieldId || field.Unit != "V^2/Hz"))
-            throw new InvalidOperationException("PSD 地形图必须返回当前频带的平均功率谱密度（V²/Hz）。");
+        var receivedFieldIds = response.Fields.Select(field => field.FieldId).ToArray();
+        if (!receivedFieldIds.SequenceEqual(SelectedTopomapFieldIds, StringComparer.Ordinal) ||
+            response.Fields.Any(field => field.Unit != "V^2/Hz"))
+            throw new InvalidOperationException("PSD 地形图返回的字段必须与当前选择的频带及功率谱密度单位（V²/Hz）一致。");
         Topomap = response;
+        UpdateTopomapBands(response.Fields);
         topomapRangeText = FormatRange(response.WindowStartSeconds, response.WindowEndSeconds);
         RaisePropertyChanged(nameof(TopomapField));
         RaisePropertyChanged(nameof(CurrentRangeText));
@@ -115,9 +131,23 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     public void ClearTopomap()
     {
         TopomapColorScales.Reset();
+        UpdateTopomapBands([]);
         Topomap = null;
         topomapRangeText = "分析范围不可用";
         RaisePropertyChanged(nameof(CurrentRangeText));
+    }
+
+    private void UpdateTopomapBands(IReadOnlyList<TopomapField> fields)
+    {
+        for (var index = 0; index < fields.Count; index++)
+        {
+            if (index < TopomapBands.Count)
+                TopomapBands[index].Field = fields[index];
+            else
+                TopomapBands.Add(new TopomapBandDisplayItem(fields[index]));
+        }
+        while (TopomapBands.Count > fields.Count)
+            TopomapBands.RemoveAt(TopomapBands.Count - 1);
     }
     public void SetStatus(string value) => StatusText = value;
 

@@ -176,7 +176,7 @@ public sealed partial class RecordingReviewViewModel
         }
         try
         {
-            var fieldIds = new[] { PsdAnalysis.SelectedTopomapFieldId };
+            var fieldIds = PsdAnalysis.SelectedTopomapFieldIds;
             var result = await provider.LoadTopomapAsync(window, token, fieldIds);
             if (!token.IsCancellationRequested && requestRevision == Volatile.Read(ref topomapRequestRevision) &&
                 ReferenceEquals(coordinator, analysisCoordinator) && ReferenceEquals(window, CurrentAnalysisWindow))

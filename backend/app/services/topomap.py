@@ -44,6 +44,8 @@ class TopomapInput:
     algorithm_version: str
     implementation_version: str
     metadata_by_field: dict[str, dict[str, object]] | None = None
+    provenance_by_field: dict[str, dict[str, object]] | None = None
+    failures_by_field: dict[str, dict[str, object]] | None = None
     quality_by_channel: dict[str, dict[str, object]] | None = None
     quality: str | None = None
     provenance: dict[str, object] | None = None
@@ -77,6 +79,8 @@ class RbpTopomapAdapter:
         evidence = result.get("evidence") or {}
         extensions = evidence.get("extensions") if isinstance(evidence, dict) else {}
         channel_meta = extensions.get("channel_order") if isinstance(extensions, dict) else {}
+        channel_quality = extensions.get("channel_quality") if isinstance(extensions, dict) else {}
+        quality_by_channel = channel_quality.get("by_channel") if isinstance(channel_quality, dict) else None
         channels = channel_meta.get("channels") if isinstance(channel_meta, dict) else None
         if not isinstance(channels, list):
             channels = payload.get("channel_order")
@@ -115,6 +119,7 @@ class RbpTopomapAdapter:
             algorithm_version=str(identity.get("scientific_version") or "unknown"),
             implementation_version=str(identity.get("implementation_identity") or "unknown"),
             quality=result.get("quality"), provenance=result.get("provenance") or {},
+            quality_by_channel=quality_by_channel,
             power_type=power_type, unavailable=unavailable,
         )
 
@@ -126,16 +131,27 @@ class PsdTopomapAdapter:
     def build_input(self, *, recording_id: str, payload: dict[str, Any],
                     window_start_s: float, window_end_s: float,
                     field_ids: list[str]) -> TopomapInput:
-        if len(field_ids) != 1:
-            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 地形图必须且只能选择一个结果字段。")
-        field_id = field_ids[0]
-        band_id = field_id.removeprefix("psd.band-mean-density.")
-        is_band_mean_density = field_id == f"psd.band-mean-density.{band_id}" and band_id in self.bands
-        is_frequency_bin = field_id.startswith("psd.frequency-bin.")
-        if not is_band_mean_density and not is_frequency_bin:
+        if not field_ids or any(not isinstance(field_id, str) for field_id in field_ids):
             raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 地形图字段 ID 无效。")
-        if is_band_mean_density:
-            low_hz, high_hz = self.bands[band_id]
+        if len(field_ids) != len(set(field_ids)):
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 地形图字段 ID 不能重复。")
+
+        parsed_fields: list[tuple[str, str]] = []
+        for field_id in field_ids:
+            if field_id.startswith("psd.band-mean-density."):
+                band_id = field_id.removeprefix("psd.band-mean-density.")
+                if band_id in self.bands:
+                    parsed_fields.append(("band", band_id))
+                    continue
+            elif field_id.startswith("psd.frequency-bin."):
+                parsed_fields.append(("frequency", field_id.removeprefix("psd.frequency-bin.")))
+                continue
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 地形图字段 ID 无效。")
+        if len({kind for kind, _ in parsed_fields}) != 1:
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 地形图一次请求只能选择同一类型的频谱字段。")
+        if parsed_fields[0][0] == "frequency" and len(field_ids) != 1:
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 地形图一次只能选择一个字段。")
+
         result = payload.get("result") or payload
         frequencies = np.asarray((payload.get("axes") or result.get("axes") or {}).get("frequency_hz", []), dtype=float)
         arrays = result.get("arrays") or payload.get("arrays") or {}
@@ -172,42 +188,59 @@ class PsdTopomapAdapter:
         if not channels or len(set(str(item).casefold() for item in channels)) != len(channels):
             raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 通道顺序为空或包含重复通道。")
         provenance = dict(result.get("provenance") or {})
-        if is_frequency_bin:
-            try:
-                frequency_index = int(field_id.removeprefix("psd.frequency-bin."))
-            except ValueError as exc:
-                raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 索引无效。") from exc
-            if frequency_index < 0 or field_id != f"psd.frequency-bin.{frequency_index}" or frequency_index >= frequencies.size:
-                raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 不存在。")
-            selected = values[:, frequency_index].tolist()
-            unit = "V^2/Hz"
+        values_by_band: dict[str, list[object]] = {}
+        units_by_band: dict[str, str] = {}
+        metadata_by_field: dict[str, dict[str, object]] = {}
+        provenance_by_field: dict[str, dict[str, object]] = {}
+        failures_by_field: dict[str, dict[str, object]] = {}
+        if parsed_fields[0][0] == "frequency":
             power_type = "psd"
-            metadata = {"frequency_hz": float(frequencies[frequency_index]),
-                        "label": f"{frequencies[frequency_index]:g} Hz"}
+            for field_id, (_, raw_index) in zip(field_ids, parsed_fields, strict=True):
+                try:
+                    frequency_index = int(raw_index)
+                except ValueError as exc:
+                    raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 索引无效。") from exc
+                if frequency_index < 0 or field_id != f"psd.frequency-bin.{frequency_index}" or frequency_index >= frequencies.size:
+                    raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 不存在。")
+                values_by_band[field_id] = values[:, frequency_index].tolist()
+                units_by_band[field_id] = "V^2/Hz"
+                metadata_by_field[field_id] = {"frequency_hz": float(frequencies[frequency_index]),
+                                               "label": f"{frequencies[frequency_index]:g} Hz"}
         else:
-            if frequencies.size < 2 or frequencies[0] > low_hz or frequencies[-1] < high_hz:
-                raise TopomapUnavailable("TOPOMAP_BAND_RANGE_UNAVAILABLE", "当前 PSD 频率轴没有完整覆盖所选频带。",
-                                         {"band_id": band_id, "frequency_range_hz": [low_hz, high_hz]})
-            # Integrate then divide by full bandwidth: V²/Hz remains a density.
-            selected = [float(band_power(frequencies, row, low_hz, high_hz) / (high_hz - low_hz))
-                        if np.isfinite(row).all() else float("nan") for row in values]
-            unit = "V^2/Hz"
             power_type = "psd_band_mean_density"
-            metadata = {"frequency_range_hz": (low_hz, high_hz),
-                        "label": f"{band_id.title()} 平均 PSD ({low_hz:g}–{high_hz:g} Hz)"}
             provenance.update({"projection_identity": "psd-band-mean-density-v1",
-                               "frequency_reduction": "trapezoidal_integral_divided_by_full_bandwidth",
-                               "bandwidth_hz": high_hz - low_hz})
+                               "frequency_reduction": "trapezoidal_integral_divided_by_full_bandwidth"})
+            for field_id, (_, band_id) in zip(field_ids, parsed_fields, strict=True):
+                low_hz, high_hz = self.bands[band_id]
+                units_by_band[field_id] = "V^2/Hz"
+                metadata_by_field[field_id] = {
+                    "frequency_range_hz": (low_hz, high_hz),
+                    "label": f"{band_id.title()} 平均 PSD ({low_hz:g}–{high_hz:g} Hz)",
+                }
+                provenance_by_field[field_id] = {"bandwidth_hz": high_hz - low_hz}
+                if frequencies.size < 2 or frequencies[0] > low_hz or frequencies[-1] < high_hz:
+                    failures_by_field[field_id] = {
+                        "code": "TOPOMAP_BAND_RANGE_UNAVAILABLE",
+                        "message": "当前 PSD 频率轴没有完整覆盖所选频带。",
+                        "detail": {"band_id": band_id, "frequency_range_hz": [low_hz, high_hz]},
+                    }
+                    values_by_band[field_id] = []
+                    continue
+                # Integrate then divide by full bandwidth: V²/Hz remains a density.
+                values_by_band[field_id] = [float(band_power(frequencies, row, low_hz, high_hz) / (high_hz - low_hz))
+                                            if np.isfinite(row).all() else float("nan") for row in values]
         return TopomapInput(
             algorithm_id=self.algorithm_id, recording_id=recording_id,
             channel_order=[str(item) for item in channels],
-            values_by_band={field_id: selected}, units_by_band={field_id: unit},
+            values_by_band=values_by_band, units_by_band=units_by_band,
             window_start_s=window_start_s, window_end_s=window_end_s,
             algorithm_version=str((payload.get("identity") or {}).get("scientific_version") or "unknown"),
             implementation_version=str((payload.get("identity") or {}).get("implementation_identity") or "unknown"),
             quality=result.get("quality"), provenance=provenance,
             quality_by_channel={str(channel): dict(by_channel[channel]) for channel in channels},
-            power_type=power_type, metadata_by_field={field_id: metadata}, unavailable=None,
+            power_type=power_type, metadata_by_field=metadata_by_field,
+            provenance_by_field=provenance_by_field, failures_by_field=failures_by_field,
+            unavailable=None,
         )
 
 
@@ -379,10 +412,27 @@ class TopomapService:
                     if isinstance(item, dict) and item.get("name")}
         fields = []
         for band_id, values in spatial_input.values_by_band.items():
+            if failure := (spatial_input.failures_by_field or {}).get(band_id):
+                metadata = dict((spatial_input.metadata_by_field or {}).get(band_id, {}))
+                label = str(metadata.pop("label", band_id))
+                field_provenance = {
+                    **(spatial_input.provenance or {}),
+                    **(spatial_input.provenance_by_field or {}).get(band_id, {}),
+                }
+                fields.append(TopomapField(
+                    field_id=band_id, label=label, unit=spatial_input.units_by_band[band_id],
+                    **metadata, points=[], status="unavailable", included_channels=[], excluded_channels=[],
+                    failure=failure, provenance=field_provenance,
+                ))
+                continue
             started = perf_counter()
+            field_provenance = {
+                **(spatial_input.provenance or {}),
+                **(spatial_input.provenance_by_field or {}).get(band_id, {}),
+            }
             band = self._build_band(band_id, spatial_input.units_by_band.get(band_id, "ratio"), values,
                 spatial_input.channel_order, formulas, signal_provenance.get("map_positions") or {},
-                spatial_input.provenance or {}, (spatial_input.metadata_by_field or {}).get(band_id, {}),
+                field_provenance, (spatial_input.metadata_by_field or {}).get(band_id, {}),
                 spatial_input.quality_by_channel or {})
             grid_cells = band.grid.width * band.grid.height if band.grid is not None else 0
             logger.info(
@@ -455,10 +505,12 @@ class TopomapService:
         labels = []
         for channel in channels:
             formula = formulas.get(channel)
-            if formula is not None and str(formula.get("negative_kind", "")) != "originalhardwarereference":
-                labels.append("")
+            if formula is None:
+                labels.append(channel)
+            elif str(formula.get("negative_kind", "")) in {"originalhardwarereference", "mean"}:
+                labels.append(str(formula.get("positive", channel)))
             else:
-                labels.append(str(formula.get("positive", channel)) if formula else channel)
+                labels.append("")
         points: list[TopomapPoint] = []
         usable: list[tuple[str, float, float, float]] = []
         coordinates: set[tuple[float, float]] = set()

@@ -85,8 +85,18 @@ public sealed class ElectrodePositionWindowViewModel : ObservableObject, IDispos
         set { if (value) IsThreeDimensional = false; }
     }
 
-    public IReadOnlyList<ChannelConfigurationDraftRow> PositionRows =>
-        ChannelConfigurations.DraftRows.Count > 0 ? ChannelConfigurations.DraftRows : savedProfileRows;
+    public IReadOnlyList<ChannelConfigurationDraftRow> PositionRows
+    {
+        get
+        {
+            IEnumerable<ChannelConfigurationDraftRow> rows = ChannelConfigurations.DraftRows.Count > 0
+                ? ChannelConfigurations.DraftRows
+                : savedProfileRows;
+            return rows
+                .Where(row => row.IsEegInput && row.IsEnabled && !string.IsNullOrWhiteSpace(row.ElectrodeLabel))
+                .ToArray();
+        }
+    }
 
     public bool HasPositionRows => PositionRows.Count > 0;
 
@@ -116,7 +126,6 @@ public sealed class ElectrodePositionWindowViewModel : ObservableObject, IDispos
     }
 
     public IReadOnlyList<string> EnabledElectrodeLabels => PositionRows
-        .Where(row => row.IsEegInput && row.IsEnabled && !string.IsNullOrWhiteSpace(row.ElectrodeLabel))
         .Select(row => row.ElectrodeLabel.Trim())
         .ToArray();
 
@@ -205,6 +214,8 @@ public sealed class ElectrodePositionWindowViewModel : ObservableObject, IDispos
         if (args.PropertyName is nameof(ChannelConfigurationDraftRow.ElectrodeLabel) or
             nameof(ChannelConfigurationDraftRow.IsEnabled))
         {
+            RaisePropertyChanged(nameof(PositionRows));
+            RaisePropertyChanged(nameof(HasPositionRows));
             RaisePropertyChanged(nameof(EnabledElectrodeLabels));
             RaisePropertyChanged(nameof(PositionViewHint));
         }

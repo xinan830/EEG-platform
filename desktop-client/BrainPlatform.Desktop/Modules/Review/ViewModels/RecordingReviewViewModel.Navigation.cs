@@ -61,6 +61,7 @@ public sealed partial class RecordingReviewViewModel
 
     public void TogglePlayback()
     {
+        if (isDisposing) return;
         var wasPlaying = playback.IsPlaying;
         var wasCompleted = playback.IsCompleted;
         if (playback.IsPlaying) playback.Pause();
@@ -70,6 +71,7 @@ public sealed partial class RecordingReviewViewModel
 
     public void CyclePlaybackSpeed()
     {
+        if (isDisposing) return;
         var next = playback.PlaybackRate switch { 0.5d => 1d, 1d => 2d, _ => 0.5d };
         playback.SetPlaybackRate(next);
         RaisePropertyChanged(nameof(PlaybackSpeedText));

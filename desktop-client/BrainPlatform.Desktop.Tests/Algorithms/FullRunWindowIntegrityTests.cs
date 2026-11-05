@@ -21,7 +21,7 @@ public sealed class FullRunWindowIntegrityTests
         var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(preview, Target(1000), 200);
         Assert.Equal("full-cache:full-run-1:window-0", response.WindowId);
         Assert.Equal("ready", response.State);
-        Assert.Equal(9, response.Result!.Arrays!["psd"][0].GetDouble());
+        Assert.Equal(9, response.Result!.Arrays!["psd"][0][0].GetDouble());
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class FullRunWindowIntegrityTests
         var response = FullRunWindowPreviewAdapter.ToDynamicWindowResponse(preview, Target(1000), 200);
 
         Assert.Equal("ready", response.State);
-        Assert.Equal(9, response.Result!.Arrays!["psd"][0].GetDouble());
+        Assert.Equal(9, response.Result!.Arrays!["psd"][0][0].GetDouble());
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class FullRunWindowIntegrityTests
         Assert.Equal(800, response.Range!.EndSample);
         Assert.Equal("Partial", response.Result!.Provenance!.Value.GetProperty("analysis_state").GetString());
         Assert.Equal("retained", response.Result.Provenance.Value.GetProperty("evidence").GetString());
-        Assert.Equal(9, response.Result.Arrays!["psd"][0].GetDouble());
+        Assert.Equal(9, response.Result.Arrays!["psd"][0][0].GetDouble());
     }
 
     [Fact]
@@ -229,7 +229,11 @@ public sealed class FullRunWindowIntegrityTests
             Windows = [Window("first", 0, 800, "Complete", "clean"), Window("second", 1, 1000, state, quality)],
             Arrays = new Dictionary<string, JsonElement>
             {
-                ["psd"] = JsonSerializer.SerializeToElement(new double?[][] { [9, 8, 7], [null, null, null] }),
+                ["psd"] = JsonSerializer.SerializeToElement(new double?[][][]
+                {
+                    new[] { new double?[] { 9, 8, 7 } },
+                    new[] { new double?[] { null, null, null } },
+                }),
             },
         };
         FullRunPreviewIntegrity.RequireStructured(preview, Run());

@@ -26,7 +26,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private const double CacheCoverageMultiplier = 1.5;
     private readonly IRecordingAccessSession reader;
     private readonly RecordingMontageCatalogResult catalog;
-    private readonly WorkspaceMontageSelection montageSelection;
+    private readonly WorkspaceMontageSelection<MontageProfile> montageSelection;
     private readonly RecordingReviewWindowCache cache = new();
     private readonly ReviewSourceLoader sourceLoader;
     private readonly ReviewDisplayLevelProvider displayLevelProvider = new();
@@ -42,7 +42,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private int disposed;
 
     public RecordingReviewSession(IRecordingAccessSession reader, RecordingMontageCatalogResult catalog,
-        WorkspaceMontageSelection montageSelection,
+        WorkspaceMontageSelection<MontageProfile> montageSelection,
         double visibleDurationSeconds, IRecordingReviewFilter? filter = null,
         IReviewPerformanceSink? performanceSink = null)
     {
@@ -536,7 +536,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         if (Volatile.Read(ref disposed) != 0) throw new ObjectDisposedException(nameof(RecordingReviewSession));
     }
 
-    private void OnMontageSelectionChanged(object? sender, WorkspaceMontageSelectionChangedEventArgs e)
+    private void OnMontageSelectionChanged(object? sender, WorkspaceMontageSelectionChangedEventArgs<MontageProfile> e)
     {
         SupersedePendingLoad();
         StatusText = "导联配置已更改，保留当前波形直到新帧就绪。";

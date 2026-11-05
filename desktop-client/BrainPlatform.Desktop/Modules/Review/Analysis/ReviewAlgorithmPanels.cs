@@ -8,7 +8,7 @@ internal static class ReviewAlgorithmPanels
 {
     public static IReadOnlyDictionary<string, ReviewAlgorithmPanelRegistration> Create(
         RecordingReviewViewModel viewModel,
-        WorkspaceMontageSelection montageSelection)
+        WorkspaceMontageSelection<MontageProfile> montageSelection)
     {
         var registrations = new[]
         {
@@ -66,7 +66,7 @@ internal static class ReviewAlgorithmPanels
 
     private static ReviewAlgorithmPanelRegistration Scalar(string title, string adapterName,
         ReviewScalarParameters parameters, ReviewScalarAnalysisViewModel presentation,
-        WorkspaceMontageSelection montageSelection) =>
+        WorkspaceMontageSelection<MontageProfile> montageSelection) =>
         new(montageSelection, parameters.AlgorithmId, title, ReviewAnalysisPanelKind.Scalar, parameters, presentation,
             (recording, algorithm, montage) => parameters.Initialize(recording, algorithm, montage),
             (duration, rate, montage) => parameters.BuildConfig(duration, rate, montage),

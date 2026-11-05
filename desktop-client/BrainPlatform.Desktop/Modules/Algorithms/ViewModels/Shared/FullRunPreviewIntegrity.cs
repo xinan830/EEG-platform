@@ -68,7 +68,7 @@ internal static class FullRunPreviewIntegrity
             Require(values.ValueKind == JsonValueKind.Array && values.GetArrayLength() == preview.Windows.Count,
                 $"完整结果输出数组 {name} 的窗口行数与窗口数不一致。");
             foreach (var row in values.EnumerateArray())
-                RequireGeometry(preview.Output, preview.Axes, row);
+                RequireGeometry(preview.Output, preview.Axes, row, preview.ChannelOrder.Count);
         }
     }
 
@@ -101,15 +101,15 @@ internal static class FullRunPreviewIntegrity
         Require(descriptor.OutputArrays.Any(preview.Arrays!.ContainsKey), "完整结果窗口缺少算法输出数组。");
         foreach (var name in descriptor.OutputArrays)
             if (preview.Arrays.TryGetValue(name, out var row))
-                RequireGeometry(preview.Output, axes, row);
+                RequireGeometry(preview.Output, axes, row, null);
     }
 
     private static void RequireGeometry(JsonElement? output,
-        IReadOnlyDictionary<string, JsonElement> axes, JsonElement row)
+        IReadOnlyDictionary<string, JsonElement> axes, JsonElement row, int? channelCount)
     {
         var kind = output is { } value ? Text(value, "kind") : null;
         if (kind == "frequency_series")
-            RequireVector(row, AxisLength(axes, "frequency_hz"));
+            RequireChannelSeries(row, AxisLength(axes, "frequency_hz"), channelCount);
         else if (kind == "time_frequency")
         {
             Require(row.ValueKind == JsonValueKind.Array && row.GetArrayLength() == AxisLength(axes, "time_center_s"),
@@ -123,6 +123,15 @@ internal static class FullRunPreviewIntegrity
         }
         else
             throw new InvalidOperationException("完整结果的数组输出结构不可验证。");
+    }
+
+    private static void RequireChannelSeries(JsonElement value, int frequencyCount, int? channelCount)
+    {
+        Require(value.ValueKind == JsonValueKind.Array && value.GetArrayLength() > 0 &&
+            (channelCount is null || value.GetArrayLength() == channelCount),
+            "完整结果频谱数组与通道顺序不一致。");
+        foreach (var channel in value.EnumerateArray())
+            RequireVector(channel, frequencyCount);
     }
 
     private static int AxisLength(IReadOnlyDictionary<string, JsonElement> axes, string name)

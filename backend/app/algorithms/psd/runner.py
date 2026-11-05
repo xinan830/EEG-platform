@@ -122,6 +122,18 @@ class PsdAlgorithm:
             if spectrum.gate_failed:
                 raise SpectralQualityGateError(evidence["source_quality"])
             values, band_share, channel_quality = self._channel_rows(spectrum, inputs.channels, frequencies)
+            if all(item.get("status") == "unavailable" for item in channel_quality):
+                return DynamicWindowResult(
+                    identity=identity, state="unavailable", output_kind="frequency_series",
+                    axes={"frequency_hz": frequencies}, axis_units={"frequency_hz": "Hz"},
+                    arrays={"psd": values, "band_share": band_share},
+                    array_units={"psd": "V^2/Hz", "band_share": "ratio"}, quality="unavailable",
+                    evidence={**evidence, "extensions": {"channel_quality": {
+                        "by_channel": dict(zip(inputs.channels, channel_quality, strict=True)),
+                    }}},
+                    failure={"code": "PSD_WINDOW_CHANNELS_UNAVAILABLE",
+                             "message": "当前动态窗口的所有请求通道均不可用"},
+                )
             window_quality = "clean" if all(item.get("status") == "clean" for item in channel_quality) else "partial"
             return DynamicWindowResult(
                 identity=identity, state="ready", output_kind="frequency_series",
@@ -222,7 +234,9 @@ class PsdAlgorithm:
     def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
         snapshot = spectral_execution_snapshot(config, low_hz=ANALYSIS_CONTRACT["bandpass_hz"][0],
                                                high_hz=ANALYSIS_CONTRACT["bandpass_hz"][1], notch_hz=config.notch_hz)
-        snapshot.window["output_frequency_range_hz"] = [config.low_hz, config.high_hz]
+        snapshot.window["output_frequency_range_hz"] = (
+            [1.0, 50.0] if config.mode == "dynamic" else [config.low_hz, config.high_hz]
+        )
         return snapshot
 
     def resolve_inputs(self, recording: Any, config: PsdConfig) -> AlgorithmInputs:

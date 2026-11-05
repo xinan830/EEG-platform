@@ -142,6 +142,22 @@ def test_absolute_power_type_selects_structured_values_and_unit_for_same_window(
     assert [point.value for point in result.fields[2].points] == [1.0, 2.0, 3.0]
 
 
+def test_rbp_topomap_preserves_channel_quality_and_excludes_unavailable_values():
+    payload = _dynamic_window_payload(["Fz", "Cz", "Pz"])
+    payload["result"]["evidence"]["extensions"]["channel_quality"] = {"by_channel": {
+        "Fz": {"status": "clean", "reasons": []},
+        "Cz": {"status": "unavailable", "reasons": ["missing_samples"]},
+        "Pz": {"status": "clean", "reasons": []},
+    }}
+    service = TopomapService(None, None, SimpleNamespace(get=lambda *_args, **_kwargs: payload))
+
+    result = service.build_dynamic_window("window-1", field_ids=["rbp.relative.alpha"])
+
+    field, = result.fields
+    assert [point.status for point in field.points] == ["included", "excluded", "included"]
+    assert field.points[1].reason == "missing_samples"
+
+
 def test_dynamic_window_topomap_selects_absolute_power_without_changing_window():
     channels = ["Fz", "Cz", "Pz"]
     payload = _dynamic_window_payload(channels, absolute=True)
@@ -231,13 +247,31 @@ def test_old_result_absolute_request_returns_explicit_unavailable_map():
     assert all(field.status == "unavailable" and field.unit == "uV^2" for field in result.fields)
 
 
-def test_topomap_excludes_bipolar_outputs_without_inventing_endpoint():
+@pytest.mark.parametrize("negative_kind", ["channel", "specifiedpair"])
+def test_topomap_excludes_bipolar_outputs_without_inventing_endpoint(negative_kind):
     service = _service([0.2, 0.5, 0.8], ["Fz-F4", "Cz", "Pz"], formulas=[
-        {"name": "Fz-F4", "positive": "Fz", "negative_kind": "specifiedpair"},
+        {"name": "Fz-F4", "positive": "Fz", "negative_kind": negative_kind},
     ])
     result = service.build_rbp_window("run", cursor_s=5.0, field_ids=["rbp.relative.delta"])
     assert result.status == "unavailable"
     assert result.fields[0].points[0].reason == "bipolar_or_derived_output_has_no_spatial_rule"
+
+
+def test_average_referenced_outputs_use_their_positive_electrode_positions():
+    channels = ["Fz-AVG", "Cz-AVG", "Pz-AVG"]
+    formulas = [
+        {"name": channel, "positive": label, "negative_kind": "mean"}
+        for channel, label in zip(channels, ("Fz", "Cz", "Pz"), strict=True)
+    ]
+    service = _service([0.2, 0.5, 0.8], channels, formulas=formulas)
+
+    result = service.build_rbp_window("run", cursor_s=5.0, field_ids=["rbp.relative.alpha"])
+
+    assert result.status == "ready"
+    points = result.fields[0].points
+    assert [point.electrode_label for point in points] == ["Fz", "Cz", "Pz"]
+    assert [point.status for point in points] == ["included"] * 3
+    assert [(point.x, point.y) for point in points] == [(0.0, -0.8), (0.0, 0.0), (0.0, 0.8)]
 
 
 def test_rbp_adapter_reads_channel_order_from_window_evidence_without_recomputing():
@@ -364,31 +398,31 @@ def test_psd_adapter_returns_band_mean_density_in_SI_units_and_original_channel_
     assert result.metadata_by_field[f"psd.band-mean-density.{band_id}"] == {
         "frequency_range_hz": (low_hz, high_hz), "label": f"{band_id.title()} 平均 PSD ({low_hz:g}–{high_hz:g} Hz)",
     }
-    assert result.provenance["bandwidth_hz"] == high_hz - low_hz
+    assert result.provenance_by_field[f"psd.band-mean-density.{band_id}"]["bandwidth_hz"] == high_hz - low_hz
     assert result.provenance["projection_identity"] == "psd-band-mean-density-v1"
 
 
-def test_psd_adapter_rejects_a_band_not_covered_by_the_frequency_axis():
+def test_psd_adapter_marks_a_band_unavailable_when_the_frequency_axis_does_not_cover_it():
     from app.services.topomap import PsdTopomapAdapter
 
-    with pytest.raises(TopomapUnavailable) as exc_info:
-        PsdTopomapAdapter().build_input(
-            recording_id="recording-1",
-            payload={
-                "channel_order": ["Cz"],
-                "axes": {"frequency_hz": [1.0, 15.5, 30.0]},
-                "axis_units": {"frequency_hz": "Hz"},
-                "arrays": {"psd": [[1.0, 1.0, 1.0]]},
-                "array_units": {"psd": "V^2/Hz"},
-                "evidence": {"extensions": {"channel_quality": {"by_channel": {
-                    "Cz": {"status": "clean", "reasons": []},
-                }}}},
-            },
-            window_start_s=5.0, window_end_s=10.0,
-            field_ids=["psd.band-mean-density.gamma"],
-        )
+    result = PsdTopomapAdapter().build_input(
+        recording_id="recording-1",
+        payload={
+            "channel_order": ["Cz"],
+            "axes": {"frequency_hz": [1.0, 15.5, 30.0]},
+            "axis_units": {"frequency_hz": "Hz"},
+            "arrays": {"psd": [[1.0, 1.0, 1.0]]},
+            "array_units": {"psd": "V^2/Hz"},
+            "evidence": {"extensions": {"channel_quality": {"by_channel": {
+                "Cz": {"status": "clean", "reasons": []},
+            }}}},
+        },
+        window_start_s=5.0, window_end_s=10.0,
+        field_ids=["psd.band-mean-density.gamma"],
+    )
 
-    assert exc_info.value.code == "TOPOMAP_BAND_RANGE_UNAVAILABLE"
+    assert result.failures_by_field["psd.band-mean-density.gamma"]["code"] == "TOPOMAP_BAND_RANGE_UNAVAILABLE"
+    assert result.failures_by_field["psd.band-mean-density.gamma"]["detail"]["frequency_range_hz"] == [30.0, 50.0]
 
 
 def test_psd_adapter_preserves_exact_frequency_bin_fields_for_api_consumers():

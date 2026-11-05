@@ -26,8 +26,12 @@ from app.services.scientific_compute_coordinator import ScientificComputeCoordin
 
 def write_recording(root: Path, *, first_counter: int = 700, gap: bool = False,
                     rejected: bool = False, duration_s: float = 22.35,
-                    labels: list[str] | None = None) -> None:
+                    labels: list[str] | None = None,
+                    montage_pairs: list[tuple[str, str]] | None = None) -> None:
     root.mkdir()
+    if montage_pairs is not None:
+        labels = labels or ["Fp1", "Fp2", "F7", "F3", "Fz", "F4", "F8", "T3", "C3", "Cz",
+                            "C4", "T4", "M1", "T5", "P3", "Pz", "P4", "T6", "M2", "O1", "O2"]
     labels = labels or ["F3", "F7"]
     snapshot = {"DeviceSignature": "synthetic-layout",
                 "HardwareReferenceElectrodeLocation": "REF", "HardwareGroundElectrodeLocation": "GND",
@@ -35,13 +39,22 @@ def write_recording(root: Path, *, first_counter: int = 700, gap: bool = False,
                              for i, name in enumerate(labels)]}
     montage = {"Id": "synthetic-montage", "DeviceSignature": "synthetic-layout",
                "ChannelConfigurationSnapshot": snapshot, "AverageReferenceLabels": labels,
-               "DerivedChannels": [{"Name": f"{name}-REF", "PositiveLabel": name, "NegativeKind": 0,
-                                    "NegativeLabels": [], "DisplayOrder": i} for i, name in enumerate(labels)]}
+               "DerivedChannels": ([{"Name": f"{positive}-{negative}", "PositiveLabel": positive,
+                                     "NegativeKind": 1, "NegativeLabels": [negative], "DisplayOrder": i}
+                                    for i, (positive, negative) in enumerate(montage_pairs)]
+                                   if montage_pairs is not None else
+                                   [{"Name": f"{name}-REF", "PositiveLabel": name, "NegativeKind": 0,
+                                     "NegativeLabels": [], "DisplayOrder": i} for i, name in enumerate(labels)])}
     sfreq = 200
     count = int(round(duration_s * sfreq))
     t = np.arange(count) / sfreq
-    signals = np.column_stack([20e-6 * np.sin(2 * np.pi * 10 * t) + 2e-6 * np.sin(2 * np.pi * 6 * t),
-                               5e-6 * np.sin(2 * np.pi * 6 * t), first_counter + np.arange(count)])
+    if montage_pairs is None:
+        eeg = [20e-6 * np.sin(2 * np.pi * 10 * t) + 2e-6 * np.sin(2 * np.pi * 6 * t),
+               5e-6 * np.sin(2 * np.pi * 6 * t)]
+    else:
+        eeg = [(5 + index) * 1e-6 * np.sin(2 * np.pi * (5 + index % 20) * t)
+               for index in range(len(labels))]
+    signals = np.column_stack([*eeg, first_counter + np.arange(count)])
     if rejected:
         signals[:, 0] *= 30
     ranges = [(0, 1800), (2000, count)] if gap else [(0, count)]
@@ -49,18 +62,19 @@ def write_recording(root: Path, *, first_counter: int = 700, gap: bool = False,
         "SessionId": "11111111-1111-1111-1111-111111111111",
         "PayloadFormat": "sample_major_float64_v1_with_receive_utc_ticks_and_per_channel_units",
         "EegSignalUnit": "V", "DeviceId": "synthetic", "DeviceName": "synthetic",
-        "SamplingRateHz": sfreq, "SampleCounterChannelIndex": 2,
+        "SamplingRateHz": sfreq, "SampleCounterChannelIndex": len(labels),
         "RecordingStartUtc": "2026-10-01T00:00:00+00:00",
         "HardwareConfiguration": {"montage_configuration_snapshot_json": json.dumps(montage),
                                   "channel_configuration_snapshot_json": json.dumps(snapshot)},
         "Channels": [{"StreamIndex": i, "NativeChannelIndex": i, "Label": name,
                       "Kind": "Reference", "Unit": "V"} for i, name in enumerate(labels)] +
-                    [{"StreamIndex": 2, "NativeChannelIndex": 2, "Label": "Counter", "Kind": "SampleCounter", "Unit": "count"}],
+                    [{"StreamIndex": len(labels), "NativeChannelIndex": len(labels), "Label": "Counter",
+                      "Kind": "SampleCounter", "Unit": "count"}],
     }
     (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     with (root / "samples-000001.bin").open("wb") as stream:
         for start, end in ranges:
-            stream.write(struct.pack("<qiiq", first_counter + start, end - start, 3, 0))
+            stream.write(struct.pack("<qiiq", first_counter + start, end - start, len(labels) + 1, 0))
             signals[start:end].astype("<f8").tofile(stream)
     (root / "recording-summary.json").write_text(json.dumps({
         "status": "completed", "effective_sample_count": sum(end - start for start, end in ranges), "sampling_rate_hz": sfreq}), encoding="utf-8")
@@ -72,9 +86,11 @@ def source_hashes(root: Path) -> dict[str, str]:
 
 
 def configure_api(tmp_path: Path, *, gap: bool = False, rejected: bool = False,
-                  duration_s: float = 22.35, labels: list[str] | None = None):
+                  duration_s: float = 22.35, labels: list[str] | None = None,
+                  montage_pairs: list[tuple[str, str]] | None = None):
     root = tmp_path / "recording"
-    write_recording(root, gap=gap, rejected=rejected, duration_s=duration_s, labels=labels)
+    write_recording(root, gap=gap, rejected=rejected, duration_s=duration_s, labels=labels,
+                    montage_pairs=montage_pairs)
     recordings = RecordingService(tmp_path / "stored", tmp_path / "catalog.sqlite3")
     recording = recordings.register_wpf_recording(str(root), signal_mode="acquisition_montage")
     compute_coordinator = ScientificComputeCoordinator()

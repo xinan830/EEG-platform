@@ -53,8 +53,6 @@ internal static class TopomapVisualPreparer
         {
             (minimum, maximum, hasValues) = ValueRange(grid, cancellationToken);
         }
-        if (maximum <= minimum) maximum = minimum + Math.Max(Math.Abs(minimum) * 0.01, 1e-12);
-
         var rasterTimer = Stopwatch.StartNew();
         var pixels = BuildGridPixels(grid, minimum, maximum, cancellationToken);
         var bitmap = BitmapSource.Create(Math.Max(1, grid.Width), Math.Max(1, grid.Height), 96, 96,
@@ -173,6 +171,7 @@ internal static class TopomapVisualPreparer
         double minimum, double maximum, CancellationToken cancellationToken)
     {
         var geometry = new StreamGeometry();
+        if (maximum <= minimum) return geometry;
         using var context = geometry.Open();
         var rowCount = Math.Min(grid.Height, grid.Values.Count);
         for (var index = 1; index <= 6; index++)
@@ -238,8 +237,12 @@ internal static class TopomapVisualPreparer
     private static double GridCoordinate(double minimum, double maximum, int index, int count) =>
         minimum + (maximum - minimum) * index / Math.Max(1, count - 1);
 
-    private static double Normalize(double value, double minimum, double maximum) =>
-        Math.Clamp((value - minimum) / Math.Max(1e-12, maximum - minimum), 0, 1);
+    private static double Normalize(double value, double minimum, double maximum)
+    {
+        if (maximum <= minimum)
+            return value < minimum ? 0 : value > maximum ? 1 : 0.5;
+        return Math.Clamp((value - minimum) / (maximum - minimum), 0, 1);
+    }
 
     internal static Color ColorValue(double normalized)
     {

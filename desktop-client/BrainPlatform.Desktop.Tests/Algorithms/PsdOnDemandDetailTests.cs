@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
@@ -148,17 +149,23 @@ public sealed class PsdOnDemandDetailTests : IDisposable
 
     private static AlgorithmListViewModel ReadyCatalog(WindowClient client, bool onDemand = true)
     {
-        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter())
+        var profile = new HistoricalMontageDescriptor(
+            "fixture-montage", "revision-1", "fingerprint-fixture", "Fixture 导联", true, true, null,
+            [new HistoricalMontageOutput("F3", "F3", "F3", "V", true, null)]);
+        var selection = new WorkspaceMontageSelection<HistoricalMontageDescriptor>(
+            "recording", profile, [profile]);
+        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter(),
+            initialMontageSelection: selection)
         {
             SelectedAlgorithm = new AlgorithmCatalogItem("official", "psd", "offline-spectral-v3",
                 "功率谱密度", "PSD", "", [], ["static", "dynamic"], default,
                 new DynamicAnalysisPolicy(4, [5, 10], 5, 1, true), "available", true, null, null, null,
                 JsonDocument.Parse("{\"on_demand\":{\"implementation\":\"implemented\",\"validation\":\"validated\"},\"combined_preview_background_full\":{\"implementation\":\"implemented\",\"validation\":\"unvalidated\"},\"full_result_to_preview\":{\"implementation\":\"implemented\",\"validation\":\"validated\"}}").RootElement),
         };
+        catalog.MontageProfiles.Add(profile);
         typeof(AlgorithmListViewModel).GetProperty(nameof(AlgorithmListViewModel.RegisteredRecording))!
             .SetValue(catalog, new RegisteredRecording("recording", "fixture", ".wpf", "2026-10-13T00:00:00Z",
                 200, 30, ["F3"], "hash"));
-        catalog.RegisteredChannels.Add("F3");
         catalog.SelectedChannel = "F3";
         catalog.EndSecondsText = "30";
         catalog.SelectedAnalysisMode = "动态";

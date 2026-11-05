@@ -3,10 +3,47 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Channels.Views"
         xmlns:topomap="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Topomap"
-        Title="电极位置图" Width="860" Height="700" MinWidth="720" MinHeight="600"
+        Title="电极位置图" Width="1060" Height="760" MinWidth="820" MinHeight="620"
         WindowStyle="ToolWindow" ShowInTaskbar="False" ResizeMode="CanResize"
         Background="#F8FAFC">
-    <Grid Margin="20">
+    <Window.Resources>
+        <Style x:Key="PositionViewSegmentStyle" TargetType="RadioButton">
+            <Setter Property="MinWidth" Value="62" />
+            <Setter Property="Padding" Value="12,7" />
+            <Setter Property="Foreground" Value="#52667A" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Segment" Background="Transparent" BorderBrush="Transparent"
+                                BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Segment" Property="Background" Value="#E8F0F6" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Segment" Property="Background" Value="White" />
+                                <Setter TargetName="Segment" Property="BorderBrush" Value="#CBDCE8" />
+                                <Setter Property="Foreground" Value="#163B5C" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Segment" Property="BorderBrush" Value="#2687B8" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <Grid Margin="22">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="190" />
             <ColumnDefinition Width="*" />
@@ -18,74 +55,71 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.ColumnSpan="2" Margin="0,0,0,14">
-            <TextBlock Text="电极位置图" FontSize="20" FontWeight="SemiBold" Foreground="#0F172A" />
-            <TextBlock Text="右侧显示已开启的 EEG 电极，以及独立的 REF/GND 硬件位置标记。选中 EEG 通道可拖动其图示位置；也可直接拖动 REF 或 GND 标记单独调整。" FontSize="12" Foreground="#475569" Margin="0,5,0,0" TextWrapping="Wrap" />
+        <StackPanel Grid.ColumnSpan="2" Margin="0,0,0,16">
+            <TextBlock Text="电极位置" FontSize="20" FontWeight="SemiBold" Foreground="#102A43" />
+            <TextBlock Text="仅列出已启用的 EEG 通道。选择通道后可在 2D 图中调整位置；REF 与 GND 标记可单独移动。" FontSize="12" Foreground="#627D98" Margin="0,5,0,0" TextWrapping="Wrap" />
         </StackPanel>
 
-        <Border Grid.Row="1" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,14,0">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="选择通道" FontWeight="SemiBold" Foreground="#334155" Margin="2,0,0,8" />
-                <Grid>
-                    <ListBox x:Name="ElectrodeRows" ItemsSource="{Binding PositionRows}"
-                             BorderThickness="0" Background="Transparent"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="2,3">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding ElectrodeLabel, TargetNullValue=(空名称)}"
-                                                   FontSize="13" Foreground="#0F172A" />
-                                        <TextBlock Text="{Binding LocationText}" FontSize="10"
-                                                   Foreground="#64748B" Margin="0,2,0,0" />
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="{Binding ConfigurationStatus}"
-                                               FontSize="10" VerticalAlignment="Center" Margin="8,0,0,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="#16A34A" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                                        <Setter Property="Foreground" Value="#64748B" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Padding" Value="7,6" />
-                                <Setter Property="Margin" Value="0,1" />
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsEegInput}" Value="False"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                    </ListBox>
-                    <TextBlock Text="当前配置没有可显示的 EEG 输入通道" Foreground="#64748B"
-                               TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
-                               Margin="12" IsHitTestVisible="False">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasPositionRows}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Grid>
-            </DockPanel>
+        <Border Grid.Row="1" Background="White" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,16,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Margin="2,0,2,10">
+                    <TextBlock Text="已启用通道" FontSize="13" FontWeight="SemiBold" Foreground="#243B53" />
+                    <TextBlock Text="列表选择同步到头图" FontSize="11" Foreground="#829AB1" Margin="0,3,0,0" />
+                </StackPanel>
+                <ListBox x:Name="ElectrodeRows" Grid.Row="1" ItemsSource="{Binding PositionRows}"
+                         BorderThickness="0" Background="Transparent"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="2,1">
+                                <TextBlock Text="{Binding ElectrodeLabel}"
+                                           FontSize="13" FontWeight="SemiBold" Foreground="#243B53" />
+                                <TextBlock Text="{Binding LocationText}" FontSize="11"
+                                           Foreground="#829AB1" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="9,7" />
+                            <Setter Property="Margin" Value="0,2" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="BorderBrush" Value="Transparent" />
+                            <Setter Property="BorderThickness" Value="1" />
+                            <Setter Property="Focusable" Value="True" />
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#F4F8FB" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="#EAF4FB" />
+                                    <Setter Property="BorderBrush" Value="#8EC7E8" />
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                </ListBox>
+                <TextBlock Grid.Row="1" Text="没有已启用的 EEG 通道" Foreground="#829AB1"
+                           TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center"
+                           Margin="12" IsHitTestVisible="False" FontSize="12">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasPositionRows}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
         </Border>
 
         <Grid Grid.Row="1" Grid.Column="1">
@@ -94,15 +128,20 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
-                <RadioButton Content="2D" GroupName="ElectrodePositionView"
-                             IsChecked="{Binding IsTwoDimensional, Mode=TwoWay}" Padding="10,5" />
-                <RadioButton Content="3D" GroupName="ElectrodePositionView" Margin="6,0,0,0"
-                             IsChecked="{Binding IsThreeDimensional, Mode=TwoWay}"
-                             Checked="OnThreeDimensionalChecked" Padding="10,5" />
-            </StackPanel>
+            <Border Grid.Row="0" HorizontalAlignment="Right" Background="#F1F5F8"
+                    BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="8" Padding="3" Margin="0,0,0,10">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Content="2D" GroupName="ElectrodePositionView"
+                                 Style="{StaticResource PositionViewSegmentStyle}"
+                                 IsChecked="{Binding IsTwoDimensional, Mode=TwoWay}" />
+                    <RadioButton Content="3D" GroupName="ElectrodePositionView" Margin="2,0,0,0"
+                                 Style="{StaticResource PositionViewSegmentStyle}"
+                                 IsChecked="{Binding IsThreeDimensional, Mode=TwoWay}"
+                                 Checked="OnThreeDimensionalChecked" />
+                </StackPanel>
+            </Border>
             <Grid Grid.Row="1">
-                <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12">
+                <Border Background="White" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="8" Padding="14">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -120,7 +159,7 @@
                                                 IsHitTestVisible="{Binding HasEditableDraftRows}"
                                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 </Border>
-                <Border Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+                <Border Background="White" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed" />
@@ -136,13 +175,13 @@
                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 </Border>
             </Grid>
-            <Button Grid.Row="2" Content="恢复全部默认模板位置" Click="ResetAllPositions_Click"
+            <Button Grid.Row="2" Content="恢复默认位置" Click="ResetAllPositions_Click"
                     IsEnabled="{Binding HasEditableDraftRows}"
-                    HorizontalAlignment="Right" Margin="0,10,0,0" Padding="14,6">
+                    HorizontalAlignment="Right" Margin="0,10,0,0" Padding="12,6">
             </Button>
         </Grid>
 
         <TextBlock Grid.Row="3" Grid.ColumnSpan="2" Text="{Binding PositionViewHint}"
-                   FontSize="11" Foreground="#64748B" Margin="4,12,0,0" TextWrapping="Wrap" />
+                   FontSize="11" Foreground="#627D98" Margin="4,10,0,0" TextWrapping="Wrap" />
     </Grid>
 </Window>

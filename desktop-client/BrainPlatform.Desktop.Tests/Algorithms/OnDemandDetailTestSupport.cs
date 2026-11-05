@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
 
@@ -16,6 +17,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
     public int FullWindowPreviewCalls { get; private set; }
     public int StructuredPreviewCalls { get; private set; }
     public List<AnalysisRunRequest> FullRunRequests { get; } = [];
+    private AnalysisRunRequest? lastFullRunRequest;
     public Queue<AnalysisRunResponse> PollResponses { get; } = [];
     public Func<AnalysisRunRequest, AnalysisRunResponse> RespondFullRun { get; set; } = ThrowFullRun;
     public Func<string, long, WindowPreviewResponse> RespondFullWindowPreview { get; set; } =
@@ -30,17 +32,25 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
         var fullToPreviewImplementation = supportsFullToPreview ? "implemented" : "unsupported";
         var fullToPreviewValidation = supportsFullToPreview ? "validated" : "not_applicable";
         var capabilityJson = $"{{\"on_demand\":{{\"implementation\":\"implemented\",\"validation\":\"validated\"}},\"combined_preview_background_full\":{{\"implementation\":\"implemented\",\"validation\":\"unvalidated\"}},\"full_result_to_preview\":{{\"implementation\":\"{fullToPreviewImplementation}\",\"validation\":\"{fullToPreviewValidation}\"}}}}";
-        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter())
+        var profile = new HistoricalMontageDescriptor(
+            "fixture-montage", "revision-1", "fingerprint-fixture", "Fixture 导联", true, true, null,
+            [
+                new HistoricalMontageOutput(primaryChannel, primaryChannel, primaryChannel, "V", true, null),
+                new HistoricalMontageOutput(secondaryChannel, secondaryChannel, secondaryChannel, "V", true, null),
+            ]);
+        var selection = new WorkspaceMontageSelection<HistoricalMontageDescriptor>(
+            "recording", profile, [profile]);
+        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter(),
+            initialMontageSelection: selection)
         {
             SelectedAlgorithm = new AlgorithmCatalogItem("official", id, "fixture-v1", id, id, "", [],
                 ["static", "dynamic"], default, new DynamicAnalysisPolicy(4, [5, 10], 5, 1, true),
                 "available", true, null, null, null, JsonDocument.Parse(capabilityJson).RootElement),
         };
+        catalog.MontageProfiles.Add(profile);
         typeof(AlgorithmListViewModel).GetProperty(nameof(AlgorithmListViewModel.RegisteredRecording))!
             .SetValue(catalog, new RegisteredRecording("recording", "fixture", ".wpf", "2026-10-13T00:00:00Z",
                 200, 30, [primaryChannel, secondaryChannel], "hash"));
-        catalog.RegisteredChannels.Add(primaryChannel);
-        catalog.RegisteredChannels.Add(secondaryChannel);
         catalog.SelectedChannel = primaryChannel;
         catalog.SelectedF4Channel = secondaryChannel;
         catalog.EndSecondsText = "30";
@@ -98,14 +108,40 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
     {
         FullRunCalls++;
         FullRunRequests.Add(request);
-        return Task.FromResult(RespondFullRun(request));
+        lastFullRunRequest = request;
+        return Task.FromResult(WithMontageProvenance(RespondFullRun(request), request));
     }
     public Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken token) => throw new NotSupportedException();
     public Task<AnalysisRunResponse> GetRunAsync(string id, CancellationToken token)
     {
         GetRunCalls++;
-        if (PollResponses.TryDequeue(out var response)) return Task.FromResult(response);
+        if (PollResponses.TryDequeue(out var response))
+            return Task.FromResult(lastFullRunRequest is { } request
+                ? WithMontageProvenance(response, request)
+                : response);
         throw new NotSupportedException();
+    }
+
+    private static AnalysisRunResponse WithMontageProvenance(AnalysisRunResponse response, AnalysisRunRequest request)
+    {
+        if (response.Status != "completed" ||
+            !request.Config.TryGetProperty("analysis_montage_id", out var id) ||
+            id.ValueKind != JsonValueKind.String)
+            return response;
+
+        var provenance = JsonSerializer.SerializeToElement(new
+        {
+            channel_mapping = new
+            {
+                analysis_montage = new
+                {
+                    id = id.GetString(),
+                    revision = request.Config.GetProperty("analysis_montage_revision").GetString(),
+                    fingerprint = request.Config.GetProperty("analysis_montage_fingerprint").GetString(),
+                },
+            },
+        });
+        return response with { AnalysisProvenance = provenance };
     }
     public Task<AnalysisRunResponse> CancelRunAsync(string id, CancellationToken token)
     {
@@ -198,9 +234,12 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
     }
 
     internal static WindowPreviewResponse FullPsdWindowPreview(long sample) =>
+        FullPsdWindowPreview(sample, Math.Max(0, sample - 1000), Math.Max(1, sample));
+
+    private static WindowPreviewResponse FullPsdWindowPreview(long sample, long startSample, long endSample) =>
         new(
             "full-run-1", "recording", sample, sample / 200d, "available", [],
-            new WindowPreviewWindow("full-window-1", 0, 0, 1000, "Complete", "valid", []),
+            new WindowPreviewWindow("full-window-1", 0, startSample, endSample, "Complete", "valid", []),
             false, JsonSerializer.SerializeToElement(new { kind = "frequency_series" }),
             JsonSerializer.SerializeToElement("clean"),
             new Dictionary<string, JsonElement>
@@ -213,7 +252,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
             },
             new Dictionary<string, JsonElement>
             {
-                ["psd"] = JsonSerializer.SerializeToElement(new[] { new[] { new[] { 9d, 8d, 7d } } }),
+                ["psd"] = JsonSerializer.SerializeToElement(new[] { new[] { 9d, 8d, 7d } }),
             },
             new Dictionary<string, JsonElement>
             {
@@ -221,7 +260,7 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
             },
             "fixture-v1", "fixture-v1");
 
-    internal static StructuredPreviewResponse FullPsdStructuredPreview() =>
+    internal static StructuredPreviewResponse FullPsdStructuredPreview(int windowCount = 1) =>
         new(
             "full-run-1",
             new RunArtifact("artifact", "full-run-1", "official_algorithm", "artifact.npz",
@@ -229,8 +268,8 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
                 new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
             JsonSerializer.SerializeToElement(new { kind = "frequency_series" }),
             ["F3"],
-            new TimeRange(0, 5),
-            new TimeRange(0, 5),
+            new TimeRange(0, windowCount * 5),
+            new TimeRange(0, windowCount * 5),
             new Dictionary<string, JsonElement>
             {
                 ["frequency_hz"] = JsonSerializer.SerializeToElement(new[] { 1d, 2d, 3d }),
@@ -241,20 +280,21 @@ internal sealed class OnDemandDetailClient : IAlgorithmClient
             },
             new Dictionary<string, JsonElement>
             {
-                ["psd"] = JsonSerializer.SerializeToElement(new[] { new[] { 9d, 8d, 7d } }),
+                ["psd"] = JsonSerializer.SerializeToElement(
+                    Enumerable.Range(0, windowCount)
+                        .Select(_ => new[] { new[] { 9d, 8d, 7d } }).ToArray()),
             },
             new Dictionary<string, JsonElement>
             {
                 ["psd"] = JsonSerializer.SerializeToElement(new { unit = "V^2/Hz" }),
             },
-            [
-                JsonSerializer.SerializeToElement(new
-                {
-                    window_id = "full-window-1", window_index = 0, start_sample = 0,
-                    end_sample = 1000, state = "Complete", quality = "clean",
-                })
-            ],
-            new Dictionary<string, int> { ["Complete"] = 1 },
+            Enumerable.Range(0, windowCount).Select(index => JsonSerializer.SerializeToElement(new
+            {
+                window_id = $"full-window-{index}", window_index = index,
+                start_sample = index * 1000, end_sample = (index + 1) * 1000,
+                state = "Complete", quality = "clean",
+            })).ToArray(),
+            new Dictionary<string, int> { ["Complete"] = windowCount },
             JsonSerializer.SerializeToElement("clean"), "fixture-v1", "fixture-v1");
 
     internal static StructuredPreviewResponse FullStftStructuredPreview() =>

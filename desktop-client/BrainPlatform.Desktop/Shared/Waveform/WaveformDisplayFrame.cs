@@ -4,11 +4,12 @@ public readonly record struct WaveformDisplayRequestContext(
     Guid RecordingId,
     string SourceRevision,
     long ViewGeneration,
-    Guid RequestId)
+    Guid RequestId,
+    long MontageRevision = 0)
 {
     public bool IsValid => RecordingId != Guid.Empty &&
                            !string.IsNullOrWhiteSpace(SourceRevision) &&
-                           ViewGeneration > 0 && RequestId != Guid.Empty;
+                           ViewGeneration > 0 && RequestId != Guid.Empty && MontageRevision >= 0;
 }
 
 public sealed record WaveformDisplayFrame<TPayload>(

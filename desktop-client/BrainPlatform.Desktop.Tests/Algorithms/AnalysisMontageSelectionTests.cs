@@ -4,6 +4,7 @@ using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
 using BrainPlatform.Desktop.Modules.Algorithms.Views.Shared;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 using BrainPlatform.Desktop.Tests.Shared;
 
 namespace BrainPlatform.Desktop.Tests.Algorithms;
@@ -14,12 +15,14 @@ public sealed class AnalysisMontageSelectionTests
     public void Analysis_target_binds_montage_selector_and_preserves_role_when_switching_profiles() =>
         WpfTestApplication.Run(() =>
         {
-            var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter());
             var reference = Profile("reference", "REF", true, "F3-REF");
             var average = Profile("average", "AV", false, "F3-AV");
+            var selection = new WorkspaceMontageSelection<HistoricalMontageDescriptor>(
+                "fixture-recording", reference, [reference, average]);
+            var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter(),
+                initialMontageSelection: selection);
             catalog.MontageProfiles.Add(reference);
             catalog.MontageProfiles.Add(average);
-            catalog.SelectedMontageProfile = reference;
             catalog.SelectedChannel = "F3-REF";
 
             var card = new AnalysisTargetCard { DataContext = catalog };
@@ -90,6 +93,65 @@ public sealed class AnalysisMontageSelectionTests
 
         var outputs = config.GetProperty("analysis_montage_outputs").EnumerateArray().ToArray();
         Assert.Equal(["Fp1-REF", "Fp2-REF"], outputs.Select(output => output.GetProperty("output").GetString()));
+    }
+
+    [Fact]
+    public void Algorithm_workspaces_keep_separate_selection_instances()
+    {
+        var reference = Profile("reference", "REF", true, "F3-REF");
+        var average = Profile("average", "AV", false, "F3-AV");
+        var firstSelection = new WorkspaceMontageSelection<HistoricalMontageDescriptor>(
+            "first", reference, [reference, average]);
+        var secondSelection = new WorkspaceMontageSelection<HistoricalMontageDescriptor>(
+            "second", reference, [reference, average]);
+        var first = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter(),
+            initialMontageSelection: firstSelection);
+        var second = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter(),
+            initialMontageSelection: secondSelection);
+
+        first.MontageProfiles.Add(reference);
+        first.MontageProfiles.Add(average);
+        second.MontageProfiles.Add(reference);
+        second.MontageProfiles.Add(average);
+        first.SelectedMontageProfile = average;
+
+        Assert.NotSame(first.MontageSelection, second.MontageSelection);
+        Assert.Same(average, first.SelectedMontageProfile);
+        Assert.Same(reference, second.SelectedMontageProfile);
+    }
+
+    [Fact]
+    public void Missing_role_after_switch_clears_channel_instead_of_using_positional_fallback()
+    {
+        var reference = Profile("reference", "REF", true, "F3-REF");
+        var average = new HistoricalMontageDescriptor(
+            "average", "revision-1", "fingerprint-average", "AV", false, true, null,
+            [new HistoricalMontageOutput("Pz-AV", "Pz-AV", "Pz", "V", true, null)]);
+        var selection = new WorkspaceMontageSelection<HistoricalMontageDescriptor>(
+            "fixture", reference, [reference, average]);
+        var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter(),
+            initialMontageSelection: selection);
+
+        catalog.SelectedMontageProfile = average;
+
+        Assert.Equal(["Pz-AV"], catalog.RegisteredChannels);
+        Assert.Equal(string.Empty, catalog.SelectedChannel);
+    }
+
+    [Fact]
+    public async Task Disposed_algorithm_workspace_detaches_selection_events()
+    {
+        var reference = Profile("reference", "REF", true, "F3-REF");
+        var average = Profile("average", "AV", false, "F3-AV");
+        var selection = new WorkspaceMontageSelection<HistoricalMontageDescriptor>(
+            "fixture", reference, [reference, average]);
+        var catalog = new AlgorithmListViewModel(new UnsupportedAlgorithmClient(), new OperationNotificationCenter(),
+            initialMontageSelection: selection);
+
+        await catalog.DisposeAsync();
+        selection.Select(average);
+
+        Assert.Null(catalog.MontageSelection);
     }
 
     private static HistoricalMontageDescriptor Profile(string id, string label, bool isDefault, string output) => new(

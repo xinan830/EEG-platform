@@ -33,12 +33,9 @@ public sealed partial class AlgorithmListViewModel
 
     private void ScheduleAutomaticRun()
     {
-        configurationRevision++;
-        runCoordinator.SupersedeForeground(configurationRevision);
+        InvalidateAlgorithmConfiguration();
         if (LastRun is { Status: "queued" or "running" } obsoleteRun)
             _ = CancelObsoleteRunAsync(obsoleteRun);
-        InvalidateBackgroundFullRunDisplay();
-        if (IsOnDemandAnalysis) ClearWindowAnalysis();
         if (disposed || detailSuspended) return;
         if (SelectedProjectRecording is not { Status: "已完成" } ||
             RegisteredRecording is null ||
@@ -117,23 +114,20 @@ public sealed partial class AlgorithmListViewModel
         foreach (var profile in HistoricalMontageCatalogue.Deduplicate(
                      RegisteredRecording.MontageCatalogue ?? []))
             MontageProfiles.Add(profile);
+        InitializeAlgorithmMontageSelection(RegisteredRecording.Id);
+        if (montageSelection is null || montageSelection.AvailableMontages.Count == 0)
+            throw new InvalidOperationException("注册记录没有可用的历史导联配置。");
         RaisePropertyChanged(nameof(HasRegisteredChannels));
-        foreach (var channel in RegisteredRecording.Channels
-                     .Where(channel => !string.IsNullOrWhiteSpace(channel))
-                     .Select(channel => channel.Trim())
-                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        if (montageSelection.SelectedMontage is null)
         {
-            RegisteredChannels.Add(channel);
+            SelectedChannel = string.Empty;
+            SelectedF4Channel = string.Empty;
         }
-
-        if (RegisteredChannels.Count == 0)
-            throw new InvalidOperationException("注册记录没有可分析的 EEG 通道。");
-        RaisePropertyChanged(nameof(HasRegisteredChannels));
-        SelectedMontageProfile = MontageProfiles.FirstOrDefault(profile => profile.IsAcquisitionDefault && profile.Available)
-            ?? MontageProfiles.FirstOrDefault(profile => profile.Available);
-        if (SelectedMontageProfile is null)
-            SelectedChannel = RegisteredChannels[0];
-        SelectedF4Channel = RegisteredChannels.Count > 1 ? RegisteredChannels[1] : string.Empty;
+        else
+        {
+            SelectedChannel = RegisteredChannels.FirstOrDefault() ?? string.Empty;
+            SelectedF4Channel = RegisteredChannels.Count > 1 ? RegisteredChannels[1] : string.Empty;
+        }
         ApplyAlgorithmChannelDefaults();
         RefreshTnkRoleChannels();
         EndSecondsText = RegisteredRecording.DurationSeconds.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);

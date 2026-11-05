@@ -344,6 +344,7 @@ public sealed partial class AlgorithmListViewModel
         if (disposed) return;
         disposed = true;
         configurationRevision++;
+        ClearAlgorithmMontageSelection();
         automaticRunDebounceTimer.Stop();
         dynamicPreviewTimer.Stop();
         StopBackgroundObservation();

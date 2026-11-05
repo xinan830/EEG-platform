@@ -1,7 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
+using BrainPlatform.Desktop.Modules.Review.ViewModels;
+using BrainPlatform.Desktop.Shared.Controls.Topomap;
 using BrainPlatform.Desktop.Tests.Algorithms;
 using BrainPlatform.Desktop.Tests.Shared;
 
@@ -30,15 +33,16 @@ public sealed class PsdReviewSelectorTests
 
             var expected = new[]
             {
-                (Id: "delta", Label: "Delta · 1–4 Hz"),
-                (Id: "theta", Label: "Theta · 4–8 Hz"),
-                (Id: "alpha", Label: "Alpha · 8–13 Hz"),
-                (Id: "beta", Label: "Beta · 13–30 Hz"),
-                (Id: "gamma", Label: "Gamma · 30–50 Hz"),
+                (Id: "", Label: "全部频段"),
+                (Id: "delta", Label: "Delta 波"),
+                (Id: "theta", Label: "Theta 波"),
+                (Id: "alpha", Label: "Alpha 波"),
+                (Id: "beta", Label: "Beta 波"),
+                (Id: "gamma", Label: "Gamma 波"),
             };
             Assert.Equal(expected, model.TopomapBandOptions.Select(option => (option.Id, option.Label)));
 
-            foreach (var option in expected)
+            foreach (var option in expected.Where(option => option.Id.Length > 0))
             {
                 selector.SelectedValue = option.Id;
                 Arrange(panel);
@@ -47,7 +51,42 @@ public sealed class PsdReviewSelectorTests
                 Assert.Equal($"psd.band-mean-density.{option.Id}", model.SelectedTopomapFieldId);
                 Assert.Contains(Descendants<TextBlock>(selector), text => text.Text == option.Label);
             }
+
+            selector.SelectedValue = "";
+            Arrange(panel);
+            Assert.True(model.IsAllTopomapBandsSelected);
+            Assert.Equal(expected.Skip(1).Select(option => $"psd.band-mean-density.{option.Id}"),
+                model.SelectedTopomapFieldIds);
+
+            model.ApplyTopomap(CreateAllBandResponse());
+            Arrange(panel);
+            var allBandMaps = Descendants<ItemsControl>(panel).Single(control =>
+                ReferenceEquals(control.ItemsSource, model.TopomapBands));
+            Assert.Equal(Visibility.Visible, allBandMaps.Visibility);
+            Assert.Equal(5, allBandMaps.Items.Count);
+            Assert.Equal(5, Descendants<TopomapCanvas>(allBandMaps).Count());
         });
+    }
+
+    [Fact]
+    public void Psd_map_titles_use_concise_band_names()
+    {
+        var field = new TopomapField("psd.band-mean-density.alpha", "Alpha 平均 PSD (8–13 Hz)", "V^2/Hz",
+            null, [], null, "unavailable", [], [], null, null, [8, 13]);
+
+        Assert.Equal("Alpha 波", TopomapCanvas.FieldName(field));
+    }
+
+    private static TopomapResponse CreateAllBandResponse()
+    {
+        var bands = new[] { (Id: "delta", Low: 1d, High: 4d), (Id: "theta", Low: 4d, High: 8d),
+            (Id: "alpha", Low: 8d, High: 13d), (Id: "beta", Low: 13d, High: 30d),
+            (Id: "gamma", Low: 30d, High: 50d) };
+        var fields = bands.Select(band => new TopomapField($"psd.band-mean-density.{band.Id}",
+            $"{band.Id} 平均 PSD ({band.Low:g}–{band.High:g} Hz)", "V^2/Hz",
+            null, [], null, "unavailable", [], [], null, null, [band.Low, band.High])).ToArray();
+        return new TopomapResponse("window", "recording", 10, 20, "unavailable", "psd-v1", "build",
+            "montage_position_snapshot", "mri", "m", fields, null, null);
     }
 
     private static void Arrange(FrameworkElement element)
