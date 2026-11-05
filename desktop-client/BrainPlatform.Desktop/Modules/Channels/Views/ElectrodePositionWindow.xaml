@@ -55,10 +55,28 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.ColumnSpan="2" Margin="0,0,0,16">
-            <TextBlock Text="电极位置" FontSize="20" FontWeight="SemiBold" Foreground="#102A43" />
-            <TextBlock Text="仅列出已启用的 EEG 通道。选择通道后可在 2D 图中调整位置；REF 与 GND 标记可单独移动。" FontSize="12" Foreground="#627D98" Margin="0,5,0,0" TextWrapping="Wrap" />
-        </StackPanel>
+        <Grid Grid.ColumnSpan="2" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="电极位置" FontSize="20" FontWeight="SemiBold" Foreground="#102A43" />
+                <TextBlock Text="仅列出已启用的 EEG 通道。选择通道后可在 2D 图中调整位置；REF 与 GND 标记可单独移动。" FontSize="12" Foreground="#627D98" Margin="0,5,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+            <Border Grid.Column="1" VerticalAlignment="Top" Background="#F1F5F8"
+                    BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="8" Padding="3">
+                <StackPanel Orientation="Horizontal">
+                    <RadioButton Content="2D" GroupName="ElectrodePositionView"
+                                 Style="{StaticResource PositionViewSegmentStyle}"
+                                 IsChecked="{Binding IsTwoDimensional, Mode=TwoWay}" />
+                    <RadioButton Content="3D" GroupName="ElectrodePositionView" Margin="2,0,0,0"
+                                 Style="{StaticResource PositionViewSegmentStyle}"
+                                 IsChecked="{Binding IsThreeDimensional, Mode=TwoWay}"
+                                 Checked="OnThreeDimensionalChecked" />
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <Border Grid.Row="1" Background="White" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,16,0">
             <Grid>
@@ -124,23 +142,10 @@
 
         <Grid Grid.Row="1" Grid.Column="1">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Border Grid.Row="0" HorizontalAlignment="Right" Background="#F1F5F8"
-                    BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="8" Padding="3" Margin="0,0,0,10">
-                <StackPanel Orientation="Horizontal">
-                    <RadioButton Content="2D" GroupName="ElectrodePositionView"
-                                 Style="{StaticResource PositionViewSegmentStyle}"
-                                 IsChecked="{Binding IsTwoDimensional, Mode=TwoWay}" />
-                    <RadioButton Content="3D" GroupName="ElectrodePositionView" Margin="2,0,0,0"
-                                 Style="{StaticResource PositionViewSegmentStyle}"
-                                 IsChecked="{Binding IsThreeDimensional, Mode=TwoWay}"
-                                 Checked="OnThreeDimensionalChecked" />
-                </StackPanel>
-            </Border>
-            <Grid Grid.Row="1">
+            <Grid Grid.Row="0">
                 <Border Background="White" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="8" Padding="14">
                     <Border.Style>
                         <Style TargetType="Border">
@@ -175,7 +180,7 @@
                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 </Border>
             </Grid>
-            <Button Grid.Row="2" Content="恢复默认位置" Click="ResetAllPositions_Click"
+            <Button Grid.Row="1" Content="恢复默认位置" Click="ResetAllPositions_Click"
                     IsEnabled="{Binding HasEditableDraftRows}"
                     HorizontalAlignment="Right" Margin="0,10,0,0" Padding="12,6">
             </Button>
