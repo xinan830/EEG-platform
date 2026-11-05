@@ -101,7 +101,7 @@ public sealed class StftReviewPresentationTests
         parameters.Initialize(recording, algorithm, null);
         parameters.Channel = "F7";
         parameters.Initialize(recording, algorithm, null);
-        var config = parameters.BuildConfig(40, 200);
+        var config = parameters.BuildConfig(40, 200, null);
         Assert.Equal("F7", config.GetProperty("channel").GetString());
         Assert.Equal("spectrogram-v3-bounded", config.GetProperty("scientific_version").GetString());
         Assert.Equal(5, config.GetProperty("dynamic_window_s").GetDouble());
@@ -109,9 +109,9 @@ public sealed class StftReviewPresentationTests
         Assert.Equal(40, config.GetProperty("time").GetProperty("end_s").GetDouble());
         Assert.Equal(50, config.GetProperty("high_hz").GetDouble());
         Assert.Equal(JsonValueKind.Null, config.GetProperty("analysis_montage_outputs").ValueKind);
-        Assert.Throws<InvalidOperationException>(() => parameters.BuildConfig(40, 100));
+        Assert.Throws<InvalidOperationException>(() => parameters.BuildConfig(40, 100, null));
         parameters.Channel = "missing";
-        Assert.Throws<InvalidOperationException>(() => parameters.BuildConfig(40, 200));
+        Assert.Throws<InvalidOperationException>(() => parameters.BuildConfig(40, 200, null));
     }
 
     internal static async Task<WindowPreviewResponse> Ready()
@@ -135,9 +135,9 @@ public sealed class StftReviewPresentationTests
              new HistoricalMontageOutput("F7-AVG", "F7", "F7", "V", true, null)]);
         var parameters = new ReviewStftParameters();
         parameters.Initialize(recording, algorithm, original);
-        parameters.SelectMontage(recording, replacement);
+        parameters.RefreshInputOptions(recording, original, replacement);
 
-        var config = parameters.BuildConfig(40, 200);
+        var config = parameters.BuildConfig(40, 200, replacement);
 
         Assert.Equal(["F3-AVG", "F7-AVG"], parameters.Channels);
         Assert.Equal("F7-AVG", config.GetProperty("channel").GetString());
@@ -168,7 +168,7 @@ public sealed class StftReviewPresentationTests
         foreach (var (channel, role) in new[] { ("Fp1-REF", "Fp1"), ("F7-REF", "F7") })
         {
             parameters.Channel = channel;
-            var config = parameters.BuildConfig(40, 200);
+            var config = parameters.BuildConfig(40, 200, montage);
             var output = Assert.Single(config.GetProperty("analysis_montage_outputs").EnumerateArray());
             Assert.Equal(config.GetProperty("channel").GetString(), output.GetProperty("output").GetString());
             Assert.Equal(channel, output.GetProperty("output").GetString());

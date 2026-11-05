@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
+import logging
+from types import SimpleNamespace
 from typing import Any
 
 from app.algorithm_runtime.contracts import AlgorithmFailure, AlgorithmResult
 from .official import IAPFEstimate, estimate_iapf
+
+_LOGGER = logging.getLogger("brain_platform.iapf")
 
 
 def compute_iapf(
@@ -12,6 +17,7 @@ def compute_iapf(
     channel: str,
     requested_range: dict[str, float],
     actual_range: dict[str, float] | None = None,
+    recording_id: str | None = None,
 ) -> AlgorithmResult:
     source_quality: dict[str, Any] = {}
     if (clean_segments := getattr(spectrum, "clean_epochs", None)) is not None:
@@ -23,6 +29,30 @@ def compute_iapf(
     source_quality["gate_failed"] = getattr(spectrum, "gate_failed", None)
     source_quality["rejected_reasons"] = list(getattr(spectrum, "rejected_reasons", []))
     estimate: IAPFEstimate = estimate_iapf(spectrum)
+    segment_psd = getattr(spectrum, "welch_segments_psd", None)
+    segment_offsets = getattr(spectrum, "welch_segment_offsets_s", ())
+    if segment_psd is not None and len(segment_offsets) == len(segment_psd):
+        segment_diagnostics = []
+        for index, (offset_s, psd) in enumerate(zip(segment_offsets, segment_psd, strict=True)):
+            segment = estimate_iapf(SimpleNamespace(
+                freqs=spectrum.freqs, psd=psd, gate_failed=None,
+            ))
+            segment_diagnostics.append({
+                "index": index,
+                "start_s": round(float(requested_range["start_s"]) + offset_s, 6),
+                "peak_hz": segment.peak_hz,
+                "cog_hz": segment.cog,
+                "source": segment.source,
+                "model_r2": segment.model_r2,
+                "peak_prominence_ratio": segment.peak_prominence_ratio,
+                "peak_width_bins": segment.peak_width_bins,
+            })
+        _LOGGER.info(
+            "iapf_welch_segment_diagnostics recording_id=%s channel=%s window_start_s=%.3f window_end_s=%.3f segments=%s",
+            recording_id or "unknown", channel,
+            requested_range["start_s"], requested_range["end_s"],
+            json.dumps(segment_diagnostics, separators=(",", ":"), allow_nan=False),
+        )
     if estimate.value is None:
         failure = AlgorithmFailure(
             code=estimate.gate_failed or "IAPF_UNAVAILABLE",

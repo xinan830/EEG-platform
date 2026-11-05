@@ -30,7 +30,7 @@ public sealed class ReviewPsdAnalysisTests
         var parameters = new ReviewPsdParameters();
         parameters.Initialize(recording, algorithm, montage);
 
-        var config = parameters.BuildConfig(40, 200);
+        var config = parameters.BuildConfig(40, 200, montage);
 
         Assert.Equal("psd", config.GetProperty("algorithm_id").GetString());
         Assert.Equal("fixture-psd-v1", config.GetProperty("scientific_version").GetString());

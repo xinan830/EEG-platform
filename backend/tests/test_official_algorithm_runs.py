@@ -78,7 +78,7 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
     assert completed.definition_id is not None
     assert completed.definition_version == "1.0.0"
     assert completed.scientific_version == "official-iapf-v5"
-    assert completed.result_summary["implementation_identity"] == "iapf-runtime-v6-20s-alpha-evidence"
+    assert completed.result_summary["implementation_identity"] == "iapf-runtime-v7-20s-segment-diagnostics"
     assert completed.result_summary["artifacts"][0]["sha256"]
     metric = completed.result_summary["metric"]
     assert metric["output"]["unit"] == "Hz"

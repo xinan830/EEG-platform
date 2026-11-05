@@ -73,7 +73,7 @@
       "canonical_import": "app.algorithms.iapf.official.estimate_iapf",
       "owner": "algorithms",
       "scientific_version": "official-iapf-v5",
-      "implementation_identity": "iapf-runtime-v6-20s-alpha-evidence",
+      "implementation_identity": "iapf-runtime-v7-20s-segment-diagnostics",
       "authority": true,
       "executable": true,
       "reference_only": false

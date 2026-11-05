@@ -30,6 +30,7 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
             channel=inputs.channel,
             requested_range={"start_s": start_s, "end_s": end_s},
             actual_range={"start_s": start_s, "end_s": end_s},
+            recording_id=inputs.recording_id,
         )
 
     def parameter_schema(self) -> ParameterSchema:
@@ -68,7 +69,8 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
         low_hz, high_hz = ANALYSIS_CONTRACT["bandpass_hz"]
         return loader(start_s=start_s, window_s=window_s, channels=[channel],
                       filter_low_hz=low_hz, filter_high_hz=high_hz,
-                      output_low_hz=1.0, output_high_hz=30.0, notch_hz=notch_hz)
+                      output_low_hz=1.0, output_high_hz=30.0, notch_hz=notch_hz,
+                      include_welch_segments=True)
 
     def execute_static(self, inputs: AlgorithmInputs, config: IapfConfig) -> AlgorithmResult:
         duration = config.end_s - config.start_s
@@ -79,6 +81,7 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
             channel=inputs.channel,
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
             actual_range={"start_s": config.start_s, "end_s": config.start_s + duration},
+            recording_id=inputs.recording_id,
         )
 
     def execute_dynamic(self, inputs: AlgorithmInputs, config: IapfConfig) -> AlgorithmSeriesResult:
@@ -106,6 +109,7 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
                 results.append(compute_iapf(
                     spectrum, channel=inputs.channel,
                     requested_range=requested_range, actual_range=requested_range,
+                    recording_id=inputs.recording_id,
                 ))
             except SpectralQualityGateError as exc:
                 # A rejected dynamic window is evidence for that point, not a

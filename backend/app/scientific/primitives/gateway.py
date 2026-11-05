@@ -41,8 +41,12 @@ class ScientificSpectralGateway:
         *,
         low_hz: float | None = None,
         high_hz: float | None = None,
+        include_segments: bool = False,
     ) -> SpectralEstimate:
-        return estimate_welch_psd(data, sfreq_hz, low_hz=low_hz, high_hz=high_hz)
+        return estimate_welch_psd(
+            data, sfreq_hz, low_hz=low_hz, high_hz=high_hz,
+            include_segments=include_segments,
+        )
 
     def spectrogram(self, data: np.ndarray, sfreq_hz: float, *, low_hz: float = 1.0, high_hz: float = 30.0) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[dict[str, Any]]]:
         return estimate_spectrogram_with_quality(data, sfreq_hz, low_hz=low_hz, high_hz=high_hz)

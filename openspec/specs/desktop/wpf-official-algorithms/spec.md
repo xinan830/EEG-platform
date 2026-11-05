@@ -42,14 +42,22 @@ rules or infer channel roles from display names or channel positions.
 
 ### Requirement: WPF submits a traceable offline Run
 
-The WPF workspace SHALL submit an official Run only for a successfully registered Recording
-and SHALL include the selected algorithm ID, exact scientific version, explicit source
-channel roles, selected historical analysis montage identity, exact analysis output
-channels, requested range, mode, and validated parameter values. The montage identity
-and output mapping SHALL be part of the scientific configuration and SHALL NOT be inferred
-from the display montage. Explicit current compatible profiles SHALL be submitted for backend
-validation and separate immutable persistence before they can be selected for a Run; the
-response SHALL identify acquisition versus analysis-configuration snapshot provenance.
+The WPF algorithm-detail workspace SHALL submit an official Run only for a successfully
+registered Recording and SHALL include the selected algorithm ID, exact scientific version,
+explicit source channel roles, its selected historical analysis montage identity, exact
+analysis output channels and order, requested range, mode, and validated parameter values.
+Every recording-review algorithm panel SHALL build requests from one captured revision of its
+workspace's shared montage selection; panels SHALL NOT maintain separate montage selections.
+In both workspaces, montage identity and output mapping SHALL be part of scientific request
+identity and SHALL NOT be inferred from waveform output. Explicit current compatible profiles
+SHALL be validated and persisted as immutable snapshots before selection; provenance SHALL
+distinguish acquisition from analysis snapshots.
+
+#### Scenario: Submit a Run using the current review-workspace selection
+
+- **WHEN** a review algorithm has valid required roles and a valid requested range
+- **THEN** the request contains the one active workspace montage snapshot and its resolved ordered outputs
+- **AND** WPF performs no scientific calculation locally
 
 #### Scenario: Static Run is submitted
 
@@ -64,11 +72,23 @@ response SHALL identify acquisition versus analysis-configuration snapshot prove
 - **THEN** the request contains AV and the corresponding output channel names
 - **AND** the request does not contain the prior REF output as the active analysis input
 
+#### Scenario: The review selection changes while a request is prepared
+
+- **WHEN** the workspace montage revision changes before request submission is committed
+- **THEN** WPF discards or rebuilds the request from one latest selection snapshot
+- **AND** it does not submit montage identity and channel mappings captured from different revisions
+
 #### Scenario: Montage mapping is unavailable
 
 - **WHEN** the requested montage cannot resolve one of the recorded source channels
 - **THEN** WPF refuses submission with a structured mapping error
 - **AND** no Run is created
+
+#### Scenario: A selected review montage cannot resolve a required role
+
+- **WHEN** the shared review selection cannot provide one or more required algorithm roles
+- **THEN** WPF refuses submission with a structured mapping error
+- **AND** it creates no Run and does not substitute a prior montage or positional channel
 
 ### Requirement: WPF tracks Run and result provenance
 

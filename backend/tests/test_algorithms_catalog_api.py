@@ -166,7 +166,7 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
         "brainbeat": ("official-brainbeat-v6-classic-absolute", "brainbeat-runtime-v6-classic-fixed-band-absolute"),
         "brainbeat_individualized": ("official-brainbeat-individualized-v1-relative", "brainbeat-individualized-runtime-v1-iapf-relative"),
         "faa": ("official-faa-v2", "faa-runtime-v2"),
-        "iapf": ("official-iapf-v5", "iapf-runtime-v6-20s-alpha-evidence"),
+        "iapf": ("official-iapf-v5", "iapf-runtime-v7-20s-segment-diagnostics"),
         "peak_frequency": ("official-peak-frequency-v2", "peak-frequency-runtime-v3-shared-1-50-notch"),
         "psd": ("offline-spectral-v6-shared-1-50-notch", "psd-runtime-v6-shared-1-50-notch"),
         "rbp": ("official-rbp-v4", "rbp-runtime-v7-configurable-notch"),

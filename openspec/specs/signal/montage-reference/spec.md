@@ -24,17 +24,19 @@ The current mapping SHALL require distinct Fz, Pz, and Oz source channels and SH
 
 ### Requirement: Separate display montage from analysis reference
 
-The system SHALL keep the review display montage, acquisition montage, and algorithm analysis
-montage as explicit separate concepts. The algorithm analysis montage SHALL be selected from
-the immutable acquisition catalogue or an explicitly submitted, backend-validated, persisted
-analysis snapshot bound to recorded channels, and SHALL be included in scientific request identity.
-The system SHALL NOT infer the scientific analysis reference from a waveform display montage.
+The system SHALL keep the acquisition montage, the recording-review workspace selection, and
+immutable analysis provenance distinct. Within one active recording-review workspace, the
+selected montage snapshot SHALL be the shared source for waveform display and algorithm input
+mapping; algorithm panels SHALL NOT keep an independent montage selection. Other algorithm-detail
+workspaces SHALL use an explicit selected analysis montage and SHALL NOT infer it from waveform
+display state. Scientific requests SHALL identify the exact selected snapshot and resolved input
+mapping, while acquisition snapshots and completed historical Runs remain immutable.
 
-#### Scenario: Select an average display montage
+#### Scenario: Select an average workspace montage
 
-- **WHEN** the user changes the viewer montage
-- **THEN** the fixed algorithm analysis montage remains unchanged
-- **AND** no official algorithm Run is reused or recomputed solely because of the display change
+- **WHEN** the user changes the recording-review workspace montage to average reference
+- **THEN** waveform display and algorithm input mapping both use that average-reference snapshot
+- **AND** any subsequent scientific request uses a new identity for the selected mapping
 
 #### Scenario: Select an analysis montage in the algorithm detail
 
@@ -42,6 +44,24 @@ The system SHALL NOT infer the scientific analysis reference from a waveform dis
 - **THEN** the corresponding recorded source mapping is projected for analysis
 - **AND** the analysis request and provenance identify AV
 - **AND** the viewer display montage remains independent
+
+#### Scenario: Change montage while viewing a review algorithm panel
+
+- **WHEN** the user changes the montage from an algorithm panel in recording review
+- **THEN** the single workspace selection changes
+- **AND** waveform display and every algorithm panel observe that same selection
+
+#### Scenario: Preserve acquisition and historical provenance
+
+- **WHEN** a review workspace selects a montage other than the acquisition montage
+- **THEN** the raw recording and acquisition snapshot remain unchanged
+- **AND** completed historical results retain their original montage provenance
+
+#### Scenario: A selected montage cannot map a required input
+
+- **WHEN** the selected workspace snapshot cannot provide a required source or semantic role
+- **THEN** the operation reports a structured unavailable or validation reason
+- **AND** it does not infer another montage or substitute a positional channel
 
 ### Requirement: Reject missing montage inputs
 

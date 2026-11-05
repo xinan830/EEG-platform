@@ -5,6 +5,7 @@ import pytest
 
 from app.models.analysis_config import AnalysisConfigRequest
 from app.scientific.primitives.spectral import estimate_spectrogram, estimate_spectrogram_with_quality
+from app.services.algorithm_recording_context import _RecordingAlgorithmContext
 from app.services.recordings import RecordingService
 from app.services.recording_access import RecordingAccessSession, RecordingSourceIdentity
 from app.services.recording_samples import ArraySampleReader
@@ -59,6 +60,30 @@ def test_spectrum_exposes_backend_declared_welch_step(tmp_path, monkeypatch):
     assert payload["welch_contract"]["welch_segment_s"] == 4.0
     assert payload["welch_contract"]["welch_segment_overlap"] == 0.5
     assert payload["welch_contract"]["welch_step_s"] == 2.0
+
+
+def test_welch_segment_psds_are_opt_in_and_keep_output_units(tmp_path, monkeypatch):
+    service, recording = _service(tmp_path)
+    sfreq = 200.0
+    times = np.arange(20 * int(sfreq)) / sfreq
+    data = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    _provide_data(monkeypatch, service, data, sfreq, ["O1"])
+
+    ordinary = service.load_spectrum(recording, 0.0, 20.0, ["O1"])
+    diagnostic = service.load_spectrum(
+        recording, 0.0, 20.0, ["O1"], include_welch_segments=True,
+    )
+    estimate = _RecordingAlgorithmContext._spectral_estimate(diagnostic)
+
+    assert "welch_segments" not in ordinary
+    assert diagnostic["welch_segments"]["offsets_s"] == list(range(0, 18, 2))
+    assert len(diagnostic["welch_segments"]["psd_uV2_per_hz"]) == 9
+    assert len(diagnostic["welch_segments"]["psd_uV2_per_hz"][0][0]) == len(diagnostic["frequencies_hz"])
+    assert estimate.welch_segment_offsets_s == tuple(float(value) for value in range(0, 18, 2))
+    np.testing.assert_allclose(
+        estimate.welch_segments_psd * 1e12,
+        diagnostic["welch_segments"]["psd_uV2_per_hz"],
+    )
 
 
 def test_spectrum_accepts_a_long_recording_range_without_a_fixed_cap(tmp_path, monkeypatch):

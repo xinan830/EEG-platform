@@ -2,6 +2,7 @@ using System.Diagnostics;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
 using BrainPlatform.Desktop.Modules.Review.Waveform;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 using BrainPlatform.Desktop.Shared.Waveform;
 
 namespace BrainPlatform.Desktop.Modules.Review.Playback;
@@ -25,6 +26,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private const double CacheCoverageMultiplier = 1.5;
     private readonly IRecordingAccessSession reader;
     private readonly RecordingMontageCatalogResult catalog;
+    private readonly WorkspaceMontageSelection montageSelection;
     private readonly RecordingReviewWindowCache cache = new();
     private readonly ReviewSourceLoader sourceLoader;
     private readonly ReviewDisplayLevelProvider displayLevelProvider = new();
@@ -40,6 +42,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private int disposed;
 
     public RecordingReviewSession(IRecordingAccessSession reader, RecordingMontageCatalogResult catalog,
+        WorkspaceMontageSelection montageSelection,
         double visibleDurationSeconds, IRecordingReviewFilter? filter = null,
         IReviewPerformanceSink? performanceSink = null)
     {
@@ -47,19 +50,21 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             throw new ArgumentOutOfRangeException(nameof(visibleDurationSeconds));
 
         this.reader = reader;
-        this.catalog = catalog;
+        this.catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        this.montageSelection = montageSelection ?? throw new ArgumentNullException(nameof(montageSelection));
+        if (!string.Equals(montageSelection.RecordingId, reader.Manifest.SessionId.ToString("N"), StringComparison.Ordinal))
+            throw new ArgumentException("导联选择实例与当前录音不匹配。", nameof(montageSelection));
         this.performanceSink = performanceSink ?? ReviewPerformanceDiagnostics.Default;
         sourceLoader = new ReviewSourceLoader(reader, filter, cache,
             (stage, source, window, elapsed) => RecordWindow(stage, source, window, null, elapsed));
         VisibleDurationSeconds = Math.Min(visibleDurationSeconds, reader.DurationSeconds);
-        AcquisitionMontage = catalog.AcquisitionMontage;
-        SelectedViewingMontage = catalog.AcquisitionMontage;
+        montageSelection.SelectionChanged += OnMontageSelectionChanged;
     }
 
     public event EventHandler? Changed;
     public Guid ReviewSessionId { get; } = Guid.NewGuid();
-    public MontageProfile? AcquisitionMontage { get; }
-    public MontageProfile? SelectedViewingMontage { get; private set; }
+    public MontageProfile? AcquisitionMontage => montageSelection.AcquisitionMontage;
+    public MontageProfile? SelectedViewingMontage => montageSelection.SelectedMontage;
     public double PositionSeconds { get; private set; }
     public double ViewportStartSeconds { get; private set; }
     public double DurationSeconds => reader.DurationSeconds;
@@ -230,14 +235,9 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         return LoadViewportAsync(ViewportStartSeconds, positionSeconds ?? PositionSeconds);
     }
 
-    public Task SelectViewingMontageAsync(MontageProfile? montage, double? positionSeconds = null)
+    public Task RefreshMontageSelectionAsync(double? positionSeconds = null)
     {
         ThrowIfDisposed();
-        if (montage is not null && catalog.CompatibleViewingMontages.All(
-                item => !ReferenceEquals(item.Profile, montage)))
-            throw new InvalidOperationException("所选导联与此记录的原始通道不兼容。");
-
-        SelectedViewingMontage = montage;
         return LoadViewportAsync(ViewportStartSeconds, positionSeconds ?? PositionSeconds);
     }
 
@@ -330,6 +330,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
         SupersedePendingLoad();
         lifetime.Cancel();
+        montageSelection.SelectionChanged -= OnMontageSelectionChanged;
         lifetime.Dispose();
         await sourceLoader.DisposeAsync();
         displayLevelBuildGate.Dispose();
@@ -533,5 +534,12 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private void ThrowIfDisposed()
     {
         if (Volatile.Read(ref disposed) != 0) throw new ObjectDisposedException(nameof(RecordingReviewSession));
+    }
+
+    private void OnMontageSelectionChanged(object? sender, WorkspaceMontageSelectionChangedEventArgs e)
+    {
+        SupersedePendingLoad();
+        StatusText = "导联配置已更改，保留当前波形直到新帧就绪。";
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 }

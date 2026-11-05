@@ -13,6 +13,7 @@
   <ItemGroup>
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.5" />
     <PackageReference Include="SciChart" Version="9.1.0.29201" />
+    <PackageReference Include="SharpEDFlib" Version="1.26.0" />
   </ItemGroup>
 
   <ItemGroup>

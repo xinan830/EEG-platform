@@ -1,8 +1,11 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Microsoft.Win32;
+using SharpEDFlib;
 using BrainPlatform.Desktop.Modules.Events.Views;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
 
@@ -117,6 +120,32 @@ public partial class RecordingReviewView : UserControl
     private void OnPlayClick(object sender, RoutedEventArgs e)
     {
         ViewModel?.TogglePlayback();
+    }
+
+    private async void OnExportClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel) return;
+        var dialog = new SaveFileDialog
+        {
+            AddExtension = true,
+            Filter = "EDF+ 脑电文件 (*.edf)|*.edf|BDF+ 脑电文件 (*.bdf)|*.bdf",
+            FileName = "recording-review",
+            OverwritePrompt = true,
+            Title = "导出整段录音脑电数据",
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+
+        var isBdf = dialog.FilterIndex == 2;
+        var format = isBdf ? EDFileType.BDFPlus : EDFileType.EDFPlus;
+        var targetPath = Path.ChangeExtension(dialog.FileName, isBdf ? ".bdf" : ".edf");
+        try
+        {
+            await viewModel.ExportRecordingAsync(targetPath, format);
+        }
+        catch (Exception exception)
+        {
+            viewModel.ReportSignalExportError(exception);
+        }
     }
 
     private void OnPlaybackSpeedClick(object sender, RoutedEventArgs e) => ViewModel?.CyclePlaybackSpeed();

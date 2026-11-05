@@ -17,7 +17,6 @@ public sealed class ReviewScalarParameters(string algorithmId, string? primaryRo
     public IReadOnlyList<string> SecondaryChannels { get; private set; } = [];
     public string? Channel { get => channel; set => SetProperty(ref channel, value); }
     public string? SecondaryChannel { get => secondaryChannel; set => SetProperty(ref secondaryChannel, value); }
-    public HistoricalMontageDescriptor? Montage { get; private set; }
     public string? ScientificVersion { get; private set; }
     public double WindowSeconds { get; private set; }
     public double StepSeconds { get; private set; }
@@ -31,30 +30,29 @@ public sealed class ReviewScalarParameters(string algorithmId, string? primaryRo
         ScientificVersion = algorithm.Version;
         WindowSeconds = algorithm.DynamicPolicy.DefaultWindowSeconds;
         StepSeconds = algorithm.DynamicPolicy.RefreshStepSeconds;
-        UpdateSources(recording, montage);
+        UpdateSources(recording, null, montage);
     }
 
-    public void SelectMontage(RegisteredRecording recording, HistoricalMontageDescriptor? montage)
-    {
-        if (Montage?.Id == montage?.Id && Montage?.Fingerprint == montage?.Fingerprint) return;
-        UpdateSources(recording, montage);
-        RaisePropertyChanged(nameof(Montage));
-    }
+    public void RefreshInputOptions(RegisteredRecording recording, HistoricalMontageDescriptor? previous,
+        HistoricalMontageDescriptor? montage) => UpdateSources(recording, previous, montage);
 
-    public JsonElement BuildConfig(double durationSeconds, double samplingRateHz)
+    public JsonElement BuildConfig(double durationSeconds, double samplingRateHz,
+        HistoricalMontageDescriptor? montage)
     {
         if (!double.IsFinite(durationSeconds) || durationSeconds <= 0 ||
             !double.IsFinite(samplingRateHz) || samplingRateHz <= 100 ||
             string.IsNullOrWhiteSpace(ScientificVersion) || WindowSeconds <= 0 || StepSeconds <= 0)
             throw new InvalidOperationException($"{AlgorithmId} 的科学版本、采样率或窗口声明无效。");
         if (Channel is null || !Channels.Contains(Channel, StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"请选择有效的 {AlgorithmId} 导联。");
+            throw new ReviewInputMappingException("required_role_unavailable",
+                $"{AlgorithmId} 无法从当前导联配置映射角色 {primaryRole ?? "channel"}。", primaryRole ?? "channel");
 
         var paired = secondaryRole is not null;
         if (paired && (SecondaryChannel is null ||
             !SecondaryChannels.Contains(SecondaryChannel, StringComparer.OrdinalIgnoreCase) ||
             string.Equals(Channel, SecondaryChannel, StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"{AlgorithmId} 缺少不同且有效的第二个角色导联。");
+            throw new ReviewInputMappingException("required_role_unavailable",
+                $"{AlgorithmId} 无法从当前导联配置映射角色 {secondaryRole}。", secondaryRole);
 
         var sources = paired ? new[] { Channel, SecondaryChannel! } : [Channel];
         var config = new Dictionary<string, object?>
@@ -72,22 +70,22 @@ public sealed class ReviewScalarParameters(string algorithmId, string? primaryRo
         if (secondaryConfigField is not null) config[secondaryConfigField] = SecondaryChannel;
         if (additionalFields is not null)
             foreach (var (name, value) in additionalFields) config[name] = value;
-        if (Montage is not null)
+        if (montage is not null)
         {
-            config["analysis_montage_id"] = Montage.Id;
-            config["analysis_montage_revision"] = Montage.Revision;
-            config["analysis_montage_fingerprint"] = Montage.Fingerprint;
-            config["analysis_montage_outputs"] = Montage.Outputs.Where(output => output.Available &&
+            config["analysis_montage_id"] = montage.Id;
+            config["analysis_montage_revision"] = montage.Revision;
+            config["analysis_montage_fingerprint"] = montage.Fingerprint;
+            config["analysis_montage_outputs"] = montage.Outputs.Where(output => output.Available &&
                     sources.Contains(output.Id, StringComparer.OrdinalIgnoreCase))
                 .Select(output => new { role = output.Role, output = output.Id, unit = output.Unit }).ToArray();
         }
         return JsonSerializer.SerializeToElement(config);
     }
 
-    private void UpdateSources(RegisteredRecording recording, HistoricalMontageDescriptor? montage)
+    private void UpdateSources(RegisteredRecording recording, HistoricalMontageDescriptor? previous,
+        HistoricalMontageDescriptor? montage)
     {
-        var previousRole = Montage?.Outputs.FirstOrDefault(output => output.Id == Channel)?.Role;
-        Montage = montage;
+        var previousRole = previous?.Outputs.FirstOrDefault(output => output.Id == Channel)?.Role;
         var allChannels = montage is null ? recording.Channels : montage.Outputs.Where(output => output.Available)
             .Select(output => output.Id).ToArray();
         Channels = primaryRole is null ? allChannels : ChannelsForRole(recording, montage, primaryRole);
@@ -97,7 +95,7 @@ public sealed class ReviewScalarParameters(string algorithmId, string? primaryRo
             string.Equals(output.Role, preferred, StringComparison.OrdinalIgnoreCase))?.Id;
         first ??= Channels.FirstOrDefault(value => string.Equals(value, preferred, StringComparison.OrdinalIgnoreCase));
         Channel = Channels.FirstOrDefault(value => string.Equals(value, Channel, StringComparison.OrdinalIgnoreCase))
-            ?? first ?? Channels.FirstOrDefault();
+            ?? first ?? (primaryRole is null ? Channels.FirstOrDefault() : null);
         var second = secondaryRole is null ? null : montage?.Outputs.FirstOrDefault(output => output.Available &&
             string.Equals(output.Role, secondaryRole, StringComparison.OrdinalIgnoreCase))?.Id;
         second ??= secondaryRole is null ? null : SecondaryChannels.FirstOrDefault(value =>

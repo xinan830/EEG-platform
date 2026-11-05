@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+
 import numpy as np
 
+from app.algorithms.iapf import compute as iapf_compute
+from app.algorithms.iapf.compute import compute_iapf
 from app.algorithms.iapf.official import estimate_iapf
 from app.scientific.primitives.spectral import SpectralEstimate
 
@@ -84,3 +88,34 @@ def test_edge_excess_does_not_become_a_local_peak() -> None:
 
     assert estimate.source != "peak"
     assert estimate.peak_hz is None
+
+
+def test_compute_logs_segment_estimates_without_spectral_arrays(monkeypatch) -> None:
+    records = []
+    monkeypatch.setattr(iapf_compute._LOGGER, "info", lambda message, *args: records.append(message % args))
+    freqs = np.arange(1.0, 30.001, 0.25)
+    baseline = 1e-10 / freqs**1.2
+    spectra = []
+    for center in (9.25, 9.5):
+        excess = baseline * np.exp(-0.5 * ((freqs - center) / 0.6) ** 2)
+        excess[(freqs < 7.0) | (freqs > 13.0)] = 0.0
+        spectra.append(baseline + excess)
+    spectrum = _spectrum(np.mean(spectra, axis=0) - baseline)
+    spectrum = SpectralEstimate(
+        spectrum.freqs, spectrum.psd, 1.0, 9, 9, None,
+        welch_segments_psd=np.asarray(spectra)[:, None, :],
+        welch_segment_offsets_s=(0.0, 2.0),
+    )
+
+    compute_iapf(
+        spectrum, channel="O1-REF", recording_id="rec-1",
+        requested_range={"start_s": 58.0, "end_s": 78.0},
+    )
+
+    record = next(item for item in records if "iapf_welch_segment_diagnostics" in item)
+    assert "recording_id=rec-1" in record
+    assert "window_start_s=58.000" in record
+    diagnostics = json.loads(record.split("segments=", 1)[1])
+    assert [item["start_s"] for item in diagnostics] == [58.0, 60.0]
+    assert [item["peak_hz"] for item in diagnostics] == [9.25, 9.5]
+    assert "psd" not in diagnostics[0]

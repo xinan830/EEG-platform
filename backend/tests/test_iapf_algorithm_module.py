@@ -59,11 +59,11 @@ def test_iapf_dynamic_does_not_emit_partial_values_before_a_complete_window(monk
 
 def test_iapf_dynamic_uses_manifest_20_second_sliding_windows(monkeypatch) -> None:
     runtime = _runtime(monkeypatch)
-    calls: list[tuple[float, float]] = []
+    calls: list[tuple[float, float, bool]] = []
     spectrum = SimpleNamespace(gate_failed=None, freqs=np.linspace(1.0, 30.0, 117), psd=np.ones((1, 117), dtype=float))
 
-    def load_spectrum(*, start_s, window_s, channels, **_):
-        calls.append((start_s, window_s))
+    def load_spectrum(*, start_s, window_s, channels, **kwargs):
+        calls.append((start_s, window_s, kwargs.get("include_welch_segments", False)))
         return spectrum
 
     recording = SimpleNamespace(id="r1", channel_names=["Fz"], sfreq_hz=500.0, duration_s=40.0, load_spectrum=load_spectrum)
@@ -79,7 +79,7 @@ def test_iapf_dynamic_uses_manifest_20_second_sliding_windows(monkeypatch) -> No
         {"start_s": 2.0, "end_s": 22.0},
     ]
     assert result.states == ["Complete"] * 3
-    assert calls == [(0.0, 20.0), (1.0, 20.0), (2.0, 20.0)]
+    assert calls == [(0.0, 20.0, True), (1.0, 20.0, True), (2.0, 20.0, True)]
 
 
 def test_iapf_dynamic_manifest_defaults_to_20_seconds_and_one_second(monkeypatch) -> None:

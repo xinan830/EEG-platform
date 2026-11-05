@@ -17,7 +17,7 @@ public sealed class ReviewRbpParametersTests
         var parameters = new ReviewRbpParameters();
         parameters.Initialize(recording, algorithm);
 
-        using var config = JsonDocument.Parse(parameters.BuildConfig(40, 200).GetRawText());
+        using var config = JsonDocument.Parse(parameters.BuildConfig(40, 200, null).GetRawText());
 
         Assert.Equal(10, config.RootElement.GetProperty("dynamic_window_s").GetDouble());
         Assert.Equal(1, config.RootElement.GetProperty("refresh_step_s").GetDouble());

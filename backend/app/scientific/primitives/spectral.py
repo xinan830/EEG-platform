@@ -23,6 +23,8 @@ class SpectralEstimate:
     gate_failed: str | None
     rejected_reasons: tuple[str, ...] = ()
     evidence: dict[str, Any] = field(default_factory=dict)
+    welch_segments_psd: np.ndarray | None = field(default=None, repr=False, compare=False)
+    welch_segment_offsets_s: tuple[float, ...] = ()
 
 
 def _gap_summary(checks: list[Any], values: np.ndarray | None = None, expected_samples: int | None = None) -> dict[str, Any]:
@@ -116,6 +118,7 @@ def estimate_welch_psd(
     low_hz: float | None = None,
     high_hz: float | None = None,
     annotate_artifacts: bool = False,
+    include_segments: bool = False,
 ) -> SpectralEstimate:
     """Average clean Welch segments, or finite artifact-bearing segments when explicitly annotated."""
     values = np.asarray(data, dtype=float)
@@ -126,9 +129,14 @@ def estimate_welch_psd(
     bounds = range(0, max(0, len(values) - segment_samples + 1), step)
     segments = [values[start:start + segment_samples] for start in bounds]
     checks = [evaluate_spectral_window(item, segment_samples) for item in segments]
-    clean = [item for item, check in zip(segments, checks) if check.status == "clean"]
+    clean_indexes = [index for index, check in enumerate(checks) if check.status == "clean"]
+    clean = [segments[index] for index in clean_indexes]
     # Annotation retains artifacts, never missing or non-finite samples.
-    accepted = [item for item, check in zip(segments, checks) if not check.gap.detected] if annotate_artifacts else clean
+    accepted_indexes = (
+        [index for index, check in enumerate(checks) if not check.gap.detected]
+        if annotate_artifacts else clean_indexes
+    )
+    accepted = [segments[index] for index in accepted_indexes]
     rejected_reasons = tuple(dict.fromkeys(reason for check in checks for reason in check.reasons))
     if not segments:
         rejected_reasons = ("missing_samples",)
@@ -172,10 +180,16 @@ def estimate_welch_psd(
     if annotate_artifacts:
         # A zero signal must not acquire synthetic power from the numerical floor.
         density[np.all(averaged == 0, axis=1)] = 0.0
+    segment_psd = np.stack(spectra)[:, :, mask] if include_segments else None
     return SpectralEstimate(
         freqs[mask], density, quality,
         len(clean), len(segments), None, rejected_reasons,
         evidence=evidence,
+        welch_segments_psd=segment_psd,
+        welch_segment_offsets_s=(
+            tuple(index * step / sfreq for index in accepted_indexes)
+            if include_segments else ()
+        ),
     )
 
 

@@ -17,7 +17,7 @@ public sealed class ReviewScalarParametersTests
             new("Pz-REF", "Pz", "Pz", "V", true, null));
         parameters.Initialize(recording, Algorithm("faa"), montage);
 
-        using var config = JsonDocument.Parse(parameters.BuildConfig(100, 500).GetRawText());
+        using var config = JsonDocument.Parse(parameters.BuildConfig(100, 500, montage).GetRawText());
         Assert.Equal("F3-REF", config.RootElement.GetProperty("channel").GetString());
         Assert.Equal("F4-REF", config.RootElement.GetProperty("f4_channel").GetString());
         Assert.Equal(new[] { "F3-REF", "F4-REF" }, config.RootElement.GetProperty("channels")
@@ -34,7 +34,24 @@ public sealed class ReviewScalarParametersTests
             new("Fz", "Fz", "Fz", "V", true, null),
             new("Cz", "Cz", "Cz", "V", true, null)));
 
-        Assert.Throws<InvalidOperationException>(() => parameters.BuildConfig(100, 500));
+        var error = Assert.Throws<ReviewInputMappingException>(() => parameters.BuildConfig(100, 500,
+            Montage(new("Fz", "Fz", "Fz", "V", true, null), new("Cz", "Cz", "Cz", "V", true, null))));
+        Assert.Equal("required_role_unavailable", error.Code);
+        Assert.Equal("Pz", error.Role);
+    }
+
+    [Fact]
+    public void Missing_primary_role_does_not_fall_back_to_the_first_available_output()
+    {
+        var parameters = new ReviewScalarParameters("faa", "F3", "F4", "f4_channel");
+        var montage = Montage(new HistoricalMontageOutput("Cz-REF", "Cz", "Cz", "V", true, null));
+        parameters.Initialize(Recording(), Algorithm("faa"), montage);
+
+        Assert.Empty(parameters.Channels);
+        Assert.Null(parameters.Channel);
+        var error = Assert.Throws<ReviewInputMappingException>(() => parameters.BuildConfig(100, 500, montage));
+        Assert.Equal("required_role_unavailable", error.Code);
+        Assert.Equal("F3", error.Role);
     }
 
     [Fact]
@@ -45,7 +62,7 @@ public sealed class ReviewScalarParametersTests
             new("Pz-REF", "Pz", "Pz", "V", true, null));
         var brainbeat = new ReviewScalarParameters("brainbeat", "Fz", "Pz", "secondary_channel");
         brainbeat.Initialize(Recording(), Algorithm("brainbeat"), montage);
-        using var pair = JsonDocument.Parse(brainbeat.BuildConfig(100, 500).GetRawText());
+        using var pair = JsonDocument.Parse(brainbeat.BuildConfig(100, 500, montage).GetRawText());
         Assert.Equal("Fz-REF", pair.RootElement.GetProperty("channel").GetString());
         Assert.Equal("Pz-REF", pair.RootElement.GetProperty("secondary_channel").GetString());
         Assert.Equal(new[] { "Fz-REF", "Pz-REF" }, pair.RootElement.GetProperty("channels")
@@ -53,7 +70,7 @@ public sealed class ReviewScalarParametersTests
 
         var iapf = new ReviewScalarParameters("iapf");
         iapf.Initialize(Recording(), Algorithm("iapf"), null);
-        using var single = JsonDocument.Parse(iapf.BuildConfig(100, 500).GetRawText());
+        using var single = JsonDocument.Parse(iapf.BuildConfig(100, 500, null).GetRawText());
         Assert.False(single.RootElement.TryGetProperty("secondary_channel", out _));
         Assert.Single(single.RootElement.GetProperty("channels").EnumerateArray());
         Assert.Equal(20, single.RootElement.GetProperty("dynamic_window_s").GetDouble());
@@ -61,7 +78,7 @@ public sealed class ReviewScalarParametersTests
 
         var individualized = new ReviewScalarParameters("brainbeat_individualized", "Fz", "Pz", "secondary_channel");
         individualized.Initialize(Recording(), Algorithm("brainbeat_individualized"), montage);
-        using var individualConfig = JsonDocument.Parse(individualized.BuildConfig(100, 500).GetRawText());
+        using var individualConfig = JsonDocument.Parse(individualized.BuildConfig(100, 500, montage).GetRawText());
         Assert.Equal("brainbeat_individualized", individualConfig.RootElement.GetProperty("algorithm_id").GetString());
         Assert.Equal(20, individualConfig.RootElement.GetProperty("dynamic_window_s").GetDouble());
         Assert.Equal(1, individualConfig.RootElement.GetProperty("refresh_step_s").GetDouble());
@@ -72,11 +89,11 @@ public sealed class ReviewScalarParametersTests
     {
         var parameters = new ReviewScalarParameters("theta_beta");
         parameters.Initialize(Recording(), Algorithm("theta_beta"), null);
-        using var defaults = JsonDocument.Parse(parameters.BuildConfig(100, 500).GetRawText());
+        using var defaults = JsonDocument.Parse(parameters.BuildConfig(100, 500, null).GetRawText());
         Assert.Equal("standard", defaults.RootElement.GetProperty("frequency_mode").GetString());
         parameters.FrequencyMode = "individualized";
 
-        using var config = JsonDocument.Parse(parameters.BuildConfig(100, 500).GetRawText());
+        using var config = JsonDocument.Parse(parameters.BuildConfig(100, 500, null).GetRawText());
         Assert.Equal("individualized", config.RootElement.GetProperty("frequency_mode").GetString());
         Assert.Equal(20, config.RootElement.GetProperty("dynamic_window_s").GetDouble());
         Assert.Equal(1, config.RootElement.GetProperty("refresh_step_s").GetDouble());

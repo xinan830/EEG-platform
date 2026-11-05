@@ -14,12 +14,13 @@ public sealed partial class RecordingReviewViewModelTests
         await using var vm = new RecordingReviewViewModel(new FakeReader(Manifest(Configuration()), 100), catalog);
         using var http = new HttpClient();
         var client = new HttpAlgorithmClient(http);
-        var panels = ReviewAlgorithmPanels.Create(vm);
+        var panels = ReviewAlgorithmPanels.Create(vm, vm.WorkspaceMontageSelection);
 
         Assert.Equal(new[] { "brainbeat", "brainbeat_individualized", "faa", "iapf", "psd", "rbp", "stft", "theta_beta", "tnk_biofeedback" },
             panels.Keys.Order(StringComparer.Ordinal));
         foreach (var panel in panels.Values)
         {
+            Assert.Same(vm.WorkspaceMontageSelection, panel.MontageSelection);
             var coordinator = panel.CreateCoordinator(client);
             Assert.Equal(panel.AlgorithmId, coordinator.AlgorithmId);
             Assert.Equal(panel.AlgorithmId is "psd" or "rbp",
@@ -38,6 +39,55 @@ public sealed partial class RecordingReviewViewModelTests
         var error = Assert.Throws<InvalidOperationException>(() => wrong.CreateCoordinator(client));
         Assert.Contains("psd", error.Message);
         Assert.Contains("rbp", error.Message);
+    }
+
+    [Fact]
+    public async Task Panel_registration_rejects_a_snapshot_after_the_workspace_selection_changes()
+    {
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var alternate = Profile("备用导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(acquisition, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)], []);
+        await using var vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100), catalog);
+        var selection = vm.WorkspaceMontageSelection;
+        var stale = selection.Capture();
+        var registration = ReviewAlgorithmPanels.Create(vm, selection)["stft"];
+
+        Assert.True(selection.Select(alternate));
+        Assert.Throws<InvalidOperationException>(() =>
+            registration.BuildConfigurationForSelection(100, 500, stale, null));
+    }
+
+    [Fact]
+    public async Task Review_workspaces_share_one_selection_with_their_pipeline_and_remain_isolated()
+    {
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var alternate = Profile("备用导联", configuration);
+        var catalog = new RecordingMontageCatalogResult(acquisition, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)], []);
+        await using var firstRecording = new LocalRawRecordingForTest(Manifest(configuration));
+        await using var secondRecording = new LocalRawRecordingForTest(Manifest(configuration));
+        await using var first = new RecordingReviewViewModel(firstRecording.Reader, catalog);
+        await using var second = new RecordingReviewViewModel(secondRecording.Reader, catalog);
+        var before = first.WorkspaceMontageSelection.Capture();
+
+        await first.InitializeAsync();
+        await second.InitializeAsync();
+        await first.SelectViewingMontageAsync(alternate);
+
+        Assert.NotSame(first.WorkspaceMontageSelection, second.WorkspaceMontageSelection);
+        Assert.Equal(0, before.Revision);
+        Assert.Same(acquisition, before.SelectedMontage);
+        Assert.Equal(1, first.WorkspaceMontageSelection.Revision);
+        Assert.Same(alternate, first.CurrentViewingMontage);
+        Assert.Equal(alternate.Name, first.CurrentFrame?.ViewingMontageName);
+        Assert.Equal(0, second.WorkspaceMontageSelection.Revision);
+        Assert.Same(acquisition, second.CurrentViewingMontage);
+        Assert.Equal(acquisition.Name, second.CurrentFrame?.ViewingMontageName);
     }
 
     [Theory]
@@ -77,6 +127,7 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.True(vm.IsAnalysisAttached);
 
         var panel = Assert.IsType<ReviewAlgorithmPanelRegistration>(vm.ActiveAnalysisPanel);
+        Assert.Same(vm.WorkspaceMontageSelection, panel.MontageSelection);
         Assert.Equal(algorithmId, panel.AlgorithmId);
         Assert.Same(panel.Configuration, vm.ActiveScalarParameters);
         Assert.Same(panel.Presentation, vm.ActiveScalarAnalysis);

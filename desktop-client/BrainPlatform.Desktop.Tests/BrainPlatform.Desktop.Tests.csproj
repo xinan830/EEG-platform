@@ -22,6 +22,8 @@
     <ProjectReference Include="..\BrainPlatform.Desktop\BrainPlatform.Desktop.csproj" />
     <None Include="..\..\tests\fixtures\review_cursor_samples.json"
           Link="Fixtures\review_cursor_samples.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\BrainPlatform.Desktop\Modules\Review\Views\RecordingReviewView.xaml"
+          Link="Fixtures\RecordingReviewView.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

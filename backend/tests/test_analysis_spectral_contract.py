@@ -120,10 +120,13 @@ def test_twenty_second_window_averages_nine_accepted_welch_psds():
     times = np.arange(20 * int(sfreq)) / sfreq
     values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
 
-    spectrum = estimate_welch_psd(values, sfreq)
+    spectrum = estimate_welch_psd(values, sfreq, include_segments=True)
 
     assert spectrum.total_epochs == spectrum.clean_epochs == 9
     assert spectrum.gate_failed is None
+    assert spectrum.welch_segments_psd is not None
+    assert spectrum.welch_segments_psd.shape == (9, 1, len(spectrum.freqs))
+    assert spectrum.welch_segment_offsets_s == tuple(float(value) for value in range(0, 18, 2))
     expected = []
     for start_s in range(0, 17, 2):
         freqs, row = signal.welch(
@@ -139,6 +142,7 @@ def test_twenty_second_window_averages_nine_accepted_welch_psds():
     mask = (freqs >= 1.0) & (freqs <= 50.0)
     np.testing.assert_allclose(spectrum.freqs, freqs[mask])
     np.testing.assert_allclose(spectrum.psd[0], np.maximum(np.mean(expected, axis=0), 1e-20)[mask])
+    np.testing.assert_allclose(spectrum.welch_segments_psd[:, 0], np.asarray(expected)[:, mask])
 
 
 def test_twenty_second_window_averages_only_accepted_segments_at_quality_threshold():

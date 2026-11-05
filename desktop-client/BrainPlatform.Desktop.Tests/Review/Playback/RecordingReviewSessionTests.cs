@@ -13,11 +13,12 @@ public sealed class RecordingReviewSessionTests
         var reader = new FakeReader(300, Manifest(configuration));
         var catalog = new RecordingMontageCatalogResult(verified, AcquisitionMontageStatus.Available,
             new RawSignalViewDefinition(["F3", "F4"]), [new CompatibleRecordingMontage(verified)], []);
-        await using var session = new RecordingReviewSession(reader, catalog, visibleDurationSeconds: 10);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog, selection, visibleDurationSeconds: 10);
         var unverified = verified with { Name = "同 ID 未验证对象" };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => session.SelectViewingMontageAsync(unverified));
-        Assert.Same(verified, session.SelectedViewingMontage);
+        Assert.Throws<InvalidOperationException>(() => selection.Select(unverified));
+        Assert.Same(verified, selection.SelectedMontage);
     }
 
     [Fact]
@@ -33,16 +34,21 @@ public sealed class RecordingReviewSessionTests
             new RawSignalViewDefinition(["F3", "F4"]),
             [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)],
             []);
-        await using var session = new RecordingReviewSession(reader, catalog, visibleDurationSeconds: 10);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog, selection, visibleDurationSeconds: 10);
 
         await session.InitializeAsync();
         await session.SeekAsync(125);
-        await session.SelectViewingMontageAsync(alternate);
+        var previousFrame = session.CurrentFrame;
+        selection.Select(alternate);
+        Assert.Same(previousFrame, session.CurrentFrame);
+        await session.RefreshMontageSelectionAsync();
 
         Assert.Same(acquisition, session.AcquisitionMontage);
-        Assert.Same(alternate, session.SelectedViewingMontage);
+        Assert.Same(alternate, selection.SelectedMontage);
         Assert.Equal(125, session.PositionSeconds);
         Assert.Equal(10, session.VisibleDurationSeconds);
+        Assert.NotSame(previousFrame, session.CurrentFrame);
         Assert.Single(session.CurrentFrame!.OutputChannelNames);
     }
 
@@ -61,15 +67,17 @@ public sealed class RecordingReviewSessionTests
             new RawSignalViewDefinition(["F3", "F4"]),
             [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)],
             []);
-        await using var session = new RecordingReviewSession(reader, catalog, visibleDurationSeconds: 10);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog, selection, visibleDurationSeconds: 10);
 
         var initial = session.InitializeAsync();
-        var alternateLoad = session.SelectViewingMontageAsync(alternate);
+        selection.Select(alternate);
+        var alternateLoad = session.RefreshMontageSelectionAsync();
         firstRead.SetResult(Window());
         secondRead.SetResult(Window());
         await Task.WhenAll(initial, alternateLoad);
 
-        Assert.Same(alternate, session.SelectedViewingMontage);
+        Assert.Same(alternate, selection.SelectedMontage);
         Assert.Equal(alternate.Name, session.CurrentFrame!.ViewingMontageName);
     }
 
@@ -86,7 +94,8 @@ public sealed class RecordingReviewSessionTests
             [new CompatibleRecordingMontage(acquisition)],
             []);
         var filter = new FakeFilter();
-        await using var session = new RecordingReviewSession(reader, catalog, 10, filter);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
 
         await session.InitializeAsync();
         await session.SetFilterAsync(new RecordingReviewFilterSettings(0.5, 40, null));
@@ -110,7 +119,8 @@ public sealed class RecordingReviewSessionTests
             new RawSignalViewDefinition(["F3", "F4"]),
             [new CompatibleRecordingMontage(acquisition)],
             []);
-        await using var session = new RecordingReviewSession(reader, catalog, 10);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10);
 
         await session.InitializeAsync();
 
@@ -130,7 +140,8 @@ public sealed class RecordingReviewSessionTests
             [new CompatibleRecordingMontage(acquisition)],
             []);
         var filter = new FakeFilter();
-        await using var session = new RecordingReviewSession(reader, catalog, 10, filter);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
 
         await session.InitializeAsync();
         await session.LoadViewportAsync(5, 5);
@@ -154,7 +165,8 @@ public sealed class RecordingReviewSessionTests
             [new CompatibleRecordingMontage(acquisition)],
             []);
         var filter = new FakeFilter();
-        await using var session = new RecordingReviewSession(reader, catalog, 10, filter);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
 
         await session.InitializeAsync();
         await session.SetFilterAsync(new RecordingReviewFilterSettings(0.5, 40, null));
@@ -178,10 +190,13 @@ public sealed class RecordingReviewSessionTests
             [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)],
             []);
         var filter = new FakeFilter();
-        await using var session = new RecordingReviewSession(reader, catalog, 10, filter);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            selection, 10, filter);
 
         await session.InitializeAsync();
-        await session.SelectViewingMontageAsync(alternate);
+        selection.Select(alternate);
+        await session.RefreshMontageSelectionAsync();
 
         Assert.Equal(2, filter.CallCount);
         Assert.Equal(2, reader.ReadCount);
@@ -203,7 +218,8 @@ public sealed class RecordingReviewSessionTests
             [new CompatibleRecordingMontage(acquisition)],
             []);
         var filter = new BlockingFilter();
-        await using var session = new RecordingReviewSession(reader, catalog, 10, filter);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
 
         var initial = session.InitializeAsync();
         await filter.FirstCallStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -229,8 +245,8 @@ public sealed class RecordingReviewSessionTests
             []);
         var sink = new CapturePerformanceSink();
 
-        await using var session = new RecordingReviewSession(
-            reader, catalog, 10, new DelayedFilter(), performanceSink: sink);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, new DelayedFilter(), performanceSink: sink);
         await session.InitializeAsync();
 
         Assert.Contains(sink.Samples, sample =>
@@ -269,7 +285,8 @@ public sealed class RecordingReviewSessionTests
             new RawSignalViewDefinition(["F3", "F4"]),
             [new CompatibleRecordingMontage(acquisition)],
             []);
-        await using var session = new RecordingReviewSession(reader, catalog, 10);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10);
 
         await session.InitializeAsync();
         var initialFrame = session.CurrentFrame;
@@ -299,7 +316,8 @@ public sealed class RecordingReviewSessionTests
             new RawSignalViewDefinition(["F3", "F4"]),
             [new CompatibleRecordingMontage(acquisition)],
             []);
-        await using var session = new RecordingReviewSession(reader, catalog, 10);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10);
 
         await session.InitializeAsync();
         Assert.True(await session.NavigateFromTrackClickAsync(100, 102.5));
@@ -323,7 +341,8 @@ public sealed class RecordingReviewSessionTests
             [new CompatibleRecordingMontage(acquisition)],
             []);
         var filter = new WarmupCapturingFilter();
-        await using var session = new RecordingReviewSession(reader, catalog, 10, filter);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
 
         await session.SeekAsync(100);
 

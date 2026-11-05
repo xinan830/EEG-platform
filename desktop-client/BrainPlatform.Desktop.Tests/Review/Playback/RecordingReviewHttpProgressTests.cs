@@ -13,7 +13,8 @@ public sealed class RecordingReviewHttpProgressTests
         using var handler = new ControlledReviewHttpHandler();
         using var client = new HttpClient(handler) { BaseAddress = new Uri("http://fixture/") };
         var reader = new ControlledCheckpointFixture.Reader(250);
-        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog, 10,
+        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog,
+            ReviewMontageSelectionFixture.Create(reader, ControlledReviewReader.Catalog), 10,
             new HttpRecordingReviewFilter(client));
         await session.InitializeAsync();
         var original = session.CurrentFrame;
@@ -45,7 +46,8 @@ public sealed class RecordingReviewHttpProgressTests
         using var handler = new ControlledReviewHttpHandler();
         using var client = new HttpClient(handler) { BaseAddress = new Uri("http://fixture/") };
         var reader = new ControlledCheckpointFixture.Reader(250);
-        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog, 10,
+        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog,
+            ReviewMontageSelectionFixture.Create(reader, ControlledReviewReader.Catalog), 10,
             new HttpRecordingReviewFilter(client));
         await session.InitializeAsync();
         var original = session.CurrentFrame;

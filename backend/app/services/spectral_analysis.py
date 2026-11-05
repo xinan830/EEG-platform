@@ -173,6 +173,7 @@ class SpectralAnalysisService:
         execution_context: Any = None,
         preprocessing_scope: str = "configured_continuous_before_slice",
         quality_policy: str = "strict",
+        include_welch_segments: bool = False,
         _preprocessed: PreprocessedRecording | None = None,
     ) -> dict[str, object]:
         """Return the current PSD, absolute band power, and relative power contract."""
@@ -261,10 +262,16 @@ class SpectralAnalysisService:
         band_ceiling = max(edge[1] for edge in FREQUENCY_BANDS.values())
         estimator = (self.spectral_gateway.welch_annotated_channels
                      if quality_policy == "per_channel_annotation" else self.spectral_gateway.welch)
-        spectrum = estimator(
-            window, sfreq, low_hz=min(filter_low_hz, output_low_hz, band_floor),
-            high_hz=max(filter_high_hz, output_high_hz, band_ceiling),
-        )
+        estimator_args = {
+            "low_hz": min(filter_low_hz, output_low_hz, band_floor),
+            "high_hz": max(filter_high_hz, output_high_hz, band_ceiling),
+        }
+        if include_welch_segments and quality_policy == "strict":
+            spectrum = self.spectral_gateway.welch(
+                window, sfreq, **estimator_args, include_segments=True,
+            )
+        else:
+            spectrum = estimator(window, sfreq, **estimator_args)
         if spectrum.gate_failed:
             raise SpectralQualityGateError({
                 "clean_segments": spectrum.clean_epochs,
@@ -300,7 +307,7 @@ class SpectralAnalysisService:
             raise ValueError("请求的 PSD 频率范围没有可用频率点")
         frequencies = spectrum.freqs[mask]
         psd_values = psd_uv[:, mask]
-        return {
+        result = {
             "recording_id": recording.id,
             "window_start_s": actual_start,
             "window_duration_s": len(window) / sfreq,
@@ -340,6 +347,12 @@ class SpectralAnalysisService:
                 "rejected_reasons": list(spectrum.rejected_reasons),
             },
         }
+        if include_welch_segments and spectrum.welch_segments_psd is not None:
+            result["welch_segments"] = {
+                "offsets_s": list(spectrum.welch_segment_offsets_s),
+                "psd_uV2_per_hz": (spectrum.welch_segments_psd[:, :, mask] * 1e12).tolist(),
+            }
+        return result
 
     def load_spectrogram(
         self, recording: RecordingSummary, start_s: float = 0.0,

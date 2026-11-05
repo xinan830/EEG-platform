@@ -8,7 +8,6 @@ public sealed class ReviewStftParameters : ObservableObject
     private string? channel;
     public IReadOnlyList<string> Channels { get; private set; } = [];
     public string? Channel { get => channel; set => SetProperty(ref channel, value); }
-    public HistoricalMontageDescriptor? Montage { get; private set; }
     public double WindowSeconds { get; private set; }
     public double StepSeconds { get; private set; }
     public string? ScientificVersion { get; private set; }
@@ -20,20 +19,16 @@ public sealed class ReviewStftParameters : ObservableObject
         ScientificVersion = algorithm.Version;
         WindowSeconds = algorithm.DynamicPolicy.DefaultWindowSeconds;
         StepSeconds = algorithm.DynamicPolicy.RefreshStepSeconds;
-        UpdateChannels(recording, montage);
+        UpdateChannels(recording, null, montage);
     }
 
-    public void SelectMontage(RegisteredRecording recording, HistoricalMontageDescriptor? montage)
-    {
-        if (Montage?.Id == montage?.Id && Montage?.Fingerprint == montage?.Fingerprint) return;
-        UpdateChannels(recording, montage);
-        RaisePropertyChanged(nameof(Montage));
-    }
+    public void RefreshInputOptions(RegisteredRecording recording, HistoricalMontageDescriptor? previous,
+        HistoricalMontageDescriptor? montage) => UpdateChannels(recording, previous, montage);
 
-    private void UpdateChannels(RegisteredRecording recording, HistoricalMontageDescriptor? montage)
+    private void UpdateChannels(RegisteredRecording recording, HistoricalMontageDescriptor? previous,
+        HistoricalMontageDescriptor? montage)
     {
-        var previousRole = Montage?.Outputs.FirstOrDefault(output => output.Id == Channel)?.Role;
-        Montage = montage;
+        var previousRole = previous?.Outputs.FirstOrDefault(output => output.Id == Channel)?.Role;
         Channels = montage is null ? recording.Channels : montage.Outputs
             .Where(output => output.Available).Select(output => output.Id).ToArray();
         var mapped = previousRole is null ? Channel : montage?.Outputs.FirstOrDefault(output =>
@@ -43,7 +38,8 @@ public sealed class ReviewStftParameters : ObservableObject
         RaisePropertyChanged(nameof(Channels));
     }
 
-    public JsonElement BuildConfig(double durationSeconds, double samplingRateHz)
+    public JsonElement BuildConfig(double durationSeconds, double samplingRateHz,
+        HistoricalMontageDescriptor? montage)
     {
         if (!double.IsFinite(durationSeconds) || durationSeconds <= 0 ||
             !double.IsFinite(samplingRateHz) || samplingRateHz <= 100)
@@ -59,9 +55,9 @@ public sealed class ReviewStftParameters : ObservableObject
             channel = Channel, mode = "dynamic", low_hz = 1d, high_hz = 50d,
             time = new { start_s = 0d, end_s = durationSeconds },
             dynamic_window_s = WindowSeconds, refresh_step_s = StepSeconds,
-            analysis_montage_id = Montage?.Id, analysis_montage_revision = Montage?.Revision,
-            analysis_montage_fingerprint = Montage?.Fingerprint,
-            analysis_montage_outputs = Montage?.Outputs.Where(output => output.Available &&
+            analysis_montage_id = montage?.Id, analysis_montage_revision = montage?.Revision,
+            analysis_montage_fingerprint = montage?.Fingerprint,
+            analysis_montage_outputs = montage?.Outputs.Where(output => output.Available &&
                 string.Equals(output.Id, Channel, StringComparison.OrdinalIgnoreCase))
                 .Select(output => new { role = output.Role, output = output.Id, unit = output.Unit }).ToArray(),
         });

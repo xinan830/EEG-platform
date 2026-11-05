@@ -177,6 +177,63 @@ public sealed partial class RecordingReviewViewModelTests
     }
 
     [Fact]
+    public async Task Montage_change_rejects_a_late_window_and_reloads_with_the_new_snapshot()
+    {
+        var configuration = Configuration();
+        var acquisition = Profile("采集导联", configuration);
+        var alternate = Profile("备用导联", configuration) with
+        {
+            DerivedChannels = [new DerivedMontageChannel("F3-AVG", "F3", MontageNegativeKind.Mean, ["F3"], 0)],
+            Fingerprint = MontageProfileFingerprint.Create(
+                ChannelConfigurationFingerprint.Create(configuration),
+                [new DerivedMontageChannel("F3-AVG", "F3", MontageNegativeKind.Mean, ["F3"], 0)]),
+        };
+        var catalog = new RecordingMontageCatalogResult(acquisition, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]),
+            [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)], []);
+        var provider = new PanelProvider("stft", deferredWindowLoads: 1)
+        {
+            MontageCatalogue = [Descriptor(acquisition, true), Descriptor(alternate, false)],
+        };
+        await using var vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100), catalog,
+            recordingDirectory: "_temp/stft-montage-review-fixture",
+            analysisCoordinators: [new ReviewAnalysisCoordinator(provider)]);
+        await vm.InitializeAsync();
+        await vm.SeekAsync(10);
+        var opened = vm.OpenAnalysisAsync("stft");
+        await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        var updated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.CurrentAnalysisWindow) &&
+                vm.CurrentAnalysisWindow?.ScientificConfigurationJson?.Contains(alternate.Fingerprint, StringComparison.Ordinal) == true)
+                updated.TrySetResult();
+        };
+
+        await vm.SelectViewingMontageAsync(alternate);
+        Assert.True(provider.PendingToken.IsCancellationRequested);
+        provider.Release.TrySetResult();
+        await opened.WaitAsync(TimeSpan.FromSeconds(3));
+        await updated.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(2, provider.Configurations.Count);
+        Assert.Equal(acquisition.Id, provider.Configurations[0].GetProperty("analysis_montage_id").GetString());
+        Assert.Equal("F3-REF", provider.Configurations[0].GetProperty("channel").GetString());
+        Assert.Equal(alternate.Id, provider.Configurations[1].GetProperty("analysis_montage_id").GetString());
+        Assert.Equal(alternate.Fingerprint, provider.Configurations[1].GetProperty("analysis_montage_fingerprint").GetString());
+        Assert.Equal("F3-AVG", provider.Configurations[1].GetProperty("channel").GetString());
+        Assert.Equal("F3-AVG", Assert.Single(provider.Configurations[1].GetProperty("analysis_montage_outputs").EnumerateArray())
+            .GetProperty("output").GetString());
+        Assert.Contains(alternate.Fingerprint, vm.CurrentAnalysisWindow!.ScientificConfigurationJson);
+        Assert.Equal(alternate.Name, vm.CurrentViewingMontage?.Name);
+    }
+
+    private static HistoricalMontageDescriptor Descriptor(MontageProfile profile, bool isAcquisitionDefault) => new(
+        profile.Id, profile.Revision.ToString(), profile.Fingerprint, profile.Name, isAcquisitionDefault, true, null,
+        profile.DerivedChannels.Select(channel => new HistoricalMontageOutput(
+            channel.Name, channel.Name, channel.PositiveLabel, "V", true, null)).ToArray(), profile.Id);
+
+    [Fact]
     public async Task Failed_initial_load_status_is_cleared_when_a_later_window_succeeds()
     {
         var configuration = Configuration();
@@ -238,8 +295,11 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.False(vm.IsPlaying);
     }
 
-    private sealed class PanelProvider(string algorithmId, bool deferCatalog = false, bool deferWindow = false) : IReviewAlgorithmAdapter
+    private sealed class PanelProvider(string algorithmId, bool deferCatalog = false, bool deferWindow = false,
+        int deferredWindowLoads = 0) : IReviewAlgorithmAdapter
     {
+        private int deferredWindowLoadsRemaining = deferredWindowLoads;
+
         public string AlgorithmId => algorithmId;
         public bool SupportsOnDemandWindows => true;
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -248,6 +308,7 @@ public sealed partial class RecordingReviewViewModelTests
         public int Registrations { get; private set; }
         public int Loads { get; private set; }
         public bool FailNextWindow { get; set; }
+        public IReadOnlyList<HistoricalMontageDescriptor>? MontageCatalogue { get; init; }
         public List<JsonElement> Configurations { get; } = [];
 
         public Task<RegisteredRecording> RegisterAsync(string directory, CancellationToken cancellationToken,
@@ -260,7 +321,8 @@ public sealed partial class RecordingReviewViewModelTests
                 "brainbeat" or "brainbeat_individualized" => new[] { "Fz", "Pz" },
                 _ => new[] { "F3", "F7" },
             };
-            return Task.FromResult(new RegisteredRecording("registered", "fixture", ".wpf", "now", 500, 100, channels, "sha"));
+            return Task.FromResult(new RegisteredRecording("registered", "fixture", ".wpf", "now", 500, 100,
+                channels, "sha", MontageCatalogue));
         }
 
         public async Task<AlgorithmCatalogItem> GetAlgorithmAsync(CancellationToken cancellationToken)
@@ -284,7 +346,8 @@ public sealed partial class RecordingReviewViewModelTests
                 FailNextWindow = false;
                 throw new InvalidOperationException("fixture transport failure");
             }
-            if (deferWindow) await WaitIgnoringCancellation(cancellationToken);
+            if (deferWindow || Interlocked.Decrement(ref deferredWindowLoadsRemaining) >= 0)
+                await WaitIgnoringCancellation(cancellationToken);
             var canonical = JsonSerializer.Serialize(new
                 { scientific_configuration_contract = "scientific-config-v1", config = request.Config, context = new { } });
             var identity = JsonSerializer.SerializeToElement(new

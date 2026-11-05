@@ -11,7 +11,7 @@ MANIFEST = AlgorithmManifest(
     scientific_version="official-iapf-v5",
     is_current_version=True,
     # Peak acceptance is IAPF-owned; its window policy is catalog-visible.
-    implementation_identity="iapf-runtime-v6-20s-alpha-evidence",
+    implementation_identity="iapf-runtime-v7-20s-segment-diagnostics",
     supported_modes=["static", "dynamic"],
     dynamic_policy=DynamicAnalysisPolicy(
         minimum_window_s=20.0,

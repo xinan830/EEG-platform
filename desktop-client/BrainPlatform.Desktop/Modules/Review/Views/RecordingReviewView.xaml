@@ -88,7 +88,7 @@
                                                 ToolTip="打开 TNK 脑指标组面板" />
                         <controls:EegToolButton Content="事件列表" Glyph="&#xE8FD;" Click="OnSeekToEventClick" ToolTip="跳转或查看事件" />
                         <controls:EegToolButton Content="数据信息" Glyph="&#xE946;" Click="OnToggleDataInfoClick" ToolTip="查看记录与数据信息" />
-                        <controls:EegToolButton Content="导出" Glyph="&#xE896;" ToolTip="导出当前段数据/EDF" />
+                        <controls:EegToolButton Content="导出" Glyph="&#xE896;" Click="OnExportClick" ToolTip="导出整段原始脑电信号为 EDF/BDF" />
                         <controls:EegToolButton Content="报告" Glyph="&#xE8A5;" ToolTip="生成脑电检测报告" />
                     </StackPanel>
                 </Border>

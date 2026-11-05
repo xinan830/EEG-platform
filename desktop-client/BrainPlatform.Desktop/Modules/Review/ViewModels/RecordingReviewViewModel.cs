@@ -4,12 +4,14 @@ using BrainPlatform.Desktop.Modules.Review.Analysis;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Review.Waveform;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
 public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly RecordingReviewSession session;
+    private readonly WorkspaceMontageSelection montageSelection;
     private readonly IRecordingAccessSession reviewReader;
     private readonly RecordingMontageCatalogResult catalog;
     private readonly RecordingPlaybackTimeCoordinator playback;
@@ -82,7 +84,9 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         reviewReader = reader;
         this.catalog = catalog;
         recordingId = reader.Manifest.SessionId.ToString("N");
-        session = new RecordingReviewSession(reader, catalog, visibleDurationSeconds, filter);
+        montageSelection = new WorkspaceMontageSelection(recordingId, catalog.AcquisitionMontage,
+            catalog.CompatibleViewingMontages.Select(item => item.Profile));
+        session = new RecordingReviewSession(reader, catalog, montageSelection, visibleDurationSeconds, filter);
         samplingRateHz = reader.Manifest.SamplingRateHz;
         var durationSamples = checked((long)Math.Round(
             reader.DurationSeconds * samplingRateHz, MidpointRounding.AwayFromZero));
@@ -107,7 +111,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         eventStore = recordingDirectory is null ? null : new RecordingEventStore(recordingDirectory);
         EventDefinitionService = eventDefinitionService;
         this.notifications = notifications;
-        analysisPanels = ReviewAlgorithmPanels.Create(this);
+        analysisPanels = ReviewAlgorithmPanels.Create(this, montageSelection);
         this.analysisCoordinators = analysisCoordinators is not null
             ? analysisCoordinators.ToDictionary(item => item.AlgorithmId, StringComparer.Ordinal)
             : algorithmClient is null ? new Dictionary<string, ReviewAnalysisCoordinator>()
@@ -135,13 +139,11 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         CloseEventEditorCommand = new RelayCommand(() => IsEventEditorOpen = false);
         displaySettings.PropertyChanged += OnDisplaySettingsChanged;
         session.Changed += OnSessionChanged;
-        foreach (var item in catalog.CompatibleViewingMontages)
-        {
-            CompatibleViewingMontages.Add(item.Profile);
-        }
     }
 
-    public ObservableCollection<MontageProfile> CompatibleViewingMontages { get; } = [];
+    public IReadOnlyList<MontageProfile> CompatibleViewingMontages => montageSelection.AvailableMontages;
+
+    internal WorkspaceMontageSelection WorkspaceMontageSelection => montageSelection;
 
     public bool HasCompatibleViewingMontages => CompatibleViewingMontages.Count > 0;
 
@@ -257,7 +259,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public MontageProfile? AcquisitionMontage => session.AcquisitionMontage;
 
-    public MontageProfile? CurrentViewingMontage => session.SelectedViewingMontage;
+    public MontageProfile? CurrentViewingMontage => montageSelection.SelectedMontage;
 
     public RecordingReviewFrame? CurrentFrame => session.CurrentFrame;
 
@@ -568,8 +570,18 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         displaySettings.ScreenScale = value;
     }
 
-    public Task SelectViewingMontageAsync(MontageProfile? montage) =>
-        session.SelectViewingMontageAsync(montage, playback.PositionSeconds);
+    public async Task SelectViewingMontageAsync(MontageProfile? montage)
+    {
+        var previous = montageSelection.Capture();
+        if (!montageSelection.Select(montage)) return;
+        var selected = montageSelection.Capture();
+
+        RaisePropertyChanged(nameof(CurrentViewingMontage));
+        if (analysisRecording is { } registered)
+            UpdateAlgorithmMontageInputs(registered, previous, selected);
+        InvalidateAnalysisConfiguration();
+        await session.RefreshMontageSelectionAsync(playback.PositionSeconds);
+    }
 
     public void ReportMontageSelectionError(Exception exception) => ReportCommandError(exception);
 
@@ -599,29 +611,6 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     {
         RaisePropertyChanged(nameof(AcquisitionMontageText));
         RaisePropertyChanged(nameof(CurrentViewingMontage));
-        if (analysisRecording is { } registered)
-        {
-            var selectedMontage = ResolveAnalysisMontage(registered, CurrentViewingMontage);
-            var wasUnresolved = hasUnresolvedAnalysisMontage;
-            hasUnresolvedAnalysisMontage = CurrentViewingMontage is not null && selectedMontage is null;
-            if (hasUnresolvedAnalysisMontage)
-            {
-                if (!wasUnresolved) InvalidateAnalysisConfiguration();
-            }
-            else
-            {
-                RbpParameters.SelectMontage(registered, selectedMontage);
-                PsdParameters.SelectMontage(registered, selectedMontage);
-                StftParameters.SelectMontage(registered, selectedMontage);
-                FaaParameters.SelectMontage(registered, selectedMontage);
-                IapfParameters.SelectMontage(registered, selectedMontage);
-                ThetaBetaParameters.SelectMontage(registered, selectedMontage);
-                BrainbeatParameters.SelectMontage(registered, selectedMontage);
-        IndividualizedBrainbeatParameters.SelectMontage(registered, selectedMontage);
-                if (TnkParameters.IsInitialized)
-                    TnkParameters.SelectMontage(registered, selectedMontage);
-            }
-        }
         if (!ReferenceEquals(publishedFrame, session.CurrentFrame))
         {
             // A drag preview keeps the previous chart viewport until the

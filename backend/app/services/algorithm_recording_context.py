@@ -50,6 +50,7 @@ class _RecordingAlgorithmContext:
         request: SpectralSourceRequest,
         *,
         role_to_channel: dict[str, str],
+        include_welch_segments: bool = False,
     ) -> SpectralEstimate:
         """Resolve a typed spectral request through the existing Welch service."""
         if request.representation != "spectrum":
@@ -67,6 +68,7 @@ class _RecordingAlgorithmContext:
             notch_hz=request.notch_hz,
             preprocessing_scope=request.preprocessing_scope,
             quality_policy=request.quality_policy,
+            include_welch_segments=include_welch_segments,
             execution_context=self.execution_context,
         )
         estimate = self._spectral_estimate(payload)
@@ -137,7 +139,7 @@ class _RecordingAlgorithmContext:
             "quality_policy": request.quality_policy,
         }
 
-    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 50.0, notch_hz: float | None = 50.0, filter_low_hz: float | None = None, filter_high_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None, preprocessing_scope: str = "configured_continuous_before_slice", quality_policy: str = "strict") -> SpectralEstimate:
+    def load_spectrum(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 50.0, notch_hz: float | None = 50.0, filter_low_hz: float | None = None, filter_high_hz: float | None = None, output_low_hz: float | None = None, output_high_hz: float | None = None, preprocessing_scope: str = "configured_continuous_before_slice", quality_policy: str = "strict", include_welch_segments: bool = False) -> SpectralEstimate:
         sfreq = self.sfreq_hz
         start_sample = max(0, int(np.floor(start_s * sfreq)))
         end_sample = min(
@@ -157,7 +159,10 @@ class _RecordingAlgorithmContext:
             output_low_hz=float(output_low), output_high_hz=float(output_high),
             notch_hz=notch_hz, preprocessing_scope=preprocessing_scope, quality_policy=quality_policy,
         )
-        return self.load_spectral_source(request, role_to_channel=dict(zip(channels, channels)))
+        return self.load_spectral_source(
+            request, role_to_channel=dict(zip(channels, channels)),
+            include_welch_segments=include_welch_segments,
+        )
 
     @staticmethod
     def _spectral_estimate(payload: dict[str, Any]) -> SpectralEstimate:
@@ -181,6 +186,7 @@ class _RecordingAlgorithmContext:
             "quality": dict(payload["quality"]),
             "channel_quality": dict(payload["quality"].get("by_channel", {})),
         }
+        segments = payload.get("welch_segments")
         return SpectralEstimate(
             np.asarray(payload["frequencies_hz"], dtype=float),
             np.asarray([payload["psd"][name] for name in ordered], dtype=float) * 1e-12,
@@ -190,6 +196,14 @@ class _RecordingAlgorithmContext:
             payload["quality"]["gate_failed"],
             tuple(payload["quality"].get("rejected_reasons", [])),
             evidence,
+            welch_segments_psd=(
+                np.asarray(segments["psd_uV2_per_hz"], dtype=float) * 1e-12
+                if segments else None
+            ),
+            welch_segment_offsets_s=(
+                tuple(float(value) for value in segments["offsets_s"])
+                if segments else ()
+            ),
         )
 
     def load_spectrogram(self, *, start_s: float, window_s: float, channels: list[str], low_hz: float = 1.0, high_hz: float = 50.0, notch_hz: float | None = 50.0, output_low_hz: float | None = None, output_high_hz: float | None = None) -> dict[str, object]:

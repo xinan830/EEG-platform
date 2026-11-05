@@ -1,4 +1,5 @@
 using BrainPlatform.Desktop.Modules.Review.Analysis;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
@@ -80,17 +81,20 @@ public sealed partial class RecordingReviewViewModel
                 token.ThrowIfCancellationRequested();
                 var algorithm = await analysisCoordinator.GetAlgorithmAsync(token);
                 token.ThrowIfCancellationRequested();
-                var montage = ResolveAnalysisMontage(analysisRecording, CurrentViewingMontage);
-                hasUnresolvedAnalysisMontage = CurrentViewingMontage is not null && montage is null;
+                var selection = montageSelection.Capture();
+                var montage = ResolveAnalysisMontage(analysisRecording, selection.SelectedMontage);
+                hasUnresolvedAnalysisMontage = selection.SelectedMontage is not null && montage is null;
                 if (hasUnresolvedAnalysisMontage)
-                    throw new InvalidOperationException("后端没有当前导联快照，不能沿用旧导联结果。");
+                    throw new ReviewInputMappingException("montage_snapshot_unavailable",
+                        "后端没有当前导联快照，不能沿用旧导联结果。", "montage");
                 var panel = analysisPanels[algorithmId];
                 loadingAnalysisParameters = true;
-                try { panel.Initialize(analysisRecording, algorithm, montage); }
+                try { panel.InitializeForSelection(analysisRecording, algorithm, selection, montage); }
                 finally { loadingAnalysisParameters = false; }
                 var duration = analysisRecording.DurationSeconds ?? DurationSeconds;
                 var rate = analysisRecording.SamplingRateHz ?? samplingRateHz;
-                var config = panel.BuildConfiguration(duration, rate);
+                var config = panel.BuildConfigurationForSelection(duration, rate, selection, montage);
+                if (selection.Revision != montageSelection.Revision) return;
                 await AttachOnDemandAnalysisAsync(new AnalysisRunRequest(analysisRecording.Id, "official_algorithm", config), token);
                 token.ThrowIfCancellationRequested();
                 AnalysisPreparationText = CurrentAnalysisWindow is null ? AnalysisStatusText : "";
@@ -114,12 +118,31 @@ public sealed partial class RecordingReviewViewModel
     {
         if (loadingAnalysisParameters || activeAnalysisId is not { } activeId ||
             !analysisPanels.TryGetValue(activeId, out var panel) || !ReferenceEquals(sender, panel.Configuration)) return;
-        if (e.PropertyName is nameof(ReviewRbpParameters.Channel) or nameof(ReviewRbpParameters.Montage) or
+        if (e.PropertyName is nameof(ReviewRbpParameters.Channel) or nameof(ReviewRbpParameters.Channels) or
             nameof(ReviewScalarParameters.Channel) or nameof(ReviewScalarParameters.SecondaryChannel) or
             nameof(ReviewScalarParameters.FrequencyMode) or
-            nameof(ReviewScalarParameters.Montage) or nameof(ReviewStftParameters.Channel) or
-            nameof(ReviewTnkParameters.RoleMapping) or nameof(ReviewTnkParameters.Montage))
+            nameof(ReviewStftParameters.Channel) or nameof(ReviewPsdParameters.Channels) or
+            nameof(ReviewTnkParameters.RoleMapping))
             InvalidateAnalysisConfiguration();
+    }
+
+    private void UpdateAlgorithmMontageInputs(RegisteredRecording recording,
+        WorkspaceMontageSelectionSnapshot previousSelection, WorkspaceMontageSelectionSnapshot selectedSelection)
+    {
+        var previous = ResolveAnalysisMontage(recording, previousSelection.SelectedMontage);
+        var selected = ResolveAnalysisMontage(recording, selectedSelection.SelectedMontage);
+        hasUnresolvedAnalysisMontage = selectedSelection.SelectedMontage is not null && selected is null;
+        if (hasUnresolvedAnalysisMontage) return;
+
+        loadingAnalysisParameters = true;
+        try
+        {
+            foreach (var panel in analysisPanels.Values)
+                panel.RefreshForSelection(recording, previousSelection, selectedSelection, previous, selected);
+            PsdAnalysis.SetChannels(PsdParameters.Channels);
+            RbpAnalysis.InitializeChannels(RbpParameters.ResolveAnalysisChannels(selected));
+        }
+        finally { loadingAnalysisParameters = false; }
     }
 
     private static HistoricalMontageDescriptor? ResolveAnalysisMontage(RegisteredRecording recording, MontageProfile? selected) =>

@@ -39,7 +39,9 @@ public sealed partial class RecordingReviewViewModelTests
     {
         var configuration = Configuration();
         var reader = new DeferredNavigationReader(Manifest(configuration));
-        await using var session = new RecordingReviewSession(reader, NavigationCatalog(Profile("REF", configuration)), 10);
+        var catalog = NavigationCatalog(Profile("REF", configuration));
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10);
         await session.InitializeAsync();
         var original = session.CurrentFrame;
         var cold = session.LoadViewportAsync(100, 105);

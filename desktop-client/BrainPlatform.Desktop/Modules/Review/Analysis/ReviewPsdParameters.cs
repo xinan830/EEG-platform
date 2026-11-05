@@ -11,7 +11,6 @@ public sealed class ReviewPsdParameters : ObservableObject
     private double notchHz;
 
     public IReadOnlyList<string> Channels { get; private set; } = [];
-    public HistoricalMontageDescriptor? Montage { get; private set; }
     public double WindowSeconds { get; private set; }
     public double StepSeconds { get; private set; }
     public string? ScientificVersion { get; private set; }
@@ -31,14 +30,11 @@ public sealed class ReviewPsdParameters : ObservableObject
         UpdateChannels(recording, montage);
     }
 
-    public void SelectMontage(RegisteredRecording recording, HistoricalMontageDescriptor? montage)
-    {
-        if (Montage?.Id == montage?.Id && Montage?.Fingerprint == montage?.Fingerprint) return;
+    public void RefreshInputOptions(RegisteredRecording recording, HistoricalMontageDescriptor? montage) =>
         UpdateChannels(recording, montage);
-        RaisePropertyChanged(nameof(Montage));
-    }
 
-    public JsonElement BuildConfig(double durationSeconds, double samplingRateHz)
+    public JsonElement BuildConfig(double durationSeconds, double samplingRateHz,
+        HistoricalMontageDescriptor? montage)
     {
         if (!double.IsFinite(durationSeconds) || durationSeconds <= 0 ||
             !double.IsFinite(samplingRateHz) || samplingRateHz <= 100)
@@ -55,9 +51,9 @@ public sealed class ReviewPsdParameters : ObservableObject
             notch_hz = NotchHz == 0 ? (double?)null : NotchHz,
             time = new { start_s = 0d, end_s = durationSeconds },
             dynamic_window_s = WindowSeconds, refresh_step_s = StepSeconds,
-            analysis_montage_id = Montage?.Id, analysis_montage_revision = Montage?.Revision,
-            analysis_montage_fingerprint = Montage?.Fingerprint,
-            analysis_montage_outputs = Montage?.Outputs.Where(output => output.Available &&
+            analysis_montage_id = montage?.Id, analysis_montage_revision = montage?.Revision,
+            analysis_montage_fingerprint = montage?.Fingerprint,
+            analysis_montage_outputs = montage?.Outputs.Where(output => output.Available &&
                 Channels.Contains(output.Id, StringComparer.OrdinalIgnoreCase))
                 .Select(output => new { role = output.Role, output = output.Id, unit = output.Unit }).ToArray(),
         });
@@ -65,7 +61,6 @@ public sealed class ReviewPsdParameters : ObservableObject
 
     private void UpdateChannels(RegisteredRecording recording, HistoricalMontageDescriptor? montage)
     {
-        Montage = montage;
         Channels = montage is null ? recording.Channels : montage.Outputs
             .Where(output => output.Available).Select(output => output.Id).ToArray();
         RaisePropertyChanged(nameof(Channels));

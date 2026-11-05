@@ -14,17 +14,18 @@ public sealed class ReviewTnkParametersTests
         var recording = new RegisteredRecording("recording", "fixture", ".wpf", "now", 500, 100,
             ["Fz-REF", "Pz-REF"], "sha");
 
-        parameters.SelectMontage(recording, null);
+        parameters.RefreshInputOptions(recording, null);
 
         Assert.False(parameters.IsInitialized);
-        Assert.Null(parameters.Montage);
+        Assert.All(parameters.Roles, role => Assert.Empty(role.Channels));
     }
 
     [Fact]
     public void Configuration_keeps_all_five_distinct_roles_and_catalog_window_policy()
     {
         var parameters = Parameters();
-        using var config = JsonDocument.Parse(parameters.BuildConfig(100, 500).GetRawText());
+        var montage = Montage();
+        using var config = JsonDocument.Parse(parameters.BuildConfig(100, 500, montage).GetRawText());
         var root = config.RootElement;
 
         Assert.Equal("tnk_biofeedback", root.GetProperty("algorithm_id").GetString());
@@ -42,10 +43,13 @@ public sealed class ReviewTnkParametersTests
     {
         var parameters = Parameters();
         parameters.Roles.Single(role => role.Role == "Oz").SelectedChannel = null;
-        Assert.Throws<InvalidOperationException>(() => parameters.BuildConfig(100, 500));
+        var missing = Assert.Throws<ReviewInputMappingException>(() => parameters.BuildConfig(100, 500, Montage()));
+        Assert.Equal("required_role_unavailable", missing.Code);
+        Assert.Equal("Oz", missing.Role);
 
         parameters.Roles.Single(role => role.Role == "Oz").SelectedChannel = "Pz-REF";
-        Assert.Throws<InvalidOperationException>(() => parameters.BuildConfig(100, 500));
+        var duplicate = Assert.Throws<ReviewInputMappingException>(() => parameters.BuildConfig(100, 500, Montage()));
+        Assert.Equal("duplicate_role_mapping", duplicate.Code);
     }
 
     private static ReviewTnkParameters Parameters()
@@ -53,13 +57,17 @@ public sealed class ReviewTnkParametersTests
         var parameters = new ReviewTnkParameters();
         var recording = new RegisteredRecording("recording", "fixture", ".wpf", "now", 500, 100,
             ["Fz-REF", "Pz-REF", "Oz-REF", "F3-REF", "F4-REF"], "sha");
-        var outputs = new[] { "Fz", "Pz", "Oz", "F3", "F4" }
-            .Select(role => new HistoricalMontageOutput($"{role}-REF", role, role, "V", true, null)).ToArray();
-        var montage = new HistoricalMontageDescriptor("montage", "1", "fingerprint", "fixture", true, true, null, outputs);
         parameters.Initialize(recording, new AlgorithmCatalogItem("official", "tnk_biofeedback", "tnk-fixture-v1",
             "TNK", "TNK", "", [], ["dynamic"], default,
             new DynamicAnalysisPolicy(4, [4], 4, 1, true), "available", true,
-            "tnk-definition", "1", "tnk-implementation"), montage);
+            "tnk-definition", "1", "tnk-implementation"), Montage());
         return parameters;
+    }
+
+    private static HistoricalMontageDescriptor Montage()
+    {
+        var outputs = new[] { "Fz", "Pz", "Oz", "F3", "F4" }
+            .Select(role => new HistoricalMontageOutput($"{role}-REF", role, role, "V", true, null)).ToArray();
+        return new HistoricalMontageDescriptor("montage", "1", "fingerprint", "fixture", true, true, null, outputs);
     }
 }

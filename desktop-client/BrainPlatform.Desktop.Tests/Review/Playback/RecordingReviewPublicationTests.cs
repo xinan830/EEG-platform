@@ -12,7 +12,8 @@ public sealed class RecordingReviewPublicationTests
     public async Task Superseded_completion_cannot_publish_or_clear_latest_load(bool trackClick, bool fails)
     {
         using var reader = new ControlledReviewReader();
-        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog, 10);
+        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog,
+            ReviewMontageSelectionFixture.Create(reader, ControlledReviewReader.Catalog), 10);
         await session.InitializeAsync();
         var initial = session.CurrentFrame;
         var publications = new ConcurrentQueue<RecordingReviewFrame?>();
@@ -45,7 +46,8 @@ public sealed class RecordingReviewPublicationTests
     public async Task Late_completion_cannot_replace_a_finished_new_target(bool trackClick, bool fails)
     {
         using var reader = new ControlledReviewReader();
-        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog, 10);
+        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog,
+            ReviewMontageSelectionFixture.Create(reader, ControlledReviewReader.Catalog), 10);
         await session.InitializeAsync();
         var obsolete = Navigate(session, 100, trackClick);
         var first = await reader.NextReadAsync();
@@ -75,7 +77,8 @@ public sealed class RecordingReviewPublicationTests
     public async Task Disposal_fences_pending_success_and_failure(bool trackClick, bool fails)
     {
         using var reader = new ControlledReviewReader();
-        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog, 10);
+        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog,
+            ReviewMontageSelectionFixture.Create(reader, ControlledReviewReader.Catalog), 10);
         await session.InitializeAsync();
         var initial = session.CurrentFrame;
         var pending = Navigate(session, 100, trackClick);
@@ -95,7 +98,8 @@ public sealed class RecordingReviewPublicationTests
     public async Task Cached_return_supersedes_pending_track_click_without_late_commit()
     {
         using var reader = new ControlledReviewReader();
-        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog, 10);
+        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog,
+            ReviewMontageSelectionFixture.Create(reader, ControlledReviewReader.Catalog), 10);
         await session.InitializeAsync();
         var initial = session.CurrentFrame;
         var pending = session.NavigateFromTrackClickAsync(100, 105);
@@ -113,7 +117,8 @@ public sealed class RecordingReviewPublicationTests
     public async Task Current_failure_is_still_visible_and_keeps_the_complete_frame(bool trackClick)
     {
         using var reader = new ControlledReviewReader();
-        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog, 10);
+        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog,
+            ReviewMontageSelectionFixture.Create(reader, ControlledReviewReader.Catalog), 10);
         await session.InitializeAsync();
         var initial = session.CurrentFrame;
         var pending = Navigate(session, 100, trackClick);

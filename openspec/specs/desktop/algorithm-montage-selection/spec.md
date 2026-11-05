@@ -7,7 +7,7 @@
 ## Requirements
 ### Requirement: Expose historical analysis montage choices
 
-算法详情 SHALL 展示采集历史目录和显式提交、后端验证后持久化的兼容分析配置快照，并默认选择采集时保存的导联配置。可选配置 MUST 绑定该记录的通道快照及实际源信号，不得根据当前全局设置隐式替换历史映射。
+算法详情 SHALL 展示采集历史目录和显式提交、后端验证后持久化的兼容分析配置快照，并默认选择采集时保存的导联配置。回放工作区 SHALL 为当前录音提供唯一导联选择，波形与所有算法面板共同读取该选择；算法面板不得保留独立的导联选择。两类工作区的选择都 MUST 绑定对应记录的通道快照及实际源信号，不得根据当前全局设置隐式替换历史映射。
 
 #### Scenario: Register current compatible alternatives for a record without a saved catalogue
 
@@ -24,6 +24,13 @@
 - **AND** 默认值是采集时保存的导联配置
 - **AND** 页面不修改原始采集数据
 
+#### Scenario: Open a recording-review workspace
+
+- **WHEN** 用户打开具有已验证导联目录的完成记录
+- **THEN** 回放工作区使用记录文档规定的采集默认导联初始化唯一选择
+- **AND** 波形与所有算法面板读取相同的导联快照
+- **AND** 原始采集数据保持不变
+
 #### Scenario: Historical montage choices are incomplete
 
 - **WHEN** 记录缺少导联目录、源通道映射不唯一或快照与原始通道表不一致
@@ -31,9 +38,15 @@
 - **AND** 不允许提交依赖该配置的算法 Run
 - **AND** 不得使用当前全局配置或通道位置猜测替代映射
 
+#### Scenario: The selected review montage is unavailable
+
+- **WHEN** 记录缺少有效导联目录或当前选择与记录通道不匹配
+- **THEN** 回放工作区报告结构化不可用原因
+- **AND** 依赖该映射的波形或算法操作不得替换为其他导联
+
 ### Requirement: Link montage configuration to analysis channels
 
-算法详情 SHALL 提供独立的“分析导联”选择。其选项 MUST 由当前导联配置、记录实际存在的源通道和算法声明的输入角色共同决定。切换配置时 SHALL 保留通道角色，并将每个角色映射到当前配置下的对应导联输出。
+算法详情 SHALL 提供明确的分析导联选择；回放工作区中的算法输入 MUST 从工作区唯一导联选择、记录实际可用输出和算法声明的输入角色派生。算法面板 MAY 保留算法专属角色或通道子集选择，但不得保留独立导联选择。切换当前工作区导联时 SHALL 保留可映射的通道角色，并将每个角色解析到新快照中的对应输出。
 
 #### Scenario: Switch REF to average reference
 
@@ -42,6 +55,12 @@
 - **AND** 已选通道 1 自动切换为 “通道1-AV”
 - **AND** 页面显示的分析导联与实际请求输入一致
 
+#### Scenario: Switch the review montage while retaining algorithm roles
+
+- **WHEN** 用户在回放工作区将导联从 REF 切换为 AV
+- **THEN** 每个算法面板将其已选语义角色映射到 AV 快照中的对应输出
+- **AND** 面板显示的输入与提交请求使用相同快照及输出顺序
+
 #### Scenario: Selected role is unavailable in a montage
 
 - **WHEN** 当前导联配置不能为已选通道角色生成对应导联
@@ -49,9 +68,15 @@
 - **AND** 页面显示缺失源通道或不兼容原因
 - **AND** 不得静默改用另一个通道或保留旧导联结果
 
+#### Scenario: A selected review role is unavailable
+
+- **WHEN** 工作区所选快照无法提供算法必需角色
+- **THEN** 该角色以结构化原因标记不可用
+- **AND** 算法不得保留旧快照输入或替换成其他通道
+
 ### Requirement: Recalculate every official algorithm after montage change
 
-导联配置或分析导联改变 SHALL 创建新的科学配置修订，并触发九个官方算法统一的重新计算流程。静态、动态全量、按需和组合策略 MUST 使用同一配置身份和竞态规则。
+算法详情中的导联配置变化 SHALL 创建新的科学配置修订并刷新当前算法。回放工作区中的导联变化 SHALL 刷新所有受影响的官方算法面板。静态、动态全量、按需和组合执行 MUST 遵循相同的导联快照身份与过期结果规则。
 
 #### Scenario: Change montage while no run is active
 
@@ -60,12 +85,25 @@
 - **AND** 运行结果、动态预览和状态清除或标记为旧配置
 - **AND** 新计算使用 AV 信号，不复用 REF 结果
 
+#### Scenario: Change the review montage while no algorithm request is active
+
+- **WHEN** 用户在回放工作区将共享导联从 REF 切换为 AV
+- **THEN** 所有算法面板的请求配置解析到 AV
+- **AND** REF 的输出被清除或标记为过期
+- **AND** 新计算使用 AV 输入且不复用 REF 结果
+
 #### Scenario: Change montage while a run or preview is active
 
 - **WHEN** 用户切换导联配置时旧 Run、动态窗口请求或后台全量任务仍在运行
 - **THEN** 旧请求被取消或其返回结果被配置修订拒绝
 - **AND** 旧进度和结果不得覆盖新配置
 - **AND** 新配置可以提交新的全量、按需或组合执行
+
+#### Scenario: Change the review montage while a panel request is active
+
+- **WHEN** 回放工作区导联变化时旧 Run、预览或窗口请求仍在执行
+- **THEN** 旧工作被取消或按选择修订拒绝发布
+- **AND** 旧结果不能覆盖当前面板，新的请求只使用一次捕获的当前快照
 
 #### Scenario: Switch montage for a paired or multi-channel algorithm
 

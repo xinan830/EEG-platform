@@ -13,7 +13,8 @@ public sealed class RecordingReviewProgressTests
     public async Task Old_preparation_progress_cannot_override_a_cached_or_new_target(bool cached, bool fails)
     {
         using var reader = new ControlledReviewReader();
-        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog, 10);
+        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog,
+            ReviewMontageSelectionFixture.Create(reader, ControlledReviewReader.Catalog), 10);
         await session.InitializeAsync();
         var old = session.LoadViewportAsync(100, 105);
         var read = await reader.NextReadAsync();
@@ -44,7 +45,8 @@ public sealed class RecordingReviewProgressTests
     public async Task Queued_dispatcher_progress_is_rechecked_after_completion_or_close(bool close)
     {
         using var reader = new ControlledReviewReader();
-        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog, 10);
+        await using var session = new RecordingReviewSession(reader, ControlledReviewReader.Catalog,
+            ReviewMontageSelectionFixture.Create(reader, ControlledReviewReader.Catalog), 10);
         await session.InitializeAsync();
         var pending = session.LoadViewportAsync(100, 105);
         var read = await reader.NextReadAsync();

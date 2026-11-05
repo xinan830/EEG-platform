@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BrainPlatform.Desktop.Tests.Review;
 
 namespace BrainPlatform.Desktop.Tests.Montages;
 
@@ -72,7 +73,8 @@ public sealed class MontageAppearanceProjectionTests
         var reader = new Reader(Manifest(saved));
         var catalog = RecordingMontageCatalog.Build(reader.Manifest, [changed]);
         Assert.Equal(AcquisitionMontageStatus.Available, catalog.AcquisitionMontageStatus);
-        await using var session = new RecordingReviewSession(reader, catalog, 5);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog, selection, 5);
         await session.InitializeAsync();
 
         Assert.Equal(new[] { "F7-REF", "F3-REF" }, session.CurrentFrame!.OutputChannelNames);
@@ -80,10 +82,12 @@ public sealed class MontageAppearanceProjectionTests
         Assert.Equal(2e-6, session.CurrentFrame.Segments[0].Channels[0].Values[0]);
         Assert.Equal(10e-6, session.CurrentFrame.Segments[0].Channels[1].Values[0]);
         await session.SeekAsync(8);
-        await session.SelectViewingMontageAsync(changed);
+        selection.Select(changed);
+        await session.RefreshMontageSelectionAsync();
         Assert.Equal(8, session.PositionSeconds);
         Assert.Equal(new[] { "#778899", "#778899" }, session.CurrentFrame!.OutputChannelColors);
-        await session.SelectViewingMontageAsync(catalog.AcquisitionMontage);
+        selection.Select(catalog.AcquisitionMontage);
+        await session.RefreshMontageSelectionAsync();
         Assert.Equal(new[] { "#445566", "#112233" }, session.CurrentFrame!.OutputChannelColors);
     }
 
@@ -93,7 +97,8 @@ public sealed class MontageAppearanceProjectionTests
         var legacy = MontageAppearanceTests.Profile();
         var reader = new Reader(Manifest(legacy));
         var catalog = RecordingMontageCatalog.Build(reader.Manifest, []);
-        await using var session = new RecordingReviewSession(reader, catalog, 5);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 5);
         await session.InitializeAsync();
         Assert.Equal(new[] { WaveformTraceColors.DefaultAt(0), WaveformTraceColors.DefaultAt(1) },
             session.CurrentFrame!.OutputChannelColors);
