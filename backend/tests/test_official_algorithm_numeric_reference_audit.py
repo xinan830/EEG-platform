@@ -260,10 +260,11 @@ def test_peak_iapf_band_ratio_theta_beta_and_rbp_match_independent_spectrum():
     for index, name in enumerate(("Fz", "Pz", "Oz")):
         row = psd[index:index + 1]
         iapf_reference = _reference_iapf(freqs, row)["value"]
-        theta_expected = (float(_reference_band_power(freqs, row[0], max(4, iapf_reference - 6), iapf_reference - 2))
+        theta_expected = (float(_reference_band_power(freqs, row[0], iapf_reference - 6, iapf_reference - 4))
                           / float(_reference_band_power(freqs, row[0], iapf_reference + 2, 30)))
         theta_actual = compute_theta_beta(_spectrum(freqs, row), channel=name,
-                                         requested_range=requested, actual_range=actual_range)
+                                         requested_range=requested, actual_range=actual_range,
+                                         frequency_mode="individualized")
         np.testing.assert_allclose(theta_actual.value, theta_expected, rtol=RTOL, atol=ATOL_RATIO)
 
     rbp_freqs = freqs[freqs <= 50]

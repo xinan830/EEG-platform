@@ -19,10 +19,27 @@ public sealed class StftReviewPresentationTests
         Assert.Equal([7d, 8d], model.Preview!.TimesSeconds);
         Assert.Equal([10d, 11d], model.Preview.FrequenciesHz);
         Assert.Equal(1d, model.Preview.PowerDb[0][0]);
+        Assert.Equal("5–10 s", model.CurrentWindowRangeText);
         Assert.Equal("time_frequency", preview.Output!.Value.GetProperty("kind").GetString());
         Assert.Equal("s", preview.AxisMetadata!["time_center_s"].GetProperty("unit").GetString());
         Assert.Equal("V^2/Hz", preview.ArrayMetadata!["power_linear"].GetProperty("unit").GetString());
         Assert.Equal(5, model.Preview.RequestedRange.StartSeconds);
+    }
+
+    [Fact]
+    public async Task Current_range_tracks_backend_windows_and_is_unavailable_without_backend_bounds()
+    {
+        var ready = await Ready();
+        var model = new StftReviewAnalysisViewModel();
+
+        model.Apply(ready);
+        Assert.Equal("5–10 s", model.CurrentWindowRangeText);
+
+        model.Apply(ready with { WindowStartSeconds = 6, WindowEndSeconds = 11 });
+        Assert.Equal("6–11 s", model.CurrentWindowRangeText);
+
+        model.Apply(ready with { WindowStartSeconds = null, WindowEndSeconds = null });
+        Assert.Equal("分析范围不可用", model.CurrentWindowRangeText);
     }
 
     [Theory]

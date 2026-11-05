@@ -11,14 +11,15 @@
                     <StackPanel><TextBlock Text="当前比值" Foreground="#64748B" FontSize="12"/><TextBlock Text="{Binding ValueText}" Foreground="#0F172A" FontSize="32" FontWeight="SemiBold" Margin="0,3,0,5"/><TextBlock Text="{Binding StatusText}" Foreground="#475569" TextWrapping="Wrap"/><TextBlock Text="无量纲比值" Foreground="#94A3B8" FontSize="12" Margin="0,5,0,0"/></StackPanel>
                 </Border>
                 <Border Grid.Column="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="20,14" HorizontalAlignment="Left" MaxWidth="760">
-                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="220"/><ColumnDefinition Width="150"/><ColumnDefinition Width="220"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition Width="220"/><ColumnDefinition Width="150"/><ColumnDefinition Width="220"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
                         <TextBlock Text="分析窗口" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Column="1" Text="{Binding WindowText}" Foreground="#0F172A" Margin="0,0,24,10"/>
-                        <TextBlock Grid.Column="2" Text="IAPF" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Column="3" Text="{Binding IapfText}" Foreground="#0F172A" Margin="0,0,0,10"/>
-                        <TextBlock Grid.Row="1" Text="个体化 Theta 频段" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ThetaRangeText}" Foreground="#0F172A" Margin="0,0,24,10"/>
-                        <TextBlock Grid.Row="1" Grid.Column="2" Text="个体化 Beta 频段" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding BetaRangeText}" Foreground="#0F172A" Margin="0,0,0,10"/>
-                        <TextBlock Grid.Row="2" Text="Theta 功率" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ThetaPowerText}" Foreground="#0F172A" Margin="0,0,24,10"/>
-                        <TextBlock Grid.Row="2" Grid.Column="2" Text="Beta 功率" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding BetaPowerText}" Foreground="#0F172A" Margin="0,0,0,10"/>
-                        <TextBlock Grid.Row="3" Text="计算公式" Foreground="#64748B" Margin="0,0,12,0"/><TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Text="{Binding FormulaText}" Foreground="#0F172A" TextWrapping="Wrap"/>
+                        <TextBlock Grid.Column="2" Text="频段模式" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Column="3" Text="{Binding FrequencyModeText}" Foreground="#0F172A" Margin="0,0,0,10"/>
+                        <TextBlock Grid.Row="1" Text="IAPF" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding IapfText}" Foreground="#0F172A" Margin="0,0,24,10"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="Theta 频段" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding ThetaRangeText}" Foreground="#0F172A" Margin="0,0,0,10"/>
+                        <TextBlock Grid.Row="2" Text="Beta 频段" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding BetaRangeText}" Foreground="#0F172A" Margin="0,0,24,10"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Text="Theta 功率" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Row="2" Grid.Column="3" Text="{Binding ThetaPowerText}" Foreground="#0F172A" Margin="0,0,0,10"/>
+                        <TextBlock Grid.Row="3" Text="Beta 功率" Foreground="#64748B" Margin="0,0,12,10"/><TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding BetaPowerText}" Foreground="#0F172A" Margin="0,0,24,10"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Text="计算公式" Foreground="#64748B" Margin="0,0,12,0"/><TextBlock Grid.Row="3" Grid.Column="3" Text="{Binding FormulaText}" Foreground="#0F172A" TextWrapping="Wrap"/>
                     </Grid>
                 </Border>
             </Grid>

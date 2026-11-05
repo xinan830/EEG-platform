@@ -10,9 +10,12 @@ namespace BrainPlatform.Desktop.Tests.Review;
 public sealed class ReviewPsdAnalysisTests
 {
     [Fact]
-    public void Frequency_option_exposes_a_human_readable_label()
+    public void Topomap_options_expose_the_five_canonical_band_labels()
     {
-        Assert.Equal("6 Hz", new PsdFrequencyOption(5, 6).Label);
+        var options = new PsdReviewAnalysisViewModel().TopomapBandOptions;
+
+        Assert.Equal(new[] { "delta", "theta", "alpha", "beta", "gamma" }, options.Select(item => item.Id));
+        Assert.Equal("Gamma · 30–50 Hz", options[^1].Label);
     }
 
     [Fact]

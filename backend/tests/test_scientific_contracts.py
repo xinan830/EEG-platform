@@ -191,6 +191,11 @@ def test_migrated_official_algorithms_match_frozen_synthetic_baseline():
     faa = compute_faa(10e-6 * np.sin(2.0 * np.pi * 10.0 * times), 20e-6 * np.sin(2.0 * np.pi * 10.0 * times), 100.0)
     np.testing.assert_allclose(faa["faa"], fixture["faa"]["synthetic_faa"], rtol=rules["default_rtol"], atol=rules["default_atol"])
 
-    theta_beta = compute_theta_beta(SpectralEstimate(frequencies, peak[None, :], 1.0, 14, 14, None),
-                                   channel="Fz", requested_range={"start_s": 0, "end_s": 30})
-    np.testing.assert_allclose(theta_beta.value, fixture["theta_beta_v2"]["synthetic_fatigue_fz"], rtol=rules["default_rtol"], atol=rules["default_atol"])
+    theta_beta_spectrum = SpectralEstimate(frequencies, peak[None, :], 1.0, 14, 14, None)
+    theta_beta = compute_theta_beta(theta_beta_spectrum, channel="Fz",
+                                   requested_range={"start_s": 0, "end_s": 30},
+                                   frequency_mode="individualized")
+    theta_iapf = estimate_iapf(theta_beta_spectrum).value
+    expected_theta_beta = (band_power(frequencies, peak, theta_iapf - 6, theta_iapf - 4)
+                           / band_power(frequencies, peak, theta_iapf + 2, 30))
+    np.testing.assert_allclose(theta_beta.value, expected_theta_beta, rtol=rules["default_rtol"], atol=rules["default_atol"])

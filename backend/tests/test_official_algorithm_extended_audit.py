@@ -73,18 +73,16 @@ class TestIapfAndThetaBetaBoundaries:
         psd = np.full((1, len(freqs)), 1e-12)
         result = estimate_iapf(_spectrum(freqs, psd))
         assert result.value is None
-        assert result.gate_failed == "no_peak_no_cog"
+        assert result.gate_failed == "invalid_aperiodic_fit"
 
     def test_iapf_fit_with_insufficient_non_alpha_points_is_explicitly_characterized(self):
-        # Alpha bins exist, but only one point remains in the 3-30 Hz fit
-        # region after excluding 7-13 Hz. NumPy polyfit warns/returns a
-        # degenerate model today; capture that risk rather than invent a
-        # scientific failure policy here.
+        # Alpha bins exist, but fewer than three positive background bins
+        # remain after excluding the search band.
         freqs = np.array([7.0, 10.0, 13.0, 20.0])
         psd = np.array([[1e-12, 4e-12, 1e-12, 1e-12]])
-        with pytest.warns(np.exceptions.RankWarning):
-            result = estimate_iapf(_spectrum(freqs, psd))
-        assert result.value is None or np.isfinite(result.value)
+        result = estimate_iapf(_spectrum(freqs, psd))
+        assert result.value is None
+        assert result.gate_failed == "invalid_aperiodic_fit"
 
     def test_flat_spectrum_has_finite_fit_diagnostics_and_no_nan_result(self):
         result = estimate_iapf(_flat_spectrum(channels=1))
@@ -102,34 +100,38 @@ class TestIapfAndThetaBetaBoundaries:
         # This frequency axis has a valid 1-30 total band, but its sparse bins
         # do not span all individualized edges; failure must remain null.
         spectrum = _spectrum(np.array([1., 4., 8., 13., 20., 30.]), np.ones((1, 6)))
-        result = compute_theta_beta(spectrum, channel="Fz", requested_range=REQUESTED)
+        result = compute_theta_beta(spectrum, channel="Fz", requested_range=REQUESTED, frequency_mode="individualized")
         assert result.value is None
         assert result.failure is not None
         assert result.failure.code == "BAND_RANGE_INVALID"
+        if iapf == 6.0:
+            assert result.failure.detail["theta_range_hz"] == [0.0, 2.0]
 
     def test_theta_beta_band_near_boundary_returns_structured_failure(self, monkeypatch):
         from app.algorithms.iapf.official import IAPFEstimate
         monkeypatch.setattr("app.algorithms.theta_beta.compute.estimate_iapf",
                             lambda _: IAPFEstimate(4.0, "peak", None, 0.9, 0.1, 4.0, 4.0))
         spectrum = _flat_spectrum()
-        result = compute_theta_beta(spectrum, channel="Fz", requested_range=REQUESTED)
+        result = compute_theta_beta(spectrum, channel="Fz", requested_range=REQUESTED, frequency_mode="individualized")
         assert result.value is None
         assert result.failure.code == "BAND_RANGE_INVALID"
 
     def test_theta_beta_runner_catches_invalid_band_structured(self):
-        spectrum = _flat_spectrum()
+        spectrum = _flat_spectrum(freq_high=20.0)
         result = compute_theta_beta(
             spectrum, channel="Fz", requested_range=REQUESTED,
             actual_range=REQUESTED,
         )
-        # Flat PSD gives a valid IAPF (~15.5 Hz), so this exercises the
-        # normal path; the invalid-band path is covered separately.
-        assert result.value is not None and result.value > 0
+        assert result.value is None
+        assert result.failure is not None
+        assert result.failure.code == "BAND_RANGE_INVALID"
 
     def test_theta_beta_accepts_one_explicit_channel(self):
         spectrum = _flat_spectrum(channels=1)
-        result = compute_theta_beta(spectrum, channel="Fz", requested_range=REQUESTED)
-        assert result.value is not None
+        result = compute_theta_beta(spectrum, channel="Fz", requested_range=REQUESTED, frequency_mode="individualized")
+        assert result.value is None
+        assert result.failure is not None
+        assert result.failure.code == "IAPF_UNAVAILABLE"
         assert result.channel == "Fz"
 
 

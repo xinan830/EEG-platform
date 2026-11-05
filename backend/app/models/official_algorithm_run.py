@@ -24,6 +24,7 @@ class OfficialAlgorithmRunConfig(BaseModel):
     tertiary_channel: str | None = Field(default=None, min_length=1, max_length=160)
     fourth_channel: str | None = Field(default=None, min_length=1, max_length=160)
     fifth_channel: str | None = Field(default=None, min_length=1, max_length=160)
+    frequency_mode: Literal["standard", "individualized"] = "standard"
     tnk_role_mapping: dict[str, str] | None = None
     mode: Literal["static", "dynamic"] = "static"
     dynamic_window_s: float = Field(default=10, gt=0)
@@ -39,6 +40,14 @@ class OfficialAlgorithmRunConfig(BaseModel):
     analysis_montage_revision: str | None = Field(default=None, min_length=1, max_length=160)
     analysis_montage_fingerprint: str | None = Field(default=None, min_length=1, max_length=160)
     analysis_montage_outputs: list[dict[str, str]] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def apply_theta_beta_dynamic_default(cls, values: Any) -> Any:
+        if isinstance(values, dict) and values.get("algorithm_id") == "theta_beta" and values.get("mode", "static") == "dynamic":
+            values = dict(values)
+            values.setdefault("dynamic_window_s", 20)
+        return values
 
     @model_validator(mode="after")
     def validate_contract(self) -> "OfficialAlgorithmRunConfig":
@@ -129,6 +138,8 @@ class OfficialAlgorithmRunConfig(BaseModel):
             config["f4_channel"] = str(self.f4_channel)
         if self.algorithm_id == "brainbeat":
             config["secondary_channel"] = str(self.secondary_channel)
+        if self.algorithm_id == "theta_beta":
+            config["frequency_mode"] = self.frequency_mode
         if self.algorithm_id in {"peak_frequency", "psd", "stft", "faa"}:
             config.update({"low_hz": float(self.low_hz), "high_hz": float(self.high_hz)})
         if self.algorithm_id != "tnk_biofeedback":

@@ -8,6 +8,7 @@ public sealed partial record ThetaBetaResultPreview
         var projection = ScalarWindowProjectionParser.Parse(response, "theta_beta", "dimensionless", "theta_beta_evidence");
         var specific = projection.Evidence;
         var evidence = new ThetaBetaEvidence(
+            ScalarWindowProjectionParser.Text(specific, "frequency_mode"),
             ScalarWindowProjectionParser.Number(specific, "iapf_hz"),
             ScalarWindowProjectionParser.Range(specific, "theta_range_hz", 0),
             ScalarWindowProjectionParser.Range(specific, "theta_range_hz", 1),

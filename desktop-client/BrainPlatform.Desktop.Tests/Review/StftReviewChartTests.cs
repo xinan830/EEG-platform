@@ -51,14 +51,19 @@ public sealed class StftReviewChartTests
             panel.Arrange(new Rect(0, 0, 600, 300));
             panel.UpdateLayout();
             var chart = Find<StftHeatmap>(panel)!;
+            var rangeLabel = FindAll<TextBlock>(panel).Single(item => item.Name == "CurrentWindowRangeLabel");
             Assert.NotNull(chart);
             Assert.True(chart.RetainHistory);
             Assert.Same(time, RecordingTimeAxisPresentation.GetContext(chart));
+            Assert.True(rangeLabel.TranslatePoint(new Point(0, 0), panel).Y >=
+                        chart.TranslatePoint(new Point(0, 0), panel).Y + chart.ActualHeight);
             model.Apply(preview);
+            Assert.Equal("5–10 s", rangeLabel.Text);
             var surface = Find<SciChartSurface>(chart)!;
             var old = surface.RenderableSeries.OfType<FastUniformHeatmapRenderableSeries>().ToArray();
             Assert.NotEmpty(old);
             model.Apply(preview with { WindowStartSeconds = 6, WindowEndSeconds = 11 });
+            Assert.Equal("6–11 s", rangeLabel.Text);
             Assert.All(old, series => Assert.Contains(series, surface.RenderableSeries));
             Assert.Equal(6, surface.RenderableSeries.Sum(series => series.DataSeries!.Count));
             model.Apply(preview with { WindowStartSeconds = 6, WindowEndSeconds = 11 });

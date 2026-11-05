@@ -64,7 +64,7 @@ def _request(recording_id: str, algorithm_id: str, *, dynamic: bool = False) -> 
     if algorithm_id == "stft":
         config.update({"low_hz": 1.0, "high_hz": 50.0})
     if dynamic:
-        config.update({"dynamic_window_s": 10, "refresh_step_s": 1})
+        config.update({"dynamic_window_s": 20 if algorithm_id == "iapf" else 10, "refresh_step_s": 1})
     return RunCreateRequest(recording_id=recording_id, analysis_type="official_algorithm", config=config)
 
 
@@ -75,8 +75,8 @@ def test_official_iapf_static_run_is_traceable_and_returns_hz(tmp_path: Path):
     assert completed.status is RunStatus.COMPLETED
     assert completed.definition_id is not None
     assert completed.definition_version == "1.0.0"
-    assert completed.scientific_version == "official-iapf-v4"
-    assert completed.result_summary["implementation_identity"] == "iapf-runtime-v5-shared-1-50-notch"
+    assert completed.scientific_version == "official-iapf-v5"
+    assert completed.result_summary["implementation_identity"] == "iapf-runtime-v6-20s-alpha-evidence"
     assert completed.result_summary["artifacts"][0]["sha256"]
     metric = completed.result_summary["metric"]
     assert metric["output"]["unit"] == "Hz"
@@ -123,28 +123,28 @@ def test_official_theta_beta_rejects_unknown_raw_channel(tmp_path: Path):
         service.create(request)
 
 
-def test_official_dynamic_iapf_uses_the_shared_dynamic_window_contract(tmp_path: Path):
+def test_official_dynamic_iapf_uses_complete_20_second_windows(tmp_path: Path):
     service, recording_id = _service(tmp_path)
     completed = service.create(_request(recording_id, "iapf", dynamic=True))
 
     assert completed.status is RunStatus.COMPLETED
     series = completed.result_summary["metric"]["series"]
+    assert len(series) == 11
     assert series[0]["window_start_s"] == 0.0
-    assert series[0]["window_end_s"] == 4.0
-    assert series[0]["time_s"] == 4.0
-    assert "warmup" not in series[0]
-    assert series[0]["analysis_state"] == "Partial"
-    assert series[6]["window_start_s"] == 0.0
-    assert series[6]["window_end_s"] == 10.0
-    assert "warmup" not in series[6]
-    assert series[6]["analysis_state"] == "Complete"
+    assert series[0]["window_end_s"] == 20.0
+    assert series[0]["time_s"] == 20.0
+    assert series[0]["analysis_state"] == "Complete"
+    assert series[1]["window_start_s"] == 1.0
+    assert series[1]["window_end_s"] == 21.0
+    assert series[-1]["window_start_s"] == 10.0
+    assert series[-1]["window_end_s"] == 30.0
     assert all("value" in point["output"] and "quality" in point for point in series)
     assert all("value" not in point and "value" in point["output"] for point in series)
     provenance = serialize_analysis_run(completed)["analysis_provenance"]
     assert provenance["sfreq_hz"] == 200.0
     assert provenance["welch"] == {"segment_s": 4.0, "window": "hann", "overlap_fraction": 0.5, "step_s": 2.0}
     assert provenance["frequency"] == {"low_hz": 1.0, "high_hz": 30.0, "point_count": 117}
-    assert provenance["quality"] == {"clean_segments": 4, "total_segments": 4, "clean_ratio": 1.0, "gate_failed": None, "rejected_reasons": []}
+    assert provenance["quality"] == {"clean_segments": 9, "total_segments": 9, "clean_ratio": 1.0, "gate_failed": None, "rejected_reasons": []}
 
 
 def test_official_runs_do_not_reuse_results_from_the_pre_evidence_contract(tmp_path: Path):

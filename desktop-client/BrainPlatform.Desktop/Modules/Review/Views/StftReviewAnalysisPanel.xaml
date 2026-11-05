@@ -24,8 +24,13 @@
         <Grid>
             <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <stft:StftHeatmap Grid.Row="0" MinHeight="180" RetainHistory="True" Preview="{Binding StftAnalysis.Preview}" />
-            <TextBlock Grid.Row="1" Text="{Binding StftAnalysis.StatusText}" TextWrapping="Wrap"
-                       Foreground="#64748B" FontSize="11" Margin="2,4,0,0" />
+            <Grid Grid.Row="1" Margin="2,4,0,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <TextBlock x:Name="CurrentWindowRangeLabel" Text="{Binding StftAnalysis.CurrentWindowRangeText}"
+                           Foreground="#475569" FontSize="10" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding StftAnalysis.StatusText}" TextWrapping="Wrap"
+                           Foreground="#64748B" FontSize="11" Margin="12,0,0,0" />
+            </Grid>
         </Grid>
     </shared:AnalysisPanelShell>
 </UserControl>

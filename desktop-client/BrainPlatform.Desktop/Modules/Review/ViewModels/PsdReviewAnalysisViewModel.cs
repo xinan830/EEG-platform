@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
 using BrainPlatform.Desktop.Shared.Controls.Topomap;
-using System.Globalization;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
@@ -12,9 +11,8 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     private readonly PsdPreviewState preview = new();
     private string statusText = "PSD 尚未准备。";
     private IReadOnlyList<string> channels = [];
-    private IReadOnlyList<PsdFrequencyOption> frequencyOptions = [];
     private string? selectedChannel;
-    private int selectedFrequencyIndex;
+    private string selectedTopomapBandId = "delta";
     private string selectedView = "频谱";
     private TopomapResponse? topomap;
     private string analysisRangeText = "分析范围不可用";
@@ -24,12 +22,25 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     public string ValueUnit => preview.ValueUnit;
     public bool HasResult => preview.HasPreview;
     public IReadOnlyList<string> Channels { get => channels; private set => SetProperty(ref channels, value); }
-    public IReadOnlyList<PsdFrequencyOption> FrequencyOptions { get => frequencyOptions; private set => SetProperty(ref frequencyOptions, value); }
+    public IReadOnlyList<PsdTopomapBandOption> TopomapBandOptions { get; } =
+    [
+        new("delta", "Delta · 1–4 Hz"),
+        new("theta", "Theta · 4–8 Hz"),
+        new("alpha", "Alpha · 8–13 Hz"),
+        new("beta", "Beta · 13–30 Hz"),
+        new("gamma", "Gamma · 30–50 Hz"),
+    ];
     public string? SelectedChannel { get => selectedChannel; set { if (SetProperty(ref selectedChannel, value)) RaisePropertyChanged(nameof(TopomapField)); } }
-    public int SelectedFrequencyIndex
+    public string SelectedTopomapBandId
     {
-        get => selectedFrequencyIndex;
-        set { if (SetProperty(ref selectedFrequencyIndex, value)) RaisePropertyChanged(nameof(SelectedFrequencyFieldId)); }
+        get => selectedTopomapBandId;
+        set
+        {
+            if (!TopomapBandOptions.Any(option => option.Id == value)) return;
+            if (!SetProperty(ref selectedTopomapBandId, value)) return;
+            RaisePropertyChanged(nameof(SelectedTopomapFieldId));
+            RaisePropertyChanged(nameof(TopomapField));
+        }
     }
     public string SelectedView { get => selectedView; set { if (SetProperty(ref selectedView, value)) { RaisePropertyChanged(nameof(IsTopomapSelected)); RaisePropertyChanged(nameof(IsSpectrumSelected)); RaisePropertyChanged(nameof(CurrentRangeText)); } } }
     public IReadOnlyList<string> ViewOptions { get; } = ["频谱", "脑电地形图"];
@@ -37,8 +48,8 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
     public bool IsSpectrumSelected => !IsTopomapSelected;
     public TopomapResponse? Topomap { get => topomap; private set { if (SetProperty(ref topomap, value)) RaisePropertyChanged(nameof(TopomapField)); } }
     public TopomapColorScaleState TopomapColorScales { get; } = new();
-    public string SelectedFrequencyFieldId => $"psd.frequency-bin.{SelectedFrequencyIndex.ToString(CultureInfo.InvariantCulture)}";
-    public TopomapField? TopomapField => Topomap?.Fields.FirstOrDefault(item => item.FieldId == SelectedFrequencyFieldId);
+    public string SelectedTopomapFieldId => $"psd.band-mean-density.{SelectedTopomapBandId}";
+    public TopomapField? TopomapField => Topomap?.Fields.FirstOrDefault(item => item.FieldId == SelectedTopomapFieldId);
     public string CurrentRangeText => IsTopomapSelected ? topomapRangeText : analysisRangeText;
 
     public void SetChannels(IEnumerable<string> value)
@@ -79,7 +90,6 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
             var channelIndex = resultChannels.ToList().FindIndex(item => string.Equals(item, SelectedChannel, StringComparison.OrdinalIgnoreCase));
             if (channelIndex < 0) throw new InvalidOperationException("显示通道不属于当前 PSD 结果。");
             PsdWindowPresenter.Apply(preview, dynamic, channelIndex);
-            UpdateFrequencies(dynamic);
             StatusText = preview.HasPreview
                 ? string.Empty
                 : "当前 PSD 窗口没有可显示的有限频谱值。";
@@ -94,6 +104,8 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
 
     public void ApplyTopomap(TopomapResponse response)
     {
+        if (response.Fields.Any(field => field.FieldId != SelectedTopomapFieldId || field.Unit != "V^2/Hz"))
+            throw new InvalidOperationException("PSD 地形图必须返回当前频带的平均功率谱密度（V²/Hz）。");
         Topomap = response;
         topomapRangeText = FormatRange(response.WindowStartSeconds, response.WindowEndSeconds);
         RaisePropertyChanged(nameof(TopomapField));
@@ -108,21 +120,6 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
         RaisePropertyChanged(nameof(CurrentRangeText));
     }
     public void SetStatus(string value) => StatusText = value;
-
-    private void UpdateFrequencies(DynamicWindowResponse response)
-    {
-        if (response.Result?.Axes is not { } axes || !axes.TryGetValue("frequency_hz", out var values) || values.ValueKind != System.Text.Json.JsonValueKind.Array)
-            throw new InvalidOperationException("PSD 结果缺少频率轴。");
-        var options = values.EnumerateArray().Select((value, index) =>
-        {
-            if (value.ValueKind != System.Text.Json.JsonValueKind.Number || !value.TryGetDouble(out var hz) || !double.IsFinite(hz))
-                throw new InvalidOperationException("PSD 频率轴包含无效值。");
-            return new PsdFrequencyOption(index, hz);
-        }).ToArray();
-        if (options.Length == 0) throw new InvalidOperationException("PSD 频率轴为空。");
-        FrequencyOptions = options;
-        if (options.All(option => option.Index != SelectedFrequencyIndex)) SelectedFrequencyIndex = options[0].Index;
-    }
 
     private static IReadOnlyList<string> ReadChannels(DynamicWindowResponse response)
     {
@@ -157,7 +154,4 @@ public sealed class PsdReviewAnalysisViewModel : ObservableObject
             : "分析范围不可用";
 }
 
-public sealed record PsdFrequencyOption(int Index, double FrequencyHz)
-{
-    public string Label => $"{FrequencyHz:0.###} Hz";
-}
+public sealed record PsdTopomapBandOption(string Id, string Label);

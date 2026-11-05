@@ -47,18 +47,17 @@ def test_iapf_module_preserves_selected_raw_channel(monkeypatch) -> None:
     assert result.unit == "Hz"
 
 
-def test_iapf_dynamic_emits_warmup_candidates_after_one_clean_welch_segment(monkeypatch) -> None:
+def test_iapf_dynamic_does_not_emit_partial_values_before_a_complete_window(monkeypatch) -> None:
     result = _runtime(monkeypatch).execute(
         algorithm_id="iapf",
         recording=_fake_recording(),
-        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 9, "window_s": 10, "step_s": 1},
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 19, "window_s": 20, "step_s": 1},
     )
-    assert result.time_s == [4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
-    assert result.states == ["Partial"] * 6
-    assert result.values == [10.0] * 6
+    assert result.time_s == []
+    assert result.values == []
 
 
-def test_iapf_dynamic_uses_the_shared_ten_second_sliding_window_after_warmup(monkeypatch) -> None:
+def test_iapf_dynamic_uses_manifest_20_second_sliding_windows(monkeypatch) -> None:
     runtime = _runtime(monkeypatch)
     calls: list[tuple[float, float]] = []
     spectrum = SimpleNamespace(gate_failed=None, freqs=np.linspace(1.0, 30.0, 117), psd=np.ones((1, 117), dtype=float))
@@ -71,25 +70,30 @@ def test_iapf_dynamic_uses_the_shared_ten_second_sliding_window_after_warmup(mon
     result = runtime.execute(
         algorithm_id="iapf",
         recording=recording,
-        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 12, "window_s": 10, "step_s": 1},
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 22, "window_s": 20, "step_s": 1},
     )
-    assert result.time_s == [4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0]
-    assert result.windows[-3:] == [
-        {"start_s": 0.0, "end_s": 10.0},
-        {"start_s": 1.0, "end_s": 11.0},
-        {"start_s": 2.0, "end_s": 12.0},
+    assert result.time_s == [20.0, 21.0, 22.0]
+    assert result.windows == [
+        {"start_s": 0.0, "end_s": 20.0},
+        {"start_s": 1.0, "end_s": 21.0},
+        {"start_s": 2.0, "end_s": 22.0},
     ]
-    assert result.states == ["Partial"] * 6 + ["Complete"] * 3
-    assert calls[-3:] == [(0.0, 10.0), (1.0, 10.0), (2.0, 10.0)]
+    assert result.states == ["Complete"] * 3
+    assert calls == [(0.0, 20.0), (1.0, 20.0), (2.0, 20.0)]
 
 
-def test_iapf_dynamic_accepts_the_shared_ten_second_one_second_policy(monkeypatch) -> None:
+def test_iapf_dynamic_manifest_defaults_to_20_seconds_and_one_second(monkeypatch) -> None:
+    from app.algorithms.iapf.manifest import MANIFEST
+
+    assert MANIFEST.dynamic_policy.default_window_s == 20.0
+    assert MANIFEST.dynamic_policy.refresh_step_s == 1.0
+    assert MANIFEST.dynamic_policy.allow_warmup is False
     result = _runtime(monkeypatch).execute(
         algorithm_id="iapf",
         recording=_fake_recording(),
-        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 10, "window_s": 10, "step_s": 1},
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 20, "window_s": 20, "step_s": 1},
     )
-    assert result.time_s[-1] == 10.0
+    assert result.time_s == [20.0]
 
 
 def test_iapf_dynamic_keeps_a_rejected_window_and_continues(monkeypatch) -> None:
@@ -108,17 +112,17 @@ def test_iapf_dynamic_keeps_a_rejected_window_and_continues(monkeypatch) -> None
             })
         return spectrum
 
-    recording = SimpleNamespace(id="r1", channel_names=["Fz"], sfreq_hz=500.0, duration_s=12.0, load_spectrum=load_spectrum)
+    recording = SimpleNamespace(id="r1", channel_names=["Fz"], sfreq_hz=500.0, duration_s=22.0, load_spectrum=load_spectrum)
     result = runtime.execute(
         algorithm_id="iapf", recording=recording,
-        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 6, "window_s": 10, "step_s": 1},
+        config={"channel": "Fz", "mode": "dynamic", "start_s": 0, "end_s": 22, "window_s": 20, "step_s": 1},
     )
     assert result.values[0] is None
     assert result.quality[0] == "gate_failed"
     assert result.failures[0].code == "PSD_QUALITY_GATE_FAILED"
-    assert result.values[1:] == [10.0, 10.0]
+    assert result.values == [None, 10.0, 10.0]
     assert result.states[0] == "Rejected"
-    assert result.states[1:] == ["Partial", "Partial"]
+    assert result.states == ["Rejected", "Complete", "Complete"]
 
 
 def test_later_generic_catchup_never_restarts_warmup_from_a_trailing_boundary() -> None:

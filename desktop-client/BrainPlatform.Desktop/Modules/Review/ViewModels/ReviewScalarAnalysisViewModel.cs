@@ -13,11 +13,11 @@ public sealed class ReviewScalarAnalysisViewModel(string unit,
 {
     private IReadOnlyList<ReviewScalarPoint> points = [];
     private string statusText = "尚未准备。";
-    private string sourceText = "";
+    private string currentWindowRangeText = "分析范围不可用";
 
     public IReadOnlyList<ReviewScalarPoint> Points { get => points; private set => SetProperty(ref points, value); }
     public string StatusText { get => statusText; private set => SetProperty(ref statusText, value); }
-    public string SourceText { get => sourceText; private set => SetProperty(ref sourceText, value); }
+    public string CurrentWindowRangeText { get => currentWindowRangeText; private set => SetProperty(ref currentWindowRangeText, value); }
     public string Unit { get; } = unit;
 
     public void Apply(WindowPreviewResponse? response, string? primaryChannel, string? secondaryChannel)
@@ -25,10 +25,16 @@ public sealed class ReviewScalarAnalysisViewModel(string unit,
         if (response is null)
         {
             Points = [];
-            SourceText = "";
             StatusText = "尚未准备。";
+            CurrentWindowRangeText = "分析范围不可用";
             return;
         }
+
+        var startSeconds = response.WindowStartSeconds ?? response.DynamicResponse?.Range?.StartSeconds;
+        var endSeconds = response.WindowEndSeconds ?? response.DynamicResponse?.Range?.EndSeconds;
+        CurrentWindowRangeText = startSeconds is double start && endSeconds is double end &&
+            double.IsFinite(start) && double.IsFinite(end) && end >= start
+                ? $"{start:0.###}–{end:0.###} s" : "分析范围不可用";
 
         if (response.DynamicResponse is not { } raw)
         {
@@ -42,7 +48,6 @@ public sealed class ReviewScalarAnalysisViewModel(string unit,
             var incoming = project(raw, primaryChannel, secondaryChannel);
             Points = points.Where(existing => incoming.All(point => point.TimeSeconds != existing.TimeSeconds))
                 .Concat(incoming).OrderBy(point => point.TimeSeconds).TakeLast(256).ToArray();
-            SourceText = secondaryChannel is null ? primaryChannel ?? "" : $"{primaryChannel} / {secondaryChannel}";
             var currentFailure = incoming.LastOrDefault()?.Failure;
             StatusText = response.Status == "available" ? "" :
                 !string.IsNullOrWhiteSpace(currentFailure) ? currentFailure :

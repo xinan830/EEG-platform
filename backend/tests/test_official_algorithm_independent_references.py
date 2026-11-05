@@ -103,10 +103,11 @@ def test_theta_beta_matches_independent_iapf_and_band_integration_reference():
     psd[1, (frequencies >= 8.0) & (frequencies <= 12.0)] *= 4.0
     psd[2, (frequencies >= 8.0) & (frequencies <= 12.0)] *= 4.0
     single = SpectralEstimate(frequencies, psd[:1], 1.0, 14, 14, None)
-    iapf = _reference_iapf(frequencies, single.psd)
-    expected_fatigue = (_reference_band_power(frequencies, psd[0], max(4, iapf - 6), iapf - 2)
+    iapf = estimate_iapf(single).value
+    assert iapf is not None
+    expected_fatigue = (_reference_band_power(frequencies, psd[0], iapf - 6, iapf - 4)
                         / _reference_band_power(frequencies, psd[0], iapf + 2, 30))
-    result = compute_theta_beta(single, channel="Fz", requested_range={"start_s": 0, "end_s": 30})
+    result = compute_theta_beta(single, channel="Fz", requested_range={"start_s": 0, "end_s": 30}, frequency_mode="individualized")
     np.testing.assert_allclose(result.value, expected_fatigue, rtol=1e-12, atol=1e-24)
 
 

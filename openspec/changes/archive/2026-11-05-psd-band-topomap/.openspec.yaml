@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-04
+goal: Make PSD topomap selection explicit, scientifically traceable, and
+  independent of RBP result arrays

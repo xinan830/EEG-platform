@@ -42,6 +42,35 @@ public sealed partial class RecordingReviewViewModelTests
     }
 
     [Fact]
+    public async Task Theta_beta_frequency_mode_change_recomputes_review_window()
+    {
+        var configuration = Configuration();
+        var catalog = new RecordingMontageCatalogResult(null, AcquisitionMontageStatus.MissingSnapshot,
+            new RawSignalViewDefinition(["F3", "F4", "Fz", "Pz"]), [], []);
+        var provider = new PanelProvider("theta_beta");
+        await using var vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100), catalog,
+            recordingDirectory: "_temp/scalar-review-fixture", analysisCoordinators: [new ReviewAnalysisCoordinator(provider)]);
+        await vm.InitializeAsync();
+        await vm.SeekAsync(25);
+        await vm.OpenAnalysisAsync("theta_beta");
+        Assert.Equal("standard", provider.Configurations.Single().GetProperty("frequency_mode").GetString());
+        Assert.Equal(20, provider.Configurations.Single().GetProperty("dynamic_window_s").GetDouble());
+        var updated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.CurrentAnalysisWindow) && provider.Configurations.Count == 2)
+                updated.TrySetResult();
+        };
+
+        vm.ThetaBetaParameters.FrequencyMode = "individualized";
+        await updated.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("individualized", provider.Configurations.Last().GetProperty("frequency_mode").GetString());
+        Assert.Equal(20, provider.Configurations.Last().GetProperty("dynamic_window_s").GetDouble());
+        Assert.Equal(1, provider.Configurations.Last().GetProperty("refresh_step_s").GetDouble());
+    }
+
+    [Fact]
     public async Task Scalar_panel_chart_starts_at_open_cursor_and_keeps_that_origin_during_playback()
     {
         var configuration = Configuration();
@@ -238,7 +267,9 @@ public sealed partial class RecordingReviewViewModelTests
             if (deferCatalog) await WaitIgnoringCancellation(cancellationToken);
             var parameters = algorithmId == "psd" ? ReviewPsdAnalysisTests.CatalogParameters() : [];
             return new AlgorithmCatalogItem("official", algorithmId, "fixture-v1", algorithmId, "", "", parameters, ["dynamic"],
-                default, new DynamicAnalysisPolicy(4, [5], 5, 1, true),
+                default, algorithmId == "theta_beta"
+                    ? new DynamicAnalysisPolicy(20, [20, 30], 20, 1, false)
+                    : new DynamicAnalysisPolicy(4, [5], 5, 1, true),
                 "available", true, "definition", "1", "impl");
         }
 

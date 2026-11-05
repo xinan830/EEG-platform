@@ -2,6 +2,14 @@
 
 ANALYSIS_ALGORITHM_VERSION = "offline-spectral-v4"
 
+FREQUENCY_BANDS_HZ = (
+    ("delta", 1.0, 4.0),
+    ("theta", 4.0, 8.0),
+    ("alpha", 8.0, 13.0),
+    ("beta", 13.0, 30.0),
+    ("gamma", 30.0, 50.0),
+)
+
 ANALYSIS_CONTRACT: dict[str, object] = {
     "algorithm_version": ANALYSIS_ALGORITHM_VERSION,
     "input_unit": "V",
@@ -27,10 +35,8 @@ ANALYSIS_CONTRACT: dict[str, object] = {
         "non_finite", "amplitude_threshold", "flatline", "clipping", "missing_samples",
     ],
     "frequency_band_edges": {
-        "delta": [1.0, 4.0, "left_closed_right_open"],
-        "theta": [4.0, 8.0, "left_closed_right_open"],
-        "alpha": [8.0, 13.0, "left_closed_right_open"],
-        "beta": [13.0, 30.0, "closed"],
+        name: [low, high, "closed" if name == "beta" else "left_closed_right_open"]
+        for name, low, high in FREQUENCY_BANDS_HZ
     },
     "iapf_search_hz": [7.0, 13.0],
     "iapf_lock_candidates": 3,

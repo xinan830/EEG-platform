@@ -268,6 +268,7 @@ public sealed class TopomapCanvas : FrameworkElement
 
     private static string FieldName(TopomapField field)
     {
+        if (field.FieldId.StartsWith("psd.band-mean-density.", StringComparison.Ordinal)) return field.Label;
         var id = field.FieldId.Split('.').Last();
         return id switch
         {

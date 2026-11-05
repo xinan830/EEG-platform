@@ -21,7 +21,7 @@ def test_algorithm_preset_crud_validates_against_official_runtime(tmp_path, monk
 
     created = client.post("/api/algorithm-presets", json={
         "algorithm_id": "iapf",
-        "scientific_version": "official-iapf-v4",
+        "scientific_version": "official-iapf-v5",
         "name": "默认 Alpha",
         "config": _config(),
     })
@@ -52,7 +52,7 @@ def test_algorithm_preset_rejects_invalid_config_before_persisting(tmp_path, mon
     )
     response = TestClient(app).post("/api/algorithm-presets", json={
         "algorithm_id": "iapf",
-        "scientific_version": "official-iapf-v4",
+        "scientific_version": "official-iapf-v5",
         "name": "错误预设",
         "config": {**_config(), "start_s": -1},
     })

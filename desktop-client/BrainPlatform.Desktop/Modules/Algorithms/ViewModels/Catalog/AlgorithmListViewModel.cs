@@ -47,6 +47,7 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     private string lowFrequencyText = "1";
     private string highFrequencyText = "50";
     private string selectedNotchFrequency = "50 Hz";
+    private string selectedThetaBetaFrequencyMode = "standard";
     private string numeratorLowFrequencyText = "4";
     private string numeratorHighFrequencyText = "8";
     private string denominatorLowFrequencyText = "8";
@@ -317,6 +318,11 @@ public sealed partial class AlgorithmListViewModel : ObservableObject, IAsyncDis
     public bool IsFaaSelected => IsSelected("faa");
     public bool IsIapfSelected => IsSelected("iapf");
     public bool IsThetaBetaSelected => IsSelected("theta_beta");
+    public string SelectedThetaBetaFrequencyMode
+    {
+        get => selectedThetaBetaFrequencyMode;
+        set { if (SetProperty(ref selectedThetaBetaFrequencyMode, value)) ScheduleAutomaticRun(); }
+    }
     public bool IsBrainbeatSelected => IsSelected("brainbeat");
     public bool IsTnkSelected => IsSelected("tnk_biofeedback");
     public string ChannelLabel => AlgorithmUiRegistry.For(SelectedAlgorithm?.Id ?? string.Empty).ChannelLabel;

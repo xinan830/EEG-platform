@@ -82,9 +82,9 @@ class IapfAlgorithm(ScalarDynamicWindowCapability):
         )
 
     def execute_dynamic(self, inputs: AlgorithmInputs, config: IapfConfig) -> AlgorithmSeriesResult:
-        window_s = config.window_s or 10.0
-        step_s = config.step_s or 1.0
         policy = self.manifest.dynamic_policy
+        window_s = config.window_s or policy.default_window_s
+        step_s = config.step_s or policy.refresh_step_s
         frames = build_dynamic_analysis_frames(
             config.start_s,
             config.end_s,

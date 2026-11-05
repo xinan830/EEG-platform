@@ -28,6 +28,8 @@ public sealed class AlgorithmParameterContext : ObservableObject
     public string DenominatorHighFrequencyText { get => catalog.DenominatorHighFrequencyText; set => catalog.DenominatorHighFrequencyText = value; }
     public bool IsBandRatioSelected => AlgorithmUiRegistry.For(catalog.SelectedAlgorithm?.Id ?? string.Empty).HasBandRatioParameters;
     public bool IsPeakFrequencySelected => AlgorithmUiRegistry.For(catalog.SelectedAlgorithm?.Id ?? string.Empty).HasPeakFrequencyParameters;
+    public bool IsThetaBetaSelected => catalog.IsThetaBetaSelected;
+    public string SelectedThetaBetaFrequencyMode { get => catalog.SelectedThetaBetaFrequencyMode; set => catalog.SelectedThetaBetaFrequencyMode = value; }
     public IReadOnlyList<string> PeakBandPresetNames => catalog.FrequencyBandPresets.Select(item => item.Name).ToArray();
     public string SelectedPeakBandPreset { get => catalog.SelectedPeakBandPreset; set => catalog.SelectedPeakBandPreset = value; }
     public IReadOnlyList<string> BandRatioPresetNames => catalog.BandRatioPresets.Select(item => item.Name).ToArray();
@@ -47,6 +49,8 @@ public sealed class AlgorithmParameterContext : ObservableObject
             case nameof(AlgorithmListViewModel.DenominatorHighFrequencyText): RaisePropertyChanged(nameof(DenominatorHighFrequencyText)); break;
             case nameof(AlgorithmListViewModel.IsBandRatioSelected): RaisePropertyChanged(nameof(IsBandRatioSelected)); break;
             case nameof(AlgorithmListViewModel.IsPeakFrequencySelected): RaisePropertyChanged(nameof(IsPeakFrequencySelected)); break;
+            case nameof(AlgorithmListViewModel.IsThetaBetaSelected): RaisePropertyChanged(nameof(IsThetaBetaSelected)); break;
+            case nameof(AlgorithmListViewModel.SelectedThetaBetaFrequencyMode): RaisePropertyChanged(nameof(SelectedThetaBetaFrequencyMode)); break;
             case nameof(AlgorithmListViewModel.FrequencyBandPresets): RaisePropertyChanged(nameof(PeakBandPresetNames)); break;
             case nameof(AlgorithmListViewModel.SelectedPeakBandPreset): RaisePropertyChanged(nameof(SelectedPeakBandPreset)); break;
             case nameof(AlgorithmListViewModel.BandRatioPresets): RaisePropertyChanged(nameof(BandRatioPresetNames)); break;

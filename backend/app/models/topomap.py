@@ -38,6 +38,7 @@ class TopomapField(BaseModel):
     label: str = Field(min_length=1)
     unit: str
     frequency_hz: float | None = None
+    frequency_range_hz: tuple[float, float] | None = None
     points: list[TopomapPoint]
     grid: TopomapGrid | None = None
     status: TopomapStatus

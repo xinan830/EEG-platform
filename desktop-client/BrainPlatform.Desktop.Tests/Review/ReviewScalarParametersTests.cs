@@ -56,6 +56,23 @@ public sealed class ReviewScalarParametersTests
         using var single = JsonDocument.Parse(iapf.BuildConfig(100, 500).GetRawText());
         Assert.False(single.RootElement.TryGetProperty("secondary_channel", out _));
         Assert.Single(single.RootElement.GetProperty("channels").EnumerateArray());
+        Assert.Equal(20, single.RootElement.GetProperty("dynamic_window_s").GetDouble());
+        Assert.Equal(1, single.RootElement.GetProperty("refresh_step_s").GetDouble());
+    }
+
+    [Fact]
+    public void ThetaBeta_review_serializes_the_selected_frequency_mode()
+    {
+        var parameters = new ReviewScalarParameters("theta_beta");
+        parameters.Initialize(Recording(), Algorithm("theta_beta"), null);
+        using var defaults = JsonDocument.Parse(parameters.BuildConfig(100, 500).GetRawText());
+        Assert.Equal("standard", defaults.RootElement.GetProperty("frequency_mode").GetString());
+        parameters.FrequencyMode = "individualized";
+
+        using var config = JsonDocument.Parse(parameters.BuildConfig(100, 500).GetRawText());
+        Assert.Equal("individualized", config.RootElement.GetProperty("frequency_mode").GetString());
+        Assert.Equal(20, config.RootElement.GetProperty("dynamic_window_s").GetDouble());
+        Assert.Equal(1, config.RootElement.GetProperty("refresh_step_s").GetDouble());
     }
 
     private static RegisteredRecording Recording() => new(
@@ -63,7 +80,8 @@ public sealed class ReviewScalarParametersTests
 
     private static AlgorithmCatalogItem Algorithm(string id) => new(
         "official", id, "fixture-v1", id, id, "", [], ["dynamic"], default,
-        new DynamicAnalysisPolicy(4, [5], 5, 1, false), "available", true,
+        id is "iapf" or "theta_beta" ? new DynamicAnalysisPolicy(20, [20, 30], 20, 1, false)
+            : new DynamicAnalysisPolicy(4, [5], 5, 1, false), "available", true,
         "definition", "1", "impl");
 
     private static HistoricalMontageDescriptor Montage(params HistoricalMontageOutput[] outputs) => new(

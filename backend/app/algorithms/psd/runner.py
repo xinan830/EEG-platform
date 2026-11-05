@@ -30,7 +30,7 @@ from app.algorithm_runtime.windows import (
 )
 from app.scientific.contracts.types import SampleRange
 from app.scientific.quality import SpectralQualityGateError
-from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, FREQUENCY_BANDS_HZ
 
 from .config import PsdConfig
 from .manifest import MANIFEST
@@ -41,8 +41,8 @@ class PsdAlgorithm:
     on_demand_default_enabled = True
     config_model = PsdConfig
     output_schema = MANIFEST.output_schema
-    BAND_SHARE_LABELS = ("delta", "theta", "alpha", "beta", "gamma")
-    BAND_SHARE_RANGES = ((1.0, 4.0), (4.0, 8.0), (8.0, 13.0), (13.0, 30.0), (30.0, 50.0))
+    BAND_SHARE_LABELS = tuple(name for name, _, _ in FREQUENCY_BANDS_HZ)
+    BAND_SHARE_RANGES = tuple((low, high) for _, low, high in FREQUENCY_BANDS_HZ)
     window_policy_version = "psd-dynamic-window-v1"
 
     def can_execute_window(self, config: AlgorithmConfigBase) -> bool:

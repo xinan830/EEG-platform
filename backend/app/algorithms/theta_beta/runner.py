@@ -29,12 +29,14 @@ class ThetaBetaAlgorithm(ScalarDynamicWindowCapability):
             channel=inputs.channel,
             requested_range={"start_s": start_s, "end_s": end_s},
             actual_range={"start_s": start_s, "end_s": end_s},
+            frequency_mode=config.frequency_mode,
         )
 
     def parameter_schema(self) -> ParameterSchema:
         return ParameterSchema(parameters=[
             AlgorithmParameter(key="channel", label_zh="分析通道", value_type="string", description_zh="从原始记录通道中选择一个通道。"),
             AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
+            AlgorithmParameter(key="frequency_mode", label_zh="频段模式", value_type="enum", default="standard", options=[ParameterOption(value="standard", label_zh="标准频段"), ParameterOption(value="individualized", label_zh="IAF 相对频段")]),
             AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
             AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=4, step=1, required=False),
@@ -72,12 +74,16 @@ class ThetaBetaAlgorithm(ScalarDynamicWindowCapability):
             channel=inputs.channel,
             requested_range={"start_s": config.start_s, "end_s": config.end_s},
             actual_range={"start_s": config.start_s, "end_s": config.end_s},
+            frequency_mode=config.frequency_mode,
         )
 
     def execute_dynamic(self, inputs: AlgorithmInputs, config: ThetaBetaConfig) -> AlgorithmSeriesResult:
-        window_s = config.window_s or 10.0
-        step_s = config.step_s or 1.0
-        frames = build_dynamic_analysis_frames(config.start_s, config.end_s, duration_s=inputs.duration_s, window_s=window_s, step_s=step_s)
+        policy = self.manifest.dynamic_policy
+        window_s = config.window_s or policy.default_window_s
+        step_s = config.step_s or policy.refresh_step_s
+        frames = build_dynamic_analysis_frames(config.start_s, config.end_s, duration_s=inputs.duration_s,
+            window_s=window_s, step_s=step_s, minimum_window_s=policy.minimum_window_s,
+            allow_warmup=policy.allow_warmup)
         results: list[AlgorithmResult] = []
         for frame in controlled_frames(frames, inputs.execution_context):
             requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
@@ -89,6 +95,7 @@ class ThetaBetaAlgorithm(ScalarDynamicWindowCapability):
                 results.append(compute_theta_beta(
                     spectrum, channel=inputs.channel,
                     requested_range=requested_range, actual_range=requested_range,
+                    frequency_mode=config.frequency_mode,
                 ))
             except SpectralQualityGateError as exc:
                 # Preserve the rejected point and continue with later windows.

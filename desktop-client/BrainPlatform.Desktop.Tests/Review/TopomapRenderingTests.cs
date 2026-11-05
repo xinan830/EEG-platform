@@ -78,10 +78,10 @@ public sealed class TopomapRenderingTests
     }
 
     [Fact]
-    public void Psd_scale_preserves_backend_range_and_formats_values_as_microvolts_squared_per_hz()
+    public void Psd_band_mean_density_scale_converts_SI_values_once_to_microvolts_squared_per_hertz()
     {
         var state = new TopomapColorScaleState();
-        var field = CreateBand("psd.frequency-bin.5", "V^2/Hz", 1e-12, 8e-12);
+        var field = CreateField("psd.band-mean-density.gamma", "Gamma 平均 PSD (30–50 Hz)", "V^2/Hz", CreateGrid(1e-12, 8e-12));
 
         state.Remember(field, 1e-12, 8e-12);
 

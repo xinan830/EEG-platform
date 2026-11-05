@@ -186,7 +186,12 @@ def test_brainbeat_real_recording_api_matches_each_full_dynamic_window(tmp_path)
                 time.sleep(0.01)
             assert window["range"]["start_s"] == frame["window_start_s"]
             assert window["range"]["end_s"] == frame["window_end_s"]
-            expected_state = "rejected" if frame["failure"] is not None else "ready"
+            if frame["failure"] is not None and frame["failure"].get("code") == "PSD_QUALITY_GATE_FAILED":
+                expected_state = "rejected"
+            elif frame["output"]["value"] is None:
+                expected_state = "unavailable"
+            else:
+                expected_state = "ready"
             assert window["state"] == expected_state
             result = window["result"]
             if frame["output"]["value"] is None:

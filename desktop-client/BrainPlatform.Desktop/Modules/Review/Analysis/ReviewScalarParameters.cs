@@ -10,6 +10,7 @@ public sealed class ReviewScalarParameters(string algorithmId, string? primaryRo
 {
     private string? channel;
     private string? secondaryChannel;
+    private string frequencyMode = "standard";
 
     public string AlgorithmId { get; } = algorithmId;
     public IReadOnlyList<string> Channels { get; private set; } = [];
@@ -20,6 +21,8 @@ public sealed class ReviewScalarParameters(string algorithmId, string? primaryRo
     public string? ScientificVersion { get; private set; }
     public double WindowSeconds { get; private set; }
     public double StepSeconds { get; private set; }
+    public bool IsThetaBeta => AlgorithmId == "theta_beta";
+    public string FrequencyMode { get => frequencyMode; set => SetProperty(ref frequencyMode, value); }
 
     public void Initialize(RegisteredRecording recording, AlgorithmCatalogItem algorithm,
         HistoricalMontageDescriptor? montage)
@@ -65,6 +68,7 @@ public sealed class ReviewScalarParameters(string algorithmId, string? primaryRo
             ["dynamic_window_s"] = WindowSeconds,
             ["refresh_step_s"] = StepSeconds,
         };
+        if (IsThetaBeta) config["frequency_mode"] = FrequencyMode;
         if (secondaryConfigField is not null) config[secondaryConfigField] = SecondaryChannel;
         if (additionalFields is not null)
             foreach (var (name, value) in additionalFields) config[name] = value;

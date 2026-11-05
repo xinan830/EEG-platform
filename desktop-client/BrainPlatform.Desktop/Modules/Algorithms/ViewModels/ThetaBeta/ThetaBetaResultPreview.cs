@@ -3,6 +3,7 @@ using System.Text.Json;
 namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.ThetaBeta;
 
 public sealed record ThetaBetaEvidence(
+    string FrequencyMode,
     double? IapfHz,
     double? ThetaLowHz,
     double? ThetaHighHz,
@@ -87,7 +88,7 @@ public sealed partial record ThetaBetaResultPreview(
             ? direct : default;
         var trace = point.TryGetProperty("calculation_trace", out var traceValue) && traceValue.ValueKind == JsonValueKind.Object ? traceValue : default;
         return new ThetaBetaEvidence(
-            Number(evidence, "iapf_hz"), Range(evidence, "theta_range_hz", 0), Range(evidence, "theta_range_hz", 1),
+            Text(evidence, "frequency_mode"), Number(evidence, "iapf_hz"), Range(evidence, "theta_range_hz", 0), Range(evidence, "theta_range_hz", 1),
             Range(evidence, "beta_range_hz", 0), Range(evidence, "beta_range_hz", 1),
             Number(evidence, "theta_power_uv2"), Number(evidence, "beta_power_uv2"),
             Text(trace, "formula"));

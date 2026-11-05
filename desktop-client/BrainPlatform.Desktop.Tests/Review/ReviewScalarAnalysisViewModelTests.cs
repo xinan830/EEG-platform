@@ -29,7 +29,11 @@ public sealed class ReviewScalarAnalysisViewModelTests
         Assert.Equal("Complete", point.State);
         Assert.NotNull(point.Evidence);
         Assert.NotNull(point.Provenance);
-        Assert.Equal("F3", viewModel.SourceText);
+        Assert.Equal("1–6 s", viewModel.CurrentWindowRangeText);
+
+        viewModel.Apply(null, "F3", null);
+
+        Assert.Equal("分析范围不可用", viewModel.CurrentWindowRangeText);
     }
 
     [Fact]

@@ -34,7 +34,8 @@ public sealed record TopomapField(
     [property: JsonPropertyName("included_channels")] IReadOnlyList<string> IncludedChannels,
     [property: JsonPropertyName("excluded_channels")] IReadOnlyList<string> ExcludedChannels,
     [property: JsonPropertyName("failure")] JsonElement? Failure,
-    [property: JsonPropertyName("provenance")] IReadOnlyDictionary<string, JsonElement>? Provenance);
+    [property: JsonPropertyName("provenance")] IReadOnlyDictionary<string, JsonElement>? Provenance,
+    [property: JsonPropertyName("frequency_range_hz")] IReadOnlyList<double>? FrequencyRangeHz = null);
 
 public sealed record TopomapResponse(
     [property: JsonPropertyName("run_id")] string RunId,

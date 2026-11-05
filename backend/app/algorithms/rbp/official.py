@@ -7,18 +7,13 @@ from typing import Any
 import numpy as np
 
 from app.scientific.primitives.spectral import band_power
+from app.scientific.contracts.analysis import FREQUENCY_BANDS_HZ
 
 RBP_FILTER_LOW_HZ = 1.0
 RBP_FILTER_HIGH_HZ = 50.0
 RBP_NOTCH_HZ = 50.0
 
-RBP_BANDS = (
-    ("delta", 1.0, 4.0),
-    ("theta", 4.0, 8.0),
-    ("alpha", 8.0, 13.0),
-    ("beta", 13.0, 30.0),
-    ("gamma", 30.0, 50.0),
-)
+RBP_BANDS = FREQUENCY_BANDS_HZ
 
 
 def five_band_shares(spectrum: Any) -> tuple[dict[str, float], dict[str, float]]:

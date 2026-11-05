@@ -226,7 +226,9 @@ def test_official_algorithms_use_registered_montage_signals(tmp_path, algorithm_
     runs = RunService(service, service.database_path, tmp_path / "artifacts")
     config = {
         "algorithm_id": algorithm_id, "mode": mode,
-        "time": {"start_s": 0, "end_s": 12}, "dynamic_window_s": 5, "refresh_step_s": 1,
+        "time": {"start_s": 0, "end_s": 12},
+        "dynamic_window_s": 20 if algorithm_id == "iapf" and mode == "dynamic" else 5,
+        "refresh_step_s": 1,
     }
     if algorithm_id == "psd":
         config["channels"] = ["F3-REF"]

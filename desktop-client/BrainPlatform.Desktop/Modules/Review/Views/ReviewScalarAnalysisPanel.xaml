@@ -25,17 +25,25 @@
                           Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="105"
                           VerticalAlignment="Center" ToolTip="第二输入通道"
                           Visibility="{Binding HasSecondaryScalarChannel, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <ComboBox Margin="6,0,0,0" Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="190"
+                          SelectedValuePath="Tag" SelectedValue="{Binding ActiveScalarParameters.FrequencyMode, Mode=TwoWay}"
+                          Visibility="{Binding ActiveScalarParameters.IsThetaBeta, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ComboBoxItem Content="标准频段（4–8 / 13–30 Hz）" Tag="standard" />
+                    <ComboBoxItem Content="IAF 相对频段" Tag="individualized" />
+                </ComboBox>
             </StackPanel>
         </shared:AnalysisPanelShell.HeaderContent>
         <Grid>
-            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid.RowDefinitions><RowDefinition Height="*" /></Grid.RowDefinitions>
             <review:ReviewScalarTrendChart Grid.Row="0" MinHeight="180"
                 Points="{Binding ActiveScalarAnalysis.Points}"
                 Unit="{Binding ActiveScalarAnalysis.Unit}"
                 StartSeconds="{Binding AnalysisPanelStartSeconds}"
                 EndSeconds="{Binding PositionSeconds}" />
-            <TextBlock Grid.Row="1" Text="{Binding ActiveScalarAnalysis.SourceText}"
-                       Foreground="#64748B" FontSize="11" Margin="2,4,0,0" />
+            <TextBlock Grid.Row="0" Text="{Binding ActiveScalarAnalysis.CurrentWindowRangeText}"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                       Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                       IsHitTestVisible="False" Panel.ZIndex="2" />
         </Grid>
     </shared:AnalysisPanelShell>
 </UserControl>

@@ -74,7 +74,11 @@ public sealed partial class AlgorithmListViewModel
         var psdChannels = string.Equals(algorithm.Id, "psd", StringComparison.OrdinalIgnoreCase)
             ? new[] { runChannel }.Concat(RegisteredChannels).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
             : null;
-        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, runChannel, requestedRange, dynamic ? "dynamic" : "static", runParameters.FrequencyBand, runParameters.RatioBands, runParameters.F4Channel, dynamic ? SelectedDynamicWindowSeconds : null, dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0, SelectedMontageProfile, runParameters.RoleChannels, psdChannels);
+        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, runChannel, requestedRange,
+            dynamic ? "dynamic" : "static", runParameters.FrequencyBand, runParameters.RatioBands,
+            runParameters.F4Channel, dynamic ? SelectedDynamicWindowSeconds : null,
+            dynamic ? stepSeconds : null, runParameters.NotchHz ?? 0.0, SelectedMontageProfile,
+            runParameters.RoleChannels, psdChannels, SelectedThetaBetaFrequencyMode);
         AlgorithmParameterValidation.ValidateOrThrow(algorithm, config);
         ClearPreviews();
         // Backend atomically merges active scientific configurations. New attempts

@@ -35,12 +35,16 @@
                           SelectedItem="{Binding PsdAnalysis.SelectedView, UpdateSourceTrigger=PropertyChanged}"
                           Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="120"
                           Margin="8,0,0,0" VerticalAlignment="Center" />
-                <ComboBox ItemsSource="{Binding PsdAnalysis.FrequencyOptions}"
-                          DisplayMemberPath="Label"
-                          SelectedValuePath="Index"
-                          SelectedValue="{Binding PsdAnalysis.SelectedFrequencyIndex, UpdateSourceTrigger=PropertyChanged}"
-                          Height="32" MinWidth="110"
+                <ComboBox ItemsSource="{Binding PsdAnalysis.TopomapBandOptions}"
+                          SelectedValuePath="Id"
+                          SelectedValue="{Binding PsdAnalysis.SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"
+                          Height="32" MinWidth="170" ToolTip="频带平均 PSD：频带积分除以完整带宽，单位 µV²/Hz"
                           Margin="8,0,0,0" VerticalAlignment="Center">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
                     <ComboBox.Style>
                         <Style TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
                             <Setter Property="Visibility" Value="Collapsed" />

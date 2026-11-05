@@ -3,16 +3,20 @@
 ## Purpose
 
 为已有 EEG 通道结果提供统一、可追溯的头皮空间展示能力，使不同算法能够复用同一套时间、通道位置、单位、质量和空间资格规则，而不重复实现地形图逻辑。
-
 ## Requirements
-
 ### Requirement: Topomap input is an explicit windowed channel result
-Topomap input MUST be one selected scalar spatial field from an explicit file-absolute-time algorithm result. It MUST include `recording_id`, result/window identity, `window_start_s`, `window_end_s`, original channel order, one value and quality state per channel, a stable field identity, an explicit unit, algorithm version, and the bound montage snapshot identity. A frequency-resolved source MUST additionally identify the selected actual frequency bin and its `frequency_hz`. Internal values MUST follow the platform scientific-unit contract; public fields MUST declare their unit. The topomap MUST NOT infer time, channel positions, field identity, or values from the display clock or frontend.
+Topomap input MUST be one selected scalar spatial field from an explicit file-absolute-time algorithm result. It MUST include `recording_id`, result/window identity, `window_start_s`, `window_end_s`, original channel order, one value and quality state per channel, a stable field identity, an explicit unit, algorithm version, and the bound montage snapshot identity. A frequency-resolved source MUST identify the selected frequency operation: an exact bin with its `frequency_hz`, or a band summary with its exact `frequency_range_hz`, frequency reduction, and output unit. Internal values MUST follow the platform scientific-unit contract; public fields MUST declare their unit. The topomap MUST NOT infer time, channel positions, field identity, or values from the display clock or frontend.
 
 #### Scenario: Algorithm supplies a valid band result
 - **WHEN** an algorithm provides one complete window of per-channel values for a band or other scalar metric
 - **THEN** its adapter preserves the window identity, original channel order, field identity, unit, algorithm version, montage identity, and per-channel quality
 - **AND** the spatial projection consumes only that field's values
+
+#### Scenario: PSD supplies one band-mean density
+- **WHEN** PSD supplies its ordered channel-by-frequency density and a consumer selects one canonical band
+- **THEN** the adapter integrates the piecewise-linear density at the exact band edges independently for each channel and divides by the complete band width
+- **AND** it reports the exact band identity and frequency bounds with unit `V^2/Hz`
+- **AND** it does not read RBP result arrays or start another algorithm run
 
 #### Scenario: PSD supplies one actual frequency bin
 - **WHEN** PSD supplies its ordered channel-by-frequency result and a consumer selects one returned frequency bin
@@ -94,6 +98,11 @@ Algorithms that support topomaps MUST register an adapter that identifies the so
 - **WHEN** RBP exposes per-channel relative or absolute power for Delta, Theta, Alpha, Beta, or Gamma
 - **THEN** its adapter identifies each requested power/band field and reads only the matching structured RBP result array
 - **AND** it does not derive absolute power from relative shares or diagnostic evidence
+
+#### Scenario: PSD registers a band-mean-density field
+- **WHEN** PSD exposes its current ordered frequency axis and channel-resolved result
+- **THEN** its adapter integrates the selected canonical band from the current PSD density, divides by the complete band width, and returns one spatial field with the exact frequency range and `V^2/Hz` unit
+- **AND** it shares the same interpolation and position path used by RBP without reading RBP result arrays
 
 #### Scenario: PSD registers a frequency-bin field
 - **WHEN** PSD exposes its current ordered frequency axis and channel-resolved result
@@ -180,12 +189,17 @@ Relative-power maps SHALL use the fixed domain `0–1` with unit `ratio`. Absolu
 - **AND THEN** the underlying EEG result value remains unchanged
 
 ### Requirement: Topomap transport uses explicit scalar field identifiers
-The current topomap request MUST name one or more unique `field_ids` bound to a current result identity. The response MUST return those scalar spatial fields under `fields`, with each field's identifier, label, unit, field-specific metadata, per-channel points, quality, grid, and provenance. Frequency fields MUST report the exact selected `frequency_hz`. The current transport MUST NOT use the former `bands`, `power_type`, or `band_id` contract, infer a default field when `field_ids` are absent, or silently map an unknown field to another field. Unsupported identifiers MUST produce a structured invalid-request response; a known field with no usable values MUST produce an explicit unavailable field.
+The current topomap request MUST name one or more unique `field_ids` bound to a current result identity. The response MUST return those scalar spatial fields under `fields`, with each field's identifier, label, unit, field-specific metadata, per-channel points, quality, grid, and provenance. Frequency fields MUST report the exact selected `frequency_hz`. PSD band-mean-density fields MUST report the canonical band, exact frequency bounds, and complete band width used to average the integral. The current transport MUST NOT use the former `bands`, `power_type`, or `band_id` contract, infer a default field when `field_ids` are absent, or silently map an unknown field to another field. Unsupported identifiers MUST produce a structured invalid-request response; a known field with no usable values MUST produce an explicit unavailable field.
 
 #### Scenario: Request relative or absolute RBP fields
 - **WHEN** the client requests explicit relative or absolute RBP field identifiers for one or more bands
 - **THEN** the response contains only those requested fields with each source unit and RBP result identity preserved
 - **AND** the request does not use `power_type` or `band_id`
+
+#### Scenario: Request one PSD band-mean-density field
+- **WHEN** the client requests a PSD field identifier for one canonical band in the bound result
+- **THEN** the response contains only the band-mean density values for that band, exact frequency bounds, the same PSD window, and unit `V^2/Hz`
+- **AND** the request does not start another PSD run or read raw recording samples
 
 #### Scenario: Request a PSD frequency field
 - **WHEN** the client requests a PSD field identifier for a bin present in the bound result
@@ -193,6 +207,6 @@ The current topomap request MUST name one or more unique `field_ids` bound to a 
 - **AND** the request does not start another PSD run or read raw recording samples
 
 #### Scenario: Request an absent or invalid field
-- **WHEN** a requested frequency bin is not present in the bound result or a field identifier is unsupported
-- **THEN** the API reports a structured invalid-field error
-- **AND** it does not choose the nearest frequency, a default band, or an older result
+- **WHEN** a requested PSD band identifier is unsupported or its frequency range is not covered by the bound result
+- **THEN** the API reports a structured invalid-field or unavailable-field result
+- **AND** it does not choose a different band, clip the band silently, or use an older result

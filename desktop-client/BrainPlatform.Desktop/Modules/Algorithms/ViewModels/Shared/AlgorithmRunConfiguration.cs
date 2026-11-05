@@ -78,8 +78,9 @@ internal static class AlgorithmRunConfiguration
         double? notchHz = 50.0,
         HistoricalMontageDescriptor? montage = null,
         IReadOnlyDictionary<string, string>? roleChannels = null,
-        IReadOnlyList<string>? channels = null) =>
-        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds, notchHz, montage, roleChannels, channels));
+        IReadOnlyList<string>? channels = null,
+        string frequencyMode = "standard") =>
+        JsonSerializer.SerializeToElement(BuildRunConfigPayload(algorithm, channel, range, mode, frequencyBand, ratioBands, f4Channel, windowSeconds, stepSeconds, notchHz, montage, roleChannels, channels, frequencyMode));
 
     internal static bool IsSupportedAlgorithm(AlgorithmCatalogItem? algorithm) =>
         algorithm is { IsRunnable: true } &&
@@ -117,7 +118,8 @@ internal static class AlgorithmRunConfiguration
         double? notchHz,
         HistoricalMontageDescriptor? montage,
         IReadOnlyDictionary<string, string>? roleChannels,
-        IReadOnlyList<string>? channels)
+        IReadOnlyList<string>? channels,
+        string frequencyMode)
     {
         var payload = new Dictionary<string, object?>
         {
@@ -183,6 +185,9 @@ internal static class AlgorithmRunConfiguration
             payload["dynamic_window_s"] = window;
             payload["refresh_step_s"] = step;
         }
+
+        if (string.Equals(algorithm.Id, "theta_beta", StringComparison.OrdinalIgnoreCase))
+            payload["frequency_mode"] = frequencyMode;
 
         return payload;
     }

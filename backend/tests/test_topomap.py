@@ -330,7 +330,68 @@ def test_run_topomap_builds_only_the_requested_scalar_field():
     assert result.provenance["field_ids"] == ["rbp.absolute.alpha"]
 
 
-def test_psd_adapter_projects_the_exact_frequency_bin_from_ordered_channel_matrix():
+@pytest.mark.parametrize("band_id,low_hz,high_hz", [
+    ("delta", 1.0, 4.0), ("theta", 4.0, 8.0), ("alpha", 8.0, 13.0),
+    ("beta", 13.0, 30.0), ("gamma", 30.0, 50.0),
+])
+def test_psd_adapter_returns_band_mean_density_in_SI_units_and_original_channel_order(band_id, low_hz, high_hz):
+    from app.services.topomap import PsdTopomapAdapter
+
+    frequencies = np.arange(1.0, 51.0)
+    result = PsdTopomapAdapter().build_input(
+        recording_id="recording-1",
+        payload={
+            "channel_order": ["Cz", "Fz"],
+            "axes": {"frequency_hz": frequencies.tolist()},
+            "axis_units": {"frequency_hz": "Hz"},
+            "arrays": {"psd": [frequencies.tolist(), (2 * frequencies).tolist()]},
+            "array_units": {"psd": "V^2/Hz"},
+            "quality": "clean",
+            "evidence": {"extensions": {"channel_quality": {"by_channel": {
+                "Cz": {"status": "clean", "reasons": []},
+                "Fz": {"status": "clean", "reasons": []},
+            }}}},
+        },
+        window_start_s=5.0,
+        window_end_s=10.0,
+        field_ids=[f"psd.band-mean-density.{band_id}"],
+    )
+
+    assert result.channel_order == ["Cz", "Fz"]
+    expected_density = 0.5 * (low_hz + high_hz)
+    assert result.values_by_band == {f"psd.band-mean-density.{band_id}": pytest.approx([expected_density, 2 * expected_density])}
+    assert result.units_by_band == {f"psd.band-mean-density.{band_id}": "V^2/Hz"}
+    assert result.metadata_by_field[f"psd.band-mean-density.{band_id}"] == {
+        "frequency_range_hz": (low_hz, high_hz), "label": f"{band_id.title()} 平均 PSD ({low_hz:g}–{high_hz:g} Hz)",
+    }
+    assert result.provenance["bandwidth_hz"] == high_hz - low_hz
+    assert result.provenance["projection_identity"] == "psd-band-mean-density-v1"
+
+
+def test_psd_adapter_rejects_a_band_not_covered_by_the_frequency_axis():
+    from app.services.topomap import PsdTopomapAdapter
+
+    with pytest.raises(TopomapUnavailable) as exc_info:
+        PsdTopomapAdapter().build_input(
+            recording_id="recording-1",
+            payload={
+                "channel_order": ["Cz"],
+                "axes": {"frequency_hz": [1.0, 15.5, 30.0]},
+                "axis_units": {"frequency_hz": "Hz"},
+                "arrays": {"psd": [[1.0, 1.0, 1.0]]},
+                "array_units": {"psd": "V^2/Hz"},
+                "evidence": {"extensions": {"channel_quality": {"by_channel": {
+                    "Cz": {"status": "clean", "reasons": []},
+                }}}},
+            },
+            window_start_s=5.0, window_end_s=10.0,
+            field_ids=["psd.band-mean-density.gamma"],
+        )
+
+    assert exc_info.value.code == "TOPOMAP_BAND_RANGE_UNAVAILABLE"
+
+
+def test_psd_adapter_preserves_exact_frequency_bin_fields_for_api_consumers():
     from app.services.topomap import PsdTopomapAdapter
 
     result = PsdTopomapAdapter().build_input(
@@ -347,16 +408,15 @@ def test_psd_adapter_projects_the_exact_frequency_bin_from_ordered_channel_matri
                 "Fz": {"status": "clean", "reasons": []},
             }}}},
         },
-        window_start_s=5.0,
-        window_end_s=10.0,
+        window_start_s=5.0, window_end_s=10.0,
         field_ids=["psd.frequency-bin.1"],
     )
 
-    assert result.channel_order == ["Cz", "Fz"]
     assert result.values_by_band == {"psd.frequency-bin.1": [11.0, 21.0]}
     assert result.units_by_band == {"psd.frequency-bin.1": "V^2/Hz"}
-    assert result.metadata_by_field["psd.frequency-bin.1"] == {
-        "frequency_hz": 2.0, "label": "2 Hz",
+    assert result.power_type == "psd"
+    assert result.metadata_by_field == {
+        "psd.frequency-bin.1": {"frequency_hz": 2.0, "label": "2 Hz"},
     }
 
 

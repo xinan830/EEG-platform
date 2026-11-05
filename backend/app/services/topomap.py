@@ -13,6 +13,8 @@ import numpy as np
 
 from app.models.topomap import TopomapField, TopomapGrid, TopomapPoint, TopomapResponse
 from app.services.topomap_context import DynamicTopomapContextError, resolve_dynamic_signal_provenance
+from app.scientific.contracts.analysis import FREQUENCY_BANDS_HZ
+from app.scientific.primitives.spectral import band_power
 
 logger = logging.getLogger("brain_platform.topomap")
 TopomapBandId = Literal["delta", "theta", "alpha", "beta", "gamma"]
@@ -119,18 +121,21 @@ class RbpTopomapAdapter:
 
 class PsdTopomapAdapter:
     algorithm_id = "psd"
+    bands = {name: (low, high) for name, low, high in FREQUENCY_BANDS_HZ}
 
     def build_input(self, *, recording_id: str, payload: dict[str, Any],
                     window_start_s: float, window_end_s: float,
                     field_ids: list[str]) -> TopomapInput:
-        if len(field_ids) != 1 or not field_ids[0].startswith("psd.frequency-bin."):
-            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 地形图必须选择一个精确频率 bin。")
-        try:
-            frequency_index = int(field_ids[0].rsplit(".", 1)[1])
-        except ValueError as exc:
-            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 索引无效。") from exc
-        if frequency_index < 0 or field_ids[0] != f"psd.frequency-bin.{frequency_index}":
-            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 索引必须是非负十进制整数。")
+        if len(field_ids) != 1:
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 地形图必须且只能选择一个结果字段。")
+        field_id = field_ids[0]
+        band_id = field_id.removeprefix("psd.band-mean-density.")
+        is_band_mean_density = field_id == f"psd.band-mean-density.{band_id}" and band_id in self.bands
+        is_frequency_bin = field_id.startswith("psd.frequency-bin.")
+        if not is_band_mean_density and not is_frequency_bin:
+            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 地形图字段 ID 无效。")
+        if is_band_mean_density:
+            low_hz, high_hz = self.bands[band_id]
         result = payload.get("result") or payload
         frequencies = np.asarray((payload.get("axes") or result.get("axes") or {}).get("frequency_hz", []), dtype=float)
         arrays = result.get("arrays") or payload.get("arrays") or {}
@@ -144,11 +149,13 @@ class PsdTopomapAdapter:
             mapping = ((configuration.get("context") or {}).get("signal_mapping") or {})
             channels = mapping.get("channels") or configuration.get("channels")
         channels = channels or []
-        if (frequency_index >= frequencies.size or values.ndim != 2 or
-                values.shape != (len(channels), frequencies.size)):
-            raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 不存在或通道矩阵形状无效。")
-        if values.shape[1] != frequencies.size or frequencies.ndim != 1 or not np.isfinite(frequencies).all() or np.any(np.diff(frequencies) <= 0):
+        if values.ndim != 2 or values.shape != (len(channels), frequencies.size):
+            raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 矩阵形状与通道顺序或频率轴不匹配。")
+        if frequencies.ndim != 1 or not np.isfinite(frequencies).all() or np.any(np.diff(frequencies) <= 0):
             raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 矩阵与严格递增的频率轴不匹配。")
+        finite_values = values[np.isfinite(values)]
+        if finite_values.size and np.any(finite_values < 0):
+            raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 密度不得为负值。")
         psd_unit = (result.get("array_units") or {}).get("psd")
         psd_unit = psd_unit.get("unit") if isinstance(psd_unit, dict) else psd_unit
         if psd_unit != "V^2/Hz":
@@ -159,32 +166,53 @@ class PsdTopomapAdapter:
         by_channel = channel_quality.get("by_channel") if isinstance(channel_quality, dict) else None
         if not isinstance(by_channel, dict) or set(by_channel) != set(channels):
             raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 逐通道质量必须与 channel_order 完全对齐。")
-        axes = result.get("axes") or {}
         frequency_unit = (result.get("axis_units") or {}).get("frequency_hz")
         if frequency_unit != "Hz":
             raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 频率轴单位必须是 Hz。")
         if not channels or len(set(str(item).casefold() for item in channels)) != len(channels):
             raise TopomapUnavailable("TOPOMAP_PSD_CONTRACT_INVALID", "PSD 通道顺序为空或包含重复通道。")
-        selected = values[:, frequency_index]
-        field_id = field_ids[0]
+        provenance = dict(result.get("provenance") or {})
+        if is_frequency_bin:
+            try:
+                frequency_index = int(field_id.removeprefix("psd.frequency-bin."))
+            except ValueError as exc:
+                raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 索引无效。") from exc
+            if frequency_index < 0 or field_id != f"psd.frequency-bin.{frequency_index}" or frequency_index >= frequencies.size:
+                raise TopomapUnavailable("TOPOMAP_FIELD_ID_INVALID", "PSD 频率 bin 不存在。")
+            selected = values[:, frequency_index].tolist()
+            unit = "V^2/Hz"
+            power_type = "psd"
+            metadata = {"frequency_hz": float(frequencies[frequency_index]),
+                        "label": f"{frequencies[frequency_index]:g} Hz"}
+        else:
+            if frequencies.size < 2 or frequencies[0] > low_hz or frequencies[-1] < high_hz:
+                raise TopomapUnavailable("TOPOMAP_BAND_RANGE_UNAVAILABLE", "当前 PSD 频率轴没有完整覆盖所选频带。",
+                                         {"band_id": band_id, "frequency_range_hz": [low_hz, high_hz]})
+            # Integrate then divide by full bandwidth: V²/Hz remains a density.
+            selected = [float(band_power(frequencies, row, low_hz, high_hz) / (high_hz - low_hz))
+                        if np.isfinite(row).all() else float("nan") for row in values]
+            unit = "V^2/Hz"
+            power_type = "psd_band_mean_density"
+            metadata = {"frequency_range_hz": (low_hz, high_hz),
+                        "label": f"{band_id.title()} 平均 PSD ({low_hz:g}–{high_hz:g} Hz)"}
+            provenance.update({"projection_identity": "psd-band-mean-density-v1",
+                               "frequency_reduction": "trapezoidal_integral_divided_by_full_bandwidth",
+                               "bandwidth_hz": high_hz - low_hz})
         return TopomapInput(
             algorithm_id=self.algorithm_id, recording_id=recording_id,
             channel_order=[str(item) for item in channels],
-            values_by_band={field_id: selected.tolist()}, units_by_band={field_id: "V^2/Hz"},
+            values_by_band={field_id: selected}, units_by_band={field_id: unit},
             window_start_s=window_start_s, window_end_s=window_end_s,
             algorithm_version=str((payload.get("identity") or {}).get("scientific_version") or "unknown"),
             implementation_version=str((payload.get("identity") or {}).get("implementation_identity") or "unknown"),
-            quality=result.get("quality"), provenance=result.get("provenance") or {},
+            quality=result.get("quality"), provenance=provenance,
             quality_by_channel={str(channel): dict(by_channel[channel]) for channel in channels},
-            power_type="psd", metadata_by_field={field_id: {
-                "frequency_hz": float(frequencies[frequency_index]),
-                "label": f"{frequencies[frequency_index]:g} Hz",
-            }}, unavailable=None,
+            power_type=power_type, metadata_by_field={field_id: metadata}, unavailable=None,
         )
 
 
 class TopomapService:
-    """Build a topomap from a saved dynamic RBP window without recomputing EEG."""
+    """Project saved dynamic PSD or RBP results without rerunning the algorithm."""
 
     GRID_SIZE = 65
     ELECTRODE_BOUNDARY = 0.92
@@ -273,7 +301,6 @@ class TopomapService:
                 float(plan.get("start_s", 0.0)), float(plan.get("end_s", 0.0)), power_type),
                 fields=[], failure={"code": "TOPOMAP_WINDOW_UNAVAILABLE", "message": "当前按需窗口没有可用结果。"})
         input_started = perf_counter()
-        power_type = "psd" if algorithm_id == "psd" else self._resolve_rbp_field_ids(field_ids)[0]
         spatial_input = adapter.build_input(
             recording_id=str(identity.get("recording_id", "")), payload=payload,
             window_start_s=float(plan.get("start_s", 0.0)), window_end_s=float(plan.get("end_s", 0.0)),

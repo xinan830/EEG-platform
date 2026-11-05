@@ -44,7 +44,13 @@ def compute_iapf(
             evidence={
                 "source_quality": source_quality,
                 "spectral_evidence": dict(getattr(spectrum, "evidence", {})),
-                "extensions": {"iapf_evidence": {"source": estimate.source, "peak_hz": estimate.peak_hz, "cog_hz": estimate.cog}},
+                "extensions": {"iapf_evidence": {
+                    "source": estimate.source, "peak_hz": estimate.peak_hz,
+                    "cog_hz": estimate.cog, "peak_prominence_ratio": estimate.peak_prominence_ratio,
+                    "peak_width_bins": estimate.peak_width_bins,
+                    "cog_excess_ratio": estimate.cog_excess_ratio,
+                    "cog_effective_bins": estimate.cog_effective_bins,
+                }},
             },
         )
     return AlgorithmResult(
@@ -61,6 +67,10 @@ def compute_iapf(
                 "cog_hz": estimate.cog,
                 "model_r2": estimate.model_r2,
                 "model_error": estimate.model_error,
+                "peak_prominence_ratio": estimate.peak_prominence_ratio,
+                "peak_width_bins": estimate.peak_width_bins,
+                "cog_excess_ratio": estimate.cog_excess_ratio,
+                "cog_effective_bins": estimate.cog_effective_bins,
             }},
             "calculation_trace": {"formula": "在 1/f 校正后的 Alpha 范围内选择 Peak 或 COG", "inputs": [
                 {"label": "峰值频率", "value": estimate.peak_hz, "unit": "Hz"},

@@ -17,6 +17,8 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
     assert theta_start["minimum"] == 0
     assert theta_start["step"] == 0.001
     assert by_id["theta_beta"]["is_runnable"] is True
+    theta_beta_mode = next(item for item in by_id["theta_beta"]["parameters"] if item["key"] == "frequency_mode")
+    assert theta_beta_mode["default"] == "standard"
     assert by_id["peak_frequency"]["output_schema"]["fields"][0]["unit"] == "Hz"
     assert by_id["peak_frequency"]["output_schema"]["fields"][0]["name"] == "peak_frequency_hz"
     assert by_id["band_ratio"]["output_schema"]["fields"][0]["unit"] == "ratio"
@@ -26,13 +28,14 @@ def test_unified_algorithm_catalog_exposes_readable_official_entries() -> None:
     assert "faa_evidence" in by_id["faa"]["output_contract"]["evidence_fields"]
     assert next(item for item in by_id["band_ratio"]["parameters"] if item["key"] == "denominator_high_hz")["unit"] == "Hz"
     assert by_id["iapf"]["dynamic_policy"] == {
-        "minimum_window_s": 4.0,
-        "window_options_s": [5.0, 10.0, 20.0, 30.0],
-        "default_window_s": 5.0,
+        "minimum_window_s": 20.0,
+        "window_options_s": [20.0, 30.0],
+        "default_window_s": 20.0,
         "refresh_step_s": 1.0,
         "refresh_step_options_s": [1.0, 2.0, 5.0],
-        "allow_warmup": True,
+        "allow_warmup": False,
     }
+    assert next(item for item in by_id["iapf"]["parameters"] if item["key"] == "window_s")["minimum"] == 4
     for algorithm_id in ("psd", "rbp"):
         assert by_id[algorithm_id]["dynamic_policy"] == {
             "minimum_window_s": 4.0,
@@ -148,14 +151,14 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
 
     expected = {
         "band_ratio": ("official-band-ratio-v2", "band-ratio-runtime-v3-shared-1-50-notch"),
-        "brainbeat": ("official-brainbeat-v4", "brainbeat-runtime-v4-shared-1-50-notch"),
+        "brainbeat": ("official-brainbeat-v5", "brainbeat-runtime-v5-iapf-v5-shared-1-50-notch"),
         "faa": ("official-faa-v2", "faa-runtime-v2"),
-        "iapf": ("official-iapf-v4", "iapf-runtime-v5-shared-1-50-notch"),
+        "iapf": ("official-iapf-v5", "iapf-runtime-v6-20s-alpha-evidence"),
         "peak_frequency": ("official-peak-frequency-v2", "peak-frequency-runtime-v3-shared-1-50-notch"),
         "psd": ("offline-spectral-v6-shared-1-50-notch", "psd-runtime-v6-shared-1-50-notch"),
         "rbp": ("official-rbp-v4", "rbp-runtime-v7-configurable-notch"),
         "stft": ("spectrogram-v4-bounded-notch", "stft-runtime-v8-bounded-notch"),
-        "theta_beta": ("official-theta-beta-v3", "theta-beta-runtime-v2"),
+        "theta_beta": ("official-theta-beta-v5", "theta-beta-runtime-v4-iapf-v5-frequency-modes"),
     }
     modules = {module.manifest.algorithm_id: module for module in build_builtin_modules()}
     assert set(expected).issubset(modules)

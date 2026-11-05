@@ -78,6 +78,19 @@ The data Review PSD and RBP panels SHALL default to a 10-second dynamic analysis
 - **THEN** the desktop request uses a 10-second dynamic analysis window and a 1-second refresh step
 - **AND** the RBP calculation retains its declared four-second Welch segment and 50% overlap
 
+### Requirement: Review selects and submits the Theta/Beta frequency mode
+The recording Review Theta/Beta panel SHALL expose Standard and IAF-relative modes, default to Standard, and submit the selected mode with each on-demand scientific configuration. The panel SHALL display backend-owned results and SHALL NOT calculate frequency bands or the ratio in WPF. Its dynamic policy SHALL use the catalog-declared 20-second default window and one-second refresh step without numeric warm-up values.
+
+#### Scenario: Change mode and recompute the current Review window
+- **WHEN** the user changes the Theta/Beta mode while the Review panel is open
+- **THEN** the active configuration is invalidated and the current cursor window is recomputed with the selected mode
+- **AND** the request carries that mode to the backend
+
+#### Scenario: Wait for a complete Review window
+- **WHEN** the playback cursor is before the first complete 20-second TBR window
+- **THEN** Review shows the window as insufficient or pending
+- **AND** it does not display a partial numeric ratio
+
 ### Requirement: Show the actual analysis range on PSD and RBP Review visualizations
 The data Review PSD spectrum and topomap, and the RBP history charts and topomap, SHALL show the current visualization's actual analysis start and end times in seconds at the lower-left. The displayed range SHALL come from the corresponding backend result response. If that response does not provide a valid range, the visualization SHALL show an unavailable state rather than infer a range from the playback cursor or display history, and it SHALL not show a stale successful result as the target result.
 

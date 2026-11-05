@@ -169,14 +169,14 @@ public sealed partial class RecordingReviewViewModel
         var coordinator = analysisCoordinator;
         var window = CurrentAnalysisWindow;
         var provider = coordinator?.GetCapability<IReviewTopomapProvider>();
-        if (window is null || coordinator is null || provider is null || PsdAnalysis.FrequencyOptions.Count == 0)
+        if (window is null || coordinator is null || provider is null)
         {
             PsdAnalysis.ClearTopomap();
             return;
         }
         try
         {
-            var fieldIds = new[] { PsdAnalysis.SelectedFrequencyFieldId };
+            var fieldIds = new[] { PsdAnalysis.SelectedTopomapFieldId };
             var result = await provider.LoadTopomapAsync(window, token, fieldIds);
             if (!token.IsCancellationRequested && requestRevision == Volatile.Read(ref topomapRequestRevision) &&
                 ReferenceEquals(coordinator, analysisCoordinator) && ReferenceEquals(window, CurrentAnalysisWindow))

@@ -72,8 +72,8 @@
       "kind": "algorithm",
       "canonical_import": "app.algorithms.iapf.official.estimate_iapf",
       "owner": "algorithms",
-      "scientific_version": "official-iapf-v4",
-      "implementation_identity": "iapf-runtime-v5-shared-1-50-notch",
+      "scientific_version": "official-iapf-v5",
+      "implementation_identity": "iapf-runtime-v6-20s-alpha-evidence",
       "authority": true,
       "executable": true,
       "reference_only": false
@@ -94,8 +94,8 @@
       "kind": "algorithm",
       "canonical_import": "app.algorithms.theta_beta.compute.compute_theta_beta",
       "owner": "algorithms",
-      "scientific_version": "official-theta-beta-v3",
-      "implementation_identity": "theta-beta-runtime-v2",
+      "scientific_version": "official-theta-beta-v5",
+      "implementation_identity": "theta-beta-runtime-v4-iapf-v5-frequency-modes",
       "authority": true,
       "executable": true,
       "reference_only": false

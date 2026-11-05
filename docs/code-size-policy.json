@@ -162,8 +162,8 @@
     },
     "backend/app/services/topomap.py": {
       "decision": "keep",
-      "max_lines": 470,
-      "reason": "当前 464 行。RBP/PSD 适配器和 TopomapService 共享同一个窗口化标量字段输入契约；字段校验、质量筛选、位置绑定和空间插值仍在统一服务边界内。本次将 band-only 请求替换为 field_ids，并增加精确 PSD bin 适配；当前低于 600 行评审线，继续扩展前应先评估适配器拆分。"
+      "max_lines": 540,
+      "reason": "当前 525 行。RBP/PSD 适配器和 TopomapService 共享同一个窗口化标量字段输入契约；字段校验、质量筛选、位置绑定和空间插值仍在统一服务边界内。本次继续由 PSD 适配器投影频带平均密度并校验 PSD 数值约束，没有引入新的空间职责；低于 600 行评审线，继续扩展前应先评估适配器拆分。"
     },
     "frontend/src/App.vue": {
       "decision": "split",

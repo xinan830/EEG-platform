@@ -22,7 +22,7 @@ public sealed partial class RecordingReviewViewModel
         if (e.PropertyName == nameof(PsdReviewAnalysisViewModel.SelectedChannel))
             PsdAnalysis.Apply(CurrentAnalysisWindow);
         if (e.PropertyName is nameof(PsdReviewAnalysisViewModel.SelectedView) or
-            nameof(PsdReviewAnalysisViewModel.SelectedFrequencyIndex))
+            nameof(PsdReviewAnalysisViewModel.SelectedTopomapBandId))
         {
             if (PsdAnalysis.IsTopomapSelected) _ = RefreshPsdTopomapAsync();
             else CancelTopomapRequest();

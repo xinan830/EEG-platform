@@ -114,6 +114,21 @@ public sealed class AlgorithmListViewModelTests
         Assert.Equal(1, config.GetProperty("refresh_step_s").GetDouble());
     }
 
+    [Theory]
+    [InlineData("standard")]
+    [InlineData("individualized")]
+    public void ThetaBetaRunConfig_SerializesSelectedFrequencyMode(string mode)
+    {
+        var algorithm = new AlgorithmCatalogItem("official", "theta_beta", "official-theta-beta-v5", "Theta/Beta", "TBR", "", [], ["static", "dynamic"],
+            default, new DynamicAnalysisPolicy(20, [20, 30], 20, 1, false), "available", true, null, null, null);
+        var config = AlgorithmRunConfiguration.BuildRunConfig(algorithm, "O1", new TimeRange(0, 30), "dynamic",
+            windowSeconds: 20, stepSeconds: 1, frequencyMode: mode);
+
+        Assert.Equal(mode, config.GetProperty("frequency_mode").GetString());
+        Assert.Equal(20, config.GetProperty("dynamic_window_s").GetDouble());
+        Assert.Equal(1, config.GetProperty("refresh_step_s").GetDouble());
+    }
+
     [Fact]
     public void StftConfig_ContainsSharedFrequencyAndNotchControls()
     {

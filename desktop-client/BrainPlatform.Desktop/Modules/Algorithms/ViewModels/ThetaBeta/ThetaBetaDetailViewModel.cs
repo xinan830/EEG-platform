@@ -19,6 +19,12 @@ public sealed class ThetaBetaDetailViewModel : AlgorithmSpecificDetailViewModel,
     public string WindowText => CurrentPoint is { } point && double.IsFinite(point.StartSeconds) && double.IsFinite(point.EndSeconds) ? Catalog.TimeDisplay.FormatRange(point.StartSeconds, point.EndSeconds) : "尚未到达分析窗口";
     protected override void OnTimeDisplayChanged() => RaisePropertyChanged(nameof(WindowText));
     public string IapfText => FormatHz(CurrentPoint?.Evidence.IapfHz);
+    public string FrequencyModeText => CurrentPoint?.Evidence.FrequencyMode switch
+    {
+        "standard" => "标准频段",
+        "individualized" => "IAF 相对频段",
+        _ => "未提供",
+    };
     public string ThetaRangeText => FormatRange(CurrentPoint?.Evidence.ThetaLowHz, CurrentPoint?.Evidence.ThetaHighHz);
     public string BetaRangeText => FormatRange(CurrentPoint?.Evidence.BetaLowHz, CurrentPoint?.Evidence.BetaHighHz);
     public string ThetaPowerText => FormatPower(CurrentPoint?.Evidence.ThetaPowerUv2);
@@ -80,7 +86,7 @@ public sealed class ThetaBetaDetailViewModel : AlgorithmSpecificDetailViewModel,
         RaisePropertyChanged(nameof(ChannelText));
         RaiseResultProperties();
     }
-    private void RaiseResultProperties() { foreach (var name in new[] { nameof(CurrentPoint), nameof(TrendPoints), nameof(ValueText), nameof(WindowText), nameof(IapfText), nameof(ThetaRangeText), nameof(BetaRangeText), nameof(ThetaPowerText), nameof(BetaPowerText), nameof(FormulaText), nameof(StatusText), nameof(QualityText), nameof(UnavailableWindowCount), nameof(RejectedWindowCount), nameof(WindowStateSummary), nameof(FailureReasonText), nameof(FailureDetailsText) }) RaisePropertyChanged(name); }
+    private void RaiseResultProperties() { foreach (var name in new[] { nameof(CurrentPoint), nameof(TrendPoints), nameof(ValueText), nameof(WindowText), nameof(FrequencyModeText), nameof(IapfText), nameof(ThetaRangeText), nameof(BetaRangeText), nameof(ThetaPowerText), nameof(BetaPowerText), nameof(FormulaText), nameof(StatusText), nameof(QualityText), nameof(UnavailableWindowCount), nameof(RejectedWindowCount), nameof(WindowStateSummary), nameof(FailureReasonText), nameof(FailureDetailsText) }) RaisePropertyChanged(name); }
     private static string FormatHz(double? value) => value is double number ? $"{number:0.##} Hz" : "未提供";
     private static string FormatRange(double? low, double? high) => low is double lo && high is double hi ? $"{lo:0.##}–{hi:0.##} Hz" : "未提供";
     private static string FormatPower(double? value) => value is double number ? $"{number:0.###} μV²" : "未提供";

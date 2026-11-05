@@ -1,7 +1,8 @@
 import numpy as np
+import pytest
 from scipy import signal
 
-from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT, FREQUENCY_BANDS_HZ
 from app.algorithms.faa.official import compute_faa
 from app.algorithms.theta_beta.compute import compute_theta_beta
 from app.scientific.primitives.spectral import (
@@ -29,6 +30,7 @@ def test_offline_preprocessing_matches_independent_scipy_reference():
     assert ANALYSIS_CONTRACT["bandpass_hz"] == [1.0, 50.0]
     assert ANALYSIS_CONTRACT["notch_hz"] == 50.0
     assert ANALYSIS_CONTRACT["notch_quality_factor"] == 30.0
+    assert tuple(ANALYSIS_CONTRACT["frequency_band_edges"]) == tuple(name for name, _, _ in FREQUENCY_BANDS_HZ)
     assert "iapf_window_s" not in ANALYSIS_CONTRACT
     assert "iapf_step_s" not in ANALYSIS_CONTRACT
     assert ANALYSIS_CONTRACT["faa_static_scope"] == "exact_requested_absolute_range"
@@ -111,6 +113,61 @@ def test_welch_segments_overlap_inside_long_analysis_window():
         "window": "hann",
         "scaling": "density",
     }
+
+
+def test_twenty_second_window_averages_nine_accepted_welch_psds():
+    sfreq = 100.0
+    times = np.arange(20 * int(sfreq)) / sfreq
+    values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+
+    spectrum = estimate_welch_psd(values, sfreq)
+
+    assert spectrum.total_epochs == spectrum.clean_epochs == 9
+    assert spectrum.gate_failed is None
+    expected = []
+    for start_s in range(0, 17, 2):
+        freqs, row = signal.welch(
+            values[start_s * int(sfreq):(start_s + 4) * int(sfreq), 0],
+            fs=sfreq,
+            window="hann",
+            nperseg=400,
+            noverlap=200,
+            detrend="constant",
+            scaling="density",
+        )
+        expected.append(row)
+    mask = (freqs >= 1.0) & (freqs <= 50.0)
+    np.testing.assert_allclose(spectrum.freqs, freqs[mask])
+    np.testing.assert_allclose(spectrum.psd[0], np.maximum(np.mean(expected, axis=0), 1e-20)[mask])
+
+
+def test_twenty_second_window_averages_only_accepted_segments_at_quality_threshold():
+    sfreq = 100.0
+    times = np.arange(20 * int(sfreq)) / sfreq
+    values = (10e-6 * np.sin(2 * np.pi * 10 * times))[:, None]
+    values[int(4.5 * sfreq), 0] = 300e-6
+
+    spectrum = estimate_welch_psd(values, sfreq)
+
+    assert spectrum.total_epochs == 9
+    assert spectrum.clean_epochs == 7
+    assert spectrum.signal_quality == pytest.approx(7 / 9)
+    assert spectrum.gate_failed is None
+    expected = []
+    for start_s in (0, 6, 8, 10, 12, 14, 16):
+        freqs, row = signal.welch(
+            values[start_s * int(sfreq):(start_s + 4) * int(sfreq), 0],
+            fs=sfreq,
+            window="hann",
+            nperseg=400,
+            noverlap=200,
+            detrend="constant",
+            scaling="density",
+        )
+        expected.append(row)
+    mask = (freqs >= 1.0) & (freqs <= 50.0)
+    np.testing.assert_allclose(spectrum.freqs, freqs[mask])
+    np.testing.assert_allclose(spectrum.psd[0], np.maximum(np.mean(expected, axis=0), 1e-20)[mask])
 
 
 def test_welch_uses_declared_internal_overlap_for_each_clean_epoch():
@@ -224,7 +281,7 @@ def test_theta_beta_formula_uses_one_raw_channel_and_actual_iapf():
     psd[2, (freqs >= 8) & (freqs <= 12)] = 4.0
     spectrum = SpectralEstimate(freqs, psd, 1.0, 1, 1, None)
 
-    result = compute_theta_beta(spectrum, channel="Fz", requested_range={"start_s": 0, "end_s": 30})
+    result = compute_theta_beta(spectrum, channel="Fz", requested_range={"start_s": 0, "end_s": 30}, frequency_mode="individualized")
     evidence = result.evidence["extensions"]["theta_beta_evidence"]
     theta = band_power(freqs, psd[0], *evidence["theta_range_hz"])
     beta = band_power(freqs, psd[0], *evidence["beta_range_hz"])

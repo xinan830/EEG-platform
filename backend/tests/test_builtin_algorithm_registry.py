@@ -13,7 +13,7 @@ from pathlib import Path
 def test_builtin_registry_contains_the_current_executable_official_modules() -> None:
     registry = build_builtin_registry()
     assert [item.manifest.algorithm_id for item in registry.list()] == ["band_ratio", "brainbeat", "faa", "iapf", "peak_frequency", "psd", "rbp", "stft", "theta_beta", "tnk_biofeedback"]
-    assert registry.get("theta_beta").manifest.scientific_version == "official-theta-beta-v3"
+    assert registry.get("theta_beta").manifest.scientific_version == "official-theta-beta-v5"
 
 
 def test_each_builtin_official_algorithm_explicitly_declares_its_current_version() -> None:

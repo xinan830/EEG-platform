@@ -81,7 +81,7 @@ def test_queue_persists_resolved_official_definition_identity(tmp_path: Path):
         analysis_type="official_algorithm",
         config={
             "algorithm_id": "iapf",
-            "scientific_version": "official-iapf-v4",
+            "scientific_version": "official-iapf-v5",
             "channel": "F3",
             "time": {"start_s": 0, "end_s": 10},
             "mode": "static",
@@ -95,8 +95,8 @@ def test_queue_persists_resolved_official_definition_identity(tmp_path: Path):
 
     assert queued.definition_id is not None
     assert queued.definition_version == "1.0.0"
-    assert frozen.scientific_version == "official-iapf-v4"
-    assert frozen.config["scientific_version"] == "official-iapf-v4"
+    assert frozen.scientific_version == "official-iapf-v5"
+    assert frozen.config["scientific_version"] == "official-iapf-v5"
     assert frozen.config["algorithm_id"] == "iapf"
     completed = queue.process_next()
     assert completed is not None and completed.status is RunStatus.COMPLETED

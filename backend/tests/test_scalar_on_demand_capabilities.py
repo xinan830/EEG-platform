@@ -46,7 +46,7 @@ def _identity(session, plan) -> DynamicWindowIdentity:
 
 def _config(algorithm_id: str):
     common = dict(channel="F3", mode="dynamic", start_s=0, end_s=DURATION,
-                  window_s=5, step_s=1)
+                  window_s=20 if algorithm_id == "iapf" else 5, step_s=1)
     if algorithm_id == "band_ratio":
         return BandRatioConfig(**common, numerator_low_hz=8, numerator_high_hz=12,
                                denominator_low_hz=15, denominator_high_hz=25)
@@ -99,6 +99,9 @@ def test_scalar_window_matches_full_dynamic_point(algorithm_id, algorithm_type, 
     session = _session(algorithm)
 
     assert full.values
+    if algorithm_id == "iapf":
+        assert full.time_s == [20.0, 21.0, 22.0]
+        assert full.states == ["Complete"] * 3
     assert full.unit == unit
     for index, frame in enumerate(full.windows):
         plan = algorithm.plan_window(inputs, config,
@@ -201,7 +204,7 @@ def test_iapf_unavailable_is_not_a_numeric_zero():
     source = _spectrum(psd=powers[None, :])
     inputs = _inputs(lambda **_: source)
     session = _session(algorithm)
-    plan = algorithm.plan_window(inputs, config, 1000, session)
+    plan = algorithm.plan_window(inputs, config, int(20 * SFREQ), session)
     result = algorithm.execute_window(inputs, config, plan, _identity(session, plan))
     assert result.state == "rejected"
     assert result.failure["code"] == "no_peak_no_cog"

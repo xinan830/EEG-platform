@@ -23,7 +23,8 @@ def test_iapf_and_theta_beta_module_outputs_match_frozen_semantics():
 
     iapf = estimate_iapf(spectrum)
     values = compute_theta_beta(SpectralEstimate(freqs, psd[:1], 1.0, 4, 4, None),
-                                channel="Fz", requested_range={"start_s": 0.0, "end_s": 30.0})
+                                channel="Fz", requested_range={"start_s": 0.0, "end_s": 30.0},
+                                frequency_mode="individualized")
 
     assert iapf.value is not None
     assert iapf.source in {"peak", "cog"}

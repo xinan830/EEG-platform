@@ -158,6 +158,7 @@ public sealed partial class RecordingReviewViewModel
             !analysisPanels.TryGetValue(activeId, out var panel) || !ReferenceEquals(sender, panel.Configuration)) return;
         if (e.PropertyName is nameof(ReviewRbpParameters.Channel) or nameof(ReviewRbpParameters.Montage) or
             nameof(ReviewScalarParameters.Channel) or nameof(ReviewScalarParameters.SecondaryChannel) or
+            nameof(ReviewScalarParameters.FrequencyMode) or
             nameof(ReviewScalarParameters.Montage) or nameof(ReviewStftParameters.Channel) or
             nameof(ReviewTnkParameters.RoleMapping) or nameof(ReviewTnkParameters.Montage))
             InvalidateAnalysisConfiguration();

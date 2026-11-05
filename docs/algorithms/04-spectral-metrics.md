@@ -8,7 +8,7 @@
 
 | 算法 | 实际预处理 | 估计窗口 / 输出 | 算法自有目标与证据 |
 | --- | --- | --- | --- |
-| PSD | 1–50 Hz；默认 50 Hz/Q=30，可关或选 60 Hz | 4 s Hann Welch，50% overlap、2 s step；输出轴由配置决定 | Delta/Theta/Alpha/Beta 按各自边界积分；Run 保存输出范围、预处理与质量证据 |
+| PSD | 1–50 Hz；默认 50 Hz/Q=30，可关或选 60 Hz | 4 s Hann Welch，50% overlap、2 s step；输出轴由配置决定 | Delta/Theta/Alpha/Beta/Gamma 按各自边界积分；Review 地形图从 PSD 密度积分选中频带并输出 `uV^2`；Run 保存输出范围、预处理与质量证据 |
 | Peak Frequency、Band Ratio、Theta/Beta、IAPF、Brainbeat、TNK | 1–50 Hz；默认 50 Hz/Q=30，可显式关闭或选 60 Hz | 窗口由算法策略声明；共享 PSD 消费者使用 4 s Hann Welch、50% overlap | 搜索频段、分子/分母、个体化频带、IAPF 拟合范围及子模块频段均保留算法定义并写入快照/结果 evidence |
 | RBP | 1–50 Hz；默认 50 Hz/Q=30，可关或选 60 Hz | 4 s Hann Welch，50% overlap、2 s step；使用完整轴 | Delta、Theta、Alpha、Beta、Gamma；每通道质量、相对比例与绝对功率分别记录 |
 | STFT | 1–50 Hz；默认 50 Hz/Q=30，可显式关闭或选 60 Hz | 4 s 内窗、1 s step；输出频率轴由配置决定，预处理使用有限上下文 | 目标/读取样本范围、零相位和逐窗质量随矩阵返回 |

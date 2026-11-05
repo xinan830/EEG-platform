@@ -36,12 +36,13 @@ public sealed class ThetaBetaDetailTests
     public void StaticResult_PreservesBackendEvidenceAndDoesNotRecompute()
     {
         var preview = Assert.IsType<ThetaBetaResultPreview>(ThetaBetaResultPreview.Parse(Json("""
-            {"metric":{"official":{"algorithm_id":"theta_beta","theta_beta_evidence":{"iapf_hz":10.2,"theta_range_hz":[4.2,8.2],"beta_range_hz":[12.2,30],"theta_power_uv2":1.25,"beta_power_uv2":2.5}},"output":{"unit":"dimensionless","value":0.5},"channel":"O1","quality":{"status":"clean"},"calculation_trace":{"formula":"个体化 Theta 功率 ÷ 个体化 Beta 功率"},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
+            {"metric":{"official":{"algorithm_id":"theta_beta","theta_beta_evidence":{"frequency_mode":"individualized","iapf_hz":10.2,"theta_range_hz":[4.2,6.2],"beta_range_hz":[12.2,30],"theta_power_uv2":1.25,"beta_power_uv2":2.5}},"output":{"unit":"dimensionless","value":0.5},"channel":"O1","quality":{"status":"clean"},"calculation_trace":{"formula":"Theta 功率 ÷ Beta 功率"},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
             """)));
         Assert.Equal("O1", preview.Channel);
         Assert.Equal(0.5, preview.StaticPoint?.Value);
         Assert.Equal(10.2, preview.StaticPoint?.Evidence.IapfHz);
-        Assert.Equal("4.2–8.2 Hz", Format(preview.StaticPoint?.Evidence.ThetaLowHz, preview.StaticPoint?.Evidence.ThetaHighHz));
+        Assert.Equal("individualized", preview.StaticPoint?.Evidence.FrequencyMode);
+        Assert.Equal("4.2–6.2 Hz", Format(preview.StaticPoint?.Evidence.ThetaLowHz, preview.StaticPoint?.Evidence.ThetaHighHz));
         Assert.Equal(1.25, preview.StaticPoint?.Evidence.ThetaPowerUv2);
         Assert.Equal(2.5, preview.StaticPoint?.Evidence.BetaPowerUv2);
     }
