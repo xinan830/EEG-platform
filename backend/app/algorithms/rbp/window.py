@@ -16,7 +16,7 @@ from .official import RBP_BANDS
 
 
 class RbpWindowCapability:
-    window_policy_version = "rbp-dynamic-window-v3-channel-quality"
+    window_policy_version = "rbp-dynamic-window-v4-custom-spectrum"
 
     def can_execute_window(self, config) -> bool:
         return isinstance(config, RbpConfig) and config.mode == "dynamic"
@@ -47,10 +47,13 @@ class RbpWindowCapability:
         return DynamicWindowResult(
             identity=identity, state=frame.state, output_kind="algorithm_group",
             axes={"time_s": np.asarray([plan.end_s]),
-                  "channel_index": np.arange(len(inputs.channels), dtype=float)},
-            axis_units={"time_s": "s", "channel_index": "index"},
-            arrays=frame.arrays, array_units={output: "ratio" if output == band else "uV^2"
+                  "channel_index": np.arange(len(inputs.channels), dtype=float),
+                  "frequency_hz": frame.frequency_hz},
+            axis_units={"time_s": "s", "channel_index": "index", "frequency_hz": "Hz"},
+            arrays={**frame.arrays, "spectral_psd": frame.spectrum_psd},
+            array_units={**{output: "ratio" if output == band else "uV^2"
                 for band, *_ in RBP_BANDS for output in (band, f"{band}_absolute_power")},
+                "spectral_psd": "V^2/Hz"},
             quality=frame.quality,
             failure={"code": frame.failure.code, "message": frame.failure.message,
                      "details": frame.failure.detail} if frame.failure else None,

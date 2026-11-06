@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.Diagnostics;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 
 namespace BrainPlatform.Desktop.Modules.Review.Analysis;
 
@@ -191,12 +192,15 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
                     _ => StatusText,
                 };
             });
-            var result = onDemandSnapshot is { } snapshot
-                ? await coordinator.LoadOnDemandAtSampleAsync(recordingId,
+            var resultTask = onDemandSnapshot is { } snapshot
+                ? coordinator.LoadOnDemandAtSampleAsync(recordingId,
                     snapshot with { CursorSample = sample }, sample, linked.Token, progress)
-                : await coordinator.LoadAtSampleAsync(recordingId, runId!, sample, linked.Token);
+                : coordinator.LoadAtSampleAsync(recordingId, runId!, sample, linked.Token);
+            var (result, completedAt) = await AlgorithmWindowPerformanceDiagnostics.WithCompletionTimeAsync(resultTask);
+            var continuationMs = Stopwatch.GetElapsedTime(completedAt).TotalMilliseconds;
             linked.Token.ThrowIfCancellationRequested();
             if (result is null || !IsCurrent(generation, linked)) return;
+            var bindStarted = Stopwatch.GetTimestamp();
             CurrentWindow = result;
             AlgorithmWindowPerformanceDiagnostics.RecordResultBound(
                 recordingId, coordinator.AlgorithmId, result.Window?.WindowId, sample,
@@ -211,6 +215,10 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
                 "unavailable" => $"当前 {coordinator.AlgorithmDisplayName} 窗口不可用。",
                 _ => $"{coordinator.AlgorithmDisplayName} 窗口状态：{result.Status}",
             };
+            if (AlgorithmWindowPerformanceDiagnostics.Enabled)
+                DesktopLog.Info($"review_analysis_binding_perf recording_id={recordingId} algorithm_id={coordinator.AlgorithmId}" +
+                    $" window_id={result.Window?.WindowId ?? "none"} cursor_sample={sample} state={result.Status}" +
+                    $" continuation_delay_ms={continuationMs:0.000} binding_ms={Stopwatch.GetElapsedTime(bindStarted).TotalMilliseconds:0.000}");
         }
         catch (OperationCanceledException) when (linked.IsCancellationRequested)
         {

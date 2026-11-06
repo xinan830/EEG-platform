@@ -11,39 +11,35 @@ from typing import Any
 from uuid import uuid4
 
 from app.algorithm_runtime.on_demand import (
-    DynamicSessionIdentity,
     DynamicWindowIdentity,
     DynamicWindowPlan,
     DynamicWindowRequest,
     DynamicWindowResult,
 )
 from app.algorithm_runtime.errors import (
-    DynamicWindowCapacityExceededError, DynamicWindowProjectForbiddenError,
-    DynamicWindowCursorInvalidError, DynamicWindowResultCorruptError,
-    RetiredAlgorithmVersionError,
+    DynamicWindowCapacityExceededError, DynamicWindowResultCorruptError,
 )
 from app.algorithm_runtime.on_demand_registry import DynamicWindowCapabilityRegistry
 from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.core.config import ARTIFACTS_DIR, DATABASE_PATH
 from app.core.provenance import sha256_json
+from app.core.performance_trace import measure_performance, performance_trace
 from app.algorithm_runtime.offline_execution import (
     OFFLINE_EXECUTION_CONTRACT_VERSION,
-    scientific_cache_key,
-    scientific_configuration_sha256,
-    scientific_configuration_json,
-    scientific_context_snapshot,
 )
-from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.persistence.repositories.dynamic_window import DynamicWindowRecord, DynamicWindowRepository
-from app.services.algorithm_recording_context import _RecordingAlgorithmContext
 from app.services.recordings import RecordingService
 from app.services.on_demand_worker import execute_window_job
 from app.services.dynamic_window_artifacts import DynamicWindowArtifactStore
 from app.services.dynamic_window_identity import DynamicWindowIdentityResolver
+from app.services.dynamic_window_planning import DynamicWindowPlanner, PreparedDynamicWindow
 from app.services.projects import ProjectService
 from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
 from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
 from app.services.tnk_playback_delivery import TnkPlaybackDeliveryService
+from app.services.dynamic_window_responses import (
+    plan_from_records, response, session_cache_key, session_scientific_configuration_json,
+)
 
 
 class DynamicWindowService:
@@ -69,6 +65,8 @@ class DynamicWindowService:
         self.repository = DynamicWindowRepository(database_path)
         self._projects = ProjectService(database_path)
         self._identity_resolver = DynamicWindowIdentityResolver(database_path)
+        self._planner = DynamicWindowPlanner(recordings, registry, self.capabilities, self.repository,
+                                             self._projects, self._identity_resolver)
         self.artifacts_dir = Path(artifacts_dir) / "dynamic-windows"
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         # Keep admission and cache-hit timings in the application log stream.
@@ -93,151 +91,41 @@ class DynamicWindowService:
         if wait:
             # Do not hold the gate: execution cleanup removes its pending entry.
             self._executor.shutdown(wait=True, cancel_futures=True)
+        self._artifact_store.close()
 
     def ensure(self, payload: DynamicWindowRequest) -> dict[str, Any]:
         return self._ensure(payload)
 
     def _ensure(self, payload: DynamicWindowRequest, *, recovering: DynamicWindowRecord | None = None) -> dict[str, Any]:
-        # Admission is short and serialized; scientific work runs outside this gate.
-        with self._lock:
+        with performance_trace("dynamic_window_admission_perf",
+                request_id=payload.request_id, algorithm_id=payload.algorithm_id,
+                recording_id=payload.recording_id, cursor_sample=payload.cursor_sample) as trace:
             if self._stop.is_set():
                 raise DynamicWindowCapacityExceededError("动态分析服务正在关闭。")
-            return self._ensure_locked(payload, recovering=recovering)
-
-    def _ensure_locked(self, payload: DynamicWindowRequest, *, recovering: DynamicWindowRecord | None = None) -> dict[str, Any]:
-        started = time.perf_counter()
-        planning_started = started
-        input_resolution_ms = 0.0
-        window_planning_ms = 0.0
-        requested_version = payload.config.get("scientific_version")
-        module = self.registry.get_current(payload.algorithm_id)
-        if requested_version is not None and requested_version != module.manifest.scientific_version:
-            raise RetiredAlgorithmVersionError(
-                f"official algorithm version {requested_version!r} is retired",
-                detail={"algorithm_id": payload.algorithm_id,
-                        "requested_version": requested_version,
-                        "current_version": module.manifest.scientific_version},
-            )
-        capability = self.capabilities.get(payload.algorithm_id, module.manifest.scientific_version)
-        recording = self.recordings.require_recording(payload.recording_id)
-        if payload.project_id is not None:
-            if (self._projects.get(payload.project_id) is None or
-                    recording.id not in self._projects.project_recording_ids(payload.project_id)):
-                raise DynamicWindowProjectForbiddenError("记录不属于请求的项目。")
-        if not recording.source_sha256 or not recording.sfreq or not recording.duration_s:
-            raise ValueError("recording scientific identity or metadata is unavailable")
-        official = OfficialAlgorithmRunConfig.model_validate(self._official_payload(payload))
-        typed_config = module.config_model.model_validate(official.runtime_config())
-        typed_config = self._runtime_validate(module, typed_config)
-        montage_snapshot = official.montage_snapshot()
-        if montage_snapshot is not None:
-            catalogue = {str(item.get("id")): item for item in getattr(recording, "montage_catalogue", ())}
-            profile = catalogue.get(str(montage_snapshot["id"]))
-            if profile is None:
-                raise ValueError("ANALYSIS_MONTAGE_NOT_IN_RECORDING: 所选导联配置不属于该记录的历史目录")
-            if montage_snapshot.get("revision") != profile.get("revision") or montage_snapshot.get("fingerprint") != profile.get("fingerprint"):
-                raise ValueError("ANALYSIS_MONTAGE_STALE: 所选导联配置版本或指纹与记录快照不一致")
-            montage_snapshot = {
-                **montage_snapshot,
-                "snapshot_source": profile.get("snapshot_source", "acquisition"),
-                "source_profile_id": profile.get("source_profile_id", profile["id"]),
-                "source_mapping": profile.get("source_mapping", {}),
-                "formulas": profile.get("formulas", []),
-            }
-            catalogue_outputs = {str(item.get("id")): item for item in profile.get("outputs", []) if item.get("available", False)}
-            outputs = set(catalogue_outputs)
-            requested = module.requested_channels(typed_config)
-            requested_outputs = montage_snapshot.get("outputs") or []
-            mapped_ids = [str(item.get("output", "")) for item in requested_outputs]
-            mapped_roles = [str(item.get("role", "")) for item in requested_outputs]
-            if (len(mapped_ids) != len(set(mapped_ids)) or
-                    any(not role for role in mapped_roles) or
-                    set(mapped_ids) != {str(channel) for channel in requested}):
-                raise ValueError("ANALYSIS_MONTAGE_MAPPING_MISMATCH: 导联角色映射与算法请求输入不一致")
-            for output in requested_outputs:
-                output_id = str(output.get("output", ""))
-                declared = catalogue_outputs.get(output_id)
-                if declared is not None and str(output.get("role", "")) != str(declared.get("role", "")):
-                    raise ValueError("ANALYSIS_MONTAGE_MAPPING_MISMATCH: 导联角色映射与算法请求输入不一致")
-            if any(channel.casefold() not in {item.casefold() for item in outputs} for channel in requested):
-                raise ValueError("ANALYSIS_MONTAGE_ROLE_UNRESOLVED: 算法输入未解析到所选历史导联输出")
-            recording = self.recordings.select_analysis_montage(recording, str(montage_snapshot["id"]))
-        context = _RecordingAlgorithmContext(self.recordings, recording)
-        try:
-            input_resolution_started = time.perf_counter()
-            inputs = module.resolve_inputs(context, typed_config)
-            input_resolution_ms = (time.perf_counter() - input_resolution_started) * 1000
-            max_cursor_sample = int(round(inputs.duration_s * inputs.sfreq_hz))
-            if payload.cursor_sample > max_cursor_sample:
-                raise DynamicWindowCursorInvalidError("cursor sample exceeds recording duration")
-            resolved_identity = self._identity_resolver.resolve(module, payload)
-            config = official.model_copy(update={"scientific_version": module.manifest.scientific_version}).model_dump(mode="json")
-            if hasattr(self.recordings, "analysis_signal_provenance"):
+            with measure_performance("request_planning"):
+                prepared = self._planner.prepare(payload, recovering=recovering)
+            waiting = time.perf_counter()
+            with self._lock:
+                trace.add("lock_wait", (time.perf_counter() - waiting) * 1000)
+                held = time.perf_counter()
                 try:
-                    signal_source = self.recordings.analysis_signal_provenance(recording)
-                except ValueError as exc:
-                    # Keep the window request auditable so the worker can return
-                    # a structured unavailable result instead of publishing a
-                    # fabricated ready payload for a damaged historical source.
-                    signal_source = {
-                        "signal_mode": "unverifiable",
-                        "analysis_reference": "unverifiable_source_metadata",
-                        "error_type": type(exc).__name__,
-                    }
-            else:
-                signal_source = {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}
-            # A display label can contain operator-entered text and is not part
-            # of the signal calculation. Keep it out of the scientific identity
-            # snapshot and the public canonical configuration payload.
-            signal_source = {key: value for key, value in signal_source.items() if key != "montage_label"}
-            execution_snapshot = module.execution_snapshot(typed_config)
-            channel_mapping = {
-                "channels": module.requested_channels(typed_config),
-                "signal_source": signal_source,
-            }
-            if montage_snapshot is not None:
-                channel_mapping["analysis_montage"] = montage_snapshot
-            reference = {"mode": signal_source["analysis_reference"]}
-            scientific_context = scientific_context_snapshot(
-                sampling_rate_hz=inputs.sfreq_hz,
-                signal_mapping=channel_mapping,
-                reference=reference,
-                filters=execution_snapshot.filters,
-                quality_rules=execution_snapshot.quality_rules,
-                window=execution_snapshot.window,
-                window_policy_version=capability.window_policy_version,
-            )
-            replay_context = scientific_context["replay_context"]
-            context_identity = str(replay_context["context_identity"])
-            scientific_config_sha256 = scientific_configuration_sha256(config, scientific_context)
-            session_identity = DynamicSessionIdentity(
-                project_scope=payload.project_id,
-                recording_id=recording.id,
-                source_sha256=recording.source_sha256,
-                algorithm_id=module.manifest.algorithm_id,
-                **resolved_identity,
-                scientific_version=module.manifest.scientific_version,
-                implementation_identity=module.manifest.implementation_identity,
-                configuration_sha256=scientific_config_sha256,
-                window_policy_version=capability.window_policy_version,
-                reset_origin_sample=0,
-                context_identity=context_identity,
-            )
-            if recovering is not None:
-                previous_session = self.repository.get_session(recovering.session_id)
-                previous_identity = self._plan_from_records(previous_session, recovering).session_identity
-                if previous_identity != session_identity:
-                    raise ValueError("recovered source/configuration identity no longer matches its snapshot")
-            session = self.repository.ensure_session(
-                session_identity,
-                configuration={**config, "_scientific_context": scientific_context},
-            )
-            window_planning_started = time.perf_counter()
-            plan = capability.plan_window(inputs, typed_config, payload.cursor_sample, session_identity)
-            window_planning_ms = (time.perf_counter() - window_planning_started) * 1000
-        finally:
-            context.close()
-        planning_ms = (time.perf_counter() - planning_started) * 1000
+                    if self._stop.is_set():
+                        if hasattr(prepared.inputs.payload, "close"):
+                            prepared.inputs.payload.close()
+                        raise DynamicWindowCapacityExceededError("动态分析服务正在关闭。")
+                    value = self._ensure_locked(payload, prepared, recovering=recovering)
+                    trace.identity.update(window_id=value["window_id"], state=value["state"])
+                    return value
+                finally:
+                    trace.add("lock_held", (time.perf_counter() - held) * 1000)
+
+    def _ensure_locked(self, payload: DynamicWindowRequest, prepared: PreparedDynamicWindow, *, recovering: DynamicWindowRecord | None = None) -> dict[str, Any]:
+        session, capability = prepared.session, prepared.capability
+        typed_config, inputs, plan = prepared.config, prepared.inputs, prepared.plan
+        session_identity = plan.session_identity
+        started, planning_ms = prepared.started, prepared.planning_ms
+        input_resolution_ms = prepared.input_resolution_ms
+        window_planning_ms = prepared.window_planning_ms
 
         window = self.repository.ensure_window(
             session.session_id, start_sample=plan.start_sample, end_sample=plan.end_sample,
@@ -279,9 +167,9 @@ class DynamicWindowService:
             )
             if delivery_state is not None and delivery_state["state"] == "enabled" and result is not None:
                 frame_publisher(identity, DynamicWindowResult.model_validate(result))
-            return self._response(session.session_id, window, plan, request_id, result=result, subscription_id=subscription_id,
-                                  scientific_cache_key=self._session_cache_key(session),
-                                  scientific_configuration_json=self._session_scientific_configuration_json(session),
+            return response(session.session_id, window, plan, request_id, result=result, subscription_id=subscription_id,
+                                  scientific_cache_key=session_cache_key(session),
+                                  scientific_configuration_json=session_scientific_configuration_json(session),
                                   playback_delivery=response_delivery)
         if plan.state != "planned":
             window = self.repository.transition_window(
@@ -291,9 +179,9 @@ class DynamicWindowService:
             subscription_id = self.repository.create_subscription(
                 window.window_id, request_id, project_id=payload.project_id,
             ).subscription_id
-            return self._response(session.session_id, window, plan, request_id, subscription_id=subscription_id,
-                                  scientific_cache_key=self._session_cache_key(session),
-                                  scientific_configuration_json=self._session_scientific_configuration_json(session),
+            return response(session.session_id, window, plan, request_id, subscription_id=subscription_id,
+                                  scientific_cache_key=session_cache_key(session),
+                                  scientific_configuration_json=session_scientific_configuration_json(session),
                                   playback_delivery=response_delivery)
         # Fence leases left by a crashed process. The current ensure request
         # supplies the immutable inputs needed to submit the recovery attempt.
@@ -324,9 +212,9 @@ class DynamicWindowService:
             subscription_id = self.repository.create_subscription(
                 current.window_id, request_id, project_id=payload.project_id,
             ).subscription_id
-            return self._response(session.session_id, current, plan, request_id, result=result, subscription_id=subscription_id,
-                                  scientific_cache_key=self._session_cache_key(session),
-                                  scientific_configuration_json=self._session_scientific_configuration_json(session),
+            return response(session.session_id, current, plan, request_id, result=result, subscription_id=subscription_id,
+                                  scientific_cache_key=session_cache_key(session),
+                                  scientific_configuration_json=session_scientific_configuration_json(session),
                                   playback_delivery=response_delivery)
         subscription_id = None if recovering is not None else self.repository.create_subscription(
             window.window_id, request_id, project_id=payload.project_id,
@@ -340,7 +228,7 @@ class DynamicWindowService:
                     future = self._executor.submit(
                         self._execute, window.window_id, session.session_id, capability,
                         typed_config, inputs, identity, plan, attempt.attempt_id,
-                        attempt_request_id, frame_publisher)
+                        attempt_request_id, frame_publisher, time.perf_counter())
                     self._pending[attempt.attempt_id] = future
                     self._logger.info(
                         "dynamic_window_queued algorithm_id=%s recording_id=%s request_id=%s window_id=%s attempt_id=%s target_samples=%s:%s context_samples=%s:%s state=%s admission_ms=%.1f planning_ms=%.1f input_resolution_ms=%.1f window_planning_ms=%.1f",
@@ -350,9 +238,9 @@ class DynamicWindowService:
                         (time.perf_counter() - started) * 1000, planning_ms,
                         input_resolution_ms, window_planning_ms,
                     )
-        return self._response(session.session_id, window, plan, request_id, subscription_id=subscription_id,
-                              scientific_cache_key=self._session_cache_key(session),
-                              scientific_configuration_json=self._session_scientific_configuration_json(session),
+        return response(session.session_id, window, plan, request_id, subscription_id=subscription_id,
+                              scientific_cache_key=session_cache_key(session),
+                              scientific_configuration_json=session_scientific_configuration_json(session),
                               playback_delivery=response_delivery)
 
     def _recover_loop(self) -> None:
@@ -385,18 +273,20 @@ class DynamicWindowService:
             except Exception:
                 self._logger.exception("dynamic_window_recovery_failed")
 
-    def get(self, window_id: str, *, project_id: str | None = None) -> dict[str, Any]:
+    def get(self, window_id: str, *, project_id: str | None = None,
+            include_projection_source: bool = False) -> dict[str, Any]:
         window = self.repository.get_window(window_id)
         if window is None:
             raise KeyError("dynamic window not found")
         session = self.repository.get_session(window.session_id)
         if session is None or session.project_id != project_id:
             raise KeyError("dynamic window not found in project scope")
-        plan = self._plan_from_records(session, window)
-        result = self._read_artifact(window.result_artifact_id) if window.state == "ready" else None
-        return self._response(session.session_id, window, plan, result=result,
-                              scientific_cache_key=self._session_cache_key(session),
-                              scientific_configuration_json=self._session_scientific_configuration_json(session))
+        plan = plan_from_records(session, window)
+        result = self._read_artifact(window.result_artifact_id,
+            include_projection_source=include_projection_source) if window.state == "ready" else None
+        return response(session.session_id, window, plan, result=result,
+                              scientific_cache_key=session_cache_key(session),
+                              scientific_configuration_json=session_scientific_configuration_json(session))
 
     def playback_events(self, delivery_id: str, *, after_sequence: int = 0,
                         limit: int = 256, project_id: str | None = None) -> dict[str, Any]:
@@ -419,49 +309,35 @@ class DynamicWindowService:
     def _execute(self, window_id: str, session_id: str, capability: Any, config: Any,
                  inputs: Any, identity: DynamicWindowIdentity, plan: DynamicWindowPlan,
                  attempt_id: str, request_id: str,
-                 on_replayed_frame: Any | None = None) -> None:
+                 on_replayed_frame: Any | None = None, enqueued_at: float | None = None) -> None:
+        self._logger.info(
+            "dynamic_window_worker_started request_id=%s algorithm_id=%s recording_id=%s window_id=%s attempt_id=%s executor_queue_ms=%.3f",
+            request_id, identity.algorithm_id, identity.recording_id, window_id, attempt_id,
+            (time.perf_counter() - enqueued_at) * 1000 if enqueued_at is not None else 0.0,
+        )
         try:
-            execute_window_job(
-                self.repository, capability, config, inputs, identity, plan,
-                window_id, attempt_id, request_id, self._write_artifact,
-                self._remove_artifact_if_unreferenced, self._stop,
-                manifest_digest=self._artifact_store.manifest_digest,
-                resource_policy=self.resource_policy,
-                compute_coordinator=self.compute_coordinator,
-                on_replayed_frame=on_replayed_frame,
-            )
+            with performance_trace("dynamic_window_worker_perf", request_id=request_id,
+                    algorithm_id=identity.algorithm_id, recording_id=identity.recording_id,
+                    window_id=window_id, attempt_id=attempt_id):
+                execute_window_job(
+                    self.repository, capability, config, inputs, identity, plan,
+                    window_id, attempt_id, request_id, self._write_artifact,
+                    self._remove_artifact_if_unreferenced, self._stop,
+                    manifest_digest=self._artifact_store.manifest_digest,
+                    resource_policy=self.resource_policy,
+                    compute_coordinator=self.compute_coordinator,
+                    on_replayed_frame=on_replayed_frame,
+                )
         finally:
             with self._lock:
                 self._pending.pop(attempt_id, None)
-
-    @staticmethod
-    def _runtime_validate(module: Any, config: Any) -> Any:
-        if config.mode != "dynamic":
-            raise ValueError("on-demand dynamic windows require dynamic mode")
-        policy = module.manifest.dynamic_policy
-        if config.window_s not in policy.window_options_s or config.step_s not in policy.refresh_step_options_s:
-            raise ValueError("dynamic window or step is not supported by this algorithm")
-        return config
-
-    @staticmethod
-    def _official_payload(payload: DynamicWindowRequest) -> dict[str, Any]:
-        """Accept the two existing official-config spellings at this boundary."""
-        raw = dict(payload.config)
-        raw["algorithm_id"] = payload.algorithm_id
-        if "time" not in raw and {"start_s", "end_s"} <= raw.keys():
-            raw["time"] = {"start_s": raw.pop("start_s"), "end_s": raw.pop("end_s")}
-        if "dynamic_window_s" not in raw and "window_s" in raw:
-            raw["dynamic_window_s"] = raw.pop("window_s")
-        if "refresh_step_s" not in raw and "step_s" in raw:
-            raw["refresh_step_s"] = raw.pop("step_s")
-        return raw
 
     def _write_artifact(self, window_id: str, result: DynamicWindowResult) -> str:
         window = self.repository.get_window(window_id)
         session = self.repository.get_session(window.session_id) if window is not None else None
         if session is not None:
             provenance_id = sha256_json({
-                "scientific_cache_key": self._session_cache_key(session),
+                "scientific_cache_key": session_cache_key(session),
                 "window_id": window_id,
                 "producer_mode": "on_demand",
                 "result_scope": "window",
@@ -470,89 +346,27 @@ class DynamicWindowService:
                 **result.provenance,
                 "execution_contract_version": OFFLINE_EXECUTION_CONTRACT_VERSION,
                 "execution_mode": "on_demand",
-                "scientific_cache_key": self._session_cache_key(session),
+                "scientific_cache_key": session_cache_key(session),
                 "producer_mode": "on_demand",
                 "result_scope": "window",
                 "served_from": "on_demand_computation",
                 "provenance_id": provenance_id,
             }
-        return self._artifact_store.write(window_id, result)
+        module = self.registry.get_current(result.identity.algorithm_id)
+        fields = tuple(module.manifest.output_schema.get("projection_fields", ()))
+        return self._artifact_store.write(window_id, result, projection_fields=fields)
 
     def _remove_artifact_if_unreferenced(self, artifact_id: str) -> None:
         self._artifact_store.remove_unreferenced(artifact_id)
 
-    def _read_artifact(self, artifact_id: str | None) -> dict[str, Any] | None:
+    def _read_artifact(self, artifact_id: str | None, *,
+                       include_projection_source: bool = False) -> dict[str, Any] | None:
         if not artifact_id:
             return None
         try:
             return self._artifact_store.read(
                 artifact_id, manifest_sha256=self.repository.artifact_manifest_digest(artifact_id),
+                include_projection_source=include_projection_source,
             )
         except (ValueError, OSError) as exc:
             raise DynamicWindowResultCorruptError(str(exc)) from exc
-
-    @staticmethod
-    def _session_cache_key(session: Any) -> str:
-        configuration = dict(session.configuration)
-        time_range = configuration.get("time") or {}
-        return scientific_cache_key(
-            source_sha256=session.source_sha256,
-            definition_sha256=session.definition_sha256,
-            config_sha256=session.configuration_sha256,
-            implementation_build=session.implementation_build,
-            actual_range={"start_s": float(time_range["start_s"]), "end_s": float(time_range["end_s"])},
-        )
-
-    @staticmethod
-    def _plan_from_records(session: Any, window: DynamicWindowRecord) -> DynamicWindowPlan:
-        replay_context = (session.configuration.get("_scientific_context") or {}).get("replay_context", {})
-        context_identity = str(replay_context.get("context_identity", ""))
-        identity = DynamicSessionIdentity(
-            project_scope=session.project_id, recording_id=session.recording_id, source_sha256=session.source_sha256,
-            algorithm_id=session.algorithm_id, definition_id=session.definition_id, definition_version=session.definition_version,
-            definition_sha256=session.definition_sha256, implementation_build=session.implementation_build,
-            scientific_version=session.scientific_version, implementation_identity=session.implementation_identity,
-            configuration_sha256=session.configuration_sha256, window_policy_version=session.window_policy_version,
-            reset_origin_sample=int(replay_context.get("reset_origin_sample", 0)),
-            context_identity=context_identity,
-        )
-        return DynamicWindowPlan(session_identity=identity, cursor_sample=window.end_sample,
-                                 cursor_s=window.end_s,
-                                 start_sample=window.start_sample, end_sample=window.end_sample,
-                                 start_s=window.start_s, end_s=window.end_s,
-                                 context_start_sample=int(replay_context.get("reset_origin_sample", 0)),
-                                 context_end_sample=window.end_sample,
-                                 context_identity=context_identity,
-                                 state="planned" if window.state not in {"insufficient_data", "unavailable"} else "insufficient_data",
-                                 reason=window.failure.get("message") if window.failure else None)
-
-    @staticmethod
-    def _session_scientific_configuration_json(session: Any) -> str:
-        stored = dict(session.configuration)
-        context = stored.pop("_scientific_context")
-        return scientific_configuration_json(stored, context)
-
-    @staticmethod
-    def _response(session_id: str, window: DynamicWindowRecord, plan: DynamicWindowPlan,
-                  request_id: str | None = None, result: dict[str, Any] | None = None,
-                  subscription_id: str | None = None,
-                  scientific_cache_key: str | None = None,
-                  *,
-                  scientific_configuration_json: str,
-                  playback_delivery: dict[str, Any] | None = None) -> dict[str, Any]:
-        identity = {
-            **plan.session_identity.model_dump(mode="json"),
-            "start_sample": window.start_sample,
-            "end_sample": window.end_sample,
-        }
-        return {"session_id": session_id, "window_id": window.window_id,
-                "request_id": request_id or f"window-status-{window.window_id}", "state": window.state,
-                "subscription_id": subscription_id,
-                "execution_mode": "on_demand",
-                "scientific_cache_key": scientific_cache_key,
-                "scientific_configuration_json": scientific_configuration_json,
-                "identity": {**identity, "generation": window.generation},
-                "plan": plan.model_dump(mode="json"), "range": {"start_sample": window.start_sample, "end_sample": window.end_sample,
-                "start_s": window.start_s, "end_s": window.end_s}, "quality": window.quality,
-                "failure": window.failure, "result": result,
-                **({"playback_delivery": playback_delivery} if playback_delivery is not None else {})}

@@ -27,6 +27,8 @@ class RbpFrame:
     failure: AlgorithmFailure | None
     evidence: dict[str, Any]
     provenance: dict[str, Any]
+    frequency_hz: np.ndarray
+    spectrum_psd: np.ndarray
 
     @property
     def state(self) -> str:
@@ -67,6 +69,13 @@ def execute_rbp_frame(
             raise ValueError("RBP spectrum rows must match ordered input channels")
         if spectrum.gate_failed:
             gate_quality = {"reason": spectrum.gate_failed}
+        frequencies = np.asarray(spectrum.freqs, dtype=np.float64)
+    else:
+        segment_samples = int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * inputs.sfreq_hz))
+        frequencies = np.fft.rfftfreq(segment_samples, 1.0 / inputs.sfreq_hz)
+        frequencies = frequencies[(frequencies >= official.RBP_FILTER_LOW_HZ) &
+                                  (frequencies <= official.RBP_FILTER_HIGH_HZ)]
+        psd = np.full((len(inputs.channels), frequencies.size), np.nan, dtype=np.float64)
 
     arrays = {
         output: np.full(len(inputs.channels), np.nan)
@@ -77,10 +86,16 @@ def execute_rbp_frame(
     channel_quality = dict(getattr(spectrum, "evidence", {}).get("channel_quality", {})) if spectrum is not None else {}
     warnings = {channel: item for channel, item in channel_quality.items() if item["status"] == "warning"}
     band_powers: dict[str, dict[str, float]] = {}
+    band_check_ms = 0.0
+    band_check_count = 0
+    band_formula_ms = 0.0
     band_started = perf_counter()
     for index, channel in enumerate(inputs.channels):
         if check:
+            check_started = perf_counter()
             check()
+            band_check_ms += (perf_counter() - check_started) * 1000
+            band_check_count += 1
         if gate_quality is not None:
             failures[channel] = {
                 "code": "PSD_QUALITY_GATE_FAILED", "message": "当前窗口未通过 PSD 质量门",
@@ -92,19 +107,25 @@ def execute_rbp_frame(
                                  "details": channel_quality[channel]}
             continue
         try:
+            formula_started = perf_counter()
             powers, shares = official.five_band_shares(
                 SimpleNamespace(freqs=spectrum.freqs, psd=psd[index:index + 1]),
             )
         except ValueError as exc:
             failures[channel] = {"code": "RBP_CHANNEL_UNAVAILABLE", "message": str(exc)}
             continue
+        finally:
+            band_formula_ms += (perf_counter() - formula_started) * 1000
         band_powers[channel] = powers
         for name, value in powers.items():
             arrays[f"{name}_absolute_power"][index] = value
         for name, value in shares.items():
             arrays[name][index] = value
     if check:
+        check_started = perf_counter()
         check()
+        band_check_ms += (perf_counter() - check_started) * 1000
+        band_check_count += 1
     band_integration_ms = (perf_counter() - band_started) * 1000
 
     all_failed = len(failures) == len(inputs.channels)
@@ -150,8 +171,11 @@ def execute_rbp_frame(
     if request_id or window_id:
         logger.info(
             "rbp_frame_perf request_id=%s window_id=%s recording_id=%s start_s=%.6f end_s=%.6f "
-            "channel_count=%d spectrum_load_ms=%.1f band_integration_ms=%.1f total_ms=%.1f",
+            "channel_count=%d spectrum_load_ms=%.1f band_integration_ms=%.1f "
+            "band_formula_ms=%.3f band_check_ms=%.3f band_check_count=%d total_ms=%.1f",
             request_id or "unknown", window_id or "unknown", inputs.recording_id, start_s, end_s,
-            len(inputs.channels), spectrum_load_ms, band_integration_ms, (perf_counter() - started) * 1000,
+            len(inputs.channels), spectrum_load_ms, band_integration_ms,
+            band_formula_ms, band_check_ms, band_check_count, (perf_counter() - started) * 1000,
         )
-    return RbpFrame(arrays, quality, failure, evidence, provenance)
+    provenance["custom_frequency_projection_source"] = "saved_rbp_welch_spectrum"
+    return RbpFrame(arrays, quality, failure, evidence, provenance, frequencies, psd)

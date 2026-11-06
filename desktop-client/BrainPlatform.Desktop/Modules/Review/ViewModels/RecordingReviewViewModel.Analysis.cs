@@ -14,7 +14,7 @@ public sealed partial class RecordingReviewViewModel
 
     internal async Task OpenAnalysisAsync(string algorithmId)
     {
-        if (algorithmId == SpectralValuesPanelId
+        if (algorithmId is SpectralValuesPanelId or CustomFrequencyInspectionPanelId
             ? !analysisCoordinators.ContainsKey("psd") || !analysisCoordinators.ContainsKey("rbp")
             : !analysisCoordinators.ContainsKey(algorithmId) || !analysisPanels.ContainsKey(algorithmId))
             throw new InvalidOperationException($"回放页未配置 {algorithmId} 算法。");
@@ -47,13 +47,14 @@ public sealed partial class RecordingReviewViewModel
         RaisePropertyChanged(nameof(AnalysisPanelStartSeconds));
         RaisePropertyChanged(nameof(IsAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsSpectralValuesPanelOpen));
+        RaisePropertyChanged(nameof(IsCustomFrequencyInspectionPanelOpen));
         RaisePropertyChanged(nameof(IsRbpAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsPsdAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsStftAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsTnkAnalysisPanelOpen));
-        RaisePropertyChanged(nameof(AnalysisPanelTitle));
         RaisePropertyChanged(nameof(ActiveAnalysisPanel));
         RaisePropertyChanged(nameof(ActiveAnalysisPanelKind));
+        RaisePropertyChanged(nameof(AnalysisPanelTitle));
         RaisePropertyChanged(nameof(ActiveScalarParameters));
         RaisePropertyChanged(nameof(ActiveScalarAnalysis));
         RaisePropertyChanged(nameof(HasSecondaryScalarChannel));
@@ -75,7 +76,7 @@ public sealed partial class RecordingReviewViewModel
                 if (activeAnalysisId != algorithmId || revision != analysisConfigurationRevision) return;
                 await DetachAnalysisAsync();
                 token.ThrowIfCancellationRequested();
-                var sourceId = algorithmId == SpectralValuesPanelId ? "psd" : algorithmId;
+                var sourceId = IsSpectralInspectionPanelOpen ? "psd" : algorithmId;
                 analysisCoordinator = analysisCoordinators[sourceId];
                 SubscribeTnkPlaybackEvents(analysisCoordinator);
                 AnalysisPreparationText = $"正在准备 {analysisCoordinator.AlgorithmDisplayName}…";
@@ -85,7 +86,7 @@ public sealed partial class RecordingReviewViewModel
                     CompatibleViewingMontages.ToArray());
                 token.ThrowIfCancellationRequested();
                 var algorithm = await analysisCoordinator.GetAlgorithmAsync(token);
-                var rbpAlgorithm = IsSpectralValuesPanelOpen
+                var rbpAlgorithm = IsSpectralInspectionPanelOpen
                     ? await analysisCoordinators["rbp"].GetAlgorithmAsync(token) : null;
                 token.ThrowIfCancellationRequested();
                 var selection = montageSelection.Capture();
@@ -108,8 +109,16 @@ public sealed partial class RecordingReviewViewModel
                 var config = panel.BuildConfigurationForSelection(duration, rate, selection, montage);
                 if (selection.Revision != montageSelection.Revision) return;
                 if (rbpAlgorithm is not null) AttachSpectralRbp(rbpAlgorithm, selection, montage);
-                var primary = AttachOnDemandAnalysisAsync(new AnalysisRunRequest(analysisRecording.Id, "official_algorithm", config), token);
-                await Task.WhenAll(primary, spectralRbpBinding?.LoadAtSecondsAsync(PositionSeconds, token) ?? Task.CompletedTask);
+                var request = new AnalysisRunRequest(analysisRecording.Id, "official_algorithm", config);
+                if (rbpAlgorithm is not null)
+                {
+                    var binding = CreateAnalysisBinding(analysisCoordinator);
+                    binding.AttachOnDemand(request, algorithm);
+                    isAnalysisStale = false;
+                    RaiseAnalysisPropertiesChanged();
+                    await RequestSpectralWindowAsync(PositionSeconds, cancellationToken: token);
+                }
+                else await AttachOnDemandAnalysisAsync(request, token);
                 token.ThrowIfCancellationRequested();
                 AnalysisPreparationText = CurrentAnalysisWindow is null ? AnalysisStatusText : "";
             }
@@ -120,6 +129,7 @@ public sealed partial class RecordingReviewViewModel
         {
             if (token.IsCancellationRequested || revision != analysisConfigurationRevision) return;
             if (IsSpectralValuesPanelOpen) SpectralValues.Clear($"数值准备失败：{exception.Message}");
+            if (IsCustomFrequencyInspectionPanelOpen) CustomFrequencyInspection.Clear($"数值准备失败：{exception.Message}");
             AnalysisPreparationText = $"算法准备失败：{exception.Message}";
             throw;
         }
@@ -156,7 +166,11 @@ public sealed partial class RecordingReviewViewModel
                 panel.RefreshForSelection(recording, previousSelection, selectedSelection, previous, selected);
             PsdAnalysis.SetChannels(PsdParameters.Channels);
             RbpAnalysis.InitializeChannels(RbpParameters.ResolveAnalysisChannels(selected));
-            if (IsSpectralValuesPanelOpen) SpectralValues.InitializeChannels(PsdParameters.Channels);
+            if (IsSpectralInspectionPanelOpen)
+            {
+                SpectralValues.InitializeChannels(PsdParameters.Channels);
+                CustomFrequencyInspection.InitializeChannels(PsdParameters.Channels);
+            }
         }
         finally { loadingAnalysisParameters = false; }
     }

@@ -195,16 +195,9 @@ class RecordingService:
             raise KeyError("录制文件不存在")
         summary = self._row_to_summary(row)
         if summary.stored_name.startswith("wpf-montage:"):
-            from app.services.acquisition_analysis_signals import historical_montage_catalogue, read_acquisition_signal_view
             directory = summary.stored_name.removeprefix("wpf-montage:")
-            try:
-                catalogue = historical_montage_catalogue(directory)
-            except Exception:
-                catalogue = ()
-            snapshots = self._analysis_montage_snapshots.catalogue(summary.id, directory)
-            known_ids = {entry["id"] for entry in catalogue}
-            combined = catalogue + tuple(entry for entry in snapshots if entry["id"] not in known_ids)
-            return RecordingSummary(**{**summary.__dict__, "montage_catalogue": combined})
+            catalogue = self._analysis_montage_snapshots.catalogue(summary.id, directory)
+            return RecordingSummary(**{**summary.__dict__, "montage_catalogue": catalogue})
         return summary
 
 

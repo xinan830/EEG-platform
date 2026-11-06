@@ -6,11 +6,13 @@ import hashlib
 import json
 import threading
 from collections import OrderedDict
+from copy import deepcopy
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from app.persistence import connect_database
+from app.core.performance_trace import current_performance_trace, measure_performance
 from app.services.acquisition_analysis_signals import (
     AcquisitionSignalView, _catalogue_entry, _catalogue_projection_key, _field,
     historical_montage_catalogue, read_acquisition_signal_view,
@@ -26,6 +28,8 @@ class AnalysisMontageSnapshots:
         self._resolved_views: OrderedDict[tuple[str, str, str, str], AcquisitionSignalView] = OrderedDict()
         self._cache_lock = threading.Lock()
         self._resolved_view_limit = 32
+        self._catalogues: OrderedDict[tuple, tuple[dict, ...]] = OrderedDict()
+        self._catalogue_limit = 8
 
     def prepare(self, directory: str | Path, profiles_json: list[str]) -> list[tuple[str, str, str, str]]:
         captured = historical_montage_catalogue(directory)
@@ -71,6 +75,7 @@ class AnalysisMontageSnapshots:
                 and value["source_mapping"] == entry["source_mapping"]
                 and value["formulas"] == entry["formulas"])
 
+    @measure_performance("montage_snapshot_resolve")
     def resolve(self, recording_id: str, directory: str | Path, montage_id: str | None) -> AcquisitionSignalView:
         if not montage_id:
             return read_acquisition_signal_view(directory, montage_id)
@@ -81,8 +86,12 @@ class AnalysisMontageSnapshots:
             ).fetchone()
         if row is None:
             return read_acquisition_signal_view(directory, montage_id)
-        manifest_path = Path(directory) / "manifest.json"
-        manifest_digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        manifest_digest = hashlib.sha256((Path(directory) / "manifest.json").read_bytes()).hexdigest()
+        return self._resolve_row(recording_id, directory, row, manifest_digest)
+
+    def _resolve_row(self, recording_id: str, directory: str | Path,
+                     row, manifest_digest: str) -> AcquisitionSignalView:
+        montage_id = row["snapshot_id"]
         cache_key = (recording_id, str(Path(directory).resolve()), row["profile_json"], manifest_digest)
         with self._cache_lock:
             view = self._resolved_views.get(cache_key)
@@ -100,7 +109,7 @@ class AnalysisMontageSnapshots:
                 self._resolved_views.move_to_end(cache_key)
                 while len(self._resolved_views) > self._resolved_view_limit:
                     self._resolved_views.popitem(last=False)
-        return replace(view, provenance={
+        return replace(view, provenance=deepcopy({
             **view.provenance,
             "snapshot_source": "analysis_configuration_snapshot",
             "analysis_reference": "analysis_configuration_snapshot",
@@ -108,23 +117,48 @@ class AnalysisMontageSnapshots:
             "montage_id": montage_id,
             "montage_revision": str(_field(profile, "Revision")),
             "montage_fingerprint": digest,
-        })
+        }))
 
+    @measure_performance("montage_catalogue")
     def catalogue(self, recording_id: str, directory: str | Path) -> tuple[dict, ...]:
+        """Read captured and saved choices once per complete, verified identity."""
         with connect_database(self.database_path) as connection:
             rows = connection.execute(
-                "SELECT snapshot_id, snapshot_sha256 FROM analysis_montage_snapshots WHERE recording_id = ? ORDER BY created_at, snapshot_id",
+                "SELECT * FROM analysis_montage_snapshots WHERE recording_id = ? ORDER BY created_at, snapshot_id",
                 (recording_id,),
             ).fetchall()
-        entries = []
+        trace = current_performance_trace()
+        if trace is not None:
+            trace.increment("montage_snapshot_rows", len(rows))
         try:
-            seen = {_catalogue_projection_key(entry) for entry in historical_montage_catalogue(directory)}
-        except (OSError, KeyError, TypeError, ValueError):
+            manifest_digest = hashlib.sha256((Path(directory) / "manifest.json").read_bytes()).hexdigest()
+        except OSError:
+            if rows:
+                raise
+            return ()
+        cache_key = (recording_id, str(Path(directory).resolve()), manifest_digest,
+                     tuple(tuple(row) for row in rows))
+        with self._cache_lock:
+            cached = self._catalogues.get(cache_key)
+            if cached is not None:
+                self._catalogues.move_to_end(cache_key)
+                if trace is not None:
+                    trace.increment("montage_catalogue_cache_hits")
+                return deepcopy(cached)
+        if trace is not None:
+            trace.increment("montage_catalogue_builds")
+        try:
+            entries = list(historical_montage_catalogue(directory))
+        except Exception:
             # A damaged source still needs to reach analysis admission so it can
             # publish a structured unavailable result instead of failing catalog lookup.
-            seen = set()
+            entries = []
+        seen = {_catalogue_projection_key(entry) for entry in entries}
+        seen_ids = {str(entry.get("id")) for entry in entries}
         for row in rows:
-            view = self.resolve(recording_id, directory, row["snapshot_id"])
+            if row["snapshot_id"] in seen_ids:
+                continue
+            view = self._resolve_row(recording_id, directory, row, manifest_digest)
             entry = _catalogue_entry(view)
             entry.update({
                 "id": row["snapshot_id"],
@@ -137,5 +171,14 @@ class AnalysisMontageSnapshots:
             if projection_key in seen:
                 continue
             seen.add(projection_key)
+            seen_ids.add(row["snapshot_id"])
             entries.append(entry)
-        return tuple(entries)
+        if hashlib.sha256((Path(directory) / "manifest.json").read_bytes()).hexdigest() != manifest_digest:
+            raise WpfRecordingError("ANALYSIS_MONTAGE_INTEGRITY_FAILED", "读取导联目录期间记录清单发生变化")
+        result = tuple(entries)
+        with self._cache_lock:
+            self._catalogues[cache_key] = deepcopy(result)
+            self._catalogues.move_to_end(cache_key)
+            while len(self._catalogues) > self._catalogue_limit:
+                self._catalogues.popitem(last=False)
+        return result

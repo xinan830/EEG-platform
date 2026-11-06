@@ -8,4 +8,5 @@ public enum ReviewAnalysisPanelKind
     Scalar,
     Tnk,
     SpectralValues,
+    CustomFrequencyInspection,
 }

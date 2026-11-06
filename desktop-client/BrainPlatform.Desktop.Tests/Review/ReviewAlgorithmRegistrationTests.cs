@@ -160,7 +160,7 @@ public sealed partial class RecordingReviewViewModelTests
             "OpenPsdAnalysisCommand", "OpenRbpAnalysisCommand", "OpenStftAnalysisCommand", "OpenTnkAnalysisCommand",
             "OpenFaaAnalysisCommand", "OpenIapfAnalysisCommand", "OpenThetaBetaAnalysisCommand",
             "OpenBrainbeatAnalysisCommand", "OpenIndividualizedBrainbeatAnalysisCommand",
-            "OpenSpectralValuesCommand",
+            "OpenSpectralValuesCommand", "OpenCustomFrequencyInspectionCommand",
         };
         foreach (var command in commandNames)
         {

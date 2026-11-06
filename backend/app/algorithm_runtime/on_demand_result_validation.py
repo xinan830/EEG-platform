@@ -8,8 +8,10 @@ def validate_window_result(result, manifest):
     checked = DynamicWindowResult.model_validate(result.model_dump())
     if checked.state != "ready" and not checked.axes and not checked.arrays:
         return checked
-    declared = {field["name"]: field["unit"] for field in (
-        manifest.output_schema["fields"] + manifest.output_schema.get("window_axes", []))}
+    declared_fields = manifest.output_schema.get("on_demand_fields")
+    if declared_fields is None:
+        declared_fields = manifest.output_schema["fields"] + manifest.output_schema.get("window_axes", [])
+    declared = {field["name"]: field["unit"] for field in declared_fields}
     actual = {**checked.axis_units, **checked.array_units}
     if set(checked.axes) & set(checked.arrays) or actual != declared:
         raise ValueError(

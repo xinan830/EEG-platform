@@ -271,19 +271,6 @@ class DynamicAttemptRepositoryMixin:
                 return window
             time.sleep(min(poll_s, max(0.0, deadline - time.monotonic())))
 
-    def is_attempt_active(self, attempt_id: str, lease_token: str) -> bool:
-        now = utc_now()
-        with self._connect() as connection:
-            row = connection.execute(
-                """SELECT state, lease_expires_at, lease_token
-                   FROM dynamic_analysis_attempts WHERE attempt_id = ?""", (attempt_id,),
-            ).fetchone()
-        if row is None or row["state"] != "running" or row["lease_token"] != lease_token:
-            return False
-        if not row["lease_expires_at"]:
-            return False
-        return _utc_timestamp(row["lease_expires_at"], "lease_expires_at") > _utc_timestamp(now, "current time")
-
     def claim_attempt(self, window_id: str, worker_id: str, lease_expires_at: str) -> DynamicAttemptRecord | None:
         if not worker_id:
             raise ValueError("attempt claim requires a worker identity")

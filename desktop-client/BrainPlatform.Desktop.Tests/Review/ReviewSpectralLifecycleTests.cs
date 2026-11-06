@@ -193,6 +193,38 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.NotNull(vm.SpectralValues.Rows[0].AbsolutePowerUv2);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Custom_range_projection_is_cancelled_on_seek_or_drag_without_blocking_waveform_playback(bool drag)
+    {
+        var psd = new SpectralProvider("psd") { DeferCustomRange = true };
+        var rbp = new SpectralProvider("rbp");
+        await using var vm = SpectralReview(psd, rbp);
+        await vm.InitializeAsync();
+        await vm.SeekAsync(20);
+        await vm.OpenAnalysisAsync("custom-frequency-inspection");
+        await CustomFrequencyReady(vm, "psd-10000");
+        vm.CustomFrequencyInspection.Mode = ReviewCustomFrequencyMode.Range;
+        await psd.CustomRangeStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        if (drag)
+        {
+            vm.BeginTimelineDrag();
+            Assert.True(psd.CustomRangeToken.IsCancellationRequested);
+            Assert.False(vm.CustomFrequencyInspection.HasBins);
+            vm.PreviewSeek(30);
+            vm.EndTimelineDrag();
+        }
+        else await vm.SeekAsync(30).WaitAsync(TimeSpan.FromSeconds(3));
+
+        Assert.Equal(30, vm.PositionSeconds);
+        Assert.NotNull(vm.CurrentFrame);
+        Assert.True(psd.CustomRangeToken.IsCancellationRequested);
+        Assert.False(psd.CustomRangeRelease.Task.IsCompleted);
+        psd.CustomRangeRelease.TrySetResult();
+    }
+
     private static RecordingReviewViewModel SpectralReview(SpectralProvider psd, SpectralProvider rbp) => new(
         new FakeReader(Manifest(Configuration()), 100),
         new RecordingMontageCatalogResult(null, AcquisitionMontageStatus.MissingSnapshot,
@@ -207,7 +239,16 @@ public sealed partial class RecordingReviewViewModelTests
             await Task.Delay(10, timeout.Token);
     }
 
-    private sealed class SpectralProvider(string algorithmId) : IReviewAlgorithmAdapter, IReviewScalarProvider
+    private static async Task CustomFrequencyReady(RecordingReviewViewModel vm, string windowId)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        while (!vm.CustomFrequencyInspection.HasBins ||
+               !vm.CustomFrequencyInspection.ProvenanceText.Contains(windowId, StringComparison.Ordinal))
+            await Task.Delay(10, timeout.Token);
+    }
+
+    private sealed class SpectralProvider(string algorithmId) : IReviewAlgorithmAdapter, IReviewScalarProvider,
+        IReviewCustomFrequencyProvider
     {
         public string AlgorithmId => algorithmId;
         public bool SupportsOnDemandWindows => true;
@@ -217,7 +258,21 @@ public sealed partial class RecordingReviewViewModelTests
         public int Projections { get; private set; }
         public int Releases { get; private set; }
         public bool DeferProjection { get; set; }
-        public bool DeferWindow { get; init; }
+        public bool DeferCustomRange { get; init; }
+        public bool IgnoreCustomCancellation { get; init; }
+        public bool DeferCustomBins { get; init; }
+        public int DeferredCustomBinsLoad { get; init; } = 1;
+        public int CustomBinLoads { get; private set; }
+        public int CustomRangeLoads { get; private set; }
+        public List<(double Low, double High)> CustomRanges { get; } = [];
+        public TaskCompletionSource CustomBinsStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CustomBinsRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public CancellationToken CustomBinsToken { get; private set; }
+        public TaskCompletionSource CustomRangeStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource CustomRangeRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public CancellationToken CustomRangeToken { get; private set; }
+        public bool DeferWindow { get; set; }
+        public bool AlignWindowToStep { get; init; }
         public IReadOnlyList<HistoricalMontageDescriptor>? MontageCatalogue { get; init; }
         public TaskCompletionSource WindowStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource WindowRelease { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -252,7 +307,7 @@ public sealed partial class RecordingReviewViewModelTests
                 WindowStarted.TrySetResult();
                 await WindowRelease.Task;
             }
-            return Window(algorithmId, cursorSample, request.Config,
+            return Window(algorithmId, AlignWindowToStep ? cursorSample / 500 * 500 : cursorSample, request.Config,
                 request.Config.GetProperty("channels").EnumerateArray().Select(item => item.GetString()!).ToArray());
         }
         public async Task<ResultScalarsResponse> LoadScalarsAsync(WindowPreviewResponse window,
@@ -270,6 +325,60 @@ public sealed partial class RecordingReviewViewModelTests
             Assert.Equal(fieldIds, projection.Fields.Select(field => field.FieldId));
             return projection;
         }
+        public async Task<CustomFrequencyBinsResponse> LoadBinsAsync(WindowPreviewResponse psd,
+            WindowPreviewResponse rbp, CancellationToken cancellationToken)
+        {
+            CustomBinLoads++;
+            if (DeferCustomBins && CustomBinLoads == DeferredCustomBinsLoad)
+            {
+                CustomBinsToken = cancellationToken;
+                CustomBinsStarted.TrySetResult();
+                await CustomBinsRelease.Task;
+            }
+            return CustomBins(psd, rbp);
+        }
+
+        public async Task<CustomFrequencyRangeResponse> LoadRangeAsync(WindowPreviewResponse psd,
+            WindowPreviewResponse rbp, double lowHz, double highHz, CancellationToken cancellationToken)
+        {
+            CustomRangeLoads++;
+            CustomRanges.Add((lowHz, highHz));
+            if (DeferCustomRange && CustomRangeLoads == 1)
+            {
+                CustomRangeToken = cancellationToken;
+                CustomRangeStarted.TrySetResult();
+                await CustomRangeRelease.Task.WaitAsync(IgnoreCustomCancellation ? CancellationToken.None : cancellationToken);
+            }
+            if (!IgnoreCustomCancellation) cancellationToken.ThrowIfCancellationRequested();
+            var bins = CustomBins(psd, rbp);
+            var channels = bins.Channels.Select(row => new CustomFrequencyRangeChannel(row.Channel,
+                row.PsdQuality, row.PsdQualityReasons, row.RbpQuality, row.RbpQualityReasons,
+                row.RbpDenominatorUv2, 2, 4, 4, 2)).ToArray();
+            return new CustomFrequencyRangeResponse("range", psd.RecordingId,
+                psd.Window!.StartSample, psd.Window.EndSample, lowHz, highHz, channels,
+                bins.PsdProvenance, bins.RbpProvenance);
+        }
+
+        private static CustomFrequencyBinsResponse CustomBins(WindowPreviewResponse psd, WindowPreviewResponse rbp)
+        {
+            var channels = psd.Evidence!.Value.GetProperty("extensions").GetProperty("channel_order")
+                .GetProperty("channels").EnumerateArray().Select(item => item.GetString()!).ToArray();
+            var psdIdentity = psd.BackendIdentity!.Value;
+            var rbpIdentity = rbp.BackendIdentity!.Value;
+            static CustomFrequencyProvenance Provenance(JsonElement identity, string windowId) => new(windowId,
+                identity.GetProperty("scientific_version").GetString()!,
+                identity.GetProperty("implementation_identity").GetString()!,
+                identity.GetProperty("configuration_sha256").GetString()!,
+                identity.GetProperty("window_policy_version").GetString()!);
+            var points = channels.Select((channel, index) => new CustomFrequencyBinChannel(
+                channel, "clean", [], "clean", [], index == 0 ? 100 : 200,
+                [1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4], [1, 2, 3, 4])).ToArray();
+            return new CustomFrequencyBinsResponse("bins", psd.RecordingId,
+                psd.Window!.StartSample, psd.Window.EndSample, [1, 2, 3, 4],
+                [new(1, 1.5), new(1.5, 2.5), new(2.5, 3.5), new(3.5, 4)], points,
+                Provenance(psdIdentity, psd.Window.WindowId), Provenance(rbpIdentity, rbp.Window!.WindowId));
+        }
+
         public Task ReleaseOnDemandAsync(CancellationToken cancellationToken = default)
         { Releases++; return Task.CompletedTask; }
         public Task<AnalysisRunResponse> EnsureRunAsync(AnalysisRunRequest request,

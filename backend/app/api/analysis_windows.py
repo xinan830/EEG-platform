@@ -2,6 +2,7 @@
 
 import logging
 import math
+from time import perf_counter
 from typing import Any
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
@@ -40,6 +41,7 @@ def _service(request: Request):
 
 @router.post("/ensure", status_code=status.HTTP_202_ACCEPTED)
 def ensure_window(payload: DynamicWindowRequest, request: Request):
+    started = perf_counter()
     payload = payload.model_copy(update={"request_id": payload.request_id or str(getattr(request.state, "request_id", None) or uuid4().hex)})
     try:
         value = _service(request).ensure(payload)
@@ -52,6 +54,7 @@ def ensure_window(payload: DynamicWindowRequest, request: Request):
     except ValueError as exc:
         message = str(exc)
         return error_response(request, 422, "WINDOW_REQUEST_INVALID", message)
+    service_ms = (perf_counter() - started) * 1000
     result = value.get("result") if isinstance(value.get("result"), dict) else None
     provenance = result.get("provenance") if isinstance(result, dict) else None
     served_from = provenance.get("served_from") if isinstance(provenance, dict) else None
@@ -64,13 +67,20 @@ def ensure_window(payload: DynamicWindowRequest, request: Request):
         (value.get("range") or {}).get("start_sample"),
         (value.get("range") or {}).get("end_sample"),
     )
+    audit_started = perf_counter()
     request.app.state.audit_service.record("dynamic_window.ensure", payload.request_id,
         recording_id=payload.recording_id, session_id=value["session_id"], parameters={
             "window_id": value["window_id"], "subscription_id": value["subscription_id"],
             "algorithm_id": payload.algorithm_id, "project_id": payload.project_id,
             "configuration_sha256": value["identity"]["configuration_sha256"],
             "state": value["state"], "cursor_sample": payload.cursor_sample})
-    return JSONResponse(_json_safe(value), status_code=status.HTTP_200_OK if value.get("state") == "ready" else status.HTTP_202_ACCEPTED)
+    audit_ms = (perf_counter() - audit_started) * 1000
+    encode_started = perf_counter()
+    response = JSONResponse(_json_safe(value), status_code=status.HTTP_200_OK if value.get("state") == "ready" else status.HTTP_202_ACCEPTED)
+    logger.info("dynamic_window_api_perf request_id=%s analysis_request_id=%s window_id=%s state=%s service_ms=%.3f audit_ms=%.3f response_encode_ms=%.3f response_bytes=%d total_ms=%.3f",
+        getattr(request.state, "request_id", "unknown"), payload.request_id, value["window_id"], value["state"],
+        service_ms, audit_ms, (perf_counter() - encode_started) * 1000, len(response.body), (perf_counter() - started) * 1000)
+    return response
 
 
 @router.get("/{window_id}")
@@ -120,11 +130,17 @@ def subscribe(window_id: str, payload: DynamicSubscriptionRequest, request: Requ
 
 @router.delete("/subscriptions/{subscription_id}")
 def cancel_subscription(subscription_id: str, request: Request):
+    started = perf_counter()
     try:
         value = _service(request).cancel_subscription(subscription_id, project_id=request.query_params.get("project_id"))
     except KeyError:
         return error_response(request, 404, "WINDOW_SUBSCRIPTION_NOT_FOUND", "窗口订阅不存在")
+    service_ms = (perf_counter() - started) * 1000
+    audit_started = perf_counter()
     request.app.state.audit_service.record("dynamic_window.cancel_subscription",
         str(getattr(request.state, "request_id", "unknown")), parameters={
             "window_id": value["window_id"], "subscription_id": subscription_id, "state": value["state"]})
+    logger.info("dynamic_subscription_release_perf request_id=%s subscription_id=%s window_id=%s state=%s service_ms=%.3f audit_ms=%.3f total_ms=%.3f",
+        getattr(request.state, "request_id", "unknown"), subscription_id, value["window_id"], value["state"],
+        service_ms, (perf_counter() - audit_started) * 1000, (perf_counter() - started) * 1000)
     return value

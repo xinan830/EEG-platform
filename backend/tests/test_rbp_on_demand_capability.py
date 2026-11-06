@@ -87,6 +87,9 @@ def test_rbp_window_logs_request_and_window_correlated_stage_timings(caplog):
         and "recording_id=recording" in record.getMessage()
         and "spectrum_load_ms=" in record.getMessage()
         and "band_integration_ms=" in record.getMessage()
+        and "band_formula_ms=" in record.getMessage()
+        and "band_check_ms=" in record.getMessage()
+        and "band_check_count=2" in record.getMessage()
         for record in caplog.records
     )
 
@@ -118,7 +121,12 @@ def test_rbp_invalid_denominator_is_unavailable_not_zero_or_execution_failure():
     _, window = execute(RbpAlgorithm(), inputs(lambda **_: spectrum), 1000)
     assert window.state == "unavailable"
     assert window.failure["code"] == "RBP_ALL_CHANNELS_UNAVAILABLE"
-    assert all(np.isnan(value[0]) for value in window.arrays.values())
+    assert all(np.isnan(window.arrays[name][0]) for name in (
+        "delta", "theta", "alpha", "beta", "gamma",
+        "delta_absolute_power", "theta_absolute_power", "alpha_absolute_power",
+        "beta_absolute_power", "gamma_absolute_power",
+    ))
+    assert np.all(window.arrays["spectral_psd"] == 0)
 
 
 def test_rbp_cancelled_execution_does_not_load_a_spectrum():

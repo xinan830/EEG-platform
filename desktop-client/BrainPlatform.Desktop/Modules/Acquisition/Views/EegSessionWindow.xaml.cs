@@ -1,7 +1,9 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Interop;
 using BrainPlatform.Desktop.Shared.Behaviors;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Views;
@@ -56,6 +58,19 @@ public partial class EegSessionWindow : Window
         }
         Closed += OnSessionClosed;
     }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        const int windowCornerPreference = 33;
+        var roundCorners = 2;
+        // DWM clips the whole HWND and handles maximized corners; older Windows ignores this preference.
+        _ = DwmSetWindowAttribute(new WindowInteropHelper(this).Handle,
+            windowCornerPreference, ref roundCorners, sizeof(int));
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
 
     private void OnMinimizeClick(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
     private void OnMaximizeClick(object sender, RoutedEventArgs e)

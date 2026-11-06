@@ -17,6 +17,9 @@ public sealed class DynamicWindowObserver(IAlgorithmClient client)
         var started = Stopwatch.GetTimestamp();
         var stateStarted = started;
         var pollCount = 0;
+        string? terminalWindowId = null;
+        var terminalState = "none";
+        double? terminalMs = null;
         try
         {
             RecordObservation(request, null, "submitting", "ensure_start", pollCount, started, null);
@@ -70,18 +73,39 @@ public sealed class DynamicWindowObserver(IAlgorithmClient client)
                 onStatus?.Invoke(response);
             }
             cancellationToken.ThrowIfCancellationRequested();
+            terminalWindowId = response.WindowId;
+            terminalState = response.State;
+            terminalMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             return response;
         }
         finally
         {
+            var releaseStarted = Stopwatch.GetTimestamp();
+            var releaseOutcome = "not_needed";
             if (subscriptionId is not null)
             {
                 // Cleanup has its own bounded token; cancelling a page must still release
                 // only its subscription, even if transport cancellation is already set.
                 using var release = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                try { await client.CancelDynamicSubscriptionAsync(subscriptionId, request.ProjectId, release.Token); }
-                catch (Exception error) { DesktopLog.Warning($"window_subscription_release_failed type={error.GetType().Name}"); }
+                try
+                {
+                    await client.CancelDynamicSubscriptionAsync(subscriptionId, request.ProjectId, release.Token);
+                    releaseOutcome = "released";
+                }
+                catch (Exception error)
+                {
+                    releaseOutcome = error.GetType().Name;
+                    DesktopLog.Warning($"window_subscription_release_failed type={error.GetType().Name}");
+                }
             }
+            if (AlgorithmWindowPerformanceDiagnostics.Enabled)
+                DesktopLog.Info($"review_analysis_delivery_perf request_id={request.RequestId}" +
+                    $" recording_id={request.RecordingId} algorithm_id={request.AlgorithmId}" +
+                    $" window_id={terminalWindowId ?? "none"} subscription_id={subscriptionId ?? "none"}" +
+                    $" state={terminalState} terminal_observed_ms={terminalMs?.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) ?? "none"}" +
+                    $" release_outcome={releaseOutcome} release_ms={Stopwatch.GetElapsedTime(releaseStarted).TotalMilliseconds:0.000}" +
+                    $" observation_outcome={(terminalMs.HasValue ? "returned" : cancellationToken.IsCancellationRequested ? "cancelled" : "failed")}" +
+                    $" total_ms={Stopwatch.GetElapsedTime(started).TotalMilliseconds:0.000}");
         }
     }
 

@@ -213,7 +213,7 @@ def test_official_rbp_run_returns_all_five_backend_band_shares(tmp_path: Path):
     for band in ("delta", "theta", "alpha", "beta", "gamma"):
         assert float(arrays[f"{band}_absolute_power"][0]) == pytest.approx(trace[band])
     assert completed.scientific_version == "official-rbp-v4"
-    assert completed.definition_version == "2.0.6"
+    assert completed.definition_version == "2.0.9"
     assert completed.filters["bandpass_hz"] == [1.0, 50.0]
     assert completed.filters["notch_hz"] == 50.0
 

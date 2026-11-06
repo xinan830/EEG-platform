@@ -6,7 +6,7 @@
         Title="EEG 会话" WindowStyle="None" ResizeMode="CanResize" WindowState="Maximized"
         MinWidth="1000" MinHeight="640" Background="White" Closing="OnClosing">
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="38" ResizeBorderThickness="6" CornerRadius="0" GlassFrameThickness="0" UseAeroCaptionButtons="False" />
+        <shell:WindowChrome CaptionHeight="38" ResizeBorderThickness="6" CornerRadius="8" GlassFrameThickness="1" UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
     <Grid>
         <Grid.RowDefinitions>

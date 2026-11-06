@@ -128,6 +128,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         OpenStftAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("stft"), ReportCommandError);
         InitializePsdAnalysis();
         InitializeSpectralValues();
+        InitializeCustomFrequencyInspection();
         OpenTnkAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("tnk_biofeedback"), ReportCommandError);
         OpenFaaAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("faa"), ReportCommandError);
         OpenIapfAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("iapf"), ReportCommandError);
@@ -233,8 +234,9 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public bool IsAnalysisPanelOpen => activeAnalysisId is not null;
     public ReviewAlgorithmPanelRegistration? ActiveAnalysisPanel => activeAnalysisId is { } id &&
         analysisPanels.TryGetValue(id, out var panel) ? panel : null;
-    public ReviewAnalysisPanelKind? ActiveAnalysisPanelKind => IsSpectralValuesPanelOpen
-        ? ReviewAnalysisPanelKind.SpectralValues : ActiveAnalysisPanel?.PanelKind;
+    public ReviewAnalysisPanelKind? ActiveAnalysisPanelKind => IsCustomFrequencyInspectionPanelOpen
+        ? ReviewAnalysisPanelKind.CustomFrequencyInspection
+        : IsSpectralValuesPanelOpen ? ReviewAnalysisPanelKind.SpectralValues : ActiveAnalysisPanel?.PanelKind;
     public bool IsRbpAnalysisPanelOpen => ActiveAnalysisPanelKind == ReviewAnalysisPanelKind.Rbp;
     public bool IsPsdAnalysisPanelOpen => ActiveAnalysisPanelKind == ReviewAnalysisPanelKind.Psd;
     public bool IsStftAnalysisPanelOpen => ActiveAnalysisPanel?.PanelKind == ReviewAnalysisPanelKind.Stft;
@@ -247,7 +249,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public ReviewScalarAnalysisViewModel? ActiveScalarAnalysis => ActiveAnalysisPanel?.PanelKind == ReviewAnalysisPanelKind.Scalar
         ? ActiveAnalysisPanel.Presentation as ReviewScalarAnalysisViewModel : null;
     public bool HasSecondaryScalarChannel => activeAnalysisId is "faa" or "brainbeat" or "brainbeat_individualized";
-    public string AnalysisPanelTitle => IsSpectralValuesPanelOpen ? "频段数值核查" : ActiveAnalysisPanel?.DisplayName ?? "算法分析";
+    public string AnalysisPanelTitle => IsCustomFrequencyInspectionPanelOpen ? "自定义频段" :
+        IsSpectralValuesPanelOpen ? "频段数值核查" : ActiveAnalysisPanel?.DisplayName ?? "算法分析";
 
     public string AnalysisPreparationText
     {
@@ -597,6 +600,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         analysisLifetime.Cancel();
         analysisPreparation?.Cancel();
         analysisUpdater.Dispose();
+        CustomFrequencyInspection.PropertyChanged -= OnCustomFrequencyInspectionChanged;
         foreach (var parameters in analysisPanels.Values.Select(item => item.Configuration).Distinct())
             parameters.PropertyChanged -= OnAnalysisConfigurationChanged;
         TimeDisplay.PropertyChanged -= OnTimeDisplayChanged;

@@ -74,14 +74,13 @@ public sealed partial class RecordingReviewViewModel
         await binding.DisposeAsync();
     }
 
-    public Task LoadAnalysisAtCurrentPositionAsync() => Task.WhenAll(
-        analysisBinding?.LoadAtSecondsAsync(PositionSeconds) ?? Task.CompletedTask,
-        spectralRbpBinding?.LoadAtSecondsAsync(PositionSeconds) ?? Task.CompletedTask);
+    public Task LoadAnalysisAtCurrentPositionAsync() => IsSpectralInspectionPanelOpen
+        ? RequestSpectralWindowAsync(PositionSeconds)
+        : analysisBinding?.LoadAtSecondsAsync(PositionSeconds) ?? Task.CompletedTask;
 
     private void OnAnalysisBindingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (!ReferenceEquals(sender, analysisBinding)) return;
-        OnSpectralBindingChanged(sender, e);
         if (e.PropertyName == nameof(ReviewAnalysisBinding.CurrentWindow))
         {
             if (activeAnalysisId is { } algorithmId && analysisPanels.TryGetValue(algorithmId, out var panel))

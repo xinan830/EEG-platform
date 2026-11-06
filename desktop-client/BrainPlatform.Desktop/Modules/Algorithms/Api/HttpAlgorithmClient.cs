@@ -249,17 +249,19 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
         }
         using (response)
         {
-            DesktopLog.Info($"http_completed request_id={requestId} method={method.Method} path={relativePath} status={(int)response.StatusCode} elapsed_ms={started.Elapsed.TotalMilliseconds:0.0}");
-        if (!response.IsSuccessStatusCode)
-        {
-            throw await CreateExceptionAsync(response, cancellationToken).ConfigureAwait(false);
-        }
+            var identity = DiagnosticIdentity(payload);
+            DesktopLog.Info($"http_completed request_id={requestId} method={method.Method} path={relativePath} status={(int)response.StatusCode} elapsed_ms={started.Elapsed.TotalMilliseconds:0.0} stage=response_headers{identity}");
+            if (!response.IsSuccessStatusCode)
+            {
+                throw await CreateExceptionAsync(response, cancellationToken).ConfigureAwait(false);
+            }
 
-        var result = await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
-            .ConfigureAwait(false);
-        if (result is AnalysisRunResponse run) CurrentAlgorithmResult.Require(run);
-        return result ?? throw new AlgorithmApiException(
-            response.StatusCode, "EMPTY_RESPONSE", "算法服务返回了空响应。");
+            var result = DesktopLog.PerformanceDiagnosticsEnabled && relativePath.StartsWith("api/analysis-windows/", StringComparison.Ordinal)
+                ? await ReadMeasuredResponseAsync<T>(response, requestId, relativePath, identity, cancellationToken).ConfigureAwait(false)
+                : await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken).ConfigureAwait(false);
+            if (result is AnalysisRunResponse run) CurrentAlgorithmResult.Require(run);
+            return result ?? throw new AlgorithmApiException(
+                response.StatusCode, "EMPTY_RESPONSE", "算法服务返回了空响应。");
         }
     }
 

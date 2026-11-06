@@ -17,6 +17,8 @@ from app.algorithm_runtime.contracts import AlgorithmEvidence
 from app.algorithm_runtime.errors import DynamicWindowResourceExceededError
 from app.services.dynamic_window_resources import DynamicWindowResourcePolicy
 from app.persistence.repositories.dynamic_window import DynamicWindowRepository
+from app.persistence.repositories.dynamic_execution_state import DynamicExecutionStateReader
+from app.core.performance_trace import measure_performance
 
 
 class WindowCancelled(RuntimeError):
@@ -107,13 +109,18 @@ def execute_window_job(
         return
     token = claimed.lease_token or ""
     heartbeat_stop = threading.Event()
+    state_reader = None
 
     def check() -> None:
-        current = repository.get_window(window_id)
-        if current is None or current.state == "cancelled":
-            raise WindowCancelled("dynamic window was cancelled")
-        if stop.is_set() or not repository.is_attempt_active(attempt_id, token):
-            raise WindowLeaseLost("dynamic window worker stopped or lease was lost")
+        with measure_performance("cancellation_check"):
+            with measure_performance("cancellation_state_read"):
+                state = state_reader.read()
+            if state == "cancelled":
+                raise WindowCancelled("dynamic window was cancelled")
+            if stop.is_set():
+                raise WindowLeaseLost("dynamic window worker stopped or lease was lost")
+            if state != "active":
+                raise WindowLeaseLost("dynamic window worker stopped or lease was lost")
 
     def heartbeat() -> None:
         while not heartbeat_stop.wait(max(0.05, lease_seconds / 3)):
@@ -150,6 +157,7 @@ def execute_window_job(
                 compute_slot_wait_ms,
             )
     try:
+        state_reader = DynamicExecutionStateReader(repository.database_path, window_id, attempt_id, token)
         stage = "source_preparation"
         check()
         if resource_policy is not None:
@@ -282,6 +290,8 @@ def execute_window_job(
                 *log_context[:5], stage,
             )
     finally:
+        if state_reader is not None:
+            state_reader.close()
         if 'control' in locals():
             control.close()
         heartbeat_stop.set()

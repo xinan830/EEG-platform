@@ -39,8 +39,13 @@ def test_full_and_on_demand_keep_healthy_channel_when_peer_has_invalid_power(tmp
         assert preview.json()["quality"]["status"] == "partial"
         for values in preview.json()["arrays"].values():
             assert values[-1][0] is None and np.isfinite(values[-1][1])
-        for values in target["result"]["arrays"].values():
+        for name in preview.json()["arrays"]:
+            values = target["result"]["arrays"][name]
             assert values[0] is None and np.isfinite(values[1])
+        assert "spectral_psd" not in target["result"]["arrays"]
+        spectrum = windows.get(target["window_id"], include_projection_source=True)["result"]["arrays"]["spectral_psd"]
+        assert np.all(np.asarray(spectrum[0]) == 0)
+        assert np.isfinite(spectrum[1]).all()
         assert set(target["result"]["evidence"]["extensions"]["channel_failures"]["by_channel"]) == {"F3-REF"}
     finally:
         windows.close()

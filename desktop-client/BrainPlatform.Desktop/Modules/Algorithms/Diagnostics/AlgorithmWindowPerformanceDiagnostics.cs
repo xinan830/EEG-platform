@@ -111,4 +111,18 @@ public static class AlgorithmWindowPerformanceDiagnostics
 
     public static long ElapsedMilliseconds(long started) =>
         checked((long)Math.Round(Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+
+    public static void RecordWait(DynamicWindowRequest request, string stage, double milliseconds)
+    {
+        if (!Enabled) return;
+        DesktopLog.Info($"review_analysis_wait_perf request_id={request.RequestId ?? "none"}" +
+            $" recording_id={request.RecordingId} algorithm_id={request.AlgorithmId}" +
+            $" cursor_sample={request.CursorSample} stage={stage} elapsed_ms={milliseconds:0.000}");
+    }
+
+    public static async Task<(T Result, long CompletedAt)> WithCompletionTimeAsync<T>(Task<T> task)
+    {
+        var result = await task.ConfigureAwait(false);
+        return (result, Stopwatch.GetTimestamp());
+    }
 }

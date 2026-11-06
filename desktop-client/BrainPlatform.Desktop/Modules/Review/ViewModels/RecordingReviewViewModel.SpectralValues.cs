@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Montages.Domain;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
@@ -9,6 +8,7 @@ namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 public sealed partial class RecordingReviewViewModel
 {
     private const string SpectralValuesPanelId = "spectral-values";
+    private const string CustomFrequencyInspectionPanelId = "custom-frequency-inspection";
     private ReviewAnalysisBinding? spectralRbpBinding;
     private CancellationTokenSource? spectralProjectionCancellation;
     private long spectralProjectionRevision;
@@ -18,6 +18,7 @@ public sealed partial class RecordingReviewViewModel
     public ReviewSpectralValuesViewModel SpectralValues { get; } = new();
     public System.Windows.Input.ICommand OpenSpectralValuesCommand { get; private set; } = null!;
     public bool IsSpectralValuesPanelOpen => activeAnalysisId == SpectralValuesPanelId;
+    public bool IsSpectralInspectionPanelOpen => IsSpectralValuesPanelOpen || IsCustomFrequencyInspectionPanelOpen;
 
     private void InitializeSpectralValues() => OpenSpectralValuesCommand =
         new AsyncRelayCommand(() => OpenAnalysisAsync(SpectralValuesPanelId), ReportCommandError);
@@ -27,6 +28,7 @@ public sealed partial class RecordingReviewViewModel
     {
         var recording = analysisRecording!;
         SpectralValues.InitializeChannels(PsdParameters.Channels);
+        CustomFrequencyInspection.InitializeChannels(PsdParameters.Channels);
         var config = analysisPanels["rbp"].BuildConfigurationForSelection(
             recording.DurationSeconds ?? DurationSeconds, recording.SamplingRateHz ?? samplingRateHz, selection, montage);
         if (RbpParameters.WindowSeconds != PsdParameters.WindowSeconds || RbpParameters.StepSeconds != PsdParameters.StepSeconds)
@@ -36,16 +38,6 @@ public sealed partial class RecordingReviewViewModel
         spectralRbpBinding = new ReviewAnalysisBinding(analysisCoordinators["rbp"], recording.Id,
             samplingRateHz, playback.DurationSamples, recording);
         spectralRbpBinding.AttachOnDemand(new AnalysisRunRequest(recording.Id, "official_algorithm", config), algorithm);
-        spectralRbpBinding.PropertyChanged += OnSpectralBindingChanged;
-    }
-
-    private void OnSpectralBindingChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (!IsSpectralValuesPanelOpen ||
-            (!ReferenceEquals(sender, analysisBinding) && !ReferenceEquals(sender, spectralRbpBinding))) return;
-        if (e.PropertyName is nameof(ReviewAnalysisBinding.CurrentWindow) or nameof(ReviewAnalysisBinding.IsLoading) or
-            nameof(ReviewAnalysisBinding.TargetCursorSample) or nameof(ReviewAnalysisBinding.StatusText))
-            _ = RefreshSpectralValuesAsync();
     }
 
     private async Task RefreshSpectralValuesAsync()
@@ -53,7 +45,7 @@ public sealed partial class RecordingReviewViewModel
         if (!IsSpectralValuesPanelOpen) return;
         var psd = analysisBinding?.CurrentWindow;
         var rbp = spectralRbpBinding?.CurrentWindow;
-        if (isTimelineDragging || psd is null || rbp is null || analysisBinding?.IsTargetDisplayed != true || spectralRbpBinding?.IsTargetDisplayed != true)
+        if (isTimelineDragging || psd is null || rbp is null)
         {
             CancelSpectralProjection();
             SpectralValues.Clear($"PSD：{analysisBinding?.StatusText ?? "准备中"}；RBP：{spectralRbpBinding?.StatusText ?? "准备中"}");
@@ -96,8 +88,7 @@ public sealed partial class RecordingReviewViewModel
 
     private bool IsCurrentSpectralProjection(long revision, WindowPreviewResponse psd, WindowPreviewResponse rbp) =>
         IsSpectralValuesPanelOpen && !isTimelineDragging && revision == spectralProjectionRevision &&
-        ReferenceEquals(psd, analysisBinding?.CurrentWindow) && ReferenceEquals(rbp, spectralRbpBinding?.CurrentWindow) &&
-        analysisBinding?.IsTargetDisplayed == true && spectralRbpBinding?.IsTargetDisplayed == true;
+        ReferenceEquals(psd, projectedPsdWindow) && ReferenceEquals(rbp, projectedRbpWindow);
 
     private void CancelSpectralProjection()
     {
@@ -109,20 +100,25 @@ public sealed partial class RecordingReviewViewModel
 
     private void InvalidateSpectralValues()
     {
+        CancelSpectralWindowLoad();
         CancelSpectralProjection();
+        CancelCustomFrequencyProjection();
         spectralRbpBinding?.DetachRun();
         SpectralValues.Clear("等待当前 PSD/RBP 窗口。");
+        CustomFrequencyInspection.Clear("等待当前 PSD/RBP 窗口。");
     }
 
     private async ValueTask DetachSpectralValuesAsync()
     {
+        CancelSpectralWindowLoad();
         CancelSpectralProjection();
+        CancelCustomFrequencyProjection();
         var binding = spectralRbpBinding;
         spectralRbpBinding = null;
         SpectralValues.Clear("等待当前 PSD/RBP 窗口。");
+        CustomFrequencyInspection.Clear("等待当前 PSD/RBP 窗口。");
         if (binding is not null)
         {
-            binding.PropertyChanged -= OnSpectralBindingChanged;
             await binding.DisposeAsync();
         }
     }

@@ -10,8 +10,8 @@
     },
     "backend/tests/test_official_algorithm_runs.py": {
       "decision": "keep",
-      "max_lines": 450,
-      "reason": "当前 446 行，集中验证官方 Run 的执行、持久化和请求身份。本章仅将结果夹具改为当前版本及显式状态；不增加兼容读取。新增的结果 schema、旧格式拒绝和九算法读取/导出证据已放入独立 test_current_algorithm_result_contract.py，保留本文件完整的 Run 生命周期测试。"
+      "max_lines": 550,
+      "reason": "现有文件 549 行，集中验证官方 Run 的执行、持久化和请求身份；此前 450 行登记已落后于 HEAD。本次仅同步 RBP Definition 2.0.8 的版本断言，文件行数不增长。自定义频率契约及真实窗口投影测试在独立测试文件，不增加本文件职责；后续扩展前按 Run 用例重新评估拆分。"
     },
     "backend/tests/test_topomap.py": {
       "decision": "keep",
@@ -30,8 +30,8 @@
     },
     "backend/app/services/on_demand_dynamic.py": {
       "decision": "keep",
-      "max_lines": 530,
-      "reason": "当前 522 行；本轮将显式 replay context identity 和 reset/context range 接入已有动态 session/plan 响应，使其与 full Run 共用 scientific context 身份。算法调度仍不含 TNK ID 分支。窗口准入、调度、恢复和 artifact 校验仍属此服务职责；后续继续扩展前应先拆出独立响应映射器，文件仍低于 600 行高风险线。"
+      "max_lines": 400,
+      "reason": "已执行既定职责拆分：请求配置、导联及科学上下文校验和窗口规划移至 dynamic_window_planning.py（215 行），在准入锁外执行。当前服务 372 行，只保留 attempt/subscription 准入、执行器所有权、恢复和结果交付；数据库容量、租约及发布 fencing 保持原有语义。"
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
@@ -40,8 +40,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Views/RecordingReviewView.xaml": {
       "decision": "split",
-      "max_lines": 530,
-      "reason": "527 lines. This view composes the review toolbar, waveform, event overlay and panel templates. The numeric inspector adds only its button, menu and template registration; its table lives in ReviewSpectralValuesPanel. Keep the existing waveform owner and AnalysisDockHost; no scientific calculation is embedded in the view.",
+      "max_lines": 540,
+      "reason": "当前 534 行。This view composes the review toolbar, waveform, event overlay and panel templates. The custom-frequency entry adds only its button, menu and template registration; its two-pane table/chart live in dedicated views. Keep the existing waveform owner and AnalysisDockHost; no scientific calculation is embedded in the view.",
       "follow_up": "Extract the event-editor overlay and review toolbar before adding further Review controls."
     },
     "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/AlgorithmListViewModelTests.cs": {
@@ -132,7 +132,7 @@
     "backend/app/services/recordings.py": {
       "decision": "keep",
       "max_lines": 590,
-      "reason": "RecordingService 负责 recording 注册、目录身份和访问服务委派，并持有 AnalysisMontageSnapshots 与有界 WPF facts/index 缓存；样本读取契约、格式适配、内容校验及通道投影位于独立 recording_access 模块。当前文件 523 行，低于 600 行高风险线；若继续增长则把注册/目录查询拆为独立服务，不在本文件加入显示或科学公式。"
+      "reason": "RecordingService 负责 recording 注册、目录身份和访问服务委派，并持有 AnalysisMontageSnapshots 与有界 WPF facts/index 缓存；样本读取契约、格式适配、内容校验及通道投影位于独立 recording_access 模块。此次删除重复的 captured/saved 目录拼装，统一委派 AnalysisMontageSnapshots，527 行且未增长；若继续增长则把注册/目录查询拆为独立服务，不在本文件加入显示或科学公式。"
     },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",
@@ -147,7 +147,7 @@
     "backend/app/persistence/repositories/dynamic_attempt.py": {
       "decision": "keep",
       "max_lines": 490,
-      "reason": "动态 attempt mixin 统一管理创建、producer 转移、租约 fencing、心跳、终态和崩溃恢复；事务一致性与窗口仓库连接属于同一持久化边界。当前仍低于 600 行，保留完整租约事务更易审计；本轮增加 producer-mode scoped admission，维护双 lane 的独立额度。"
+      "reason": "动态 attempt mixin 统一管理创建、producer 转移、租约 fencing、心跳、终态和崩溃恢复；事务一致性与窗口仓库连接属于同一持久化边界。此次删除不再使用的独立租约轮询方法，470 行；任务独占的一致性取消/租约读取由 dynamic_execution_state.py 拥有，完整事务写入与发布 fencing 仍留在同一 mixin，继续扩展前重新评审。"
     },
     "backend/app/services/runs.py": {
       "decision": "keep",

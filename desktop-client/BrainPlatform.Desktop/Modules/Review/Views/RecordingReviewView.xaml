@@ -25,6 +25,7 @@
             <DataTemplate x:Key="ScalarPanelTemplate"><analysis:ReviewScalarAnalysisPanel /></DataTemplate>
             <DataTemplate x:Key="TnkPanelTemplate"><analysis:ReviewTnkAnalysisPanel /></DataTemplate>
             <DataTemplate x:Key="SpectralValuesPanelTemplate"><analysis:ReviewSpectralValuesPanel /></DataTemplate>
+            <DataTemplate x:Key="CustomFrequencyInspectionPanelTemplate"><analysis:ReviewCustomFrequencyInspectionPanel /></DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -38,6 +39,7 @@
                 <MenuItem Header="RBP 相对频段功率" Command="{Binding OpenRbpAnalysisCommand}" />
                 <MenuItem Header="PSD 功率谱密度" Command="{Binding OpenPsdAnalysisCommand}" />
                 <MenuItem Header="频段数值核查" Command="{Binding OpenSpectralValuesCommand}" />
+                <MenuItem Header="自定义频段" Command="{Binding OpenCustomFrequencyInspectionCommand}" />
                 <MenuItem Header="STFT 时频分析" Command="{Binding OpenStftAnalysisCommand}" />
                 <MenuItem Header="额叶 Alpha 不对称性" Command="{Binding OpenFaaAnalysisCommand}" />
                 <MenuItem Header="个体 Alpha 峰频率" Command="{Binding OpenIapfAnalysisCommand}" />
@@ -76,6 +78,8 @@
                                                 ToolTip="打开功率谱密度算法面板" />
                         <controls:EegToolButton Content="频段数值" Glyph="&#xE80A;" Command="{Binding OpenSpectralValuesCommand}"
                                                 ToolTip="按导联核查现有 PSD/RBP 结果数值" />
+                        <controls:EegToolButton Content="自定义频段" Glyph="&#xE9D9;" Command="{Binding OpenCustomFrequencyInspectionCommand}"
+                                                ToolTip="核查单个频率或自定义范围的 PSD/RBP 数值" />
                         <controls:EegToolButton Content="STFT 时频" IconSource="pack://application:,,,/Assets/AlgorithmIcons/stft.png" Command="{Binding OpenStftAnalysisCommand}"
                                                 ToolTip="打开当前窗口的时频算法面板" />
                         <controls:EegToolButton Content="FAA" IconSource="pack://application:,,,/Assets/AlgorithmIcons/faa.png" Command="{Binding OpenFaaAnalysisCommand}"
@@ -286,6 +290,9 @@
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.SpectralValues}">
                                         <Setter Property="ContentTemplate" Value="{StaticResource SpectralValuesPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.CustomFrequencyInspection}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource CustomFrequencyInspectionPanelTemplate}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Scalar}"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
                                 </Style.Triggers>

@@ -115,7 +115,7 @@ def test_public_official_catalog_matches_builtin_module_declarations() -> None:
         assert item["implementation_identity"] == module.manifest.implementation_identity
 
 
-def test_rbp_definition_upgrade_preserves_immutable_v201_and_adds_v206(tmp_path) -> None:
+def test_rbp_definition_upgrade_preserves_immutable_v201_and_adds_v208(tmp_path) -> None:
     from app.algorithms.catalog import ensure_official_definitions, official_definition_draft
 
     service = DefinitionService(tmp_path / "rbp-upgrade.sqlite3")
@@ -133,7 +133,7 @@ def test_rbp_definition_upgrade_preserves_immutable_v201_and_adds_v206(tmp_path)
     ensure_official_definitions(service)
 
     assert service.repository.get_version(definition.definition_id, "2.0.1").digest_sha256
-    installed = service.repository.get_version(definition.definition_id, "2.0.6")
+    installed = service.repository.get_version(definition.definition_id, "2.0.9")
     assert installed is not None and installed.state == "published"
     assert installed.digest_sha256 == __import__("app.core.provenance", fromlist=["sha256_json"]).sha256_json(
         official_definition_draft("rbp").model_dump(mode="json"))
@@ -169,7 +169,7 @@ def test_tnk_registration_does_not_replace_platform_algorithm_identities() -> No
         "iapf": ("official-iapf-v5", "iapf-runtime-v7-20s-segment-diagnostics"),
         "peak_frequency": ("official-peak-frequency-v2", "peak-frequency-runtime-v3-shared-1-50-notch"),
         "psd": ("offline-spectral-v6-shared-1-50-notch", "psd-runtime-v6-shared-1-50-notch"),
-        "rbp": ("official-rbp-v4", "rbp-runtime-v7-configurable-notch"),
+        "rbp": ("official-rbp-v4", "rbp-runtime-v9-private-projection-source"),
         "stft": ("spectrogram-v4-bounded-notch", "stft-runtime-v8-bounded-notch"),
         "theta_beta": ("official-theta-beta-v5", "theta-beta-runtime-v4-iapf-v5-frequency-modes"),
     }

@@ -134,8 +134,18 @@ def compare_preview(preview, summary, arrays):
         index = next(i for i, window in enumerate(full["windows"]) if window["end_s"] == end_s)
         assert result["quality"] == full["windows"][index]["quality"]
         for key, values in result["arrays"].items():
+            if key == "spectral_psd":
+                from app.algorithms.rbp.official import RBP_BANDS
+                from app.scientific.primitives.spectral import band_power
+                assert preview["identity"]["algorithm_id"] == "rbp"
+                assert result["array_units"][key] == "V^2/Hz"
+                for band, low, high in RBP_BANDS:
+                    projected = band_power(np.asarray(result["axes"]["frequency_hz"]), np.asarray(values), low, high) * 1e12
+                    np.testing.assert_allclose(projected, arrays[f"{band}_absolute_power"][index], rtol=1e-10, atol=1e-10)
+                continue
             compare_arrays({key: values}, {key: arrays[key][index]})
-        for key, values in result["axes"].items():
+        for key in full["axes"]:
+            values = result["axes"][key]
             expected_axis = arrays[f"axis_{key}"]
             if key == "time_s":
                 expected_axis = expected_axis[index:index + 1]

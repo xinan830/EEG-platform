@@ -209,12 +209,19 @@ public sealed class DynamicWindowTargetCoordinator
                     work.Generation);
             }
             var started = Stopwatch.GetTimestamp();
+            AlgorithmWindowPerformanceDiagnostics.RecordWait(work.Request, "target_queue",
+                Stopwatch.GetElapsedTime(work.EnqueuedAt).TotalMilliseconds);
             try
             {
-                var response = await resources.RunAsync(async token => client is null
+                var response = await resources.RunAsync(async token =>
+                {
+                    AlgorithmWindowPerformanceDiagnostics.RecordWait(work.Request, "resource_slot",
+                        Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+                    return client is null
                     ? await observe!(work.Request, token).ConfigureAwait(false)
                     : await new DynamicWindowObserver(client).ObserveAsync(work.Request, token,
-                        response => ReportStatus(work, response)).ConfigureAwait(false), work.Cancellation.Token)
+                        response => ReportStatus(work, response)).ConfigureAwait(false);
+                }, work.Cancellation.Token)
                     .ConfigureAwait(false);
                 var publishCompleted = false;
                 lock (gate)
@@ -321,6 +328,7 @@ public sealed class DynamicWindowTargetCoordinator
 
     private sealed class Work(string key, DynamicWindowRequest request, long generation)
     {
+        public long EnqueuedAt { get; } = Stopwatch.GetTimestamp();
         public string Key { get; } = key;
         public DynamicWindowRequest Request { get; } = request;
         public long Generation { get; } = generation;

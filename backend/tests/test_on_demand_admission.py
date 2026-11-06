@@ -116,3 +116,52 @@ def test_closed_service_does_not_admit_work(admission):
     service.close()
     with pytest.raises(DynamicWindowCapacityExceededError):
         service.ensure(request)
+
+
+def test_slow_request_planning_does_not_own_the_admission_gate(admission, monkeypatch):
+    service, request, _, _ = admission
+    entered, release = threading.Event(), threading.Event()
+    prepare = service._planner.prepare
+
+    def delayed(payload, **kwargs):
+        if payload.request_id == "slow-metadata":
+            entered.set()
+            assert release.wait(5)
+        return prepare(payload, **kwargs)
+
+    monkeypatch.setattr(service._planner, "prepare", delayed)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        slow = pool.submit(service.ensure, request.model_copy(update={"request_id": "slow-metadata"}))
+        try:
+            assert entered.wait(2)
+            fast = pool.submit(service.ensure, request.model_copy(update={"request_id": "other-request"}))
+            result = fast.result(timeout=2)
+        finally:
+            release.set()
+        assert slow.result(timeout=3)["window_id"] == result["window_id"]
+
+
+def test_shutdown_during_planning_cannot_submit_a_worker(admission, monkeypatch):
+    service, request, _, _ = admission
+    entered, release = threading.Event(), threading.Event()
+    prepare = service._planner.prepare
+
+    def delayed(*args, **kwargs):
+        prepared = prepare(*args, **kwargs)
+        entered.set()
+        assert release.wait(5)
+        return prepared
+
+    monkeypatch.setattr(service._planner, "prepare", delayed)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(service.ensure, request)
+        try:
+            assert entered.wait(2)
+            service.close()
+        finally:
+            release.set()
+        with pytest.raises(DynamicWindowCapacityExceededError):
+            pending.result(timeout=3)
+    assert not service._pending
+    with sqlite3.connect(service.repository.database_path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM dynamic_analysis_attempts").fetchone()[0] == 0
