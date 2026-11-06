@@ -5,7 +5,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from app.services.topomap import RbpTopomapAdapter, TopomapService, TopomapUnavailable
+from app.services.topomap import TopomapService
+from app.services.result_scalar_inputs import RbpResultScalarAdapter, ResultProjectionUnavailable
 
 
 def _service(values, channels, formulas=None, status="available", arrays=None, array_units=None):
@@ -200,7 +201,7 @@ def test_dynamic_window_topomap_rejects_acquisition_source_without_snapshot_hash
     service = _service([0.2, 0.3, 0.5], channels)
     service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
 
-    with pytest.raises(TopomapUnavailable) as exc_info:
+    with pytest.raises(ResultProjectionUnavailable) as exc_info:
         service.build_dynamic_window("window-1", field_ids=["rbp.relative.alpha"])
 
     assert exc_info.value.code == "TOPOMAP_SOURCE_CONTEXT_INVALID"
@@ -215,7 +216,7 @@ def test_dynamic_window_topomap_rejects_montage_identity_mismatch():
     service = _service([0.2, 0.3, 0.5], channels)
     service.dynamic_window_service = SimpleNamespace(get=lambda *_args, **_kwargs: payload)
 
-    with pytest.raises(TopomapUnavailable) as exc_info:
+    with pytest.raises(ResultProjectionUnavailable) as exc_info:
         service.build_dynamic_window("window-1", field_ids=["rbp.relative.alpha"])
 
     assert exc_info.value.code == "TOPOMAP_SOURCE_CONTEXT_INVALID"
@@ -275,7 +276,7 @@ def test_average_referenced_outputs_use_their_positive_electrode_positions():
 
 
 def test_rbp_adapter_reads_channel_order_from_window_evidence_without_recomputing():
-    result = RbpTopomapAdapter().build_input(
+    result = RbpResultScalarAdapter().build_input(
         recording_id="recording-1",
         payload={
             "identity": {"scientific_version": "rbp-v2", "implementation_identity": "build"},
@@ -306,7 +307,7 @@ def test_rbp_adapter_selects_declared_absolute_power_and_unit():
         },
     }
 
-    result = RbpTopomapAdapter().build_input(
+    result = RbpResultScalarAdapter().build_input(
         recording_id="recording-1", payload=payload, window_start_s=5.0, window_end_s=10.0,
         field_ids=[f"rbp.absolute.{band}" for band in bands],
     )
@@ -329,7 +330,7 @@ def test_rbp_adapter_restricts_spatial_input_to_selected_band():
         },
     }
 
-    result = RbpTopomapAdapter().build_input(
+    result = RbpResultScalarAdapter().build_input(
         recording_id="recording-1", payload=payload, window_start_s=5.0, window_end_s=10.0,
         field_ids=["rbp.absolute.alpha"],
     )
@@ -340,8 +341,8 @@ def test_rbp_adapter_restricts_spatial_input_to_selected_band():
 
 
 def test_rbp_adapter_rejects_unknown_band_id():
-    with pytest.raises(TopomapUnavailable) as exc_info:
-        RbpTopomapAdapter().build_input(
+    with pytest.raises(ResultProjectionUnavailable) as exc_info:
+        RbpResultScalarAdapter().build_input(
             recording_id="recording-1", payload={}, window_start_s=5.0, window_end_s=10.0,
             field_ids=["rbp.relative.ultra"],
         )
@@ -369,10 +370,10 @@ def test_run_topomap_builds_only_the_requested_scalar_field():
     ("beta", 13.0, 30.0), ("gamma", 30.0, 50.0),
 ])
 def test_psd_adapter_returns_band_mean_density_in_SI_units_and_original_channel_order(band_id, low_hz, high_hz):
-    from app.services.topomap import PsdTopomapAdapter
+    from app.services.result_scalar_inputs import PsdResultScalarAdapter
 
     frequencies = np.arange(1.0, 51.0)
-    result = PsdTopomapAdapter().build_input(
+    result = PsdResultScalarAdapter().build_input(
         recording_id="recording-1",
         payload={
             "channel_order": ["Cz", "Fz"],
@@ -403,9 +404,9 @@ def test_psd_adapter_returns_band_mean_density_in_SI_units_and_original_channel_
 
 
 def test_psd_adapter_marks_a_band_unavailable_when_the_frequency_axis_does_not_cover_it():
-    from app.services.topomap import PsdTopomapAdapter
+    from app.services.result_scalar_inputs import PsdResultScalarAdapter
 
-    result = PsdTopomapAdapter().build_input(
+    result = PsdResultScalarAdapter().build_input(
         recording_id="recording-1",
         payload={
             "channel_order": ["Cz"],
@@ -426,9 +427,9 @@ def test_psd_adapter_marks_a_band_unavailable_when_the_frequency_axis_does_not_c
 
 
 def test_psd_adapter_preserves_exact_frequency_bin_fields_for_api_consumers():
-    from app.services.topomap import PsdTopomapAdapter
+    from app.services.result_scalar_inputs import PsdResultScalarAdapter
 
-    result = PsdTopomapAdapter().build_input(
+    result = PsdResultScalarAdapter().build_input(
         recording_id="recording-1",
         payload={
             "channel_order": ["Cz", "Fz"],
@@ -456,7 +457,7 @@ def test_psd_adapter_preserves_exact_frequency_bin_fields_for_api_consumers():
 
 def test_rbp_adapter_does_not_fallback_to_trace_for_old_absolute_results():
     bands = ("delta", "theta", "alpha", "beta", "gamma")
-    result = RbpTopomapAdapter().build_input(
+    result = RbpResultScalarAdapter().build_input(
         recording_id="recording-1",
         payload={"result": {"arrays": {band: [0.2, 0.3, 0.5] for band in bands},
                              "array_units": {band: "ratio" for band in bands},

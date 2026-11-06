@@ -90,6 +90,6 @@ public sealed class ReviewRbpParameters : ObservableObject
     {
         var channels = montage?.Outputs.Where(output => output.Available).Select(output => output.Id)
             .Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        return channels is { Length: > 0 } ? channels : Channel is { Length: > 0 } selected ? [selected] : [];
+        return channels is { Length: > 0 } ? channels : Channels;
     }
 }

@@ -6,7 +6,8 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from app.services.topomap import PsdTopomapAdapter, TopomapService, TopomapUnavailable
+from app.services.topomap import TopomapService
+from app.services.result_scalar_inputs import PsdResultScalarAdapter, ResultProjectionUnavailable
 
 BANDS = [("delta", 1.0, 4.0), ("theta", 4.0, 8.0), ("alpha", 8.0, 13.0),
          ("beta", 13.0, 30.0), ("gamma", 30.0, 50.0)]
@@ -32,7 +33,7 @@ def _payload(frequencies, rows):
 
 def _project(payload, field_id):
     field_ids = field_id if isinstance(field_id, list) else [field_id]
-    return PsdTopomapAdapter().build_input(
+    return PsdResultScalarAdapter().build_input(
         recording_id="recording-1", payload=payload,
         window_start_s=10.0, window_end_s=20.0, field_ids=field_ids)
 
@@ -81,15 +82,15 @@ def test_all_band_fields_keep_independent_frequency_and_bandwidth_provenance():
 
 def test_psd_adapter_rejects_duplicate_or_mixed_field_kinds():
     payload = _payload([1, 2, 50], [[1e-12, 2e-12, 3e-12]])
-    with pytest.raises(TopomapUnavailable) as duplicate:
+    with pytest.raises(ResultProjectionUnavailable) as duplicate:
         _project(payload, ["psd.band-mean-density.alpha"] * 2)
     assert duplicate.value.code == "TOPOMAP_FIELD_ID_INVALID"
 
-    with pytest.raises(TopomapUnavailable) as mixed:
+    with pytest.raises(ResultProjectionUnavailable) as mixed:
         _project(payload, ["psd.band-mean-density.alpha", "psd.frequency-bin.1"])
     assert mixed.value.code == "TOPOMAP_FIELD_ID_INVALID"
 
-    with pytest.raises(TopomapUnavailable) as multiple_bins:
+    with pytest.raises(ResultProjectionUnavailable) as multiple_bins:
         _project(payload, ["psd.frequency-bin.1", "psd.frequency-bin.2"])
     assert multiple_bins.value.code == "TOPOMAP_FIELD_ID_INVALID"
 
@@ -97,7 +98,7 @@ def test_psd_adapter_rejects_duplicate_or_mixed_field_kinds():
 @pytest.mark.parametrize("field_id", ["psd.band-power.alpha", "psd.band-mean-density.ultra",
                                          "rbp.absolute.alpha"])
 def test_wrong_metric_and_unknown_band_are_rejected(field_id):
-    with pytest.raises(TopomapUnavailable, match="字段 ID 无效") as error:
+    with pytest.raises(ResultProjectionUnavailable, match="字段 ID 无效") as error:
         _project(_payload([1, 50], [[1e-12, 1e-12]]), field_id)
     assert error.value.code == "TOPOMAP_FIELD_ID_INVALID"
 
@@ -105,7 +106,7 @@ def test_wrong_metric_and_unknown_band_are_rejected(field_id):
 def test_negative_psd_density_is_rejected_instead_of_becoming_a_topomap_value():
     payload = _payload([1, 50], [[1e-12, -1e-12]])
 
-    with pytest.raises(TopomapUnavailable, match="PSD 密度不得为负值") as error:
+    with pytest.raises(ResultProjectionUnavailable, match="PSD 密度不得为负值") as error:
         _project(payload, "psd.band-mean-density.alpha")
 
     assert error.value.code == "TOPOMAP_PSD_CONTRACT_INVALID"

@@ -20,6 +20,8 @@ public sealed partial class RecordingReviewViewModel
         if (!isTimelineDragging) return;
         isTimelineDragging = false;
         analysisBinding?.OnCursorDragCompleted(PositionSeconds, playback.Snapshot.Generation);
+        spectralRbpBinding?.OnCursorDragCompleted(PositionSeconds, playback.Snapshot.Generation);
+        if (IsSpectralValuesPanelOpen) _ = RefreshSpectralValuesAsync();
     }
 
     public Task SeekAsync(double positionSeconds)
@@ -89,6 +91,7 @@ public sealed partial class RecordingReviewViewModel
         // Property notifications can close the view before this tick resumes.
         if (isDisposing) return;
         analysisBinding?.OnPlaybackCursorAdvanced(PositionSeconds, playback.Snapshot.Generation);
+        spectralRbpBinding?.OnPlaybackCursorAdvanced(PositionSeconds, playback.Snapshot.Generation);
         if (isDisposing) return;
         if (!session.ContainsViewport(ViewportStartSeconds) &&
             !session.TryActivateCachedViewport(ViewportStartSeconds, playback.PositionSeconds))
@@ -145,7 +148,16 @@ public sealed partial class RecordingReviewViewModel
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         PublishPlaybackChanges(wasPlaying, wasCompleted);
-        if (requestAnalysis) analysisBinding?.OnCursorPositionSelected(PositionSeconds, playback.Snapshot.Generation);
+        if (requestAnalysis)
+        {
+            analysisBinding?.OnCursorPositionSelected(PositionSeconds, playback.Snapshot.Generation);
+            spectralRbpBinding?.OnCursorPositionSelected(PositionSeconds, playback.Snapshot.Generation);
+        }
+        else if (IsSpectralValuesPanelOpen)
+        {
+            CancelSpectralProjection();
+            SpectralValues.Clear("游标拖动中，等待目标窗口。");
+        }
     }
 
     private double GetFollowViewportStart(double positionSeconds) => Math.Clamp(

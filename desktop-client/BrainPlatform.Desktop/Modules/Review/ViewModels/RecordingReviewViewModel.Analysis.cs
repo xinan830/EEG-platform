@@ -14,7 +14,9 @@ public sealed partial class RecordingReviewViewModel
 
     internal async Task OpenAnalysisAsync(string algorithmId)
     {
-        if (!analysisCoordinators.ContainsKey(algorithmId) || !analysisPanels.ContainsKey(algorithmId))
+        if (algorithmId == SpectralValuesPanelId
+            ? !analysisCoordinators.ContainsKey("psd") || !analysisCoordinators.ContainsKey("rbp")
+            : !analysisCoordinators.ContainsKey(algorithmId) || !analysisPanels.ContainsKey(algorithmId))
             throw new InvalidOperationException($"回放页未配置 {algorithmId} 算法。");
         SetActiveAnalysis(algorithmId);
         await PrepareAnalysisAsync(algorithmId, analysisLifetime.Token);
@@ -36,6 +38,7 @@ public sealed partial class RecordingReviewViewModel
     private void SetActiveAnalysis(string? algorithmId)
     {
         analysisPreparation?.Cancel();
+        InvalidateSpectralValues();
         analysisBinding?.DetachRun();
         analysisConfigurationRevision++;
         activeAnalysisId = algorithmId;
@@ -43,6 +46,7 @@ public sealed partial class RecordingReviewViewModel
         foreach (var panel in analysisPanels.Values) panel.Apply(null, PositionSeconds);
         RaisePropertyChanged(nameof(AnalysisPanelStartSeconds));
         RaisePropertyChanged(nameof(IsAnalysisPanelOpen));
+        RaisePropertyChanged(nameof(IsSpectralValuesPanelOpen));
         RaisePropertyChanged(nameof(IsRbpAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsPsdAnalysisPanelOpen));
         RaisePropertyChanged(nameof(IsStftAnalysisPanelOpen));
@@ -71,7 +75,8 @@ public sealed partial class RecordingReviewViewModel
                 if (activeAnalysisId != algorithmId || revision != analysisConfigurationRevision) return;
                 await DetachAnalysisAsync();
                 token.ThrowIfCancellationRequested();
-                analysisCoordinator = analysisCoordinators[algorithmId];
+                var sourceId = algorithmId == SpectralValuesPanelId ? "psd" : algorithmId;
+                analysisCoordinator = analysisCoordinators[sourceId];
                 SubscribeTnkPlaybackEvents(analysisCoordinator);
                 AnalysisPreparationText = $"正在准备 {analysisCoordinator.AlgorithmDisplayName}…";
                 if (analysisRecordingDirectory is null)
@@ -80,6 +85,8 @@ public sealed partial class RecordingReviewViewModel
                     CompatibleViewingMontages.ToArray());
                 token.ThrowIfCancellationRequested();
                 var algorithm = await analysisCoordinator.GetAlgorithmAsync(token);
+                var rbpAlgorithm = IsSpectralValuesPanelOpen
+                    ? await analysisCoordinators["rbp"].GetAlgorithmAsync(token) : null;
                 token.ThrowIfCancellationRequested();
                 var selection = montageSelection.Capture();
                 var montage = ResolveAnalysisMontage(analysisRecording, selection.SelectedMontage);
@@ -87,15 +94,22 @@ public sealed partial class RecordingReviewViewModel
                 if (hasUnresolvedAnalysisMontage)
                     throw new ReviewInputMappingException("montage_snapshot_unavailable",
                         "后端没有当前导联快照，不能沿用旧导联结果。", "montage");
-                var panel = analysisPanels[algorithmId];
+                var panel = analysisPanels[sourceId];
                 loadingAnalysisParameters = true;
-                try { panel.InitializeForSelection(analysisRecording, algorithm, selection, montage); }
+                try
+                {
+                    panel.InitializeForSelection(analysisRecording, algorithm, selection, montage);
+                    if (rbpAlgorithm is not null)
+                        analysisPanels["rbp"].InitializeForSelection(analysisRecording, rbpAlgorithm, selection, montage);
+                }
                 finally { loadingAnalysisParameters = false; }
                 var duration = analysisRecording.DurationSeconds ?? DurationSeconds;
                 var rate = analysisRecording.SamplingRateHz ?? samplingRateHz;
                 var config = panel.BuildConfigurationForSelection(duration, rate, selection, montage);
                 if (selection.Revision != montageSelection.Revision) return;
-                await AttachOnDemandAnalysisAsync(new AnalysisRunRequest(analysisRecording.Id, "official_algorithm", config), token);
+                if (rbpAlgorithm is not null) AttachSpectralRbp(rbpAlgorithm, selection, montage);
+                var primary = AttachOnDemandAnalysisAsync(new AnalysisRunRequest(analysisRecording.Id, "official_algorithm", config), token);
+                await Task.WhenAll(primary, spectralRbpBinding?.LoadAtSecondsAsync(PositionSeconds, token) ?? Task.CompletedTask);
                 token.ThrowIfCancellationRequested();
                 AnalysisPreparationText = CurrentAnalysisWindow is null ? AnalysisStatusText : "";
             }
@@ -105,6 +119,7 @@ public sealed partial class RecordingReviewViewModel
         catch (Exception exception)
         {
             if (token.IsCancellationRequested || revision != analysisConfigurationRevision) return;
+            if (IsSpectralValuesPanelOpen) SpectralValues.Clear($"数值准备失败：{exception.Message}");
             AnalysisPreparationText = $"算法准备失败：{exception.Message}";
             throw;
         }
@@ -141,6 +156,7 @@ public sealed partial class RecordingReviewViewModel
                 panel.RefreshForSelection(recording, previousSelection, selectedSelection, previous, selected);
             PsdAnalysis.SetChannels(PsdParameters.Channels);
             RbpAnalysis.InitializeChannels(RbpParameters.ResolveAnalysisChannels(selected));
+            if (IsSpectralValuesPanelOpen) SpectralValues.InitializeChannels(PsdParameters.Channels);
         }
         finally { loadingAnalysisParameters = false; }
     }
@@ -153,6 +169,7 @@ public sealed partial class RecordingReviewViewModel
     private void InvalidateAnalysisConfiguration()
     {
         analysisPreparation?.Cancel();
+        InvalidateSpectralValues();
         analysisBinding?.DetachRun();
         analysisConfigurationRevision++;
         isAnalysisStale = true;

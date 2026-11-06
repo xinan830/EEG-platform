@@ -6,7 +6,7 @@ from starlette.responses import Response
 
 from app.core.api_contract import error_response
 from app.services.artifacts import ArtifactIntegrityError, WindowIndexUnavailable
-from app.services.topomap import TopomapUnavailable
+from app.services.result_scalar_inputs import ResultProjectionUnavailable
 
 logger = logging.getLogger("brain_platform.topomap")
 BandId = Literal["delta", "theta", "alpha", "beta", "gamma"]
@@ -56,7 +56,7 @@ def rbp_topomap(
         return _json_response(request, response, result_id=run_id, field_ids=field_ids, started=started)
     except KeyError:
         return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
-    except TopomapUnavailable as exc:
+    except ResultProjectionUnavailable as exc:
         status = 422 if exc.code in {"TOPOMAP_CURSOR_INVALID", "TOPOMAP_FIELD_IDS_REQUIRED", "TOPOMAP_FIELD_ID_INVALID"} else 409
         message = exc.message if not exc.detail else f"{exc.message}（{exc.detail}）"
         return error_response(request, status, exc.code, message)
@@ -87,7 +87,7 @@ def dynamic_topomap(
         return _json_response(request, response, result_id=window_id, field_ids=field_ids, started=started)
     except KeyError:
         return error_response(request, 404, "WINDOW_NOT_FOUND", "分析窗口不存在")
-    except TopomapUnavailable as exc:
+    except ResultProjectionUnavailable as exc:
         status = 422 if exc.code in {"TOPOMAP_FIELD_IDS_REQUIRED", "TOPOMAP_FIELD_ID_INVALID"} else 409
         return error_response(request, status, exc.code, exc.message)
     except ValueError as exc:

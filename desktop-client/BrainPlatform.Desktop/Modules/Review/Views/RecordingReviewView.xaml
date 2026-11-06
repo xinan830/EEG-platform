@@ -24,6 +24,7 @@
             <DataTemplate x:Key="StftPanelTemplate"><analysis:StftReviewAnalysisPanel /></DataTemplate>
             <DataTemplate x:Key="ScalarPanelTemplate"><analysis:ReviewScalarAnalysisPanel /></DataTemplate>
             <DataTemplate x:Key="TnkPanelTemplate"><analysis:ReviewTnkAnalysisPanel /></DataTemplate>
+            <DataTemplate x:Key="SpectralValuesPanelTemplate"><analysis:ReviewSpectralValuesPanel /></DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -36,6 +37,7 @@
             <MenuItem Header="算法">
                 <MenuItem Header="RBP 相对频段功率" Command="{Binding OpenRbpAnalysisCommand}" />
                 <MenuItem Header="PSD 功率谱密度" Command="{Binding OpenPsdAnalysisCommand}" />
+                <MenuItem Header="频段数值核查" Command="{Binding OpenSpectralValuesCommand}" />
                 <MenuItem Header="STFT 时频分析" Command="{Binding OpenStftAnalysisCommand}" />
                 <MenuItem Header="额叶 Alpha 不对称性" Command="{Binding OpenFaaAnalysisCommand}" />
                 <MenuItem Header="个体 Alpha 峰频率" Command="{Binding OpenIapfAnalysisCommand}" />
@@ -72,6 +74,8 @@
                                                 ToolTip="打开相对频段功率算法面板" />
                         <controls:EegToolButton Content="PSD" IconSource="pack://application:,,,/Assets/AlgorithmIcons/psd.png" Command="{Binding OpenPsdAnalysisCommand}"
                                                 ToolTip="打开功率谱密度算法面板" />
+                        <controls:EegToolButton Content="频段数值" Glyph="&#xE80A;" Command="{Binding OpenSpectralValuesCommand}"
+                                                ToolTip="按导联核查现有 PSD/RBP 结果数值" />
                         <controls:EegToolButton Content="STFT 时频" IconSource="pack://application:,,,/Assets/AlgorithmIcons/stft.png" Command="{Binding OpenStftAnalysisCommand}"
                                                 ToolTip="打开当前窗口的时频算法面板" />
                         <controls:EegToolButton Content="FAA" IconSource="pack://application:,,,/Assets/AlgorithmIcons/faa.png" Command="{Binding OpenFaaAnalysisCommand}"
@@ -279,6 +283,9 @@
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Tnk}">
                                         <Setter Property="ContentTemplate" Value="{StaticResource TnkPanelTemplate}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.SpectralValues}">
+                                        <Setter Property="ContentTemplate" Value="{StaticResource SpectralValuesPanelTemplate}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Scalar}"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
                                 </Style.Triggers>

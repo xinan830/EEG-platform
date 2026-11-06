@@ -131,6 +131,16 @@ public sealed partial class HttpAlgorithmClient : IAlgorithmClient, IRecordingRe
             null, cancellationToken);
     }
 
+    public Task<ResultScalarsResponse> GetDynamicScalarValuesAsync(string windowId, string? projectId,
+        CancellationToken cancellationToken, IReadOnlyList<string> fieldIds)
+    {
+        var query = FieldQuery(fieldIds).TrimStart('&');
+        if (!string.IsNullOrWhiteSpace(projectId)) query += $"&project_id={Uri.EscapeDataString(projectId)}";
+        return SendAsync<ResultScalarsResponse>(HttpMethod.Get,
+            $"api/analysis-windows/{Uri.EscapeDataString(RequireId(windowId))}/scalar-values?{query}",
+            null, cancellationToken);
+    }
+
     public Task<DynamicWindowResponse> EnsureDynamicWindowAsync(
         DynamicWindowRequest request,
         CancellationToken cancellationToken)

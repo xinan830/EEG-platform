@@ -7,4 +7,5 @@ public enum ReviewAnalysisPanelKind
     Stft,
     Scalar,
     Tnk,
+    SpectralValues,
 }

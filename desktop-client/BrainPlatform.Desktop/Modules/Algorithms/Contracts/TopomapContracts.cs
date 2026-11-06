@@ -10,7 +10,9 @@ public sealed record TopomapPoint(
     [property: JsonPropertyName("y")] double? Y,
     [property: JsonPropertyName("value")] double? Value,
     [property: JsonPropertyName("status")] string Status,
-    [property: JsonPropertyName("reason")] string? Reason);
+    [property: JsonPropertyName("reason")] string? Reason,
+    [property: JsonPropertyName("quality_status")] string QualityStatus = "unknown",
+    [property: JsonPropertyName("quality_reasons")] IReadOnlyList<string>? QualityReasons = null);
 
 public sealed record TopomapGrid(
     [property: JsonPropertyName("method")] string Method,

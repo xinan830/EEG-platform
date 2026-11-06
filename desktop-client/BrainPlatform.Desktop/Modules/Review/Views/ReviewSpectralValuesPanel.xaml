@@ -1,0 +1,264 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.ReviewSpectralValuesPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- 现代极简卡片调色板 -->
+            <SolidColorBrush x:Key="TableCardBorderBrush" Color="#E9EFF6" />
+            <SolidColorBrush x:Key="TableHeaderBackgroundBrush" Color="#F4F7FC" />
+            <SolidColorBrush x:Key="TableTextPrimaryBrush" Color="#0F172A" />
+            <SolidColorBrush x:Key="TableTextSecondaryBrush" Color="#334155" />
+            <SolidColorBrush x:Key="TableMutedBrush" Color="#64748B" />
+            <SolidColorBrush x:Key="TableDividerBrush" Color="#F1F5F9" />
+            <SolidColorBrush x:Key="TableRowHoverBrush" Color="#F8FAFC" />
+            <SolidColorBrush x:Key="TableRowSelectedBrush" Color="#EFF6FF" />
+
+            <!-- 表头通用样式：极淡蓝灰底色、5 列完全等宽呼吸感、两行居中排版 -->
+            <Style x:Key="SpectralTableHeaderStyle" TargetType="DataGridColumnHeader">
+                <Setter Property="Background" Value="{StaticResource TableHeaderBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource TableTextPrimaryBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="MinHeight" Value="52" />
+                <Setter Property="Padding" Value="8,8" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridColumnHeader">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                  RecognizesAccessKey="True" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- 第一列（通道）表头专用样式：左对齐 -->
+            <Style x:Key="SpectralTableChannelHeaderStyle" TargetType="DataGridColumnHeader"
+                   BasedOn="{StaticResource SpectralTableHeaderStyle}">
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Padding" Value="16,8,8,8" />
+            </Style>
+
+            <!-- 通用居中单元格文本样式 -->
+            <Style x:Key="SpectralCenteredCellTextStyle" TargetType="TextBlock">
+                <Setter Property="TextAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="{StaticResource TableTextSecondaryBrush}" />
+                <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei, Arial" />
+            </Style>
+
+            <!-- 通道列单元格文本样式：适度左边距，与表头精准对齐 -->
+            <Style x:Key="SpectralChannelCellTextStyle" TargetType="TextBlock">
+                <Setter Property="TextAlignment" Value="Left" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="Medium" />
+                <Setter Property="Foreground" Value="{StaticResource TableTextPrimaryBrush}" />
+                <Setter Property="Margin" Value="16,0,8,0" />
+                <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei, Arial" />
+            </Style>
+
+            <!-- DataGrid 单元格样式：去原生虚线框与焦点框 -->
+            <Style x:Key="SpectralDataGridCellStyle" TargetType="DataGridCell">
+                <Setter Property="Padding" Value="4,0" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridCell">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Foreground" Value="{StaticResource TableTextPrimaryBrush}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- 数据行样式：纯白底色、细平滑分割线、舒适行高与精致悬停 -->
+            <Style x:Key="SpectralDataGridRowStyle" TargetType="DataGridRow">
+                <Setter Property="MinHeight" Value="38" />
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="{StaticResource TableDividerBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,1" />
+                <Setter Property="ToolTip">
+                    <Setter.Value>
+                        <ToolTip Style="{StaticResource AppDescriptionToolTipStyle}"
+                                 Content="{Binding PlacementTarget.DataContext.Details, RelativeSource={RelativeSource Self}}" />
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{StaticResource TableRowHoverBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{StaticResource TableRowSelectedBrush}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- StatusText 留空以消除横在头部正中间的冗长灰色系统字 -->
+    <shared:AnalysisPanelShell Title="" CloseCommand="{Binding CloseAnalysisCommand}" StatusText="">
+        <!-- 精致紧凑的头部工具栏：标题 + 频段切换 + 窗口信息胶囊 -->
+        <shared:AnalysisPanelShell.HeaderContent>
+            <DockPanel LastChildFill="False" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" DockPanel.Dock="Left">
+                    <TextBlock Text="频段数值" FontSize="14" FontWeight="Bold"
+                               Foreground="{StaticResource TableTextPrimaryBrush}" VerticalAlignment="Center"
+                               Margin="0,0,14,0" />
+                    <Border Height="16" Width="1" Background="#E2E8F0" Margin="0,0,14,0" VerticalAlignment="Center" />
+                    <TextBlock Text="频段" FontSize="12" Foreground="{StaticResource TableMutedBrush}"
+                               VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{Binding SpectralValues.Bands}" SelectedValuePath="Id"
+                              SelectedValue="{Binding SpectralValues.SelectedBandId, Mode=TwoWay}"
+                              Style="{StaticResource AppFilterComboBoxStyle}" Height="30" MinWidth="175"
+                              AutomationProperties.Name="数值核查频段">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Label}" FontSize="12" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <!-- 时间窗口小胶囊 -->
+                    <Border Margin="14,0,0,0" Padding="10,4" Background="#F1F5F9" CornerRadius="12"
+                            VerticalAlignment="Center" ToolTip="{Binding SpectralValues.ProvenanceText}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE946;" FontSize="11"
+                                       Foreground="#0284C7" VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="{Binding SpectralValues.WindowText}" FontSize="11"
+                                       Foreground="#475569" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </DockPanel>
+        </shared:AnalysisPanelShell.HeaderContent>
+
+        <!-- 主体区域：圆角纯白卡片表格 + 底部轻量状态提示 -->
+        <Grid Margin="12,6,12,8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 复刻图片样式的圆角纯白数据卡片 -->
+            <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="{StaticResource TableCardBorderBrush}"
+                    BorderThickness="1" CornerRadius="12" SnapsToDevicePixels="True" ClipToBounds="True">
+                <DataGrid ItemsSource="{Binding SpectralValues.Rows}" IsReadOnly="True"
+                          AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                          CanUserSortColumns="False" CanUserReorderColumns="False" CanUserResizeRows="False"
+                          HeadersVisibility="Column" RowHeaderWidth="0" GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="{StaticResource TableDividerBrush}"
+                          VerticalGridLinesBrush="Transparent" Background="#FFFFFF" BorderThickness="0"
+                          ColumnHeaderStyle="{StaticResource SpectralTableHeaderStyle}"
+                          CellStyle="{StaticResource SpectralDataGridCellStyle}"
+                          RowStyle="{StaticResource SpectralDataGridRowStyle}"
+                          EnableRowVirtualization="True" AutomationProperties.Name="逐导联频段数值">
+                    <DataGrid.Columns>
+                        <!-- 1. 通道（不再虚占宽度，与另外4列近乎等宽呼吸，比例和谐） -->
+                        <DataGridTextColumn Header="通道"
+                                            HeaderStyle="{StaticResource SpectralTableChannelHeaderStyle}"
+                                            ElementStyle="{StaticResource SpectralChannelCellTextStyle}"
+                                            Binding="{Binding Channel}"
+                                            Width="*" MinWidth="85" />
+
+                        <!-- 2. 振幅 (µV) -->
+                        <DataGridTemplateColumn Width="*" MinWidth="85">
+                            <DataGridTemplateColumn.Header>
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="振幅" FontWeight="SemiBold" FontSize="13" HorizontalAlignment="Center" Foreground="{StaticResource TableTextPrimaryBrush}" />
+                                    <TextBlock Text="(µV)" FontSize="11" Margin="0,2,0,0" HorizontalAlignment="Center" Foreground="{StaticResource TableTextPrimaryBrush}" />
+                                </StackPanel>
+                            </DataGridTemplateColumn.Header>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding AmplitudeUv, StringFormat={}{0:0.00}, TargetNullValue=—}"
+                                               Style="{StaticResource SpectralCenteredCellTextStyle}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- 3. 绝对功率 (µV²) -->
+                        <DataGridTemplateColumn Width="*" MinWidth="95">
+                            <DataGridTemplateColumn.Header>
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="绝对功率" FontWeight="SemiBold" FontSize="13" HorizontalAlignment="Center" Foreground="{StaticResource TableTextPrimaryBrush}" />
+                                    <TextBlock Text="(µV²)" FontSize="11" Margin="0,2,0,0" HorizontalAlignment="Center" Foreground="{StaticResource TableTextPrimaryBrush}" />
+                                </StackPanel>
+                            </DataGridTemplateColumn.Header>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding AbsolutePowerUv2, StringFormat={}{0:0.00}, TargetNullValue=—}"
+                                               Style="{StaticResource SpectralCenteredCellTextStyle}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- 4. 相对功率 (%) -->
+                        <DataGridTemplateColumn Width="*" MinWidth="85">
+                            <DataGridTemplateColumn.Header>
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="相对功率" FontWeight="SemiBold" FontSize="13" HorizontalAlignment="Center" Foreground="{StaticResource TableTextPrimaryBrush}" />
+                                    <TextBlock Text="(%)" FontSize="11" Margin="0,2,0,0" HorizontalAlignment="Center" Foreground="{StaticResource TableTextPrimaryBrush}" />
+                                </StackPanel>
+                            </DataGridTemplateColumn.Header>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding RelativePowerPercent, StringFormat={}{0:0.00}, TargetNullValue=—}"
+                                               Style="{StaticResource SpectralCenteredCellTextStyle}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- 5. 功率谱密度 (µV²/Hz) -->
+                        <DataGridTemplateColumn Width="*" MinWidth="95">
+                            <DataGridTemplateColumn.Header>
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="功率谱密度" FontWeight="SemiBold" FontSize="13" HorizontalAlignment="Center" Foreground="{StaticResource TableTextPrimaryBrush}" />
+                                    <TextBlock Text="(µV²/Hz)" FontSize="11" Margin="0,2,0,0" HorizontalAlignment="Center" Foreground="{StaticResource TableTextPrimaryBrush}" />
+                                </StackPanel>
+                            </DataGridTemplateColumn.Header>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding PsdDensityUv2Hz, StringFormat={}{0:0.00}, TargetNullValue=—}"
+                                               Style="{StaticResource SpectralCenteredCellTextStyle}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+            <!-- 底部轻量辅助状态信息：不打断顶部视线 -->
+            <TextBlock Grid.Row="1" Text="{Binding SpectralValues.StatusText}"
+                       FontSize="11" Foreground="#94A3B8" Margin="4,8,4,0" TextTrimming="CharacterEllipsis" />
+        </Grid>
+    </shared:AnalysisPanelShell>
+</UserControl>

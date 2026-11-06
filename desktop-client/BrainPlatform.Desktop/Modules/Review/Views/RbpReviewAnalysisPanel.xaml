@@ -140,7 +140,7 @@
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Margin="0,0,0,6" ToolTip="{Binding QualitySummary}">
+                            <StackPanel Margin="0,0,0,6">
                                 <TextBlock Text="{Binding Channel}" FontSize="11" FontWeight="SemiBold" Foreground="#0F172A" />
                                 <Grid Height="120">
                                     <rbp:RbpChart IsStackedHistory="True" ShowAxisTitles="False"

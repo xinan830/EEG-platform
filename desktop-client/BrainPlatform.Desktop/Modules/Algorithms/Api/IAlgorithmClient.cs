@@ -47,6 +47,10 @@ public interface IAlgorithmClient
         CancellationToken cancellationToken, IReadOnlyList<string> fieldIds) =>
         throw new NotSupportedException("当前算法客户端不支持按需地形图。");
 
+    Task<ResultScalarsResponse> GetDynamicScalarValuesAsync(string windowId, string? projectId,
+        CancellationToken cancellationToken, IReadOnlyList<string> fieldIds) =>
+        throw new NotSupportedException("当前算法客户端不支持窗口标量读取。");
+
     Task<Topomap3DLocationResponse> ResolveTopomap3DLocationsAsync(
         Topomap3DLocationRequest request, CancellationToken cancellationToken) =>
         throw new NotSupportedException("当前算法客户端不支持三维电极位置解析。");
