@@ -1,4 +1,6 @@
-from types import SimpleNamespace
+from app.models.recording import RecordingSummary
+from app.services.analysis_preprocess_cache import AnalysisPreprocessCache
+from app.services.continuous_preprocessing import ContinuousPreprocessingService
 
 import numpy as np
 import pytest
@@ -44,9 +46,15 @@ def source_context(pair, sfreq):
             return array_access_session(recording, pair, sfreq, ["F3", "F4"])
         def analysis_signal_provenance(self, _recording):
             return {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}
-    recording = SimpleNamespace(id="synthetic", channels=["F3", "F4"],
-                                sfreq=sfreq, duration_s=len(pair) / sfreq)
-    return _RecordingAlgorithmContext(Source(), recording)
+    recording = RecordingSummary("synthetic", "test", "test", ".edf", "now",
+        channels=("F3", "F4"), sfreq=sfreq, duration_s=len(pair) / sfreq,
+        source_sha256="fixture-source")
+    source = Source()
+    preprocessing = ContinuousPreprocessingService(source, AnalysisPreprocessCache())
+    source.load_preprocessed_signals = lambda recording, **options: preprocessing.load(
+        recording, options["low_hz"], options["high_hz"], options["notch_hz"],
+        options["execution_context"], options["channels"], requested_channels_only=True)
+    return _RecordingAlgorithmContext(source, recording)
 
 
 @pytest.mark.parametrize("notch", [None, 50, 60])

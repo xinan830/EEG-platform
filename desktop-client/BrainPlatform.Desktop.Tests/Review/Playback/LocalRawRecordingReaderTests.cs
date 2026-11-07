@@ -190,6 +190,50 @@ public sealed class LocalRawRecordingReaderTests
         }
     }
 
+    [Fact]
+    public async Task MaintenanceRejectsAnOpenRecordingAndAllowsRetryAfterClose()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var sessionId = WriteManifest(directory, 100, 10);
+            WriteChunk(directory, 1, [MakeBatch(100, 2, [1, 0, 0, 0, 2, 0, 0, 0])]);
+            await using var manager = new RecordingSessionManager();
+            var lease = await manager.OpenLocalAsync(directory, sessionId, CancellationToken.None);
+            var calls = 0;
+            Task<int> Clear() { calls++; return Task.FromResult(1); }
+            try
+            {
+                await Assert.ThrowsAsync<InvalidOperationException>(() => manager.RunMaintenanceAsync(Clear, CancellationToken.None));
+                Assert.Equal(0, calls);
+            }
+            finally { await lease.DisposeAsync(); }
+            Assert.Equal(1, await manager.RunMaintenanceAsync(Clear, CancellationToken.None));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
+    public async Task NewRecordingWaitsUntilMaintenanceFinishes()
+    {
+        var directory = CreateTempDirectory();
+        try
+        {
+            var sessionId = WriteManifest(directory, 100, 10);
+            WriteChunk(directory, 1, [MakeBatch(100, 2, [1, 0, 0, 0, 2, 0, 0, 0])]);
+            await using var manager = new RecordingSessionManager();
+            var release = new TaskCompletionSource<int>();
+            var clear = manager.RunMaintenanceAsync(() => release.Task, CancellationToken.None);
+            var open = manager.OpenLocalAsync(directory, sessionId, CancellationToken.None);
+            try { Assert.False(open.IsCompleted); }
+            finally { release.TrySetResult(1); }
+            await clear;
+            await using var lease = await open;
+            Assert.Equal(sessionId, lease.Manifest.SessionId);
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
     private static Guid WriteManifest(string directory, long firstSampleCounter, int samplingRateHz)
     {
         var sessionId = Guid.NewGuid();

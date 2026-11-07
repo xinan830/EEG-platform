@@ -58,13 +58,16 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid Margin="32,28,32,28">
         <Grid.RowDefinitions>
             <!-- 1. 标题区 -->
             <RowDefinition Height="Auto" />
             <!-- 2. 2x2 模块入口卡片区 -->
             <RowDefinition Height="Auto" />
-            <!-- 3. 底部配置流程建议 -->
+            <!-- 3. 缓存管理 -->
+            <RowDefinition Height="Auto" />
+            <!-- 4. 底部配置流程建议 -->
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -266,8 +269,28 @@
             </Button>
         </Grid>
 
-        <!-- ==================== 3. 底部配置流程建议 ==================== -->
-        <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12"
+        <Border Grid.Row="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="1"
+                CornerRadius="12" Padding="24,20" Margin="0,24,0,0" DataContext="{Binding CacheMaintenance}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Margin="0,0,24,0">
+                    <TextBlock Text="缓存管理" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A" />
+                    <TextBlock Text="清除回放显示缓存和动态算法窗口缓存，保留原始录音、历史分析结果及配置。"
+                               FontSize="13" Foreground="#64748B" TextWrapping="Wrap" Margin="0,6,0,0" />
+                    <TextBlock Text="{Binding StatusText}" FontSize="12" Foreground="#64748B"
+                               TextWrapping="Wrap" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="{Binding ButtonText}" Command="{Binding ClearCommand}"
+                        Style="{StaticResource ModernDialogSecondaryButtonStyle}" VerticalAlignment="Center"
+                        Padding="20,10" MinWidth="112" AutomationProperties.Name="清除缓存" />
+            </Grid>
+        </Border>
+
+        <!-- ==================== 4. 底部配置流程建议 ==================== -->
+        <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12"
                 Padding="20,14" Margin="0,24,0,0">
             <DockPanel LastChildFill="False">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -307,4 +330,5 @@
             </DockPanel>
         </Border>
     </Grid>
+    </ScrollViewer>
 </UserControl>

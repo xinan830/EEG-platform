@@ -67,9 +67,11 @@ public sealed partial class RecordingReviewViewModel
             else CustomFrequencyInspection.Clear("正在读取当前 PSD/RBP 频率网格…");
             var provider = analysisCoordinators["psd"].GetCapability<IReviewCustomFrequencyProvider>() ??
                 throw new InvalidOperationException("PSD adapter 不提供自定义频率投影。");
+            var prepared = CurrentPreparedSpectralWindow(psd, rbp);
+            if (prepared is { Bins: null, ProjectionError: { } error }) throw error;
             var fetchStarted = Stopwatch.GetTimestamp();
             var (values, completedAt) = await AlgorithmWindowPerformanceDiagnostics.WithCompletionTimeAsync(
-                provider.LoadBinsAsync(psd, rbp, request.Token));
+                prepared?.Bins is { } bins ? Task.FromResult(bins) : provider.LoadBinsAsync(psd, rbp, request.Token));
             var continuationMs = Stopwatch.GetElapsedTime(completedAt).TotalMilliseconds;
             if (IsCurrentCustomFrequencyWindow(revision, psd, rbp) && !request.IsCancellationRequested)
             {
@@ -134,9 +136,13 @@ public sealed partial class RecordingReviewViewModel
             if (debounce) await Task.Delay(180, request.Token);
             var provider = analysisCoordinators["psd"].GetCapability<IReviewCustomFrequencyProvider>() ??
                 throw new InvalidOperationException("PSD adapter 不提供自定义频率投影。");
+            var prepared = CurrentPreparedSpectralWindow(psd, rbp);
+            var matchesRange = prepared?.RangeLowHz == lowHz && prepared?.RangeHighHz == highHz;
+            if (matchesRange && prepared?.ProjectionError is { } error) throw error;
             var fetchStarted = Stopwatch.GetTimestamp();
             var (values, completedAt) = await AlgorithmWindowPerformanceDiagnostics.WithCompletionTimeAsync(
-                provider.LoadRangeAsync(psd, rbp, lowHz, highHz, request.Token));
+                matchesRange && prepared?.Range is { } range ? Task.FromResult(range) :
+                    provider.LoadRangeAsync(psd, rbp, lowHz, highHz, request.Token));
             var continuationMs = Stopwatch.GetElapsedTime(completedAt).TotalMilliseconds;
             if (IsCurrentCustomFrequencyRange(windowRevision, rangeRevision, psd, rbp, lowHz, highHz) &&
                 !request.IsCancellationRequested)

@@ -10,6 +10,21 @@ public sealed class RecordingSessionManager : IAsyncDisposable
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly Dictionary<string, Entry> entries = new(StringComparer.OrdinalIgnoreCase);
     private int disposed;
+    private int closingSessions;
+
+    /// <summary>Excludes new recording leases while rebuildable caches are maintained.</summary>
+    public async Task<T> RunMaintenanceAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+            if (entries.Count != 0 || closingSessions != 0)
+                throw new InvalidOperationException("请先关闭数据回放和正在使用录音的算法页面，再清除缓存。");
+            return await operation().ConfigureAwait(false);
+        }
+        finally { gate.Release(); }
+    }
 
     public async Task<RecordingAccessLease> OpenLocalAsync(
         string recordingDirectory,
@@ -92,6 +107,7 @@ public sealed class RecordingSessionManager : IAsyncDisposable
                 return;
             if (--current.ReferenceCount > 0) return;
             entries.Remove(entry.Key);
+            closingSessions++;
             current.RequestClose();
         }
         finally
@@ -99,8 +115,17 @@ public sealed class RecordingSessionManager : IAsyncDisposable
             gate.Release();
         }
 
-        await entry.WaitForIdleAsync();
-        await entry.Recording.DisposeAsync();
+        try
+        {
+            await entry.WaitForIdleAsync();
+            await entry.Recording.DisposeAsync();
+        }
+        finally
+        {
+            await gate.WaitAsync();
+            try { closingSessions--; }
+            finally { gate.Release(); }
+        }
     }
 
     public async ValueTask DisposeAsync()

@@ -110,10 +110,15 @@ public sealed partial class RecordingReviewViewModelTests
         await CustomFrequencyReady(vm, "psd-12000");
 
         Assert.Contains(published, value => value.Contains("psd-10500", StringComparison.Ordinal));
-        Assert.Equal(new long[] { 10000, 10500, 12000 }, psd.Cursors);
+        Assert.Equal(12000, vm.CurrentAnalysisWindow!.CursorSample);
+        Assert.Contains(12000, psd.Cursors);
+        Assert.DoesNotContain(11000, psd.Cursors);
+        Assert.DoesNotContain(11500, psd.Cursors);
+        Assert.Equal(psd.Cursors.Count, psd.Cursors.Distinct().Count());
+        Assert.All(psd.Cursors, sample => Assert.InRange(sample, 10000, 13000));
         Assert.Equal(psd.Cursors, rbp.Cursors);
         Assert.DoesNotContain("", published);
-        Assert.Equal(3, psd.CustomBinLoads);
+        Assert.Equal(psd.Cursors.Count, psd.CustomBinLoads);
         for (var i = 0; i < rows.Length; i++) Assert.Same(rows[i], vm.CustomFrequencyInspection.Rows[i]);
         Assert.NotNull(vm.CurrentFrame);
     }
@@ -121,7 +126,7 @@ public sealed partial class RecordingReviewViewModelTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Playback_finishes_active_bin_or_range_projection_before_starting_latest_pair(bool rangeMode)
+    public async Task Playback_prepares_future_pairs_without_publishing_over_an_active_projection(bool rangeMode)
     {
         var now = 0d;
         var psd = new SpectralProvider("psd") { DeferCustomBins = !rangeMode, DeferCustomRange = rangeMode };
@@ -144,8 +149,9 @@ public sealed partial class RecordingReviewViewModelTests
         now = 4.25;
         vm.TickPlayback();
 
-        Assert.Single(psd.Cursors);
+        Assert.Equal(new long[] { 10000, 10500, 11000 }, psd.Cursors);
         Assert.Equal(psd.Cursors, rbp.Cursors);
+        Assert.Equal(10000, vm.CurrentAnalysisWindow!.CursorSample);
         Assert.False(rangeMode ? psd.CustomRangeToken.IsCancellationRequested : psd.CustomBinsToken.IsCancellationRequested);
         Assert.Equal(24.25, vm.PositionSeconds);
         psd.CustomBinsRelease.TrySetResult();
@@ -155,10 +161,14 @@ public sealed partial class RecordingReviewViewModelTests
         while (vm.CustomFrequencyInspection.Rows.Any(row => row.AbsolutePowerUv2 is null))
             await Task.Delay(10, timeout.Token);
 
-        Assert.Equal(new long[] { 10000, 12000 }, psd.Cursors);
+        Assert.Equal(12000, vm.CurrentAnalysisWindow!.CursorSample);
+        Assert.Contains(12000, psd.Cursors);
+        Assert.DoesNotContain(11500, psd.Cursors);
+        Assert.Equal(psd.Cursors.Count, psd.Cursors.Distinct().Count());
+        Assert.All(psd.Cursors, sample => Assert.InRange(sample, 10000, 13000));
         Assert.Equal(psd.Cursors, rbp.Cursors);
-        Assert.Equal(2, psd.CustomBinLoads);
-        Assert.Equal(rangeMode ? 2 : 0, psd.CustomRangeLoads);
+        Assert.Equal(psd.Cursors.Count, psd.CustomBinLoads);
+        Assert.Equal(rangeMode ? psd.CustomBinLoads : 0, psd.CustomRangeLoads);
     }
 
     [Fact]
@@ -194,8 +204,9 @@ public sealed partial class RecordingReviewViewModelTests
         while (vm.CustomFrequencyInspection.Rows.Any(row => row.AbsolutePowerUv2 is null))
             await Task.Delay(10, timeout.Token);
 
-        Assert.Equal(1, psd.CustomRangeLoads);
-        Assert.Equal((1d, 3d), Assert.Single(psd.CustomRanges));
+        Assert.Equal(10500, vm.CurrentAnalysisWindow!.CursorSample);
+        Assert.NotEmpty(psd.CustomRanges);
+        Assert.All(psd.CustomRanges, range => Assert.Equal((1d, 3d), range));
         Assert.DoesNotContain("不可用", vm.CustomFrequencyInspection.StatusText);
     }
 }

@@ -80,33 +80,42 @@ public sealed class DynamicWindowObserver(IAlgorithmClient client)
         }
         finally
         {
-            var releaseStarted = Stopwatch.GetTimestamp();
-            var releaseOutcome = "not_needed";
-            if (subscriptionId is not null)
-            {
-                // Cleanup has its own bounded token; cancelling a page must still release
-                // only its subscription, even if transport cancellation is already set.
-                using var release = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                try
-                {
-                    await client.CancelDynamicSubscriptionAsync(subscriptionId, request.ProjectId, release.Token);
-                    releaseOutcome = "released";
-                }
-                catch (Exception error)
-                {
-                    releaseOutcome = error.GetType().Name;
-                    DesktopLog.Warning($"window_subscription_release_failed type={error.GetType().Name}");
-                }
-            }
-            if (AlgorithmWindowPerformanceDiagnostics.Enabled)
-                DesktopLog.Info($"review_analysis_delivery_perf request_id={request.RequestId}" +
-                    $" recording_id={request.RecordingId} algorithm_id={request.AlgorithmId}" +
-                    $" window_id={terminalWindowId ?? "none"} subscription_id={subscriptionId ?? "none"}" +
-                    $" state={terminalState} terminal_observed_ms={terminalMs?.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) ?? "none"}" +
-                    $" release_outcome={releaseOutcome} release_ms={Stopwatch.GetElapsedTime(releaseStarted).TotalMilliseconds:0.000}" +
-                    $" observation_outcome={(terminalMs.HasValue ? "returned" : cancellationToken.IsCancellationRequested ? "cancelled" : "failed")}" +
-                    $" total_ms={Stopwatch.GetElapsedTime(started).TotalMilliseconds:0.000}");
+            var release = ReleaseSubscriptionAsync(request, subscriptionId, terminalWindowId, terminalState,
+                terminalMs, started, cancellationToken.IsCancellationRequested);
+            // A terminal artifact is immutable; subscription cleanup cannot change its result.
+            if (terminalMs is null) await release;
         }
+    }
+
+    private async Task ReleaseSubscriptionAsync(DynamicWindowRequest request, string? subscriptionId,
+        string? terminalWindowId, string terminalState, double? terminalMs, long started, bool cancelled)
+    {
+        var releaseStarted = Stopwatch.GetTimestamp();
+        var releaseOutcome = "not_needed";
+        if (subscriptionId is not null)
+        {
+            // Cleanup has its own bounded token; cancelling a page must still release
+            // only its subscription, even if transport cancellation is already set.
+            using var release = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            try
+            {
+                await client.CancelDynamicSubscriptionAsync(subscriptionId, request.ProjectId, release.Token);
+                releaseOutcome = "released";
+            }
+            catch (Exception error)
+            {
+                releaseOutcome = error.GetType().Name;
+                DesktopLog.Warning($"window_subscription_release_failed type={error.GetType().Name}");
+            }
+        }
+        if (AlgorithmWindowPerformanceDiagnostics.Enabled)
+            DesktopLog.Info($"review_analysis_delivery_perf request_id={request.RequestId}" +
+                $" recording_id={request.RecordingId} algorithm_id={request.AlgorithmId}" +
+                $" window_id={terminalWindowId ?? "none"} subscription_id={subscriptionId ?? "none"}" +
+                $" state={terminalState} terminal_observed_ms={terminalMs?.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) ?? "none"}" +
+                $" delivery_detached={terminalMs.HasValue} release_outcome={releaseOutcome} release_ms={Stopwatch.GetElapsedTime(releaseStarted).TotalMilliseconds:0.000}" +
+                $" observation_outcome={(terminalMs.HasValue ? "returned" : cancelled ? "cancelled" : "failed")}" +
+                $" total_ms={Stopwatch.GetElapsedTime(started).TotalMilliseconds:0.000}");
     }
 
     private static bool IsPending(string state) => state is "queued" or "preparing_source" or "computing_window";

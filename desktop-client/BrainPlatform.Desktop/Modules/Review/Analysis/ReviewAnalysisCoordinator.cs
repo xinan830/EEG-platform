@@ -41,19 +41,33 @@ public sealed class ReviewAnalysisCoordinator
         ReviewAnalysisSnapshot snapshot, long cursorSample, CancellationToken cancellationToken,
         IProgress<DynamicWindowResponse>? progress = null)
     {
+        var requestedRevision = Interlocked.Increment(ref revision);
+        var result = await PrepareOnDemandAtSampleAsync(snapshot, cursorSample, cancellationToken, progress);
+        if (requestedRevision != Volatile.Read(ref revision)) return null;
+        return AdoptPreparedWindow(snapshot, result);
+    }
+
+    internal async Task<WindowPreviewResponse> PrepareOnDemandAtSampleAsync(
+        ReviewAnalysisSnapshot snapshot, long cursorSample, CancellationToken cancellationToken,
+        IProgress<DynamicWindowResponse>? progress = null)
+    {
         if (provider is null || !provider.SupportsOnDemandWindows)
             throw new NotSupportedException("当前分析 adapter 未启用按需动态窗口。");
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (!string.Equals(snapshot.AlgorithmId, provider.AlgorithmId, StringComparison.Ordinal))
-            throw new ArgumentException("分析快照与当前 adapter 不匹配。", nameof(snapshot));
-        if (snapshot.CursorSample != cursorSample)
-            throw new ArgumentException("分析游标与不可变请求快照不匹配。", nameof(snapshot));
+        if (snapshot.AlgorithmId != provider.AlgorithmId || snapshot.CursorSample != cursorSample)
+            throw new ArgumentException("分析快照、adapter 与请求游标不匹配。", nameof(snapshot));
         if (cursorSample < 0) throw new ArgumentOutOfRangeException(nameof(cursorSample));
-
-        var requestedRevision = Interlocked.Increment(ref revision);
         var result = await provider.LoadOnDemandAsync(snapshot.RecordingId, snapshot, cursorSample,
             cancellationToken, progress);
-        if (requestedRevision != Volatile.Read(ref revision)) return null;
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidateWindowIdentity(snapshot, result);
+        ValidateStableDynamicIdentity(snapshot, result, remember: false);
+        return result;
+    }
+
+    internal WindowPreviewResponse AdoptPreparedWindow(ReviewAnalysisSnapshot snapshot, WindowPreviewResponse result)
+    {
+        Interlocked.Increment(ref revision);
         ValidateWindowIdentity(snapshot, result);
         ValidateStableDynamicIdentity(snapshot, result);
         if (result.ScientificConfigurationJson is { } canonical &&
@@ -138,7 +152,7 @@ public sealed class ReviewAnalysisCoordinator
             throw new InvalidOperationException("算法结果版本与分析快照不匹配，已拒绝绑定。");
     }
 
-    private void ValidateStableDynamicIdentity(ReviewAnalysisSnapshot snapshot, WindowPreviewResponse result)
+    private void ValidateStableDynamicIdentity(ReviewAnalysisSnapshot snapshot, WindowPreviewResponse result, bool remember = true)
     {
         if (result.BackendIdentity is not { ValueKind: JsonValueKind.Object } identity)
             throw new InvalidOperationException("按需结果缺少后端科学身份，已拒绝绑定。");
@@ -169,7 +183,7 @@ public sealed class ReviewAnalysisCoordinator
 
         if (activeDynamicIdentity is { } expected && !SameSessionIdentity(expected, identity))
             throw new InvalidOperationException("后端配置摘要、实现身份或窗口策略在同一分析快照内发生变化，已拒绝绑定。");
-        activeDynamicIdentity ??= identity.Clone();
+        if (remember) activeDynamicIdentity ??= identity.Clone();
     }
 
     private static bool SameSessionIdentity(JsonElement left, JsonElement right)

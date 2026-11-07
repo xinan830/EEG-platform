@@ -40,7 +40,7 @@ public sealed partial class ReviewCustomFrequencyPanelTests(WpfApplicationFixtur
             Assert.All(table.Columns.Cast<DataGridTextColumn>().Skip(1), column =>
             {
                 var binding = (Binding)column.Binding;
-                Assert.Equal("G6", binding.StringFormat);
+                Assert.Equal("F2", binding.StringFormat);
                 Assert.Equal("—", binding.TargetNullValue);
             });
             table.Items.SortDescriptions.Add(new SortDescription(nameof(ReviewCustomFrequencyRow.Channel), ListSortDirection.Descending));

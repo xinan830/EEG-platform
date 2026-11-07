@@ -1,4 +1,6 @@
-from types import SimpleNamespace
+from app.models.recording import RecordingSummary
+from app.services.analysis_preprocess_cache import AnalysisPreprocessCache
+from app.services.continuous_preprocessing import ContinuousPreprocessingService
 
 import numpy as np
 import pytest
@@ -21,9 +23,15 @@ def _context(pair: np.ndarray, sfreq: float) -> _RecordingAlgorithmContext:
         def analysis_signal_provenance(self, _recording):
             return {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}
 
-    recording = SimpleNamespace(id="faa-on-demand", channels=["F3", "F4"],
-                                sfreq=sfreq, duration_s=len(pair) / sfreq)
-    return _RecordingAlgorithmContext(Source(), recording)
+    recording = RecordingSummary("faa-on-demand", "test", "test", ".edf", "now",
+        channels=("F3", "F4"), sfreq=sfreq, duration_s=len(pair) / sfreq,
+        source_sha256="fixture-source")
+    source = Source()
+    preprocessing = ContinuousPreprocessingService(source, AnalysisPreprocessCache())
+    source.load_preprocessed_signals = lambda recording, **options: preprocessing.load(
+        recording, options["low_hz"], options["high_hz"], options["notch_hz"],
+        options["execution_context"], options["channels"], requested_channels_only=True)
+    return _RecordingAlgorithmContext(source, recording)
 
 
 def _session(algorithm: FaaAlgorithm) -> DynamicSessionIdentity:

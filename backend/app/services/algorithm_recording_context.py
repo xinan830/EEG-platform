@@ -9,7 +9,7 @@ import numpy as np
 from app.scientific.primitives import SpectralEstimate
 from app.algorithm_runtime.execution_control import ExecutionControl
 from app.algorithm_runtime.signal_source import SignalSourceData, SignalSourceRequest, SpectralSourceRequest
-from app.services.mapped_preprocessing import mapped_preprocess
+from app.services.analysis_preprocess_cache import PreprocessedRecording
 
 _LOGGER = logging.getLogger("brain_platform.dynamic_window.tnk")
 
@@ -24,11 +24,11 @@ class _RecordingAlgorithmContext:
         self.sfreq_hz = float(getattr(recording, "sfreq_hz", None) or getattr(recording, "sfreq", None) or 0.0)
         self.duration_s = float(recording.duration_s or 0.0)
         self.execution_context = execution_context
-        self._signals: dict[tuple, Any] = {}
+        self._prepared_faa_source: PreprocessedRecording | None = None
         self._access_session: Any = None
 
     def close(self) -> None:
-        self._signals.clear()
+        self._prepared_faa_source = None
         if self._access_session is not None:
             self._access_session.close()
             self._access_session = None
@@ -242,12 +242,12 @@ class _RecordingAlgorithmContext:
         if end_index <= start_index:
             raise ValueError("FAA analysis range is outside recording duration")
         if low_hz is not None and high_hz is not None:
-            key = (f3_name, f4_name, low_hz, high_hz, notch_hz)
-            if key not in self._signals:
-                self._signals[key] = mapped_preprocess(self._recordings, self._recording,
-                    channels=[f3_name, f4_name], low_hz=low_hz, high_hz=high_hz,
-                    notch_hz=notch_hz, execution_context=self.execution_context)
-            pair = self._signals[key].data[start_index:end_index]
+            prepared = self._recordings.load_preprocessed_signals(
+                self._recording, channels=[f3_name, f4_name], low_hz=low_hz,
+                high_hz=high_hz, notch_hz=notch_hz, execution_context=self.execution_context)
+            # Keep mapped samples alive through this window even if the shared LRU evicts them.
+            self._prepared_faa_source = prepared
+            pair = prepared.data[start_index:end_index]
         else:
             if self._access_session is None:
                 self._access_session = self._recordings.open_access_session(self._recording)

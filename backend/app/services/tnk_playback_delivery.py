@@ -35,6 +35,11 @@ class TnkPlaybackDeliveryService:
             str, tuple[str, TnkPlaybackEventBuffer, dict[str, Any]]
         ] = OrderedDict()
 
+    def clear(self) -> None:
+        """Drop delivery buffers after exclusive dynamic-window cache maintenance."""
+        with self._lock:
+            self._buffers.clear()
+
     def prepare(self, requested: bool, delivery_id: str, scientific_session_id: str,
                 target_identity: DynamicWindowIdentity, sampling_rate_hz: float,
                 capability: Any, target_window_id: str):

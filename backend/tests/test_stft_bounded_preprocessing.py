@@ -59,7 +59,7 @@ def _generated_service(tmp_path, monkeypatch, duration_s=86400, gap_sample=None)
         )
 
     monkeypatch.setattr(service, "open_access_session", open_session)
-    monkeypatch.setattr(service._spectral_analysis, "_preprocessed_recording",
+    monkeypatch.setattr(service._spectral_analysis.continuous_preprocessing, "load",
                         lambda *_a, **_kw: pytest.fail("STFT must not prepare whole recording"))
     return service, recording, readers
 

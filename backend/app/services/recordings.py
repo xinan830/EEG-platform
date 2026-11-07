@@ -9,7 +9,8 @@ from app.core.config import ALLOWED_EXTENSIONS, DATABASE_PATH, RECORDINGS_DIR, e
 from app.models.recording import RecordingSummary
 from app.models.analysis_config import AnalysisConfigRequest
 from app.services.filter_checkpoint_cache import FilterCheckpointCache
-from app.services.analysis_preprocess_cache import AnalysisPreprocessCache
+from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
+from app.services.continuous_preprocessing import ContinuousPreprocessingService
 from app.persistence import connect_database, migrate_database
 from app.services.recording_identity import (
     RECORDING_IMPORT_VERSION,
@@ -31,7 +32,8 @@ class RecordingService:
         self._filter_checkpoints = FilterCheckpointCache()
         self._analysis_preprocess_cache = AnalysisPreprocessCache()
         self._wpf_recording_facts = WpfRecordingFactsCache()
-        self._spectral_analysis = SpectralAnalysisService(self, self._analysis_preprocess_cache)
+        self._continuous_preprocessing = ContinuousPreprocessingService(self, self._analysis_preprocess_cache)
+        self._spectral_analysis = SpectralAnalysisService(self, self._continuous_preprocessing)
         from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
         self._analysis_montage_snapshots = AnalysisMontageSnapshots(self.database_path)
         self._recording_access = RecordingAccessService(self.storage_dir, self._wpf_recording_facts,
@@ -280,6 +282,14 @@ class RecordingService:
             "channels": {name: (centered[:, index] * 1e6).round(4).tolist() for index, name in enumerate(names)},
             "events": events,
         }
+
+    def load_preprocessed_signals(self, recording: RecordingSummary, *, channels: list[str],
+                                  low_hz: float, high_hz: float, notch_hz: float | None,
+                                  execution_context=None) -> PreprocessedRecording:
+        """Share continuous preparation of an ordered signal pair across window contexts."""
+        return self._continuous_preprocessing.load(
+            recording, low_hz, high_hz, notch_hz, execution_context, channels,
+            requested_channels_only=True)
 
     def load_spectrum(
         self,

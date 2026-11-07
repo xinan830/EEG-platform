@@ -10,7 +10,7 @@ namespace BrainPlatform.Desktop.Modules.Review.Analysis;
 /// Binds one completed Run to the review clock without creating another clock.
 /// It coalesces cursor movement and never lets an old response overwrite a new one.
 /// </summary>
-public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDisposable
+public sealed partial class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDisposable
 {
     private readonly ReviewAnalysisCoordinator coordinator;
     private readonly string recordingId;
@@ -102,6 +102,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
     {
         ThrowIfDisposed();
         if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException("Run ID 不能为空。", nameof(value));
+        SetPlaybackActive(false, playbackGeneration);
         CancelPendingLoad();
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
@@ -119,6 +120,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(request);
+        SetPlaybackActive(false, playbackGeneration);
         CancelPendingLoad();
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
@@ -137,6 +139,7 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
     public void DetachRun()
     {
         if (Volatile.Read(ref disposed) != 0) return;
+        SetPlaybackActive(false, playbackGeneration);
         CancelPendingLoad();
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
@@ -160,7 +163,28 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         return LoadAtSampleAsync(sample, cancellationToken);
     }
 
-    public async Task LoadAtSampleAsync(long sample, CancellationToken cancellationToken = default)
+    public Task LoadAtSampleAsync(long sample, CancellationToken cancellationToken = default)
+    {
+        ResetPlaybackPreparation();
+        return LoadWindowAsync(sample, null, cancellationToken);
+    }
+
+    internal async Task<WindowPreviewResponse> PrepareAtSampleAsync(long sample, CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        if (sample < 0 || sample > durationSamples) throw new ArgumentOutOfRangeException(nameof(sample));
+        var snapshot = onDemandSnapshot ?? throw new InvalidOperationException("未绑定按需窗口。");
+        var result = await coordinator.PrepareOnDemandAtSampleAsync(snapshot with { CursorSample = sample }, sample, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!ReferenceEquals(snapshot, onDemandSnapshot) || Volatile.Read(ref disposed) != 0)
+            throw new OperationCanceledException("分析绑定已改变。");
+        return result;
+    }
+
+    internal Task LoadPreparedAtSampleAsync(long sample, WindowPreviewResponse prepared, CancellationToken cancellationToken) =>
+        LoadWindowAsync(sample, prepared, cancellationToken);
+
+    private async Task LoadWindowAsync(long sample, WindowPreviewResponse? prepared, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
         if (runId is null && onDemandSnapshot is null)
@@ -192,10 +216,14 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
                     _ => StatusText,
                 };
             });
-            var resultTask = onDemandSnapshot is { } snapshot
-                ? coordinator.LoadOnDemandAtSampleAsync(recordingId,
-                    snapshot with { CursorSample = sample }, sample, linked.Token, progress)
-                : coordinator.LoadAtSampleAsync(recordingId, runId!, sample, linked.Token);
+            linked.Token.ThrowIfCancellationRequested();
+            var resultTask = prepared is not null && onDemandSnapshot is { } preparedSnapshot
+                ? Task.FromResult<WindowPreviewResponse?>(coordinator.AdoptPreparedWindow(
+                    preparedSnapshot with { CursorSample = sample }, prepared))
+                : onDemandSnapshot is { } snapshot
+                    ? coordinator.LoadOnDemandAtSampleAsync(recordingId,
+                        snapshot with { CursorSample = sample }, sample, linked.Token, progress)
+                    : coordinator.LoadAtSampleAsync(recordingId, runId!, sample, linked.Token);
             var (result, completedAt) = await AlgorithmWindowPerformanceDiagnostics.WithCompletionTimeAsync(resultTask);
             var continuationMs = Stopwatch.GetElapsedTime(completedAt).TotalMilliseconds;
             linked.Token.ThrowIfCancellationRequested();
@@ -235,58 +263,15 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
             {
                 loadCancellation = null;
                 IsLoading = false;
+                PrepareUpcomingScalarWindows();
             }
         }
-    }
-
-    public void OnPlaybackCursorAdvanced(double seconds, long generation = 0)
-    {
-        if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandSnapshot is null)) return;
-        if (!double.IsFinite(seconds)) return;
-        if (!AcceptPlaybackGeneration(generation)) return;
-        var sample = RecordingTimeMapper.ToCursorSample(
-            Math.Clamp(seconds, 0, durationSamples / (double)samplingRateHz), samplingRateHz, durationSamples);
-        var refreshStep = onDemandRefreshStepSamples ?? samplingRateHz;
-        sample = sample / refreshStep * refreshStep;
-        RequestPreviewAtSample(sample);
-    }
-
-    public void OnCursorPositionSelected(double seconds, long generation = 0)
-    {
-        if (!AcceptPlaybackGeneration(generation)) return;
-        RequestPreviewAtSeconds(seconds);
-    }
-
-    public void OnCursorDragCompleted(double seconds, long generation = 0)
-    {
-        if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandSnapshot is null)) return;
-        if (!double.IsFinite(seconds)) return;
-        if (!AcceptPlaybackGeneration(generation)) return;
-        var sample = RecordingTimeMapper.ToCursorSample(
-            Math.Clamp(seconds, 0, durationSamples / (double)samplingRateHz), samplingRateHz, durationSamples);
-        RequestPreviewAtSample(sample);
-    }
-
-    private void RequestPreviewAtSeconds(double seconds)
-    {
-        if (Volatile.Read(ref disposed) != 0 || (runId is null && onDemandSnapshot is null)) return;
-        if (!double.IsFinite(seconds)) return;
-        var sample = RecordingTimeMapper.ToCursorSample(
-            Math.Clamp(seconds, 0, durationSamples / (double)samplingRateHz), samplingRateHz, durationSamples);
-        sample = QuantizeOnDemandPreviewSample(sample);
-        RequestPreviewAtSample(sample);
-    }
-
-    private void RequestPreviewAtSample(long sample)
-    {
-        if (sample == lastRequestedSample) return;
-        lastRequestedSample = sample;
-        _ = LoadAtSampleAsync(sample);
     }
 
     public async ValueTask DisposeAsync()
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
+        SetPlaybackActive(false, playbackGeneration);
         CancelPendingLoad();
         coordinator.Reset();
         Interlocked.Increment(ref loadGeneration);
@@ -297,42 +282,10 @@ public sealed class ReviewAnalysisBinding : INotifyPropertyChanged, IAsyncDispos
         await coordinator.ReleaseOnDemandAsync();
     }
 
-    private long QuantizeOnDemandPreviewSample(long sample)
-    {
-        if (onDemandRefreshStepSamples is not > 0) return sample;
-        var step = onDemandRefreshStepSamples.Value;
-        return sample / step * step;
-    }
-
-    private long? ReadRefreshStepSamples(System.Text.Json.JsonElement config)
-    {
-        if (!config.TryGetProperty("refresh_step_s", out var stepElement) ||
-            stepElement.ValueKind != System.Text.Json.JsonValueKind.Number ||
-            !stepElement.TryGetDouble(out var stepSeconds) ||
-            !double.IsFinite(stepSeconds) || stepSeconds <= 0)
-        {
-            return null;
-        }
-
-        var samples = stepSeconds * samplingRateHz;
-        if (!double.IsFinite(samples) || samples < 1 || samples > long.MaxValue)
-            return null;
-        return Math.Max(1, (long)Math.Round(samples, MidpointRounding.AwayFromZero));
-    }
-
     private void CancelPendingLoad()
     {
         loadCancellation?.Cancel();
         loadCancellation = null;
-    }
-
-    private bool AcceptPlaybackGeneration(long generation)
-    {
-        if (generation < playbackGeneration) return false;
-        if (generation == playbackGeneration) return true;
-        playbackGeneration = generation;
-        lastRequestedSample = -1;
-        return true;
     }
 
     private void Set<T>(ref T field, T value, string propertyName)

@@ -52,6 +52,7 @@ public sealed partial class RecordingReviewViewModel
             if (ReferenceEquals(binding, analysisBinding)) await DetachAnalysisAsync();
             throw;
         }
+        binding.SetPlaybackActive(playback.IsPlaying && !isTimelineDragging, playback.Snapshot.Generation);
         RaiseAnalysisPropertiesChanged();
     }
 

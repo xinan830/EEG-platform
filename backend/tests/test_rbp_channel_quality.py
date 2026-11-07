@@ -35,9 +35,10 @@ def signal_fixture(kind):
 def context(values, monkeypatch):
     record = SimpleNamespace(id="quality-test", channels=["Fp1-REF", "Fp2-REF"], sfreq=200., duration_s=5.)
     recordings = SimpleNamespace(analysis_signal_provenance=lambda _: {"analysis_reference": "as_recorded"})
-    service = SpectralAnalysisService(recordings, AnalysisPreprocessCache())
+    from app.services.continuous_preprocessing import ContinuousPreprocessingService
+    service = SpectralAnalysisService(recordings, ContinuousPreprocessingService(recordings, AnalysisPreprocessCache()))
     # Supply a prepared source to exercise actual service slicing, Welch and transport.
-    monkeypatch.setattr(service, "_preprocessed_recording", lambda *a, **k:
+    monkeypatch.setattr(service.continuous_preprocessing, "load", lambda *a, **k:
                         PreprocessedRecording(values, 200., tuple(record.channels)))
     recordings.load_spectrum = service.load_spectrum
     return _RecordingAlgorithmContext(recordings, record), record, service

@@ -246,32 +246,37 @@ class DynamicWindowService:
     def _recover_loop(self) -> None:
         while not self._stop.wait(1):
             try:
-                self.repository.recover_expired_attempts()
-                self.repository.recover_orphaned_full_producers()
-                for window in self.repository.recoverable_windows(self._max_pending_windows):
-                    if self._stop.is_set():
-                        return
-                    session = self.repository.get_session(window.session_id)
-                    if session.algorithm_id not in {item.manifest.algorithm_id for item in self.capabilities.list()}:
-                        continue
-                    payload = DynamicWindowRequest(
-                        recording_id=session.recording_id, algorithm_id=session.algorithm_id,
-                        definition_id=session.definition_id, definition_version=session.definition_version,
-                        config=session.configuration, cursor_sample=window.end_sample,
-                        project_id=session.project_id, request_id=f"recovery-{uuid4().hex}",
-                    )
-                    try:
-                        self._ensure(payload, recovering=window)
-                    except DynamicWindowCapacityExceededError:
-                        break
-                    except (KeyError, ValueError) as exc:
-                        self._logger.exception("dynamic_window_recovery_invalid window_id=%s", window.window_id)
-                        current = self.repository.get_window(window.window_id)
-                        if current.state == "queued":
-                            self.repository.transition_window(window.window_id, "failed", quality="failed",
-                                failure={"code": "WINDOW_RECOVERY_IDENTITY_INVALID", "message": str(exc)})
+                with self._lock:
+                    self._recover_pending()
             except Exception:
                 self._logger.exception("dynamic_window_recovery_failed")
+
+    def _recover_pending(self) -> None:
+        """Recovery shares the admission owner lock with exclusive cache maintenance."""
+        self.repository.recover_expired_attempts()
+        self.repository.recover_orphaned_full_producers()
+        for window in self.repository.recoverable_windows(self._max_pending_windows):
+            if self._stop.is_set():
+                return
+            session = self.repository.get_session(window.session_id)
+            if session.algorithm_id not in {item.manifest.algorithm_id for item in self.capabilities.list()}:
+                continue
+            payload = DynamicWindowRequest(
+                recording_id=session.recording_id, algorithm_id=session.algorithm_id,
+                definition_id=session.definition_id, definition_version=session.definition_version,
+                config=session.configuration, cursor_sample=window.end_sample,
+                project_id=session.project_id, request_id=f"recovery-{uuid4().hex}",
+            )
+            try:
+                self._ensure(payload, recovering=window)
+            except DynamicWindowCapacityExceededError:
+                break
+            except (KeyError, ValueError) as exc:
+                self._logger.exception("dynamic_window_recovery_invalid window_id=%s", window.window_id)
+                current = self.repository.get_window(window.window_id)
+                if current.state == "queued":
+                    self.repository.transition_window(window.window_id, "failed", quality="failed",
+                        failure={"code": "WINDOW_RECOVERY_IDENTITY_INVALID", "message": str(exc)})
 
     def get(self, window_id: str, *, project_id: str | None = None,
             include_projection_source: bool = False) -> dict[str, Any]:

@@ -186,8 +186,10 @@ public sealed partial class RecordingReviewViewModelTests
         now = 1.25;
         vm.TickPlayback();
         await SpectralReady(vm, "psd-10500");
-        Assert.Equal(10500, psd.Cursors.Last());
-        Assert.Equal(psd.Cursors.Last(), rbp.Cursors.Last());
+        Assert.Equal(10500, vm.CurrentAnalysisWindow!.CursorSample);
+        Assert.Equal(1, psd.Cursors.Count(sample => sample == 10500));
+        Assert.All(psd.Cursors, sample => Assert.InRange(sample, 10000, 11500));
+        Assert.Equal(psd.Cursors, rbp.Cursors);
         vm.TogglePlayback();
         Assert.False(vm.IsPlaying);
         Assert.NotNull(vm.SpectralValues.Rows[0].AbsolutePowerUv2);

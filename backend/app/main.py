@@ -39,6 +39,7 @@ from app.api.algorithm_presets import router as algorithm_presets_router
 from app.api.live_filters import router as live_filters_router
 from app.api.live_recordings import router as live_recordings_router
 from app.api.analysis_windows import router as analysis_windows_router
+from app.api.cache_maintenance import router as cache_maintenance_router
 from app.api.topomap import router as topomap_router, dynamic_router as dynamic_topomap_router
 from app.api.result_scalars import router as result_scalars_router
 from app.api.custom_frequency_inspection import router as custom_frequency_inspection_router
@@ -46,6 +47,8 @@ from app.api.topomap_3d import router as topomap_3d_router
 from app.services.live_filter import LiveFilterService
 from app.services.live_recording_access import LiveRecordingAccessService
 from app.services.on_demand_dynamic import DynamicWindowService
+from app.services.cache_maintenance import CacheMaintenanceService
+from app.core.cache_maintenance_gate import CacheMaintenanceGate, CacheMaintenanceMiddleware
 from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
 from app.services.topomap import TopomapService
 from app.services.result_scalars import ResultScalarsService
@@ -80,6 +83,7 @@ async def lifespan(application: FastAPI):
 
 
 app = FastAPI(title="Brain Platform API", version="0.1.0", lifespan=lifespan)
+app.add_middleware(CacheMaintenanceMiddleware, gate=CacheMaintenanceGate())
 app.add_middleware(RequestContextMiddleware)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -136,6 +140,9 @@ app.state.dynamic_window_service = DynamicWindowService(
 app.state.topomap_service = TopomapService(
     app.state.result_service, app.state.run_service, app.state.dynamic_window_service,
 )
+app.state.cache_maintenance_service = CacheMaintenanceService(
+    app.state.dynamic_window_service, app.state.run_service._offline_window_reuse.artifacts,
+)
 app.state.result_scalars_service = ResultScalarsService(app.state.dynamic_window_service)
 app.state.custom_frequency_inspection_service = CustomFrequencyInspectionService(app.state.dynamic_window_service)
 app.state.topomap_3d_service = Topomap3DService()
@@ -159,6 +166,7 @@ app.include_router(algorithm_presets_router)
 app.include_router(live_filters_router)
 app.include_router(live_recordings_router)
 app.include_router(analysis_windows_router)
+app.include_router(cache_maintenance_router)
 app.include_router(topomap_router)
 app.include_router(dynamic_topomap_router)
 app.include_router(result_scalars_router)

@@ -132,7 +132,7 @@
     "backend/app/services/recordings.py": {
       "decision": "keep",
       "max_lines": 590,
-      "reason": "RecordingService 负责 recording 注册、目录身份和访问服务委派，并持有 AnalysisMontageSnapshots 与有界 WPF facts/index 缓存；样本读取契约、格式适配、内容校验及通道投影位于独立 recording_access 模块。此次删除重复的 captured/saved 目录拼装，统一委派 AnalysisMontageSnapshots，527 行且未增长；若继续增长则把注册/目录查询拆为独立服务，不在本文件加入显示或科学公式。"
+      "reason": "RecordingService 负责 recording 注册、目录身份和访问服务委派，并持有 AnalysisMontageSnapshots 与有界 WPF facts/index 缓存；样本读取契约、格式适配、内容校验及通道投影位于独立 recording_access 模块。当前 537 行，本轮仅增加 FAA 连续源的类型化委派及共享源服务组装，滤波、缓存身份和生命周期归 ContinuousPreprocessingService；若继续增长则把注册/目录查询拆为独立服务，不在本文件加入显示或科学公式。"
     },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",
@@ -142,7 +142,12 @@
     "backend/app/services/spectral_analysis.py": {
       "decision": "keep",
       "max_lines": 550,
-      "reason": "当前 485 行，保留配置频谱请求、连续预处理缓存和响应 provenance 编排；滤波和频谱数学归入 ScientificSpectralGateway，分块读取和映射另有所有者。本轮按职责将 STFT 有限上下文读取及响应组装移至 spectrogram_source，共用的读取/滤波/裁剪操作归 bounded_window_preprocessing。既有连续频谱缓存仍由本服务拥有，不机械拆分同一缓存生命周期；继续扩展前复核其职责边界。"
+      "reason": "当前 424 行，集中编排频谱请求、质量检查和响应 provenance；连续预处理及有界缓存复用已按职责抽至 ContinuousPreprocessingService，FAA 与 PSD 使用同一所有者。科学数学仍归 ScientificSpectralGateway，STFT 有限上下文读取归 spectrogram_source。保留同一频谱用例的校验和组装，继续扩展前复核其职责边界。"
+    },
+    "backend/app/services/algorithm_recording_context.py": {
+      "decision": "keep",
+      "max_lines": 420,
+      "reason": "当前 410 行，集中将算法的类型化信号/频谱请求适配到记录服务，并校验实际样本范围、单位和角色通道顺序；不实现算法公式。本轮删除上下文私有 FAA 源缓存，改委派共享连续源，仅持有活动窗口所需映射引用。保持输入适配与生命周期在同一所有者，后续扩展前按信号请求/频谱请求职责重新评估。"
     },
     "backend/app/persistence/repositories/dynamic_attempt.py": {
       "decision": "keep",

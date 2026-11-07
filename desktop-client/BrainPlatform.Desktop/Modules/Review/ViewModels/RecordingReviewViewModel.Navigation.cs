@@ -13,6 +13,7 @@ public sealed partial class RecordingReviewViewModel
     {
         if (isTimelineDragging) return;
         isTimelineDragging = true;
+        analysisBinding?.SetPlaybackActive(false, playback.Snapshot.Generation);
         CancelSpectralWindowLoad();
         if (IsSpectralInspectionPanelOpen)
         {
@@ -29,6 +30,7 @@ public sealed partial class RecordingReviewViewModel
         isTimelineDragging = false;
         if (IsSpectralInspectionPanelOpen) _ = RequestSpectralWindowAsync(PositionSeconds);
         else analysisBinding?.OnCursorDragCompleted(PositionSeconds, playback.Snapshot.Generation);
+        analysisBinding?.SetPlaybackActive(playback.IsPlaying, playback.Snapshot.Generation);
     }
 
     public Task SeekAsync(double positionSeconds)
@@ -56,6 +58,7 @@ public sealed partial class RecordingReviewViewModel
         // Keep the chart viewport on the last complete frame while dragging.
         // Moving the axis before the replacement frame is ready exposes the
         // old frame only over its overlap and leaves the rest blank.
+        analysisBinding?.SetPlaybackActive(false, playback.Snapshot.Generation);
         SetPreviewPositionCore(positionSeconds, updateViewport: false, requestAnalysis: false);
         pendingPreviewViewportStart = targetViewportStart;
         if (session.PreviewNavigationTarget(targetViewportStart, playback.PositionSeconds))
@@ -76,6 +79,9 @@ public sealed partial class RecordingReviewViewModel
         if (playback.IsPlaying) playback.Pause();
         else playback.Play();
         PublishPlaybackChanges(wasPlaying, wasCompleted);
+        analysisBinding?.SetPlaybackActive(playback.IsPlaying && !isTimelineDragging, playback.Snapshot.Generation);
+        if (playback.IsPlaying) PrepareUpcomingSpectralWindows();
+        else CancelSpectralWindowLoad();
     }
 
     public void CyclePlaybackSpeed()
@@ -95,13 +101,15 @@ public sealed partial class RecordingReviewViewModel
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));
         PublishPlaybackChanges(wasPlaying, wasCompleted);
+        if (!playback.IsPlaying) StopSpectralPreparation();
+        analysisBinding?.SetPlaybackActive(playback.IsPlaying && !isTimelineDragging, playback.Snapshot.Generation);
         // Property notifications can close the view before this tick resumes.
         if (isDisposing) return;
         if (IsSpectralInspectionPanelOpen)
         {
             if (!isTimelineDragging) _ = RequestSpectralWindowAsync(PositionSeconds, playbackAdvance: true);
         }
-        else analysisBinding?.OnPlaybackCursorAdvanced(PositionSeconds, playback.Snapshot.Generation);
+        else if (!isTimelineDragging) analysisBinding?.OnPlaybackCursorAdvanced(PositionSeconds, playback.Snapshot.Generation);
         if (isDisposing) return;
         if (!session.ContainsViewport(ViewportStartSeconds) &&
             !session.TryActivateCachedViewport(ViewportStartSeconds, playback.PositionSeconds))

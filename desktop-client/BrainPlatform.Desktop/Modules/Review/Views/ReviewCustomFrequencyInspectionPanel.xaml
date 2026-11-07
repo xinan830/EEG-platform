@@ -285,25 +285,25 @@
 
                                 <!-- 2. 等效 RMS (µV) -->
                                 <DataGridTextColumn Header="等效 RMS&#x0a;(µV)"
-                                                    Binding="{Binding AmplitudeRmsUv, StringFormat=G6, TargetNullValue=—}"
+                                                    Binding="{Binding AmplitudeRmsUv, StringFormat=F2, TargetNullValue=—}"
                                                     HeaderStyle="{StaticResource CustomFreqNumericHeaderStyle}"
                                                     ElementStyle="{StaticResource CustomFreqNumericCellStyle}" Width="108" />
 
                                 <!-- 3. 绝对功率 (µV²) -->
                                 <DataGridTextColumn Header="绝对功率&#x0a;(µV²)"
-                                                    Binding="{Binding AbsolutePowerUv2, StringFormat=G6, TargetNullValue=—}"
+                                                    Binding="{Binding AbsolutePowerUv2, StringFormat=F2, TargetNullValue=—}"
                                                     HeaderStyle="{StaticResource CustomFreqNumericHeaderStyle}"
                                                     ElementStyle="{StaticResource CustomFreqNumericCellStyle}" Width="108" />
 
                                 <!-- 4. 相对功率 (%) -->
                                 <DataGridTextColumn Header="相对功率&#x0a;(%)"
-                                                    Binding="{Binding RelativePowerPercent, StringFormat=G6, TargetNullValue=—}"
+                                                    Binding="{Binding RelativePowerPercent, StringFormat=F2, TargetNullValue=—}"
                                                     HeaderStyle="{StaticResource CustomFreqNumericHeaderStyle}"
                                                     ElementStyle="{StaticResource CustomFreqNumericCellStyle}" Width="108" />
 
                                 <!-- 5. 功率谱密度 (µV²/Hz) -->
                                 <DataGridTextColumn Header="PSD&#x0a;(µV²/Hz)"
-                                                    Binding="{Binding PsdDensityUv2PerHz, StringFormat=G6, TargetNullValue=—}"
+                                                    Binding="{Binding PsdDensityUv2PerHz, StringFormat=F2, TargetNullValue=—}"
                                                     HeaderStyle="{StaticResource CustomFreqNumericHeaderStyle}"
                                                     ElementStyle="{StaticResource CustomFreqNumericCellStyle}" Width="116" />
                             </DataGrid.Columns>

@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
-/// <summary>Owns one paired source/projection update and one latest playback target.</summary>
+/// <summary>Publishes paired results at playback targets, with bounded preparation ahead of the clock.</summary>
 public sealed partial class RecordingReviewViewModel
 {
     private CancellationTokenSource? spectralWindowCancellation;
@@ -20,13 +20,13 @@ public sealed partial class RecordingReviewViewModel
         var sample = RecordingTimeMapper.ToCursorSample(seconds, samplingRateHz, playback.DurationSamples);
         if (playbackAdvance)
         {
-            var step = Math.Max(1, (long)Math.Round(PsdParameters.StepSeconds * samplingRateHz,
-                MidpointRounding.AwayFromZero));
+            var step = SpectralStepSamples;
             sample = sample / step * step;
             if (sample == lastSpectralPlaybackSample) return Task.CompletedTask;
             lastSpectralPlaybackSample = sample;
             if (spectralWindowLoad is { IsCompleted: false })
             {
+                spectralPlaybackBuffer?.DiscardBefore(sample);
                 pendingSpectralPlaybackSample = sample;
                 return Task.CompletedTask;
             }
@@ -60,19 +60,41 @@ public sealed partial class RecordingReviewViewModel
                 var started = Stopwatch.GetTimestamp();
                 if (CustomFrequencyInspection.HasBins)
                     CustomFrequencyInspection.SetPendingWindow(sample / (double)samplingRateHz);
-                await Task.WhenAll(psd.LoadAtSampleAsync(sample, request.Token),
-                    rbp.LoadAtSampleAsync(sample, request.Token));
+                var preparedTask = spectralPlaybackBuffer?.Take(sample);
+                var bufferState = preparedTask is null ? "miss" : preparedTask.IsCompletedSuccessfully ? "ready" : "waiting";
+                spectralSourcesLoading = true;
+                if (IsCustomFrequencyInspectionPanelOpen) customFrequencyBinsLoading = true;
+                preparedSpectralWindow = null;
+                ReviewPreparedSpectralWindow? preparedForPublication = null;
+                if (preparedTask is not null)
+                {
+                    var prepared = await preparedTask.WaitAsync(request.Token);
+                    request.Token.ThrowIfCancellationRequested();
+                    await Task.WhenAll(psd.LoadPreparedAtSampleAsync(sample, prepared.Psd, request.Token),
+                        rbp.LoadPreparedAtSampleAsync(sample, prepared.Rbp, request.Token));
+                    preparedForPublication = prepared;
+                }
+                else
+                {
+                    // A jump beyond the horizon replaces preparation before issuing new adapter targets.
+                    StopSpectralPreparation();
+                    await Task.WhenAll(psd.LoadAtSampleAsync(sample, request.Token),
+                        rbp.LoadAtSampleAsync(sample, request.Token));
+                }
                 request.Token.ThrowIfCancellationRequested();
                 if (!ReferenceEquals(psd, analysisBinding) || !ReferenceEquals(rbp, spectralRbpBinding)) return;
+                preparedSpectralWindow = preparedForPublication;
                 var sourceMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                spectralSourcesLoading = false;
                 sourcesReady.TrySetResult();
+                if (pendingSpectralPlaybackSample is null) PrepareUpcomingSpectralWindows();
                 // Backend windows are step-aligned; requested cursor equality is not a pairing contract.
                 if (IsCustomFrequencyInspectionPanelOpen) await RefreshCustomFrequencyInspectionAsync();
                 if (IsSpectralValuesPanelOpen) await RefreshSpectralValuesAsync();
                 request.Token.ThrowIfCancellationRequested();
                 if (DesktopLog.PerformanceDiagnosticsEnabled)
                     DesktopLog.Info($"review_spectral_pair_perf review_session_id={ReviewSessionId:N} recording_id={recordingId} " +
-                        $"target_cursor_sample={sample} psd_window_id={psd.CurrentWindow?.Window?.WindowId ?? "none"} " +
+                        $"buffer_state={bufferState} target_cursor_sample={sample} psd_window_id={psd.CurrentWindow?.Window?.WindowId ?? "none"} " +
                         $"rbp_window_id={rbp.CurrentWindow?.Window?.WindowId ?? "none"} source_ms={sourceMs:0.0} " +
                         $"projection_ms={Stopwatch.GetElapsedTime(started).TotalMilliseconds - sourceMs:0.0} " +
                         $"playback_position_s={PositionSeconds:0.000} target_position_s={sample / (double)samplingRateHz:0.000} " +
@@ -85,11 +107,24 @@ public sealed partial class RecordingReviewViewModel
                 sample = next;
             }
         }
-        catch (OperationCanceledException) when (request.IsCancellationRequested) { }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            if (!request.IsCancellationRequested)
+            {
+                CustomFrequencyInspection.Clear($"窗口数值不可用：{exception.Message}");
+                SpectralValues.Clear($"窗口数值不可用：{exception.Message}");
+                DesktopLog.Error($"review_spectral_publication_failed review_session_id={ReviewSessionId:N} recording_id={recordingId}", exception);
+            }
+        }
         finally
         {
             sourcesReady.TrySetResult();
-            if (ReferenceEquals(spectralWindowCancellation, request)) spectralWindowCancellation = null;
+            if (ReferenceEquals(spectralWindowCancellation, request))
+            {
+                spectralWindowCancellation = null;
+                spectralSourcesLoading = false;
+            }
             request.Dispose();
         }
     }
@@ -99,6 +134,9 @@ public sealed partial class RecordingReviewViewModel
 
     private void CancelSpectralWindowLoad()
     {
+        StopSpectralPreparation();
+        preparedSpectralWindow = null;
+        spectralSourcesLoading = false;
         spectralWindowCancellation?.Cancel();
         spectralWindowCancellation = null;
         spectralWindowLoad = null;

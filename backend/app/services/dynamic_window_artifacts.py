@@ -136,6 +136,11 @@ class DynamicWindowArtifactStore:
             self._read_cache.clear()
             self._cache_bytes = 0
 
+    def refresh_directory_usage(self) -> None:
+        """Recount after exclusive maintenance, including a partially failed deletion."""
+        with self._usage_lock:
+            self._directory_usage[self.directory] = self._scan_directory_bytes() if self.directory.exists() else 0
+
     def close(self) -> None:
         with self._read_lock:
             self._cache_closed = True

@@ -4,12 +4,18 @@ using System.IO;
 using BrainPlatform.Desktop.Infrastructure.Backend;
 using BrainPlatform.Desktop.Modules.Channels.Api;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
+using System.Net.Http;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
+using BrainPlatform.Desktop.Modules.Settings.Api;
+using BrainPlatform.Desktop.Modules.Settings.Services;
+using BrainPlatform.Desktop.Modules.Settings.ViewModels;
 
 namespace BrainPlatform.Desktop.Application;
 
 public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly IBackendHealthClient backendHealthClient;
+    private readonly HttpClient? maintenanceTransport;
     private BackendConnectionState backendState = BackendConnectionState.Checking(DateTimeOffset.Now);
 
     public DesktopWorkspaceViewModel(
@@ -22,7 +28,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         ChannelConfigurationProfileStore? channelConfigurationStore = null,
         MontageProfileStore? montageStore = null,
         IElectrodeLocationClient? electrodeLocationClient = null,
-        RecordingSessionManager? recordingSessionManager = null)
+        RecordingSessionManager? recordingSessionManager = null,
+        ICacheMaintenanceClient? cacheMaintenanceClient = null)
     {
         this.backendHealthClient = backendHealthClient;
         Notifications = notifications ?? new OperationNotificationCenter();
@@ -31,6 +38,17 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         montageStore ??= new MontageProfileStore(projectStore: projectStore);
         Algorithms = algorithmClient ?? throw new ArgumentNullException(nameof(algorithmClient));
         RecordingSessions = recordingSessionManager ?? new RecordingSessionManager();
+        if (cacheMaintenanceClient is null)
+        {
+            maintenanceTransport = new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
+            {
+                BaseAddress = new Uri(backendHealthClient.Endpoint.GetLeftPart(UriPartial.Authority) + "/"),
+                Timeout = TimeSpan.FromMinutes(5),
+            };
+            cacheMaintenanceClient = new HttpCacheMaintenanceClient(maintenanceTransport);
+        }
+        var cacheMaintenance = new CacheMaintenanceService(cacheMaintenanceClient, new ReviewCacheCleaner(), RecordingSessions);
+        CacheMaintenance = new CacheMaintenanceViewModel(() => cacheMaintenance.ClearAsync());
         Projects = new ProjectWorkspaceViewModel(Notifications, store: projectStore);
         AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects, TimeDisplaySettings, montageStore,
             recordingSessionManager: RecordingSessions);
@@ -63,6 +81,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     }
 
     public AcquisitionWorkspaceViewModel Acquisition { get; }
+    public CacheMaintenanceViewModel CacheMaintenance { get; }
 
     public RecordingTimeDisplaySettings TimeDisplaySettings { get; } = new();
 
@@ -180,6 +199,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     {
         await AlgorithmCatalog.DisposeAsync();
         await RecordingSessions.DisposeAsync();
+        maintenanceTransport?.Dispose();
         Overview.Dispose();
         await Acquisition.DisposeAsync();
     }

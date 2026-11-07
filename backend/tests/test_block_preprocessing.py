@@ -166,7 +166,7 @@ def test_stft_does_not_require_entry_to_fit_in_memory_cache(tmp_path, monkeypatc
     time = np.arange(6000) / 200
     from tests.test_spectrum_service import _provide_data
     _provide_data(monkeypatch, service, (10e-6 * np.sin(2 * np.pi * 10 * time))[:, None], 200, ["F3"])
-    service._spectral_analysis.preprocess_cache = AnalysisPreprocessCache(max_resident_bytes=1)
+    service._spectral_analysis.continuous_preprocessing.preprocess_cache = AnalysisPreprocessCache(max_resident_bytes=1)
     result = service.load_spectrogram(recording, 0, 30, ["F3"], notch_hz=None)
     assert len(result["times_s"]) == 27
 

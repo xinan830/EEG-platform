@@ -66,9 +66,13 @@ public sealed partial class RecordingReviewViewModel
                 throw new InvalidOperationException("PSD adapter 不提供现有频段投影。");
             var rbpProvider = analysisCoordinators["rbp"].GetCapability<IReviewScalarProvider>() ??
                 throw new InvalidOperationException("RBP adapter 不提供振幅投影。");
-            var density = psdProvider.LoadScalarsAsync(psd, request.Token,
+            var prepared = CurrentPreparedSpectralWindow(psd, rbp);
+            if (prepared?.ProjectionError is { } error) throw error;
+            var density = prepared?.Density is { } savedDensity ? Task.FromResult(savedDensity) :
+                psdProvider.LoadScalarsAsync(psd, request.Token,
                 ReviewSpectralSources.Bands.Select(band => $"psd.band-mean-density.{band}").ToArray());
-            var amplitude = rbpProvider.LoadScalarsAsync(rbp, request.Token,
+            var amplitude = prepared?.Amplitude is { } savedAmplitude ? Task.FromResult(savedAmplitude) :
+                rbpProvider.LoadScalarsAsync(rbp, request.Token,
                 ReviewSpectralSources.Bands.Select(band => $"rbp.amplitude.{band}").ToArray());
             await Task.WhenAll(density, amplitude);
             if (IsCurrentSpectralProjection(revision, psd, rbp) && !request.IsCancellationRequested)
