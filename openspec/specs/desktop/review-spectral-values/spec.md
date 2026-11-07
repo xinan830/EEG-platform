@@ -146,7 +146,8 @@ The custom panel SHALL use the existing PSD/RBP playback analysis policy, segmen
 
 #### Scenario: One source is slower than the playback refresh step
 - **WHEN** new playback targets arrive while a paired PSD/RBP source or projection is still loading
-- **THEN** the numeric-panel owner completes and publishes that pair, retains only the newest pending target for both sources, and never waits on the waveform clock
+- **THEN** the numeric-panel owner completes the active pair, retains only the newest pending foreground target for both sources, and never waits on the waveform clock; future preparation SHALL remain bounded to two upcoming targets and SHALL NOT publish before its playback target
+- **AND** queued preparation older than the newest pending foreground target is discarded before it starts, so missed deadlines cannot create a backlog of obsolete preparation
 - **AND** waiting for a successor source/bin response preserves the last published rows and curve with their actual time and an explicit pending status, rather than repeatedly clearing them or presenting them as the newest target
 - **AND** explicit seek, timeline drag, configuration change and close invalidate the displayed pair and reject obsolete responses immediately
 
@@ -169,3 +170,29 @@ The custom panel SHALL use the existing PSD/RBP playback analysis policy, segmen
 - **WHEN** another database connection cancels the window or invalidates its exact attempt token or expiry
 - **THEN** the next cooperative checkpoint reads that committed state without a stale local cancellation cache
 - **AND** the worker closes its owned state-reader connection on completion or failure and stale results cannot publish
+
+#### Scenario: Prepare cold offline playback windows
+- **WHEN** either numeric panel is playing and upcoming recording samples are available
+- **THEN** the existing PSD/RBP computation and backend numeric projection routes prepare at most two upcoming step-aligned pairs without changing the current displayed sources
+- **AND** at the matching playback position prepared results are adopted with the same recording, actual sample bounds, ordered channels, units, quality and provenance checks as demand-loaded results
+- **AND** range results are reused only for matching selected bounds, while frequency selection uses returned bins without frontend scientific calculation
+
+#### Scenario: Cancel future preparation
+- **WHEN** playback pauses, the user seeks or drags the timeline, analysis configuration changes or the panel closes
+- **THEN** outstanding preparation is cancelled and discarded, no old response can change current values, and no further future targets are scheduled until valid playback resumes
+
+#### Scenario: Preparation misses a deadline
+- **WHEN** a cold window is still computing at its playback target
+- **THEN** waveform playback continues independently, the panel retains the previous actual window with explicit pending state, and the delayed result cannot be labelled as a different window
+- **AND** diagnostics distinguish preparation duration, publication wait and actual window lag
+
+### Requirement: Format custom-frequency table metrics to two decimal places
+The custom-frequency table SHALL display RMS amplitude in µV, absolute power in µV², relative power in percent and PSD density in µV²/Hz with exactly two decimal places. Formatting SHALL preserve underlying precision, numeric sorting, source-window identity, channel order, quality and provenance. Unavailable values SHALL retain their unavailable marker.
+
+#### Scenario: Display a valid metric
+- **WHEN** a channel has a valid custom-frequency table metric
+- **THEN** its cell displays the rounded value with exactly two decimal places, including trailing zeros, without modifying the source value
+
+#### Scenario: Display an unavailable metric
+- **WHEN** a channel metric is unavailable
+- **THEN** the cell displays `—` rather than a numeric zero

@@ -1,4 +1,10 @@
-## ADDED Requirements
+# desktop/cache-maintenance Specification
+
+## Purpose
+
+Let workstation users clear rebuildable playback caches and their dynamic-window records from Settings while preserving original recordings, historical analyses and configuration.
+
+## Requirements
 
 ### Requirement: Settings exposes rebuildable-cache cleanup
 The desktop SHALL provide a single asynchronous clear-cache action in Settings, show progress and completion/failure, prevent repeated submissions, and display the deleted-window count and released file bytes after success. It SHALL clear local review display/source cache directories only after backend cleanup succeeds. Active recording access SHALL block local cleanup and new recording access SHALL wait until cleanup finishes.
