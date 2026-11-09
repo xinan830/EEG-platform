@@ -1,6 +1,6 @@
 # 算法实现地图
 
-所有路径相对仓库根目录。目录参数 `<id>` 表示具体算法包，不是通配加载或插件入口。
+所有路径相对仓库根目录。目录参数 `<id>` 表示具体算法包，不是通配加载或插件入口；两个 Brainbeat ID 共用 `brainbeat/` 包，公共 ID 与包路径对应见[执行清单](official-algorithm-execution-inventory.md)。
 
 | 职责 | 路径 |
 | --- | --- |
@@ -17,6 +17,7 @@
 | WPF 算法工作区 | `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/` |
 | WPF UI/detail 注册 | `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Shared/AlgorithmUiRegistry.cs` |
 | WPF Run handler 注册 | `desktop-client/BrainPlatform.Desktop/Modules/Algorithms/ViewModels/Shared/AlgorithmRunResultHandlerRegistry.cs` |
+| WPF Review 面板独立注册；逐项范围见[接入状态表](review-adapter-onboarding.md) | `desktop-client/BrainPlatform.Desktop/Modules/Review/Analysis/ReviewAlgorithmPanels.cs` |
 | 基于记录的导联候选 | `desktop-client/BrainPlatform.Desktop/Modules/Review/Montages/RecordingMontageCatalog.cs` |
 
 新增算法遵循[作者指南](official-algorithm-development.md)，不在通用层加入按 ID 分支的公式。出现新输入来源或结果形状时，单独扩展 typed 契约。

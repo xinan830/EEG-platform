@@ -1,15 +1,16 @@
 # Brain Platform 交接文档
 
-更新时间：2026-11-05（Asia/Shanghai）
+更新时间：2026-11-09（Asia/Shanghai；本次只核对目录数量与客户端注册范围）
 
 本文写给没有当前会话上下文的新会话。源码、测试和 OpenSpec 是事实来源；本文件只提供工作背景和接手顺序。自动化测试通过不等于真实 EEG 录音上的人工验收通过。
 
-## 当前基线（2026-11-05）
+## 当前基线（2026-11-09）
 
-- 当前 HEAD：`368bcda Standardize spectral algorithm contracts`；本轮接手时源码工作区干净。
-- 当前官方目录有 10 个可运行项：9 个独立算法加 `tnk_biofeedback` TNK 指标组。TNK 的四个内部子指标不是独立公共算法 ID。
+- 本次文档核对基于 `3070342 docs: sync review specifications and archive completed changes`；开始核对时工作区干净。提交身份仅表示本次核对基点，不代表后续 HEAD。
+- 当前官方目录注册 11 个公共算法 ID：10 个独立算法加 `tnk_biofeedback` TNK 指标组。`brainbeat` 与 `brainbeat_individualized` 是两个 ID，共用 `brainbeat/` 包；TNK 内部子指标不计入公共 ID 数量。
+- 算法工作区为全部 11 个 ID 注册了详情和结果处理器；Review 注册了其中 9 个，未注册 `band_ratio` 与 `peak_frequency`。逐项范围见[客户端接入状态表](docs/algorithms/review-adapter-onboarding.md)；注册存在不代表真实录音或人工验收通过。
 - FAA 动态窗口默认值已对齐：省略 `dynamic_window_s` 时使用 manifest 的 20 秒默认，显式值保留；该变更已归档于 `openspec/changes/archive/2026-11-05-align-faa-dynamic-default/`。独立的 minimum-clean-epoch-ratio 决策仍未引入。
-- 最近一次针对该变更的验证记录：配置测试 3 项通过、OpenSpec strict validation 通过、`git diff --check` 通过。它们不代表全量回归、真实 EEG 或临床验证。
+- 2026-11-05 针对该变更的验证记录：配置测试 3 项通过、OpenSpec strict validation 通过、`git diff --check` 通过。它们不代表本次重新运行、全量回归、真实 EEG 或临床验证。
 - 继续工作前先检查 `git status --short --branch`、HEAD 和当前 OpenSpec changes；本文件以下 2026-10-28 内容是前一轮 TNK/信号预览工作的背景记录，不代表当前任务或工作区改动。
 
 ## 历史交接记录：TNK 流式回顾与信号预览（2026-10-28）

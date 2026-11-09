@@ -1,6 +1,6 @@
 # 官方算法执行边界清单
 
-更新日期：2026-10-22。本文只记录当前归属，整理过程与测试证据见[验收报告](../validation/algorithm-boundary-cleanup-acceptance.md)。策略支持和验证状态统一在[管理基线](official-algorithm-management.md)维护。
+更新日期：2026-11-09（核对目录数量与客户端注册边界）。本文只记录当前归属，原整理过程与测试证据见[验收报告](../validation/algorithm-boundary-cleanup-acceptance.md)，不代表本次重新验收。策略支持和验证状态统一在[管理基线](official-algorithm-management.md)维护。
 
 ## 执行骨架
 
@@ -17,21 +17,22 @@ WPF 参数/导联与策略选择
 
 公共层拥有身份、窗口规划、调度、取消、缓存/复用、结果校验及持久化。模块拥有公式、参数、通道角色、专属质量门和证据。组合策略不会增加第三份科学公式。
 
-## 十个独立算法
+## 十个独立算法 ID
 
-包路径均相对 `backend/app/algorithms/`。每包提供 manifest、config 和 runner；必要时包含 compute、official、window 或 provenance。
+包路径均相对 `backend/app/algorithms/`。每包提供 manifest、config 和 runner；必要时包含 compute、official、window 或 provenance。计数以 `builtin_modules.py` 组合出的公共 ID 为准：10 个独立算法 ID 加 1 个 TNK 指标组，共 11 个。两个 Brainbeat ID 共用一个包，不能按包目录数计数。
 
-| 算法包 | 科学输入 | 静态 / 动态结果 |
-| --- | --- | --- |
-| `psd/` | 所选分析通道 Welch spectrum | structured / structured-series |
-| `stft/` | 所选分析通道 spectrogram | structured / structured-series |
-| `rbp/` | 所选通道 Welch spectrum，模块固定预处理 | scalar 多频带输出 / series |
-| `band_ratio/` | 单通道 Welch spectrum | scalar / series |
-| `peak_frequency/` | 单通道 Welch spectrum | scalar / series |
-| `iapf/` | 单通道 Welch spectrum | scalar / series |
-| `theta_beta/` | 单通道 Welch spectrum，IAPF 相对频带 | scalar / series |
-| `faa/` | F3/F4 配对时序，paired-epoch FFT | scalar / series |
-| `brainbeat/` | `brainbeat`：Fz 4–8 Hz / Pz 8–12 Hz 绝对功率比；`brainbeat_individualized`：逐窗 IAPF 相对功率比 | scalar / series |
+| 公共算法 ID | 算法包 | 科学输入 | 静态 / 动态结果 |
+| --- | --- | --- | --- |
+| `psd` | `psd/` | 所选分析通道 Welch spectrum | structured / structured-series |
+| `stft` | `stft/` | 所选分析通道 spectrogram | structured / structured-series |
+| `rbp` | `rbp/` | 所选通道 Welch spectrum，模块固定预处理 | scalar 多频带输出 / series |
+| `band_ratio` | `band_ratio/` | 单通道 Welch spectrum | scalar / series |
+| `peak_frequency` | `peak_frequency/` | 单通道 Welch spectrum | scalar / series |
+| `iapf` | `iapf/` | 单通道 Welch spectrum | scalar / series |
+| `theta_beta` | `theta_beta/` | 单通道 Welch spectrum，IAPF 相对频带 | scalar / series |
+| `faa` | `faa/` | F3/F4 配对时序，paired-epoch FFT | scalar / series |
+| `brainbeat` | `brainbeat/` | Fz 4–8 Hz / Pz 8–12 Hz 绝对功率比 | scalar / series |
+| `brainbeat_individualized` | `brainbeat/` | 逐窗 IAPF 相对功率比 | scalar / series |
 
 ## TNK 指标组目录项
 
@@ -59,8 +60,10 @@ Welch、spectrogram、FAA 配对时序与 Brainbeat 配对频谱使用各自表�
 
 ## 客户端与新增算法
 
-WPF UI registry 和 Run result-handler registry 是两个客户端接入点。后端注册成功不能替代参数序列化、结果展示和桌面行为验收。
+WPF `AlgorithmUiRegistry` 和 `AlgorithmRunResultHandlerRegistry` 是算法工作区的两个接入点，当前覆盖全部 11 个公共 ID。Review 使用独立的 `ReviewAlgorithmPanels` 注册，当前覆盖 9 个，未注册 `band_ratio` 和 `peak_frequency`；逐项状态与源码位置见[客户端接入状态表](review-adapter-onboarding.md)。后端注册成功不能替代客户端注册、参数序列化、结果展示和桌面行为验收。
 
 新增算法按[作者指南](official-algorithm-development.md)实施。新输入或输出形状可能需要扩展公共契约；不承诺只写一个文件即可完成接入。
 
 数据库迁移、通用错误封装和 WPF 命名空间适配仍是独立边界，不能把官方 latest-only 表述为整个项目没有兼容代码。
+
+本次整理为 `skip_specs: true` 的纯文档纠错，依据当前工厂表与 WPF 三处注册源码校对；不改变时间、单位、通道、API/WebSocket、计算或存储契约，无数据迁移。验证采用注册 ID/文档表格比对、链接及差异检查；回滚只需还原本次文档差异，不影响已有 Run 和原始记录。

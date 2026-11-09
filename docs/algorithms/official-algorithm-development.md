@@ -25,8 +25,9 @@ WPF 参数 / 导联选择
 | 结果序列化与数组元数据 | `backend/app/services/run_result_serialization.py` | 按算法 ID 解释矩阵或专属证据 |
 | Run、artifact 与 provenance 持久化 | Run/queue、artifact 服务及 persistence repositories | 修改原始 EEG |
 | 界面工厂与输出消费 | WPF `AlgorithmUiRegistry`、`AlgorithmRunResultHandlerRegistry`、各 detail/handler | FFT、PSD、band power 或算法公式 |
+| Review 面板与窗口结果消费 | `ReviewAlgorithmPanels`、Review adapter/presenter | 从算法工作区注册推断回溯接入、重算科学公式 |
 
-新增采用现有输入/输出形状的算法通常只需算法包、工厂注册、WPF 两个注册点和对应测试。新数据源或新结果形状确实可能需要扩展公共契约；不能承诺公共层永远不变，但扩展应按能力/类型，不按算法 ID 加科学分支。
+新增采用现有输入/输出形状的算法，后端及算法工作区接入通常需要算法包、工厂注册、WPF UI 与 result-handler 两个注册点和对应测试。若还要求在 Review 使用，需另行接入 `ReviewAlgorithmPanels` 和相应 adapter/presenter，按[回溯接入清单](review-adapter-onboarding.md)验证。新数据源或新结果形状确实可能需要扩展公共契约；不能承诺公共层永远不变，但扩展应按能力/类型，不按算法 ID 加科学分支。
 
 ## 输入与预处理
 
@@ -70,7 +71,7 @@ Runtime 在发布前校验 shape、轴、单位、角色、并行列表、数值
 2. 实现算法包；manifest 提供 current、实现身份、`SignalRequirements`、`AlgorithmOutputContract`、参数和策略声明。优先复用已有 typed 数据能力；公式和专属证据留在模块。
 3. 在唯一工厂表注册。验证 current 唯一性、catalog/manifest parity、无具体算法依赖进入通用 Runtime。通用序列化不新增 ID 分支。
 4. 分别声明 full、on-demand、combined 和两个方向的复用。支持某模式不自动证明 combined 或复用正确；未支持明确给原因，未验证保持 `unvalidated`。
-5. 接入 WPF UI registry 与 result-handler registry，完成请求序列化、当前版本校验、图表/指标、实际范围、状态、失败与 provenance 展示。前端不重算科学公式。
+5. 接入算法工作区的 WPF UI registry 与 result-handler registry，完成请求序列化、当前版本校验、图表/指标、实际范围、状态、失败与 provenance 展示；若需求包含 Review，另行注册 Review 面板并验证 adapter/presenter。前端不重算科学公式。
 6. 添加独立数值参考、固定输入和声明容差；逐点比较数组与中间量，精确比较轴/样本/状态/单位/科学身份。大数组单独保存受控 checksum artifact，不覆盖原冻结件。
 7. 验证静态、动态全量、按需、combined，以及所声明的方向性复用；包括导联切换、参数改变、缺失/坏段、取消和旧请求竞态。
 8. 更新管理矩阵、作者指南和 tasks，运行后端/WPF 套件、构建、规范与规模检查。实际桌面验收和自动化证据分别记录，验收通过才提交推送。

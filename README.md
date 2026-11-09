@@ -2,7 +2,9 @@
 
 本地单用户 EEG 科研工作站，包含 WPF 桌面端和 Python/FastAPI 后端。桌面端负责设备采集、原始记录、阅图和交互；后端负责数据校验、导联投影、分析预处理及科学计算。支持 BDF/EDF 导入和已完成的 WPF 采集记录分析。
 
-当前官方目录提供 10 个可运行项：9 个独立算法（PSD、STFT、RBP、Band Ratio、Peak Frequency、IAPF、Theta/Beta、FAA、离线 Brainbeat）和 1 个 TNK 指标组。运行管理统一，公式和专属质量门由各算法模块独立维护。动态分析提供全量、按需及组合方式；具体复用方向见[管理基线](docs/algorithms/official-algorithm-management.md)。
+当前官方目录注册 11 个公共算法 ID：10 个独立算法（PSD、STFT、RBP、Band Ratio、Peak Frequency、IAPF、Theta/Beta、FAA、经典 Brainbeat、个体化 Brainbeat）和 1 个 TNK 指标组。两个 Brainbeat ID 共用 `brainbeat/` 包，包目录数不等于算法 ID 数；TNK 内部子指标不计入公共目录数量。运行管理统一，公式和专属质量门由各算法模块独立维护。动态分析提供全量、按需及组合方式；具体复用方向及验证范围见[管理基线](docs/algorithms/official-algorithm-management.md)。
+
+算法工作区已为这 11 个 ID 注册详情和结果处理器；Review 已注册其中 9 个，尚未注册 Band Ratio 和 Peak Frequency。后端可运行、工作区注册、Review 注册和实际验收是不同状态，逐项范围见[客户端接入状态表](docs/algorithms/review-adapter-onboarding.md)。
 
 ## 启动
 

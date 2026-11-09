@@ -13,6 +13,7 @@
 | Definition 图与持久化摘要 | `backend/app/algorithms/catalog.py`，由模块元数据生成；校验在 `backend/app/definitions/validation.py` | Definition repository、当前存储和校验服务 | 图结构不自动等同于官方科学实现；不提供旧图执行器或公式预览；RBP 有额外 graph contract/digest 约束 |
 | UI 标题、排序、详细视图工厂、通道提示和显示参数 | WPF `AlgorithmUiRegistry.cs` | 算法工作区、detail view model | presentation metadata；不拥有科学身份或公式 |
 | Run 结果映射、结果投影和按需视图能力 | WPF `AlgorithmRunResultHandlerRegistry.cs` 及各算法 handler/detail | Run 展示、按需预览、全量结果投影 | 是独立客户端集成点；不能仅凭后端目录项推断已完成 |
+| Review 面板注册与窗口结果展示 | WPF `ReviewAlgorithmPanels.cs` 及 Review adapter/presenter | 记录回溯的游标联动分析 | 独立于算法工作区 UI/handler 注册；逐项状态见[客户端接入状态表](review-adapter-onboarding.md)，注册不等于验收 |
 | 三种策略与方向性复用调度 | 后端动态能力 registry、window reuse/publisher/consumer；WPF `AlgorithmListViewModel` 共享调度 | 动态 API、Run 和桌面交互 | full→preview 与 on-demand→full 是不同方向；声明、代码实现、验证证据分开记录 |
 | 验证证据 | `backend/tests/`、`desktop-client/BrainPlatform.Desktop.Tests/`、`docs/validation/` | 发布检查和审阅 | GUI 正常路径、自动化等价测试、组合压力证据不是同一种证据 |
 
@@ -30,15 +31,16 @@
 | IAPF | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
 | Theta/Beta | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
 | FAA | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
-| Brainbeat | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
+| 经典 Brainbeat (`brainbeat`) | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
+| 个体化 Brainbeat (`brainbeat_individualized`) | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
 | TNK metrics group (`tnk_biofeedback`) | implemented / unvalidated | implemented / unvalidated | implemented / unvalidated | unsupported | unsupported |
 
 矩阵按当前 manifest 与专项证据核对。十个独立算法的 combined 路径由 `test_official_combined_strategies.py` 的真实队列/窗口服务合成集成测试及 WPF `OfficialCombinedStrategyTests` 验证；覆盖数值、状态、质量、范围、provenance 和双向取消隔离。TNK 组的 full、on-demand 和 combined 当前均为已实现但未验证；它的 manifest 明确声明两个反向复用方向不支持。PSD/STFT 的 on-demand→full 由 `test_official_directional_reuse.py` 对照无缓存全量，并检查损坏证据重算。能力构造器缺省仍为 unvalidated，新算法必须显式提交自己的证据。
 
 这些 validated 状态限定为可重跑的工程验证，不代表所有真实长记录、导联与滤波组合均通过压力或临床验证。2026-10-21 的九算法真实记录服务测量见 `docs/validation/2026-10-21-official-algorithm-real-recording-pressure.json`，仅证明该记录与环境。专门的真实记录组合调度压力报告见 PSD 的 `docs/validation/2026-10-17-background-full-orchestration-real-psd.md`；不能将其推广为九算法的完整组合压力结论。
 
-可机读、由回归测试核对的当前策略和契约矩阵见
-[official-algorithm-strategy-matrix.json](../validation/official-algorithm-strategy-matrix.json)。该冻结矩阵覆盖九个独立算法模块；TNK 组尚未纳入这组基线，按其 manifest 单独评估。只有共享生命周期证据的路径不能据此宣称算法专属数值等价。
+可机读的冻结策略和契约矩阵见
+[official-algorithm-strategy-matrix.json](../validation/official-algorithm-strategy-matrix.json)。该文件记录九个原有独立算法和 TNK 组的当时声明，未包含 `brainbeat_individualized`，部分科学版本也早于当前 manifest，不能作为当前 11 项目录的完整快照。当前声明以 manifest 为准，组合测试的 `ALGORITHM_IDS` 已包含十个独立 ID；本次不改写冻结矩阵或数值基线。只有共享生命周期证据的路径不能据此宣称算法专属数值等价。
 
 独立数值参考和当前合成输入/输出数组快照见
 [official-algorithm-numeric-baseline.json](../validation/official-algorithm-numeric-baseline.json) 与
@@ -57,8 +59,8 @@
 2. **实现算法包**：在 `backend/app/algorithms/<id>/` 增加 manifest、config、runner 和必要的 compute/window/evidence 文件；公式和算法专属质量逻辑留在该包。每个公式变更需添加独立数值参考或边界测试。
 3. **声明身份与策略**：manifest 明确 scientific version/current、implementation identity、`SignalRequirements`、`AlgorithmOutputContract`、output schema、supported modes、capability implementation/validation/evidence。输入走 typed source adapter；结果由 Runtime 和当前格式读取边界校验，公共层不加算法 ID 科学分支。full→preview 与 on-demand→full 分方向申报，缺少专项证据时保留 `unvalidated`。
 4. **注册后端一次**：在 `backend/app/algorithms/builtin_modules.py` 加入唯一工厂；参数 schema 和运行时配置由模块提供。运行 `python -m pytest backend/tests/test_builtin_algorithm_registry.py backend/tests/test_algorithms_catalog_api.py backend/tests/test_algorithm_runtime_architecture.py -q`，检查目录与 manifest parity、current 唯一性、科学实现边界和注册缺口。可运行 manifest 缺少 runtime module 或目录身份/输出契约不一致时，API 必须返回 `OFFICIAL_ALGORITHM_CATALOG_UNAVAILABLE`，不得拼出默认参数或动态策略。
-5. **接入 WPF 两个进程内注册点**：在 `AlgorithmUiRegistry.cs` 注册 detail factory/presentation；在 `AlgorithmRunResultHandlerRegistry.cs` 注册结果 handler，并完成参数序列化、输出绑定、状态/null/failure/provenance 展示。不能仅凭后端 catalog 声称桌面支持完整。
-6. **补契约与行为测试**：后端测试覆盖配置边界、科学输出、状态、范围与 identity；WPF 测试覆盖 catalog JSON 的 identity、参数、能力、输出 schema 解码，以及 handler、请求、显示、窗口投影及错误。运行 `dotnet test desktop-client/BrainPlatform.Desktop.Tests`。注册完整性由 `official_registration_report()` 检查 UI、handler、detail 和已声明的 on-demand/full→preview 支持。Catalog parity 由 `backend/tests/test_algorithms_catalog_api.py` 验证；WPF wire contract 由 `AlgorithmCatalogCapabilityTests` 验证。
+5. **接入算法工作区与按需接入 Review**：在 `AlgorithmUiRegistry.cs` 注册 detail factory/presentation；在 `AlgorithmRunResultHandlerRegistry.cs` 注册结果 handler，并完成参数序列化、输出绑定、状态/null/failure/provenance 展示。若需求包含 Review，还需在 `ReviewAlgorithmPanels.cs` 注册面板并实现/验证 adapter 与 presenter，见[回溯接入清单](review-adapter-onboarding.md)。不能仅凭后端 catalog 或算法工作区注册声称 Review 支持完整。
+6. **补契约与行为测试**：后端测试覆盖配置边界、科学输出、状态、范围与 identity；WPF 测试覆盖 catalog JSON 的 identity、参数、能力、输出 schema 解码，以及 handler、请求、显示、窗口投影及错误。运行 `dotnet test desktop-client/BrainPlatform.Desktop.Tests`。算法工作区注册完整性由 `official_registration_report()` 检查 UI、handler、detail 和已声明的 on-demand/full→preview 支持；它不证明 Review 面板已注册或验收。Catalog parity 由 `backend/tests/test_algorithms_catalog_api.py` 验证；WPF wire contract 由 `AlgorithmCatalogCapabilityTests` 验证。
 7. **产生策略验证证据**：对声称 validated 的每条路径提供对应自动化测试或受控验证报告；combined 必须有组合执行专属证据。验证 Run identity 从请求冻结到结果、实际样本范围、source/serving provenance 和 artifact checksum。
 8. **发布前闭环**：更新本文矩阵和 evidence 链接；运行后端全套、WPF 全套、`openspec validate <change> --strict`、`git diff --check`；检查变更文件规模符合 [`docs/工程开发契约.md`](../工程开发契约.md)。
 

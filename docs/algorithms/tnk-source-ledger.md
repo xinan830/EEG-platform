@@ -2,6 +2,8 @@
 
 本账本记录从 ANT-Amplify `eeg-process-main` 当前可执行源码和聚焦测试中识别出的科学计算与数值输出，用于迁移前确认范围。它是**源码盘点**，不是已经冻结的科学定义；具体公式参数、输入角色、窗口、状态和错误语义由 OpenSpec 任务 1.2 逐项冻结。
 
+范围提示（2026-11-09）：下文候选 ID、版本和测试数字保留迁移盘点时的范围，不是当前公共目录清单。当前为 10 个独立算法 ID 加 1 个 TNK 指标组，共 11 个；TNK 内部 ID 不计入公共目录。当前身份及客户端接入分别见[执行清单](official-algorithm-execution-inventory.md)和[接入状态表](review-adapter-onboarding.md)。
+
 ## 纳入的科学计算/结果候选
 
 | 编号 | 科学计算或结果 | 可执行源码证据 | 聚焦测试证据 | 盘点结论 |
@@ -75,7 +77,7 @@
 
 ### 1.3 与现有平台算法的边界核对
 
-平台当前 builtin composition list 仍注册 9 个既有 ID：`band_ratio`、`brainbeat`、`faa`、`iapf`、`peak_frequency`、`psd`、`rbp`、`stft`、`theta_beta`；manifest 声明的当前版本分别为 `official-band-ratio-v1`、`official-brainbeat-v1`、`official-faa-v2`、`official-iapf-v2`、`official-peak-frequency-v1`、`offline-spectral-v3`、`official-rbp-v2`、`spectrogram-v2`、`official-theta-beta-v2`。唯一注册组合点是 `backend/app/algorithms/builtin_modules.py`。TNK 候选使用独立 `tnk_*` ID，不替换或别名到这些条目。
+迁移盘点时，平台 builtin composition list 注册 9 个既有 ID：`band_ratio`、`brainbeat`、`faa`、`iapf`、`peak_frequency`、`psd`、`rbp`、`stft`、`theta_beta`；当时 manifest 声明的版本分别为 `official-band-ratio-v1`、`official-brainbeat-v1`、`official-faa-v2`、`official-iapf-v2`、`official-peak-frequency-v1`、`offline-spectral-v3`、`official-rbp-v2`、`spectrogram-v2`、`official-theta-beta-v2`。唯一注册组合点是 `backend/app/algorithms/builtin_modules.py`。本节 TNK 候选 `tnk_*` ID 属于迁移盘点范围，不表示当前公共目录项；不替换或别名到这些既有条目。
 
 | 同名/近似结果 | 平台当前定义 | TNK/ANT 差异 | 边界结论 |
 |---|---|---|---|
