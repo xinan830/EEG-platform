@@ -35,14 +35,50 @@
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
-      "max_lines": 550,
-      "reason": "Top-level composition owns navigation, close interception and Review session construction. This change removes the duplicate Review adapter list, reducing the file from 562 to 550 lines; the previous 540-line ledger was already below the source size. Adapter factories now belong to ReviewAlgorithmPanels. The shell injects the client and owns no scientific logic, request state or playback clock. Reassess navigation extraction before growing this composition further."
+      "max_lines": 551,
+      "reason": "Top-level composition owns navigation, close interception and Review session construction. Adapter factories belong to ReviewAlgorithmPanels. The blue-theme startup route adds one composition line; the shell owns no scientific logic, request state or playback clock. Reassess navigation extraction before growing this composition further."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionPreparationView.xaml": {
+      "decision": "keep",
+      "max_lines": 558,
+      "reason": "The view owns acquisition preparation layout and bindings. This change only replaces brand accents with shared blue resources; existing semantic validation colors remain. Splitting a palette-only update would add no separate view responsibility."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionWorkspaceView.xaml": {
+      "decision": "keep",
+      "max_lines": 527,
+      "reason": "The view owns the live acquisition workspace composition. This change only applies shared brand resources to existing controls and does not add acquisition state or behavior."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Views/AlgorithmListView.xaml": {
+      "decision": "keep",
+      "max_lines": 412,
+      "reason": "The view owns algorithm catalog layout. This change only applies shared blue brand resources to the existing catalog actions and selection states."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Projects/Views/ProjectDetailView.xaml": {
+      "decision": "keep",
+      "max_lines": 671,
+      "reason": "职责是项目详情及其采集/记录操作呈现，当前已超过 600 行。本次仅替换状态与操作色为共享主题资源，不增加页面职责；保持现有区域结构以避免纯样式变更触发机械拆分。后续增加详情功能前需先评估按面板拆分。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Shared/Controls/ScreenCalibrationView.xaml": {
+      "decision": "split",
+      "max_lines": 769,
+      "reason": "校准视图包含完整屏幕标定交互与多状态呈现，已超过 600 行高风险线。本次只替换品牌色并保留校准流程不变。",
+      "follow_up": "将标定指引、标定输入和结果呈现拆为可独立验证的面板，保持校准状态由现有协调者唯一持有。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Shared/Styles/InstrumentWorkspaceStyles.xaml": {
+      "decision": "keep",
+      "max_lines": 479,
+      "reason": "资源字典集中拥有仪器工作区控件样式。本次只将既有品牌强调色映射到共享蓝色资源，不改变控件结构或状态。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Shared/Styles/WorkspaceStyles.xaml": {
+      "decision": "keep",
+      "max_lines": 474,
+      "reason": "资源字典集中拥有通用工作区样式。本次只更新品牌颜色引用，保留通用状态和中性色资源。"
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Views/RecordingReviewView.xaml": {
       "decision": "split",
-      "max_lines": 540,
-      "reason": "当前 534 行。This view composes the review toolbar, waveform, event overlay and panel templates. The custom-frequency entry adds only its button, menu and template registration; its two-pane table/chart live in dedicated views. Keep the existing waveform owner and AnalysisDockHost; no scientific calculation is embedded in the view.",
-      "follow_up": "Extract the event-editor overlay and review toolbar before adding further Review controls."
+      "max_lines": 480,
+      "reason": "当前 475 行。标注入口、事件操作和编辑表单已按职责提取至 ReviewAnnotationTool；保留已有波形与 AnalysisDockHost 组合、回溯参数和数据信息呈现，不嵌入科学计算。",
+      "follow_up": "Before further toolbar growth, extract the recording display parameters into a dedicated Review view; keep waveform and analysis state in their existing owners."
     },
     "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/AlgorithmListViewModelTests.cs": {
       "decision": "keep",
@@ -63,20 +99,36 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Views/Shared/AnalysisParameterCard.xaml": {
       "decision": "split",
-      "max_lines": 550,
-      "reason": "544 行公共参数卡保留既有拆分计划。本次只展开已有动态参数区的压缩行，为分析方式控件增加名称、说明并验证双向绑定；未增加算法科学分支或新的状态所有者。",
+      "max_lines": 604,
+      "reason": "公共参数卡保留既有拆分计划。本次仅替换项目主色并为显示方式控件应用同一蓝色资源；未增加算法科学分支或新的状态所有者。",
       "follow_up": "Extract algorithm-specific parameter templates and segmented styles in a dedicated parameter-card maintenance change."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Channels/Views/ChannelDetailView.xaml": {
+      "decision": "split",
+      "max_lines": 766,
+      "reason": "通道详情视图包含多个配置面板，已超过 600 行高风险线。本次仅替换品牌色，不扩大页面职责；保留结构避免纯配色改动引入机械拆分风险。",
+      "follow_up": "拆分通道身份、采样配置及过滤配置面板，并保持共享通道配置状态的单一所有者。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Channels/Views/ChannelListView.xaml": {
+      "decision": "keep",
+      "max_lines": 596,
+      "reason": "通道列表及可见状态操作由该视图统一呈现。本次只替换品牌强调色，保持现有列表状态与绑定不变。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Devices/Views/DeviceOverviewView.xaml": {
+      "decision": "keep",
+      "max_lines": 405,
+      "reason": "设备总览视图保持设备连接状态和现有操作布局。本次只更新品牌强调色，不增加设备状态所有者。"
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Projects/ViewModels/ProjectWorkspaceViewModel.cs": {
       "decision": "split",
       "max_lines": 500,
-      "reason": "The local recording row now carries the manifest UTC origin already read by the catalog; no new file read or persistence is introduced.",
+      "reason": "Project lifecycle coordination remains below the 500-line reviewed ceiling. Executable-relative directory validation and creation now belong to ProjectDirectoryPolicy; this view model only selects default versus explicit storage and preserves populated-project path protection. The recording row retains its manifest UTC origin without changing scientific contracts.",
       "follow_up": "Extract the recording catalog row/paging presentation from project lifecycle coordination during separate project-workspace maintenance."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
       "max_lines": 580,
-      "reason": "Review-only trace decimation and gap/time projection live in ReviewWaveformTraceProjection. Event and lifecycle marker visuals now have the focused ReviewEventMarkerLayer owner; the canvas remains responsible for chart binding, layout and viewport. Equivalent cache frame wrappers reuse the existing chart payload without changing samples, filters or montage mapping.",
+        "reason": "576 lines. Trace projection and event/lifecycle visuals have focused owners. Event pointer handling and preview are isolated in RecordingReviewSciChartCanvas.EventPlacement; the main canvas only connects lifecycle and property changes. The remaining chart binding, layout and viewport concerns reuse the existing samples, filters and montage mapping.",
       "follow_up": "Split chart binding and viewport concerns from the canvas only when a concrete review behavior needs another owner."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/Views/MontageDetailView.xaml": {
@@ -117,6 +169,11 @@
       "max_lines": 520,
       "reason": "Shared ColorPicker removes the event-specific color template and popup, reducing the view to 516 lines. Remaining event metadata fields and local form styles are unchanged to avoid unrelated visual regressions.",
       "follow_up": "Extract remaining event form styles into scoped resources during separate event-editor visual maintenance."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventListView.xaml": {
+      "decision": "keep",
+      "max_lines": 405,
+      "reason": "事件列表视图负责筛选与事件行呈现。本次只替换品牌颜色资源，筛选和事件语义保持不变。"
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/ViewModels/EventDefinitionWorkspaceViewModel.cs": {
       "decision": "keep",
@@ -216,9 +273,9 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/ViewModels/RecordingReviewViewModel.cs": {
       "decision": "split",
-      "max_lines": 730,
-      "reason": "696 lines, reviewed above the 600-line risk threshold. This change adds only spectral command initialization and panel-state routing. Paired source bindings, result validation and numeric presentation are isolated in focused partial/view-model files; no second playback clock or scientific computation is introduced. The existing event and viewport ownership split remains required before further growth.",
-      "follow_up": "Move event editing/commands into a review event controller and waveform viewport scheduling into its own owner before further growing this file. Keep the playback cursor unique and target a main composition below 400 lines."
+        "max_lines": 515,
+        "reason": "510 lines after extracting event loading/editing and commands into Events, and placement state into EventPlacement partials. Existing analysis, navigation and viewport owners remain in use; no second persistence path, playback clock or scientific computation is introduced. Main composition is now below the 600-line high-risk threshold.",
+        "follow_up": "Extract remaining display-setting bindings and constructor composition when those workflows change. Keep one playback cursor and event service; target a main composition below 400 lines without mechanical file splitting."
     },
     "desktop-client/BrainPlatform.Desktop/Views/LiveSciChartCanvas.cs": {
       "decision": "keep",

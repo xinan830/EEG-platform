@@ -32,11 +32,11 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="#3B82F6" />
+                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                     <Setter TargetName="CardBorder" Property="Background" Value="#FFFFFF" />
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="#2563EB" />
+                                    <Setter TargetName="CardBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                     <Setter TargetName="CardBorder" Property="Background" Value="#F8FAFC" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
@@ -47,8 +47,8 @@
 
             <!-- 流程建议引导胶囊按钮样式 -->
             <Style x:Key="StepCapsuleStyle" TargetType="Border">
-                <Setter Property="Background" Value="#EFF6FF" />
-                <Setter Property="BorderBrush" Value="#DBEAFE" />
+                <Setter Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BlueBrandSoftBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="15" />
                 <Setter Property="Height" Value="30" />
@@ -105,12 +105,12 @@
 
                     <!-- 图标容器 (蓝色主题) -->
                     <Border Grid.Column="0" Width="48" Height="48"
-                            Background="#EFF6FF" BorderBrush="#DBEAFE" BorderThickness="1"
+                            Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="{StaticResource BlueBrandSoftBrush}" BorderThickness="1"
                             CornerRadius="12" Margin="0,0,18,0" VerticalAlignment="Center">
                         <!-- 脉冲波形图标 -->
                         <Path Data="M 2,13 H 6 L 9,4 L 14,22 L 18,8 L 21,15 L 23,13 H 26"
                               Width="22" Height="22" Stretch="Uniform"
-                              Stroke="#2563EB" StrokeThickness="2.2"
+                              Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="2.2"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
@@ -294,10 +294,10 @@
                 Padding="20,14" Margin="0,24,0,0">
             <DockPanel LastChildFill="False">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="28" Height="28" Background="#EFF6FF" CornerRadius="14" Margin="0,0,12,0">
+                    <Border Width="28" Height="28" Background="{StaticResource BlueBrandSoftBrush}" CornerRadius="14" Margin="0,0,12,0">
                         <Path Data="M 9,2 A 5,5 0 0 1 14,7 C 14,9 12.5,10.5 12,12 H 7 C 6.5,10.5 5,9 5,7 A 5,5 0 0 1 9,2 M 7,14 H 12 M 8,16 H 11"
                               Width="14" Height="14" Stretch="Uniform"
-                              Stroke="#2563EB" StrokeThickness="1.6"
+                              Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="1.6"
                               StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                               HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
@@ -310,14 +310,14 @@
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- 步骤 1: 通道配置 -->
                     <Border Style="{StaticResource StepCapsuleStyle}" MouseLeftButtonUp="OnOpenChannelListClick">
-                        <TextBlock Text="1. 通道配置" FontSize="12" FontWeight="Medium" Foreground="#2563EB" VerticalAlignment="Center" />
+                        <TextBlock Text="1. 通道配置" FontSize="12" FontWeight="Medium" Foreground="{StaticResource BlueBrandPrimaryBrush}" VerticalAlignment="Center" />
                     </Border>
 
                     <TextBlock Text="→" Foreground="#94A3B8" Margin="8,0" VerticalAlignment="Center" FontSize="12" />
 
                     <!-- 步骤 2: 导联配置 -->
                     <Border Style="{StaticResource StepCapsuleStyle}" MouseLeftButtonUp="OnOpenMontageListClick">
-                        <TextBlock Text="2. 导联配置" FontSize="12" FontWeight="Medium" Foreground="#2563EB" VerticalAlignment="Center" />
+                        <TextBlock Text="2. 导联配置" FontSize="12" FontWeight="Medium" Foreground="{StaticResource BlueBrandPrimaryBrush}" VerticalAlignment="Center" />
                     </Border>
 
                     <TextBlock Text="→" Foreground="#94A3B8" Margin="8,0" VerticalAlignment="Center" FontSize="12" />

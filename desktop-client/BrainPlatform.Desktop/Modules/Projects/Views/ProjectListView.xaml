@@ -17,7 +17,7 @@
 
             <!-- 主操作按钮样式 (新建项目) -->
             <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource AppPrimaryButtonStyle}">
-                <Setter Property="Background" Value="#1677FF" />
+                <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
                 <Setter Property="Foreground" Value="#FFFFFF" />
                 <Setter Property="FontSize" Value="13" />
                 <Setter Property="FontWeight" Value="Medium" />
@@ -32,8 +32,8 @@
                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
                             <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Background" Value="#0958D9" /></Trigger>
-                                <Trigger Property="IsPressed" Value="True"><Setter TargetName="Border" Property="Background" Value="#003EB3" /></Trigger>
+                                <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource BlueBrandDeepBrush}" /></Trigger>
+                                <Trigger Property="IsPressed" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource BlueBrandDeepBrush}" /></Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
@@ -45,9 +45,9 @@
             <Style x:Key="RowActionIconBtn" TargetType="Button" BasedOn="{StaticResource AppRowActionIconButtonStyle}">
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Width" Value="28" />
-                <Setter Property="Height" Value="28" />
-                <Setter Property="Margin" Value="2,0" />
+                <Setter Property="Width" Value="32" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Margin" Value="1,0" />
                 <Setter Property="Cursor" Value="Hand" />
                 <Setter Property="Template">
                     <Setter.Value>
@@ -57,6 +57,7 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Bd" Property="Background" Value="#EFF6FF" /></Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Bd" Property="Background" Value="#EFF6FF" /></Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
@@ -78,17 +79,23 @@
                 <Setter Property="BorderBrush" Value="#F1F5F9" />
                 <Setter Property="Background" Value="#FFFFFF" />
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="ListBoxItem">
-                            <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}">
-                                <ContentPresenter HorizontalAlignment="Stretch" />
-                            </Border>
+                            <Grid>
+                                <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}">
+                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                </Border>
+                                <Border x:Name="SelectionIndicator" Width="3" HorizontalAlignment="Left"
+                                        Background="{StaticResource BlueBrandPrimaryBrush}" Visibility="Collapsed" />
+                            </Grid>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Root" Property="Background" Value="#F8FAFC" /></Trigger>
-                                <Trigger Property="IsSelected" Value="True"><Setter TargetName="Root" Property="Background" Value="#F0F7FF" /></Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Root" Property="Background" Value="#FFFFFF" />
+                                    <Setter TargetName="SelectionIndicator" Property="Visibility" Value="Visible" />
+                                </Trigger>
                                 <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="IsSelected" Value="True" /></Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -114,8 +121,8 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="项目列表" FontSize="20" FontWeight="Bold" Foreground="#0F172A" />
-                <TextBlock Text="管理 EEG 采集项目及项目下的数据记录。" Margin="0,5,0,0" FontSize="13" Foreground="#64748B" />
+                <TextBlock Text="项目列表" FontSize="22" FontWeight="SemiBold" Foreground="#0F172A" />
+                <TextBlock Text="管理 EEG 采集项目及项目下的数据记录。" Margin="0,6,0,0" FontSize="13" Foreground="#64748B" />
             </StackPanel>
 
             <!-- 新建项目按钮 -->
@@ -128,9 +135,9 @@
         </Grid>
 
         <!-- 2. 搜索与筛选工具栏 -->
-        <Grid Grid.Row="1" Margin="0,18,0,16">
+        <Grid Grid.Row="1" Margin="0,20,0,16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="340" />
+                <ColumnDefinition Width="360" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -187,23 +194,23 @@
         <!-- 3. 数据表格容器 (响应式全宽拉伸自适应，表头与每一行使用完全一致的自适应列定义) -->
         <Border Grid.Row="2" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
             <ScrollViewer x:Name="TableScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Visible">
-                <Grid MinWidth="{Binding ViewportWidth, ElementName=TableScrollViewer}" HorizontalAlignment="Stretch" Grid.IsSharedSizeScope="True"
+                <Grid Width="{Binding ViewportWidth, ElementName=TableScrollViewer}" HorizontalAlignment="Left" Grid.IsSharedSizeScope="True"
                       UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextFormattingMode="Display">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="44" />
+                        <RowDefinition Height="48" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- 表头 (浅蓝底色 #F4F8FD，与每一行使用完全一致的列定义) -->
-                    <Border Grid.Row="0" Background="#F4F8FD" BorderThickness="0,0,0,1" BorderBrush="#E2E8F0" CornerRadius="8,8,0,0">
+                    <!-- 表头保持中性底色，列宽与项目行一致。 -->
+                    <Border Grid.Row="0" Background="#F8FAFC" BorderThickness="0,0,0,1" BorderBrush="#E2E8F0" CornerRadius="8,8,0,0">
                         <Grid Margin="16,0" UseLayoutRounding="True" SnapsToDevicePixels="True">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="1.25*" MinWidth="150" />
+                                <ColumnDefinition Width="2.1*" MinWidth="240" />
+                                <ColumnDefinition Width="0.65*" MinWidth="100" />
+                                <ColumnDefinition Width="1.15*" MinWidth="155" />
+                                <ColumnDefinition Width="0.8*" MinWidth="105" />
+                                <ColumnDefinition Width="1.35*" MinWidth="160" />
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0" Text="项目名称" Style="{StaticResource TableHeaderText}" HorizontalAlignment="Left" Margin="10,0,6,0" />
@@ -215,7 +222,7 @@
                         </Grid>
                     </Border>
 
-                    <!-- 表格内容 (与表头完全一致的自适应列定义) -->
+                    <!-- 项目说明保持单行省略，避免长文本改变表格行高；完整内容可查看提示。 -->
                     <ListBox Grid.Row="1" BorderThickness="0" Background="#FFFFFF"
                              ItemContainerStyle="{StaticResource ProjectRowStyle}"
                              ItemsSource="{Binding Projects.PagedProjects}"
@@ -226,34 +233,28 @@
                              ScrollViewer.VerticalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid Height="52" Margin="16,0" UseLayoutRounding="True" SnapsToDevicePixels="True">
+                                <Grid MinHeight="72" Margin="16,4" UseLayoutRounding="True" SnapsToDevicePixels="True">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="1.25*" MinWidth="150" />
+                                        <ColumnDefinition Width="2.1*" MinWidth="240" />
+                                        <ColumnDefinition Width="0.65*" MinWidth="100" />
+                                        <ColumnDefinition Width="1.15*" MinWidth="155" />
+                                        <ColumnDefinition Width="0.8*" MinWidth="105" />
+                                        <ColumnDefinition Width="1.35*" MinWidth="160" />
                                     </Grid.ColumnDefinitions>
 
                                     <!-- 0. 项目名称 (选中项加粗变蓝) -->
-                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="13" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="10,0,6,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="FontWeight" Value="SemiBold" />
-                                                <Setter Property="Foreground" Value="#0F172A" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
-                                                        <Setter Property="Foreground" Value="#1677FF" />
-                                                        <Setter Property="FontWeight" Value="Bold" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="10,0,6,0">
+                                        <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Number}" Margin="0,3,0,0" FontSize="11" Foreground="#94A3B8"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
 
-                                    <!-- 1. 项目说明 (文本省略 + 完整气泡) -->
-                                    <TextBlock Grid.Column="1" Text="{Binding Description}" FontSize="12.5" Foreground="#475569" ToolTip="{Binding Description}" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="8,0" />
+                                    <!-- 1. 项目说明 (单行省略 + 完整提示) -->
+                                    <TextBlock Grid.Column="1" Text="{Binding Description}" FontSize="12.5" Foreground="#475569"
+                                               ToolTip="{Binding Description}" VerticalAlignment="Center" HorizontalAlignment="Stretch"
+                                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Margin="8,8" />
 
                                     <!-- 2. 数据记录数 (居中) -->
                                     <TextBlock Grid.Column="2" Text="{Binding RecordingCount}" FontSize="12.5" Foreground="#334155" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -262,13 +263,13 @@
                                     <TextBlock Grid.Column="3" Text="{Binding CreatedAtText}" FontSize="12.5" Foreground="#475569" HorizontalAlignment="Center" VerticalAlignment="Center" />
 
                                     <!-- 4. 当前状态 (居中状态标签) -->
-                                    <Border Grid.Column="4" CornerRadius="10" Padding="10,3" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border Grid.Column="4" CornerRadius="6" Padding="8,3" HorizontalAlignment="Center" VerticalAlignment="Center">
                                         <Border.Style>
                                             <Style TargetType="Border">
-                                                <Setter Property="Background" Value="#DCFCE7" />
+                                                <Setter Property="Background" Value="#EFF6FF" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding NormalizedStatus}" Value="已完成">
-                                                        <Setter Property="Background" Value="#EFF6FF" />
+                                                        <Setter Property="Background" Value="#F1F5F9" />
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding NormalizedStatus}" Value="暂停">
                                                         <Setter Property="Background" Value="#FEF3C7" />
@@ -279,10 +280,10 @@
                                         <TextBlock Text="{Binding NormalizedStatus}" FontSize="12" FontWeight="SemiBold">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
-                                                    <Setter Property="Foreground" Value="#16A34A" />
+                                                    <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding NormalizedStatus}" Value="已完成">
-                                                            <Setter Property="Foreground" Value="#2563EB" />
+                                                            <Setter Property="Foreground" Value="#64748B" />
                                                         </DataTrigger>
                                                         <DataTrigger Binding="{Binding NormalizedStatus}" Value="暂停">
                                                             <Setter Property="Foreground" Value="#D97706" />
@@ -294,31 +295,34 @@
                                     </Border>
 
                                     <!-- 5. 操作按钮组 (居中: 查看、编辑、删除、开始采集) -->
-                                    <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border Grid.Column="5" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1"
+                                            CornerRadius="8" Padding="4" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                      <StackPanel Orientation="Horizontal">
                                         <!-- 1. 查看详情按钮 -->
-                                        <Button Style="{StaticResource RowActionIconBtn}" ToolTip="查看项目详情" Click="OnOpenProjectDetailClick">
+                                        <Button Style="{StaticResource RowActionIconBtn}" ToolTip="查看项目详情" AutomationProperties.Name="查看项目详情" Click="OnOpenProjectDetailClick">
                                             <Path Data="M 1,9 C 1,9 4.5,3 10,3 C 15.5,3 19,9 19,9 C 19,9 15.5,15 10,15 C 4.5,15 1,9 1,9 Z M 10,12 A 3,3 0 1 0 10,6 A 3,3 0 0 0 10,12 Z"
-                                                  Width="15" Height="13" Stretch="Uniform" Stroke="#1677FF" StrokeThickness="1.5" />
+                                                  Width="15" Height="13" Stretch="Uniform" Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="1.5" />
                                         </Button>
 
                                         <!-- 2. 编辑项目按钮 -->
-                                        <Button Style="{StaticResource RowActionIconBtn}" ToolTip="编辑项目" Click="OnEditProjectClick">
+                                        <Button Style="{StaticResource RowActionIconBtn}" ToolTip="编辑项目" AutomationProperties.Name="编辑项目" Click="OnEditProjectClick">
                                             <Path Data="M 11,2 L 14,5 M 2,14 L 1,17 L 4,16 L 14.5,5.5 A 2.12,2.12 0 0 0 11.5,2.5 L 2,14 Z"
-                                                  Width="14" Height="14" Stretch="Uniform" Stroke="#1677FF" StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                  Width="14" Height="14" Stretch="Uniform" Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                                         </Button>
 
                                         <!-- 3. 删除项目按钮 -->
-                                        <Button Style="{StaticResource RowActionIconBtn}" ToolTip="移除项目" Click="OnDeleteProjectClick">
+                                        <Button Style="{StaticResource RowActionIconBtn}" ToolTip="移除项目" AutomationProperties.Name="移除项目" Click="OnDeleteProjectClick">
                                             <Path Data="M 2,5 H 16 M 6,5 V 3 A 1,1 0 0 1 7,2 H 11 A 1,1 0 0 1 12,3 V 5 M 14,5 V 15 A 2,2 0 0 1 12,17 H 6 A 2,2 0 0 1 4,15 V 5 M 7,9 V 13 M 11,9 V 13"
                                                   Width="14" Height="14" Stretch="Uniform" Stroke="#EF4444" StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                                         </Button>
 
                                         <!-- 4. 开始采集按钮 -->
-                                        <Button Style="{StaticResource RowActionIconBtn}" ToolTip="开始采集" Click="OnStartAcquisitionClick">
+                                        <Button Style="{StaticResource RowActionIconBtn}" ToolTip="开始采集" AutomationProperties.Name="开始采集" Click="OnStartAcquisitionClick">
                                             <Path Data="M 4,2 L 16,9 L 4,16 Z"
-                                                  Width="13" Height="13" Stretch="Uniform" Stroke="#1677FF" Fill="Transparent" StrokeThickness="1.6" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                  Width="13" Height="13" Stretch="Uniform" Stroke="{StaticResource BlueBrandPrimaryBrush}" Fill="Transparent" StrokeThickness="1.6" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                                         </Button>
-                                    </StackPanel>
+                                      </StackPanel>
+                                    </Border>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

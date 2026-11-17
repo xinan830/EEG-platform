@@ -22,10 +22,10 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Border" Property="Background" Value="#F8FAFC" />
                             <Setter TargetName="Border" Property="BorderBrush" Value="#91B9F2" />
-                            <Setter Property="Foreground" Value="#1E40AF" />
+                            <Setter Property="Foreground" Value="{StaticResource BlueBrandDeepBrush}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="#EFF6FF" />
+                            <Setter TargetName="Border" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
                             <Setter TargetName="Border" Property="BorderBrush" Value="#60A5FA" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -48,8 +48,8 @@
     <Style x:Key="PaginationCurrentPageStyle" TargetType="Border">
         <Setter Property="Width" Value="40" />
         <Setter Property="Height" Value="40" />
-        <Setter Property="Background" Value="#1677FF" />
-        <Setter Property="BorderBrush" Value="#1677FF" />
+        <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="6" />
         <Setter Property="IsHitTestVisible" Value="False" />
@@ -78,7 +78,7 @@
                                                   ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
                                                   Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
                                 <Path Data="M 1,2 L 6,7 L 11,2" Width="11" Height="7" Stretch="Fill"
-                                      Stroke="#1E40AF" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      Stroke="{StaticResource BlueBrandDeepBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                       HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,14,0" />
                             </Grid>
                         </Border>
@@ -98,7 +98,7 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="#91B9F2" /></Trigger>
-                        <Trigger Property="IsDropDownOpen" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="#1677FF" /></Trigger>
+                        <Trigger Property="IsDropDownOpen" Value="True"><Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" /></Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -127,11 +127,11 @@
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" />
+                                        <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
                                     </Trigger>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" />
-                                        <Setter Property="Foreground" Value="#1677FF" />
+                                        <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
+                                        <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                         <Setter Property="FontWeight" Value="SemiBold" />
                                     </Trigger>
                                 </ControlTemplate.Triggers>

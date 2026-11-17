@@ -57,7 +57,7 @@
                     <Setter Property="Foreground" Value="#1E293B" />
                 </Trigger>
                 <DataTrigger Binding="{Binding IsDynamicMode}" Value="False">
-                    <Setter Property="Foreground" Value="#1677FF" />
+                    <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
                     <Setter Property="FontWeight" Value="SemiBold" />
                 </DataTrigger>
             </Style.Triggers>
@@ -108,7 +108,7 @@
                     <Setter Property="Foreground" Value="#1E293B" />
                 </Trigger>
                 <DataTrigger Binding="{Binding IsDynamicMode}" Value="True">
-                    <Setter Property="Foreground" Value="#1677FF" />
+                    <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
                     <Setter Property="FontWeight" Value="SemiBold" />
                 </DataTrigger>
                 <Trigger Property="IsEnabled" Value="False">
@@ -119,7 +119,7 @@
     </UserControl.Resources>
  <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="1.15*" MinWidth="340"/><ColumnDefinition Width="16"/><ColumnDefinition Width="1.85*" MinWidth="540"/></Grid.ColumnDefinitions>
   <Border Grid.Column="0" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="20,16"><StackPanel>
-   <StackPanel Orientation="Horizontal" Margin="0,0,0,14"><Border Width="20" Height="20" CornerRadius="10" Background="#1677FF" Margin="0,0,8,0"><TextBlock Text="2" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="分析范围" FontSize="15" FontWeight="Bold"/></StackPanel>
+   <StackPanel Orientation="Horizontal" Margin="0,0,0,14"><Border Width="20" Height="20" CornerRadius="10" Background="{StaticResource BlueBrandPrimaryBrush}" Margin="0,0,8,0"><TextBlock Text="2" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="分析范围" FontSize="15" FontWeight="Bold"/></StackPanel>
    <!-- Modern Segmented Control for Static / Dynamic Analysis -->
    <Border Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="3" HorizontalAlignment="Left" Margin="0,0,0,14">
        <StackPanel Orientation="Horizontal">
@@ -194,7 +194,7 @@
            <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedF4Channel, Mode=TwoWay}" />
        </StackPanel>
    </Grid>
-   <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="12,10" Margin="0,0,0,12"><Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Parameters.IsBandRatioSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style><StackPanel><Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="频段功率比参数" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/><ComboBox Grid.Column="1" Width="132" Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding Parameters.BandRatioPresetNames}" SelectedItem="{Binding Parameters.SelectedRatioPreset, Mode=TwoWay}"/></Grid><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="分子频段（Hz）" FontSize="12" Foreground="#475569"/><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.NumeratorLowFrequencyText, UpdateSourceTrigger=LostFocus}"/><TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B"/><TextBox Grid.Column="2" Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.NumeratorHighFrequencyText, UpdateSourceTrigger=LostFocus}"/></Grid></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="分母频段（Hz）" FontSize="12" Foreground="#475569"/><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.DenominatorLowFrequencyText, UpdateSourceTrigger=LostFocus}"/><TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B"/><TextBox Grid.Column="2" Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.DenominatorHighFrequencyText, UpdateSourceTrigger=LostFocus}"/></Grid></StackPanel></Grid></StackPanel></Border><Border Background="#EFF6FF" CornerRadius="6" Padding="14,10"><StackPanel><TextBlock FontSize="12" Foreground="#334155"><Run Text="实际分析范围："/><Run Text="{Binding ActualRangeText, Mode=OneWay}" FontWeight="Medium"/></TextBlock><TextBlock FontSize="12" Foreground="#334155" Margin="0,3,0,0"><Run Text="窗口状态："/><Run Text="{Binding WindowStateText, Mode=OneWay}" FontWeight="Medium"/></TextBlock></StackPanel></Border>
+   <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="12,10" Margin="0,0,0,12"><Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Parameters.IsBandRatioSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style><StackPanel><Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="频段功率比参数" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/><ComboBox Grid.Column="1" Width="132" Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding Parameters.BandRatioPresetNames}" SelectedItem="{Binding Parameters.SelectedRatioPreset, Mode=TwoWay}"/></Grid><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="分子频段（Hz）" FontSize="12" Foreground="#475569"/><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.NumeratorLowFrequencyText, UpdateSourceTrigger=LostFocus}"/><TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B"/><TextBox Grid.Column="2" Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.NumeratorHighFrequencyText, UpdateSourceTrigger=LostFocus}"/></Grid></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="分母频段（Hz）" FontSize="12" Foreground="#475569"/><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.DenominatorLowFrequencyText, UpdateSourceTrigger=LostFocus}"/><TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B"/><TextBox Grid.Column="2" Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.DenominatorHighFrequencyText, UpdateSourceTrigger=LostFocus}"/></Grid></StackPanel></Grid></StackPanel></Border><Border Background="{StaticResource BlueBrandSoftBrush}" CornerRadius="6" Padding="14,10"><StackPanel><TextBlock FontSize="12" Foreground="#334155"><Run Text="实际分析范围："/><Run Text="{Binding ActualRangeText, Mode=OneWay}" FontWeight="Medium"/></TextBlock><TextBlock FontSize="12" Foreground="#334155" Margin="0,3,0,0"><Run Text="窗口状态："/><Run Text="{Binding WindowStateText, Mode=OneWay}" FontWeight="Medium"/></TextBlock></StackPanel></Border>
    <StackPanel Margin="0,12,0,0">
        <StackPanel.Style>
            <Style TargetType="StackPanel">
@@ -280,7 +280,7 @@
        <StackPanel>
            <!-- Header -->
            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,16">
-               <Border Width="22" Height="22" CornerRadius="11" Background="#1677FF" Margin="0,0,8,0">
+               <Border Width="22" Height="22" CornerRadius="11" Background="{StaticResource BlueBrandPrimaryBrush}" Margin="0,0,8,0">
                    <TextBlock Text="3" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                </Border>
                <TextBlock Text="频谱参数" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
@@ -509,8 +509,8 @@
                                 <ComboBox Grid.Column="1" Width="104" Style="{StaticResource TableParamComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedChannel, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
                                 <TextBlock Grid.Column="3" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
-                                <Border Grid.Column="4" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="可分析导联列表" FontSize="11" Foreground="#1D4ED8" FontWeight="Medium" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <Border Grid.Column="4" Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="可分析导联列表" FontSize="11" Foreground="{StaticResource BlueBrandDeepBrush}" FontWeight="Medium" HorizontalAlignment="Center" TextAlignment="Center" />
                                 </Border>
                                 <TextBlock Grid.Column="5" Text="用于当前算法分析的信号导联" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
                             </Grid>
@@ -573,7 +573,7 @@
                                 <ComboBox Grid.Column="1" Width="104" Style="{StaticResource TableParamComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedF4Channel, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                 <TextBlock Grid.Column="3" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                <Border Grid.Column="4" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="必需且不同" FontSize="11" Foreground="#1D4ED8" FontWeight="Medium" /></Border>
+                                <Border Grid.Column="4" Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="必需且不同" FontSize="11" Foreground="{StaticResource BlueBrandDeepBrush}" FontWeight="Medium" /></Border>
                                 <TextBlock Grid.Column="5" Text="用于 Pz 相对 Alpha 功率计算" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" />
                             </Grid>
                         </Border>

@@ -47,7 +47,7 @@
                                                           HorizontalAlignment="Right"
                                                           VerticalAlignment="Center"
                                                           Data="M 0,0 L 4.5,4.5 L 9,0"
-                                                          Stroke="#1677FF"
+                                                          Stroke="{StaticResource BlueBrandPrimaryBrush}"
                                                           StrokeThickness="1.5"
                                                           StrokeStartLineCap="Round"
                                                           StrokeEndLineCap="Round"
@@ -56,10 +56,10 @@
                                             </Border>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="#1677FF" />
+                                                    <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                                 </Trigger>
                                                 <Trigger Property="IsChecked" Value="True">
-                                                    <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="#1677FF" />
+                                                    <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -154,7 +154,7 @@
                 <Setter Property="Background" Value="#FFFFFF" />
                 <Setter Property="BorderBrush" Value="#D0D7DE" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="Foreground" Value="#1677FF" />
+                <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
                 <Setter Property="FontSize" Value="13.5" />
                 <Setter Property="FontWeight" Value="Medium" />
                 <Setter Property="Cursor" Value="Hand" />
@@ -168,7 +168,7 @@
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
-                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#1677FF" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -180,8 +180,8 @@
             <Style x:Key="DialogConfirmButton" TargetType="Button" BasedOn="{StaticResource AppDialogPrimaryButtonStyle}">
                 <Setter Property="Width" Value="76" />
                 <Setter Property="Height" Value="34" />
-                <Setter Property="Background" Value="#1677FF" />
-                <Setter Property="BorderBrush" Value="#1677FF" />
+                <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Foreground" Value="#FFFFFF" />
                 <Setter Property="FontSize" Value="13.5" />

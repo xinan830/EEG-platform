@@ -206,7 +206,7 @@
                                     Command="{Binding ScreenCalibration.SaveCommand}"
                                     Height="34"
                                     Padding="16,0"
-                                    Background="#2563EB"
+                                    Background="{StaticResource BlueBrandPrimaryBrush}"
                                     Foreground="White"
                                     BorderThickness="0" />
 
@@ -340,7 +340,7 @@
 
                             <!-- 0 cm -->
                             <Border Grid.Column="0"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Left"
                                     Width="1"
@@ -351,7 +351,7 @@
 
                             <!-- 1 cm -->
                             <Border Grid.Column="0"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -362,7 +362,7 @@
 
                             <!-- 2 cm -->
                             <Border Grid.Column="1"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -373,7 +373,7 @@
 
                             <!-- 3 cm -->
                             <Border Grid.Column="2"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -384,7 +384,7 @@
 
                             <!-- 4 cm -->
                             <Border Grid.Column="3"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -395,7 +395,7 @@
 
                             <!-- 5 cm -->
                             <Border Grid.Column="4"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -406,7 +406,7 @@
 
                             <!-- 6 cm -->
                             <Border Grid.Column="5"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -417,7 +417,7 @@
 
                             <!-- 7 cm -->
                             <Border Grid.Column="6"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -428,7 +428,7 @@
 
                             <!-- 8 cm -->
                             <Border Grid.Column="7"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -439,7 +439,7 @@
 
                             <!-- 9 cm -->
                             <Border Grid.Column="8"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -450,7 +450,7 @@
 
                             <!-- 10 cm -->
                             <Border Grid.Column="9"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="1,0,0,0"
                                     HorizontalAlignment="Right"
                                     Width="1"
@@ -465,7 +465,7 @@
 
                             <TextBlock Grid.Column="0"
                                        Text="0"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Left"
                                        VerticalAlignment="Bottom"
@@ -473,7 +473,7 @@
 
                             <TextBlock Grid.Column="0"
                                        Text="1"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -481,7 +481,7 @@
 
                             <TextBlock Grid.Column="1"
                                        Text="2"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -489,7 +489,7 @@
 
                             <TextBlock Grid.Column="2"
                                        Text="3"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -497,7 +497,7 @@
 
                             <TextBlock Grid.Column="3"
                                        Text="4"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -505,7 +505,7 @@
 
                             <TextBlock Grid.Column="4"
                                        Text="5"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -513,7 +513,7 @@
 
                             <TextBlock Grid.Column="5"
                                        Text="6"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -521,7 +521,7 @@
 
                             <TextBlock Grid.Column="6"
                                        Text="7"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -529,7 +529,7 @@
 
                             <TextBlock Grid.Column="7"
                                        Text="8"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -537,7 +537,7 @@
 
                             <TextBlock Grid.Column="8"
                                        Text="9"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -545,7 +545,7 @@
 
                             <TextBlock Grid.Column="9"
                                        Text="10 cm"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        FontSize="10"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
@@ -602,7 +602,7 @@
 
                             <!-- 0 cm -->
                             <Border Grid.Row="0"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Top"
                                     Height="1"
@@ -613,7 +613,7 @@
 
                             <!-- 1 cm -->
                             <Border Grid.Row="0"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -624,7 +624,7 @@
 
                             <!-- 2 cm -->
                             <Border Grid.Row="1"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -635,7 +635,7 @@
 
                             <!-- 3 cm -->
                             <Border Grid.Row="2"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -646,7 +646,7 @@
 
                             <!-- 4 cm -->
                             <Border Grid.Row="3"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -657,7 +657,7 @@
 
                             <!-- 5 cm -->
                             <Border Grid.Row="4"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -668,7 +668,7 @@
 
                             <!-- 6 cm -->
                             <Border Grid.Row="5"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -679,7 +679,7 @@
 
                             <!-- 7 cm -->
                             <Border Grid.Row="6"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -690,7 +690,7 @@
 
                             <!-- 8 cm -->
                             <Border Grid.Row="7"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -701,7 +701,7 @@
 
                             <!-- 9 cm -->
                             <Border Grid.Row="8"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -712,7 +712,7 @@
 
                             <!-- 10 cm -->
                             <Border Grid.Row="9"
-                                    BorderBrush="#2563EB"
+                                    BorderBrush="{StaticResource BlueBrandPrimaryBrush}"
                                     BorderThickness="0,1,0,0"
                                     VerticalAlignment="Bottom"
                                     Height="1"
@@ -726,7 +726,7 @@
                             <TextBlock Grid.Row="0"
                                        Text="0"
                                        FontSize="10"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Top"
                                        Margin="0,0,8,0" />
@@ -734,7 +734,7 @@
                             <TextBlock Grid.Row="4"
                                        Text="5"
                                        FontSize="10"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
                                        Margin="0,0,8,-6" />
@@ -742,7 +742,7 @@
                             <TextBlock Grid.Row="9"
                                        Text="10 cm"
                                        FontSize="10"
-                                       Foreground="#2563EB"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Bottom"
                                        Margin="0,0,4,2" />

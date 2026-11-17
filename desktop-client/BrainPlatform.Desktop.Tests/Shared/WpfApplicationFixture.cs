@@ -30,6 +30,11 @@ internal static class WpfTestApplication
                 var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                 app.Resources.MergedDictionaries.Add(new ResourceDictionary
                 {
+                    Source = new Uri("/BrainPlatform.Desktop;component/Shared/Styles/BrandColors.xaml",
+                        UriKind.RelativeOrAbsolute),
+                });
+                app.Resources.MergedDictionaries.Add(new ResourceDictionary
+                {
                     Source = new Uri("/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml",
                         UriKind.RelativeOrAbsolute),
                 });

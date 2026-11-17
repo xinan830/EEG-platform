@@ -14,8 +14,8 @@
            <!-- 现代化筛选下拉框样式 -->
            <!-- 标签胶囊样式 -->
             <Style x:Key="TagPillBorder" TargetType="Border">
-                <Setter Property="Background" Value="#EFF6FF" />
-                <Setter Property="BorderBrush" Value="#DBEAFE" />
+                <Setter Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BlueBrandSoftBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="13" />
                 <Setter Property="Padding" Value="10,3" />
@@ -88,7 +88,6 @@
                     <StackPanel Grid.Column="2">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <TextBlock Text="项目目录" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" />
-                            <TextBlock Text=" *" FontSize="13" FontWeight="Bold" Foreground="#EF4444" Margin="2,0,0,0" />
                         </StackPanel>
                         <Border Background="#FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1" CornerRadius="6" Height="36">
                             <Grid>
@@ -96,10 +95,10 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="38" />
                                 </Grid.ColumnDefinitions>
-                                <TextBox x:Name="DirPathBox" Text="{Binding DirectoryPath, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox x:Name="DirPathBox" Text="{Binding DirectoryPathPreview, Mode=OneWay}" ToolTip="{Binding DirectoryPathPreview}"
                                          BorderThickness="0" Background="Transparent" VerticalAlignment="Center" Padding="10,0"
                                          FontSize="13" Foreground="#0F172A" IsReadOnly="True" />
-                                <TextBlock Text="请选择项目目录" FontSize="13" Foreground="#94A3B8" IsHitTestVisible="False" VerticalAlignment="Center" Margin="10,0">
+                                <TextBlock Text="输入项目名后自动生成" FontSize="13" Foreground="#94A3B8" IsHitTestVisible="False" VerticalAlignment="Center" Margin="10,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed" />
@@ -110,17 +109,18 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <Button Grid.Column="1" Padding="0" BorderThickness="1,0,0,0" BorderBrush="#E2E8F0" Background="Transparent"
-                                        Click="OnBrowseDirectoryClick" ToolTip="浏览选择目录" Cursor="Hand">
+                                        Click="OnBrowseDirectoryClick" ToolTip="选择自定义项目目录（可选）" AutomationProperties.Name="选择自定义项目目录" Cursor="Hand">
                                     <!-- 用 Border 组合文件夹，避免 Path 几何在当前按钮模板内被裁剪成横线。 -->
                                     <Grid Width="18" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Border Width="9" Height="5" Background="#DBEAFE" BorderBrush="#1677FF" BorderThickness="1.4,1.4,1.4,0"
+                                        <Border Width="9" Height="5" Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="{StaticResource BlueBrandPrimaryBrush}" BorderThickness="1.4,1.4,1.4,0"
                                                 CornerRadius="2,2,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1,1,0,0" />
-                                        <Border Height="11" Background="#EFF6FF" BorderBrush="#1677FF" BorderThickness="1.4" CornerRadius="2"
+                                        <Border Height="11" Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="{StaticResource BlueBrandPrimaryBrush}" BorderThickness="1.4" CornerRadius="2"
                                                 HorizontalAlignment="Stretch" VerticalAlignment="Bottom" />
                                     </Grid>
                                 </Button>
                             </Grid>
                         </Border>
+                        <TextBlock Text="{Binding DirectoryHint}" Foreground="#64748B" FontSize="11.5" TextWrapping="Wrap" Margin="0,6,0,0" />
                     </StackPanel>
                 </Grid>
 
@@ -209,9 +209,9 @@
                                 <DataTemplate>
                                     <Border Style="{StaticResource TagPillBorder}">
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding}" FontSize="12" Foreground="#2563EB" FontWeight="Medium" />
+                                            <TextBlock Text="{Binding}" FontSize="12" Foreground="{StaticResource BlueBrandPrimaryBrush}" FontWeight="Medium" />
                                             <Button Content="×" Tag="{Binding}" Click="OnRemoveTagClick" Background="Transparent" BorderThickness="0"
-                                                    Padding="4,0,0,0" FontSize="13" Foreground="#3B82F6" Cursor="Hand" />
+                                                    Padding="4,0,0,0" FontSize="13" Foreground="{StaticResource BlueBrandPrimaryBrush}" Cursor="Hand" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>

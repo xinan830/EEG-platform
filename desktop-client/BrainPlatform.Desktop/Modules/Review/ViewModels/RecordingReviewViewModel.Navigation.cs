@@ -77,7 +77,7 @@ public sealed partial class RecordingReviewViewModel
         var wasPlaying = playback.IsPlaying;
         var wasCompleted = playback.IsCompleted;
         if (playback.IsPlaying) playback.Pause();
-        else playback.Play();
+        else { CancelEventPlacement(); playback.Play(); }
         PublishPlaybackChanges(wasPlaying, wasCompleted);
         analysisBinding?.SetPlaybackActive(playback.IsPlaying && !isTimelineDragging, playback.Snapshot.Generation);
         if (playback.IsPlaying) PrepareUpcomingSpectralWindows();

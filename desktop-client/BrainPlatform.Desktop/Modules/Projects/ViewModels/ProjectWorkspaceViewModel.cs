@@ -24,10 +24,11 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
     private readonly ResearchProjectStore store;
     private readonly LocalRecordingCatalog recordingCatalog;
     private readonly OperationNotificationCenter notifications;
+    private readonly ProjectDirectoryPolicy directories;
     private ResearchProject? selectedProject;
     private ProjectRecordingRow? selectedRecording;
     private string searchText = string.Empty;
-    private string projectStatusFilter = ResearchProjectStatuses.All;
+    private string projectStatusFilter = ResearchProjectStatuses.InProgress;
     private string createdTimeFilter = "全部时间";
     private DateTime? createdFrom;
     private DateTime? createdTo;
@@ -39,11 +40,13 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
     public ProjectWorkspaceViewModel(
         OperationNotificationCenter notifications,
         ResearchProjectStore? store = null,
-        LocalRecordingCatalog? recordingCatalog = null)
+        LocalRecordingCatalog? recordingCatalog = null,
+        ProjectDirectoryPolicy? directories = null)
     {
         this.notifications = notifications;
         this.store = store ?? new ResearchProjectStore();
         this.recordingCatalog = recordingCatalog ?? new LocalRecordingCatalog();
+        this.directories = directories ?? new ProjectDirectoryPolicy();
     }
 
     public ObservableCollection<ResearchProject> Projects { get; } = [];
@@ -220,12 +223,10 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
             throw new InvalidOperationException("请输入项目名称。");
         }
 
-        if (string.IsNullOrWhiteSpace(draft.DirectoryPath))
-        {
-            throw new InvalidOperationException("请选择项目目录。");
-        }
-
-        var directory = Path.GetFullPath(draft.DirectoryPath.Trim());
+        var isDefault = existing is null && string.IsNullOrWhiteSpace(draft.DirectoryPath);
+        var directory = string.IsNullOrWhiteSpace(draft.DirectoryPath)
+            ? existing?.DirectoryPath ?? directories.GetDefaultDirectory(name)
+            : Path.GetFullPath(draft.DirectoryPath.Trim());
 
         if (Projects.Any(project => project.Id != existing?.Id &&
                                     string.Equals(Path.GetFullPath(project.DirectoryPath), directory, StringComparison.OrdinalIgnoreCase)))
@@ -240,8 +241,7 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
             throw new InvalidOperationException("项目已有采集记录，不能再更换项目目录。请新建项目或保持原目录。");
         }
 
-        Directory.CreateDirectory(directory);
-        Directory.CreateDirectory(Path.Combine(directory, "recordings"));
+        directories.CreateProjectDirectory(directory, isDefault);
         var now = DateTimeOffset.UtcNow;
         var project = new ResearchProject(
             existing?.Id ?? Guid.NewGuid().ToString("N"),

@@ -75,8 +75,8 @@
                 <Setter Property="Height" Value="36" />
                 <Setter Property="Padding" Value="20,0" />
                 <Setter Property="MinWidth" Value="96" />
-                <Setter Property="Background" Value="#2563EB" />
-                <Setter Property="BorderBrush" Value="#2563EB" />
+                <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="Foreground" Value="#FFFFFF" />
                 <Setter Property="FontSize" Value="14" />
@@ -91,10 +91,10 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#1D4ED8" />
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource BlueBrandDeepBrush}" />
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#1E40AF" />
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource BlueBrandDeepBrush}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -139,13 +139,13 @@
                 <Border Grid.Column="0" Width="44" Height="44" CornerRadius="22" Margin="0,0,16,0" VerticalAlignment="Top">
                     <Border.Background>
                         <RadialGradientBrush Center="0.4,0.35" GradientOrigin="0.3,0.25" RadiusX="0.65" RadiusY="0.65">
-                            <GradientStop Color="#EFF6FF" Offset="0.0" />
+                            <GradientStop Color="#FFFFFF" Offset="0.0" />
                             <GradientStop Color="#DBEAFE" Offset="0.65" />
-                            <GradientStop Color="#BFDBFE" Offset="1.0" />
+                            <GradientStop Color="#DBEAFE" Offset="1.0" />
                         </RadialGradientBrush>
                     </Border.Background>
                     <TextBlock Text="i" FontFamily="Georgia, Times New Roman, serif" FontStyle="Italic" FontWeight="Bold"
-                               FontSize="25" Foreground="#2563EB" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               FontSize="25" Foreground="{StaticResource BlueBrandPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                Margin="0,-3,0,0" />
                 </Border>
 

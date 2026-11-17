@@ -72,7 +72,7 @@
                     </Grid>
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions><ColumnDefinition Width="22" /><ColumnDefinition Width="*" /><ColumnDefinition Width="32" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="B" Foreground="#2563EB" VerticalAlignment="Center" />
+                        <TextBlock Text="B" Foreground="{StaticResource BlueBrandPrimaryBrush}" VerticalAlignment="Center" />
                         <Slider x:Name="BlueColorSlider" Grid.Column="1" Minimum="0" Maximum="255" TickFrequency="1"
                                 IsSnapToTickEnabled="True" ValueChanged="OnRgbChanged" />
                         <TextBlock Grid.Column="2" Text="{Binding Value, ElementName=BlueColorSlider, StringFormat=F0}" TextAlignment="Right" />
@@ -83,7 +83,7 @@
                         <Button Content="取消" Click="OnCancelClick" Padding="12,5" Margin="0,0,8,0"
                                 Background="White" BorderBrush="#CBD5E1" BorderThickness="1" />
                         <Button x:Name="ApplyButton" Content="应用颜色" Click="OnApplyClick" Padding="12,5"
-                                Background="#2563EB" Foreground="White" BorderThickness="0" />
+                                Background="{StaticResource BlueBrandPrimaryBrush}" Foreground="White" BorderThickness="0" />
                     </StackPanel>
                 </StackPanel>
             </Border>

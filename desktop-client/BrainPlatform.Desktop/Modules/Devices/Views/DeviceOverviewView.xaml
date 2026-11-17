@@ -9,7 +9,7 @@
     <UserControl.Resources>
         <!-- 蓝底主要按钮样式 -->
         <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource AppPrimaryButtonStyle}">
-            <Setter Property="Background" Value="#2563EB" />
+            <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
             <Setter Property="Foreground" Value="#FFFFFF" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -28,10 +28,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1D4ED8" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource BlueBrandDeepBrush}" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ButtonBorder" Property="Background" Value="#1E40AF" />
+                                <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource BlueBrandDeepBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.6" />
@@ -166,7 +166,7 @@
                     <!-- 浅蓝底圆盘 + 设备硬件照片 + 状态小标 -->
                     <Grid Grid.Row="0" HorizontalAlignment="Center" Width="380" Height="380">
                         <!-- 浅蓝背景圆 -->
-                        <Ellipse Fill="#F0F7FF" Width="380" Height="380" />
+                        <Ellipse Fill="{StaticResource BlueBrandSoftBrush}" Width="380" Height="380" />
 
                         <!-- 设备硬件渲染图 (根据连接状态动态切换带绿灯/不带绿灯图片) -->
                         <Image x:Name="DeviceStateImage"
@@ -208,7 +208,7 @@
                                             <Setter Property="Background" Value="#22C55E" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Discovering">
-                                            <Setter Property="Background" Value="#2563EB" />
+                                            <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding Overview.Snapshot.State}" Value="Faulted">
                                             <Setter Property="Background" Value="#EF4444" />

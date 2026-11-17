@@ -25,12 +25,12 @@
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Synapse / Scatter PSD Icon matching mockup -->
                     <Canvas Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,10,0">
-                        <Path Stroke="#1677FF" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                        <Path Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                               Data="M 3,4 L 15,14 M 3,14 L 7,10 M 15,4 L 11,8" />
-                        <Ellipse Canvas.Left="1" Canvas.Top="2" Width="4.5" Height="4.5" Fill="#1677FF" />
-                        <Ellipse Canvas.Left="1" Canvas.Top="11.5" Width="4.5" Height="4.5" Fill="#1677FF" />
-                        <Ellipse Canvas.Left="12.5" Canvas.Top="2" Width="4.5" Height="4.5" Fill="#1677FF" />
-                        <Ellipse Canvas.Left="12.5" Canvas.Top="11.5" Width="4.5" Height="4.5" Fill="#1677FF" />
+                        <Ellipse Canvas.Left="1" Canvas.Top="2" Width="4.5" Height="4.5" Fill="{StaticResource BlueBrandPrimaryBrush}" />
+                        <Ellipse Canvas.Left="1" Canvas.Top="11.5" Width="4.5" Height="4.5" Fill="{StaticResource BlueBrandPrimaryBrush}" />
+                        <Ellipse Canvas.Left="12.5" Canvas.Top="2" Width="4.5" Height="4.5" Fill="{StaticResource BlueBrandPrimaryBrush}" />
+                        <Ellipse Canvas.Left="12.5" Canvas.Top="11.5" Width="4.5" Height="4.5" Fill="{StaticResource BlueBrandPrimaryBrush}" />
                     </Canvas>
                     <TextBlock Text="{Binding SelectedChart.Label}" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
                     <TextBlock Text="ⓘ" FontSize="13" Foreground="#94A3B8" VerticalAlignment="Center" Margin="8,0,0,0"
@@ -108,10 +108,10 @@
                             </Grid.ColumnDefinitions>
 
                             <!-- δ Delta (0.5 – 4 Hz) -->
-                            <Border Grid.Column="0" Background="#EFF6FF">
+                            <Border Grid.Column="0" Background="{StaticResource BlueBrandSoftBrush}">
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <TextBlock Text="δ Delta" Foreground="#1D4ED8" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" />
-                                    <TextBlock Text="0.5 – 4 Hz" Foreground="#2563EB" FontSize="11" Margin="0,2,0,0" HorizontalAlignment="Center" />
+                                    <TextBlock Text="δ Delta" Foreground="{StaticResource BlueBrandDeepBrush}" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" />
+                                    <TextBlock Text="0.5 – 4 Hz" Foreground="{StaticResource BlueBrandPrimaryBrush}" FontSize="11" Margin="0,2,0,0" HorizontalAlignment="Center" />
                                 </StackPanel>
                             </Border>
 

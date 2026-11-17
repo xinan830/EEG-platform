@@ -17,7 +17,7 @@
             </ResourceDictionary.MergedDictionaries>
         <!-- Pill Badge for Quality Status -->
         <Style x:Key="QualityPillBadgeBorderStyle" TargetType="Border">
-            <Setter Property="Background" Value="#EFF6FF" />
+            <Setter Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
             <Setter Property="BorderBrush" Value="#BFDBFE" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
@@ -44,7 +44,7 @@
             <Setter Property="Height" Value="6" />
             <Setter Property="Margin" Value="0,0,5,0" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Fill" Value="#2563EB" />
+            <Setter Property="Fill" Value="{StaticResource BlueBrandPrimaryBrush}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding QualityText}" Value="良好">
                     <Setter Property="Fill" Value="#10B981" />
@@ -62,7 +62,7 @@
             <Setter Property="FontSize" Value="11.5" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="#1D4ED8" />
+            <Setter Property="Foreground" Value="{StaticResource BlueBrandDeepBrush}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding QualityText}" Value="良好">
                     <Setter Property="Foreground" Value="#059669" />
@@ -102,8 +102,8 @@
                                 <Setter TargetName="btnBorder" Property="BorderBrush" Value="#94A3B8" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="btnBorder" Property="Background" Value="#EFF6FF" />
-                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="#1677FF" />
+                                <Setter TargetName="btnBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
+                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -117,7 +117,7 @@
         <StackPanel>
             <!-- Header (matches Card 4 on the left) -->
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,16">
-                <Border Width="22" Height="22" CornerRadius="11" Background="#1677FF" Margin="0,0,8,0">
+                <Border Width="22" Height="22" CornerRadius="11" Background="{StaticResource BlueBrandPrimaryBrush}" Margin="0,0,8,0">
                     <TextBlock Text="5" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <TextBlock Text="质量状态" Style="{StaticResource AnalysisCardTitleStyle}" />

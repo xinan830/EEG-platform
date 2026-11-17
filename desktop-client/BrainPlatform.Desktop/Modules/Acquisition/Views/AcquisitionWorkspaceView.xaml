@@ -135,7 +135,7 @@
                                                     <Setter Property="Fill" Value="#F59E0B" />
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPreviewing}" Value="True">
-                                                    <Setter Property="Fill" Value="#1677FF" />
+                                                    <Setter Property="Fill" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -157,7 +157,7 @@
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPreviewing}" Value="True">
                                                     <Setter Property="Text" Value="预览中" />
-                                                    <Setter Property="Foreground" Value="#1677FF" />
+                                                    <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>

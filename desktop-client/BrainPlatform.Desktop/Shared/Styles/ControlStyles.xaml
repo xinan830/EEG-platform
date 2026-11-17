@@ -122,8 +122,8 @@
                             <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" />
-                            <Setter Property="TextElement.Foreground" Value="#2563EB" />
+                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
+                            <Setter Property="TextElement.Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
                             <Setter Property="TextElement.FontWeight" Value="SemiBold" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
@@ -246,7 +246,7 @@
     <Style x:Key="AppPrimaryButtonStyle" TargetType="Button">
         <Setter Property="MinHeight" Value="36" />
         <Setter Property="Padding" Value="16,0" />
-        <Setter Property="Background" Value="#1677FF" />
+        <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
         <Setter Property="Foreground" Value="#FFFFFF" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="FontSize" Value="13" />
@@ -277,7 +277,7 @@
         <Setter Property="Padding" Value="12,0" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="FontWeight" Value="Medium" />
-        <Setter Property="Foreground" Value="#2563EB" />
+        <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
         <Setter Property="BorderBrush" Value="#BFDBFE" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -299,10 +299,10 @@
                             <Setter TargetName="ButtonBorder" Property="Background" Value="#F8FAFC" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#2563EB" />
+                            <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="ButtonBorder" Property="Background" Value="#EFF6FF" />
+                            <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="ButtonBorder" Property="Background" Value="#F8FAFC" />

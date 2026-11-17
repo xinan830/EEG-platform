@@ -5,6 +5,31 @@ namespace BrainPlatform.Desktop.Tests.Projects;
 public sealed class ProjectWorkspaceFilteringTests
 {
     [Fact]
+    public async Task DefaultsToShowingOnlyProjectsInProgress()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "brain-platform-project-default-filter-tests", Guid.NewGuid().ToString("N"));
+        var store = new ResearchProjectStore(Path.Combine(root, "projects.json"));
+
+        try
+        {
+            await store.SaveAsync(CreateProject("active", "进行中项目", Path.Combine(root, "active"),
+                new DateTimeOffset(2026, 9, 10, 9, 0, 0, TimeSpan.Zero), "进行中"), CancellationToken.None);
+            await store.SaveAsync(CreateProject("finished", "已完成项目", Path.Combine(root, "finished"),
+                new DateTimeOffset(2026, 9, 15, 9, 0, 0, TimeSpan.Zero), "已完成"), CancellationToken.None);
+            var workspace = new ProjectWorkspaceViewModel(new OperationNotificationCenter(), store);
+
+            await workspace.RefreshAsync();
+
+            Assert.Equal(ResearchProjectStatuses.InProgress, workspace.ProjectStatusFilter);
+            Assert.Equal("进行中项目", Assert.Single(workspace.FilteredProjects).Name);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task FiltersProjectsBySearchStatusAndInclusiveCreatedDateRange()
     {
         var root = Path.Combine(Path.GetTempPath(), "brain-platform-project-filter-tests", Guid.NewGuid().ToString("N"));

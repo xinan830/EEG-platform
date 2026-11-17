@@ -50,6 +50,12 @@ public partial class RecordingReviewView : UserControl
     private async void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (ViewModel is not { } viewModel) return;
+        if (e.Key == Key.Escape && viewModel.IsEventPlacementActive)
+        {
+            viewModel.CancelEventPlacement();
+            e.Handled = true;
+            return;
+        }
         var definition = EventShortcutInput.Match(
             viewModel.EnabledEventDefinitions, ShortcutScope.Review, e, out var shortcut);
         if (definition is null) return;

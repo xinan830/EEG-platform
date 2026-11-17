@@ -67,6 +67,37 @@ The desktop shell SHALL use the existing backend API only for its initial connec
 - **THEN** the desktop shell SHALL only request backend health information
 - **AND** it SHALL not create an AnalysisRun or modify scientific data
 
+### Requirement: Open the project list as the desktop landing view
+
+The desktop shell SHALL present the project list when the application first opens, with the project status filter initially set to “进行中”. The user SHALL retain access to the other project status filters and other workspace views.
+
+#### Scenario: Application starts
+
+- **WHEN** the desktop shell finishes initializing
+- **THEN** it SHALL show the project list and select the project-list navigation item
+- **AND** the project list SHALL initially filter to projects with status “进行中”
+
+#### Scenario: User changes the project status filter
+
+- **WHEN** the user selects another available status filter
+- **THEN** the project list SHALL apply that filter and display the selected filter state
+
+### Requirement: Apply a restrained blue brand palette
+
+The desktop shell and project-management views SHALL use a consistent blue-led brand palette with no more than three brand accent colors. White and neutral grays MAY be used as surfaces and text colors. Semantic status indicators and EEG channel traces MAY use distinct data colors when needed for meaning and legibility; they SHALL NOT be used as additional brand accents.
+
+#### Scenario: Display primary shell actions
+
+- **WHEN** the shell displays navigation, primary actions, or selected states
+- **THEN** those elements SHALL use the shared blue brand palette consistently
+- **AND** green SHALL NOT be used as a primary brand accent
+
+#### Scenario: Display status indicators or EEG traces
+
+- **WHEN** status indicators or multi-channel EEG traces are displayed
+- **THEN** their colors SHALL preserve semantic distinction and contrast
+- **AND** those data colors SHALL remain distinct from the shell's brand palette role.
+
 ### Requirement: Use shared slim scrollbars throughout the desktop
 Desktop controls using application scrollbar resources SHALL use a shared slim style, occupying 6 DIP across the track with a 4 DIP rounded thumb in either orientation. Hovering or dragging SHALL darken the thumb. The style SHALL preserve scrolling, track paging and thumb dragging without changing scientific data or time-navigation controls.
 

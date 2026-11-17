@@ -28,12 +28,12 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
                         <Grid Width="16" Height="16">
-                            <Ellipse Width="16" Height="16" Fill="#FFFFFF" Stroke="#1677FF" StrokeThickness="2.5">
+                            <Ellipse Width="16" Height="16" Fill="#FFFFFF" Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="2.5">
                                 <Ellipse.Effect>
                                     <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.25" Color="#0F172A" />
                                 </Ellipse.Effect>
                             </Ellipse>
-                            <Ellipse Width="4" Height="4" Fill="#1677FF" />
+                            <Ellipse Width="4" Height="4" Fill="{StaticResource BlueBrandPrimaryBrush}" />
                         </Grid>
                     </ControlTemplate>
                 </Setter.Value>
@@ -45,7 +45,7 @@
             <Setter Property="OverridesDefaultStyle" Value="True" />
             <Setter Property="Height" Value="6" />
             <Setter Property="Background" Value="#E2E8F0" />
-            <Setter Property="Foreground" Value="#1677FF" />
+            <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ProgressBar">
@@ -69,17 +69,17 @@
         <StackPanel>
             <!-- Header -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                <Border Width="22" Height="22" CornerRadius="11" Background="#1677FF" Margin="0,0,8,0">
+                <Border Width="22" Height="22" CornerRadius="11" Background="{StaticResource BlueBrandPrimaryBrush}" Margin="0,0,8,0">
                     <TextBlock Text="4" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Border>
                 <TextBlock Text="执行分析" Style="{StaticResource AnalysisCardTitleStyle}" />
             </StackPanel>
 
-            <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1"
+            <Border Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="#BFDBFE" BorderThickness="1"
                     CornerRadius="12" Padding="10,3.5" HorizontalAlignment="Left" Margin="0,0,0,12">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse Width="6" Height="6" Fill="#2563EB" Margin="0,0,6,0" VerticalAlignment="Center" />
-                        <TextBlock Text="选择后自动分析" FontSize="12" FontWeight="Medium" Foreground="#1D4ED8" VerticalAlignment="Center" />
+                        <Ellipse Width="6" Height="6" Fill="{StaticResource BlueBrandPrimaryBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="选择后自动分析" FontSize="12" FontWeight="Medium" Foreground="{StaticResource BlueBrandDeepBrush}" VerticalAlignment="Center" />
                     </StackPanel>
             </Border>
 
@@ -195,7 +195,7 @@
                         <!-- 开始/暂停 动态切换按钮 (统一为一个按钮) -->
                         <Grid Margin="0,0,8,0">
                             <!-- 未播放时显示：开始 -->
-                            <Button Command="{Binding StartDynamicPreviewCommand}" Height="28" Padding="12,0" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" Cursor="Hand">
+                            <Button Command="{Binding StartDynamicPreviewCommand}" Height="28" Padding="12,0" Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="#BFDBFE" BorderThickness="1" Cursor="Hand">
                                 <Button.Style>
                                     <Style TargetType="Button">
                                         <Setter Property="Visibility" Value="Visible" />
@@ -212,19 +212,19 @@
                                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </Border>
                                         <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#DBEAFE" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#93C5FD" /></Trigger>
-                                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#BFDBFE" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#2563EB" /></Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#93C5FD" /></Trigger>
+                                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#BFDBFE" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" /></Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </Button.Template>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Path Data="M 2,1 L 9,6 L 2,11 Z" Fill="#1677FF" Width="9" Height="10" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,5,0" />
-                                    <TextBlock Text="开始" FontSize="12" Foreground="#1677FF" FontWeight="Medium" VerticalAlignment="Center" />
+                                    <Path Data="M 2,1 L 9,6 L 2,11 Z" Fill="{StaticResource BlueBrandPrimaryBrush}" Width="9" Height="10" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                    <TextBlock Text="开始" FontSize="12" Foreground="{StaticResource BlueBrandPrimaryBrush}" FontWeight="Medium" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
 
                             <!-- 播放中时显示：暂停 -->
-                            <Button Command="{Binding PauseDynamicPreviewCommand}" Height="28" Padding="12,0" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" Cursor="Hand">
+                            <Button Command="{Binding PauseDynamicPreviewCommand}" Height="28" Padding="12,0" Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="#BFDBFE" BorderThickness="1" Cursor="Hand">
                                 <Button.Style>
                                     <Style TargetType="Button">
                                         <Setter Property="Visibility" Value="Collapsed" />
@@ -241,14 +241,14 @@
                                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </Border>
                                         <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#DBEAFE" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#93C5FD" /></Trigger>
-                                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#BFDBFE" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#2563EB" /></Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#93C5FD" /></Trigger>
+                                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#BFDBFE" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" /></Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </Button.Template>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Path Data="M 1,1 H 3 V 10 H 1 Z M 5,1 H 7 V 10 H 5 Z" Fill="#1D4ED8" Width="8" Height="9" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,5,0" />
-                                    <TextBlock Text="暂停" FontSize="12" Foreground="#1D4ED8" FontWeight="Medium" VerticalAlignment="Center" />
+                                    <Path Data="M 1,1 H 3 V 10 H 1 Z M 5,1 H 7 V 10 H 5 Z" Fill="{StaticResource BlueBrandDeepBrush}" Width="8" Height="9" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                    <TextBlock Text="暂停" FontSize="12" Foreground="{StaticResource BlueBrandDeepBrush}" FontWeight="Medium" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                         </Grid>
@@ -262,7 +262,7 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#F8FAFC" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#94A3B8" /></Trigger>
-                                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#EFF6FF" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#1677FF" /></Trigger>
+                                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" /></Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>
@@ -281,7 +281,7 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#F8FAFC" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#94A3B8" /></Trigger>
-                                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="#EFF6FF" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="#1677FF" /></Trigger>
+                                        <Trigger Property="IsPressed" Value="True"><Setter TargetName="btnBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" /><Setter TargetName="btnBorder" Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" /></Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>
@@ -329,7 +329,7 @@
                                     <Grid VerticalAlignment="Center">
                                         <Track x:Name="PART_Track">
                                             <Track.DecreaseRepeatButton>
-                                                <RepeatButton Style="{StaticResource ModernSliderTrackRepeatButtonStyle}" Background="#1677FF" Height="5" Tag="2.5,0,0,2.5" Command="Slider.DecreaseLarge" />
+                                                <RepeatButton Style="{StaticResource ModernSliderTrackRepeatButtonStyle}" Background="{StaticResource BlueBrandPrimaryBrush}" Height="5" Tag="2.5,0,0,2.5" Command="Slider.DecreaseLarge" />
                                             </Track.DecreaseRepeatButton>
                                             <Track.Thumb>
                                                 <Thumb Style="{StaticResource ModernSliderThumbStyle}" />

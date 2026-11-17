@@ -17,7 +17,7 @@ internal static class Program
     {
         var root = Path.Combine(Path.GetTempPath(), "brain-platform-ui-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
+        var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
         try
         {
             // Load the production resources without running App.OnStartup or starting hardware/backend services.

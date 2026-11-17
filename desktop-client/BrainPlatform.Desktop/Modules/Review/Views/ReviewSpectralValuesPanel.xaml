@@ -17,7 +17,7 @@
             <SolidColorBrush x:Key="TableMutedBrush" Color="#64748B" />
             <SolidColorBrush x:Key="TableDividerBrush" Color="#F1F5F9" />
             <SolidColorBrush x:Key="TableRowHoverBrush" Color="#F8FAFC" />
-            <SolidColorBrush x:Key="TableRowSelectedBrush" Color="#EFF6FF" />
+            <SolidColorBrush x:Key="TableRowSelectedBrush" Color="#DBEAFE" />
 
             <!-- 表头通用样式：极淡蓝灰底色、5 列完全等宽呼吸感、两行居中排版 -->
             <Style x:Key="SpectralTableHeaderStyle" TargetType="DataGridColumnHeader">

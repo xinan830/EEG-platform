@@ -51,7 +51,8 @@ internal sealed class ReviewEventMarkerLayer
                 item, viewModel.RecordingStartUtc, viewModel.SamplingRateHz);
             var shape = new Border
             {
-                IsHitTestVisible = !item.IsInterval,
+                Tag = item,
+                IsHitTestVisible = true,
                 Background = item.IsInterval
                     ? new SolidColorBrush(Color.FromArgb(32, color.R, color.G, color.B))
                     : new SolidColorBrush(color),
@@ -60,6 +61,11 @@ internal sealed class ReviewEventMarkerLayer
             };
             var label = WaveformEventTimeLabel.Create(
                 viewModel.TimeDisplay.FormatPoint(startSeconds), color, tooltip);
+            label.Tag = item;
+            label.Cursor = item.Source is EventSource.ManualButton or EventSource.KeyboardShortcut
+                ? System.Windows.Input.Cursors.SizeWE : System.Windows.Input.Cursors.Hand;
+            shape.Cursor = label.Cursor;
+            shape.ToolTip = tooltip;
             Canvas.Children.Add(shape);
             Canvas.Children.Add(label);
             eventVisuals.Add(new EventVisual(shape, label, startSeconds, endSeconds, item.IsInterval));

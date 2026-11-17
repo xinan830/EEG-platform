@@ -80,10 +80,28 @@ powershell -ExecutionPolicy Bypass -File .\build_release.ps1
 
 The output contains `BrainPlatform.Desktop.exe` and
 `backend\brain_backend.exe`. Launch the WPF executable; it starts the backend,
-waits for `/api/health`, and stops only the backend it started. Scientific data
-is stored in `%LOCALAPPDATA%\BrainPlatform\storage`, so installation does not
-require write access beside the executable. The package is portable for now;
-an installer can be added after manual acceptance.
+waits for `/api/health`, and stops only the backend it started. Backend scientific
+artifacts are stored in `%LOCALAPPDATA%\BrainPlatform\storage`. New desktop
+projects use the executable-relative location described below and require write
+access there unless a custom directory is selected. The package is portable for
+now; an installer can be added after manual acceptance.
+
+## Project Data Directories
+
+新建项目只需填写项目名称。系统默认在运行中的 `BrainPlatform.Desktop.exe`
+所在目录下创建 `data\项目名\recordings`；表单会预览项目目录，保存时才创建文件夹。
+也可以点击目录右侧的文件夹按钮选择自定义项目目录，系统会使用所选目录本身，
+不会再追加一层项目名。自动生成的目录已存在时会提示更换名称或目录，不会合并已有数据。
+Windows 保留名称、路径分隔符和非法文件夹字符不能用于自动生成的目录名。
+
+软件安装在 D 盘时，默认项目数据也在 D 盘。目录无法写入或磁盘空间不足时会明确报错，
+可改选自定义目录，不会自动退回 C 盘。项目索引仍保存在
+`%LOCALAPPDATA%\BrainPlatform\research-projects.json`；修改已有项目名称不会移动其数据，
+从列表移除项目也不会删除磁盘文件。
+
+开发时，默认位置在实际运行的 `bin\Debug\net10.0-windows\data`（或相应 Release /
+发布目录），与命令行当前目录无关。清理构建输出、升级或重装软件前务必保留并备份
+`data`；真实长期记录也可以使用独立的自定义目录。移动软件不会自动迁移已有项目的绝对路径。
 
 ## Acquisition Core Boundaries
 
@@ -176,6 +194,14 @@ The usable order is:
 Changing the SDK file invalidates the connection test. Closing the desktop
 application disposes an active acquisition runtime, which stops recording and
 releases the stream.
+
+## 事件标记
+
+点击数据回溯顶部的“事件标记”打开默认靠右的独立工具窗（初始宽 384 DIP），首先展示“已标记事件”及其定位/编辑/删除操作；下方“添加新事件”区域再选择类型并创建新事件。新事件可输入从录音开始计算的标记时间（`HH:mm:ss.fff`，如 `00:00:13.740`）后点击“按时间添加”，也可点击“波形点击添加”，在波形上查看同色预览线并点击确定。可用“取当前游标”填入时间，新建事件均为单点。
+历史列表仅允许定位；仅人工事件支持编辑标记时间、备注或删除。点击“波形点击改位”后在波形选择新位置，也可以直接拖动已有人工事件线或时间标签，松开确认。已有区间保留原样本时长并整体移动，超出录音范围不会保存；修改仅影响事件，不改变信号数据。
+波形选点与拖动开始时暂停播放，完成后保持暂停；重新播放会取消选点。Esc 或“取消选点”只取消预览，拖出绘图区释放也不保存。错误信息显示在工具窗中，失败时保留原事件和编辑内容。
+拖动窗口标题栏可自由移动，拖动边缘可调整大小。操作波形、使用其他工具、点击外部或按 Esc 均不会关闭它；再次点击“事件标记”只激活同一窗口并保留位置。
+点击工具窗标题栏的 × 手动关闭；退出当前回溯页面或关闭所属窗口时释放工具窗。打开与关闭不会自动保存或创建事件。
 
 ## Deferred Hardware Work
 

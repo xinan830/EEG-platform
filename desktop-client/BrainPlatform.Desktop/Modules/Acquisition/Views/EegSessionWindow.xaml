@@ -27,7 +27,7 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                     <!-- 脑电平台 Logo 图标 -->
                     <Path Data="M 12,3 C 7,3 3,7 3,12 C 3,16 6,19.5 10,20.7 L 10,18 C 7.5,17 5.5,14.5 5.5,12 C 5.5,8.4 8.4,5.5 12,5.5 C 15.6,5.5 18.5,8.4 18.5,12 C 18.5,14.5 16.5,17 14,18 L 14,20.7 C 18,19.5 21,16 21,12 C 21,7 17,3 12,3 Z M 11,8 L 11,13 L 13,13 L 13,8 Z M 8.5,10.5 C 7.7,10.5 7,11.2 7,12 C 7,12.8 7.7,13.5 8.5,13.5 C 9.3,13.5 10,12.8 10,12 C 10,11.2 9.3,10.5 8.5,10.5 Z M 15.5,10.5 C 14.7,10.5 14,11.2 14,12 C 14,12.8 14.7,13.5 15.5,13.5 C 16.3,13.5 17,12.8 17,12 C 17,11.2 16.3,10.5 15.5,10.5 Z"
-                          Fill="#1677FF" Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center" Margin="2,0,8,0" />
+                          Fill="{StaticResource BlueBrandPrimaryBrush}" Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center" Margin="2,0,8,0" />
 
                     <!-- 返回图标按钮 (点击触发 CaptionMenuHost 中“返回项目”或预置动作) -->
                     <Button Style="{StaticResource EegCaptionButtonStyle}" Width="28" Height="28"

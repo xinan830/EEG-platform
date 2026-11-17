@@ -7,18 +7,41 @@ This capability defines project-owned EEG acquisition, preview, recording, and p
 
 ### Requirement: Desktop projects own their acquisition records
 
-The desktop SHALL require every acquisition session to belong to one persisted
-research project. A project SHALL have a stable ID and number, user-facing
-metadata, and a user-selected project directory. Raw sessions SHALL be created
-only below that project's `recordings` directory.
+The desktop SHALL require every acquisition session to belong to one persisted research project. A project SHALL have a stable ID and number, user-facing metadata, and a project directory that defaults to a unique directory under the application's `data` folder, named from the project name. Users MAY choose another directory. Raw sessions SHALL be created only below that project's `recordings` directory.
 
-The live acquisition workspace SHALL NOT be a global navigation destination.
-The project action SHALL open a preparation page where the user selects a valid
-montage and a device-supported sampling rate. The desktop SHALL open the device
-stream in preview mode before navigating from preparation to the live
-acquisition workspace. Preview mode SHALL NOT create a raw manifest, sample
-chunk, or audit record. Raw persistence SHALL begin only after the user
-explicitly starts recording.
+The live acquisition workspace SHALL NOT be a global navigation destination. The project action SHALL open a preparation page where the user selects a valid montage and a device-supported sampling rate. The desktop SHALL open the device stream in preview mode before navigating from preparation to the live acquisition workspace. Preview mode SHALL NOT create a raw manifest, sample chunk, or audit record. Raw persistence SHALL begin only after the user explicitly starts recording.
+
+#### Scenario: Create a project at the default location
+
+- **WHEN** a user creates a project using its name without selecting a custom directory
+- **THEN** the desktop SHALL create `<application directory>/data/<project name>/recordings`
+- **AND** the project SHALL be saved with that absolute directory path
+
+#### Scenario: Reject an occupied default project directory
+
+- **WHEN** a user creates a project whose default directory already exists
+- **THEN** the desktop SHALL report a readable conflict and SHALL NOT add or overwrite files in that directory
+
+#### Scenario: Reject an invalid default project directory name
+
+- **WHEN** a project name cannot be used as a single Windows directory name
+- **THEN** saving SHALL fail with a readable validation error and SHALL NOT create a project directory
+
+#### Scenario: Preserve existing project paths when renaming
+
+- **WHEN** a user renames an existing project without explicitly changing its directory
+- **THEN** its absolute project path and recording locations SHALL remain unchanged
+
+#### Scenario: Choose a custom directory
+
+- **WHEN** a user optionally chooses a valid directory while creating a project
+- **THEN** the desktop SHALL retain that choice instead of substituting the default location
+
+#### Scenario: Report directory write failure
+
+- **WHEN** a new project directory cannot be created because the destination is unwritable or storage is exhausted
+- **THEN** the desktop SHALL report a readable save error identifying the destination without adding a project index entry
+- **AND** it SHALL NOT silently choose a different data root
 
 #### Scenario: A user starts acquisition from a project
 
@@ -62,9 +85,7 @@ explicitly starts recording.
 
 ### Requirement: Project removal preserves research data
 
-Removing a project from the workstation index SHALL NOT delete its project
-directory, raw sessions, audits, or artifacts. A project directory with
-existing acquisition records SHALL NOT be reassigned through project editing.
+Removing a project from the workstation index SHALL NOT delete its project directory, raw sessions, audits, or artifacts. A project directory with existing acquisition records SHALL NOT be reassigned through project editing.
 
 #### Scenario: A user removes a project
 

@@ -63,7 +63,7 @@
                                     BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8"
                                     Padding="{TemplateBinding Padding}">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Path Data="M 17.65 6.35 A 8 8 0 1 0 19 12 M 19 4 L 19 8 L 15 8" Stroke="#2563EB"
+                                    <Path Data="M 17.65 6.35 A 8 8 0 1 0 19 12 M 19 4 L 19 8 L 15 8" Stroke="{StaticResource BlueBrandPrimaryBrush}"
                                           StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                           StrokeLineJoin="Round" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
                                     <TextBlock Text="刷新" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B"
@@ -82,7 +82,7 @@
 
                 <!-- New Event Button -->
                 <Button Click="OnNewClick" Height="38" Padding="18,0" Margin="12,0,0,0"
-                        Background="#1677FF" BorderThickness="0" Cursor="Hand">
+                        Background="{StaticResource BlueBrandPrimaryBrush}" BorderThickness="0" Cursor="Hand">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
                             <Border x:Name="BtnBorder" Background="{TemplateBinding Background}"
@@ -97,7 +97,7 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="BtnBorder" Property="Background" Value="#0958D9" />
+                                    <Setter TargetName="BtnBorder" Property="Background" Value="{StaticResource BlueBrandDeepBrush}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -137,7 +137,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Path Grid.Column="0" Data="M 10 2 A 8 8 0 1 0 16 14.5 L 21 19.5 L 19.5 21 L 14.5 16 A 8 8 0 0 0 10 2 Z M 10 4 A 6 6 0 1 1 4 10 A 6 6 0 0 1 10 4 Z"
-                                  Fill="#2563EB" Width="15" Height="15" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                  Fill="{StaticResource BlueBrandPrimaryBrush}" Width="15" Height="15" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,8,0" />
 
                             <TextBox Grid.Column="1" x:Name="EventSearchBox" BorderThickness="0" Background="Transparent"
                                      VerticalContentAlignment="Center" FontSize="13" Foreground="#0F172A"
@@ -241,7 +241,7 @@
                                             <Setter Property="Background" Value="#ECFDF5" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding Definition.IsSystem}" Value="True">
-                                                    <Setter Property="Background" Value="#EFF6FF" />
+                                                    <Setter Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -254,7 +254,7 @@
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Definition.IsSystem}" Value="True">
                                                         <Setter Property="Text" Value="系统预设" />
-                                                        <Setter Property="Foreground" Value="#2563EB" />
+                                                        <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -272,7 +272,7 @@
                                                 <Setter Property="Background" Value="#CBD5E1" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Definition.IsEnabled}" Value="True">
-                                                        <Setter Property="Background" Value="#2563EB" />
+                                                        <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -340,9 +340,9 @@
                                             <ControlTemplate TargetType="Button">
                                                 <StackPanel Orientation="Horizontal" Background="Transparent">
                                                     <Path Data="M 12 20 L 21 20 M 16.5 3.5 A 2.121 2.121 0 0 1 19.5 6.5 L 7 19 L 3 20 L 4 16 L 16.5 3.5 Z"
-                                                          Stroke="#2563EB" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                          Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                                           StrokeLineJoin="Round" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
-                                                    <TextBlock Text="编辑" Foreground="#2563EB" FontSize="13" FontWeight="Medium"
+                                                    <TextBlock Text="编辑" Foreground="{StaticResource BlueBrandPrimaryBrush}" FontSize="13" FontWeight="Medium"
                                                                Margin="5,0,0,0" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </ControlTemplate>

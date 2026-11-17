@@ -27,7 +27,7 @@
                     <Style TargetType="Border">
                         <Setter Property="Background" Value="#DCFCE7" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding Notifications.Kind}" Value="Information"><Setter Property="Background" Value="#DBEAFE" /></DataTrigger>
+                            <DataTrigger Binding="{Binding Notifications.Kind}" Value="Information"><Setter Property="Background" Value="{StaticResource BlueBrandSoftBrush}" /></DataTrigger>
                             <DataTrigger Binding="{Binding Notifications.Kind}" Value="Warning"><Setter Property="Background" Value="#FEF3C7" /></DataTrigger>
                             <DataTrigger Binding="{Binding Notifications.Kind}" Value="Error"><Setter Property="Background" Value="#FEE2E2" /></DataTrigger>
                         </Style.Triggers>
@@ -53,7 +53,7 @@
 
                     <!-- 信息提示 -->
                     <TextBlock Text="i" FontFamily="Georgia, serif" FontStyle="Italic" FontWeight="Bold"
-                               FontSize="15" Foreground="#2563EB" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               FontSize="15" Foreground="{StaticResource BlueBrandPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                Margin="0,-1,0,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">

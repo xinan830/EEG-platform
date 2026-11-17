@@ -13,7 +13,7 @@
     <UserControl.Resources>
         <!-- 主操作按钮样式 (新建导联配置) -->
         <Style x:Key="PrimaryActionButtonStyle" TargetType="Button" BasedOn="{StaticResource AppPrimaryButtonStyle}">
-            <Setter Property="Background" Value="#1677FF" />
+            <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
             <Setter Property="Foreground" Value="#FFFFFF" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="Medium" />
@@ -28,8 +28,8 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Background" Value="#0958D9" /></Trigger>
-                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Border" Property="Background" Value="#003EB3" /></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource BlueBrandDeepBrush}" /></Trigger>
+                            <Trigger Property="IsPressed" Value="True"><Setter TargetName="Border" Property="Background" Value="{StaticResource BlueBrandDeepBrush}" /></Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -254,7 +254,7 @@
                                             <Style TargetType="Border">
                                                 <Setter Property="Background" Value="#FFF7ED" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Source}" Value="{x:Static cfg:MontageProfileSource.System}"><Setter Property="Background" Value="#EFF6FF" /></DataTrigger>
+                                                    <DataTrigger Binding="{Binding Source}" Value="{x:Static cfg:MontageProfileSource.System}"><Setter Property="Background" Value="{StaticResource BlueBrandSoftBrush}" /></DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Border.Style>
@@ -264,7 +264,7 @@
                                                     <Setter Property="Foreground" Value="#EA580C" /><Setter Property="Text" Value="用户创建" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding Source}" Value="{x:Static cfg:MontageProfileSource.System}">
-                                                            <Setter Property="Foreground" Value="#2563EB" /><Setter Property="Text" Value="系统默认" />
+                                                            <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" /><Setter Property="Text" Value="系统默认" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -285,7 +285,7 @@
                                                 <Setter Property="Background" Value="#F1F5F9" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding ListStatusLabel}" Value="可用"><Setter Property="Background" Value="#DCFCE7" /></DataTrigger>
-                                                    <DataTrigger Binding="{Binding ListStatusLabel}" Value="被引用"><Setter Property="Background" Value="#EFF6FF" /></DataTrigger>
+                                                    <DataTrigger Binding="{Binding ListStatusLabel}" Value="被引用"><Setter Property="Background" Value="{StaticResource BlueBrandSoftBrush}" /></DataTrigger>
                                                     <DataTrigger Binding="{Binding ListStatusLabel}" Value="不可修改"><Setter Property="Background" Value="#FFF7ED" /></DataTrigger>
                                                     <DataTrigger Binding="{Binding ListStatusLabel}" Value="设备不匹配"><Setter Property="Background" Value="#FEF3C7" /></DataTrigger>
                                                     <DataTrigger Binding="{Binding ListStatusLabel}" Value="来源已修改"><Setter Property="Background" Value="#FEF3C7" /></DataTrigger>
@@ -300,7 +300,7 @@
                                                     <Setter Property="Foreground" Value="#64748B" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding ListStatusLabel}" Value="可用"><Setter Property="Foreground" Value="#16A34A" /></DataTrigger>
-                                                        <DataTrigger Binding="{Binding ListStatusLabel}" Value="被引用"><Setter Property="Foreground" Value="#2563EB" /></DataTrigger>
+                                                        <DataTrigger Binding="{Binding ListStatusLabel}" Value="被引用"><Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" /></DataTrigger>
                                                         <DataTrigger Binding="{Binding ListStatusLabel}" Value="不可修改"><Setter Property="Foreground" Value="#D97706" /></DataTrigger>
                                                         <DataTrigger Binding="{Binding ListStatusLabel}" Value="设备不匹配"><Setter Property="Foreground" Value="#D97706" /></DataTrigger>
                                                         <DataTrigger Binding="{Binding ListStatusLabel}" Value="来源已修改"><Setter Property="Foreground" Value="#D97706" /></DataTrigger>

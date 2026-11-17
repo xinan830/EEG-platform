@@ -56,7 +56,8 @@ public partial class MainWindow : Window, IDesktopNavigation
         eventListView = views.EventList;
         eventDefinitionEditorView = views.EventDefinitionEditor;
         algorithmWorkspaceView = views.AlgorithmWorkspace;
-        MainContentHost.Content = overviewView;
+        MainContentHost.Content = projectListView;
+        SelectNavigation(NavProjectsBtn);
     }
 
     public void ShowChannelListView()

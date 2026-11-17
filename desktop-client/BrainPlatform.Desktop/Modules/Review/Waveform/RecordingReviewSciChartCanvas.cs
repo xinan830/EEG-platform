@@ -76,6 +76,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         chartHost.Children.Add(emptyMessage);
         chartHost.Children.Add(eventMarkers.Canvas);
         chartHost.Children.Add(playbackCursor);
+        InitializeEventPlacement();
         chartHost.SizeChanged += (_, _) =>
         {
             var viewModel = DataContext as RecordingReviewViewModel;
@@ -119,6 +120,8 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        (e.OldValue as RecordingReviewViewModel)?.CancelEventPlacement();
+        CancelEventPointer();
         Unsubscribe(e.OldValue as RecordingReviewViewModel);
         Subscribe(e.NewValue as RecordingReviewViewModel);
         (e.NewValue as RecordingReviewViewModel)?.UpdateScreenScale(screenScale);
@@ -141,6 +144,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs eventArgs)
     {
+        CancelEventPointer();
         ScreenCalibrationMetrics.CalibrationChanged -= OnCalibrationChanged;
         if (owningWindow is not null)
         {
@@ -185,6 +189,9 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(RecordingReviewViewModel.EventPreviewSample)
+            or nameof(RecordingReviewViewModel.EventPlacementMode) or nameof(RecordingReviewViewModel.EventPlacementColor))
+            UpdateEventPlacementPreview();
         if (e.PropertyName is nameof(RecordingReviewViewModel.CurrentFrame)
             or nameof(RecordingReviewViewModel.VisibleDurationSeconds)
             or nameof(RecordingReviewViewModel.SensitivityMicrovoltsPerMillimeter)

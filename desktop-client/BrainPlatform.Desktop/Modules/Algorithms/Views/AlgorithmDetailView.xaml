@@ -55,8 +55,8 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.DisplayNameZh, TargetNullValue=功率谱密度}" FontSize="22" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
-                        <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="10" Padding="10,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.Abbreviation, TargetNullValue=PSD}" Foreground="#2563EB" FontSize="12" FontWeight="SemiBold" />
+                        <Border Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="10" Padding="10,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.Abbreviation, TargetNullValue=PSD}" Foreground="{StaticResource BlueBrandPrimaryBrush}" FontSize="12" FontWeight="SemiBold" />
                         </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -79,7 +79,7 @@
                         <!-- 支持模式 -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="支持模式" FontSize="12" Foreground="#64748B" Margin="0,0,8,0" VerticalAlignment="Center" />
-                            <Border Background="#DBEAFE" CornerRadius="6" Padding="12,4" Margin="0,0,6,0" VerticalAlignment="Center"><TextBlock Text="静态" FontSize="12" FontWeight="SemiBold" Foreground="#1D4ED8" /></Border>
+                            <Border Background="{StaticResource BlueBrandSoftBrush}" CornerRadius="6" Padding="12,4" Margin="0,0,6,0" VerticalAlignment="Center"><TextBlock Text="静态" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BlueBrandDeepBrush}" /></Border>
                             <Border Background="#FFEDD5" CornerRadius="6" Padding="12,4" VerticalAlignment="Center"><TextBlock Text="动态" FontSize="12" FontWeight="SemiBold" Foreground="#C2410C" /></Border>
                         </StackPanel>
                     </StackPanel>

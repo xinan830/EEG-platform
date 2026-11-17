@@ -8,10 +8,10 @@
     <SolidColorBrush x:Key="EegInstrumentMutedBrush" Color="#64748B" />
     <SolidColorBrush x:Key="EegInstrumentLineBrush" Color="#E2E8F0" />
     <SolidColorBrush x:Key="EegInstrumentPanelBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="EegInstrumentAccentBrush" Color="#1677FF" />
-    <SolidColorBrush x:Key="EegInstrumentActivePillBrush" Color="#E0F2FE" />
-    <SolidColorBrush x:Key="EegInstrumentActivePillBorderBrush" Color="#BAE6FD" />
-    <SolidColorBrush x:Key="EegInstrumentActivePillTextBrush" Color="#0284C7" />
+    <SolidColorBrush x:Key="EegInstrumentAccentBrush" Color="#2563EB" />
+    <SolidColorBrush x:Key="EegInstrumentActivePillBrush" Color="#DBEAFE" />
+    <SolidColorBrush x:Key="EegInstrumentActivePillBorderBrush" Color="#DBEAFE" />
+    <SolidColorBrush x:Key="EegInstrumentActivePillTextBrush" Color="#2563EB" />
 
     <!-- 基础按钮样式 -->
     <Style x:Key="EegInstrumentButtonStyle" TargetType="Button">
@@ -48,7 +48,7 @@
     </Style>
 
     <Style x:Key="EegInstrumentPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource EegInstrumentButtonStyle}">
-        <Setter Property="Background" Value="#EFF6FF" />
+        <Setter Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
         <Setter Property="Foreground" Value="{StaticResource EegInstrumentAccentBrush}" />
         <Setter Property="BorderBrush" Value="#BFDBFE" />
         <Setter Property="BorderThickness" Value="1" />
@@ -394,12 +394,12 @@
                             <!-- 空心播放三角图标 (描边 1.6px, 稍带圆角闭合) -->
                             <Path x:Name="PlayIcon"
                                   Data="M 0,0 L 9,6.5 L 0,13 Z"
-                                  Stroke="#1677FF" StrokeThickness="1.6" StrokeLineJoin="Round"
+                                  Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="1.6" StrokeLineJoin="Round"
                                   Fill="Transparent" Width="10" Height="14" Stretch="Uniform" Margin="2,0,0,0" />
                             <!-- 暂停图标 (双条空心/实心) -->
                             <Path x:Name="PauseIcon"
                                   Data="M 0,0 H 3.5 V 13 H 0 Z M 6.5,0 H 10 V 13 H 6.5 Z"
-                                  Fill="#1677FF" Width="10" Height="13" Stretch="Uniform" Visibility="Collapsed" />
+                                  Fill="{StaticResource BlueBrandPrimaryBrush}" Width="10" Height="13" Stretch="Uniform" Visibility="Collapsed" />
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>

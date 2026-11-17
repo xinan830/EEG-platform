@@ -39,7 +39,7 @@
                             <Setter TargetName="RowBorder" Property="Background" Value="#F8FAFC" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="RowBorder" Property="Background" Value="#F0F7FF" />
+                            <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
