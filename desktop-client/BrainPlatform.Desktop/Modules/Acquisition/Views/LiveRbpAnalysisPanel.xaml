@@ -2,6 +2,8 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:rbp="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp">
+    <Border Margin="4,2,4,4" Padding="6" Background="White" BorderBrush="#E2E8F0"
+            BorderThickness="1" CornerRadius="8">
         <ListBox ItemsSource="{Binding ChannelHistories}"
                  BorderThickness="0" Background="Transparent" Padding="0"
                  ScrollViewer.CanContentScroll="True" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -18,11 +20,17 @@
                 <DataTemplate>
                     <StackPanel Margin="0,0,0,6">
                         <TextBlock Text="{Binding Channel}" FontSize="11" FontWeight="SemiBold" Foreground="#0F172A" />
-                        <TextBlock Text="{Binding QualitySummary}" FontSize="10" Foreground="#64748B" TextTrimming="CharacterEllipsis" />
-                        <rbp:RbpChart Height="120" IsStackedHistory="True" ShowAxisTitles="False"
-                                      Bands="{Binding Bands}" Windows="{Binding Windows}" />
+                        <Grid Height="120">
+                            <rbp:RbpChart IsStackedHistory="True" ShowAxisTitles="False"
+                                          Bands="{Binding Bands}" Windows="{Binding Windows}" />
+                            <TextBlock Text="{Binding DataContext.WindowText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="4"
+                                       Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                                       IsHitTestVisible="False" Panel.ZIndex="2" />
+                        </Grid>
                     </StackPanel>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+    </Border>
 </UserControl>

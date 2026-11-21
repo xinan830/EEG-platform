@@ -46,41 +46,48 @@
                               SelectedValuePath="Id" SelectedValue="{Binding Power}"
                               Visibility="{Binding NeedsPower, Converter={StaticResource ShowOption}}"
                               AutomationProperties.Name="RBP 地形图指标" />
-                    <Button Content="应用" Command="{Binding ApplyCommand}" Padding="12,3" Margin="0,0,0,4" />
+                    <Button Content="应用" Command="{Binding ApplyCommand}" Padding="12,3" Margin="0,0,0,4">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveView}" Value="rbp">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </WrapPanel>
             </StackPanel>
-            <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1"
-                    CornerRadius="8" Padding="8">
-                <ContentControl Content="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
-                    <ContentControl.Style>
-                        <Style TargetType="ContentControl">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ActiveView}" Value="rbp">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Setter Property="ContentTemplate" Value="{StaticResource LiveRbp}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ActiveView}" Value="psd">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Setter Property="ContentTemplate" Value="{StaticResource LivePsd}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ActiveView}" Value="stft">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Setter Property="ContentTemplate" Value="{StaticResource LiveStft}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ActiveView}" Value="rbp-topomap">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ActiveView}" Value="psd-topomap">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                    <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ContentControl.Style>
-                </ContentControl>
-            </Border>
+            <ContentControl Content="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+                <ContentControl.Style>
+                    <Style TargetType="ContentControl">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="rbp">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LiveRbp}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="psd">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LivePsd}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="stft">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LiveStft}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="rbp-topomap">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="psd-topomap">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ContentControl.Style>
+            </ContentControl>
         </DockPanel>
     </shared:AnalysisPanelShell>
 </UserControl>
