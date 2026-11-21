@@ -27,14 +27,15 @@
     <shared:AnalysisPanelShell Title="实时分析" StatusText="{Binding Status}" ToolTip="{Binding Status}"
                                CloseCommand="{Binding ToggleCommand}">
         <shared:AnalysisPanelShell.HeaderContent>
-            <TextBlock Text="{Binding Window}" Foreground="#475569" FontSize="11" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{Binding ActiveLabel}" FontSize="12" FontWeight="SemiBold"
+                           Foreground="#0F172A" />
+                <TextBlock Text="{Binding Window}" Foreground="#475569" FontSize="11" Margin="10,0,0,0" />
+            </StackPanel>
         </shared:AnalysisPanelShell.HeaderContent>
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                 <WrapPanel IsEnabled="{Binding IsInteractive}">
-                    <ComboBox Width="124" Margin="0,0,6,4" ItemsSource="{Binding ViewOptions}"
-                              SelectedItem="{Binding SelectedView}" DisplayMemberPath="Label"
-                              AutomationProperties.Name="实时分析图表" />
                     <ComboBox Width="92" Margin="0,0,6,4" ItemsSource="{Binding Channels}" SelectedItem="{Binding Channel}"
                               Visibility="{Binding NeedsChannel, Converter={StaticResource ShowOption}}"
                               AutomationProperties.Name="分析通道" />
@@ -47,37 +48,39 @@
                               AutomationProperties.Name="RBP 地形图指标" />
                     <Button Content="应用" Command="{Binding ApplyCommand}" Padding="12,3" Margin="0,0,0,4" />
                 </WrapPanel>
-                <TextBlock Text="{Binding ActiveLabel}" FontWeight="SemiBold" Foreground="#334155" />
             </StackPanel>
-            <ContentControl Content="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
-                <ContentControl.Style>
-                    <Style TargetType="ContentControl">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ActiveView}" Value="rbp">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Setter Property="ContentTemplate" Value="{StaticResource LiveRbp}" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ActiveView}" Value="psd">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Setter Property="ContentTemplate" Value="{StaticResource LivePsd}" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ActiveView}" Value="stft">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Setter Property="ContentTemplate" Value="{StaticResource LiveStft}" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ActiveView}" Value="rbp-topomap">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding ActiveView}" Value="psd-topomap">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ContentControl.Style>
-            </ContentControl>
+            <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1"
+                    CornerRadius="8" Padding="8">
+                <ContentControl Content="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+                    <ContentControl.Style>
+                        <Style TargetType="ContentControl">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ActiveView}" Value="rbp">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Setter Property="ContentTemplate" Value="{StaticResource LiveRbp}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ActiveView}" Value="psd">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Setter Property="ContentTemplate" Value="{StaticResource LivePsd}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ActiveView}" Value="stft">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Setter Property="ContentTemplate" Value="{StaticResource LiveStft}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ActiveView}" Value="rbp-topomap">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ActiveView}" Value="psd-topomap">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ContentControl.Style>
+                </ContentControl>
+            </Border>
         </DockPanel>
     </shared:AnalysisPanelShell>
 </UserControl>

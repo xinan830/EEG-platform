@@ -35,6 +35,11 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         this.runtime = runtime;
         this.dispatcher = dispatcher;
         ToggleCommand = new AsyncRelayCommand(ToggleAsync, reportError);
+        OpenRbpCommand = new AsyncRelayCommand(() => OpenViewAsync("rbp"), reportError);
+        OpenPsdCommand = new AsyncRelayCommand(() => OpenViewAsync("psd"), reportError);
+        OpenStftCommand = new AsyncRelayCommand(() => OpenViewAsync("stft"), reportError);
+        OpenRbpTopomapCommand = new AsyncRelayCommand(() => OpenViewAsync("rbp-topomap"), reportError);
+        OpenPsdTopomapCommand = new AsyncRelayCommand(() => OpenViewAsync("psd-topomap"), reportError);
         ApplyCommand = new AsyncRelayCommand(ApplyAsync, reportError);
         runtime.LiveAnalysisUpdated += OnUpdate;
         runtime.LiveAnalysisFaulted += OnFault;
@@ -80,6 +85,11 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     public LiveRbpAnalysisViewModel Rbp { get; } = new();
     public TopomapColorScaleState ColorScales { get; } = new();
     public ICommand ToggleCommand { get; }
+    public ICommand OpenRbpCommand { get; }
+    public ICommand OpenPsdCommand { get; }
+    public ICommand OpenStftCommand { get; }
+    public ICommand OpenRbpTopomapCommand { get; }
+    public ICommand OpenPsdTopomapCommand { get; }
     public ICommand ApplyCommand { get; }
 
     public void RefreshSession()
@@ -97,16 +107,23 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         if (!IsInteractive) return;
         if (!IsOpen)
         {
-            Channels = runtime.StreamMetadata?.Channels
-                .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
-                .Select(LiveSpectralPresentation.ChannelName).ToArray() ?? [];
-            Channel = Channels.Contains(Channel) ? Channel : Channels.FirstOrDefault();
-            IsOpen = true;
-            if (SelectedView.Id == "rbp" && Channels.Count > 0) await ApplyAsync();
+            await OpenViewAsync(SelectedView.Id);
             return;
         }
         await ChangeAsync(null);
         IsOpen = false;
+    }
+
+    private async Task OpenViewAsync(string viewId)
+    {
+        if (!IsInteractive) return;
+        Channels = runtime.StreamMetadata?.Channels
+            .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
+            .Select(LiveSpectralPresentation.ChannelName).ToArray() ?? [];
+        Channel = Channels.Contains(Channel) ? Channel : Channels.FirstOrDefault();
+        SelectedView = Views.First(view => view.Id == viewId);
+        IsOpen = true;
+        await ApplyAsync();
     }
 
     private async Task ApplyAsync()

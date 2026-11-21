@@ -119,11 +119,31 @@
                                                     Command="{Binding Acquisition.LiveMonitor.ToggleSettingsCommand}"
                                                     ToolTip="查看项目与采集数据信息" />
 
-                            <Button Content="实时分析" Command="{Binding Acquisition.LiveAnalysis.ToggleCommand}"
-                                    IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
-                                    Margin="6,0,2,0" Padding="10,5" MinHeight="32"
-                                    Background="#EFF6FF" Foreground="#1D4ED8" BorderBrush="#BFDBFE"
-                                    BorderThickness="1" ToolTip="在预览或录制期间打开实时分析图表。" />
+                            <controls:EegToolButton Content="RBP 算法"
+                                                    IconSource="pack://application:,,,/Assets/AlgorithmIcons/rbp.png"
+                                                    Command="{Binding Acquisition.LiveAnalysis.OpenRbpCommand}"
+                                                    IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
+                                                    ToolTip="打开实时相对频段功率趋势" />
+                            <controls:EegToolButton Content="PSD"
+                                                    IconSource="pack://application:,,,/Assets/AlgorithmIcons/psd.png"
+                                                    Command="{Binding Acquisition.LiveAnalysis.OpenPsdCommand}"
+                                                    IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
+                                                    ToolTip="打开实时功率谱密度" />
+                            <controls:EegToolButton Content="STFT 时频"
+                                                    IconSource="pack://application:,,,/Assets/AlgorithmIcons/stft.png"
+                                                    Command="{Binding Acquisition.LiveAnalysis.OpenStftCommand}"
+                                                    IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
+                                                    ToolTip="打开实时短时傅里叶时频图" />
+                            <controls:EegToolButton Content="RBP 地形"
+                                                    IconSource="pack://application:,,,/Assets/AlgorithmIcons/rbp.png"
+                                                    Command="{Binding Acquisition.LiveAnalysis.OpenRbpTopomapCommand}"
+                                                    IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
+                                                    ToolTip="打开实时 RBP 地形图" />
+                            <controls:EegToolButton Content="PSD 地形"
+                                                    IconSource="pack://application:,,,/Assets/AlgorithmIcons/psd.png"
+                                                    Command="{Binding Acquisition.LiveAnalysis.OpenPsdTopomapCommand}"
+                                                    IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
+                                                    ToolTip="打开实时 PSD 地形图" />
                         </StackPanel>
 
                         <!-- 右侧：会话运行状态与计时器胶囊 -->
