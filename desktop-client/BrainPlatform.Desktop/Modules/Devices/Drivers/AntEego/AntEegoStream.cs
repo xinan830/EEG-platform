@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 
 namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 
@@ -38,10 +40,15 @@ internal sealed class AntEegoStream : IAcquisitionStream
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
+        long? previousReadCompletedTimestamp = null;
+        long? previousLastSampleCounter = null;
+        var previousSampleCount = 0;
 
         while (!cancellationToken.IsCancellationRequested)
         {
+            var readStartedTimestamp = Stopwatch.GetTimestamp();
             var values = lease.Invoke(api => api.ReadAvailableData(streamId));
+            var readCompletedTimestamp = Stopwatch.GetTimestamp();
             if (values is null)
             {
                 await Task.Delay(emptyReadDelay, cancellationToken);
@@ -62,6 +69,22 @@ internal sealed class AntEegoStream : IAcquisitionStream
                 sampleCount,
                 channelCount,
                 Metadata.SampleCounterChannelIndex);
+            var readCallMs = Stopwatch.GetElapsedTime(readStartedTimestamp, readCompletedTimestamp).TotalMilliseconds;
+            if (previousReadCompletedTimestamp is { } previousReadCompleted &&
+                previousLastSampleCounter is { } previousLast && firstSampleCounter > previousLast + 1)
+            {
+                var interBatchMs = Stopwatch.GetElapsedTime(previousReadCompleted, readStartedTimestamp).TotalMilliseconds;
+                var expectedBatchMs = previousSampleCount * 1000d / Metadata.SamplingRateHz;
+                DesktopLog.Warning(
+                    $"ant_eego_sample_gap first_missing={previousLast + 1} last_missing={firstSampleCounter - 1} " +
+                    $"missing_count={firstSampleCounter - previousLast - 1} previous_batch_samples={previousSampleCount} " +
+                    $"inter_batch_ms={interBatchMs:F1} expected_batch_ms={expectedBatchMs:F1} " +
+                    $"read_call_ms={readCallMs:F1} prior_sample_counter={previousLast} next_sample_counter={firstSampleCounter}");
+            }
+
+            previousReadCompletedTimestamp = readCompletedTimestamp;
+            previousLastSampleCounter = checked(firstSampleCounter + sampleCount - 1L);
+            previousSampleCount = sampleCount;
             yield return new AcquisitionBatch(
                 firstSampleCounter,
                 sampleCount,

@@ -74,6 +74,7 @@ class LiveRecordingAccessSession:
         self._chunks: deque[_Chunk] = deque()
         self._gaps: deque[tuple[int, int]] = deque()
         self._retained_samples = 0
+        self._first_sample: int | None = None
         self._high_watermark: int | None = None
         self._closed = False
         self._lock = threading.RLock()
@@ -100,10 +101,17 @@ class LiveRecordingAccessSession:
             if expected is not None and first_sample_counter > expected:
                 self._gaps.append((expected, first_sample_counter))
             self._chunks.append(_Chunk(first_sample_counter, values.copy()))
+            if self._first_sample is None:
+                self._first_sample = first_sample_counter
             self._retained_samples += sample_count
             self._high_watermark = first_sample_counter + sample_count - 1
             self._trim()
             return self.range_snapshot()
+
+    @property
+    def first_sample(self) -> int | None:
+        with self._lock:
+            return self._first_sample
 
     def read_samples(
         self,

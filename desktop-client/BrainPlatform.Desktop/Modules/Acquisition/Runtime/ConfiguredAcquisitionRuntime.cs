@@ -1,4 +1,6 @@
 using System.Net.Http;
+using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 
@@ -16,6 +18,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
     private IAcquisitionDeviceAdapter? adapter;
     private AcquisitionCoordinator? coordinator;
     private readonly HttpLiveFilterBridge? liveFilterBridge;
+    private readonly HttpLiveSampleAccessBridge? liveSampleAccessBridge;
     private volatile SampleBatchRingBuffer? filteredDisplayBuffer;
     private readonly object displayFilterBoundaryGate = new();
     private readonly List<long> displayFilterBoundaries = [];
@@ -26,6 +29,10 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
     public event EventHandler<AcquisitionStateSnapshot>? StateChanged;
 
     public event EventHandler<AcquisitionFault>? AnalysisFaulted;
+
+    public event EventHandler<LiveAnalysisUpdate>? LiveAnalysisUpdated;
+
+    public event EventHandler<AcquisitionFault>? LiveAnalysisFaulted;
 
     public DeviceReadiness Readiness => adapter?.GetReadiness() ?? DeviceReadiness.NotConfigured();
 
@@ -60,11 +67,29 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         this.driverRegistry = driverRegistry ?? DesktopAcquisitionDriverCatalog.CreateDefault();
         if (backendHttpClient is not null)
         {
+            liveSampleAccessBridge = new HttpLiveSampleAccessBridge(backendHttpClient);
+            liveSampleAccessBridge.AnalysisUpdated += (_, update) => LiveAnalysisUpdated?.Invoke(this, update);
             liveFilterBridge = new HttpLiveFilterBridge(backendHttpClient);
             liveFilterBridge.FilteredBatchAvailable += OnFilteredBatchAvailable;
             liveFilterBridge.FilterConfigurationActivated += OnFilterConfigurationActivated;
             liveFilterBridge.FilterTransitionFailed += OnFilterTransitionFailed;
         }
+    }
+
+    public async Task SetLiveAlgorithmEnabledAsync(string algorithmId, bool enabled, JsonElement config, CancellationToken cancellationToken)
+    {
+        await transition.WaitAsync(cancellationToken);
+        try
+        {
+            var activeCoordinator = RequireCoordinator();
+            if (enabled && State.State is not (AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused))
+                throw new AcquisitionUnavailableException("请先开始预览或录制，再启用实时算法。");
+            if (enabled && activeCoordinator.LiveAccessFault is { } fault)
+                throw new AcquisitionUnavailableException(fault.Detail);
+            await (liveSampleAccessBridge ?? throw new AcquisitionUnavailableException("后端实时分析服务未配置。"))
+                .SetAlgorithmEnabledAsync(algorithmId, enabled, config, cancellationToken);
+        }
+        finally { transition.Release(); }
     }
 
     public IReadOnlyList<AcquisitionBatch> GetDisplaySnapshot()
@@ -166,9 +191,11 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
                 adapter,
                 new LocalAcquisitionRawWriterFactory(),
                 liveFilterBridge is IAcquisitionAnalysisBridge bridge ? bridge : new NullAcquisitionAnalysisBridge(),
-                ringBufferCapacitySamples: 250_000);
+                ringBufferCapacitySamples: 250_000,
+                liveAccessBridge: liveSampleAccessBridge);
             coordinator.StateChanged += ForwardStateChanged;
             coordinator.AnalysisFaulted += ForwardAnalysisFault;
+            coordinator.LiveAccessFaulted += ForwardLiveAccessFault;
         }
         finally
         {
@@ -234,7 +261,8 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         await transition.WaitAsync(cancellationToken);
         try
         {
-            await RequireCoordinator().StopAsync(cancellationToken);
+            var activeCoordinator = RequireCoordinator();
+            await activeCoordinator.StopAsync(cancellationToken);
             if (activeSession is { } sessionId && liveFilterBridge is not null)
             {
                 await liveFilterBridge.CloseAsync(sessionId, cancellationToken);
@@ -289,6 +317,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
             disposed = true;
             await DisposeConfiguredRuntimeAsync();
+            if (liveSampleAccessBridge is not null) await liveSampleAccessBridge.DisposeAsync();
         }
         finally
         {
@@ -306,6 +335,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         {
             coordinator.StateChanged -= ForwardStateChanged;
             coordinator.AnalysisFaulted -= ForwardAnalysisFault;
+            coordinator.LiveAccessFaulted -= ForwardLiveAccessFault;
             await coordinator.DisposeAsync();
             coordinator = null;
         }
@@ -377,6 +407,9 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         liveFilterBridge?.MarkUnavailable();
         AnalysisFaulted?.Invoke(this, fault);
     }
+
+    private void ForwardLiveAccessFault(object? sender, AcquisitionFault fault) =>
+        LiveAnalysisFaulted?.Invoke(this, fault);
 
     private void DisableLiveFilter(AcquisitionFault fault)
     {

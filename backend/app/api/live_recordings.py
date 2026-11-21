@@ -2,10 +2,14 @@ import json
 
 import numpy as np
 from fastapi import APIRouter, Query, Request, Response, status
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, Field, JsonValue
 
 from app.core.api_contract import error_response
 from app.services.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessService
+from app.services.live_analysis_contracts import LiveAnalysisEnvelope
+from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
 
 
 router = APIRouter(prefix="/api/live-recordings", tags=["live-recordings"])
@@ -21,8 +25,27 @@ class LiveAccessSessionCreate(BaseModel):
     capacity_samples: int = Field(default=30_000, gt=0, le=2_000_000)
 
 
+class LiveAlgorithmStartRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    schema_version: Literal["live-analysis-config-v1"] = "live-analysis-config-v1"
+    config: dict[str, JsonValue]
+
+
+class LiveSampleAcknowledgement(BaseModel):
+    type: Literal["live_samples_accepted"] = "live_samples_accepted"
+    schema_version: Literal["live-sample-ack-v2"] = "live-sample-ack-v2"
+    session_id: str
+    range: dict[str, int | None]
+    updates: list[LiveAnalysisEnvelope]
+
+
 def _service(request: Request) -> LiveRecordingAccessService:
     return request.app.state.live_recording_access_service
+
+
+def _analysis(request: Request) -> LiveAnalysisCoordinator:
+    return request.app.state.live_analysis_coordinator
 
 
 def _error(request: Request, exc: LiveRecordingAccessError):
@@ -44,7 +67,7 @@ def create_session(payload: LiveAccessSessionCreate, request: Request) -> dict:
         return _error(request, exc)
 
 
-@router.post("/sessions/{session_id}/batches/binary")
+@router.post("/sessions/{session_id}/batches/binary", response_model=LiveSampleAcknowledgement)
 async def append_batch_binary(
     session_id: str,
     request: Request,
@@ -58,7 +81,10 @@ async def append_batch_binary(
         values = np.frombuffer(payload, dtype="<f8")
         session = _service(request).require(session_id)
         snapshot = session.append(first_sample_counter, values, sample_count)
-        return {"session_id": session_id, "range": snapshot.__dict__}
+        updates = _analysis(request).on_samples(session_id, session)
+        return LiveSampleAcknowledgement(
+            session_id=session_id, range=snapshot.__dict__, updates=updates,
+        ).model_dump(mode="json")
     except LiveRecordingAccessError as exc:
         return _error(request, exc)
 
@@ -101,4 +127,35 @@ def read_samples_binary(
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 def close_session(session_id: str, request: Request) -> None:
+    _analysis(request).close_session(session_id)
     _service(request).close(session_id)
+
+
+@router.post("/sessions/{session_id}/algorithms/{algorithm_id}", status_code=status.HTTP_201_CREATED,
+    response_model=LiveAnalysisEnvelope)
+def start_algorithm(session_id: str, algorithm_id: str, payload: LiveAlgorithmStartRequest, request: Request):
+    try:
+        return _analysis(request).start(session_id, _service(request).require(session_id), algorithm_id, payload.config)
+    except LiveRecordingAccessError as exc:
+        return _error(request, exc)
+
+
+@router.get("/sessions/{session_id}/algorithms/{algorithm_id}", response_model=LiveAnalysisEnvelope)
+def latest_algorithm(session_id: str, algorithm_id: str, request: Request):
+    try:
+        _service(request).require(session_id)
+        result = _analysis(request).latest(session_id, algorithm_id)
+        if result is None:
+            raise LiveRecordingAccessError("LIVE_ALGORITHM_NOT_STARTED", "实时算法尚未启动或已停止。")
+        return result
+    except LiveRecordingAccessError as exc:
+        return _error(request, exc)
+
+
+@router.delete("/sessions/{session_id}/algorithms/{algorithm_id}", status_code=status.HTTP_204_NO_CONTENT)
+def stop_algorithm(session_id: str, algorithm_id: str, request: Request):
+    try:
+        _service(request).require(session_id)
+        _analysis(request).stop(session_id, algorithm_id)
+    except LiveRecordingAccessError as exc:
+        return _error(request, exc)

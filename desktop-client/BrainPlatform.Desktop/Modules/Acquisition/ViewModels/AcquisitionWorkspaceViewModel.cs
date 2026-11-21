@@ -44,6 +44,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     private bool isPreparationStartInProgress;
     private bool disposed;
     private string? selectedEventDefinitionId;
+    private bool isLiveRbpEnabled;
+    private long liveRbpGeneration;
 
     public AcquisitionWorkspaceViewModel(
         IAcquisitionSettingsStore? settingsStore = null,
@@ -102,6 +104,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         this.deviceSession.PropertyChanged += OnDeviceSessionPropertyChanged;
         this.runtime.StateChanged += OnRuntimeStateChanged;
         this.runtime.AnalysisFaulted += OnAnalysisFaulted;
+        this.runtime.LiveAnalysisUpdated += OnLiveAnalysisUpdated;
+        this.runtime.LiveAnalysisFaulted += OnLiveAnalysisFaulted;
 
         BrowseSdkLibraryCommand = new AsyncRelayCommand(BrowseSdkLibraryAsync, ReportCommandError);
         TestConnectionCommand = new AsyncRelayCommand(TestConnectionCoreAsync, ReportCommandError);
@@ -143,6 +147,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             return Task.CompletedTask;
         }, ReportCommandError);
         MarkSelectedEventCommand = new AsyncRelayCommand(MarkSelectedEventAsync, ReportCommandError);
+        ToggleLiveRbpCommand = new AsyncRelayCommand(ToggleLiveRbpAsync, ReportCommandError);
         if (!string.IsNullOrWhiteSpace(sdkLibraryPath))
         {
             _ = InitializeDeviceAsync();
@@ -176,6 +181,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
 
     public LiveMonitoringViewModel LiveMonitor { get; }
 
+    public LiveRbpAnalysisViewModel LiveRbp { get; } = new();
+
     public LiveDisplayPreferencesViewModel DisplayPreferences { get; }
 
     public ICommand BrowseSdkLibraryCommand { get; }
@@ -201,6 +208,21 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     public ICommand ConfirmInputRangeEditCommand { get; }
 
     public ICommand MarkSelectedEventCommand { get; }
+
+    public ICommand ToggleLiveRbpCommand { get; }
+
+    public bool IsLiveRbpEnabled
+    {
+        get => isLiveRbpEnabled;
+        private set
+        {
+            if (SetProperty(ref isLiveRbpEnabled, value)) RaisePropertyChanged(nameof(LiveRbpActionText));
+        }
+    }
+
+    public string LiveRbpActionText => IsLiveRbpEnabled ? "停止 RBP" : "启用 RBP";
+
+    public bool CanToggleLiveRbp => runtime.State.State is AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused;
 
     public string? SelectedEventDefinitionId
     {
@@ -558,6 +580,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         disposed = true;
         runtime.StateChanged -= OnRuntimeStateChanged;
         runtime.AnalysisFaulted -= OnAnalysisFaulted;
+        runtime.LiveAnalysisUpdated -= OnLiveAnalysisUpdated;
+        runtime.LiveAnalysisFaulted -= OnLiveAnalysisFaulted;
         deviceSession.PropertyChanged -= OnDeviceSessionPropertyChanged;
         channelMapping.DisplayChannelsChanged -= OnDisplayChannelsChanged;
         DisplayPreferences.MessageRaised -= OnDisplayPreferenceMessage;
@@ -832,6 +856,12 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         _ = dispatcher.InvokeAsync(() =>
         {
             AcquisitionStatusText = state.Detail;
+            RaisePropertyChanged(nameof(CanToggleLiveRbp));
+            if (state.State is AcquisitionState.Stopped or AcquisitionState.Faulted or AcquisitionState.Ready)
+            {
+                IsLiveRbpEnabled = false;
+                LiveRbp.Clear();
+            }
             if (state.State is AcquisitionState.Previewing or AcquisitionState.Recording)
             {
                 ApplyStreamMetadata();
@@ -840,6 +870,58 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
 
             LiveMonitor.Refresh();
             RaiseCommandAvailabilityChanged();
+        });
+    }
+
+    private async Task ToggleLiveRbpAsync()
+    {
+        var enabled = !IsLiveRbpEnabled;
+        var channels = runtime.StreamMetadata?.Channels
+            .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
+            .Select(channel => channel.Label ?? $"channel-{channel.StreamIndex}")
+            .ToArray() ?? [];
+        if (enabled && runtime.State.State is not (AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused))
+            throw new InvalidOperationException("请先开始预览或录制，再启用实时 RBP。");
+        var sessionId = runtime.State.SessionId;
+        if (enabled && sessionId is null) throw new InvalidOperationException("当前采集会话已结束。");
+        var generation = Interlocked.Increment(ref liveRbpGeneration);
+        IsLiveRbpEnabled = enabled;
+        if (enabled) LiveRbp.Begin(sessionId!.Value);
+        try
+        {
+            await runtime.SetLiveAlgorithmEnabledAsync(LiveRbpPresentation.AlgorithmId, enabled,
+                LiveRbpPresentation.Config(channels), CancellationToken.None);
+            if (!enabled) LiveRbp.Clear();
+        }
+        catch
+        {
+            if (generation == Interlocked.Read(ref liveRbpGeneration) && runtime.State.SessionId == sessionId)
+            {
+                IsLiveRbpEnabled = !enabled;
+                if (enabled) LiveRbp.Clear();
+            }
+            throw;
+        }
+    }
+
+    private void OnLiveAnalysisFaulted(object? sender, AcquisitionFault fault)
+    {
+        if (runtime.State.SessionId is not { } session) return;
+        OnLiveAnalysisUpdated(sender, new LiveAnalysisUpdate(session, LiveRbpPresentation.AlgorithmId, 0, "unavailable",
+            runtime.StreamMetadata?.SamplingRateHz ?? 0, FailureCode: fault.Code, Message: fault.Detail));
+    }
+
+    private void OnLiveAnalysisUpdated(object? sender, LiveAnalysisUpdate update)
+    {
+        var generation = Interlocked.Read(ref liveRbpGeneration);
+        _ = dispatcher.InvokeAsync(() =>
+        {
+            if (generation != Interlocked.Read(ref liveRbpGeneration)) return;
+            if (disposed || !IsLiveRbpEnabled || runtime.State.SessionId != update.SessionId || !CanToggleLiveRbp) return;
+            var channels = runtime.StreamMetadata?.Channels
+                .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
+                .Select(channel => channel.Label ?? $"channel-{channel.StreamIndex}").ToArray() ?? [];
+            if (LiveRbpPresentation.Read(update, channels) is { } rbp) LiveRbp.Apply(rbp);
         });
     }
 

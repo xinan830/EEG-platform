@@ -46,6 +46,9 @@ from app.api.custom_frequency_inspection import router as custom_frequency_inspe
 from app.api.topomap_3d import router as topomap_3d_router
 from app.services.live_filter import LiveFilterService
 from app.services.live_recording_access import LiveRecordingAccessService
+from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
+from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
+from app.services.live_rbp_algorithm import LiveRbpAlgorithm
 from app.services.on_demand_dynamic import DynamicWindowService
 from app.services.cache_maintenance import CacheMaintenanceService
 from app.core.cache_maintenance_gate import CacheMaintenanceGate, CacheMaintenanceMiddleware
@@ -79,6 +82,7 @@ async def lifespan(application: FastAPI):
         application.state.run_worker.stop()
         application.state.dynamic_window_service.close()
         application.state.scientific_compute_coordinator.close()
+        application.state.live_analysis_coordinator.shutdown()
         application.state.live_recording_access_service.close_all()
 
 
@@ -124,6 +128,9 @@ app.state.algorithm_preset_service = AlgorithmPresetService(
 )
 app.state.live_filter_service = LiveFilterService()
 app.state.live_recording_access_service = LiveRecordingAccessService()
+app.state.live_analysis_coordinator = LiveAnalysisCoordinator(
+    LiveAnalysisAlgorithmRegistry((LiveRbpAlgorithm(),))
+)
 app.state.dynamic_window_service = DynamicWindowService(
     app.state.recording_service,
     app.state.algorithm_runtime_registry,

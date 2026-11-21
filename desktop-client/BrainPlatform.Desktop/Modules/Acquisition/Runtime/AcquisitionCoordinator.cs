@@ -8,7 +8,9 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     private readonly IAcquisitionDeviceAdapter deviceAdapter;
     private readonly IAcquisitionRawWriterFactory rawWriterFactory;
     private readonly BoundedAnalysisDispatcher analysisDispatcher;
-    private readonly BoundedLiveAccessDispatcher? liveAccessDispatcher;
+    private readonly ILiveSampleAccessBridge? liveAccessBridge;
+    private readonly int liveAccessQueueCapacity;
+    private BoundedLiveAccessDispatcher? liveAccessDispatcher;
     private readonly SemaphoreSlim lifecycle = new(1, 1);
     private readonly SemaphoreSlim batchBoundary = new(1, 1);
     private readonly int ringBufferCapacitySamples;
@@ -60,11 +62,8 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             analysisBridge ?? throw new ArgumentNullException(nameof(analysisBridge)),
             analysisQueueCapacity);
         analysisDispatcher.AnalysisFaulted += (_, fault) => AnalysisFaulted?.Invoke(this, fault);
-        if (liveAccessBridge is not null)
-        {
-            this.liveAccessDispatcher = new BoundedLiveAccessDispatcher(liveAccessBridge, liveAccessQueueCapacity);
-            this.liveAccessDispatcher.Faulted += (_, fault) => LiveAccessFaulted?.Invoke(this, fault);
-        }
+        this.liveAccessBridge = liveAccessBridge;
+        this.liveAccessQueueCapacity = liveAccessQueueCapacity;
     }
 
     public event EventHandler<AcquisitionStateSnapshot>? StateChanged;
@@ -72,6 +71,8 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     public event EventHandler<AcquisitionFault>? AnalysisFaulted;
 
     public event EventHandler<AcquisitionFault>? LiveAccessFaulted;
+
+    internal AcquisitionFault? LiveAccessFault => liveAccessDispatcher?.Fault;
 
     public AcquisitionStateSnapshot State => Volatile.Read(ref state);
 
@@ -199,6 +200,11 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             Volatile.Write(ref recordingFirstSampleCounter, -1);
             continuityTracker = new SampleCounterContinuityTracker();
             Volatile.Write(ref ringBuffer, new SampleBatchRingBuffer(ringBufferCapacitySamples));
+            if (liveAccessBridge is not null)
+            {
+                liveAccessDispatcher = new BoundedLiveAccessDispatcher(liveAccessBridge, liveAccessQueueCapacity);
+                liveAccessDispatcher.Faulted += ReportLiveAccessFault;
+            }
             captureCancellation = new CancellationTokenSource();
             captureTask = Task.Run(() => CaptureLoopAsync(captureCancellation.Token));
             if (startRecordingImmediately)
@@ -389,10 +395,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         {
             disposed = true;
             await analysisDispatcher.DisposeAsync();
-            if (liveAccessDispatcher is not null)
-            {
-                await liveAccessDispatcher.DisposeAsync();
-            }
+            await CloseLiveAccessSessionAsync();
             batchBoundary.Dispose();
             lifecycle.Dispose();
         }
@@ -407,7 +410,15 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
 
             await foreach (var batch in activeStream.ReadBatchesAsync(cancellationToken))
             {
+                var processingStartedTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
                 await ProcessBatchAsync(batch, tracker, cancellationToken);
+                var processMs = System.Diagnostics.Stopwatch.GetElapsedTime(processingStartedTimestamp).TotalMilliseconds;
+                if (processMs >= 30d)
+                {
+                    DesktopLog.Warning(
+                        $"acquisition_batch_processing_slow session_id={sessionId?.ToString("N") ?? "none"} " +
+                        $"first_sample_counter={batch.FirstSampleCounter} sample_count={batch.SampleCount} process_ms={processMs:F1}");
+                }
             }
 
             if (!cancellationToken.IsCancellationRequested)
@@ -451,6 +462,14 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             }
 
             var continuity = tracker.Observe(batch);
+            if (continuity.Gap is { } observedGap)
+            {
+                DesktopLog.Warning(
+                    $"acquisition_sample_gap session_id={sessionId?.ToString("N") ?? "none"} state={state.State} " +
+                    $"first_missing={observedGap.FirstMissingSampleCounter} last_missing={observedGap.LastMissingSampleCounter} " +
+                    $"missing_count={observedGap.MissingSampleCount} next_batch_first={batch.FirstSampleCounter} " +
+                    $"next_batch_count={batch.SampleCount}");
+            }
             var activeWriter = Volatile.Read(ref rawWriter);
             var recordingIsPaused = activeWriter is not null && Volatile.Read(ref pauseRequested) == 1;
             if (recordingIsPaused)
@@ -469,7 +488,6 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
 
                 if (continuity.Gap is not null)
                 {
-                    DesktopLog.Warning($"acquisition_sample_gap first_missing={continuity.Gap.FirstMissingSampleCounter} last_missing={continuity.Gap.LastMissingSampleCounter} missing_count={continuity.Gap.MissingSampleCount}");
                     await activeWriter.AppendGapAsync(continuity.Gap, cancellationToken);
                     AddRecordingGap(continuity.Gap);
                 }
@@ -511,18 +529,14 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             }
 
             var dispatchSessionId = sessionId ?? throw new InvalidOperationException("Stream session was not initialized.");
-            var dispatch = analysisDispatcher.TryQueue(new AcquisitionAnalysisBatch(
+            var analysisBatch = new AcquisitionAnalysisBatch(
                 dispatchSessionId,
                 activeMetadata,
                 batch,
                 continuity.Gap,
-                activeWriter?.RecordingDirectory ?? string.Empty));
-            liveAccessDispatcher?.TryQueue(new AcquisitionAnalysisBatch(
-                dispatchSessionId,
-                activeMetadata,
-                batch,
-                continuity.Gap,
-                activeWriter?.RecordingDirectory ?? string.Empty));
+                activeWriter?.RecordingDirectory ?? string.Empty);
+            var dispatch = analysisDispatcher.TryQueue(analysisBatch);
+            liveAccessDispatcher?.TryQueue(analysisBatch);
             if (!dispatch.Accepted && dispatch.IsNewFailure && activeWriter is not null)
             {
                 DesktopLog.Warning($"acquisition_analysis_batch_dropped reason={dispatch.RejectionReason ?? "unknown"} sample_count={batch.SampleCount}");
@@ -571,6 +585,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
                 await stream.DisposeAsync();
             }
 
+            await CloseLiveAccessSessionAsync();
             ResetLiveResources();
             SetState(AcquisitionState.Stopped, "EEG recording stopped.", null);
         }
@@ -616,6 +631,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
                 await stream.DisposeAsync();
             }
 
+            await CloseLiveAccessSessionAsync();
             ResetLiveResources();
             lastFault = fault;
             DesktopLog.Error($"acquisition_fault code={fault.Code} detail={fault.Detail}");
@@ -639,7 +655,28 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             await stream.DisposeAsync();
         }
 
+        await CloseLiveAccessSessionAsync();
         ResetLiveResources();
+    }
+
+    private async Task CloseLiveAccessSessionAsync()
+    {
+        if (liveAccessDispatcher is not { } dispatcher) return;
+        liveAccessDispatcher = null;
+        await using var ownedDispatcher = dispatcher;
+        try { await dispatcher.CloseSessionAsync(CancellationToken.None); }
+        catch (Exception exception)
+        {
+            ReportLiveAccessFault(this, new AcquisitionFault("LIVE_SESSION_CLOSE_FAILED", exception.Message, DateTimeOffset.UtcNow));
+        }
+    }
+
+    private void ReportLiveAccessFault(object? sender, AcquisitionFault fault)
+    {
+        DesktopLog.Warning(
+            $"acquisition_live_access_fault session_id={sessionId?.ToString("N") ?? "none"} " +
+            $"code={fault.Code} detail={fault.Detail}");
+        LiveAccessFaulted?.Invoke(this, fault);
     }
 
     private void ResetLiveResources()

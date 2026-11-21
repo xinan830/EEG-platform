@@ -129,11 +129,13 @@ public sealed class AcquisitionCoordinatorTests
     {
         var directory = CreateTempDirectory();
         await using var stream = new ControlledTestStream();
+        await using var liveAccess = new ObservedLiveAccess();
         await using var coordinator = new AcquisitionCoordinator(
             new TestAdapter(stream),
             new LocalAcquisitionRawWriterFactory(),
             new NullAcquisitionAnalysisBridge(),
-            ringBufferCapacitySamples: 16);
+            ringBufferCapacitySamples: 32,
+            liveAccessBridge: liveAccess);
 
         try
         {
@@ -146,9 +148,12 @@ public sealed class AcquisitionCoordinatorTests
             var previewStartUtc = Assert.IsType<DateTimeOffset>(coordinator.StreamMetadata?.RecordingStartUtc);
             Assert.Null(coordinator.RecordingStartUtc);
             Assert.False(Directory.Exists(Path.Combine(directory, "recordings")));
-            await stream.WriteAsync(Batch(0, 2));
+            await stream.WriteAsync(Batch(1000, 25));
             await stream.WaitForYieldCountAsync(1);
-            await WaitForDisplayLastSampleCounterAsync(coordinator, 1);
+            var previewBatch = await liveAccess.FirstBatch.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal((previewSessionId, 1000L, 25), (previewBatch.SessionId,
+                previewBatch.Batch.FirstSampleCounter, previewBatch.Batch.SampleCount));
+            Assert.Equal(string.Empty, previewBatch.RawRecordingDirectory);
 
             var recordingSessionId = await coordinator.StartRecordingAsync(CancellationToken.None);
             Assert.NotEqual(previewSessionId, recordingSessionId);
@@ -163,16 +168,20 @@ public sealed class AcquisitionCoordinatorTests
                 Assert.Equal(recordingStartUtc, manifest.RootElement.GetProperty("RecordingStartUtc").GetDateTimeOffset());
             }
 
-            await stream.WriteAsync(Batch(2, 2));
+            await stream.WriteAsync(Batch(1025, 2));
             await stream.WaitForYieldCountAsync(2);
-            await WaitForDisplayLastSampleCounterAsync(coordinator, 3);
-            Assert.Equal(2, coordinator.RecordingFirstSampleCounter);
+            await WaitForDisplayLastSampleCounterAsync(coordinator, 1026);
+            Assert.Equal(1025, coordinator.RecordingFirstSampleCounter);
             await coordinator.StopAsync(CancellationToken.None);
             Assert.Null(coordinator.RecordingStartUtc);
+            Assert.True(liveAccess.Closed);
+            var recordingBatch = liveAccess.Batches[1];
+            Assert.Equal((previewSessionId, 1025L, 2), (recordingBatch.SessionId,
+                recordingBatch.Batch.FirstSampleCounter, recordingBatch.Batch.SampleCount));
 
             var sessionDirectory = Assert.Single(Directory.GetDirectories(Path.Combine(directory, "recordings")));
             using var raw = new BinaryReader(File.OpenRead(Path.Combine(sessionDirectory, "samples-000001.bin")));
-            Assert.Equal(2, raw.ReadInt64());
+            Assert.Equal(1025, raw.ReadInt64());
         }
         finally
         {
@@ -270,6 +279,32 @@ public sealed class AcquisitionCoordinatorTests
         var directory = Path.Combine(Path.GetTempPath(), "brain-platform-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         return directory;
+    }
+
+    private sealed class ObservedLiveAccess : ILiveSampleAccessBridge
+    {
+        public TaskCompletionSource<AcquisitionAnalysisBatch> FirstBatch { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<AcquisitionAnalysisBatch> Batches { get; } = [];
+        public bool Closed { get; private set; }
+        public event EventHandler<LiveAnalysisUpdate>? AnalysisUpdated { add { } remove { } }
+
+        public Task PublishAsync(AcquisitionAnalysisBatch batch, CancellationToken cancellationToken)
+        {
+            Batches.Add(batch);
+            FirstBatch.TrySetResult(batch);
+            return Task.CompletedTask;
+        }
+
+        public Task CloseSessionAsync(CancellationToken cancellationToken)
+        {
+            Closed = true;
+            return Task.CompletedTask;
+        }
+
+        public Task SetAlgorithmEnabledAsync(string algorithmId, bool enabled, System.Text.Json.JsonElement config,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class TestAdapter(IAcquisitionStream stream) : IAcquisitionDeviceAdapter

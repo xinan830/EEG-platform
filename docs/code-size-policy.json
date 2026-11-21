@@ -45,8 +45,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionWorkspaceView.xaml": {
       "decision": "keep",
-      "max_lines": 527,
-      "reason": "The view owns the live acquisition workspace composition. This change only applies shared brand resources to existing controls and does not add acquisition state or behavior."
+      "max_lines": 550,
+      "reason": "The view owns live acquisition workspace composition. This change adds the shared analysis dock and RBP panel binding while result state and chart history remain in dedicated view-model and panel types; splitting the shell markup would add no independent state owner."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Views/AlgorithmListView.xaml": {
       "decision": "keep",
@@ -182,9 +182,20 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/AcquisitionWorkspaceViewModel.cs": {
       "decision": "split",
-      "max_lines": 1110,
-      "reason": "Existing acquisition composition exceeds 1000 lines. This mapping repair adds only the last-applied device descriptor and an equivalent-device guard, reusing DeviceSessionDiscoveryComparer. Moving lifecycle ownership during this signal-identity fix would increase risk; no DSP or new state machine is added.",
-      "follow_up": "Extract device-backed setup/range selection into a dedicated owner, then move recording-event commands into the existing event workflow boundary in a separate maintenance change. Keep the unique runtime and device session; target a composition file below 400 lines."
+      "max_lines": 1200,
+      "reason": "The acquisition workspace ViewModel remains above 1000 lines (1198). It sets the RBP presentation state before the backend can return the first result and rolls that state back if the command fails. Window scheduling and sample retention are owned by the live services.",
+      "follow_up": "Extract device-backed setup/range selection and live-analysis presentation into dedicated owners, then move recording-event commands into the existing event workflow boundary. Keep the unique runtime and device session; target a composition file below 400 lines."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/ConfiguredAcquisitionRuntime.cs": {
+      "decision": "keep",
+      "max_lines": 460,
+      "reason": "The runtime composes the acquisition and display services (433 lines). It forwards algorithm commands and reports transport failures. The acquisition coordinator now owns the live sample branch from device stream open through completion or fault."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/AcquisitionCoordinator.cs": {
+      "decision": "split",
+      "max_lines": 800,
+      "reason": "The acquisition lifecycle owner remains over 600 lines (797). The live transport is created and closed at the device stream boundaries because it uses the capture session ID throughout preview and recording. The dispatcher owns queueing and transport errors. The coordinator continues to own sample order, recording, and waveform publication.",
+      "follow_up": "Extract capture-loop execution and fault/stop completion behind explicit lifecycle boundaries before further coordinator growth."
     },
     "backend/app/services/recordings.py": {
       "decision": "keep",
