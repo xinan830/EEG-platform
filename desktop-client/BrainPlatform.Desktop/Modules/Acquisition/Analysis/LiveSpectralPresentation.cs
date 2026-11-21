@@ -10,7 +10,7 @@ internal static class LiveSpectralPresentation
 {
     internal static string ChannelName(AcquisitionChannel channel) => channel.Label ?? $"channel-{channel.StreamIndex}";
 
-    internal static JsonElement MapConfig(AcquisitionStreamMetadata stream, string fieldId)
+    internal static JsonElement MapConfig(AcquisitionStreamMetadata stream, IReadOnlyList<string> fieldIds)
     {
         var channels = stream.Channels.Where(channel => channel.Kind == AcquisitionChannelKind.Reference).ToArray();
         if (channels.Length == 0) throw new InvalidOperationException("当前采集会话没有可用于地形图的单电极通道。");
@@ -38,10 +38,13 @@ internal static class LiveSpectralPresentation
         return JsonSerializer.SerializeToElement(new
         {
             spectrum = LiveRbpPresentation.Config(channels.Select(ChannelName).ToArray()),
-            field_id = fieldId,
+            field_ids = fieldIds,
             positions,
         });
     }
+
+    internal static JsonElement MapConfig(AcquisitionStreamMetadata stream, string fieldId) =>
+        MapConfig(stream, [fieldId]);
 
     internal static JsonElement ReadSpectrum(LiveAnalysisUpdate update, string channel, string unit)
     {
@@ -73,18 +76,31 @@ internal static class LiveSpectralPresentation
     internal static StftPreview ReadStft(LiveAnalysisUpdate update, string channel, TimeRange range) =>
         StftPreview.FromLiveSpectrum(ReadSpectrum(update, channel, "dB re 1 uV^2/Hz"), range, update.SamplingRateHz);
 
-    internal static TopomapField ReadMap(LiveAnalysisUpdate update, string fieldId)
+    internal static IReadOnlyList<TopomapField> ReadMaps(LiveAnalysisUpdate update, IReadOnlyList<string> fieldIds)
     {
         var payload = update.Payload;
-        var unit = fieldId.StartsWith("psd.", StringComparison.Ordinal) ? "V^2/Hz" :
-            fieldId.StartsWith("rbp.relative.", StringComparison.Ordinal) ? "ratio" :
-            fieldId.StartsWith("rbp.absolute.", StringComparison.Ordinal) ? "uV^2" : "uV";
-        if (payload.GetProperty("schema_version").GetString() != "live-topomap-result-v1" ||
-            payload.GetProperty("field").Deserialize<TopomapField>() is not { } field ||
-            field.FieldId != fieldId || field.Unit != unit || field.Status != update.State ||
-            field.Points is null || field.IncludedChannels is null || field.ExcludedChannels is null ||
-            (field.Status == "ready" && field.Grid is null))
+        if (payload.GetProperty("schema_version").GetString() != "live-topomap-result-v1")
             throw new InvalidOperationException("实时地形图字段、版本或单位不匹配。");
-        return field;
+        var fields = payload.TryGetProperty("fields", out var fieldArray)
+            ? fieldArray.Deserialize<List<TopomapField>>() ?? []
+            : payload.GetProperty("field").Deserialize<TopomapField>() is { } legacy ? [legacy] : [];
+        if (fields.Count != fieldIds.Count)
+            throw new InvalidOperationException("实时地形图字段数量不匹配。");
+        foreach (var pair in fields.Zip(fieldIds))
+        {
+            var fieldId = pair.Second;
+            var field = pair.First;
+            var unit = fieldId.StartsWith("psd.", StringComparison.Ordinal) ? "V^2/Hz" :
+                fieldId.StartsWith("rbp.relative.", StringComparison.Ordinal) ? "ratio" :
+                fieldId.StartsWith("rbp.absolute.", StringComparison.Ordinal) ? "uV^2" : "uV";
+            if (field.FieldId != fieldId || field.Unit != unit || field.Status != update.State ||
+                field.Points is null || field.IncludedChannels is null || field.ExcludedChannels is null ||
+                (field.Status == "ready" && field.Grid is null))
+                throw new InvalidOperationException("实时地形图字段、版本或单位不匹配。");
+        }
+        return fields;
     }
+
+    internal static TopomapField ReadMap(LiveAnalysisUpdate update, string fieldId) =>
+        ReadMaps(update, [fieldId]).Single();
 }

@@ -155,3 +155,17 @@ def test_live_maps_match_review_projection_and_report_missing_positions(live, me
     assert missing["state"] == "unavailable", missing
     assert missing["payload"]["field"]["grid"] is None
     assert missing["payload"]["field"]["included_channels"] == ["F3"]
+
+
+def test_live_rbp_topomap_returns_relative_and_absolute_band_fields(live):
+    client, path, _ = live
+    values = _signal(10 * RATE)
+    _append(client, path, 1000, values)
+    field_ids = [
+        f"rbp.relative.{band}" for band in ("delta", "theta", "alpha", "beta", "gamma")
+    ] + [f"rbp.absolute.{band}" for band in ("delta", "theta", "alpha", "beta", "gamma")]
+    config = {"spectrum": {"channels": NAMES}, "field_ids": field_ids, "positions": POSITIONS}
+    _start(client, path, "rbp-topomap", config)
+    result = _wait(client, path, "rbp-topomap")
+    assert result["state"] == "ready", result
+    assert [field["field_id"] for field in result["payload"]["fields"]] == field_ids

@@ -49,3 +49,12 @@ The acquisition UI SHALL present live RBP results with their time range, channel
 - **THEN** the acquisition panel presents per-channel band history with the same RBP chart control and visual styling used by review
 - **AND** each chart point uses the live result's sample-aligned window end time and retains unavailable or degraded quality as a gap/status
 - **AND** the acquisition panel does not bind to offline review playback or Run-result coordination
+
+### Requirement: Live RBP exposes the review topomap presentation
+The acquisition RBP panel SHALL provide the same stacked-history and EEG topomap choices as the review RBP panel. The live topomap branch SHALL publish the five Delta, Theta, Alpha, Beta and Gamma fields for relative and absolute power from the same sample-aligned window.
+
+#### Scenario: Operator opens the RBP topomap
+- **WHEN** the operator selects “脑电地形图” inside the live RBP panel
+- **THEN** the panel displays the five backend-produced band maps in the review two-column layout
+- **AND** the operator can switch between relative or absolute power and all bands or one band
+- **AND** the topomap window range matches the live RBP window range

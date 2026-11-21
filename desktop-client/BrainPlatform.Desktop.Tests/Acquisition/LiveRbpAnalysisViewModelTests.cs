@@ -1,4 +1,5 @@
 using BrainPlatform.Desktop.Modules.Acquisition.Analysis;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
@@ -76,6 +77,24 @@ public sealed class LiveRbpAnalysisViewModelTests
 
         Assert.Empty(viewModel.ChannelHistories);
         Assert.Equal("实时分析不可用", viewModel.StatusText);
+    }
+
+    [Fact]
+    public void RbpPanelExposesTheSameFiveBandTopomapChoices()
+    {
+        var viewModel = new LiveRbpAnalysisViewModel();
+        var fields = new[] { "delta", "theta", "alpha", "beta", "gamma" }
+            .Select(band => new TopomapField($"rbp.relative.{band}", band, "ratio", null, [], null,
+                "ready", [], [], null, null)).ToArray();
+
+        viewModel.ApplyTopomap(fields, 13, 23);
+        viewModel.SelectedChart = "脑电地形图";
+
+        Assert.True(viewModel.IsTopomapSelected);
+        Assert.Equal(5, viewModel.TopomapBands.Count);
+        Assert.Equal("13–23 s", viewModel.TopomapWindowText);
+        viewModel.SelectedTopomapBandId = "alpha";
+        Assert.Equal("rbp.relative.alpha", viewModel.SelectedTopomapField!.FieldId);
     }
 
     private static LiveRbpUpdate Update(double start, double end, double delta, long revision) =>

@@ -19,6 +19,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     private Selection? active;
     private long generation;
     private long revision = -1;
+    private long topomapRevision = -1;
     private bool disposed;
     private bool isOpen;
     private bool isBusy;
@@ -142,7 +143,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         };
         var config = mapField is null
             ? LiveRbpPresentation.Config(selectedChannel is null ? Channels : [selectedChannel])
-            : LiveSpectralPresentation.MapConfig(stream, mapField);
+            : LiveSpectralPresentation.MapConfig(stream, [mapField]);
         var next = new Selection(session, SelectedView, selectedChannel, NeedsBand ? Band : null, mapField, config);
         if (active?.Config.GetRawText() == config.GetRawText() && active.View.Id == id) return;
         await ChangeAsync(next);
@@ -155,7 +156,11 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         try
         {
             if (active is { } previous)
+            {
                 await runtime.SetLiveAlgorithmEnabledAsync(previous.View.Id, false, default, CancellationToken.None);
+                if (previous.View.Id == "rbp")
+                    await runtime.SetLiveAlgorithmEnabledAsync("rbp-topomap", false, default, CancellationToken.None);
+            }
 
             SetActive(null, "选择图表后点击应用");
             if (next is null || runtime.State.SessionId != next.Session || !IsSessionReady) return;
@@ -165,6 +170,18 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
             try
             {
                 await runtime.SetLiveAlgorithmEnabledAsync(next.View.Id, true, next.Config, CancellationToken.None);
+                if (next.View.Id == "rbp")
+                {
+                    var mapConfig = LiveSpectralPresentation.MapConfig(runtime.StreamMetadata!, RbpTopomapFieldIds);
+                    try
+                    {
+                        await runtime.SetLiveAlgorithmEnabledAsync("rbp-topomap", true, mapConfig, CancellationToken.None);
+                    }
+                    catch (Exception exception)
+                    {
+                        DesktopLog.Warning($"live_rbp_topomap_start_failed {exception.Message}");
+                    }
+                }
             }
             catch
             {
@@ -184,6 +201,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         Interlocked.Increment(ref generation);
         active = selection;
         revision = -1;
+        topomapRevision = -1;
         Status = message;
         Window = "";
         Psd.Clear();
@@ -213,8 +231,10 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         {
             if (disposed || observedGeneration != Interlocked.Read(ref generation) || active is not { } view ||
                 runtime.State.SessionId != update.SessionId || view.Session != update.SessionId ||
-                view.View.Id != update.AlgorithmId || !IsSessionReady || update.Revision <= revision) return;
-            revision = update.Revision;
+                !IsSessionReady || update.Revision <= (update.AlgorithmId == "rbp-topomap" ? topomapRevision : revision) ||
+                (view.View.Id != update.AlgorithmId && !(view.View.Id == "rbp" && update.AlgorithmId == "rbp-topomap"))) return;
+            if (update.AlgorithmId == "rbp-topomap") topomapRevision = update.Revision;
+            else revision = update.Revision;
             Window = update.StartSeconds is { } start && update.EndSeconds is { } end ? $"{start:0.###}–{end:0.###} s" : "";
             Status = update.State switch
             {
@@ -227,7 +247,17 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
             {
                 if (view.View.Id == "rbp")
                 {
-                    if (LiveRbpPresentation.Read(update, Channels) is { } rbp) Rbp.Apply(rbp);
+                    if (update.AlgorithmId == "rbp" && LiveRbpPresentation.Read(update, Channels) is { } rbp) Rbp.Apply(rbp);
+                    else if (update.AlgorithmId == "rbp-topomap")
+                    {
+                        if (update.State is not ("ready" or "partial"))
+                        {
+                            Rbp.ClearTopomap();
+                            return;
+                        }
+                        var fields = LiveSpectralPresentation.ReadMaps(update, RbpTopomapFieldIds);
+                        Rbp.ApplyTopomap(fields, update.StartSeconds, update.EndSeconds);
+                    }
                     return;
                 }
                 if (update.State is not ("ready" or "partial"))
@@ -262,4 +292,8 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     }
 
     private sealed record Selection(Guid Session, LiveSpectralOption View, string? Channel, string? Band, string? FieldId, JsonElement Config);
+
+    private static readonly IReadOnlyList<string> RbpTopomapFieldIds =
+        ["rbp.relative.delta", "rbp.relative.theta", "rbp.relative.alpha", "rbp.relative.beta", "rbp.relative.gamma",
+         "rbp.absolute.delta", "rbp.absolute.theta", "rbp.absolute.alpha", "rbp.absolute.beta", "rbp.absolute.gamma"];
 }
