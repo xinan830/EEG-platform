@@ -183,8 +183,8 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/AcquisitionWorkspaceViewModel.cs": {
       "decision": "split",
       "max_lines": 1200,
-      "reason": "The acquisition workspace ViewModel remains above 1000 lines (1198). It sets the RBP presentation state before the backend can return the first result and rolls that state back if the command fails. Window scheduling and sample retention are owned by the live services.",
-      "follow_up": "Extract device-backed setup/range selection and live-analysis presentation into dedicated owners, then move recording-event commands into the existing event workflow boundary. Keep the unique runtime and device session; target a composition file below 400 lines."
+      "reason": "The acquisition workspace ViewModel still owns device setup, recording commands, and event bindings. Live spectral selection, result delivery and display state now live in LiveSpectralAnalysisViewModel. The existing live services still own window scheduling and sample retention.",
+      "follow_up": "Extract device-backed setup and range selection, then move recording-event commands into the existing event workflow boundary. Keep one runtime and device session and target a composition file below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/ConfiguredAcquisitionRuntime.cs": {
       "decision": "keep",

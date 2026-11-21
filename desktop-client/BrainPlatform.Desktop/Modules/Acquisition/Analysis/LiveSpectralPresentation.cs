@@ -1,0 +1,90 @@
+using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft;
+using BrainPlatform.Desktop.Modules.Channels.Domain;
+
+namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
+
+internal static class LiveSpectralPresentation
+{
+    internal static string ChannelName(AcquisitionChannel channel) => channel.Label ?? $"channel-{channel.StreamIndex}";
+
+    internal static JsonElement MapConfig(AcquisitionStreamMetadata stream, string fieldId)
+    {
+        var channels = stream.Channels.Where(channel => channel.Kind == AcquisitionChannelKind.Reference).ToArray();
+        if (channels.Length == 0) throw new InvalidOperationException("当前采集会话没有可用于地形图的单电极通道。");
+
+        var positions = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        if (stream.HardwareConfiguration.TryGetValue("channel_configuration_snapshot_json", out var snapshot) &&
+            JsonSerializer.Deserialize<ChannelConfigurationProfile>(snapshot) is { } profile)
+        {
+            var byIndex = profile.Channels.ToDictionary(channel => channel.NativeChannelIndex);
+            foreach (var channel in channels)
+            {
+                var name = ChannelName(channel);
+                if (!byIndex.TryGetValue(channel.NativeChannelIndex, out var entry) ||
+                    entry.ExpectedKind != AcquisitionChannelKind.Reference ||
+                    !string.Equals(name, entry.ElectrodeLabel.Trim(), StringComparison.OrdinalIgnoreCase))
+                    continue;
+                positions.Add(name, new
+                {
+                    x = entry.ManualMapPosition?.X ?? entry.ElectrodeLocation?.MapX,
+                    y = entry.ManualMapPosition?.Y ?? entry.ElectrodeLocation?.MapY,
+                    enabled = entry.IsSelectedForDisplay,
+                });
+            }
+        }
+        return JsonSerializer.SerializeToElement(new
+        {
+            spectrum = LiveRbpPresentation.Config(channels.Select(ChannelName).ToArray()),
+            field_id = fieldId,
+            positions,
+        });
+    }
+
+    internal static JsonElement ReadSpectrum(LiveAnalysisUpdate update, string channel, string unit)
+    {
+        var payload = update.Payload;
+        if (payload.GetProperty("schema_version").GetString() != "live-spectrum-result-v1" ||
+            payload.GetProperty("unit").GetString() != unit ||
+            !payload.GetProperty("channels").EnumerateArray().Select(item => item.GetString())
+                .SequenceEqual([channel], StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("实时频谱单位、版本或通道不匹配。");
+        return payload;
+    }
+
+    internal static void ApplyPsd(PsdPreviewState state, LiveAnalysisUpdate update, string channel)
+    {
+        var payload = ReadSpectrum(update, channel, "V^2/Hz");
+        var frequencies = payload.GetProperty("frequencies_hz").EnumerateArray().ToArray();
+        var values = payload.GetProperty("values").EnumerateArray().Single().EnumerateArray().ToArray();
+        if (values.Length != frequencies.Length || frequencies.Length == 0 ||
+            frequencies.Any(item => item.ValueKind != JsonValueKind.Number || !double.IsFinite(item.GetDouble()) ||
+                item.GetDouble() < 0 || item.GetDouble() > update.SamplingRateHz / 2d) ||
+            frequencies.Zip(frequencies.Skip(1)).Any(pair => pair.First.GetDouble() >= pair.Second.GetDouble()) ||
+            values.Any(item => item.ValueKind != JsonValueKind.Null &&
+                (item.ValueKind != JsonValueKind.Number || !double.IsFinite(item.GetDouble() * 1e12) || item.GetDouble() < 0)))
+            throw new InvalidOperationException("实时功率谱密度矩阵或频率轴无效。");
+        PsdPointProjection.Apply(state, frequencies, values, convertFromVolts: true);
+        if (!state.HasPreview) throw new InvalidOperationException("实时功率谱密度没有可显示的数值。");
+    }
+
+    internal static StftPreview ReadStft(LiveAnalysisUpdate update, string channel, TimeRange range) =>
+        StftPreview.FromLiveSpectrum(ReadSpectrum(update, channel, "dB re 1 uV^2/Hz"), range, update.SamplingRateHz);
+
+    internal static TopomapField ReadMap(LiveAnalysisUpdate update, string fieldId)
+    {
+        var payload = update.Payload;
+        var unit = fieldId.StartsWith("psd.", StringComparison.Ordinal) ? "V^2/Hz" :
+            fieldId.StartsWith("rbp.relative.", StringComparison.Ordinal) ? "ratio" :
+            fieldId.StartsWith("rbp.absolute.", StringComparison.Ordinal) ? "uV^2" : "uV";
+        if (payload.GetProperty("schema_version").GetString() != "live-topomap-result-v1" ||
+            payload.GetProperty("field").Deserialize<TopomapField>() is not { } field ||
+            field.FieldId != fieldId || field.Unit != unit || field.Status != update.State ||
+            field.Points is null || field.IncludedChannels is null || field.ExcludedChannels is null ||
+            (field.Status == "ready" && field.Grid is null))
+            throw new InvalidOperationException("实时地形图字段、版本或单位不匹配。");
+        return field;
+    }
+}

@@ -83,7 +83,7 @@ class TopomapService:
             return TopomapResponse(**base, fields=[], failure={
                 "code": exc.code, "message": exc.message, "detail": exc.detail,
             })
-        return self._build_response(run_id, spatial_input, run, request_id=request_id)
+        return self.project(run_id, spatial_input, run, request_id=request_id)
 
     def build_dynamic_window(self, window_id: str, *, project_id: str | None = None,
                              field_ids: list[str] | None = None,
@@ -125,7 +125,7 @@ class TopomapService:
             request_id=request_id, window_id=window_id, stage="signal_provenance",
             total_ms=context_ms,
         )
-        response = self._build_response(window_id, spatial_input,
+        response = self.project(window_id, spatial_input,
             signal_provenance=signal_provenance, request_id=request_id)
         self._log_stage(
             request_id=request_id, window_id=window_id, stage="dynamic_window_total",
@@ -144,9 +144,9 @@ class TopomapService:
             "implementation_version": implementation_version, "coordinate_source": "montage_position_snapshot",
             "coordinate_frame": "mri", "coordinate_unit": "m"}
 
-    def _build_response(self, run_id: str, spatial_input: ResultScalarInput, run: Any | None = None,
-                        request_id: str | None = None,
-                        signal_provenance: dict[str, object] | None = None) -> TopomapResponse:
+    def project(self, run_id: str, spatial_input: ResultScalarInput, run: Any | None = None,
+                request_id: str | None = None,
+                signal_provenance: dict[str, object] | None = None) -> TopomapResponse:
         base = self._base(run_id, spatial_input.recording_id, spatial_input.algorithm_version,
                           spatial_input.implementation_version, spatial_input.window_start_s, spatial_input.window_end_s,
                           spatial_input.power_type)

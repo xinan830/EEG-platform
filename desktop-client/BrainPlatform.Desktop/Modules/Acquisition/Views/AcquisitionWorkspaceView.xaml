@@ -119,11 +119,11 @@
                                                     Command="{Binding Acquisition.LiveMonitor.ToggleSettingsCommand}"
                                                     ToolTip="查看项目与采集数据信息" />
 
-                            <Button Content="{Binding Acquisition.LiveRbpActionText}" Command="{Binding Acquisition.ToggleLiveRbpCommand}"
-                                    IsEnabled="{Binding Acquisition.CanToggleLiveRbp}"
+                            <Button Content="实时分析" Command="{Binding Acquisition.LiveAnalysis.ToggleCommand}"
+                                    IsEnabled="{Binding Acquisition.LiveAnalysis.IsInteractive}"
                                     Margin="6,0,2,0" Padding="10,5" MinHeight="32"
                                     Background="#EFF6FF" Foreground="#1D4ED8" BorderBrush="#BFDBFE"
-                                    BorderThickness="1" ToolTip="在预览或录制期间临时显示实时 RBP；结果不会保存到回溯记录。" />
+                                    BorderThickness="1" ToolTip="在预览或录制期间打开实时分析图表。" />
                         </StackPanel>
 
                         <!-- 右侧：会话运行状态与计时器胶囊 -->
@@ -310,12 +310,12 @@
         </views:EegWorkspaceShell.TopBar>
 
         <views:EegWorkspaceShell.Waveform>
-            <panels:AnalysisDockHost IsPanelOpen="{Binding Acquisition.IsLiveRbpEnabled}" PanelTitle="RBP 实时分析">
+            <panels:AnalysisDockHost IsPanelOpen="{Binding Acquisition.LiveAnalysis.IsOpen}" PanelTitle="实时分析">
                 <panels:AnalysisDockHost.Waveform>
                     <waveform:LiveSciChartCanvas DataContext="{Binding Acquisition.LiveMonitor}" />
                 </panels:AnalysisDockHost.Waveform>
                 <panels:AnalysisDockHost.Panel>
-                    <views:LiveRbpAnalysisPanel />
+                    <views:LiveSpectralAnalysisPanel DataContext="{Binding Acquisition.LiveAnalysis}" />
                 </panels:AnalysisDockHost.Panel>
             </panels:AnalysisDockHost>
         </views:EegWorkspaceShell.Waveform>

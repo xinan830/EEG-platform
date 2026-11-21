@@ -6,7 +6,7 @@ import numpy as np
 
 from app.models.recording import RecordingSummary
 from app.scientific.contracts.spectrogram import (
-    SPECTROGRAM_VERSION, STFT_PREPROCESSING_VERSION, stft_context_s,
+    SPECTROGRAM_VERSION, STFT_DB_UNIT, STFT_PREPROCESSING_VERSION, density_uv_to_db, stft_context_s,
 )
 from app.scientific.primitives import ScientificSpectralGateway
 from app.scientific.quality import SpectralQualityGateError
@@ -90,7 +90,7 @@ def load_spectrogram(
     if not np.any(frequency_mask):
         raise ValueError("请求的 STFT 频率范围没有可用频率点")
     power_uv = values[:, :, frequency_mask] * 1e12
-    power_db = 10.0 * np.log10(np.maximum(power_uv, np.finfo(float).tiny))
+    power_db = density_uv_to_db(power_uv)
     linear_values = {name: power_uv[:, index, :].tolist() for index, name in enumerate(names)}
     db_values = {name: power_db[:, index, :].tolist() for index, name in enumerate(names)}
     band_series = {
@@ -128,7 +128,7 @@ def load_spectrogram(
         "band_power_timeseries": band_series,
         "units": "uV^2/Hz",
         "power_linear_units": "uV^2/Hz",
-        "power_db_units": "dB re 1 uV^2/Hz",
+        "power_db_units": STFT_DB_UNIT,
         "band_power_timeseries_units": "uV^2",
         "analysis_algorithm_version": STFT_PREPROCESSING_VERSION,
         "spectrogram_contract_version": SPECTROGRAM_VERSION,

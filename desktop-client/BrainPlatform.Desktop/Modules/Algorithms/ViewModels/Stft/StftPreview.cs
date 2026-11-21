@@ -154,6 +154,22 @@ public sealed class StftPreview
         return BuildPreview(times, frequencies, matrix, requestedRange);
     }
 
+    internal static StftPreview FromLiveSpectrum(JsonElement payload, TimeRange range, int samplingRateHz)
+    {
+        var axes = new Dictionary<string, JsonElement>
+        {
+            ["time_s"] = payload.GetProperty("times_s"),
+            ["frequency_hz"] = payload.GetProperty("frequencies_hz"),
+        };
+        var times = ReadAxis(axes, "time_s");
+        var frequencies = ReadAxis(axes, "frequency_hz");
+        var matrix = payload.GetProperty("values");
+        if (times[0] < range.StartSeconds || times[^1] >= range.EndSeconds || frequencies[0] < 0 ||
+            frequencies[^1] > samplingRateHz / 2d || matrix.GetArrayLength() != times.Length)
+            throw new InvalidOperationException("实时 STFT 轴超出窗口、奈奎斯特频率或矩阵边界。");
+        return BuildPreview(times, frequencies, matrix, range);
+    }
+
     private static StftPreview BuildPreview(double[] times, double[] frequencies, JsonElement matrix, TimeRange requestedRange)
     {
         var rows = new double?[times.Length][];

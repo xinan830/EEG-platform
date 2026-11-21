@@ -49,6 +49,8 @@ from app.services.live_recording_access import LiveRecordingAccessService
 from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
 from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
 from app.services.live_rbp_algorithm import LiveRbpAlgorithm
+from app.services.live_spectral_algorithms import LiveSpectrumAlgorithm
+from app.services.live_topomap_algorithm import LiveTopomapAlgorithm
 from app.services.on_demand_dynamic import DynamicWindowService
 from app.services.cache_maintenance import CacheMaintenanceService
 from app.core.cache_maintenance_gate import CacheMaintenanceGate, CacheMaintenanceMiddleware
@@ -129,7 +131,10 @@ app.state.algorithm_preset_service = AlgorithmPresetService(
 app.state.live_filter_service = LiveFilterService()
 app.state.live_recording_access_service = LiveRecordingAccessService()
 app.state.live_analysis_coordinator = LiveAnalysisCoordinator(
-    LiveAnalysisAlgorithmRegistry((LiveRbpAlgorithm(),))
+    LiveAnalysisAlgorithmRegistry((
+        LiveRbpAlgorithm(), LiveSpectrumAlgorithm("psd"), LiveSpectrumAlgorithm("stft"),
+        LiveTopomapAlgorithm("rbp"), LiveTopomapAlgorithm("psd"),
+    ))
 )
 app.state.dynamic_window_service = DynamicWindowService(
     app.state.recording_service,

@@ -1,0 +1,83 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Acquisition.Views.LiveSpectralAnalysisPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Views"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
+             xmlns:psd="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Psd"
+             xmlns:stft="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Stft"
+             xmlns:topomap="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Topomap">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="ShowOption" />
+        <DataTemplate x:Key="LiveRbp">
+            <views:LiveRbpAnalysisPanel DataContext="{Binding Rbp}" />
+        </DataTemplate>
+        <DataTemplate x:Key="LivePsd">
+            <psd:PsdSpectrumChart Points="{Binding Psd.Points}" Unit="{Binding Psd.ValueUnit}"
+                                  AutomationProperties.Name="实时功率谱密度" />
+        </DataTemplate>
+        <DataTemplate x:Key="LiveStft">
+            <stft:StftHeatmap Preview="{Binding Stft}" RetainHistory="False"
+                              AutomationProperties.Name="实时时频图" />
+        </DataTemplate>
+        <DataTemplate x:Key="LiveMap">
+            <topomap:TopomapCanvas Field="{Binding Field}" ColorScaleState="{Binding ColorScales}"
+                                   AutomationProperties.Name="实时头皮地形图" />
+        </DataTemplate>
+    </UserControl.Resources>
+    <shared:AnalysisPanelShell Title="实时分析" StatusText="{Binding Status}" ToolTip="{Binding Status}"
+                               CloseCommand="{Binding ToggleCommand}">
+        <shared:AnalysisPanelShell.HeaderContent>
+            <TextBlock Text="{Binding Window}" Foreground="#475569" FontSize="11" />
+        </shared:AnalysisPanelShell.HeaderContent>
+        <DockPanel LastChildFill="True">
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                <WrapPanel IsEnabled="{Binding IsInteractive}">
+                    <ComboBox Width="124" Margin="0,0,6,4" ItemsSource="{Binding ViewOptions}"
+                              SelectedItem="{Binding SelectedView}" DisplayMemberPath="Label"
+                              AutomationProperties.Name="实时分析图表" />
+                    <ComboBox Width="92" Margin="0,0,6,4" ItemsSource="{Binding Channels}" SelectedItem="{Binding Channel}"
+                              Visibility="{Binding NeedsChannel, Converter={StaticResource ShowOption}}"
+                              AutomationProperties.Name="分析通道" />
+                    <ComboBox Width="80" Margin="0,0,6,4" ItemsSource="{Binding Bands}" SelectedItem="{Binding Band}"
+                              Visibility="{Binding NeedsBand, Converter={StaticResource ShowOption}}"
+                              AutomationProperties.Name="地形图频段" />
+                    <ComboBox Width="98" Margin="0,0,6,4" ItemsSource="{Binding PowerOptions}" DisplayMemberPath="Label"
+                              SelectedValuePath="Id" SelectedValue="{Binding Power}"
+                              Visibility="{Binding NeedsPower, Converter={StaticResource ShowOption}}"
+                              AutomationProperties.Name="RBP 地形图指标" />
+                    <Button Content="应用" Command="{Binding ApplyCommand}" Padding="12,3" Margin="0,0,0,4" />
+                </WrapPanel>
+                <TextBlock Text="{Binding ActiveLabel}" FontWeight="SemiBold" Foreground="#334155" />
+            </StackPanel>
+            <ContentControl Content="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
+                <ContentControl.Style>
+                    <Style TargetType="ContentControl">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="rbp">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LiveRbp}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="psd">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LivePsd}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="stft">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LiveStft}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="rbp-topomap">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveView}" Value="psd-topomap">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Setter Property="ContentTemplate" Value="{StaticResource LiveMap}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ContentControl.Style>
+            </ContentControl>
+        </DockPanel>
+    </shared:AnalysisPanelShell>
+</UserControl>
