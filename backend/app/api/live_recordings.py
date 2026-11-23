@@ -32,6 +32,16 @@ class LiveAlgorithmStartRequest(BaseModel):
     config: dict[str, JsonValue]
 
 
+class LiveMontageUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    schema_version: Literal["live-montage-v1"] = "live-montage-v1"
+    revision: int = Field(gt=0)
+    effective_from_sample_counter: int = Field(ge=0)
+    fingerprint: str = Field(min_length=1)
+    profile: dict[str, JsonValue]
+
+
 class LiveSampleAcknowledgement(BaseModel):
     type: Literal["live_samples_accepted"] = "live_samples_accepted"
     schema_version: Literal["live-sample-ack-v2"] = "live-sample-ack-v2"
@@ -93,6 +103,19 @@ async def append_batch_binary(
 def get_range(session_id: str, request: Request) -> dict:
     try:
         return {"session_id": session_id, "range": _service(request).require(session_id).range_snapshot().__dict__}
+    except LiveRecordingAccessError as exc:
+        return _error(request, exc)
+
+
+@router.put("/sessions/{session_id}/montage")
+def update_montage(session_id: str, payload: LiveMontageUpdate, request: Request) -> dict:
+    try:
+        session = _service(request).require(session_id)
+        session.set_montage(payload.profile, payload.revision, payload.effective_from_sample_counter)
+        _analysis(request).close_session(session_id)
+        return {"session_id": session_id, "revision": payload.revision,
+                "effective_from_sample_counter": payload.effective_from_sample_counter,
+                "fingerprint": payload.fingerprint, "channel_names": list(session.channel_names)}
     except LiveRecordingAccessError as exc:
         return _error(request, exc)
 

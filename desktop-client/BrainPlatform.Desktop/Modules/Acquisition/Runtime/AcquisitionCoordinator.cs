@@ -1,5 +1,6 @@
 
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 
@@ -43,6 +44,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     private bool lifecycleStartedWritten;
     private bool lifecycleResumePending;
     private bool disposed;
+    private LiveMontageCoordinator? liveMontageCoordinator;
 
     public AcquisitionCoordinator(
         IAcquisitionDeviceAdapter deviceAdapter,
@@ -80,6 +82,8 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     public AcquisitionFault? LastFault => lastFault;
 
     public AcquisitionStreamMetadata? StreamMetadata => Volatile.Read(ref streamMetadata);
+
+    public LiveMontageSnapshot? LiveMontage => liveMontageCoordinator?.Current;
 
     public DateTimeOffset? RecordingStartUtc => Volatile.Read(ref recordingMetadata)?.RecordingStartUtc;
 
@@ -162,16 +166,22 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     }
 
     public Task<Guid> StartPreviewAsync(AcquisitionStreamRequest request, CancellationToken cancellationToken) =>
-        OpenStreamAsync(request, startRecordingImmediately: false, cancellationToken);
+        OpenStreamAsync(request, startRecordingImmediately: false, cancellationToken, null);
+
+    public Task<Guid> StartPreviewAsync(AcquisitionStreamRequest request, MontageProfile initialMontage,
+        CancellationToken cancellationToken) =>
+        OpenStreamAsync(request, startRecordingImmediately: false, cancellationToken,
+            initialMontage ?? throw new ArgumentNullException(nameof(initialMontage)));
 
     // Kept for low-level callers that require an immediate record operation.
     public Task<Guid> StartAsync(AcquisitionStreamRequest request, CancellationToken cancellationToken) =>
-        OpenStreamAsync(request, startRecordingImmediately: true, cancellationToken);
+        OpenStreamAsync(request, startRecordingImmediately: true, cancellationToken, null);
 
     private async Task<Guid> OpenStreamAsync(
         AcquisitionStreamRequest request,
         bool startRecordingImmediately,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MontageProfile? initialMontage)
     {
         ThrowIfDisposed();
         request.Validate();
@@ -210,6 +220,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             Volatile.Write(ref recordingMetadata, startRecordingImmediately ? publishedMetadata : null);
             Volatile.Write(ref streamMetadata, openedStream.Metadata);
             sessionId = openedSessionId;
+            liveMontageCoordinator = initialMontage is null ? null : new LiveMontageCoordinator(initialMontage);
             activeRequest = request;
             Volatile.Write(ref recordingFirstSampleCounter, -1);
             continuityTracker = new SampleCounterContinuityTracker();
@@ -247,6 +258,23 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         finally
         {
             lifecycle.Release();
+        }
+    }
+
+    public LiveMontageSnapshot SelectLiveMontage(MontageProfile profile)
+    {
+        batchBoundary.Wait();
+        try
+        {
+            if (state.State != AcquisitionState.Previewing)
+                throw new InvalidOperationException("实时导联只能在预览状态切换。");
+            var montage = liveMontageCoordinator ?? throw new InvalidOperationException("实时导联协调器尚未初始化。");
+            var nextCounter = ringBuffer?.LastSampleCounter is { } last ? checked(last + 1) : 0;
+            return montage.Select(profile, nextCounter);
+        }
+        finally
+        {
+            batchBoundary.Release();
         }
     }
 
@@ -550,7 +578,8 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
                 activeMetadata,
                 batch,
                 continuity.Gap,
-                activeWriter?.RecordingDirectory ?? string.Empty);
+                activeWriter?.RecordingDirectory ?? string.Empty,
+                liveMontageCoordinator?.Capture(batch.FirstSampleCounter));
             var dispatch = analysisDispatcher.TryQueue(analysisBatch);
             liveAccessDispatcher?.TryQueue(analysisBatch);
             if (!dispatch.Accepted && dispatch.IsNewFailure && activeWriter is not null)

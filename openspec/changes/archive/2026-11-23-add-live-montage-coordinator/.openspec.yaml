@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-23
+goal: Make live display and algorithm input consume one versioned montage
+  snapshot without changing raw recording or analysis windows.

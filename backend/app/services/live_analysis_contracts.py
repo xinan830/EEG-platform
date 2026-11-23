@@ -22,10 +22,11 @@ class LiveAnalysisEnvelope(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: Literal["live_analysis_update"] = "live_analysis_update"
-    schema_version: Literal["live-analysis-update-v1"] = "live-analysis-update-v1"
+    schema_version: Literal["live-analysis-update-v2"] = "live-analysis-update-v2"
     acquisition_session_id: str
     algorithm_id: str
     revision: int = Field(ge=0)
+    montage_revision: int | None = Field(default=None, ge=0)
     state: Literal["warming_up", "ready", "partial", "unavailable", "overloaded"]
     skipped_windows: int = Field(default=0, ge=0)
     scientific_identity: str | None = None

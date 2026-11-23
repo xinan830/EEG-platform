@@ -50,6 +50,14 @@ The acquisition UI SHALL present live RBP results with their time range, channel
 - **AND** each chart point uses the live result's sample-aligned window end time and retains unavailable or degraded quality as a gap/status
 - **AND** the acquisition panel does not bind to offline review playback or Run-result coordination
 
+#### Scenario: Montage switch immediately reuses the latest complete rolling window
+- **GIVEN** live analysis has retained at least one complete 10-second window of raw EEG samples
+- **WHEN** the user changes the live montage during preview
+- **THEN** the backend reprojects the most recent complete raw sample window using the new montage and publishes a result without waiting for another 10 seconds
+- **AND** subsequent results continue on the configured rolling step using the new montage
+- **AND** windows containing a real sample gap or samples outside retention remain unavailable
+- **AND** raw recording values and the frozen recording montage are unchanged
+
 ### Requirement: Live RBP exposes the review topomap presentation
 The acquisition RBP panel SHALL provide the same stacked-history and EEG topomap choices as the review RBP panel. The live topomap branch SHALL publish the five Delta, Theta, Alpha, Beta and Gamma fields for relative and absolute power from the same sample-aligned window.
 

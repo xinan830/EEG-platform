@@ -42,6 +42,24 @@ public sealed class FixedDurationAnalysisBlockAggregatorTests
         Assert.Equal(gap, trailing.GapBeforeBatch);
     }
 
+    [Fact]
+    public void Append_FlushesAtLiveMontageRevisionBoundary()
+    {
+        var aggregator = new FixedDurationAnalysisBlockAggregator(50);
+        var first = Batch(0, 100, 2) with { LiveMontage = Montage(1) };
+        var next = Batch(100, 100, 2) with { LiveMontage = Montage(2) };
+        Assert.Empty(aggregator.Append(first));
+
+        var flushed = Assert.Single(aggregator.Append(next));
+
+        Assert.Equal(0, flushed.Batch.FirstSampleCounter);
+        Assert.Equal(100, flushed.Batch.SampleCount);
+        Assert.Equal(1, flushed.LiveMontage!.Revision);
+        var trailing = Assert.IsType<AcquisitionAnalysisBatch>(aggregator.Flush());
+        Assert.Equal(100, trailing.Batch.FirstSampleCounter);
+        Assert.Equal(2, trailing.LiveMontage!.Revision);
+    }
+
     private static AcquisitionAnalysisBatch Batch(long firstSampleCounter, int sampleCount, int channelCount)
     {
         var values = Enumerable.Range(0, sampleCount * channelCount)
@@ -61,5 +79,20 @@ public sealed class FixedDurationAnalysisBlockAggregatorTests
             new AcquisitionBatch(firstSampleCounter, sampleCount, channelCount, values, DateTimeOffset.UtcNow),
             null,
             "recording");
+    }
+
+    private static LiveMontageSnapshot Montage(long revision)
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var channels = new BrainPlatform.Desktop.Modules.Channels.Domain.ChannelConfigurationProfile(
+            "channels", "Channels", "", BrainPlatform.Desktop.Modules.Channels.Domain.ChannelConfigurationSource.User,
+            "device", [], now, now);
+        var profile = new BrainPlatform.Desktop.Modules.Montages.Domain.MontageProfile(
+            $"montage-{revision}", "Montage", "", BrainPlatform.Desktop.Modules.Montages.Domain.MontageProfileSource.User,
+            "device", "channel-config", channels,
+            [new BrainPlatform.Desktop.Modules.Montages.Domain.DerivedMontageChannel("F3-REF", "F3",
+                BrainPlatform.Desktop.Modules.Montages.Domain.MontageNegativeKind.OriginalHardwareReference, [], 0)],
+            1, now, now, $"fingerprint-{revision}");
+        return new LiveMontageSnapshot(profile, revision, 0, ["F3-REF"], profile.Fingerprint);
     }
 }

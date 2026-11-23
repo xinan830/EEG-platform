@@ -290,6 +290,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
 
             if (SetProperty(ref liveDisplayMontageProfile, value))
             {
+                runtime.SelectLiveMontage(value);
                 LiveMonitor.ConfigureMontage(value);
             }
         }
@@ -759,7 +760,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
             project.Name,
             project.DirectoryPath,
             JsonSerializer.Serialize(project));
-        await runtime.StartPreviewAsync(new AcquisitionStreamRequest(device.DeviceId, samplingRateHz, projectContext), CancellationToken.None);
+        await runtime.StartPreviewAsync(new AcquisitionStreamRequest(device.DeviceId, samplingRateHz, projectContext), montage,
+            CancellationToken.None);
         ApplyStreamMetadata();
         LiveMonitor.Refresh();
         AcquisitionStatusText = runtime.State.Detail;

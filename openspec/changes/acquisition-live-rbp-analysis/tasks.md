@@ -24,3 +24,5 @@
 - [x] 4.2 Run backend tests and desktop build/test suites for the changed modules; verify offline review and backtrace have no live-result dependency.
 - [ ] 4.3 Run simulated-stream integration tests for continuous samples, gaps, overload, and session shutdown, then perform ANT hardware checks for channel metadata and sample-counter continuity; record observed live identity and limitations without claiming clinical validation.
 - [x] 4.4 Run `openspec validate acquisition-live-rbp-analysis --strict` and verify all delta specs, tasks, and compatibility statements pass validation.
+- [x] 4.5 Reproject retained raw samples through the newly selected montage and start the rolling scheduler at the latest complete window; verify immediate results after montage changes, sample coordinates, gaps, and overwrite behavior with backend tests.
+- [x] 4.6 Include the montage revision in live result identity and make the desktop reject stale revisions while accepting complete reprojected windows that begin before the switch boundary.

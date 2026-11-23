@@ -106,6 +106,7 @@ internal sealed class FixedDurationAnalysisBlockAggregator
         var current = template!;
         if (incoming.GapBeforeBatch is not null || incoming.SessionId != current.SessionId ||
             incoming.Stream.SamplingRateHz != current.Stream.SamplingRateHz ||
+            incoming.LiveMontage?.Revision != current.LiveMontage?.Revision ||
             incoming.Batch.ChannelCount != current.Batch.ChannelCount ||
             !string.Equals(incoming.RawRecordingDirectory, current.RawRecordingDirectory, StringComparison.Ordinal))
         {

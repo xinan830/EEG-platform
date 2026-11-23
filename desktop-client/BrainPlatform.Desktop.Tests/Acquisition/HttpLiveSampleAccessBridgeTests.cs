@@ -5,6 +5,9 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 using BrainPlatform.Desktop.Modules.Acquisition.Contracts;
+using BrainPlatform.Desktop.Modules.Acquisition.Runtime;
+using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
 
@@ -116,14 +119,25 @@ public sealed class HttpLiveSampleAccessBridgeTests
         Assert.Equal(closeSession ? 1 : 0, handler.Closes);
     }
 
-    private static AcquisitionAnalysisBatch CreateBatch(int samplingRateHz = 512) => new(
-        Guid.NewGuid(),
+    private static AcquisitionAnalysisBatch CreateBatch(int samplingRateHz = 512, long firstSampleCounter = 0, Guid? sessionId = null) => new(
+        sessionId ?? Guid.NewGuid(),
         new AcquisitionStreamMetadata("device", "device", samplingRateHz,
             [new AcquisitionChannel(0, 0, "Fz", AcquisitionChannelKind.Reference, "V"),
              new AcquisitionChannel(1, 1, "Cz", AcquisitionChannelKind.Reference, "V"),
              new AcquisitionChannel(2, 2, "Counter", AcquisitionChannelKind.SampleCounter, "count")],
             0, DateTimeOffset.UtcNow),
-        new AcquisitionBatch(0, 2, 3, [1, 2, 998, 3, 4, 999], DateTimeOffset.UtcNow), null, "");
+        new AcquisitionBatch(firstSampleCounter, 2, 3, [1, 2, 998, 3, 4, 999], DateTimeOffset.UtcNow), null, "");
+
+    private static LiveMontageSnapshot Montage(long revision, string name, string positive)
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var channels = new ChannelConfigurationProfile("channels", "Channels", "", ChannelConfigurationSource.User,
+            "device", [], now, now);
+        var profile = new MontageProfile("montage", "Montage", "", MontageProfileSource.User, "device", "config",
+            channels, [new DerivedMontageChannel(name, positive, MontageNegativeKind.OriginalHardwareReference, [], 0)],
+            1, now, now, $"fingerprint-{revision}");
+        return new LiveMontageSnapshot(profile, revision, revision == 1 ? 0 : 2, [name], profile.Fingerprint);
+    }
 
     [Fact]
     public async Task RoutesMultipleAlgorithmsAndStopsOnlyTheRequestedOne()
@@ -189,6 +203,71 @@ public sealed class HttpLiveSampleAccessBridgeTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => bridge.PublishAsync(CreateBatch(), CancellationToken.None));
     }
 
+    [Fact]
+    public async Task MontageRevisionUpdatesBackendAndRestartsAlgorithmWithProjectedChannelNames()
+    {
+        using var handler = new LiveHandler();
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
+        await using var bridge = new HttpLiveSampleAccessBridge(client);
+        var config = JsonSerializer.SerializeToElement(new
+        {
+            channels = new[] { "Fz" },
+            positions = new Dictionary<string, object> { ["Fz"] = new { x = -0.3, y = 0.4 } },
+        });
+        await bridge.SetAlgorithmEnabledAsync("rbp", true, config, CancellationToken.None);
+
+        var session = Guid.NewGuid();
+        await bridge.PublishAsync(CreateBatch(sessionId: session) with { LiveMontage = Montage(1, "Fz-REF", "Fz") }, CancellationToken.None);
+        await bridge.PublishAsync(CreateBatch(firstSampleCounter: 2, sessionId: session) with { LiveMontage = Montage(2, "Fz-Cz", "Fz") }, CancellationToken.None);
+
+        Assert.Equal(2, handler.MontageUpdates);
+        Assert.Equal(2, handler.Starts);
+        Assert.Equal("Fz-Cz", Assert.Single(handler.LastAlgorithmChannels));
+        Assert.Equal("Fz-Cz", Assert.Single(handler.LastAlgorithmPositions));
+    }
+
+    [Fact]
+    public async Task UnmappableAlgorithmChannelIsReportedWithoutBlockingRawSampleUpload()
+    {
+        using var handler = new LiveHandler();
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
+        await using var bridge = new HttpLiveSampleAccessBridge(client);
+        var updates = new List<LiveAnalysisUpdate>();
+        bridge.AnalysisUpdated += (_, update) => updates.Add(update);
+        await bridge.SetAlgorithmEnabledAsync("rbp", true, LiveRbpPresentation.Config(["F9"]), CancellationToken.None);
+
+        await bridge.PublishAsync(CreateBatch() with { LiveMontage = Montage(1, "Fz-REF", "Fz") }, CancellationToken.None);
+
+        Assert.Contains(updates, update => update.FailureCode == "LIVE_MONTAGE_CHANNEL_UNAVAILABLE");
+        Assert.NotEmpty(handler.UploadedValues);
+        Assert.Equal(0, handler.Starts);
+    }
+
+    [Fact]
+    public async Task PendingMontageDefersAlgorithmRestartUntilNextBatchSyncsBackend()
+    {
+        using var handler = new LiveHandler();
+        using var client = new HttpClient(handler) { BaseAddress = new Uri("http://localhost/") };
+        await using var bridge = new HttpLiveSampleAccessBridge(client);
+        var session = Guid.NewGuid();
+        var initial = Montage(1, "Fz-REF", "Fz");
+        var switched = Montage(2, "Cz-REF", "Cz");
+
+        await bridge.SetAlgorithmEnabledAsync("rbp", true, LiveRbpPresentation.Config(["Fz-REF"]), CancellationToken.None);
+        await bridge.PublishAsync(CreateBatch(sessionId: session) with { LiveMontage = initial }, CancellationToken.None);
+        Assert.Equal(1, handler.Starts);
+
+        bridge.NotifyPendingMontage(switched);
+        await bridge.SetAlgorithmEnabledAsync("rbp", false, default, CancellationToken.None);
+        await bridge.SetAlgorithmEnabledAsync("rbp", true, LiveRbpPresentation.Config(["Cz-REF"]), CancellationToken.None);
+        Assert.Equal(1, handler.Starts);
+
+        await bridge.PublishAsync(CreateBatch(firstSampleCounter: 2, sessionId: session) with { LiveMontage = switched }, CancellationToken.None);
+        Assert.Equal(2, handler.MontageUpdates);
+        Assert.Equal(2, handler.Starts);
+        Assert.Equal("Cz-REF", Assert.Single(handler.LastAlgorithmChannels));
+    }
+
     private sealed class LiveHandler : HttpMessageHandler
     {
         private string sessionId = "";
@@ -197,6 +276,9 @@ public sealed class HttpLiveSampleAccessBridgeTests
         public int Starts { get; private set; }
         public int Closes { get; private set; }
         public int Uploads { get; private set; }
+        public int MontageUpdates { get; private set; }
+        public string[] LastAlgorithmChannels { get; private set; } = [];
+        public string[] LastAlgorithmPositions { get; private set; } = [];
         public int CapacitySamples { get; private set; }
         private int samplingRateHz;
         public int? LatestEndSeconds { get; init; }
@@ -215,6 +297,7 @@ public sealed class HttpLiveSampleAccessBridgeTests
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Put && path.EndsWith("/montage")) MontageUpdates++;
             if (request.Method == HttpMethod.Post && path.EndsWith("/sessions"))
             {
                 using var document = await JsonDocument.ParseAsync(await request.Content!.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
@@ -235,6 +318,9 @@ public sealed class HttpLiveSampleAccessBridgeTests
                     var config = document.RootElement.GetProperty("config");
                     algorithms[algorithm] = config.TryGetProperty("channels", out var names)
                         ? names.EnumerateArray().Select(item => item.GetString()!).ToArray() : [];
+                    LastAlgorithmChannels = algorithms[algorithm];
+                    LastAlgorithmPositions = config.TryGetProperty("positions", out var positions)
+                        ? positions.EnumerateObject().Select(item => item.Name).ToArray() : [];
                     return Ok(Envelope(algorithm, "warming_up", 0, null));
                 }
                 if (request.Method == HttpMethod.Get)
@@ -271,7 +357,7 @@ public sealed class HttpLiveSampleAccessBridgeTests
 
         private object Envelope(string algorithm, string state, long resultRevision, JsonElement? payload, int end = 10) => new
         {
-            type = "live_analysis_update", schema_version = "live-analysis-update-v1", algorithm_id = algorithm,
+            type = "live_analysis_update", schema_version = "live-analysis-update-v2", algorithm_id = algorithm,
             acquisition_session_id = sessionId, revision = resultRevision, state,
             scientific_identity = algorithm == "rbp" ? "rbp-live-v1" : "test-v1",
             start_sample = payload is null ? (long?)null : (end - 10) * samplingRateHz,

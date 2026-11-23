@@ -35,7 +35,7 @@ def test_live_update_envelope_rejects_unversioned_or_untyped_payload_fields():
         state="ready",
         payload={"values": [0.2, 0.8]},
     )
-    assert update.schema_version == "live-analysis-update-v1"
+    assert update.schema_version == "live-analysis-update-v2"
     with pytest.raises(ValueError):
         LiveAnalysisEnvelope(
             acquisition_session_id="session-1",

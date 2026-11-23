@@ -3,9 +3,11 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Acquisition.Contracts;
+using BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
@@ -20,12 +22,15 @@ public sealed class HttpLiveSampleAccessBridge : ILiveSampleAccessBridge
     private Guid? activeSession;
     private int activeSamplingRateHz;
     private bool disposed;
+    private LiveMontageSnapshot? activeMontage;
+    private LiveMontageSnapshot? pendingMontage;
     private readonly Dictionary<string, AlgorithmState> algorithms = new(StringComparer.OrdinalIgnoreCase);
     private int enabledCount;
 
     private sealed class AlgorithmState(JsonElement config)
     {
-        internal JsonElement Config { get; } = config.Clone();
+        internal JsonElement SourceConfig { get; } = config.Clone();
+        internal JsonElement Config { get; set; } = config.Clone();
         internal bool Started { get; set; }
         internal long Revision { get; set; } = -1;
         internal CancellationTokenSource? FirstResultPoll { get; set; }
@@ -58,6 +63,9 @@ public sealed class HttpLiveSampleAccessBridge : ILiveSampleAccessBridge
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         var session = await EnsureSessionAsync(analysis, cancellationToken);
+        if (analysis.LiveMontage is { } montage &&
+            (activeMontage is null || activeMontage.Revision != montage.Revision))
+            await ApplyMontageAsync(session, montage, analysis.Batch.FirstSampleCounter, cancellationToken);
         var eegIndexes = analysis.Stream.Channels
             .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
             .Select(channel => channel.StreamIndex)
@@ -100,6 +108,9 @@ public sealed class HttpLiveSampleAccessBridge : ILiveSampleAccessBridge
         }
     }
 
+    public void NotifyPendingMontage(LiveMontageSnapshot montage) =>
+        Volatile.Write(ref pendingMontage, montage);
+
     public async Task SetAlgorithmEnabledAsync(string algorithmId, bool enabled, JsonElement config, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(algorithmId);
@@ -114,9 +125,18 @@ public sealed class HttpLiveSampleAccessBridge : ILiveSampleAccessBridge
                 response.EnsureSuccessStatusCode();
             }
             if (algorithms.Remove(algorithmId, out var retired)) retired.CancelFirstResultPoll();
-            if (enabled) algorithms[algorithmId] = new AlgorithmState(config);
+            var pending = Volatile.Read(ref pendingMontage);
+            var waitingForMontageSync = pending is not null &&
+                (activeMontage is null || activeMontage.Revision < pending.Revision);
+            if (enabled)
+            {
+                var initialConfig = waitingForMontageSync
+                    ? config
+                    : ResolveMontageChannels(config, activeMontage);
+                algorithms[algorithmId] = new AlgorithmState(initialConfig);
+            }
             Volatile.Write(ref enabledCount, algorithms.Count);
-            if (enabled && activeSession is { } active)
+            if (enabled && !waitingForMontageSync && activeSession is { } active)
             {
                 try
                 {
@@ -246,6 +266,8 @@ public sealed class HttpLiveSampleAccessBridge : ILiveSampleAccessBridge
     {
         var session = activeSession;
         activeSession = null;
+        activeMontage = null;
+        Volatile.Write(ref pendingMontage, null);
         foreach (var algorithm in algorithms.Values) algorithm.CancelFirstResultPoll();
         algorithms.Clear();
         Volatile.Write(ref enabledCount, 0);
@@ -277,6 +299,82 @@ public sealed class HttpLiveSampleAccessBridge : ILiveSampleAccessBridge
         activeSamplingRateHz = analysis.Stream.SamplingRateHz;
         activeSession = analysis.SessionId;
         return analysis.SessionId;
+    }
+
+    private async Task ApplyMontageAsync(Guid session, LiveMontageSnapshot montage, long sampleBoundary,
+        CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.PutAsJsonAsync(
+            $"api/live-recordings/sessions/{session:N}/montage",
+            new Dictionary<string, object>
+            {
+                ["schema_version"] = "live-montage-v1",
+                ["revision"] = montage.Revision,
+                ["effective_from_sample_counter"] = sampleBoundary,
+                ["fingerprint"] = montage.Fingerprint,
+                ["profile"] = JsonSerializer.SerializeToElement(montage.Profile),
+            }, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        foreach (var (algorithmId, algorithm) in algorithms)
+        {
+            algorithm.CancelFirstResultPoll();
+            algorithm.Started = false;
+            algorithm.Revision = -1;
+            try { algorithm.Config = ResolveMontageChannels(algorithm.SourceConfig, montage); }
+            catch (InvalidOperationException exception)
+            {
+                algorithm.Started = true;
+                AnalysisUpdated?.Invoke(this, new LiveAnalysisUpdate(session, algorithmId, 0, "unavailable", activeSamplingRateHz,
+                    FailureCode: "LIVE_MONTAGE_CHANNEL_UNAVAILABLE", Message: exception.Message));
+            }
+        }
+        activeMontage = montage;
+    }
+
+    private static JsonElement ResolveMontageChannels(JsonElement config, LiveMontageSnapshot? montage)
+    {
+        if (montage is null) return config.Clone();
+        var outputs = montage.Profile.DerivedChannels;
+        string Resolve(string channel)
+        {
+            var exact = outputs.FirstOrDefault(output => string.Equals(output.Name, channel, StringComparison.OrdinalIgnoreCase));
+            if (exact is not null) return exact.Name;
+            var matches = outputs.Where(output => string.Equals(output.PositiveLabel, channel, StringComparison.OrdinalIgnoreCase)).ToArray();
+            return matches.Length == 1 ? matches[0].Name :
+                throw new InvalidOperationException($"实时导联无法唯一映射算法通道：{channel}");
+        }
+
+        var root = JsonNode.Parse(config.GetRawText()) as JsonObject ?? throw new InvalidOperationException("实时算法配置必须为 JSON 对象。");
+        Rewrite(root);
+        return JsonSerializer.SerializeToElement(root);
+
+        void Rewrite(JsonNode node)
+        {
+            if (node is not JsonObject obj) return;
+            foreach (var property in obj.ToArray())
+            {
+                if (property.Key.Equals("channels", StringComparison.OrdinalIgnoreCase) && property.Value is JsonArray channels)
+                {
+                    for (var index = 0; index < channels.Count; index++)
+                    {
+                        if (channels[index] is JsonValue value && value.TryGetValue<string>(out var channel))
+                            channels[index] = Resolve(channel);
+                    }
+                }
+                else if (property.Key.Equals("positions", StringComparison.OrdinalIgnoreCase) && property.Value is JsonObject positions)
+                {
+                    var remapped = new JsonObject();
+                    foreach (var (name, position) in positions)
+                    {
+                        var output = outputs.FirstOrDefault(candidate => string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase)) ??
+                            outputs.FirstOrDefault(candidate => string.Equals(candidate.PositiveLabel, name, StringComparison.OrdinalIgnoreCase));
+                        if (output is not null) remapped[output.Name] = position?.DeepClone();
+                    }
+                    obj[property.Key] = remapped;
+                }
+                else if (property.Value is not null) Rewrite(property.Value);
+            }
+        }
     }
 
     private sealed record LiveAccessSessionRequest(

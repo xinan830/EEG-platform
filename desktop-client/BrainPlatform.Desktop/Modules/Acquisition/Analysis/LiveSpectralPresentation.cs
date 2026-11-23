@@ -2,7 +2,9 @@ using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft;
+using BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
@@ -14,6 +16,8 @@ internal static class LiveSpectralPresentation
             .Where(channel => !string.IsNullOrWhiteSpace(channel.Label))
             .Select(ChannelName)
             .ToArray();
+
+    internal static IReadOnlyList<string> AnalysisChannelNames(LiveMontageSnapshot montage) => montage.OrderedChannelNames;
 
     internal static string ChannelName(AcquisitionChannel channel) =>
         channel.Label is { } label && !string.IsNullOrWhiteSpace(label)
@@ -56,8 +60,53 @@ internal static class LiveSpectralPresentation
         });
     }
 
+    internal static JsonElement MapConfig(LiveMontageSnapshot montage, IReadOnlyList<string> fieldIds)
+    {
+        var sourceChannels = montage.Profile.ChannelConfigurationSnapshot.Channels
+            .Where(channel => channel.IsSelectedForDisplay &&
+                channel.ExpectedKind == AcquisitionChannelKind.Reference &&
+                !string.IsNullOrWhiteSpace(channel.ElectrodeLabel))
+            .Select(channel => channel with { ElectrodeLabel = channel.ElectrodeLabel.Trim() })
+            .ToArray();
+        var duplicate = sourceChannels
+            .GroupBy(channel => channel.ElectrodeLabel, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+        {
+            throw new InvalidOperationException($"实时导联配置包含重复电极名“{duplicate.Key}”。");
+        }
+        var source = sourceChannels.ToDictionary(channel => channel.ElectrodeLabel, StringComparer.OrdinalIgnoreCase);
+        var positions = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        foreach (var channel in montage.Profile.DerivedChannels.OrderBy(channel => channel.DisplayOrder))
+        {
+            if (!source.TryGetValue(channel.PositiveLabel.Trim(), out var electrode) ||
+                electrode.ExpectedKind != AcquisitionChannelKind.Reference ||
+                (electrode.ManualMapPosition is null && electrode.ElectrodeLocation is null)) continue;
+            var position = electrode.ManualMapPosition;
+            var location = electrode.ElectrodeLocation;
+            positions[channel.Name] = new
+            {
+                x = position?.X ?? location?.MapX,
+                y = position?.Y ?? location?.MapY,
+                enabled = electrode.IsSelectedForDisplay,
+            };
+        }
+        if (positions.Count == 0) throw new InvalidOperationException("当前实时导联没有可用于地形图的电极位置。");
+        return JsonSerializer.SerializeToElement(new
+        {
+            spectrum = LiveRbpPresentation.Config(positions.Keys.ToArray()),
+            field_ids = fieldIds,
+            positions,
+        });
+    }
+
     internal static JsonElement MapConfig(AcquisitionStreamMetadata stream, string fieldId) =>
         MapConfig(stream, [fieldId]);
+
+    internal static JsonElement RbpTopomapConfig(AcquisitionStreamMetadata stream, LiveMontageSnapshot? montage,
+        IReadOnlyList<string> fieldIds) => montage is { }
+            ? MapConfig(montage, fieldIds)
+            : MapConfig(stream, fieldIds);
 
     internal static JsonElement ReadSpectrum(LiveAnalysisUpdate update, string channel, string unit)
     {

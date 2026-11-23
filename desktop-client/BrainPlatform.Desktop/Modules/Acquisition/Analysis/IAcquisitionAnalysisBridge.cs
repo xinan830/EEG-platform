@@ -1,4 +1,6 @@
 
+using BrainPlatform.Desktop.Modules.Acquisition.Runtime;
+
 namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
 /// <summary>
@@ -15,7 +17,8 @@ public sealed record AcquisitionAnalysisBatch(
     AcquisitionStreamMetadata Stream,
     AcquisitionBatch Batch,
     AcquisitionGap? GapBeforeBatch,
-    string RawRecordingDirectory);
+    string RawRecordingDirectory,
+    LiveMontageSnapshot? LiveMontage = null);
 
 public sealed class NullAcquisitionAnalysisBridge : IAcquisitionAnalysisBridge
 {

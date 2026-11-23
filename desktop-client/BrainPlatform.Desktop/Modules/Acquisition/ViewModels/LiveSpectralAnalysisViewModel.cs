@@ -49,6 +49,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         ApplyCommand = new AsyncRelayCommand(ApplyAsync, reportError);
         runtime.LiveAnalysisUpdated += OnUpdate;
         runtime.LiveAnalysisFaulted += OnFault;
+        runtime.LiveMontageChanged += OnMontageChanged;
     }
 
     public static IReadOnlyList<LiveSpectralOption> Views { get; } =
@@ -146,6 +147,39 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         RaisePropertyChanged(nameof(IsInteractive));
     }
 
+    private void OnMontageChanged(LiveMontageSnapshot montage)
+    {
+        var switchGeneration = Interlocked.Increment(ref generation);
+        _ = dispatcher.InvokeAsync(async () =>
+        {
+            if (disposed || !IsSessionReady || switchGeneration != Interlocked.Read(ref generation)) return;
+            var previous = active;
+            Channels = LiveSpectralPresentation.AnalysisChannelNames(montage);
+            var nextChannel = montage.Profile.DerivedChannels.FirstOrDefault(output =>
+                string.Equals(output.Name, Channel, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(output.PositiveLabel, Channel, StringComparison.OrdinalIgnoreCase))?.Name ?? Channels.FirstOrDefault();
+            SetProperty(ref channel, nextChannel, nameof(Channel));
+            if (!IsOpen || previous is null) return;
+            SetActive(null, "导联已切换，等待新窗口");
+            var restartGeneration = Interlocked.Read(ref generation);
+            try
+            {
+                await runtime.SetLiveAlgorithmEnabledAsync(previous.View.Id, false, default, CancellationToken.None);
+                if (previous.View.Id == "rbp")
+                    await runtime.SetLiveAlgorithmEnabledAsync("rbp-topomap", false, default, CancellationToken.None);
+                if (disposed || !IsSessionReady || restartGeneration != Interlocked.Read(ref generation) ||
+                    runtime.LiveMontage?.Revision != montage.Revision) return;
+                await ApplyAsync();
+            }
+            catch (Exception exception)
+            {
+                if (restartGeneration == Interlocked.Read(ref generation))
+                    SetActive(null, "导联切换后算法重启失败");
+                DesktopLog.Warning($"live_analysis_montage_restart_failed revision={montage.Revision} {exception.Message}");
+            }
+        });
+    }
+
     private async Task ToggleAsync()
     {
         if (!IsInteractive) return;
@@ -161,8 +195,10 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     private async Task OpenViewAsync(string viewId)
     {
         if (!IsInteractive) return;
-        Channels = runtime.StreamMetadata is { } stream
-            ? LiveSpectralPresentation.AnalysisChannelNames(stream)
+        Channels = runtime.LiveMontage is { } montage
+            ? LiveSpectralPresentation.AnalysisChannelNames(montage)
+            : runtime.StreamMetadata is { } stream
+                ? LiveSpectralPresentation.AnalysisChannelNames(stream)
             : [];
         Channel = Channels.Contains(Channel) ? Channel : Channels.FirstOrDefault();
         SelectedView = Views.First(view => view.Id == viewId);
@@ -186,7 +222,9 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         };
         var config = mapField is null
             ? LiveRbpPresentation.Config(selectedChannel is null ? Channels : [selectedChannel])
-            : LiveSpectralPresentation.MapConfig(stream, [mapField]);
+            : runtime.LiveMontage is { } montage
+                ? LiveSpectralPresentation.MapConfig(montage, [mapField])
+                : LiveSpectralPresentation.MapConfig(stream, [mapField]);
         var next = new Selection(session, SelectedView, selectedChannel, NeedsBand ? Band : null, mapField, config);
         if (active?.Config.GetRawText() == config.GetRawText() && active.View.Id == id) return;
         await ChangeAsync(next);
@@ -215,7 +253,8 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
                 await runtime.SetLiveAlgorithmEnabledAsync(next.View.Id, true, next.Config, CancellationToken.None);
                 if (next.View.Id == "rbp")
                 {
-                    var mapConfig = LiveSpectralPresentation.MapConfig(runtime.StreamMetadata!, RbpTopomapFieldIds);
+                    var mapConfig = LiveSpectralPresentation.RbpTopomapConfig(
+                        runtime.StreamMetadata!, runtime.LiveMontage, RbpTopomapFieldIds);
                     try
                     {
                         await runtime.SetLiveAlgorithmEnabledAsync("rbp-topomap", true, mapConfig, CancellationToken.None);
@@ -276,6 +315,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
             if (disposed || observedGeneration != Interlocked.Read(ref generation) || active is not { } view ||
                 runtime.State.SessionId != update.SessionId || view.Session != update.SessionId ||
                 !IsSessionReady || update.Revision <= (update.AlgorithmId == "rbp-topomap" ? topomapRevision : revision) ||
+                (runtime.LiveMontage is { } montage && !update.IsCurrentMontageResult(montage)) ||
                 (view.View.Id != update.AlgorithmId && !(view.View.Id == "rbp" && update.AlgorithmId == "rbp-topomap"))) return;
             if (update.AlgorithmId == "rbp-topomap") topomapRevision = update.Revision;
             else revision = update.Revision;
@@ -334,6 +374,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         disposed = true;
         runtime.LiveAnalysisUpdated -= OnUpdate;
         runtime.LiveAnalysisFaulted -= OnFault;
+        runtime.LiveMontageChanged -= OnMontageChanged;
     }
 
     private sealed record Selection(Guid Session, LiveSpectralOption View, string? Channel, string? Band, string? FieldId, JsonElement Config);

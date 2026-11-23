@@ -69,7 +69,8 @@ public sealed class LiveAcquisitionMappingTests
             probe.Workspace.SelectedSamplingRateHz = 500;
 
             probe.Session.ConfigureForStreamAsync(probe.Configuration(), CancellationToken.None).GetAwaiter().GetResult();
-            probe.Runtime.StartPreviewAsync(new AcquisitionStreamRequest("probe:1", 1000, probe.Project), CancellationToken.None)
+            probe.Runtime.StartPreviewAsync(new AcquisitionStreamRequest("probe:1", 1000, probe.Project), recordingMontage,
+                    CancellationToken.None)
                 .GetAwaiter().GetResult();
             probe.Workspace.LiveDisplayMontageProfile = recordingMontage;
             Assert.True(probe.Workspace.CanSwitchLiveDisplayMontage);

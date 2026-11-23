@@ -188,13 +188,13 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/ConfiguredAcquisitionRuntime.cs": {
       "decision": "keep",
-      "max_lines": 460,
-      "reason": "The runtime composes the acquisition and display services (433 lines). It forwards algorithm commands and reports transport failures. The acquisition coordinator now owns the live sample branch from device stream open through completion or fault."
+      "max_lines": 475,
+      "reason": "The runtime composes acquisition/display services and forwards live montage revision changes to their consumers (465 lines). Sample-boundary ownership and immutable snapshots remain in the acquisition coordinator; keep this application boundary cohesive."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/AcquisitionCoordinator.cs": {
       "decision": "split",
-      "max_lines": 820,
-      "reason": "The acquisition lifecycle owner remains over 600 lines (814). It now exposes sample-counter-derived session elapsed time for live chart activation while keeping counter ownership in the capture lifecycle. The live transport is created and closed at device stream boundaries; dispatchers own queueing and transport errors.",
+      "max_lines": 850,
+      "reason": "The acquisition lifecycle owner remains over 600 lines (843). It owns device lifecycle, sample-boundary serialization, and the live montage snapshot capture needed to keep waveform and algorithm batches on one revision. The live transport is created and closed at device stream boundaries; dispatchers own queueing and transport errors. Keep this cohesive lifecycle owner until the planned capture-loop and fault/stop boundaries can be extracted together.",
       "follow_up": "Extract capture-loop execution and fault/stop completion behind explicit lifecycle boundaries before further coordinator growth."
     },
     "backend/app/services/recordings.py": {
@@ -235,8 +235,8 @@
     },
     "backend/app/algorithms/psd/runner.py": {
       "decision": "keep",
-      "max_lines": 420,
-      "reason": "当前 408 行。PSD 静态、动态和按需执行共享同一 Welch 配置、通道校验、频率轴及逐通道质量投影；拆开会分散同一算法的结果契约。本次仅扩展显式通道维度和每通道状态，未改变科学计算公式；继续增加执行策略前重新评估。"
+      "max_lines": 470,
+      "reason": "当前 464 行。PSD 静态、动态和按需执行共享同一 Welch 配置、通道校验、频率轴及逐通道质量投影；拆开会分散同一算法的结果契约。本次仅扩展显式通道维度和每通道状态，未改变科学计算公式；继续增加执行策略前重新评估。"
     },
     "frontend/src/App.vue": {
       "decision": "split",

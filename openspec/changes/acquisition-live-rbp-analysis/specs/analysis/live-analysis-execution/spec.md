@@ -20,12 +20,21 @@ The live-analysis service SHALL accept sample-major float64 EEG values in V toge
 - **AND** it does not publish RBP values
 
 ### Requirement: Preserve live sample continuity and coordinates
-The live-analysis service SHALL associate every input and output with its acquisition session and sample-counter range. It SHALL not interpolate, zero-fill, or join data across a missing, duplicated, reset, or out-of-order sample counter.
+The live-analysis service SHALL associate every input and output with its acquisition session and sample-counter range. The `live-analysis-update-v2` envelope SHALL identify the montage revision used for each result. It SHALL not interpolate, zero-fill, or join data across a missing, duplicated, reset, or out-of-order sample counter.
 
 #### Scenario: Sample counter gap occurs
 - **WHEN** the next batch begins after a missing sample-counter interval
 - **THEN** the service marks the interval as a gap, invalidates windows spanning it, and resumes only from sufficient contiguous real samples
 - **AND** emitted result coordinates identify the actual sample and elapsed-time bounds
+
+#### Scenario: Reproject retained raw samples after a live montage change
+- **GIVEN** the live session retains a complete contiguous window of raw source channels preceding the new montage's effective sample boundary
+- **WHEN** an algorithm starts or restarts after that montage change
+- **THEN** the sample source projects that retained raw window through the current montage and the algorithm may process it
+- **AND** the result keeps the original sample-counter and elapsed-time coordinates
+- **AND** the new montage is used consistently for the entire window
+- **AND** the result identifies the montage revision used for calculation, so the desktop accepts windows that begin before the montage boundary only when their montage revision matches the current montage
+- **AND** results from an older montage revision are rejected even if they arrive after the new montage is active
 
 #### Scenario: Session identity changes
 - **WHEN** samples arrive for a new acquisition session

@@ -68,6 +68,7 @@ class LiveRecordingAccessSession:
             raise LiveRecordingAccessError("LIVE_CHANNEL_UNITS_INVALID", "实时样本访问只接受 V 单位的 EEG 通道。")
         self.identity = identity
         self.sampling_rate_hz = float(sampling_rate_hz)
+        self.raw_channel_names = names
         self.channel_names = names
         self.channel_units = units
         self.capacity_samples = int(capacity_samples)
@@ -76,6 +77,8 @@ class LiveRecordingAccessSession:
         self._retained_samples = 0
         self._first_sample: int | None = None
         self._high_watermark: int | None = None
+        self._montage_revision = 0
+        self._montage_signals: dict[str, tuple[int, tuple[int, ...]]] = {}
         self._closed = False
         self._lock = threading.RLock()
 
@@ -88,9 +91,9 @@ class LiveRecordingAccessSession:
         if isinstance(first_sample_counter, bool) or first_sample_counter < 0:
             raise LiveRecordingAccessError("LIVE_SAMPLE_COUNTER_INVALID", "实时样本计数不能为负数。")
         values = np.asarray(values_v, dtype=np.float64)
-        if sample_count <= 0 or values.size != sample_count * len(self.channel_names):
+        if sample_count <= 0 or values.size != sample_count * len(self.raw_channel_names):
             raise LiveRecordingAccessError("LIVE_BATCH_SHAPE_INVALID", "实时批次形状与样本计数不一致。")
-        values = values.reshape(sample_count, len(self.channel_names))
+        values = values.reshape(sample_count, len(self.raw_channel_names))
         if np.isinf(values).any():
             raise LiveRecordingAccessError("LIVE_BATCH_NONFINITE", "实时批次不能包含无穷值。")
         with self._lock:
@@ -108,10 +111,45 @@ class LiveRecordingAccessSession:
             self._trim()
             return self.range_snapshot()
 
+    def set_montage(self, profile: dict, revision: int, effective_from_sample_counter: int) -> None:
+        rows = next((value for key, value in profile.items() if key.casefold() == "derivedchannels"), None)
+        if not isinstance(rows, list) or not rows:
+            raise LiveRecordingAccessError("LIVE_MONTAGE_INVALID", "实时导联配置没有输出通道。")
+        available = {name.casefold(): index for index, name in enumerate(self.raw_channel_names)}
+        signals: dict[str, tuple[int, tuple[int, ...]]] = {}
+        ordered = []
+        for row in sorted(rows, key=lambda item: int(next(value for key, value in item.items() if key.casefold() == "displayorder"))):
+            fields = {key.casefold(): value for key, value in row.items()}
+            name = str(fields.get("name", "")).strip()
+            positive = str(fields.get("positivelabel", "")).strip()
+            negatives = tuple(str(value).strip() for value in fields.get("negativelabels", []))
+            if not name or name.casefold() in signals or positive.casefold() not in available:
+                raise LiveRecordingAccessError("LIVE_MONTAGE_INVALID", "实时导联输出名称或正输入无效。")
+            if any(label.casefold() not in available for label in negatives) or len({label.casefold() for label in negatives}) != len(negatives):
+                raise LiveRecordingAccessError("LIVE_MONTAGE_INVALID", f"实时导联 {name} 的负输入不存在或重复。")
+            signals[name.casefold()] = (available[positive.casefold()], tuple(available[label.casefold()] for label in negatives))
+            ordered.append(name)
+        with self._lock:
+            self._ensure_open()
+            if revision != self._montage_revision + 1:
+                raise LiveRecordingAccessError("LIVE_MONTAGE_REVISION_INVALID", "实时导联修订号必须连续递增。")
+            expected = 0 if self._high_watermark is None else self._high_watermark + 1
+            if effective_from_sample_counter < expected:
+                raise LiveRecordingAccessError("LIVE_MONTAGE_BOUNDARY_INVALID", "实时导联边界不能覆盖已接收样本。")
+            self._montage_signals = signals
+            self.channel_names = tuple(ordered)
+            self.channel_units = tuple("V" for _ in ordered)
+            self._montage_revision = revision
+
     @property
     def first_sample(self) -> int | None:
         with self._lock:
             return self._first_sample
+
+    @property
+    def montage_revision(self) -> int:
+        with self._lock:
+            return self._montage_revision
 
     def read_samples(
         self,
@@ -124,7 +162,11 @@ class LiveRecordingAccessSession:
         if not isinstance(start_sample, int) or not isinstance(end_sample, int) or start_sample < 0 or end_sample <= start_sample:
             raise LiveRecordingAccessError("LIVE_SAMPLE_RANGE_INVALID", "实时读取范围必须是正数半开样本区间。")
         requested = self.channel_names if channels is None else tuple(channels)
-        lookup = {name.casefold(): index for index, name in enumerate(self.channel_names)}
+        channel_names = self.channel_names
+        channel_units = self.channel_units
+        montage_revision = self._montage_revision
+        montage_signals = self._montage_signals
+        lookup = {name.casefold(): index for index, name in enumerate(channel_names)}
         try:
             indexes = [lookup[name.casefold()] for name in requested]
         except KeyError as exc:
@@ -137,6 +179,8 @@ class LiveRecordingAccessSession:
         unavailable: list[UnavailableSampleInterval] = []
         with self._lock:
             self._ensure_open()
+            if montage_revision != self._montage_revision:
+                raise LiveRecordingAccessError("LIVE_MONTAGE_CHANGED", "读取期间实时导联配置已切换，请重试窗口。")
             retained_start = self._chunks[0].start_sample if self._chunks else None
             if retained_start is None:
                 unavailable.append(UnavailableSampleInterval(start_sample, end_sample, "not_yet_available", requested))
@@ -145,10 +189,19 @@ class LiveRecordingAccessSession:
                     unavailable.append(UnavailableSampleInterval(start_sample, min(end_sample, retained_start), "overwritten", requested))
                 if self._high_watermark is None or end_sample > self._high_watermark + 1:
                     unavailable.append(UnavailableSampleInterval(max(start_sample, (self._high_watermark or -1) + 1), end_sample, "not_yet_available", requested))
+                projected_signals = [montage_signals[name.casefold()] for name in requested] if montage_signals else None
                 for chunk in self._chunks:
                     left, right = max(start_sample, chunk.start_sample), min(end_sample, chunk.end_sample)
                     if left < right:
-                        values[left - start_sample:right - start_sample, :] = chunk.values[left - chunk.start_sample:right - chunk.start_sample, :][:, indexes]
+                        raw = chunk.values[left - chunk.start_sample:right - chunk.start_sample, :]
+                        if projected_signals is not None:
+                            for output_index, (positive_index, negative_indexes) in enumerate(projected_signals):
+                                projected = raw[:, positive_index]
+                                if negative_indexes:
+                                    projected = projected - raw[:, negative_indexes].mean(axis=1)
+                                values[left - start_sample:right - start_sample, output_index] = projected
+                        else:
+                            values[left - start_sample:right - start_sample, :] = raw[:, indexes]
                 for gap_start, gap_end in self._gaps:
                     left, right = max(start_sample, gap_start), min(end_sample, gap_end)
                     if left < right:
@@ -169,7 +222,7 @@ class LiveRecordingAccessSession:
                 end_sample,
                 self.sampling_rate_hz,
                 requested,
-                tuple(self.channel_units[index] for index in indexes),
+                tuple(channel_units[index] for index in indexes),
                 values,
                 tuple(unavailable),
             )

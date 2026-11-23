@@ -24,6 +24,7 @@ class _LiveAlgorithmSession:
     source: LiveRecordingAccessSession
     config: BaseModel
     plan: LiveWindowPlan
+    montage_revision: int
     first_sample: int | None
     next_endpoint: int | None
     latest: LiveAnalysisEnvelope
@@ -63,9 +64,11 @@ class LiveAnalysisCoordinator:
             raise LiveRecordingAccessError("LIVE_WINDOW_PLAN_INVALID", "实时算法窗口配置无效。")
         if plan.window_samples > source.capacity_samples:
             raise LiveRecordingAccessError("LIVE_WINDOW_EXCEEDS_RETENTION", "算法窗口超过实时样本保留容量。")
+        montage_revision = source.montage_revision
         warming = LiveAnalysisEnvelope(
             acquisition_session_id=session_id, algorithm_id=algorithm.algorithm_id,
             revision=0, state="warming_up",
+            montage_revision=montage_revision,
             scientific_identity=getattr(algorithm, "scientific_identity", None),
             implementation_identity=getattr(algorithm, "implementation_identity", None),
         )
@@ -75,7 +78,9 @@ class LiveAnalysisCoordinator:
             high = source.range_snapshot().high_watermark_sample
             first = source.first_sample if high is not None else None
             endpoint = max(first + plan.window_samples, high + 1) if first is not None and high is not None else None
-            active = _LiveAlgorithmSession(algorithm, source, normalized, plan, first, endpoint, warming)
+            active = _LiveAlgorithmSession(
+                algorithm, source, normalized, plan, montage_revision, first, endpoint, warming,
+            )
             self.stop(session_id, algorithm_id)
             self._sessions[(session_id, algorithm.algorithm_id.casefold())] = active
             if high is not None:
@@ -200,6 +205,7 @@ class LiveAnalysisCoordinator:
     def _envelope(active: _LiveAlgorithmSession, start: int, end: int, **fields) -> LiveAnalysisEnvelope:
         fields.setdefault("scientific_identity", getattr(active.algorithm, "scientific_identity", None))
         fields.setdefault("implementation_identity", getattr(active.algorithm, "implementation_identity", None))
+        fields.setdefault("montage_revision", active.montage_revision)
         return LiveAnalysisEnvelope(
             acquisition_session_id=active.source.identity.acquisition_session_id,
             algorithm_id=active.algorithm.algorithm_id, revision=fields.pop("revision", active.revision),

@@ -1,6 +1,7 @@
 using System.Net.Http;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Acquisition.Analysis;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 
@@ -32,6 +33,8 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
     public event EventHandler<LiveAnalysisUpdate>? LiveAnalysisUpdated;
 
+    public event Action<LiveMontageSnapshot>? LiveMontageChanged;
+
     public event EventHandler<AcquisitionFault>? LiveAnalysisFaulted;
 
     public DeviceReadiness Readiness => adapter?.GetReadiness() ?? DeviceReadiness.NotConfigured();
@@ -43,6 +46,8 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         DateTimeOffset.UtcNow);
 
     public AcquisitionStreamMetadata? StreamMetadata => coordinator?.StreamMetadata;
+
+    public LiveMontageSnapshot? LiveMontage => coordinator?.LiveMontage;
 
     public DateTimeOffset? RecordingStartUtc => coordinator?.RecordingStartUtc;
 
@@ -244,6 +249,33 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         {
             transition.Release();
         }
+    }
+
+    public async Task<Guid> StartPreviewAsync(AcquisitionStreamRequest request, MontageProfile initialMontage,
+        CancellationToken cancellationToken)
+    {
+        await transition.WaitAsync(cancellationToken);
+        try
+        {
+            return await RequireCoordinator().StartPreviewAsync(request, initialMontage, cancellationToken);
+        }
+        finally
+        {
+            transition.Release();
+        }
+    }
+
+    public LiveMontageSnapshot SelectLiveMontage(MontageProfile profile)
+    {
+        var active = coordinator ?? throw new InvalidOperationException("采集协调器尚未配置。");
+        var previousRevision = active.LiveMontage?.Revision;
+        var snapshot = active.SelectLiveMontage(profile);
+        if (snapshot.Revision != previousRevision)
+        {
+            liveSampleAccessBridge?.NotifyPendingMontage(snapshot);
+            LiveMontageChanged?.Invoke(snapshot);
+        }
+        return snapshot;
     }
 
     public async Task<Guid> StartRecordingAsync(CancellationToken cancellationToken)

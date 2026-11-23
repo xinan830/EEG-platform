@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
@@ -7,6 +8,7 @@ public interface ILiveSampleAccessBridge : IAsyncDisposable
 {
     Task PublishAsync(AcquisitionAnalysisBatch batch, CancellationToken cancellationToken);
     Task SetAlgorithmEnabledAsync(string algorithmId, bool enabled, JsonElement config, CancellationToken cancellationToken);
+    void NotifyPendingMontage(LiveMontageSnapshot montage) { }
     Task CloseSessionAsync(CancellationToken cancellationToken);
     event EventHandler<LiveAnalysisUpdate>? AnalysisUpdated;
 }

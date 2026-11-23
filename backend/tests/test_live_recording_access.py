@@ -71,3 +71,28 @@ def test_live_access_honors_cooperative_read_cancellation():
 
     with pytest.raises(RuntimeError, match="cancelled"):
         session.read_samples(0, 1, check_cancelled=cancel)
+
+
+def test_live_access_projects_selected_montage_at_sample_boundary():
+    session = _session()
+    session.set_montage({"DerivedChannels": [
+        {"Name": "F3-F4", "PositiveLabel": "F3", "NegativeLabels": ["F4"], "DisplayOrder": 0},
+        {"Name": "F4-REF", "PositiveLabel": "F4", "NegativeLabels": [], "DisplayOrder": 1},
+    ]}, 1, 0)
+    session.append(100, np.array([[4.0, 2.0], [8.0, 3.0]]), 2)
+    block = session.read_samples(100, 102, ("F4-REF", "F3-F4"))
+    assert block.channel_names == ("F4-REF", "F3-F4")
+    assert block.channel_units == ("V", "V")
+    np.testing.assert_array_equal(block.values_v, [[2.0, 2.0], [3.0, 5.0]])
+
+    session.set_montage({"DerivedChannels": [
+        {"Name": "F3-REF", "PositiveLabel": "F3", "NegativeLabels": [], "DisplayOrder": 0},
+    ]}, 2, 102)
+    reprojected = session.read_samples(100, 102, ("F3-REF",))
+    assert not reprojected.unavailable_intervals
+    np.testing.assert_array_equal(reprojected.values_v, [[4.0], [8.0]])
+    session.append(102, np.array([[9.0, 4.0]]), 1)
+    changed = session.read_samples(102, 103, ("F3-REF",))
+    np.testing.assert_array_equal(changed.values_v, [[9.0]])
+    with pytest.raises(LiveRecordingAccessError, match="导联"):
+        session.set_montage({"DerivedChannels": []}, 3, 103)
