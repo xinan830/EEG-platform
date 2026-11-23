@@ -41,13 +41,13 @@
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
-      "max_lines": 551,
-      "reason": "Top-level composition owns navigation, close interception and Review session construction. Adapter factories belong to ReviewAlgorithmPanels. The blue-theme startup route adds one composition line; the shell owns no scientific logic, request state or playback clock. Reassess navigation extraction before growing this composition further."
+      "max_lines": 560,
+      "reason": "Composition review: the 556-line shell now awaits acquisition/impedance cleanup before application exit. It only calls the existing session confirmation and finish boundary; polling, native SDK ownership and recording finalization remain outside the shell. Navigation extraction remains the next maintenance boundary."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionPreparationView.xaml": {
       "decision": "keep",
-      "max_lines": 558,
-      "reason": "The view owns acquisition preparation layout and bindings. This change only replaces brand accents with shared blue resources; existing semantic validation colors remain. Splitting a palette-only update would add no separate view responsibility."
+      "max_lines": 565,
+      "reason": "Presentation-only preparation layout adds the impedance entry beside the existing preview action (560 lines). Detection window, physical mapping, thresholds and native lifecycle remain in dedicated acquisition components; no new data or signal logic enters this markup."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionWorkspaceView.xaml": {
       "decision": "keep",
@@ -189,13 +189,23 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/AcquisitionWorkspaceViewModel.cs": {
       "decision": "split",
       "max_lines": 1220,
-      "reason": "Critical-size review: the existing composition remains above 1000 lines. Session-only montage selection is isolated in the OnlineMontage partial; the main file only integrates existing setter, lifecycle and compatible-list hooks. Algorithm montage selection and raw writer snapshots are untouched by temporary selection. Preserve the executable device/setup then event-command split plan below rather than expanding unrelated refactoring.",
+      "reason": "Critical-size review: the 1200-line existing composition receives only impedance entry/lifecycle hooks and reuses finalized-recording presentation. Impedance reading, physical mapping, thresholds and window lifetime are in focused components. Keep the executable device/setup then event-command extraction plan; do not expand scientific or polling logic here.",
       "follow_up": "Extract device-backed setup and range selection, then move recording-event commands into the existing event workflow boundary. Keep one runtime and device session and target a composition file below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/ConfiguredAcquisitionRuntime.cs": {
       "decision": "keep",
-      "max_lines": 475,
-      "reason": "The runtime composes acquisition/display services and forwards live montage revision changes to their consumers (465 lines). Sample-boundary ownership and immutable snapshots remain in the acquisition coordinator; keep this application boundary cohesive."
+      "max_lines": 540,
+      "reason": "The runtime composes acquisition/display services, forwards live montage revisions, and serializes typed EEG/impedance mode transitions. Sample-boundary ownership and immutable snapshots remain in the acquisition coordinator; keep this application boundary cohesive while stream-specific read lifetimes stay in dedicated owners."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Session/DeviceSessionManager.cs": {
+      "decision": "keep",
+      "max_lines": 470,
+      "reason": "The device session manager remains the single published device snapshot owner and projects the configured runtime's mutually exclusive EEG/impedance mode. Native discovery and stream-specific cleanup stay in their existing boundaries."
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Devices/Drivers/AntEego/AntEegoAcquisitionAdapter.cs": {
+      "decision": "keep",
+      "max_lines": 510,
+      "reason": "The ANT adapter remains the single vendor boundary for discovery and opening EEG or impedance streams. Stream decoding, snapshot projection, native ownership cleanup, and device mode coordination live in dedicated types."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/AcquisitionCoordinator.cs": {
       "decision": "split",

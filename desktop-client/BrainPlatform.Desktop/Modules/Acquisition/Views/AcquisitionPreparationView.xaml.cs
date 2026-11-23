@@ -10,10 +10,23 @@ public partial class AcquisitionPreparationView : UserControl
     public AcquisitionPreparationView()
     {
         InitializeComponent();
+        Unloaded += async (_, _) =>
+        {
+            if (DataContext is not DesktopWorkspaceViewModel workspace) return;
+            try { await workspace.Acquisition.CloseImpedanceWindowAsync(); }
+            catch (Exception exception) { workspace.Notifications.PublishError(exception.Message); }
+        };
     }
 
     private void OnBackClick(object sender, RoutedEventArgs e) =>
         (Window.GetWindow(this) as IDesktopNavigation)?.ShowProjectDetailView();
+
+    private async void OnImpedanceClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel workspace) return;
+        try { await workspace.Acquisition.ShowImpedanceAsync(Window.GetWindow(this)); }
+        catch (Exception exception) { workspace.Notifications.PublishError(exception.Message); }
+    }
 
     private void OnViewProjectClick(object sender, RoutedEventArgs e) =>
         (Window.GetWindow(this) as IDesktopNavigation)?.ShowProjectDetailView();

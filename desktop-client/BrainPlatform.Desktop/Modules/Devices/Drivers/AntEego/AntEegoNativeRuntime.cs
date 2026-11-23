@@ -9,16 +9,19 @@ namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 internal static class AntEegoNativeRuntime
 {
     private static readonly object gate = new();
+    private static readonly AntEegoNativeStreamGate streamGate = new();
     private static AntEegoNativeApi? api;
     private static string? loadedPath;
     private static int leaseCount;
-    private static bool activeStream;
 
     public static AntEegoNativeLease Acquire(string sdkLibraryPath, bool forStream)
     {
         var fullPath = Path.GetFullPath(sdkLibraryPath);
         lock (gate)
         {
+            if (forStream && streamGate.IsOccupied) streamGate.Acquire();
+            if (streamGate.IsOccupied || (forStream && leaseCount != 0))
+                throw new AcquisitionDeviceBusyException("设备正在使用或检测，请稍后重试。");
             if (api is null)
             {
                 api = AntEegoNativeApi.Load(fullPath);
@@ -31,18 +34,12 @@ internal static class AntEegoNativeRuntime
                     "Another ANT/eego SDK path is already active in this desktop process.");
             }
 
-            if (forStream && activeStream)
+            if (forStream)
             {
-                throw new AntEegoSdkException(
-                    "ANT_EEGO_STREAM_ALREADY_ACTIVE",
-                    "The ANT/eego SDK allows only one active stream per process.");
+                streamGate.Acquire();
             }
 
             leaseCount++;
-            if (forStream)
-            {
-                activeStream = true;
-            }
 
             return new AntEegoNativeLease(api, forStream, Release);
         }
@@ -54,7 +51,7 @@ internal static class AntEegoNativeRuntime
         {
             if (wasStream)
             {
-                activeStream = false;
+                streamGate.Release();
             }
 
             leaseCount--;
@@ -77,7 +74,7 @@ internal static class AntEegoNativeRuntime
 
 internal sealed class AntEegoNativeLease : IDisposable
 {
-    private static readonly object sdkOperationGate = new();
+    private static readonly AntEegoNativeOperationGate sdkOperationGate = new();
     private readonly Action<bool> release;
     private readonly bool isStreamLease;
     private bool disposed;
@@ -93,25 +90,25 @@ internal sealed class AntEegoNativeLease : IDisposable
 
     public T Invoke<T>(Func<AntEegoNativeApi, T> operation)
     {
-        lock (sdkOperationGate)
+        return sdkOperationGate.Invoke(() =>
         {
             ThrowIfDisposed();
             return operation(Api);
-        }
+        });
     }
 
     public void Invoke(Action<AntEegoNativeApi> operation)
     {
-        lock (sdkOperationGate)
+        sdkOperationGate.Invoke(() =>
         {
             ThrowIfDisposed();
             operation(Api);
-        }
+        });
     }
 
     public void Dispose()
     {
-        lock (sdkOperationGate)
+        sdkOperationGate.Invoke(() =>
         {
             if (disposed)
             {
@@ -120,11 +117,32 @@ internal sealed class AntEegoNativeLease : IDisposable
 
             disposed = true;
             release(isStreamLease);
-        }
+        });
     }
 
     private void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+    }
+}
+
+internal sealed class AntEegoNativeOperationGate
+{
+    private readonly object gate = new();
+
+    public T Invoke<T>(Func<T> operation)
+    {
+        lock (gate)
+        {
+            return operation();
+        }
+    }
+
+    public void Invoke(Action operation)
+    {
+        lock (gate)
+        {
+            operation();
+        }
     }
 }

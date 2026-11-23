@@ -11,6 +11,7 @@ public enum DeviceSessionState
     Disconnected,
     Connected,
     Streaming,
+    Impedance,
     Faulted,
 }
 
@@ -30,6 +31,7 @@ public sealed record DeviceSessionSnapshot(
     public bool IsReadyForSetup => State == DeviceSessionState.Connected && SelectedDevice is not null;
 
     public bool IsStreaming => State == DeviceSessionState.Streaming;
+    public AcquisitionDeviceModeSnapshot? DeviceMode { get; init; }
 }
 
 /// <summary>
@@ -58,6 +60,7 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
             selectedDevice: null,
             "尚未检测采集设备。");
         runtime.StateChanged += OnRuntimeStateChanged;
+        runtime.DeviceModeChanged += OnDeviceModeChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -108,7 +111,7 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
             // polling is deliberately silent until a device fact actually changes.
             discoveryInProgress = true;
             var discovered = await Task.Run(() => runtime.DiscoverAsync(cancellationToken), cancellationToken);
-            if (disposed)
+            if (disposed || IsRuntimeStreaming())
             {
                 return;
             }
@@ -127,6 +130,7 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
         {
             throw;
         }
+        catch (AcquisitionDeviceBusyException) { }
         catch (Exception exception)
         {
             if (!disposed)
@@ -167,9 +171,12 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ThrowIfDisposed();
+        if (IsRuntimeStreaming()) throw new AcquisitionDeviceBusyException("设备使用中，不能重新发现设备。");
         await refreshGate.WaitAsync(cancellationToken);
+        var previousSnapshot = Snapshot;
         try
         {
+            if (IsRuntimeStreaming()) throw new AcquisitionDeviceBusyException("设备使用中，不能重新发现设备。");
             var previousDeviceId = SelectedDevice?.DeviceId;
             discoveryInProgress = true;
             Snapshot = CreateSnapshot(
@@ -183,6 +190,13 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
             var discovered = await runtime.DiscoverAsync(cancellationToken);
             ReplaceDevices(PrepareDevices(discovered, configuration.DriverId));
             PublishDiscoveryResult(configuration.DriverId, previousDeviceId);
+        }
+        catch (AcquisitionDeviceBusyException)
+        {
+            discoveryInProgress = false;
+            Snapshot = previousSnapshot;
+            OnDeviceModeChanged(this, runtime.DeviceMode);
+            throw;
         }
         catch (Exception exception)
         {
@@ -206,7 +220,7 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
     public void SelectDevice(AcquisitionDeviceDescriptor? selectedDevice)
     {
         ThrowIfDisposed();
-        if (Snapshot.IsStreaming)
+        if (IsRuntimeStreaming())
         {
             throw new InvalidOperationException("实时数据流运行时不能切换设备。");
         }
@@ -264,6 +278,7 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
     public void Invalidate(string detail)
     {
         ThrowIfDisposed();
+        if (IsRuntimeStreaming()) throw new AcquisitionDeviceBusyException("请先结束设备使用，再更改配置。");
         devices.Clear();
         lastConfiguration = null;
         Snapshot = CreateSnapshot(
@@ -283,6 +298,7 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
 
         disposed = true;
         runtime.StateChanged -= OnRuntimeStateChanged;
+        runtime.DeviceModeChanged -= OnDeviceModeChanged;
     }
 
     public static string CreateCapabilityFingerprint(
@@ -292,7 +308,7 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
 
     private void OnRuntimeStateChanged(object? sender, AcquisitionStateSnapshot state)
     {
-        if (disposed || discoveryInProgress)
+        if (disposed || discoveryInProgress || runtime.DeviceMode.Mode is not (AcquisitionDeviceMode.Idle or AcquisitionDeviceMode.Eeg))
         {
             return;
         }
@@ -327,7 +343,7 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
                 ? null
                 : CreateCapabilityFingerprint(driverId, selectedDevice.ChannelCapabilities),
             detail.Trim(),
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow) { DeviceMode = runtime.DeviceMode };
 
     private static IReadOnlyList<AcquisitionDeviceDescriptor> PrepareDevices(
         IEnumerable<AcquisitionDeviceDescriptor> discovered,
@@ -372,8 +388,19 @@ public sealed class DeviceSessionManager : INotifyPropertyChanged, IDisposable
                 "设备已连接，等待采集准备。");
     }
 
-    private bool IsRuntimeStreaming() => runtime.State.State is
-        AcquisitionState.Starting or AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused or AcquisitionState.Stopping;
+    private bool IsRuntimeStreaming() => runtime.IsDeviceOccupied;
+
+    private void OnDeviceModeChanged(object? sender, AcquisitionDeviceModeSnapshot mode)
+    {
+        if (disposed) return;
+        if (mode.Mode is AcquisitionDeviceMode.Idle or AcquisitionDeviceMode.Eeg)
+        {
+            OnRuntimeStateChanged(this, runtime.State);
+            return;
+        }
+        Snapshot = CreateSnapshot(DeviceSessionState.Impedance, runtime.Readiness, Snapshot.DriverId,
+            SelectedDevice, mode.Detail) with { DeviceMode = mode };
+    }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 

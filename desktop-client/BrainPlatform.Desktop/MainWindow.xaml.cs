@@ -409,8 +409,8 @@ public partial class MainWindow : Window, IDesktopNavigation
     private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (isApprovedClose || DataContext is not DesktopWorkspaceViewModel workspace ||
-            !ReferenceEquals(MainContentHost.Content, channelDetailView) ||
-            !workspace.ChannelConfigurations.IsDraftOpen)
+            (!workspace.Acquisition.CanStop &&
+             (!ReferenceEquals(MainContentHost.Content, channelDetailView) || !workspace.ChannelConfigurations.IsDraftOpen)))
         {
             return;
         }
@@ -431,6 +431,11 @@ public partial class MainWindow : Window, IDesktopNavigation
         {
             if (await ConfirmChannelDraftLeaveAsync())
             {
+                if (workspace.Acquisition.CanStop)
+                {
+                    if (!SessionCloseConfirmationDialog.Confirm(this, SessionCloseRequest.Acquisition)) return;
+                    await workspace.Acquisition.FinishAcquisitionAsync();
+                }
                 isApprovedClose = true;
                 Close();
             }

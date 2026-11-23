@@ -25,6 +25,7 @@ internal sealed class AntEegoNativeApi : IDisposable
     internal const int ExpectedSdkVersion = 57172;
     private const int ErrorBufferLength = 1024;
     private readonly nint libraryHandle;
+    private readonly Func<string, Type, Delegate?>? testBindings;
     private readonly InitDelegate initialize;
     private readonly ExitDelegate exit;
     private readonly GetVersionDelegate getVersion;
@@ -37,6 +38,7 @@ internal sealed class AntEegoNativeApi : IDisposable
     private readonly GetDoubleListDelegate getReferenceRanges;
     private readonly GetDoubleListDelegate getBipolarRanges;
     private readonly OpenEegStreamDelegate openEegStream;
+    private readonly OpenImpedanceStreamDelegate? openImpedanceStream;
     private readonly CloseStreamDelegate closeStream;
     private readonly GetChannelsDelegate getStreamChannels;
     private readonly GetStreamChannelCountDelegate getStreamChannelCount;
@@ -45,9 +47,10 @@ internal sealed class AntEegoNativeApi : IDisposable
     private readonly GetErrorStringDelegate getErrorString;
     private bool disposed;
 
-    private AntEegoNativeApi(nint libraryHandle)
+    internal AntEegoNativeApi(nint libraryHandle, Func<string, Type, Delegate?>? testBindings = null)
     {
         this.libraryHandle = libraryHandle;
+        this.testBindings = testBindings;
         initialize = Bind<InitDelegate>("eemagine_sdk_init");
         exit = Bind<ExitDelegate>("eemagine_sdk_exit");
         getVersion = Bind<GetVersionDelegate>("eemagine_sdk_get_version");
@@ -60,6 +63,7 @@ internal sealed class AntEegoNativeApi : IDisposable
         getReferenceRanges = Bind<GetDoubleListDelegate>("eemagine_sdk_get_amplifier_reference_ranges_available");
         getBipolarRanges = Bind<GetDoubleListDelegate>("eemagine_sdk_get_amplifier_bipolar_ranges_available");
         openEegStream = Bind<OpenEegStreamDelegate>("eemagine_sdk_open_eeg_stream");
+        openImpedanceStream = BindOptional<OpenImpedanceStreamDelegate>("eemagine_sdk_open_impedance_stream");
         closeStream = Bind<CloseStreamDelegate>("eemagine_sdk_close_stream");
         getStreamChannels = Bind<GetChannelsDelegate>("eemagine_sdk_get_stream_channel_list");
         getStreamChannelCount = Bind<GetStreamChannelCountDelegate>("eemagine_sdk_get_stream_channel_count");
@@ -154,8 +158,20 @@ internal sealed class AntEegoNativeApi : IDisposable
             openEegStream(amplifierId, samplingRateHz, referenceRangeVolts, bipolarRangeVolts, channels, channels.Length),
             "open EEG stream");
 
+    public bool SupportsImpedance => openImpedanceStream is not null;
+
+    public int OpenImpedanceStream(int amplifierId, AntEegoNativeChannelInfo[] channels) =>
+        EnsureSuccess(
+            (openImpedanceStream ?? throw new AntEegoSdkException(
+                "ANT_EEGO_IMPEDANCE_UNSUPPORTED",
+                "The loaded ANT/eego SDK does not expose impedance measurement."))(
+                amplifierId,
+                channels,
+                channels.Length),
+            "open impedance stream");
+
     public void CloseStream(int streamId) =>
-        EnsureSuccess(closeStream(streamId), "close EEG stream");
+        EnsureSuccess(closeStream(streamId), "close stream");
 
     public int GetStreamChannelCount(int streamId) =>
         EnsureSuccess(getStreamChannelCount(streamId), "get stream channel count");
@@ -171,7 +187,7 @@ internal sealed class AntEegoNativeApi : IDisposable
         var buffer = Marshal.AllocHGlobal(byteCount);
         try
         {
-            EnsureSuccess(getData(streamId, buffer, byteCount), "read EEG stream data");
+            EnsureSuccess(getData(streamId, buffer, byteCount), "read stream data");
             Marshal.Copy(buffer, values, 0, values.Length);
             return values;
         }
@@ -203,7 +219,7 @@ internal sealed class AntEegoNativeApi : IDisposable
         }
         finally
         {
-            NativeLibrary.Free(libraryHandle);
+            if (libraryHandle != 0) NativeLibrary.Free(libraryHandle);
         }
     }
 
@@ -269,7 +285,20 @@ internal sealed class AntEegoNativeApi : IDisposable
     }
 
     private TDelegate Bind<TDelegate>(string exportName) where TDelegate : Delegate =>
-        Marshal.GetDelegateForFunctionPointer<TDelegate>(NativeLibrary.GetExport(libraryHandle, exportName));
+        testBindings is not null ? (TDelegate)(testBindings(exportName, typeof(TDelegate))
+            ?? throw new EntryPointNotFoundException(exportName))
+            : Marshal.GetDelegateForFunctionPointer<TDelegate>(NativeLibrary.GetExport(libraryHandle, exportName));
+
+    private TDelegate? BindOptional<TDelegate>(string exportName) where TDelegate : Delegate
+    {
+        if (testBindings is not null) return (TDelegate?)testBindings(exportName, typeof(TDelegate));
+        if (!NativeLibrary.TryGetExport(libraryHandle, exportName, out var address))
+        {
+            return null;
+        }
+
+        return Marshal.GetDelegateForFunctionPointer<TDelegate>(address);
+    }
 
     private static IReadOnlyList<T> CopyValues<T>(T[] values, int count, string operationName)
     {
@@ -319,6 +348,12 @@ internal sealed class AntEegoNativeApi : IDisposable
         int samplingRateHz,
         double referenceRangeVolts,
         double bipolarRangeVolts,
+        [In] AntEegoNativeChannelInfo[] channels,
+        int channelCount);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int OpenImpedanceStreamDelegate(
+        int amplifierId,
         [In] AntEegoNativeChannelInfo[] channels,
         int channelCount);
 

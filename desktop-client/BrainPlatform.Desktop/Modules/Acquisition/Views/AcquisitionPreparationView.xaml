@@ -467,6 +467,8 @@
 
                 <!-- 右侧操作按钮组 -->
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="阻抗检测" Click="OnImpedanceClick" Height="40" Margin="0,0,12,0"
+                            Style="{StaticResource ModernDialogSecondaryButtonStyle}"/>
                     <!-- 返回项目 按钮 -->
                     <Button Click="OnBackClick" Height="40" Width="110" Cursor="Hand">
                         <Button.Style>

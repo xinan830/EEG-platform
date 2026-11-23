@@ -9,7 +9,7 @@ namespace BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 /// Application-level owner for an opt-in device adapter and its coordinator.
 /// WPF binds to this through a view model; it never owns the native stream.
 /// </summary>
-public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
+public sealed partial class ConfiguredAcquisitionRuntime : IAsyncDisposable
 {
     private const int DisplayHistoryCapacitySamples = 250_000;
     private const int MaximumRetainedDisplayFilterBoundaries = 64;
@@ -17,6 +17,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
     private readonly SemaphoreSlim transition = new(1, 1);
     private readonly AcquisitionDriverRegistry driverRegistry;
     private IAcquisitionDeviceAdapter? adapter;
+    private AcquisitionDriverConfiguration? configuredDriver;
     private AcquisitionCoordinator? coordinator;
     private readonly HttpLiveFilterBridge? liveFilterBridge;
     private readonly HttpLiveSampleAccessBridge? liveSampleAccessBridge;
@@ -182,34 +183,38 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         try
         {
             ThrowIfDisposed();
+            EnsureNoImpedance();
             if (coordinator?.State.State is AcquisitionState.Starting or AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused or AcquisitionState.Stopping)
             {
                 throw new InvalidOperationException("停止当前采集后才能更换设备驱动配置。");
             }
 
             await DisposeConfiguredRuntimeAsync();
-            adapter = driverRegistry.CreateAdapter(configuration);
-            filteredDisplayBuffer = liveFilterBridge is null ? null : new SampleBatchRingBuffer(DisplayHistoryCapacitySamples);
-            Volatile.Write(ref lastFilteredProgressTick, -1);
-            Volatile.Write(ref lastFilteredSampleCounter, -1);
-            lock (displayFilterBoundaryGate)
-            {
-                displayFilterBoundaries.Clear();
-            }
-            coordinator = new AcquisitionCoordinator(
-                adapter,
-                new LocalAcquisitionRawWriterFactory(),
-                liveFilterBridge is IAcquisitionAnalysisBridge bridge ? bridge : new NullAcquisitionAnalysisBridge(),
-                ringBufferCapacitySamples: 250_000,
-                liveAccessBridge: liveSampleAccessBridge);
-            coordinator.StateChanged += ForwardStateChanged;
-            coordinator.AnalysisFaulted += ForwardAnalysisFault;
-            coordinator.LiveAccessFaulted += ForwardLiveAccessFault;
+            configuredDriver = configuration;
+            CreateConfiguredRuntime(configuration);
         }
-        finally
+        finally { transition.Release(); }
+    }
+
+    private void CreateConfiguredRuntime(AcquisitionDriverConfiguration configuration)
+    {
+        adapter = driverRegistry.CreateAdapter(configuration);
+        filteredDisplayBuffer = liveFilterBridge is null ? null : new SampleBatchRingBuffer(DisplayHistoryCapacitySamples);
+        Volatile.Write(ref lastFilteredProgressTick, -1);
+        Volatile.Write(ref lastFilteredSampleCounter, -1);
+        lock (displayFilterBoundaryGate)
         {
-            transition.Release();
+            displayFilterBoundaries.Clear();
         }
+        coordinator = new AcquisitionCoordinator(
+            adapter,
+            new LocalAcquisitionRawWriterFactory(),
+            liveFilterBridge is IAcquisitionAnalysisBridge bridge ? bridge : new NullAcquisitionAnalysisBridge(),
+            ringBufferCapacitySamples: 250_000,
+            liveAccessBridge: liveSampleAccessBridge);
+        coordinator.StateChanged += ForwardStateChanged;
+        coordinator.AnalysisFaulted += ForwardAnalysisFault;
+        coordinator.LiveAccessFaulted += ForwardLiveAccessFault;
     }
 
     public async Task<IReadOnlyList<AcquisitionDeviceDescriptor>> DiscoverAsync(CancellationToken cancellationToken)
@@ -217,6 +222,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         await transition.WaitAsync(cancellationToken);
         try
         {
+            EnsureNoImpedance();
             return await RequireCoordinator().DiscoverAsync(cancellationToken);
         }
         finally
@@ -230,6 +236,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         await transition.WaitAsync(cancellationToken);
         try
         {
+            EnsureNoImpedance();
             return await RequireCoordinator().StartAsync(request, cancellationToken);
         }
         finally
@@ -243,6 +250,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         await transition.WaitAsync(cancellationToken);
         try
         {
+            EnsureNoImpedance();
             return await RequireCoordinator().StartPreviewAsync(request, cancellationToken);
         }
         finally
@@ -257,6 +265,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         await transition.WaitAsync(cancellationToken);
         try
         {
+            EnsureNoImpedance();
             return await RequireCoordinator().StartPreviewAsync(request, initialMontage, cancellationToken);
         }
         finally
@@ -283,6 +292,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         await transition.WaitAsync(cancellationToken);
         try
         {
+            EnsureNoImpedance();
             return await RequireCoordinator().StartRecordingAsync(cancellationToken);
         }
         finally
@@ -293,10 +303,11 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        var activeSession = State.SessionId;
         await transition.WaitAsync(cancellationToken);
         try
         {
+            await StopImpedanceCoreAsync();
+            var activeSession = State.SessionId;
             var activeCoordinator = RequireCoordinator();
             await activeCoordinator.StopAsync(cancellationToken);
             if (activeSession is { } sessionId && liveFilterBridge is not null)
@@ -315,6 +326,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         await transition.WaitAsync(cancellationToken);
         try
         {
+            EnsureNoImpedance();
             await RequireCoordinator().PauseAsync(cancellationToken);
         }
         finally
@@ -328,6 +340,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         await transition.WaitAsync(cancellationToken);
         try
         {
+            EnsureNoImpedance();
             await RequireCoordinator().ResumeAsync(cancellationToken);
         }
         finally
@@ -351,14 +364,14 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
                 return;
             }
 
-            disposed = true;
+            await StopImpedanceCoreAsync();
             await DisposeConfiguredRuntimeAsync();
             if (liveSampleAccessBridge is not null) await liveSampleAccessBridge.DisposeAsync();
+            disposed = true;
         }
         finally
         {
             transition.Release();
-            transition.Dispose();
         }
     }
 
@@ -436,6 +449,7 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
         }
 
         StateChanged?.Invoke(this, state);
+        DeviceModeChanged?.Invoke(this, DeviceMode);
     }
 
     private void ForwardAnalysisFault(object? sender, AcquisitionFault fault)

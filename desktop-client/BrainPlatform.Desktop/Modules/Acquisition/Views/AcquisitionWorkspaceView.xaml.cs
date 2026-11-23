@@ -16,6 +16,13 @@ public partial class AcquisitionWorkspaceView : UserControl
     private void OnBackClick(object sender, RoutedEventArgs e) =>
         (Window.GetWindow(this) as EegSessionWindow)?.Close();
 
+    private async void OnImpedanceClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel workspace) return;
+        try { await workspace.Acquisition.ShowImpedanceAsync(Window.GetWindow(this)); }
+        catch (Exception exception) { workspace.Notifications.PublishError(exception.Message); }
+    }
+
     private async void OnFinishRecordingClick(object sender, RoutedEventArgs e)
     {
         if (DataContext is not DesktopWorkspaceViewModel workspace)

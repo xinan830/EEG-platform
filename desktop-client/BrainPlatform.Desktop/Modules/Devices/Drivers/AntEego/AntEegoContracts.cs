@@ -131,6 +131,16 @@ internal enum AntEegoNativeChannelType
 
 internal static class AntEegoChannelMapper
 {
+    public static AntEegoNativeChannelInfo ToNativeImpedanceChannel(ImpedanceChannelIdentity identity) => new()
+    {
+        Index = identity.NativeChannelIndex,
+        Type = identity.Kind switch
+        {
+            AcquisitionChannelKind.Reference => AntEegoNativeChannelType.Reference,
+            _ => throw new ArgumentOutOfRangeException(nameof(identity), "The SDK impedance request selects physical reference inputs."),
+        },
+    };
+
     public static AcquisitionChannel Map(
         int streamIndex,
         int nativeChannelIndex,

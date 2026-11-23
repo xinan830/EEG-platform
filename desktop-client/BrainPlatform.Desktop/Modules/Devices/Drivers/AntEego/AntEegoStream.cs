@@ -16,6 +16,8 @@ internal sealed class AntEegoStream : IAcquisitionStream
     private readonly int streamId;
     private readonly TimeSpan emptyReadDelay;
     private readonly Action<AntEegoStream> onDisposed;
+    private readonly AntEegoNativeStreamOwnership ownership;
+    private int closing;
     private int disposed;
 
     public AntEegoStream(
@@ -32,6 +34,11 @@ internal sealed class AntEegoStream : IAcquisitionStream
         Metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
         this.emptyReadDelay = emptyReadDelay;
         this.onDisposed = onDisposed ?? throw new ArgumentNullException(nameof(onDisposed));
+        ownership = new AntEegoNativeStreamOwnership(
+            () => lease.Invoke(api => api.CloseStream(streamId)),
+            () => lease.Invoke(api => api.CloseAmplifier(amplifierId)),
+            lease.Dispose,
+            () => this.onDisposed(this));
     }
 
     public AcquisitionStreamMetadata Metadata { get; }
@@ -47,7 +54,11 @@ internal sealed class AntEegoStream : IAcquisitionStream
         while (!cancellationToken.IsCancellationRequested)
         {
             var readStartedTimestamp = Stopwatch.GetTimestamp();
-            var values = lease.Invoke(api => api.ReadAvailableData(streamId));
+            var values = lease.Invoke(api =>
+            {
+                ThrowIfDisposed();
+                return api.ReadAvailableData(streamId);
+            });
             var readCompletedTimestamp = Stopwatch.GetTimestamp();
             if (values is null)
             {
@@ -94,51 +105,21 @@ internal sealed class AntEegoStream : IAcquisitionStream
         }
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        if (Volatile.Read(ref disposed) != 0)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
-        Exception? closeFailure = null;
-        try
-        {
-            lease.Invoke(api => api.CloseStream(streamId));
-        }
-        catch (Exception exception)
-        {
-            closeFailure = exception;
-        }
-
-        try
-        {
-            lease.Invoke(api => api.CloseAmplifier(amplifierId));
-        }
-        catch (Exception exception)
-        {
-            closeFailure ??= exception;
-        }
-        finally
-        {
-            try
-            {
-                lease.Dispose();
-            }
-            finally
-            {
-                onDisposed(this);
-            }
-        }
-
-        return closeFailure is null
-            ? ValueTask.CompletedTask
-            : ValueTask.FromException(closeFailure);
+        Volatile.Write(ref closing, 1);
+        await ownership.DisposeAsync();
+        Volatile.Write(ref disposed, 1);
     }
 
     private void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref disposed) != 0)
+        if (Volatile.Read(ref disposed) != 0 || Volatile.Read(ref closing) != 0)
         {
             throw new ObjectDisposedException(nameof(AntEegoStream));
         }

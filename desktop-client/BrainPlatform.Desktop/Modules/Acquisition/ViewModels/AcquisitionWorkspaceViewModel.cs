@@ -385,13 +385,14 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
     {
         DeviceSessionState.Connected => "已连接",
         DeviceSessionState.Streaming => "数据流已打开",
+        DeviceSessionState.Impedance => "阻抗检测",
         DeviceSessionState.Discovering => "检测中",
         DeviceSessionState.Faulted => "连接异常",
         _ => "未连接",
     };
 
     public bool IsDeviceConnected => deviceSession.Snapshot.State is
-        DeviceSessionState.Connected or DeviceSessionState.Streaming;
+        DeviceSessionState.Connected or DeviceSessionState.Streaming or DeviceSessionState.Impedance;
 
     public string DeviceVendorText => DescribeDeviceVendor(SelectedDevice?.DriverId ?? deviceSession.Snapshot.DriverId);
 
@@ -481,7 +482,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         private set => SetProperty(ref operationMessage, value);
     }
 
-    public bool CanTestConnection => runtime.State.State is not AcquisitionState.Previewing and not AcquisitionState.Recording and not AcquisitionState.Paused and not AcquisitionState.Starting and not AcquisitionState.Stopping;
+    public bool CanTestConnection => !runtime.IsDeviceOccupied;
 
     public bool CanStart => deviceSession.IsReadyForSetup && SelectedSamplingRateHz is > 0 &&
         SamplingRatesHz.Contains(SelectedSamplingRateHz.Value) &&
@@ -505,7 +506,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
 
     public bool CanSwitchLiveDisplayMontage => runtime.State.State == AcquisitionState.Previewing;
 
-    public bool CanStop => runtime.State.State is AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused or AcquisitionState.Starting or AcquisitionState.Stopping;
+    public bool CanStop => runtime.IsDeviceOccupied || openingImpedance;
 
     public bool CanPause => runtime.State.State == AcquisitionState.Recording;
 
@@ -602,6 +603,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
             return;
         }
 
+        await CloseImpedanceWindowAsync();
         disposed = true;
         runtime.StateChanged -= OnRuntimeStateChanged;
         runtime.AnalysisFaulted -= OnAnalysisFaulted;
@@ -795,14 +797,21 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
 
     private async Task StopRecordingCoreAsync()
     {
+        await CloseImpedanceWindowAsync();
         var stoppedState = runtime.State.State;
+        var completedDirectory = runtime.RecordingDirectory;
         await runtime.StopAsync(CancellationToken.None);
+        await CompleteStoppedRecordingPresentationAsync(stoppedState, completedDirectory);
+    }
+
+    private async Task CompleteStoppedRecordingPresentationAsync(AcquisitionState stoppedState, string? completedDirectory)
+    {
         ClearTemporaryWaveformMontage();
         recordingHistory.Refresh(SelectedProject?.RecordingsDirectory ?? string.Empty);
         LiveMonitor.Refresh();
         AcquisitionStatusText = runtime.State.Detail;
         var hadRecording = stoppedState is AcquisitionState.Recording or AcquisitionState.Paused or AcquisitionState.Stopping;
-        if (hadRecording && recordingRegistrationClient is not null && runtime.RecordingDirectory is { } completedDirectory)
+        if (hadRecording && recordingRegistrationClient is not null && completedDirectory is not null)
         {
             try
             {
