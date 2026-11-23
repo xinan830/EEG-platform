@@ -17,7 +17,7 @@ public partial class StftHeatmap : UserControl
     private readonly NumericAxis xAxis;
     private readonly NumericAxis yAxis;
     private readonly HeatmapColorPalette palette;
-    private readonly List<FastUniformHeatmapRenderableSeries> heatmapSegments = [];
+    private readonly List<FastNonUniformHeatmapRenderableSeries> heatmapSegments = [];
     private readonly CursorModifier cursor;
     private double renderedThroughSeconds = double.NegativeInfinity;
     private double historyStartSeconds = double.NaN;
@@ -38,10 +38,20 @@ public partial class StftHeatmap : UserControl
         nameof(RetainHistory), typeof(bool), typeof(StftHeatmap), new PropertyMetadata(true,
             (sender, _) => { var chart = (StftHeatmap)sender; chart.ClearSegments(); chart.UpdatePreview(chart.Preview); }));
 
+    public static readonly DependencyProperty VisibleStartSecondsProperty = DependencyProperty.Register(
+        nameof(VisibleStartSeconds), typeof(double?), typeof(StftHeatmap), new PropertyMetadata(null,
+            (sender, _) => { var chart = (StftHeatmap)sender; chart.ClearSegments(); chart.UpdatePreview(chart.Preview); }));
+
     public bool RetainHistory
     {
         get => (bool)GetValue(RetainHistoryProperty);
         set => SetValue(RetainHistoryProperty, value);
+    }
+
+    public double? VisibleStartSeconds
+    {
+        get => (double?)GetValue(VisibleStartSecondsProperty);
+        set => SetValue(VisibleStartSecondsProperty, value);
     }
 
     public StftHeatmap()
@@ -116,7 +126,8 @@ public partial class StftHeatmap : UserControl
             ClearSegments();
         renderedFrequencies = preview.FrequenciesHz.ToArray();
         var newColumns = Enumerable.Range(0, preview.TimesSeconds.Length)
-            .Where(index => preview.TimesSeconds[index] > renderedThroughSeconds + 1e-9)
+            .Where(index => preview.TimesSeconds[index] > renderedThroughSeconds + 1e-9 &&
+                (VisibleStartSeconds is not { } start || preview.TimesSeconds[index] >= start))
             .ToArray();
         if (newColumns.Length > 0)
             AppendColumns(preview, newColumns);
@@ -127,9 +138,16 @@ public partial class StftHeatmap : UserControl
         palette.Maximum = maximumDb;
         ColourMap.Minimum = minimumDb;
         ColourMap.Maximum = maximumDb;
-        xAxis.VisibleRange = new DoubleRange(
-            double.IsFinite(historyStartSeconds) ? historyStartSeconds : preview.TimesSeconds[0],
-            Math.Max(preview.TimesSeconds[^1], renderedThroughSeconds));
+        var timeStep = preview.TimesSeconds.Length > 1
+            ? preview.TimesSeconds[1] - preview.TimesSeconds[0]
+            : 1.0;
+        var dataEnd = Math.Max(preview.TimesSeconds[^1], renderedThroughSeconds) + timeStep / 2;
+        var visibleStart = VisibleStartSeconds is { } start && double.IsFinite(start)
+            ? Math.Max(0, start)
+            : double.IsFinite(historyStartSeconds) ? historyStartSeconds : preview.TimesSeconds[0];
+        var dataStart = double.IsFinite(historyStartSeconds) ? historyStartSeconds : visibleStart;
+        var chartStart = Math.Max(visibleStart, dataStart);
+        xAxis.VisibleRange = new DoubleRange(chartStart, Math.Max(chartStart + 1, dataEnd));
         yAxis.VisibleRange = new DoubleRange(preview.FrequenciesHz[0], preview.FrequenciesHz[^1]);
     }
 
@@ -159,9 +177,18 @@ public partial class StftHeatmap : UserControl
                 ? preview.TimesSeconds[group[1]] - preview.TimesSeconds[firstIndex]
                 : timeStep;
             var yStep = height > 1 ? preview.FrequenciesHz[1] - preview.FrequenciesHz[0] : 1.0;
-            var dataSeries = new UniformHeatmapDataSeries<double, double, double>(
-                values, preview.TimesSeconds[firstIndex], xStep, preview.FrequenciesHz[0], yStep, null);
-            var segment = new FastUniformHeatmapRenderableSeries
+            var xBoundaries = new double[group.Count + 1];
+            xBoundaries[0] = !double.IsFinite(historyStartSeconds) && VisibleStartSeconds is { } start && double.IsFinite(start)
+                ? Math.Max(0, start)
+                : preview.TimesSeconds[firstIndex] - xStep / 2;
+            for (var x = 1; x < group.Count; x++)
+                xBoundaries[x] = (preview.TimesSeconds[group[x - 1]] + preview.TimesSeconds[group[x]]) / 2;
+            var lastStep = group.Count > 1 ? xStep : timeStep;
+            xBoundaries[^1] = preview.TimesSeconds[group[^1]] + lastStep / 2;
+
+            var dataSeries = new NonUniformHeatmapDataSeries<double, double, double>(
+                values, index => xBoundaries[index], index => preview.FrequenciesHz[0] + index * yStep);
+            var segment = new FastNonUniformHeatmapRenderableSeries
             {
                 DataSeries = dataSeries,
                 ColorMap = palette,
@@ -173,7 +200,7 @@ public partial class StftHeatmap : UserControl
             Surface.RenderableSeries.Add(segment);
             heatmapSegments.Add(segment);
             if (!double.IsFinite(historyStartSeconds))
-                historyStartSeconds = preview.TimesSeconds[firstIndex];
+                historyStartSeconds = xBoundaries[0];
         }
         renderedThroughSeconds = preview.TimesSeconds[columnIndexes[^1]];
     }

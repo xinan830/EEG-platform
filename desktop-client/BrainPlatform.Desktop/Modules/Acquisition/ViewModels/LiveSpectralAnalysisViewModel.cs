@@ -31,6 +31,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     private string band = "alpha";
     private StftPreview? stft;
     private TopomapField? topomapField;
+    private double? analysisStartSeconds;
     private string? channel;
     private IReadOnlyList<string> channels = [];
     private LiveSpectralOption selectedView = Views[0];
@@ -117,6 +118,11 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     public bool IsInteractive => IsSessionReady && !isBusy;
     public string Status { get => status; private set => SetProperty(ref status, value); }
     public string Window { get => window; private set => SetProperty(ref window, value); }
+    public double? AnalysisStartSeconds
+    {
+        get => analysisStartSeconds;
+        private set => SetProperty(ref analysisStartSeconds, value);
+    }
     public StftPreview? Stft { get => stft; private set => SetProperty(ref stft, value); }
     public TopomapField? Field { get => topomapField; private set => SetProperty(ref topomapField, value); }
     public PsdPreviewState Psd { get; } = new() { ValueUnit = "µV²/Hz" };
@@ -155,9 +161,9 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     private async Task OpenViewAsync(string viewId)
     {
         if (!IsInteractive) return;
-        Channels = runtime.StreamMetadata?.Channels
-            .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
-            .Select(LiveSpectralPresentation.ChannelName).ToArray() ?? [];
+        Channels = runtime.StreamMetadata is { } stream
+            ? LiveSpectralPresentation.AnalysisChannelNames(stream)
+            : [];
         Channel = Channels.Contains(Channel) ? Channel : Channels.FirstOrDefault();
         SelectedView = Views.First(view => view.Id == viewId);
         IsOpen = true;
@@ -237,6 +243,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     {
         Interlocked.Increment(ref generation);
         active = selection;
+        AnalysisStartSeconds = selection is null ? null : runtime.CurrentElapsedSeconds;
         revision = -1;
         topomapRevision = -1;
         Status = message;
@@ -245,7 +252,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         Stft = null;
         Field = null;
         ColorScales.Reset();
-        if (selection?.View.Id == "rbp") Rbp.Begin(selection.Session);
+        if (selection?.View.Id == "rbp") Rbp.Begin(selection.Session, AnalysisStartSeconds);
         else Rbp.Clear();
         RaisePropertyChanged(nameof(ActiveView));
         RaisePropertyChanged(nameof(ActiveLabel));
@@ -276,6 +283,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
             Status = update.State switch
             {
                 "ready" => "",
+                "partial" when view.View.Id is "rbp" or "rbp-topomap" => "",
                 "partial" => "部分数据可用",
                 "warming_up" => "等待可用的 10 秒窗口",
                 _ => update.Message ?? "当前窗口不可用",

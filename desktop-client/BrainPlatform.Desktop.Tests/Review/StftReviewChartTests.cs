@@ -60,7 +60,7 @@ public sealed class StftReviewChartTests
             model.Apply(preview);
             Assert.Equal("5–10 s", rangeLabel.Text);
             var surface = Find<SciChartSurface>(chart)!;
-            var old = surface.RenderableSeries.OfType<FastUniformHeatmapRenderableSeries>().ToArray();
+            var old = surface.RenderableSeries.OfType<FastNonUniformHeatmapRenderableSeries>().ToArray();
             Assert.NotEmpty(old);
             model.Apply(preview with { WindowStartSeconds = 6, WindowEndSeconds = 11 });
             Assert.Equal("6–11 s", rangeLabel.Text);

@@ -193,8 +193,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/AcquisitionCoordinator.cs": {
       "decision": "split",
-      "max_lines": 800,
-      "reason": "The acquisition lifecycle owner remains over 600 lines (797). The live transport is created and closed at the device stream boundaries because it uses the capture session ID throughout preview and recording. The dispatcher owns queueing and transport errors. The coordinator continues to own sample order, recording, and waveform publication.",
+      "max_lines": 820,
+      "reason": "The acquisition lifecycle owner remains over 600 lines (814). It now exposes sample-counter-derived session elapsed time for live chart activation while keeping counter ownership in the capture lifecycle. The live transport is created and closed at device stream boundaries; dispatchers own queueing and transport errors.",
       "follow_up": "Extract capture-loop execution and fault/stop completion behind explicit lifecycle boundaries before further coordinator growth."
     },
     "backend/app/services/recordings.py": {

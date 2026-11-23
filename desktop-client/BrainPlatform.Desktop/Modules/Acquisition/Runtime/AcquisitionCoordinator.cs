@@ -30,6 +30,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     private AcquisitionStreamRequest? activeRequest;
     private AcquisitionStreamMetadata? streamMetadata;
     private AcquisitionStreamMetadata? recordingMetadata;
+    private long sessionFirstSampleCounter = -1;
     private long recordingFirstSampleCounter = -1;
     private long recordingLastPersistedSampleCounter = -1;
     private AcquisitionFault? lastFault;
@@ -94,6 +95,19 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
     public IReadOnlyList<AcquisitionBatch> GetDisplaySnapshot() => Volatile.Read(ref ringBuffer)?.Snapshot() ?? [];
 
     public long? LatestDisplaySampleCounter => Volatile.Read(ref ringBuffer)?.LastSampleCounter;
+
+    public double? SessionElapsedSeconds
+    {
+        get
+        {
+            var first = Volatile.Read(ref sessionFirstSampleCounter);
+            var last = LatestDisplaySampleCounter;
+            var metadata = StreamMetadata;
+            return first >= 0 && last is { } current && metadata is { SamplingRateHz: > 0 } && current >= first
+                ? (current - first + 1) / (double)metadata.SamplingRateHz
+                : null;
+        }
+    }
 
     public Guid? RecordingSessionId => recordingSessionId;
 
@@ -199,6 +213,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             activeRequest = request;
             Volatile.Write(ref recordingFirstSampleCounter, -1);
             continuityTracker = new SampleCounterContinuityTracker();
+            Volatile.Write(ref sessionFirstSampleCounter, -1);
             Volatile.Write(ref ringBuffer, new SampleBatchRingBuffer(ringBufferCapacitySamples));
             if (liveAccessBridge is not null)
             {
@@ -462,6 +477,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
             }
 
             var continuity = tracker.Observe(batch);
+            Interlocked.CompareExchange(ref sessionFirstSampleCounter, batch.FirstSampleCounter, -1);
             if (continuity.Gap is { } observedGap)
             {
                 DesktopLog.Warning(
@@ -698,6 +714,7 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         recordingSessionId = null;
         activeRequest = null;
         Volatile.Write(ref recordingFirstSampleCounter, -1);
+        Volatile.Write(ref sessionFirstSampleCounter, -1);
         Volatile.Write(ref recordingLastPersistedSampleCounter, -1);
         Volatile.Write(ref streamMetadata, null);
         Volatile.Write(ref recordingMetadata, null);

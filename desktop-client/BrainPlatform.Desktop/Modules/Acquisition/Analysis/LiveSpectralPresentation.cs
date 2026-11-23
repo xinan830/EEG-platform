@@ -8,11 +8,24 @@ namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 
 internal static class LiveSpectralPresentation
 {
-    internal static string ChannelName(AcquisitionChannel channel) => channel.Label ?? $"channel-{channel.StreamIndex}";
+    internal static IReadOnlyList<string> AnalysisChannelNames(AcquisitionStreamMetadata stream) =>
+        stream.Channels
+            .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
+            .Where(channel => !string.IsNullOrWhiteSpace(channel.Label))
+            .Select(ChannelName)
+            .ToArray();
+
+    internal static string ChannelName(AcquisitionChannel channel) =>
+        channel.Label is { } label && !string.IsNullOrWhiteSpace(label)
+            ? label.Trim()
+            : $"channel-{channel.StreamIndex}";
 
     internal static JsonElement MapConfig(AcquisitionStreamMetadata stream, IReadOnlyList<string> fieldIds)
     {
-        var channels = stream.Channels.Where(channel => channel.Kind == AcquisitionChannelKind.Reference).ToArray();
+        var channels = stream.Channels
+            .Where(channel => channel.Kind == AcquisitionChannelKind.Reference)
+            .Where(channel => !string.IsNullOrWhiteSpace(channel.Label))
+            .ToArray();
         if (channels.Length == 0) throw new InvalidOperationException("当前采集会话没有可用于地形图的单电极通道。");
 
         var positions = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);

@@ -151,6 +151,7 @@ public sealed class AcquisitionCoordinatorTests
             await stream.WriteAsync(Batch(1000, 25));
             await stream.WaitForYieldCountAsync(1);
             var previewBatch = await liveAccess.FirstBatch.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(0.05, coordinator.SessionElapsedSeconds);
             Assert.Equal((previewSessionId, 1000L, 25), (previewBatch.SessionId,
                 previewBatch.Batch.FirstSampleCounter, previewBatch.Batch.SampleCount));
             Assert.Equal(string.Empty, previewBatch.RawRecordingDirectory);

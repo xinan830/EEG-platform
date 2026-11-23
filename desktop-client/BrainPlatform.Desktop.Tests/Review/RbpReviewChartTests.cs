@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using BrainPlatform.Desktop.Modules.Acquisition.Analysis;
+using BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
+using BrainPlatform.Desktop.Modules.Acquisition.Views;
 using BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
@@ -85,6 +88,29 @@ public sealed class RbpReviewChartTests
         var advanced = Assert.IsType<SciChart.Data.Model.DoubleRange>(xAxis.VisibleRange);
         Assert.Equal(30, advanced.Min);
         Assert.Equal(31.5, advanced.Max);
+    });
+
+    [Fact]
+    public void Live_panel_passes_activation_time_to_channel_charts() => ReviewTimelineNavigatorTests.OnSta(() =>
+    {
+        var viewModel = new LiveRbpAnalysisViewModel();
+        var sessionId = Guid.NewGuid();
+        viewModel.Begin(sessionId, 25);
+        viewModel.Apply(new LiveRbpUpdate("ready", "", 25, 35, "rbp-live-v1",
+            [new LiveRbpChannelResult("Fz", [0.2, 0.2, 0.2, 0.2, 0.2], "clean", "", "")], sessionId, 1));
+        var panel = new LiveRbpAnalysisPanel { DataContext = viewModel };
+
+        Arrange(panel, 640);
+        LoadCharts(panel);
+
+        var charts = Descendants<RbpChart>(panel).ToArray();
+        Assert.NotEmpty(charts);
+        Assert.All(charts, chart =>
+        {
+            Assert.Equal(25, chart.VisibleStartSeconds);
+            var range = Assert.IsType<SciChart.Data.Model.DoubleRange>(Assert.Single(Assert.IsType<SciChartSurface>(chart.Content).XAxes).VisibleRange);
+            Assert.Equal(25, range.Min);
+        });
     });
 
     [Fact]

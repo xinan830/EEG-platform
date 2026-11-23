@@ -54,6 +54,10 @@ public sealed class ConfiguredAcquisitionRuntime : IAsyncDisposable
 
     public long? LatestSampleCounter => coordinator?.LatestDisplaySampleCounter;
 
+    public double? CurrentElapsedSeconds => coordinator is { StreamMetadata: not null } active
+        ? active.SessionElapsedSeconds ?? 0
+        : null;
+
     public IReadOnlyList<AcquisitionGap> GetRecordingGaps() => coordinator?.GetRecordingGaps() ?? [];
 
     public IReadOnlyList<RecordingLifecycleBoundary> GetLifecycleBoundaries() => coordinator?.GetLifecycleBoundaries() ?? [];

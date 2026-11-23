@@ -10,6 +10,24 @@ namespace BrainPlatform.Desktop.Tests.Acquisition;
 public sealed class LiveSpectralPresentationTests
 {
     [Fact]
+    public void AnalysisChannelNames_ExcludesUnnamedAndNonEegChannels()
+    {
+        var stream = new AcquisitionStreamMetadata("device", "device", 512,
+            [
+                new(0, 0, " F3 ", AcquisitionChannelKind.Reference, "V"),
+                new(1, 1, null, AcquisitionChannelKind.Reference, "V"),
+                new(2, 2, "F3-Fp1", AcquisitionChannelKind.Bipolar, "V"),
+                new(3, 3, "", AcquisitionChannelKind.Bipolar, "V"),
+                new(4, 4, "TRIG", AcquisitionChannelKind.Trigger, "V"),
+                new(5, 5, "Counter", AcquisitionChannelKind.SampleCounter, "count"),
+            ],
+            5,
+            DateTimeOffset.UnixEpoch);
+
+        Assert.Equal(["F3", "F3-Fp1"], LiveSpectralPresentation.AnalysisChannelNames(stream));
+    }
+
+    [Fact]
     public void PsdUsesReviewUnitsAndRejectsWrongChannel()
     {
         var result = Update("psd", """
@@ -58,8 +76,10 @@ public sealed class LiveSpectralPresentationTests
         var stream = new AcquisitionStreamMetadata("device", "device", 512,
             [new(0, 12, "F3", AcquisitionChannelKind.Reference, "V"),
              new(1, 14, "C3", AcquisitionChannelKind.Reference, "V"),
-             new(2, 15, "F4", AcquisitionChannelKind.Bipolar, "V")],
-            3, DateTimeOffset.UnixEpoch)
+             new(2, 15, "F4", AcquisitionChannelKind.Bipolar, "V"),
+             new(3, 16, null, AcquisitionChannelKind.Reference, "V"),
+             new(4, 17, "Counter", AcquisitionChannelKind.SampleCounter, "count")],
+            4, DateTimeOffset.UnixEpoch)
         {
             HardwareConfiguration = new Dictionary<string, string>
             {

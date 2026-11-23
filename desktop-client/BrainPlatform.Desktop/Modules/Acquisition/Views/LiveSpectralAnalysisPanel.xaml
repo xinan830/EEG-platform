@@ -35,6 +35,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <stft:StftHeatmap Grid.Row="0" MinHeight="180" RetainHistory="True"
+                                  VisibleStartSeconds="{Binding AnalysisStartSeconds}"
                                   Preview="{Binding Stft}" AutomationProperties.Name="实时时频图" />
                 <Grid Grid.Row="1" Margin="2,4,0,0">
                     <Grid.ColumnDefinitions>

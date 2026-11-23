@@ -18,6 +18,7 @@ public sealed class LiveRbpAnalysisViewModel : ObservableObject
     private IReadOnlyList<TopomapField> topomapFields = [];
     private double? topomapStartSeconds;
     private double? topomapEndSeconds;
+    private double? visibleStartSeconds;
 
     public ObservableCollection<RbpChannelHistory> ChannelHistories { get; } = [];
     public ObservableCollection<LiveTopomapBandDisplayItem> TopomapBands { get; } = [];
@@ -68,12 +69,14 @@ public sealed class LiveRbpAnalysisViewModel : ObservableObject
     public bool IsAllTopomapBandsSelected => string.IsNullOrEmpty(SelectedTopomapBandId);
     public string TopomapWindowText => topomapStartSeconds is { } start && topomapEndSeconds is { } end
         ? $"{start:0.###}–{end:0.###} s" : "分析范围不可用";
+    public double? VisibleStartSeconds { get => visibleStartSeconds; private set => SetProperty(ref visibleStartSeconds, value); }
     public string StatusText { get => statusText; private set => SetProperty(ref statusText, value); }
     public string WindowText { get => windowText; private set => SetProperty(ref windowText, value); }
 
-    public void Begin(Guid acquisitionSessionId)
+    public void Begin(Guid acquisitionSessionId, double? visibleStartSeconds = null)
     {
         sessionId = acquisitionSessionId;
+        VisibleStartSeconds = visibleStartSeconds;
         latestRevision = -1;
         ChannelHistories.Clear();
         ClearTopomap();
@@ -84,6 +87,7 @@ public sealed class LiveRbpAnalysisViewModel : ObservableObject
     public void Clear(string status = "实时 RBP 已关闭")
     {
         sessionId = null;
+        VisibleStartSeconds = null;
         latestRevision = -1;
         ChannelHistories.Clear();
         ClearTopomap();

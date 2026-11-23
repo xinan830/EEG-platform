@@ -44,10 +44,13 @@ public sealed class LiveRbpResultReaderTests
         var envelope = new LiveAnalysisUpdate(SessionId, "rbp", 7, "partial", 512,
             document.RootElement.Clone(), 10, 11, "rbp-live-v1");
         var presenter = new BrainPlatform.Desktop.Modules.Acquisition.ViewModels.LiveRbpAnalysisViewModel();
-        presenter.Begin(SessionId);
+        presenter.Begin(SessionId, 23);
+        Assert.Equal(23, presenter.VisibleStartSeconds);
         Assert.True(presenter.Apply(LiveRbpPresentation.Read(envelope, ["Fz"])!));
         Assert.Single(presenter.ChannelHistories);
         Assert.Contains("质量警告", presenter.StatusText);
+        presenter.Clear();
+        Assert.Null(presenter.VisibleStartSeconds);
     }
 
     [Fact]
