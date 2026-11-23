@@ -31,7 +31,7 @@ public sealed class MontageDirectionMap : FrameworkElement
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
-        var headBounds = ScalpMapRenderer.DrawHead(drawingContext, ActualWidth, ActualHeight, 5, 24, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+        var headBounds = ScalpMapRenderer.DrawHead(drawingContext, ActualWidth, ActualHeight, 5, 24, VisualTreeHelper.GetDpi(this).PixelsPerDip, radiusScale: 0.46);
         if (headBounds.IsEmpty) return;
         foreach (var arrow in Arrows ?? [])
         {

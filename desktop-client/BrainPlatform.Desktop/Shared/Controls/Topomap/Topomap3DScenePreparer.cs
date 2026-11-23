@@ -10,13 +10,29 @@ using BrainPlatform.Desktop.Modules.Channels.Api;
 
 namespace BrainPlatform.Desktop.Shared.Controls.Topomap;
 
+internal sealed record Topomap3DElectrodeMarker(
+    string DisplayLabel,
+    string CanonicalChannel,
+    Point3D Position,
+    Vector3D OutwardNormal,
+    double MarkerRadius);
+
+internal sealed record Topomap3DSceneData(
+    Model3DGroup Scene,
+    IReadOnlyList<Topomap3DElectrodeMarker> Markers);
+
 internal static class Topomap3DScenePreparer
 {
+    private const double ElectrodeMarkerRadiusFactor = 0.0034;
     private static readonly ConcurrentDictionary<string, Point3D[]> VerticesByIdentity = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, Int32Collection> FacesByIdentity = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, (Point3D[] Vertices, Vector3D[] Normals, double Scale, Point3D Center)> SceneGeometryByIdentity = new(StringComparer.Ordinal);
 
     internal static Model3DGroup PrepareElectrodeLocations(ElectrodeScalpModel3D model,
+        IReadOnlyList<string> enabledLabels, CancellationToken cancellationToken) =>
+        PrepareElectrodeSceneData(model, enabledLabels, cancellationToken).Scene;
+
+    internal static Topomap3DSceneData PrepareElectrodeSceneData(ElectrodeScalpModel3D model,
         IReadOnlyList<string> enabledLabels, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(enabledLabels);
@@ -31,14 +47,44 @@ internal static class Topomap3DScenePreparer
         AddModel(scene, scalp, Color.FromRgb(205, 211, 218));
         var selected = enabledLabels.Where(label => !string.IsNullOrWhiteSpace(label))
             .Select(label => label.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var locations = model.ElectrodeLocations
-            .Where(site => selected.Contains(site.Channel) || selected.Contains(site.CanonicalChannel))
-            .GroupBy(site => site.CanonicalChannel, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First().CoordinateGnm);
-        var markers = BuildElectrodeMarkers(locations, model, geometry, cancellationToken);
-        if (markers.TriangleIndices.Count > 0) AddModel(scene, markers, Color.FromRgb(22, 24, 27));
+        var markerRadius = ElectrodeMarkerRadiusFactor * geometry.Scale;
+        var markerInfos = new List<Topomap3DElectrodeMarker>();
+        var markerMesh = new MeshGeometry3D();
+        foreach (var group in model.ElectrodeLocations
+                     .Where(site => selected.Contains(site.Channel) || selected.Contains(site.CanonicalChannel))
+                     .GroupBy(site => site.CanonicalChannel, StringComparer.OrdinalIgnoreCase))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var site = group.First();
+            var displayLabel = enabledLabels.FirstOrDefault(label =>
+                string.Equals(label?.Trim(), site.Channel, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(label?.Trim(), site.CanonicalChannel, StringComparison.OrdinalIgnoreCase))?.Trim()
+                ?? site.Channel;
+            var rawCenter = MapElectrodePosition(site.CoordinateGnm, model, geometry);
+            var outward = new Vector3D(rawCenter.X, rawCenter.Y, rawCenter.Z);
+            if (outward.LengthSquared > 1e-12) outward.Normalize();
+            else outward = new Vector3D(0, 1, 0);
+            var surfaceCenter = rawCenter + outward * (markerRadius * 0.3);
+            AddSphere(markerMesh, surfaceCenter, markerRadius);
+            markerInfos.Add(new Topomap3DElectrodeMarker(
+                displayLabel, site.CanonicalChannel, surfaceCenter, outward, markerRadius));
+        }
+
+        if (markerMesh.TriangleIndices.Count > 0)
+        {
+            AddGlossyModel(scene, markerMesh, Color.FromRgb(29, 78, 216));
+        }
+
         scene.Freeze();
-        return scene;
+        return new Topomap3DSceneData(scene, markerInfos);
+    }
+
+    internal static MeshGeometry3D CreateSingleSphereMesh(Point3D center, double radius)
+    {
+        var mesh = new MeshGeometry3D();
+        AddSphere(mesh, center, radius);
+        mesh.Freeze();
+        return mesh;
     }
 
     internal static (Point3D Position, Vector3D LookDirection, double NearPlane, double FarPlane)
@@ -191,21 +237,6 @@ internal static class Topomap3DScenePreparer
         return normals;
     }
 
-    private static MeshGeometry3D BuildElectrodeMarkers(IEnumerable<IReadOnlyList<double>> locations,
-        ElectrodeScalpModel3D model,
-        (Point3D[] Vertices, Vector3D[] Normals, double Scale, Point3D Center) geometry,
-        CancellationToken cancellationToken)
-    {
-        var mesh = new MeshGeometry3D();
-        foreach (var coordinates in locations)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var center = MapElectrodePosition(coordinates, model, geometry);
-            AddSphere(mesh, center, 0.0014 * geometry.Scale);
-        }
-        return mesh;
-    }
-
     internal static Point3D MapElectrodePosition(IReadOnlyList<double> coordinates,
         ElectrodeScalpModel3D model,
         (Point3D[] Vertices, Vector3D[] Normals, double Scale, Point3D Center) geometry)
@@ -234,8 +265,8 @@ internal static class Topomap3DScenePreparer
 
     private static void AddSphere(MeshGeometry3D mesh, Point3D center, double radius)
     {
-        const int longitudeCount = 8;
-        const int latitudeCount = 5;
+        const int longitudeCount = 14;
+        const int latitudeCount = 10;
         var start = mesh.Positions.Count;
         for (var latitude = 0; latitude <= latitudeCount; latitude++)
         {
@@ -265,6 +296,19 @@ internal static class Topomap3DScenePreparer
         var brush = new SolidColorBrush(color); brush.Freeze();
         var material = new DiffuseMaterial(brush); material.Freeze();
         scene.Children.Add(new GeometryModel3D(geometry, material) { BackMaterial = material });
+    }
+
+    private static void AddGlossyModel(Model3DGroup scene, MeshGeometry3D geometry, Color color)
+    {
+        if (geometry.TriangleIndices.Count == 0) return;
+        geometry.Freeze();
+        var diffuseBrush = new SolidColorBrush(color); diffuseBrush.Freeze();
+        var specularBrush = new SolidColorBrush(Color.FromArgb(140, 255, 255, 255)); specularBrush.Freeze();
+        var group = new MaterialGroup();
+        group.Children.Add(new DiffuseMaterial(diffuseBrush));
+        group.Children.Add(new SpecularMaterial(specularBrush, 36));
+        group.Freeze();
+        scene.Children.Add(new GeometryModel3D(geometry, group) { BackMaterial = group });
     }
 
 }

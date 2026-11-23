@@ -191,6 +191,7 @@
                     </Border.Style>
                     <topomap:Topomap3DView ScalpModel="{Binding Model}"
                                            ElectrodeLabels="{Binding EnabledElectrodeLabels}"
+                                           SelectedElectrodeLabel="{Binding SelectedItem.ElectrodeLabel, ElementName=ElectrodeRows}"
                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 </Border>
             </Grid>

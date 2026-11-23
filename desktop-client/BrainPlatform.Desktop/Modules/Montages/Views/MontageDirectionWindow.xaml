@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Montages.Views"
         Title="导联指向图" Width="820" Height="720" MinWidth="620" MinHeight="560"
-        WindowStyle="ToolWindow" ShowInTaskbar="False" ResizeMode="CanResize" Background="#F8FAFC">
+        WindowStyle="ToolWindow" ShowInTaskbar="False" ResizeMode="CanResize" WindowState="Maximized" Background="#F8FAFC">
     <Grid Margin="20">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <StackPanel Margin="0,0,0,12">
