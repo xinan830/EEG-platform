@@ -111,7 +111,7 @@ public sealed class LiveRbpAnalysisViewModel : ObservableObject
 
         StatusText = update.State switch
         {
-            "ready" => $"实时窗口已更新 · {update.ScientificIdentity ?? "RBP"}",
+            "ready" => "",
             "partial" => $"实时窗口存在质量警告 · {update.ScientificIdentity ?? "RBP"}",
             "warming_up" => "预热中：等待完整窗口",
             "unavailable" => "当前窗口不可用",

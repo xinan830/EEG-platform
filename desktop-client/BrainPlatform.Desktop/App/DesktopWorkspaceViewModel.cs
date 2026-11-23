@@ -1,3 +1,6 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.IO;
@@ -78,6 +81,9 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
             Notifications.Dismiss();
             return Task.CompletedTask;
         }, ReportCommandError);
+        Acquisition.PropertyChanged += OnAcquisitionPropertyChanged;
+        MontageConfigurations.AvailableForAcquisition.CollectionChanged += OnAvailableMontagesChanged;
+        RefreshCompatibleLiveDisplayMontages();
     }
 
     public AcquisitionWorkspaceViewModel Acquisition { get; }
@@ -107,6 +113,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     public ChannelConfigurationWorkspaceViewModel ChannelConfigurations { get; }
 
     public MontageConfigurationWorkspaceViewModel MontageConfigurations { get; }
+
+    public ObservableCollection<MontageProfile> CompatibleLiveDisplayMontages { get; } = [];
 
     public EventDefinitionWorkspaceViewModel EventDefinitions { get; }
 
@@ -195,8 +203,36 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         }
     }
 
+    private void OnAcquisitionPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName is nameof(AcquisitionWorkspaceViewModel.SelectedMontageProfile) or "")
+        {
+            RefreshCompatibleLiveDisplayMontages();
+        }
+    }
+
+    private void OnAvailableMontagesChanged(object? sender, NotifyCollectionChangedEventArgs eventArgs) =>
+        RefreshCompatibleLiveDisplayMontages();
+
+    private void RefreshCompatibleLiveDisplayMontages()
+    {
+        var compatible = Acquisition.FilterCompatibleLiveDisplayMontages(MontageConfigurations.AvailableForAcquisition);
+        if (CompatibleLiveDisplayMontages.SequenceEqual(compatible))
+        {
+            return;
+        }
+
+        CompatibleLiveDisplayMontages.Clear();
+        foreach (var profile in compatible)
+        {
+            CompatibleLiveDisplayMontages.Add(profile);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        Acquisition.PropertyChanged -= OnAcquisitionPropertyChanged;
+        MontageConfigurations.AvailableForAcquisition.CollectionChanged -= OnAvailableMontagesChanged;
         await AlgorithmCatalog.DisposeAsync();
         await RecordingSessions.DisposeAsync();
         maintenanceTransport?.Dispose();

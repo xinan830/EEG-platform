@@ -34,6 +34,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     private double? selectedReferenceRangeVolts;
     private double? selectedBipolarRangeVolts;
     private MontageProfile? selectedMontageProfile;
+    private MontageProfile? liveDisplayMontageProfile;
     private ResearchProject? selectedProject;
     private string acquisitionStatusText = "尚未连接放大器。";
     private string operationMessage = "打开“放大器设置”，选择 SDK 文件后测试连接。";
@@ -260,6 +261,40 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         }
     }
 
+    /// <summary>
+    /// Transient montage used only to project the live waveform. The selected
+    /// acquisition montage remains the immutable recording snapshot.
+    /// </summary>
+    public MontageProfile? LiveDisplayMontageProfile
+    {
+        get => liveDisplayMontageProfile;
+        set
+        {
+            if (ReferenceEquals(value, liveDisplayMontageProfile))
+            {
+                return;
+            }
+
+            if (!CanSwitchLiveDisplayMontage)
+            {
+                RaisePropertyChanged(nameof(LiveDisplayMontageProfile));
+                return;
+            }
+
+            if (value is null || !IsCompatibleLiveDisplayMontage(value))
+            {
+                OperationMessage = "实时显示导联必须使用当前采集通道配置。";
+                RaisePropertyChanged(nameof(LiveDisplayMontageProfile));
+                return;
+            }
+
+            if (SetProperty(ref liveDisplayMontageProfile, value))
+            {
+                LiveMonitor.ConfigureMontage(value);
+            }
+        }
+    }
+
     public ResearchProject? SelectedProject
     {
         get => selectedProject;
@@ -461,6 +496,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     }
 
     public bool CanStartRecording => runtime.State.State == AcquisitionState.Previewing;
+
+    public bool CanSwitchLiveDisplayMontage => runtime.State.State == AcquisitionState.Previewing;
 
     public bool CanStop => runtime.State.State is AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused or AcquisitionState.Starting or AcquisitionState.Stopping;
 
@@ -681,6 +718,8 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
 
         // Only mutate session display state after all preparation checks pass.
         channelMapping.ApplyConfiguration(channelSnapshot);
+        liveDisplayMontageProfile = montage;
+        RaisePropertyChanged(nameof(LiveDisplayMontageProfile));
         LiveMonitor.ConfigureMontage(montage);
         runtime.ConfigureDisplayFilter(DisplayPreferences.FilterSettings);
         await deviceSession.ConfigureForStreamAsync(
@@ -1048,6 +1087,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         RaisePropertyChanged(nameof(CanTestConnection));
         RaisePropertyChanged(nameof(CanStart));
         RaisePropertyChanged(nameof(CanStartRecording));
+        RaisePropertyChanged(nameof(CanSwitchLiveDisplayMontage));
         RaisePropertyChanged(nameof(CanStop));
         RaisePropertyChanged(nameof(CanPause));
         RaisePropertyChanged(nameof(CanResume));
@@ -1055,6 +1095,13 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         RaisePropertyChanged(nameof(CanConfirmInputRangeEdit));
         DisplayPreferences.RefreshAvailability();
     }
+
+    public IReadOnlyList<MontageProfile> FilterCompatibleLiveDisplayMontages(IEnumerable<MontageProfile> candidates) =>
+        candidates.Where(IsCompatibleLiveDisplayMontage).ToArray();
+
+    private bool IsCompatibleLiveDisplayMontage(MontageProfile profile) =>
+        SelectedMontageProfile is { } selected &&
+        string.Equals(profile.ChannelConfigurationFingerprint, selected.ChannelConfigurationFingerprint, StringComparison.Ordinal);
 
     private void RaiseProjectSummaryPropertiesChanged()
     {

@@ -45,8 +45,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionWorkspaceView.xaml": {
       "decision": "keep",
-      "max_lines": 550,
-      "reason": "The view owns live acquisition workspace composition. This change adds the shared analysis dock and RBP panel binding while result state and chart history remain in dedicated view-model and panel types; splitting the shell markup would add no independent state owner."
+      "max_lines": 590,
+      "reason": "The view owns live acquisition workspace composition. The live analysis dock, display montage selector and explicit acquisition information rows remain presentation-only bindings; result state, chart history and montage state stay in dedicated view-models. Splitting the shell markup would add no independent state owner."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Views/AlgorithmListView.xaml": {
       "decision": "keep",
@@ -183,7 +183,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/AcquisitionWorkspaceViewModel.cs": {
       "decision": "split",
       "max_lines": 1200,
-      "reason": "The acquisition workspace ViewModel still owns device setup, recording commands, and event bindings. Live spectral selection, result delivery and display state now live in LiveSpectralAnalysisViewModel. The existing live services still own window scheduling and sample retention.",
+      "reason": "The acquisition workspace ViewModel still owns device setup, recording commands, event bindings, and transient preview display-montage selection/filtering (~1170 lines, within 1200). Live spectral selection, result delivery and display state live in LiveSpectralAnalysisViewModel, and existing live services own window scheduling and sample retention.",
       "follow_up": "Extract device-backed setup and range selection, then move recording-event commands into the existing event workflow boundary. Keep one runtime and device session and target a composition file below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/ConfiguredAcquisitionRuntime.cs": {

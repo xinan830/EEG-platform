@@ -58,6 +58,51 @@ public sealed class LiveAcquisitionMappingTests
     }
 
     [Fact]
+    public void PreviewDisplayMontageSwitch_DoesNotReplaceRecordingMontageSnapshot()
+    {
+        RunOnDispatcher(() =>
+        {
+            using var probe = new ProbeSession();
+            var recordingMontage = probe.ApplyMontage("F88");
+            probe.Workspace.SelectedMontageProfile = recordingMontage;
+            probe.Workspace.SelectedProject = probe.ResearchProject;
+            probe.Workspace.SelectedSamplingRateHz = 500;
+
+            probe.Session.ConfigureForStreamAsync(probe.Configuration(), CancellationToken.None).GetAwaiter().GetResult();
+            probe.Runtime.StartPreviewAsync(new AcquisitionStreamRequest("probe:1", 1000, probe.Project), CancellationToken.None)
+                .GetAwaiter().GetResult();
+            probe.Workspace.LiveDisplayMontageProfile = recordingMontage;
+            Assert.True(probe.Workspace.CanSwitchLiveDisplayMontage);
+
+            var alternate = recordingMontage with { Id = "probe-alternate", Name = "Alternate" };
+            probe.Workspace.LiveDisplayMontageProfile = alternate;
+
+            Assert.Same(recordingMontage, probe.Workspace.SelectedMontageProfile);
+            Assert.Same(alternate, probe.Workspace.LiveDisplayMontageProfile);
+            Assert.Equal("Alternate", probe.Workspace.LiveMonitor.CurrentMontageName);
+
+            var incompatible = recordingMontage with
+            {
+                Id = "probe-incompatible",
+                ChannelConfigurationFingerprint = "different-channel-configuration",
+            };
+            var compatibleList = probe.Workspace.FilterCompatibleLiveDisplayMontages(
+                [recordingMontage, alternate, incompatible]);
+            Assert.Equal(["probe-montage", "probe-alternate"], compatibleList.Select(item => item.Id));
+
+            probe.Workspace.LiveDisplayMontageProfile = incompatible;
+            Assert.Same(alternate, probe.Workspace.LiveDisplayMontageProfile);
+            Assert.Equal("Alternate", probe.Workspace.LiveMonitor.CurrentMontageName);
+
+            probe.Runtime.StartRecordingAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Assert.False(probe.Workspace.CanSwitchLiveDisplayMontage);
+            probe.Workspace.LiveDisplayMontageProfile = recordingMontage;
+            Assert.Same(alternate, probe.Workspace.LiveDisplayMontageProfile);
+            Assert.Same(recordingMontage, probe.Workspace.SelectedMontageProfile);
+        });
+    }
+
+    [Fact]
     public void ChangedCapabilities_RefreshDeviceBackedSetup()
     {
         RunOnDispatcher(() =>
@@ -154,9 +199,14 @@ public sealed class LiveAcquisitionMappingTests
         public AcquisitionProjectContext Project { get; } = new(
             "probe", "probe", "Synthetic mapping test",
             Path.Combine(Path.GetTempPath(), "brain-platform-tests", Guid.NewGuid().ToString("N")), "{}");
+        public ResearchProject ResearchProject { get; }
 
         public ProbeSession()
         {
+            var now = DateTimeOffset.UtcNow;
+            ResearchProject = new ResearchProject(
+                Project.Id, Project.Number, Project.Name, "", "", [], "tester",
+                Project.DirectoryPath, now, now);
             Runtime = new ConfiguredAcquisitionRuntime(driverRegistry: new AcquisitionDriverRegistry([Driver]));
             Session = new DeviceSessionManager(Runtime);
             Workspace = new AcquisitionWorkspaceViewModel(new ProbeSettingsStore(), Runtime, Session);
@@ -168,7 +218,7 @@ public sealed class LiveAcquisitionMappingTests
             AntEegoAcquisitionDriver.DriverId, new Dictionary<string, string>(),
             Workspace.ChannelMapping.GetCurrentMapping());
 
-        public void ApplyMontage(string electrode)
+        public MontageProfile ApplyMontage(string electrode)
         {
             var mapping = Workspace.ChannelMapping;
             Assert.True(DefaultChannelLabelTemplate.TryGetFor(Driver.Device.ChannelCapabilities!, out var labels));
@@ -192,12 +242,14 @@ public sealed class LiveAcquisitionMappingTests
                     MontageNegativeKind.OriginalHardwareReference, [], entry.DisplayOrder)).ToArray();
             var fingerprint = ChannelConfigurationFingerprint.Create(snapshot);
             mapping.ApplyConfiguration(snapshot);
-            Workspace.LiveMonitor.ConfigureMontage(new MontageProfile(
+            var profile = new MontageProfile(
                 "probe-montage", "Probe", "", MontageProfileSource.User,
                 snapshot.DeviceSignature, fingerprint, snapshot, outputs,
                 1, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow,
-                MontageProfileFingerprint.Create(fingerprint, outputs)));
+                MontageProfileFingerprint.Create(fingerprint, outputs));
+            Workspace.LiveMonitor.ConfigureMontage(profile);
             DrainDispatcher();
+            return profile;
         }
 
         public void AssertMapping(string electrode)
@@ -240,7 +292,7 @@ public sealed class LiveAcquisitionMappingTests
             RecordingDirectory = Path.Combine(Path.GetTempPath(), "unused-mapping-test"),
         };
         public Task SaveAsync(AcquisitionConnectionSettings settings, CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("Test must not save user settings.");
+            Task.CompletedTask;
     }
 
     private sealed class ProbeDriver : IAcquisitionDeviceDriver
@@ -250,6 +302,8 @@ public sealed class LiveAcquisitionMappingTests
         public bool IsPresent { get; set; } = true;
         public AcquisitionDeviceDescriptor Device { get; set; } = new(
             "probe:1", "Synthetic ANT layout", null, [500, 1000],
+            ReferenceRangesVolts: [1],
+            BipolarRangesVolts: [2.5],
             ChannelCapabilities: Enumerable.Range(0, 30).Select(index =>
                 new AcquisitionChannelCapability(index, index < 24 ? AcquisitionChannelKind.Reference
                     : index < 28 ? AcquisitionChannelKind.Bipolar

@@ -9,7 +9,10 @@ using BrainPlatform.Desktop.Shared.Controls.Topomap;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
-public sealed record LiveSpectralOption(string Id, string Label);
+public sealed record LiveSpectralOption(string Id, string Label)
+{
+    public override string ToString() => Label;
+}
 
 /// <summary>Owns the temporary analysis panel and its one active view for the capture session.</summary>
 public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposable
@@ -23,8 +26,9 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     private bool disposed;
     private bool isOpen;
     private bool isBusy;
-    private string status = "选择图表后点击应用";
+    private string status = "选择图表";
     private string window = "";
+    private string band = "alpha";
     private StftPreview? stft;
     private TopomapField? topomapField;
     private string? channel;
@@ -49,13 +53,34 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
     public static IReadOnlyList<LiveSpectralOption> Views { get; } =
         [new("rbp", "RBP 趋势"), new("psd", "功率谱密度"), new("stft", "时频图"),
          new("rbp-topomap", "RBP 地形图"), new("psd-topomap", "PSD 地形图")];
+    public IReadOnlyList<LiveSpectralOption> PsdViewOptions { get; } =
+        [new("psd", "频谱"), new("psd-topomap", "脑电地形图")];
+    public IReadOnlyList<LiveSpectralOption> PsdTopomapBandOptions { get; } =
+        [new("delta", "Delta 波"), new("theta", "Theta 波"), new("alpha", "Alpha 波"),
+         new("beta", "Beta 波"), new("gamma", "Gamma 波")];
     public IReadOnlyList<LiveSpectralOption> ViewOptions => Views;
     public IReadOnlyList<string> Bands { get; } = ["delta", "theta", "alpha", "beta", "gamma"];
     public IReadOnlyList<LiveSpectralOption> PowerOptions { get; } =
         [new("relative", "相对功率"), new("absolute", "绝对功率"), new("amplitude", "RMS 振幅")];
     public IReadOnlyList<string> Channels { get => channels; private set => SetProperty(ref channels, value); }
-    public string? Channel { get => channel; set => SetProperty(ref channel, value); }
-    public string Band { get; set; } = "alpha";
+    public string? Channel
+    {
+        get => channel;
+        set
+        {
+            if (!SetProperty(ref channel, value) || !isOpen || SelectedView.Id is not ("psd" or "stft")) return;
+            ApplyCommand.Execute(null);
+        }
+    }
+    public string Band
+    {
+        get => band;
+        set
+        {
+            if (!SetProperty(ref band, value) || !isOpen || SelectedView.Id != "psd-topomap") return;
+            ApplyCommand.Execute(null);
+        }
+    }
     public string Power { get; set; } = "relative";
     public LiveSpectralOption SelectedView
     {
@@ -66,6 +91,18 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
             RaisePropertyChanged(nameof(NeedsChannel));
             RaisePropertyChanged(nameof(NeedsBand));
             RaisePropertyChanged(nameof(NeedsPower));
+            RaisePropertyChanged(nameof(SelectedPsdView));
+        }
+    }
+
+    public LiveSpectralOption SelectedPsdView
+    {
+        get => PsdViewOptions.First(option => option.Id == (SelectedView.Id == "psd-topomap" ? "psd-topomap" : "psd"));
+        set
+        {
+            if (value is null || value.Id == SelectedView.Id) return;
+            SelectedView = Views.First(option => option.Id == value.Id);
+            if (isOpen) ApplyCommand.Execute(null);
         }
     }
 
@@ -98,7 +135,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         if (!IsSessionReady || (active is { } current && runtime.State.SessionId != current.Session))
         {
             IsOpen = false;
-            SetActive(null, "选择图表后点击应用");
+            SetActive(null, "选择图表");
         }
         RaisePropertyChanged(nameof(IsInteractive));
     }
@@ -162,7 +199,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
                     await runtime.SetLiveAlgorithmEnabledAsync("rbp-topomap", false, default, CancellationToken.None);
             }
 
-            SetActive(null, "选择图表后点击应用");
+            SetActive(null, "选择图表");
             if (next is null || runtime.State.SessionId != next.Session || !IsSessionReady) return;
 
             // The bridge can publish the first cached window before enable returns.
@@ -238,7 +275,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
             Window = update.StartSeconds is { } start && update.EndSeconds is { } end ? $"{start:0.###}–{end:0.###} s" : "";
             Status = update.State switch
             {
-                "ready" => "已更新",
+                "ready" => "",
                 "partial" => "部分数据可用",
                 "warming_up" => "等待可用的 10 秒窗口",
                 _ => update.Message ?? "当前窗口不可用",
