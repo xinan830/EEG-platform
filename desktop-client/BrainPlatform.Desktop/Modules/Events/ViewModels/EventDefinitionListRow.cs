@@ -1,3 +1,6 @@
+using System.Windows.Media;
+using BrainPlatform.Desktop.Modules.Events.Services;
+
 namespace BrainPlatform.Desktop.Modules.Events.ViewModels;
 
 public enum EventReferenceStatus
@@ -12,9 +15,23 @@ public sealed class EventDefinitionListRow : ObservableObject
 {
     private EventReferenceStatus referenceStatus = EventReferenceStatus.Checking;
 
-    public EventDefinitionListRow(EventDefinition definition) => Definition = definition;
+    public EventDefinitionListRow(EventDefinition definition)
+    {
+        Definition = definition;
+        IconImage = EventIconAssetService.TryLoadImage(definition.IconPath);
+    }
 
     public EventDefinition Definition { get; }
+
+    public ImageSource? IconImage { get; }
+
+    public bool HasIcon => IconImage is not null;
+
+    public string KindBadgeText => Definition.IsIntervalKind
+        ? $"持续 · {Definition.EffectiveStartLabel} → {Definition.EffectiveEndLabel}"
+        : string.Empty;
+
+    public bool IsIntervalKind => Definition.IsIntervalKind;
 
     public EventReferenceStatus ReferenceStatus
     {

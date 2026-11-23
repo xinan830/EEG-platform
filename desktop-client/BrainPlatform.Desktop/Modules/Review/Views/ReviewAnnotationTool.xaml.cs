@@ -69,6 +69,7 @@ public partial class ReviewAnnotationTool : UserControl
         if (window.DataContext is RecordingReviewViewModel model)
         {
             model.CancelEventPlacement();
+            model.CancelActiveInterval();
             model.IsEventEditorOpen = false;
         }
         window.DataContext = null;

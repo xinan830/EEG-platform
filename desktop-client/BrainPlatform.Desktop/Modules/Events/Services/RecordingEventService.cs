@@ -37,7 +37,9 @@ public sealed class RecordingEventService
         var now = DateTimeOffset.UtcNow;
         var item = new RecordingEvent(
             Guid.NewGuid().ToString("N"), recordingId, definition.Id,
-            new EventDefinitionSnapshot(definition.Code, definition.Name, definition.Color, definition.Version),
+            new EventDefinitionSnapshot(
+                definition.Code, definition.Name, definition.Color, definition.Version,
+                definition.Kind, definition.StartLabel, definition.EndLabel, definition.IconPath),
             source, sourceDetail, externalCode, startSample, durationSamples, now, now, note);
         item = item with
         {

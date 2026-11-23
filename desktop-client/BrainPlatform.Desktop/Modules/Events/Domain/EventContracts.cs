@@ -16,6 +16,12 @@ public enum EventDefinitionSource
     User,
 }
 
+public enum EventKind
+{
+    Point,
+    Interval,
+}
+
 public enum ShortcutScope
 {
     Global,
@@ -51,16 +57,37 @@ public sealed record EventDefinition(
     EventDefinitionSource Source,
     int Version,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset UpdatedAtUtc)
+    DateTimeOffset UpdatedAtUtc,
+    EventKind Kind = EventKind.Point,
+    string? StartLabel = null,
+    string? EndLabel = null,
+    string? IconPath = null)
 {
     public bool IsSystem => Source == EventDefinitionSource.System;
+
+    public bool IsIntervalKind => Kind == EventKind.Interval;
+
+    public string EffectiveStartLabel => string.IsNullOrWhiteSpace(StartLabel) ? $"{Name}开始" : StartLabel.Trim();
+
+    public string EffectiveEndLabel => string.IsNullOrWhiteSpace(EndLabel) ? $"{Name}结束" : EndLabel.Trim();
 }
 
 public sealed record EventDefinitionSnapshot(
     string Code,
     string Name,
     string Color,
-    int Version);
+    int Version,
+    EventKind Kind = EventKind.Point,
+    string? StartLabel = null,
+    string? EndLabel = null,
+    string? IconPath = null)
+{
+    public bool IsIntervalKind => Kind == EventKind.Interval;
+
+    public string EffectiveStartLabel => string.IsNullOrWhiteSpace(StartLabel) ? $"{Name}开始" : StartLabel.Trim();
+
+    public string EffectiveEndLabel => string.IsNullOrWhiteSpace(EndLabel) ? $"{Name}结束" : EndLabel.Trim();
+}
 
 public sealed record RecordingEvent(
     string Id,
@@ -150,6 +177,9 @@ internal static class EventValidation
             throw new EventValidationException("color_invalid", "事件颜色必须是十六进制颜色或已知颜色名。");
         if (definition.Source == EventDefinitionSource.System && !definition.IsEnabled && definition.Shortcut is not null)
             throw new EventValidationException("system_shortcut_invalid", "停用系统事件不能保留快捷键。");
+        if (definition.Kind == EventKind.Interval &&
+            (string.IsNullOrWhiteSpace(definition.StartLabel) || string.IsNullOrWhiteSpace(definition.EndLabel)))
+            throw new EventValidationException("interval_labels_required", "持续事件必须填写开始名称和结束名称。");
     }
 
     public static void ValidateRecordingEvent(RecordingEvent item)

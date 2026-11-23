@@ -206,7 +206,7 @@ public sealed class TopomapCanvas : FrameworkElement
         {
             if (point.Status != "included" || point.X is not { } x || point.Y is not { } y) continue;
             var position = ScalpMapRenderer.ToCanvas(x, y, bounds);
-            context.DrawEllipse(Brushes.Black, null, position, 1.8, 1.8);
+            ScalpMapRenderer.DrawElectrodeDot(context, position);
         }
     }
 

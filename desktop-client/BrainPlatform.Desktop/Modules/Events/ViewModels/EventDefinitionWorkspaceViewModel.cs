@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace BrainPlatform.Desktop.Modules.Events.ViewModels;
 
@@ -21,6 +22,10 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
     private string draftName = string.Empty;
     private string draftDescription = string.Empty;
     private string draftColor = "#2563EB";
+    private EventKind draftKind = EventKind.Point;
+    private string draftStartLabel = string.Empty;
+    private string draftEndLabel = string.Empty;
+    private string? draftIconPath;
     private string draftShortcut = string.Empty;
     private ShortcutScope draftShortcutScope;
     private bool draftIsEnabled;
@@ -160,7 +165,8 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         }
     }
 
-    public bool CanSave => Draft is not null && !IsSaving && !string.IsNullOrWhiteSpace(DraftName);
+    public bool CanSave => Draft is not null && !IsSaving && !string.IsNullOrWhiteSpace(DraftName) &&
+        (!IsDraftIntervalKind || (!string.IsNullOrWhiteSpace(DraftStartLabel) && !string.IsNullOrWhiteSpace(DraftEndLabel)));
 
     public int DraftDescriptionLength => DraftDescription.Length;
 
@@ -195,6 +201,68 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
             SetProperty(ref draftColor, value);
         }
     }
+
+    public EventKind DraftKind
+    {
+        get => draftKind;
+        set
+        {
+            if (SetProperty(ref draftKind, value))
+            {
+                RaisePropertyChanged(nameof(IsDraftPointKind));
+                RaisePropertyChanged(nameof(IsDraftIntervalKind));
+                RaisePropertyChanged(nameof(CanSave));
+            }
+        }
+    }
+
+    public bool IsDraftPointKind
+    {
+        get => draftKind == EventKind.Point;
+        set { if (value) DraftKind = EventKind.Point; }
+    }
+
+    public bool IsDraftIntervalKind
+    {
+        get => draftKind == EventKind.Interval;
+        set { if (value) DraftKind = EventKind.Interval; }
+    }
+
+    public string DraftStartLabel
+    {
+        get => draftStartLabel;
+        set { if (SetProperty(ref draftStartLabel, value)) RaisePropertyChanged(nameof(CanSave)); }
+    }
+
+    public string DraftEndLabel
+    {
+        get => draftEndLabel;
+        set { if (SetProperty(ref draftEndLabel, value)) RaisePropertyChanged(nameof(CanSave)); }
+    }
+
+    public string? DraftIconPath
+    {
+        get => draftIconPath;
+        set
+        {
+            if (SetProperty(ref draftIconPath, value))
+            {
+                RaisePropertyChanged(nameof(DraftIconImage));
+                RaisePropertyChanged(nameof(HasDraftIcon));
+            }
+        }
+    }
+
+    public ImageSource? DraftIconImage => EventIconAssetService.TryLoadImage(draftIconPath);
+
+    public bool HasDraftIcon => DraftIconImage is not null;
+
+    public void ImportDraftIcon(string sourceFilePath)
+    {
+        DraftIconPath = EventIconAssetService.ImportIcon(sourceFilePath);
+    }
+
+    public void ClearDraftIcon() => DraftIconPath = null;
     public string DraftShortcut { get => draftShortcut; set => SetProperty(ref draftShortcut, value); }
     public ShortcutScope DraftShortcutScope { get => draftShortcutScope; set => SetProperty(ref draftShortcutScope, value); }
     public bool DraftIsEnabled
@@ -298,6 +366,10 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
                 Name = DraftName.Trim(),
                 Description = DraftDescription.Trim(),
                 Color = DraftColor.Trim(),
+                Kind = DraftKind,
+                StartLabel = DraftKind == EventKind.Interval ? DraftStartLabel.Trim() : null,
+                EndLabel = DraftKind == EventKind.Interval ? DraftEndLabel.Trim() : null,
+                IconPath = string.IsNullOrWhiteSpace(DraftIconPath) ? null : DraftIconPath.Trim(),
                 Shortcut = (!DraftIsEnabled && Draft.IsSystem) || string.IsNullOrWhiteSpace(DraftShortcut)
                     ? null : DraftShortcut.Trim(),
                 ShortcutScope = DraftShortcutScope,
@@ -341,6 +413,10 @@ public sealed class EventDefinitionWorkspaceViewModel : ObservableObject
         DraftName = value.Name;
         DraftDescription = value.Description;
         DraftColor = value.Color;
+        DraftKind = value.Kind;
+        DraftStartLabel = value.StartLabel ?? string.Empty;
+        DraftEndLabel = value.EndLabel ?? string.Empty;
+        DraftIconPath = value.IconPath;
         DraftShortcut = value.Shortcut ?? string.Empty;
         DraftShortcutScope = value.ShortcutScope;
         DraftIsEnabled = value.IsEnabled;

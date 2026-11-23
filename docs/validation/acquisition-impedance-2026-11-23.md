@@ -54,3 +54,41 @@ backend/.venv/Scripts/python.exe -m pytest backend/tests/test_live_recording_acc
 - SDK调用若一直不返回，不强行卸载DLL或释放租约；界面保持停止/故障，阻止新流。
 - 既有原始写盘队列保存失败后保留粘性故障，不自动恢复；需先处理文件/磁盘问题并恢复记录，不能借切换阻抗绕过。
 - 此变更保持未归档；tasks 6.1/6.2待真实证据后勾选。厂商SDK、私有测量和构建产物不提交。
+
+## 圆圈电极与渐变色标整改（同日补充）
+
+按用户确认，仅维护命名圆圈电极与原有算法地形黑点两类呈现。新增 Shared/Controls/ElectrodeMarker，ScalpMapRenderer.DrawElectrode 与阻抗图共用同一圆圈、居中名称和选中描边；通道位置仍来自原配置/手动坐标，REF/GND不猜测位置。导联示意图作为已有公共绘图调用者同步调整箭头末端避让，导联计算不变。Shared/Controls/Topomap 内实现无改动。
+
+阻抗图删除独立圆角矩形模板。圈内名称，圈上读数；内部 Ω、显示 kΩ、原生 role/index 和主机接收时间不变。三项 kΩ 节点和三项颜色可编辑，复用既有 ColorPicker。单一 ImpedanceColorScale 同时提供 RGB 连续插值及渐变条，非等距节点按实际数值比例显示；范围外仅颜色饱和，真实读数不截断。未配置/非法配置中性显示，缺测、无效及过期仍灰色。没有引入阻抗头皮插值，也没有修改设备/API/WebSocket/写盘/算法。
+
+最低节点初始为0，其余两项数值留空，避免将示例范围误当厂商合格标准；配色绿→黄→红可修改，作用域为本次窗口。头图最小480×480逻辑尺寸，空间不足可滚动；范围设置置于右栏，图下显示渐变条及刻度。
+
+本轮命令：
+
+```powershell
+dotnet test desktop-client/BrainPlatform.Desktop.Tests/BrainPlatform.Desktop.Tests.csproj --no-restore --filter 'FullyQualifiedName~Acquisition|FullyQualifiedName~Devices|FullyQualifiedName~Channels|FullyQualifiedName~MontageDirection|FullyQualifiedName~Topomap|FullyQualifiedName~ElectrodeMarkerTests' -p:OutDir=C:/Users/xda/AppData/Local/Temp/EEG-impedance-style-validation/ -v:q
+```
+
+结果：372项通过，包含WPF/BAML构建、命名圆圈共用绘制的像素一致性、选择与读数不移动圆心、32点配置位置不变、900/1120宽度下离屏布局、渐变端点/中间值/范围外饱和、非等距色标、非法颜色/数值、中性/灰色、绑定联动，以及已有地形图回归。测试图为明确的合成夹具，未操作运行中的软件或设备。已检查离屏预览 eeg-impedance-dense-1120.png 和 eeg-impedance-dense-900.png。
+
+扩大至全部Montages测试时457项通过、1项失败：EmptyDiscoveredIdentityCanBeReconciledFromRecordingManifest。该项在本轮修改前的独立构建 C:/Users/xda/AppData/Local/Temp/eeg-impedance-staged-build/ 中单独运行同样失败，原因为记录导联引用与已登记信息不一致；不将其伪报为本轮通过，不修改与显示任务无关的引用保护逻辑。测试工程原有CA2022、xUnit2013警告仍在。
+
+OpenSpec strict 与 git diff --check 通过。本轮12个C#/XAML生产及测试文件均不超过400行，无需扩大已有文件规模例外。尚未做真机或人工交互验收，不勾选6.1/6.2，不提前归档；本轮不提交/推送。
+
+## 电极位置窗口细化（同日补充）
+
+按用户最新要求，标题、顶部说明及底部图例全部保留。窗口默认最大化；仅位置编辑头图使用0.46半径比例（原0.39，直径增加约18%），绘制、点击命中与拖拽坐标共用同一几何，算法图表不改。
+
+REF默认示意点调整至(0.0036,0.62)，标准Pz坐标保持不变。已保存旧默认点(0.0036,0.4514)通过统一显示投影在通道图与阻抗图中显示新点，不改写配置文件；其他自定义点及缺失坐标保持原语义。两点皆是2D示意位置，不代表实测头皮坐标。
+
+验证命令沿用上节过滤器，输出目录改为 C:/Users/xda/AppData/Local/Temp/EEG-electrode-layout-validation/。383项全部通过，包含旧配置显示/文件对象不变、自定义REF保留、REF/GND命中、放大后坐标往返、越界与空画布、默认最大化、全文保留以及820×620/1536×864离屏布局。检查 eeg-electrode-position-820.png、eeg-electrode-position-1536.png 中REF/Pz间距、周边电极及头型边界。离屏测试未打开或操控运行中的窗口，不代表真机和人工多屏/DPI验收。
+
+## 三视图与3D平移（同日补充）
+
+电极位置窗新增“地形图”，与2D、3D互斥。复用原位置控件、同一配置及公共头型，黑点标记委托给ScalpMapRenderer.DrawElectrodeDot；原算法TopomapCanvas同样调用该画法，像素回归证明仍是1.8半径黑点。地形图只读，不生成插值、功率或阻抗值；仅2D允许拖动及恢复位置。切换保留配置与顶部说明，不新增依赖或后端调用。
+
+3D反向平移根因是相机Right向量使用Up×Look，实际指向屏幕左侧。改为Look×Up，并同步Right×Look取得垂直方向。Shift+左键拖动现在沿正确屏幕平面反向移动相机，使头模跟随指针；标准电极坐标、旋转与滚轮缩放逻辑不变。投影回归验证五种拖动/朝向组合，逐像素检查投影位移与指针一致。
+
+聚焦Channels/Topomap/ElectrodeMarkerTests/ImpedancePresentationTests共124项通过，包含WPF/BAML编译、三视图互斥及RadioButton双向绑定、只读/恢复默认按钮状态、返回2D重新编辑、既有坐标不变和黑点像素一致性。已检查820×620及1536×864地形图离屏预览；没有使用电脑控制工具，实际鼠标手感和多屏DPI仍待人工验收。
+
+扩大至Acquisition、Devices、Channels、MontageDirection、Topomap、ElectrodeMarkerTests过滤器后，392项全部通过。输出目录为 C:/Users/xda/AppData/Local/Temp/EEG-electrode-view-validation/。OpenSpec strict及git diff --check通过，本轮10个C#/XAML生产/测试文件均小于400行；原有CA2022/xUnit2013警告保留。真机及人工验收6.1/6.2仍未勾选，本轮未提交或推送。

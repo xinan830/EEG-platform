@@ -105,6 +105,10 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         this.runtime.StateChanged += OnRuntimeStateChanged;
         this.runtime.AnalysisFaulted += OnAnalysisFaulted;
         LiveAnalysis = new LiveSpectralAnalysisViewModel(this.runtime, this.dispatcher, ReportCommandError);
+        StorageStatus = new AcquisitionStorageStatusViewModel(
+            () => this.runtime.State.State,
+            () => this.runtime.RecordingDirectory,
+            this.dispatcher);
 
         BrowseSdkLibraryCommand = new AsyncRelayCommand(BrowseSdkLibraryAsync, ReportCommandError);
         TestConnectionCommand = new AsyncRelayCommand(TestConnectionCoreAsync, ReportCommandError);
@@ -180,6 +184,8 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
     public LiveMonitoringViewModel LiveMonitor { get; }
 
     public LiveSpectralAnalysisViewModel LiveAnalysis { get; }
+
+    public AcquisitionStorageStatusViewModel StorageStatus { get; }
 
     public LiveDisplayPreferencesViewModel DisplayPreferences { get; }
 
@@ -566,6 +572,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         foreach (var definition in definitions.Where(item => item.IsEnabled).OrderBy(item => item.Name, StringComparer.CurrentCulture))
             EnabledEventDefinitions.Add(definition);
         SelectedEventDefinitionId ??= EnabledEventDefinitions.FirstOrDefault()?.Id;
+        SyncEventGridTiles();
         RaisePropertyChanged(nameof(EnabledEventDefinitions));
     }
 
@@ -609,6 +616,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         runtime.AnalysisFaulted -= OnAnalysisFaulted;
         ClearTemporaryWaveformMontage();
         LiveAnalysis.Dispose();
+        StorageStatus.Dispose();
         deviceSession.PropertyChanged -= OnDeviceSessionPropertyChanged;
         channelMapping.DisplayChannelsChanged -= OnDisplayChannelsChanged;
         DisplayPreferences.MessageRaised -= OnDisplayPreferenceMessage;
@@ -896,6 +904,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         {
             AcquisitionStatusText = state.Detail;
             LiveAnalysis.RefreshSession();
+            StorageStatus.RefreshState();
             if (state.State is AcquisitionState.Previewing or AcquisitionState.Recording)
             {
                 ApplyStreamMetadata();
@@ -905,6 +914,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
             if (state.State is AcquisitionState.Stopped or AcquisitionState.Faulted or AcquisitionState.Ready)
             {
                 ClearTemporaryWaveformMontage();
+                CancelActiveInterval();
             }
             LiveMonitor.Refresh();
             RaisePropertyChanged(nameof(CanSelectWaveformMontage));

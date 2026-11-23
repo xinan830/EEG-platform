@@ -187,7 +187,7 @@
                             <ColumnDefinition Width="1.1*" />
                             <ColumnDefinition Width="150" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="颜色" Style="{StaticResource EventTableHeaderCenteredStyle}" />
+                        <TextBlock Grid.Column="0" Text="图标" Style="{StaticResource EventTableHeaderCenteredStyle}" />
                         <TextBlock Grid.Column="1" Text="名称" Style="{StaticResource EventTableHeaderCenteredStyle}" />
                         <TextBlock Grid.Column="2" Text="事件编码" Style="{StaticResource EventTableHeaderCenteredStyle}" />
                         <TextBlock Grid.Column="3" Text="来源" Style="{StaticResource EventTableHeaderCenteredStyle}" />
@@ -219,15 +219,59 @@
                                 <!-- Row Bottom Divider -->
                                 <Border Grid.ColumnSpan="8" Style="{StaticResource AppTableRowDividerStyle}" />
 
-                                <!-- Column 0: Color -->
-                                <Border Grid.Column="0" Width="18" Height="18" CornerRadius="4"
-                                        Background="{Binding Definition.Color}" HorizontalAlignment="Center"
-                                        VerticalAlignment="Center" />
+                                <!-- Column 0: Icon (or Color fallback) -->
+                                <Grid Grid.Column="0" Width="28" Height="28" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border Width="28" Height="28" CornerRadius="6" Background="#FFFFFF"
+                                            BorderBrush="#E2E8F0" BorderThickness="1" Padding="3">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Image Source="{Binding IconImage}" Stretch="Uniform"
+                                               RenderOptions.BitmapScalingMode="HighQuality" />
+                                    </Border>
+                                    <Border Width="18" Height="18" CornerRadius="4"
+                                            Background="{Binding Definition.Color}" HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                    </Border>
+                                </Grid>
 
-                                <!-- Column 1: Name -->
-                                <TextBlock Grid.Column="1" Text="{Binding Definition.Name}"
-                                           Style="{StaticResource EventTableCellCenteredStyle}"
-                                           Foreground="#1E293B" FontWeight="Medium" />
+                                <!-- Column 1: Name (+ Interval phase hint) -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding Definition.Name}"
+                                               Style="{StaticResource EventTableCellCenteredStyle}"
+                                               Foreground="#1E293B" FontWeight="Medium" />
+                                    <TextBlock Text="{Binding KindBadgeText}"
+                                               FontSize="11" Foreground="#2563EB" TextAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsIntervalKind}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
 
                                 <!-- Column 2: Event Code -->
                                 <TextBlock Grid.Column="2" Text="{Binding Definition.Code}"

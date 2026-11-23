@@ -2,11 +2,12 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="事件标记" Width="384" Height="620" MinWidth="360" MinHeight="360"
+        xmlns:eventsViews="clr-namespace:BrainPlatform.Desktop.Modules.Events.Views"
+        Title="事件标注" Width="416" Height="640" MinWidth="380" MinHeight="440"
         WindowStyle="None" ResizeMode="CanResize" WindowStartupLocation="Manual"
-        ShowInTaskbar="False" Background="White" FontSize="13" UseLayoutRounding="True">
+        ShowInTaskbar="False" Background="#F2F8FF" FontSize="13" UseLayoutRounding="True">
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="46" ResizeBorderThickness="5" CornerRadius="8"
+        <shell:WindowChrome CaptionHeight="48" ResizeBorderThickness="5" CornerRadius="12"
                             GlassFrameThickness="1" UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
     <Window.Resources>
@@ -15,164 +16,383 @@
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/InstrumentWorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
             <Style x:Key="EventActionStyle" TargetType="Button" BasedOn="{StaticResource AppCompactActionButtonStyle}">
                 <Setter Property="MinWidth" Value="0" />
-                <Setter Property="Height" Value="36" />
-                <Setter Property="MinHeight" Value="36" />
-                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="Height" Value="34" />
+                <Setter Property="MinHeight" Value="34" />
+                <Setter Property="Padding" Value="12,0" />
                 <Setter Property="Foreground" Value="#475569" />
-                <Setter Property="BorderBrush" Value="#E2E8F0" />
+                <Setter Property="BorderBrush" Value="#DCE6F2" />
+                <Setter Property="Background" Value="#FFFFFF" />
             </Style>
+
             <Style x:Key="EventPrimaryStyle" TargetType="Button" BasedOn="{StaticResource EventActionStyle}">
-                <Setter Property="Height" Value="40" />
+                <Setter Property="Height" Value="36" />
                 <Setter Property="Background" Value="{StaticResource BlueBrandPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
                 <Setter Property="Foreground" Value="White" />
                 <Setter Property="FontWeight" Value="SemiBold" />
-                <Style.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True"><Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" /></Trigger>
-                </Style.Triggers>
             </Style>
-            <Style x:Key="EventToggleStyle" TargetType="Button" BasedOn="{StaticResource EventActionStyle}">
-                <Style.Triggers>
-                    <DataTrigger Binding="{Binding IsEventEditorOpen}" Value="True">
-                        <Setter Property="Background" Value="{StaticResource BlueBrandSoftBrush}" />
-                        <Setter Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
-                        <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
-                        <Setter Property="FontWeight" Value="SemiBold" />
-                    </DataTrigger>
-                </Style.Triggers>
+
+            <Style x:Key="InlineRowButtonStyle" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="#475569" />
+                <Setter Property="Background" Value="#F8FAFC" />
+                <Setter Property="BorderBrush" Value="#E2E8F0" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#EFF6FF" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#93C5FD" />
+                                    <Setter Property="Foreground" Value="#2563EB" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.38" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="SegmentedTabRadioStyle" TargetType="RadioButton">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Height" Value="34" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="Medium" />
+                <Setter Property="Foreground" Value="#64748B" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="TabBorder" Background="Transparent" CornerRadius="8" Padding="10,0">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="TabBorder" Property="Background" Value="#FFFFFF" />
+                                    <Setter Property="Foreground" Value="#1D4ED8" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                    <Setter TargetName="TabBorder" Property="Effect">
+                                        <Setter.Value>
+                                            <DropShadowEffect BlurRadius="8" ShadowDepth="1" Opacity="0.08" Color="#1E3A5F" />
+                                        </Setter.Value>
+                                    </Setter>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Foreground" Value="#1E293B" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
         </ResourceDictionary>
     </Window.Resources>
-    <Border x:Name="PanelSurface" BorderBrush="#DCE3ED" BorderThickness="1" Background="White" CornerRadius="8">
+
+    <Border x:Name="PanelSurface" BorderBrush="#D6E4F5" BorderThickness="1" Background="#F2F8FF" CornerRadius="12">
         <Grid>
-            <Grid.RowDefinitions><RowDefinition Height="46" /><RowDefinition Height="*" /><RowDefinition Height="27" /></Grid.RowDefinitions>
-            <Border Background="#F8FAFC" BorderBrush="#E8EDF4" BorderThickness="0,0,0,1" CornerRadius="8,8,0,0" Padding="14,0,8,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="30" />
+            </Grid.RowDefinitions>
+
+            <!-- Top Title Bar -->
+            <Border Grid.Row="0" Background="#FFFFFF" BorderBrush="#E6EEF8" BorderThickness="0,0,0,1"
+                    CornerRadius="12,12,0,0" Padding="16,0,10,0">
                 <DockPanel LastChildFill="True">
                     <Button x:Name="CloseButton" DockPanel.Dock="Right" Style="{StaticResource ModernCloseCrossButtonStyle}"
                             shell:WindowChrome.IsHitTestVisibleInChrome="True" Click="OnCloseClick"
-                            ToolTip="关闭事件标记" AutomationProperties.Name="关闭事件标记" VerticalAlignment="Center" />
+                            ToolTip="关闭事件标注" AutomationProperties.Name="关闭事件标注" VerticalAlignment="Center" />
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource BlueBrandSoftBrush}" Margin="0,0,9,0">
-                            <Path Data="M 3,1 L 3,15 M 3,2 L 12,2 L 10,6 L 12,10 L 3,10" Stroke="{StaticResource BlueBrandPrimaryBrush}"
-                                  StrokeThickness="1.5" StrokeLineJoin="Round" Width="13" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Border Width="28" Height="28" CornerRadius="8" Background="#EFF6FF" Margin="0,0,10,0">
+                            <Path Data="M 3,1 L 3,15 M 3,2 L 12,2 L 10,6 L 12,10 L 3,10"
+                                  Stroke="{StaticResource BlueBrandPrimaryBrush}"
+                                  StrokeThickness="1.5" StrokeLineJoin="Round" Width="13" Height="16"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
-                        <TextBlock Text="事件标记" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource BlueBrandDeepBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="事件标注" FontSize="14.5" FontWeight="SemiBold"
+                                   Foreground="#0F172A" VerticalAlignment="Center" />
                     </StackPanel>
                 </DockPanel>
             </Border>
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="20,18,20,16">
-                <StackPanel>
 
-
-                    <DockPanel Margin="0,0,0,12">
-                        <TextBlock DockPanel.Dock="Right" Text="{Binding RecordingEventOptions.Count, StringFormat={}{0} 项}" Foreground="#94A3B8" FontSize="12" />
-                        <TextBlock Text="已标记事件" FontSize="15" Foreground="#334155" FontWeight="SemiBold" />
-                    </DockPanel>
-                    <Border x:Name="HistoryEmptyState" Background="#F8FAFC" CornerRadius="8" Padding="14,22">
-                        <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
-                            <DataTrigger Binding="{Binding RecordingEventOptions.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
-                        </Style.Triggers></Style></Border.Style>
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="暂无事件标记" FontSize="14" Foreground="#64748B" HorizontalAlignment="Center" />
-                            <TextBlock Text="还没有标记；可在下方添加新事件" Foreground="#94A3B8" FontSize="12" Margin="0,7,0,0" />
-                        </StackPanel>
-                    </Border>
-                    <StackPanel x:Name="HistoryControls">
-                        <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
-                            <DataTrigger Binding="{Binding RecordingEventOptions.Count}" Value="0"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                        </Style.Triggers></Style></StackPanel.Style>
-                        <ComboBox x:Name="HistorySelector" Style="{StaticResource AppFilterComboBoxStyle}" Height="40" FontSize="13"
-                                  ItemsSource="{Binding RecordingEventOptions}" SelectedValuePath="Event"
-                                  SelectedValue="{Binding SelectedRecordingEvent, Mode=TwoWay}" AutomationProperties.Name="已标记事件">
-                            <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding DisplayText}" ToolTip="{Binding DetailText}" TextTrimming="CharacterEllipsis" /></DataTemplate></ComboBox.ItemTemplate>
-                        </ComboBox>
-                        <UniformGrid Columns="3" Margin="0,12,0,0">
-                            <Button x:Name="JumpButton" Content="定位" Click="OnSeekClick" Margin="0,0,6,0">
-                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource EventActionStyle}"><Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedRecordingEvent}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
-                                </Style.Triggers></Style></Button.Style>
-                            </Button>
-                            <Button x:Name="EditButton" Content="编辑" Command="{Binding OpenEventEditorCommand}" IsEnabled="{Binding CanEditSelectedEvent}" Style="{StaticResource EventToggleStyle}" Margin="0,0,6,0" />
-                            <Button x:Name="DeleteButton" Content="删除" Command="{Binding DeleteSelectedEventCommand}" IsEnabled="{Binding CanEditSelectedEvent}" Style="{StaticResource EventActionStyle}" />
-                        </UniformGrid>
-                        <TextBlock Text="仅人工事件支持编辑和删除" FontSize="12" Foreground="#94A3B8" Margin="0,9,0,0" />
-                    </StackPanel>
-                    <StackPanel x:Name="EventEditor" Margin="0,22,0,0">
-                        <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
-                            <MultiDataTrigger><MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding IsEventEditorOpen}" Value="True" /><Condition Binding="{Binding CanEditSelectedEvent}" Value="True" />
-                            </MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger>
-                        </Style.Triggers></Style></StackPanel.Style>
-                        <Border BorderBrush="#E8EDF4" BorderThickness="0,1,0,0" Margin="0,0,0,12" />
-                        <TextBlock Text="编辑事件" FontSize="15" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,14" />
-                        <TextBlock Text="标记时间" Foreground="#475569" Margin="0,0,0,4" />
-                        <TextBox x:Name="EditTimeBox" Style="{StaticResource AppTextBoxStyle}" Text="{Binding EditEventTimeText, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="从录音开始计算，格式 00:00:13.740" AutomationProperties.Name="编辑事件标记时间" />
-                        <TextBlock Foreground="#64748B" FontSize="12" Margin="0,6,0,14"><Run Text="采集时间：" /><Run Text="{Binding EditEventClockText, Mode=OneWay}" /></TextBlock>
-                        <Button x:Name="WaveformMoveButton" Content="波形点击改位 / 拖动事件线" Command="{Binding BeginWaveformMoveCommand}" Style="{StaticResource EventActionStyle}" Margin="0,0,0,14" />
-                        <TextBlock Text="备注" Foreground="#475569" Margin="0,0,0,4" />
-                        <TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding EditEventNote, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="76" TextWrapping="Wrap" VerticalContentAlignment="Top" Padding="10,8" Margin="0,0,0,14" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="取消" Command="{Binding CloseEventEditorCommand}" Style="{StaticResource EventActionStyle}" Margin="0,0,8,0" />
-                            <Button Content="保存" Command="{Binding SaveEditedEventCommand}" Style="{StaticResource EventPrimaryStyle}" MinWidth="72" />
-                        </StackPanel>
-                    </StackPanel>
-                    <Border BorderBrush="#E8EDF4" BorderThickness="0,1,0,0" Margin="0,24,0,20" />
-                    <TextBlock Text="添加新事件" FontSize="15" Foreground="#334155" FontWeight="SemiBold" Margin="0,0,0,12" />
-                    <Grid>
-                        <ComboBox x:Name="DefinitionSelector" Style="{StaticResource AppFilterComboBoxStyle}" Height="40" FontSize="13"
-                                  ItemsSource="{Binding EnabledEventDefinitions}" SelectedValuePath="Id"
-                                  SelectedValue="{Binding SelectedEventDefinitionId, Mode=TwoWay}" AutomationProperties.Name="事件类型" ToolTip="选择事件类型">
-                            <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" /></DataTemplate></ComboBox.ItemTemplate>
-                        </ComboBox>
-                        <TextBlock Text="选择事件类型" Foreground="#94A3B8" IsHitTestVisible="False" VerticalAlignment="Center" Margin="11,0,30,0">
-                            <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
-                                <DataTrigger Binding="{Binding SelectedItem, ElementName=DefinitionSelector}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
-                            </Style.Triggers></Style></TextBlock.Style>
-                        </TextBlock>
-                    </Grid>
-                    <TextBlock x:Name="DefinitionEmptyHint" Text="暂无可用类型，请先在事件设置中启用" Foreground="#64748B" FontSize="11" Margin="0,6,0,0" TextWrapping="Wrap">
-                        <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
-                            <DataTrigger Binding="{Binding EnabledEventDefinitions.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
-                        </Style.Triggers></Style></TextBlock.Style>
-                    </TextBlock>
-                    <DockPanel Margin="0,16,0,6">
-                        <Button Content="取当前游标" DockPanel.Dock="Right" Command="{Binding UseCurrentEventTimeCommand}"
-                                Style="{StaticResource EventActionStyle}" Height="26" MinHeight="26" FontSize="11" />
-                        <TextBlock Text="标记时间" Foreground="#475569" VerticalAlignment="Center" />
-                    </DockPanel>
-                    <TextBox x:Name="AddTimeBox" Style="{StaticResource AppTextBoxStyle}" Text="{Binding AddEventTimeText, UpdateSourceTrigger=PropertyChanged}"
-                             ToolTip="从录音开始计算，格式 00:00:13.740" AutomationProperties.Name="新增事件标记时间" />
-                    <UniformGrid Columns="2" Margin="0,12,0,0">
-                    <Button x:Name="MarkButton" Content="按时间添加" Command="{Binding MarkSelectedEventCommand}" Margin="0,0,8,0">
-                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource EventPrimaryStyle}"><Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedEventDefinitionId}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
-                        </Style.Triggers></Style></Button.Style>
-                    </Button>
-                    <Button x:Name="WaveformAddButton" Content="波形点击添加" Command="{Binding BeginWaveformAddCommand}">
-                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource EventActionStyle}"><Style.Triggers>
-                            <DataTrigger Binding="{Binding SelectedEventDefinitionId}" Value="{x:Null}"><Setter Property="IsEnabled" Value="False" /></DataTrigger>
-                        </Style.Triggers></Style></Button.Style>
-                    </Button>
+            <!-- Segmented 2-Tab Switcher: Tab 1 = 事件列表, Tab 2 = 标注 / 编辑 -->
+            <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#E6EEF8" BorderThickness="0,0,0,1" Padding="16,10">
+                <Border Background="#EDF3FA" CornerRadius="10" Padding="3">
+                    <UniformGrid Columns="2">
+                        <RadioButton x:Name="EventListTab" GroupName="ReviewAnnotationTabs" IsChecked="True"
+                                     Style="{StaticResource SegmentedTabRadioStyle}" Checked="OnTabSelectionChanged">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="事件列表" VerticalAlignment="Center" />
+                                <Border Background="#DBEAFE" CornerRadius="8" Padding="6,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding RecordingEventOptions.Count}" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="#1D4ED8" />
+                                </Border>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton x:Name="AnnotateEditTab" GroupName="ReviewAnnotationTabs"
+                                     Style="{StaticResource SegmentedTabRadioStyle}" Checked="OnTabSelectionChanged">
+                            <TextBlock Text="标注 / 编辑" VerticalAlignment="Center" />
+                        </RadioButton>
                     </UniformGrid>
-                    <Border Background="#EFF6FF" CornerRadius="6" Padding="9" Margin="0,8,0,0">
-                        <Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers>
-                            <DataTrigger Binding="{Binding IsEventPlacementActive}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
-                        </Style.Triggers></Style></Border.Style>
+                </Border>
+            </Border>
+
+            <!-- Tab 1: Event List -->
+            <Grid x:Name="EventListPanel" Grid.Row="2" Margin="16,14,16,12">
+                <!-- Empty State -->
+                <Border x:Name="HistoryEmptyState" Background="#FFFFFF" BorderBrush="#E5EFFA" BorderThickness="1"
+                        CornerRadius="14" Padding="24,36" VerticalAlignment="Center">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding RecordingEventOptions.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="暂无已标记事件" FontSize="15" FontWeight="SemiBold" Foreground="#334155" HorizontalAlignment="Center" />
+                        <TextBlock Text="切换到「标注 / 编辑」即可点击图标快速标注" Foreground="#94A3B8" FontSize="12.5"
+                                   Margin="0,8,0,18" HorizontalAlignment="Center" />
+                        <Button Content="去标注新事件" Click="OnSwitchToAnnotateClick"
+                                Style="{StaticResource EventPrimaryStyle}" Padding="18,0" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Event Cards List -->
+                <ListBox x:Name="HistoryList" ItemsSource="{Binding RecordingEventOptions}"
+                         SelectedValuePath="Event" SelectedValue="{Binding SelectedRecordingEvent, Mode=TwoWay}"
+                         Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding RecordingEventOptions.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0,0,0,10" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="CardBorder" Background="#FFFFFF" BorderBrush="#E5EFFA"
+                                                BorderThickness="1.5" CornerRadius="12" Padding="12,10">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.05" Color="#1E3A5F" />
+                                            </Border.Effect>
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="#93C5FD" />
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="CardBorder" Property="BorderBrush" Value="#2563EB" />
+                                                <Setter TargetName="CardBorder" Property="Background" Value="#FAFDFF" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid ToolTip="{Binding DetailText}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Left Color Bar -->
+                                <Border Grid.Column="0" Background="{Binding ColorBrush}" CornerRadius="2" Margin="0,2,0,2" />
+
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding TimeText}"
+                                                   FontSize="12" FontWeight="SemiBold" Foreground="#2563EB"
+                                                   VerticalAlignment="Center" Margin="8,0,0,0" />
+                                        <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold"
+                                                   Foreground="#0F172A" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    </DockPanel>
+
+                                    <!-- Interval start -> end + duration pill -->
+                                    <TextBlock Text="{Binding IntervalBadge}" FontSize="11.5" Foreground="#2563EB" Margin="0,4,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasIntervalBadge}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <!-- Optional Note -->
+                                    <TextBlock Text="{Binding NoteText}" FontSize="11.5" Foreground="#64748B"
+                                               TextTrimming="CharacterEllipsis" Margin="0,3,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasNote}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <!-- Inline Actions -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Content="定位" Tag="{Binding Event}" Click="OnRowSeekClick"
+                                                Style="{StaticResource InlineRowButtonStyle}" Margin="0,0,6,0" />
+                                        <Button Content="编辑" Tag="{Binding Event}" Click="OnRowEditClick"
+                                                IsEnabled="{Binding CanEdit}"
+                                                Style="{StaticResource InlineRowButtonStyle}" Margin="0,0,6,0" />
+                                        <Button Content="删除" Tag="{Binding Event}" Click="OnRowDeleteClick"
+                                                IsEnabled="{Binding CanEdit}"
+                                                Style="{StaticResource InlineRowButtonStyle}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <!-- Tab 2: Annotate (3-Column Icon Grid) & Edit Selected Event -->
+            <ScrollViewer x:Name="AnnotateEditPanel" Grid.Row="2" Visibility="Collapsed"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          Padding="16,14,16,14">
+                <StackPanel>
+                    <eventsViews:EventAnnotationGridControl x:Name="EventGrid"
+                                                            Tiles="{Binding EventGridTiles}"
+                                                            HasActiveInterval="{Binding HasActiveInterval}"
+                                                            ActiveIntervalStatusText="{Binding ActiveIntervalStatusText}"
+                                                            TileActivated="OnEventTileActivated"
+                                                            ActiveIntervalCancelled="OnActiveIntervalCancelled" />
+
+                    <!-- Waveform Placement Banner (when dragging/clicking waveform) -->
+                    <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="10"
+                            Padding="10,8" Margin="0,12,0,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsEventPlacementActive}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <StackPanel>
-                            <TextBlock Text="{Binding EventPlacementHint}" Foreground="{StaticResource BlueBrandPrimaryBrush}" FontSize="12" TextWrapping="Wrap" />
-                            <DockPanel Margin="0,4,0,0">
-                                <Button Content="取消选点" DockPanel.Dock="Right" Command="{Binding CancelEventPlacementCommand}" Style="{StaticResource EventActionStyle}" Height="26" MinHeight="26" />
-                                <TextBlock Text="{Binding EventPreviewTimeText}" Foreground="{StaticResource BlueBrandPrimaryBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding EventPlacementHint}" Foreground="#1D4ED8" FontSize="12" TextWrapping="Wrap" />
+                            <DockPanel Margin="0,6,0,0">
+                                <Button Content="取消选点" DockPanel.Dock="Right" Command="{Binding CancelEventPlacementCommand}"
+                                        Style="{StaticResource EventActionStyle}" Height="26" MinHeight="26" FontSize="11.5" />
+                                <TextBlock Text="{Binding EventPreviewTimeText}" Foreground="#1D4ED8" FontWeight="SemiBold" VerticalAlignment="Center" />
                             </DockPanel>
                         </StackPanel>
                     </Border>
-                    <TextBlock Text="{Binding EventErrorText}" Foreground="#C00000" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0" />
+
+                    <TextBlock Text="{Binding EventErrorText}" Foreground="#DC2626" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!-- Edit Selected Event Card (shown when clicking 编辑 from Event List) -->
+                    <Border x:Name="EventEditor" Background="#FFFFFF" BorderBrush="#DCE6F2" BorderThickness="1"
+                            CornerRadius="12" Padding="14,12" Margin="0,14,0,0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsEventEditorOpen}" Value="True" />
+                                            <Condition Binding="{Binding CanEditSelectedEvent}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,10">
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding SelectedRecordingEvent.DefinitionSnapshot.Name}"
+                                           FontSize="12" FontWeight="SemiBold" Foreground="#2563EB" VerticalAlignment="Center" />
+                                <TextBlock Text="编辑事件" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A" />
+                            </DockPanel>
+
+                            <TextBlock Text="标记时间" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                            <TextBox x:Name="EditTimeBox" Style="{StaticResource AppTextBoxStyle}"
+                                     Text="{Binding EditEventTimeText, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="从录音开始计算，格式 00:00:13.740" AutomationProperties.Name="编辑事件标记时间" />
+                            <TextBlock Foreground="#64748B" FontSize="11.5" Margin="0,5,0,10">
+                                <Run Text="采集时间：" /><Run Text="{Binding EditEventClockText, Mode=OneWay}" />
+                            </TextBlock>
+
+                            <Button x:Name="WaveformMoveButton" Content="波形点击改位 / 拖动事件线"
+                                    Command="{Binding BeginWaveformMoveCommand}"
+                                    Style="{StaticResource EventActionStyle}" Margin="0,0,0,10" />
+
+                            <TextBlock Text="备注" Foreground="#475569" FontSize="12" Margin="0,0,0,4" />
+                            <TextBox Style="{StaticResource AppTextBoxStyle}"
+                                     Text="{Binding EditEventNote, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True" Height="64" TextWrapping="Wrap"
+                                     VerticalContentAlignment="Top" Padding="10,8" Margin="0,0,0,12" />
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="取消" Command="{Binding CloseEventEditorCommand}"
+                                        Style="{StaticResource EventActionStyle}" Margin="0,0,8,0" />
+                                <Button Content="保存修改" Command="{Binding SaveEditedEventCommand}"
+                                        Style="{StaticResource EventPrimaryStyle}" MinWidth="84" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
-            <Border Grid.Row="2" BorderBrush="#E8EDF4" BorderThickness="0,1,0,0" Padding="16,0">
-                <TextBlock Text="拖动标题栏移动 · 关闭前保持显示" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+
+            <!-- Clean Footer -->
+            <Border Grid.Row="3" Background="#FFFFFF" BorderBrush="#E6EEF8" BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,12,12" Padding="16,0">
+                <TextBlock Text="单击图标立即标记 · 持续事件先标起点线，移动游标再点结束"
+                           FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
             </Border>
         </Grid>
     </Border>

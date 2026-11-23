@@ -194,10 +194,10 @@ public partial class Topomap3DView : UserControl
         if (viewportHeight <= 0 || lookDirection.LengthSquared <= 0) return default;
         var look = lookDirection;
         look.Normalize();
-        var right = Vector3D.CrossProduct(upDirection, look);
+        var right = Vector3D.CrossProduct(look, upDirection);
         if (right.LengthSquared <= 0) return default;
         right.Normalize();
-        var cameraUp = Vector3D.CrossProduct(look, right);
+        var cameraUp = Vector3D.CrossProduct(right, look);
         cameraUp.Normalize();
         var unitsPerPixel = 2 * lookDirection.Length * Math.Tan(fieldOfViewDegrees * Math.PI / 360) / viewportHeight;
         return -right * (deltaX * unitsPerPixel) + cameraUp * (deltaY * unitsPerPixel);

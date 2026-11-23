@@ -4,7 +4,7 @@
         xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Channels.Views"
         xmlns:topomap="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Topomap"
         Title="电极位置图" Width="1060" Height="760" MinWidth="820" MinHeight="620"
-        WindowStyle="ToolWindow" ShowInTaskbar="False" ResizeMode="CanResize"
+        WindowStyle="ToolWindow" ShowInTaskbar="False" ResizeMode="CanResize" WindowState="Maximized"
         Background="#F8FAFC">
     <Window.Resources>
         <Style x:Key="PositionViewSegmentStyle" TargetType="RadioButton">
@@ -74,6 +74,9 @@
                                  Style="{StaticResource PositionViewSegmentStyle}"
                                  IsChecked="{Binding IsThreeDimensional, Mode=TwoWay}"
                                  Checked="OnThreeDimensionalChecked" />
+                    <RadioButton Content="地形图" GroupName="ElectrodePositionView" Margin="2,0,0,0"
+                                 Style="{StaticResource PositionViewSegmentStyle}"
+                                 IsChecked="{Binding IsTopographic, Mode=TwoWay}" />
                 </StackPanel>
             </Border>
         </Grid>
@@ -151,7 +154,7 @@
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsTwoDimensional}" Value="True">
+                                <DataTrigger Binding="{Binding IsThreeDimensional}" Value="False">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -161,8 +164,19 @@
                                                 ReferencePosition="{Binding ChannelConfigurations.DraftHardwareLandmarks.ReferencePosition, Mode=TwoWay}"
                                                 GroundPosition="{Binding ChannelConfigurations.DraftHardwareLandmarks.GroundPosition, Mode=TwoWay}"
                                                 SelectedRow="{Binding SelectedItem, ElementName=ElectrodeRows}"
-                                                IsHitTestVisible="{Binding HasEditableDraftRows}"
-                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                                                IsTopographic="{Binding IsTopographic}"
+                                                HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                        <views:ElectrodePositionMap.Style>
+                            <Style TargetType="views:ElectrodePositionMap">
+                                <Setter Property="IsHitTestVisible" Value="{Binding HasEditableDraftRows}" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsTopographic" Value="True">
+                                        <Setter Property="IsHitTestVisible" Value="False" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </views:ElectrodePositionMap.Style>
+                    </views:ElectrodePositionMap>
                 </Border>
                 <Border Background="White" BorderBrush="#D9E2EC" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
                     <Border.Style>
@@ -181,8 +195,21 @@
                 </Border>
             </Grid>
             <Button Grid.Row="1" Content="恢复默认位置" Click="ResetAllPositions_Click"
-                    IsEnabled="{Binding HasEditableDraftRows}"
                     HorizontalAlignment="Right" Margin="0,10,0,0" Padding="12,6">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="IsEnabled" Value="False" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasEditableDraftRows}" Value="True" />
+                                    <Condition Binding="{Binding IsTwoDimensional}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="IsEnabled" Value="True" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
             </Button>
         </Grid>
 

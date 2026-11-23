@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>EEG 科研平台系统架构图：实时采集分析与离线回溯</title>
+<style>
+:root{
+  --ink:#253b57;
+  --muted:#61768e;
+  --line:#dae4ee;
+  --soft:#f7f9fc;
+  --blue:#347aca;
+  --blue-soft:#edf4fc;
+  --blue-border:#7da9d7;
+  --violet:#5f4690;
+  --violet-soft:#f8f5ff;
+  --violet-border:#c5b4e3;
+  --teal:#1f7a8c;
+  --bg:#f5f7fa;
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",system-ui,-apple-system,sans-serif;
+  color:var(--ink);
+  background:var(--bg);
+}
+*{box-sizing:border-box}
+body{margin:0;padding:34px 20px 64px}
+.sheet{max-width:1280px;margin:0 auto}
+.heading{text-align:center;margin-bottom:22px}
+.heading h1{margin:0;font-size:26px;font-weight:800;color:#1e3351;letter-spacing:.2px}
+.heading p{font-size:13px;color:var(--muted);margin:10px 0 0;line-height:1.65}
+.badge-row{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:12px}
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid #d3dfec;color:#405d79;font-size:11.5px;font-weight:600}
+.badge.accent{background:var(--blue-soft);border-color:#b5d1ee;color:#245a91}
+
+.diagram{background:#fff;border:1px solid #e0e7f0;border-radius:22px;box-shadow:0 9px 32px rgba(23,48,74,.05);padding:28px 30px}
+.section-head{margin-bottom:14px}
+.section-head h2{font-size:20px;margin:0 0 6px;color:#223a56}
+.section-head p{font-size:13px;line-height:1.7;color:var(--muted);margin:0}
+
+.legend{display:flex;gap:10px 22px;flex-wrap:wrap;font-size:12px;color:#526b85;margin:0 0 14px}
+.legend span{display:inline-flex;gap:8px;align-items:center}
+.legend i{display:inline-block;width:28px;border-top:2px solid var(--blue)}
+.legend i.dashed{border-top-style:dashed;border-color:#748397}
+.legend i.swatch{width:14px;height:14px;border:1.5px solid var(--blue-border);background:var(--blue-soft);border-radius:4px}
+
+.svg-scroll{overflow:auto;border:1px solid #d5dfeb;border-radius:14px;background:#fff;scrollbar-gutter:stable}
+.svg-scroll:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.arch-svg{display:block;width:100%;min-width:1080px;height:auto;font-family:inherit}
+
+/* Shared SVG classes */
+.svg-cap{fill:#f3f6fa;stroke:#c5d2df;stroke-width:1.5}
+.svg-domain{fill:#fafbfd;stroke:#c5d2df;stroke-width:1.5}
+.svg-domain.live{fill:#f8fbff;stroke:#a8c7e6}
+.svg-domain.offline{fill:#fbfaff;stroke:#cfc3e6}
+.svg-process{fill:#f8fafc;stroke:#cbd7e4;stroke-width:1.5}
+.svg-process.backend{fill:#f3f7fc;stroke:#b7cde4}
+.svg-sec-title{font-size:16px;font-weight:700;fill:#223a56}
+.svg-sec-title.offline{fill:#50397d}
+.svg-foot{font-size:12px;fill:#61768e}
+.svg-lane{font-size:13px;font-weight:700;fill:#526b85;letter-spacing:.6px}
+.svg-bridge-label{font-size:13.5px;font-weight:700;fill:#3b5875}
+
+.node rect{fill:#fff;stroke:#b8c9dc;stroke-width:1.5}
+.node.key rect{fill:var(--blue-soft);stroke:var(--blue-border)}
+.node.violet rect{fill:var(--violet-soft);stroke:var(--violet-border)}
+.node-title{font-size:15px;font-weight:700;fill:#223a56}
+.node.violet .node-title{fill:#4e367a}
+.node-sub{font-size:11.5px;fill:#586e86}
+.node-sub.mono{font-family:Consolas,"Cascadia Mono",monospace;font-size:11px;fill:#435e7a}
+
+.edge{fill:none;stroke:#347aca;stroke-width:1.8;stroke-linejoin:round;marker-end:url(#arrow-data)}
+.edge.control{stroke:#748397;stroke-width:1.6;stroke-dasharray:6 5;marker-end:url(#arrow-control)}
+.edge-label{font-size:11.5px;fill:#46617c;paint-order:stroke;stroke:#fff;stroke-width:4.5px;stroke-linejoin:round}
+
+.boundary-note{margin:14px 0 0;padding:11px 14px;border:1px dashed #cddae8;border-radius:10px;background:#f8fafc;color:#516a84;font-size:12px;line-height:1.75}
+.boundary-note strong{color:#234466}
+
+.divider-head{margin:28px 0 12px;border-top:1px solid #dce4ed;padding-top:20px}
+.divider-head h2{font-size:18px;margin:0 0 6px;color:#223a56}
+.divider-head p{font-size:12.5px;line-height:1.7;color:var(--muted);margin:0}
+
+details.panel{border:1px solid #d6e0ea;border-radius:14px;background:#fff;margin:14px 0}
+details.panel>summary{cursor:pointer;padding:16px 18px;font-size:14.5px;font-weight:700;color:#24486b;list-style-position:outside;margin-left:14px}
+details.panel>summary::marker{color:var(--blue)}
+details.panel>summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:8px}
+details.panel[open]{padding:0 18px 20px}
+details.panel[open]>summary{margin:0 -18px 16px;padding:16px 18px 14px 32px;border-bottom:1px solid #e2e9f1}
+
+.sub-diagram-title{font-size:16px;color:#244b72;margin:18px 0 6px}
+.sub-diagram-desc{font-size:12px;color:var(--muted);margin:0 0 12px;line-height:1.7}
+
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:8px}
+.cards.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{border:1px solid #d8e3ee;border-radius:12px;background:#fbfcfe;padding:14px 16px}
+.card.blue{background:#f5f9ff;border-color:#bfd6ee}
+.card.violet{background:#faf8ff;border-color:#d6c9ee}
+.card h3{margin:0 0 8px;font-size:14px;color:#223a56}
+.card.violet h3{color:#4e367a}
+.card p,.card li{font-size:12px;line-height:1.7;color:#526b85;margin:0}
+.card ul{margin:6px 0 0;padding-left:18px}
+.card li{margin-bottom:4px}
+.card code{font-family:Consolas,"Cascadia Mono",monospace;font-size:11px;background:#eef3f9;color:#274a6e;padding:1px 5px;border-radius:4px}
+
+.algo-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+.algo-table th,.algo-table td{border:1px solid #dae4ee;padding:8px 10px;text-align:left;vertical-align:top;line-height:1.6}
+.algo-table th{background:#f3f7fc;color:#24486b;font-weight:700}
+.algo-table td{color:#46617c}
+.pill{display:inline-block;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:600;background:#edf4fc;color:#245a91;border:1px solid #c3daf2;margin:2px 4px 2px 0}
+.pill.violet{background:#f5f0ff;color:#573b8c;border-color:#d4c3f0}
+.pill.gray{background:#f2f5f8;color:#5d7288;border-color:#d7e0ea}
+
+footer.page-foot{text-align:center;color:#73889e;font-size:11.5px;margin-top:18px;line-height:1.7}
+
+@media(max-width:920px){
+  body{padding:16px 10px 36px}
+  .diagram{padding:18px 14px}
+  .heading h1{font-size:20px}
+  .cards,.cards.two{grid-template-columns:1fr}
+}
+@media print{
+  body{background:#fff;padding:0}
+  .sheet{max-width:none}
+  .diagram{box-shadow:none;border:0;padding:6mm}
+  .svg-scroll{overflow:visible;border:0}
+  .arch-svg{min-width:0}
+  details.panel{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<main class="sheet">
+  <header class="heading">
+    <h1>EEG 科研平台系统架构图：实时采集分析与离线回溯</h1>
+    <p>实时采集、采集期实时分析与离线回溯三路解耦运行 · 共享明确的数据/科学契约与呈现组件 · 会话、时钟与执行调度器各自独立</p>
+    <div class="badge-row">
+      <span class="badge accent">桌面端：WPF · C# · .NET 10 · SciChart 9.1</span>
+      <span class="badge accent">后端：FastAPI · Python · SQLite · NumPy / SciPy / MNE</span>
+      <span class="badge">采集实时算法：5 个已注册窗口适配器</span>
+      <span class="badge">离线官方目录：11 个公共算法 ID（Review 已接入 9 个）</span>
+    </div>
+  </header>
+
+  <article class="diagram" aria-label="EEG 科研平台系统架构总览">
+    <!-- ================= PART 1: PRIMARY RELATIONSHIP MAP ================= -->
+    <section aria-labelledby="overview-title">
+      <div class="section-head">
+        <h2 id="overview-title">一、一张图看清系统整体关系</h2>
+        <p>自上而下阅读：平台公共基础能力 → 左右两个独立工作域（实时采集域 / 离线回溯域）→ 各自独立的波形与算法线路 → 底部通过只读原始录音文件衔接两域。</p>
+      </div>
+      <div class="legend">
+        <span><i></i>实线箭头：原始样本 / 滤波波形 / 科学结果 / 文件流</span>
+        <span><i class="dashed"></i>虚线箭头：能力复用 / 启停与参数控制 / 游标与时间目标</span>
+        <span><i class="swatch"></i>蓝色高亮：核心运行时协调器或跨域数据桥</span>
+      </div>
+
+      <div class="svg-scroll" role="region" aria-label="系统关系主图，窄屏可横向滚动" tabindex="0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="arch-svg" viewBox="0 0 1320 1050" role="img" aria-labelledby="svg-main-title svg-main-desc">
+          <title id="svg-main-title">EEG 科研平台系统关系主图</title>
+          <desc id="svg-main-desc">展示平台公共基础能力、实时采集工作域（含 5 个实时窗口算法）与离线回溯工作域（含 11 个官方算法及 TNK 指标组）的分层关系与文件衔接边界。</desc>
+          <defs>
+            <marker id="arrow-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#347aca"/>
+            </marker>
+            <marker id="arrow-control" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#748397" stroke-width="1.6"/>
+            </marker>
+          </defs>
+
+          <!-- Top: Shared Platform Capabilities -->
+          <rect class="svg-cap" x="20" y="14" width="1280" height="128" rx="14"/>
+          <text class="svg-sec-title" x="44" y="42">平台公共基础能力：共享契约、科学原语与可复用呈现组件</text>
+
+          <g class="node">
+            <rect x="44" y="58" width="382" height="66" rx="10"/>
+            <text class="node-title" x="235" y="85" text-anchor="middle">数据与结果契约</text>
+            <text class="node-sub" x="235" y="108" text-anchor="middle">内部 float64 / V · 接口 µV · 绝对秒/样本计数 · 显式缺口与质量门</text>
+          </g>
+          <g class="node">
+            <rect x="469" y="58" width="382" height="66" rx="10"/>
+            <text class="node-title" x="660" y="85" text-anchor="middle">可复用科学原语与空间投影</text>
+            <text class="node-sub" x="660" y="108" text-anchor="middle">DEFAULT_SPECTRAL_GATEWAY · five_band_shares · TopomapService</text>
+          </g>
+          <g class="node">
+            <rect x="894" y="58" width="382" height="66" rx="10"/>
+            <text class="node-title" x="1085" y="85" text-anchor="middle">通用工程与 UI 呈现能力</text>
+            <text class="node-sub" x="1085" y="108" text-anchor="middle">request_id / 身份追溯 · 共享 PSD / STFT / RBP / Topomap 控件</text>
+          </g>
+
+          <!-- Left Domain: Live Acquisition -->
+          <rect class="svg-domain live" x="20" y="198" width="620" height="676" rx="14"/>
+          <text class="svg-sec-title" x="42" y="226">实时采集工作域（Acquisition）</text>
+          <text class="svg-foot" x="42" y="858">采集会话生命周期 · 硬件 SampleCounter / S0 · 临时滚动缓存（不落盘分析结果）</text>
+
+          <!-- Right Domain: Offline & Review -->
+          <rect class="svg-domain offline" x="680" y="198" width="620" height="676" rx="14"/>
+          <text class="svg-sec-title offline" x="702" y="226">离线回溯与科研分析域（Review &amp; Algorithms）</text>
+          <text class="svg-foot" x="702" y="858">历史录音会话 · 播放时钟与导联上下文 · 持久化 Run / 缓存产物与审计</text>
+
+          <!-- Row 1: Domain Contexts -->
+          <g class="node key">
+            <rect x="55" y="248" width="550" height="64" rx="10"/>
+            <text class="node-title" x="330" y="275" text-anchor="middle">采集运行时 · ConfiguredAcquisitionRuntime + LiveMontageCoordinator</text>
+            <text class="node-sub" x="330" y="298" text-anchor="middle">样本计数推进 · 版本化实时导联快照同步驱动波形与实时算法</text>
+          </g>
+          <g class="node key">
+            <rect x="715" y="248" width="550" height="64" rx="10"/>
+            <text class="node-title" x="990" y="275" text-anchor="middle">回溯与算法工作区上下文 · Review / Algorithms</text>
+            <text class="node-sub" x="990" y="298" text-anchor="middle">Playback 游标 + Montage 导联向波形和算法发布目标与配置快照</text>
+          </g>
+
+          <!-- Row 2: Data Sources -->
+          <g class="node">
+            <rect x="55" y="352" width="550" height="70" rx="10"/>
+            <text class="node-title" x="330" y="380" text-anchor="middle">ANT / eego 设备 → AcquisitionCoordinator</text>
+            <text class="node-sub" x="330" y="403" text-anchor="middle">SampleCounter 连续性检查 · 单源分发至原始写盘、实时波形与实时分析</text>
+          </g>
+          <g class="node">
+            <rect x="715" y="352" width="550" height="70" rx="10"/>
+            <text class="node-title" x="990" y="380" text-anchor="middle">历史 Recording Access &amp; 导入适配</text>
+            <text class="node-sub" x="990" y="403" text-anchor="middle">EDF / BDF / WPF 原始录音 → Reader / 索引 / 导联投影 → 按窗读取</text>
+          </g>
+
+          <!-- Row 3: Branches -->
+          <g class="node">
+            <rect x="55" y="486" width="245" height="92" rx="10"/>
+            <text class="node-title" x="177.5" y="514" text-anchor="middle">实时波形显示线路</text>
+            <text class="node-sub" x="177.5" y="537" text-anchor="middle">SampleBatchRingBuffer · 因果滤波</text>
+            <text class="node-sub" x="177.5" y="556" text-anchor="middle">按实时导联快照投影显示</text>
+          </g>
+          <g class="node violet">
+            <rect x="360" y="486" width="245" height="92" rx="10"/>
+            <text class="node-title" x="482.5" y="514" text-anchor="middle">实时样本访问层</text>
+            <text class="node-sub" x="482.5" y="537" text-anchor="middle">底层只存原始 V · PUT 同步导联</text>
+            <text class="node-sub" x="482.5" y="556" text-anchor="middle">取窗时按导联修订实时投影</text>
+          </g>
+          <g class="node">
+            <rect x="715" y="486" width="245" height="92" rx="10"/>
+            <text class="node-title" x="837.5" y="514" text-anchor="middle">回溯波形请求线路</text>
+            <text class="node-sub" x="837.5" y="537" text-anchor="middle">信号预览 / 降采样极值包络</text>
+            <text class="node-sub" x="837.5" y="556" text-anchor="middle">状态滤波 / 检查点缓存</text>
+          </g>
+          <g class="node violet">
+            <rect x="1020" y="486" width="245" height="92" rx="10"/>
+            <text class="node-title" x="1142.5" y="514" text-anchor="middle">离线与按需调度线路</text>
+            <text class="node-sub" x="1142.5" y="537" text-anchor="middle">PersistentRunQueue (全量/批量)</text>
+            <text class="node-sub" x="1142.5" y="556" text-anchor="middle">DynamicWindowService (按需窗口)</text>
+          </g>
+
+          <!-- Row 4: Algorithm Execution -->
+          <g class="node violet">
+            <rect x="360" y="622" width="245" height="98" rx="10"/>
+            <text class="node-title" x="482.5" y="649" text-anchor="middle">实时算法协调器（新重构）</text>
+            <text class="node-sub" x="482.5" y="671" text-anchor="middle">LiveAnalysisCoordinator（4 槽有界）</text>
+            <text class="node-sub" x="482.5" y="690" text-anchor="middle">RBP · PSD · STFT · RBP/PSD 地形图</text>
+            <text class="node-sub" x="482.5" y="708" text-anchor="middle">缺口/过载门控 · revision 单调发布</text>
+          </g>
+          <g class="node violet">
+            <rect x="1020" y="622" width="245" height="98" rx="10"/>
+            <text class="node-title" x="1142.5" y="649" text-anchor="middle">官方算法目录与运行时</text>
+            <text class="node-sub" x="1142.5" y="671" text-anchor="middle">algorithm_runtime · 11 个公共 ID</text>
+            <text class="node-sub" x="1142.5" y="690" text-anchor="middle">PSD/STFT/RBP/IAPF/FAA/Brainbeat 等</text>
+            <text class="node-sub" x="1142.5" y="708" text-anchor="middle">含 TNK 指标组与 2D/3D 地形图</text>
+          </g>
+
+          <!-- Row 5: Views -->
+          <g class="node">
+            <rect x="55" y="764" width="245" height="66" rx="10"/>
+            <text class="node-title" x="177.5" y="791" text-anchor="middle">SciChart 实时波形</text>
+            <text class="node-sub" x="177.5" y="814" text-anchor="middle">Sweep 扫描擦除 · 仅接收显示线路</text>
+          </g>
+          <g class="node">
+            <rect x="360" y="764" width="245" height="66" rx="10"/>
+            <text class="node-title" x="482.5" y="791" text-anchor="middle">采集实时分析面板</text>
+            <text class="node-sub" x="482.5" y="814" text-anchor="middle">对齐 Review 样式 · RBP/PSD/STFT/地形图</text>
+          </g>
+          <g class="node">
+            <rect x="715" y="764" width="245" height="66" rx="10"/>
+            <text class="node-title" x="837.5" y="791" text-anchor="middle">SciChart 回溯波形</text>
+            <text class="node-sub" x="837.5" y="814" text-anchor="middle">时间轴 / 事件标注 / 极值包络阅图</text>
+          </g>
+          <g class="node">
+            <rect x="1020" y="764" width="245" height="66" rx="10"/>
+            <text class="node-title" x="1142.5" y="791" text-anchor="middle">算法工作区 &amp; Review 面板</text>
+            <text class="node-sub" x="1142.5" y="814" text-anchor="middle">工作区 11 个 / Review 9 个 · 配置 SHA-256</text>
+          </g>
+
+          <!-- Bottom: Recording File Bridge -->
+          <g class="node key">
+            <rect x="425" y="948" width="470" height="72" rx="10"/>
+            <text class="node-title" x="660" y="977" text-anchor="middle">保存的原始录音文件（只读权威数据源）</text>
+            <text class="node-sub" x="660" y="1001" text-anchor="middle">采集 Recording 异步写盘 → 离线回溯打开；实时分析临时结果不落盘、不跨域传递</text>
+          </g>
+
+          <!-- Edges: Top Capabilities -> Domains -->
+          <path class="edge control" d="M 235 124 L 235 162 L 330 162 L 330 248"/>
+          <path class="edge control" d="M 660 124 L 660 162 L 330 162 L 330 248"/>
+          <path class="edge control" d="M 660 124 L 660 162 L 990 162 L 990 248"/>
+          <path class="edge control" d="M 1085 124 L 1085 162 L 990 162 L 990 248"/>
+          <text class="edge-label" x="160" y="180" text-anchor="middle">契约与原语复用</text>
+          <text class="edge-label" x="1160" y="180" text-anchor="middle">契约与呈现复用</text>
+
+          <!-- Edges: Left Domain -->
+          <path class="edge control" d="M 330 312 L 330 352"/>
+          <path class="edge" d="M 177.5 422 L 177.5 486"/>
+          <text class="edge-label" x="228" y="458" text-anchor="middle">原始样本</text>
+          <path class="edge" d="M 482.5 422 L 482.5 486"/>
+          <text class="edge-label" x="536" y="458" text-anchor="middle">原始 EEG</text>
+          <path class="edge" d="M 177.5 578 L 177.5 764"/>
+          <text class="edge-label" x="228" y="672" text-anchor="middle">显示数据</text>
+          <path class="edge" d="M 482.5 578 L 482.5 622"/>
+          <text class="edge-label" x="544" y="604" text-anchor="middle">按计数取窗</text>
+          <path class="edge" d="M 482.5 720 L 482.5 764"/>
+          <text class="edge-label" x="546" y="746" text-anchor="middle">结果信封 v1</text>
+
+          <!-- Edges: Right Domain -->
+          <path class="edge control" d="M 775 312 L 775 334 L 695 334 L 695 466 L 837.5 466 L 837.5 486"/>
+          <path class="edge control" d="M 1205 312 L 1205 334 L 1285 334 L 1285 466 L 1142.5 466 L 1142.5 486"/>
+          <path class="edge" d="M 837.5 422 L 837.5 486"/>
+          <text class="edge-label" x="892" y="452" text-anchor="middle">历史样本</text>
+          <path class="edge" d="M 1142.5 422 L 1142.5 486"/>
+          <text class="edge-label" x="1198" y="452" text-anchor="middle">历史样本</text>
+          <path class="edge" d="M 837.5 578 L 837.5 764"/>
+          <text class="edge-label" x="892" y="672" text-anchor="middle">显示帧/包络</text>
+          <path class="edge" d="M 1142.5 578 L 1142.5 622"/>
+          <text class="edge-label" x="1198" y="604" text-anchor="middle">科学输入</text>
+          <path class="edge" d="M 1142.5 720 L 1142.5 764"/>
+          <text class="edge-label" x="1198" y="746" text-anchor="middle">科学结果</text>
+
+          <!-- Edges: File Bridge -->
+          <path class="edge" d="M 55 387 L 34 387 L 34 984 L 425 984"/>
+          <text class="edge-label" x="200" y="968" text-anchor="middle">异步原始写盘（仅 Recording 时）</text>
+          <path class="edge" d="M 895 984 L 1296 984 L 1296 387 L 1265 387"/>
+          <text class="edge-label" x="1100" y="968" text-anchor="middle">作为只读历史数据源打开</text>
+          <text class="svg-bridge-label" x="660" y="914" text-anchor="middle">两域唯一文件衔接：只读原始录音；两域绝不共享运行时会话、播放时钟或执行调度器</text>
+        </svg>
+      </div>
+
+      <p class="boundary-note">
+        <strong>核心隔离原则：</strong>实时分析不经过离线 Run，也不污染原始录音文件；显示滤波只服务波形显示，绝不作为科学算法输入。采集侧 5 个实时算法（<code>rbp</code>、<code>psd</code>、<code>stft</code>、<code>rbp-topomap</code>、<code>psd-topomap</code>）共享 <code>DEFAULT_SPECTRAL_GATEWAY</code> / <code>five_band_shares()</code> / <code>TopomapService</code> 科学原语及 Review 图表呈现样式，但仍保持独立的实时短生命周期契约。
+      </p>
+    </section>
+
+    <!-- ================= PART 2: PROCESS BOUNDARY TECHNICAL DIAGRAMS ================= -->
+    <div class="divider-head">
+      <h2>二、桌面端 WPF 与 Python 后端技术连接详图</h2>
+      <p>展开下方详图可查看跨进程 HTTP 二进制传输边界、有界队列、协调器调度与模块级连接关系。</p>
+    </div>
+
+    <details class="panel" open>
+      <summary>A · 实时采集与实时算法：一处采集，三条独立异步消费链</summary>
+      <p class="sub-diagram-desc">
+        <code>AcquisitionCoordinator</code> 串行检查设备样本连续性后，将同一批原始数据分发给三条互不阻塞的异步路径。即便后端繁忙或实时算法过载，也只返回结构化 <code>overloaded / unavailable</code> 状态，绝不反压阻塞设备读取或写盘。
+      </p>
+      <div class="svg-scroll" role="region" aria-label="实时采集与实时分析跨进程连接图" tabindex="0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="arch-svg" viewBox="0 0 1240 990" role="img" aria-label="实时采集与实时分析跨进程连接图">
+          <!-- Process containers -->
+          <rect class="svg-process" x="12" y="16" width="1216" height="444" rx="14"/>
+          <text class="svg-sec-title" x="34" y="46">桌面端进程（WPF · BrainPlatform.Desktop）</text>
+
+          <rect class="svg-process backend" x="12" y="518" width="1216" height="456" rx="14"/>
+          <text class="svg-sec-title" x="34" y="548">本地后端进程（FastAPI · Python · 127.0.0.1:8000）</text>
+
+          <!-- Top capture row -->
+          <g class="node">
+            <rect x="42" y="76" width="290" height="76" rx="10"/>
+            <text class="node-title" x="187" y="103" text-anchor="middle">ANT / eego 放大器与 SDK</text>
+            <text class="node-sub" x="187" y="124" text-anchor="middle">AntEegoStream · 原始样本 (V)</text>
+            <text class="node-sub" x="187" y="142" text-anchor="middle">硬件 SampleCounter · 有序通道</text>
+          </g>
+          <g class="node key">
+            <rect x="415" y="76" width="765" height="76" rx="10"/>
+            <text class="node-title" x="797.5" y="103" text-anchor="middle">AcquisitionCoordinator + LiveMontageCoordinator</text>
+            <text class="node-sub" x="797.5" y="125" text-anchor="middle">SampleCounter 缺口检测 · 版本化实时导联快照（revision / 生效边界）同步波形与实时算法</text>
+            <text class="node-sub" x="797.5" y="143" text-anchor="middle">原始写盘始终独立保留原始电极与冻结入库导联快照</text>
+          </g>
+
+          <!-- 3 Lane Titles -->
+          <text class="svg-lane" x="187" y="206" text-anchor="middle">① 原始写盘链</text>
+          <text class="svg-lane" x="565" y="206" text-anchor="middle">② 实时波形显示链</text>
+          <text class="svg-lane" x="985" y="206" text-anchor="middle">③ 采集实时分析链（新重构）</text>
+
+          <!-- Lane 1: Raw Writer -->
+          <g class="node">
+            <rect x="42" y="224" width="290" height="74" rx="10"/>
+            <text class="node-title" x="187" y="252" text-anchor="middle">QueuedAcquisitionRawWriter</text>
+            <text class="node-sub" x="187" y="274" text-anchor="middle">异步队列写盘 · 记录显式 Gap 与事件</text>
+          </g>
+          <g class="node">
+            <rect x="42" y="356" width="290" height="74" rx="10"/>
+            <text class="node-title" x="187" y="384" text-anchor="middle">本地只读原始录音文件</text>
+            <text class="node-sub" x="187" y="406" text-anchor="middle">仅 Recording 写入 · 供离线 Review 打开</text>
+          </g>
+
+          <!-- Lane 2: Live Display -->
+          <g class="node">
+            <rect x="420" y="224" width="290" height="74" rx="10"/>
+            <text class="node-title" x="565" y="250" text-anchor="middle">SampleBatchRingBuffer</text>
+            <text class="node-sub" x="565" y="270" text-anchor="middle">+ BoundedAnalysisDispatcher (50ms 聚合)</text>
+            <text class="node-sub" x="565" y="287" text-anchor="middle">HttpLiveFilterBridge</text>
+          </g>
+          <g class="node">
+            <rect x="420" y="356" width="290" height="74" rx="10"/>
+            <text class="node-title" x="565" y="380" text-anchor="middle">WaveformDisplayFrameBuilder</text>
+            <text class="node-sub" x="565" y="400" text-anchor="middle">→ LiveSciChartCanvas（Sweep 实时波形）</text>
+            <text class="node-sub" x="565" y="418" text-anchor="middle">按实时导联快照投影（预览期可切兼容导联）</text>
+          </g>
+
+          <!-- Lane 3: Live Analysis (Desktop) -->
+          <g class="node violet">
+            <rect x="800" y="224" width="370" height="74" rx="10"/>
+            <text class="node-title" x="985" y="250" text-anchor="middle">BoundedLiveAccessDispatcher</text>
+            <text class="node-sub" x="985" y="270" text-anchor="middle">→ HttpLiveSampleAccessBridge（传原始 EEG + PUT 同步导联）</text>
+            <text class="node-sub" x="985" y="287" text-anchor="middle">切导联待同步时延迟重启至下一批样本 · 200ms 首结果轮询</text>
+          </g>
+          <g class="node">
+            <rect x="800" y="356" width="370" height="74" rx="10"/>
+            <text class="node-title" x="985" y="382" text-anchor="middle">LiveSpectralAnalysisPanel（统一面板壳）</text>
+            <text class="node-sub" x="985" y="402" text-anchor="middle">LiveSpectralAnalysisViewModel（内嵌 LiveRbpAnalysisPanel）</text>
+            <text class="node-sub" x="985" y="419" text-anchor="middle">切导联自动重启 · 校验当前导联与 revision · 切换 4 类视图</text>
+          </g>
+
+          <!-- Backend Lane 2: Live Filter -->
+          <g class="node">
+            <rect x="420" y="574" width="290" height="92" rx="10"/>
+            <text class="node-title" x="565" y="602" text-anchor="middle">LiveFilterService</text>
+            <text class="node-sub mono" x="565" y="624" text-anchor="middle">POST /api/live-filters/sessions/.../binary</text>
+            <text class="node-sub" x="565" y="646" text-anchor="middle">有状态因果滤波 · 仅服务实时波形显示</text>
+          </g>
+
+          <!-- Backend Lane 3: Live Analysis Subsystem -->
+          <g class="node violet">
+            <rect x="800" y="574" width="370" height="92" rx="10"/>
+            <text class="node-title" x="985" y="598" text-anchor="middle">LiveRecordingAccessSession</text>
+            <text class="node-sub mono" x="985" y="618" text-anchor="middle">/batches/binary · PUT /sessions/{id}/montage</text>
+            <text class="node-sub" x="985" y="638" text-anchor="middle">底层只存原始电极 V 样本 · 记录会话起点 S0</text>
+            <text class="node-sub" x="985" y="655" text-anchor="middle">read_samples 按预解析导联索引实时投影 · 修订/缺口门控</text>
+          </g>
+
+          <g class="node key">
+            <rect x="800" y="708" width="370" height="96" rx="10"/>
+            <text class="node-title" x="985" y="734" text-anchor="middle">LiveAnalysisCoordinator（通用实时调度器）</text>
+            <text class="node-sub mono" x="985" y="754" text-anchor="middle">POST / GET / DELETE .../algorithms/{algorithm_id}</text>
+            <text class="node-sub" x="985" y="775" text-anchor="middle">4 个全局 worker 槽 · 每算法最多 1 个在飞窗口 · 无界队列禁止</text>
+            <text class="node-sub" x="985" y="793" text-anchor="middle">跳过落后窗（skipped_windows）· 单调 revision 拦截过期结果</text>
+          </g>
+
+          <g class="node violet">
+            <rect x="800" y="846" width="370" height="106" rx="10"/>
+            <text class="node-title" x="985" y="872" text-anchor="middle">LiveAnalysisAlgorithmRegistry（5 个已注册适配器）</text>
+            <text class="node-sub" x="985" y="894" text-anchor="middle">rbp（LiveRbpAlgorithm）· psd / stft（LiveSpectrumAlgorithm）</text>
+            <text class="node-sub" x="985" y="913" text-anchor="middle">rbp-topomap / psd-topomap（LiveTopomapAlgorithm）</text>
+            <text class="node-sub" x="985" y="935" text-anchor="middle">复用 DEFAULT_SPECTRAL_GATEWAY / five_band_shares / TopomapService</text>
+          </g>
+
+          <!-- Edges -->
+          <path class="edge" d="M 332 114 L 415 114"/>
+          <text class="edge-label" x="373" y="102" text-anchor="middle">原始批次</text>
+
+          <path class="edge" d="M 565 152 L 565 180 L 187 180 L 187 224"/>
+          <path class="edge" d="M 565 152 L 565 224"/>
+          <path class="edge" d="M 565 152 L 565 180 L 985 180 L 985 224"/>
+
+          <path class="edge" d="M 187 298 L 187 356"/>
+          <text class="edge-label" x="235" y="332" text-anchor="middle">原始样本</text>
+
+          <!-- Display Filter Loop -->
+          <path class="edge" d="M 420 261 L 382 261 L 382 620 L 420 620"/>
+          <text class="edge-label" x="370" y="454" text-anchor="middle" transform="rotate(-90 370 454)">HTTP float64 批次</text>
+          <path class="edge" d="M 710 620 L 748 620 L 748 393 L 710 393"/>
+          <text class="edge-label" x="736" y="486" text-anchor="middle" transform="rotate(-90 736 486)">因果滤波结果</text>
+
+          <!-- Live Analysis Loop -->
+          <path class="edge" d="M 800 261 L 774 261 L 774 620 L 800 620"/>
+          <text class="edge-label" x="787" y="502" text-anchor="middle">原始 EEG</text>
+
+          <path class="edge" d="M 985 666 L 985 708"/>
+          <text class="edge-label" x="1058" y="692" text-anchor="middle">on_samples / read_samples</text>
+
+          <path class="edge" d="M 985 804 L 985 846"/>
+          <text class="edge-label" x="1038" y="830" text-anchor="middle">SampleBlock</text>
+
+          <!-- Result return -->
+          <path class="edge" d="M 1170 899 L 1196 899 L 1196 393 L 1170 393"/>
+          <text class="edge-label" x="1184" y="655" text-anchor="middle" transform="rotate(-90 1184 655)">live-analysis-update-v1（随 ACK updates 回传）</text>
+
+          <!-- Control -->
+          <path class="edge control" d="M 1030 430 L 1030 486 L 1212 486 L 1212 756 L 1170 756"/>
+          <text class="edge-label" x="1115" y="476" text-anchor="middle">启停 / 配置 / 首结果轮询</text>
+        </svg>
+      </div>
+    </details>
+
+    <details class="panel">
+      <summary>B · 离线回溯与科研分析：Review 按需窗口与持久化批量 Run</summary>
+      <p class="sub-diagram-desc">
+        离线侧严格区分<strong>持久化全量/批量 Run</strong>（<code>PersistentRunQueue</code>）与<strong>交互式回溯按需窗口</strong>（<code>DynamicWindowService</code>），两者共用 <code>algorithm_runtime</code> 官方算法注册表与 <code>ScientificComputeCoordinator</code> 计算隔离。
+      </p>
+      <div class="svg-scroll" role="region" aria-label="离线回溯与算法分析跨进程连接图" tabindex="0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="arch-svg" viewBox="0 0 1240 820" role="img" aria-label="离线回溯与算法分析跨进程连接图">
+          <rect class="svg-process" x="12" y="16" width="1216" height="330" rx="14"/>
+          <text class="svg-sec-title" x="34" y="46">桌面端进程（WPF · Modules/Review · Modules/Algorithms · Modules/Projects）</text>
+
+          <rect class="svg-process backend" x="12" y="396" width="1216" height="408" rx="14"/>
+          <text class="svg-sec-title" x="34" y="426">本地后端进程（FastAPI · SQLite · MNE / SciPy / LiteRT）</text>
+
+          <!-- Desktop nodes -->
+          <g class="node key">
+            <rect x="42" y="76" width="540" height="74" rx="10"/>
+            <text class="node-title" x="312" y="103" text-anchor="middle">RecordingReviewViewModel &amp; ReviewAnalysisCoordinator</text>
+            <text class="node-sub" x="312" y="125" text-anchor="middle">管理文件绝对游标 position_s、导联快照、防竞态取消与过期结果隔离</text>
+          </g>
+          <g class="node key">
+            <rect x="658" y="76" width="540" height="74" rx="10"/>
+            <text class="node-title" x="928" y="103" text-anchor="middle">算法工作区（11 个 ID）&amp; 项目批量 Run 管理</text>
+            <text class="node-sub" x="928" y="125" text-anchor="middle">AlgorithmUiRegistry · 预设管理 · 批量提交 · 报告导出与独立验证</text>
+          </g>
+
+          <g class="node">
+            <rect x="42" y="216" width="250" height="92" rx="10"/>
+            <text class="node-title" x="167" y="244" text-anchor="middle">Review 回溯波形与标注</text>
+            <text class="node-sub" x="167" y="265" text-anchor="middle">RecordingReviewSciChartCanvas</text>
+            <text class="node-sub" x="167" y="284" text-anchor="middle">LocalRawRecordingReader 本地读盘</text>
+            <text class="node-sub" x="167" y="301" text-anchor="middle">+ ReviewCheckpointCoordinator 缓存</text>
+          </g>
+          <g class="node violet">
+            <rect x="332" y="216" width="250" height="92" rx="10"/>
+            <text class="node-title" x="457" y="246" text-anchor="middle">Review 算法面板（9 个）</text>
+            <text class="node-sub" x="457" y="268" text-anchor="middle">Typed Adapter + Presenter</text>
+            <text class="node-sub" x="457" y="287" text-anchor="middle">校验规范配置 SHA-256</text>
+          </g>
+          <g class="node violet">
+            <rect x="658" y="216" width="540" height="92" rx="10"/>
+            <text class="node-title" x="928" y="244" text-anchor="middle">算法工作区结果、信号预览与 2D/3D 地形图</text>
+            <text class="node-sub" x="928" y="265" text-anchor="middle">SignalWaveformView (极值包络) · TopomapCanvas / Topomap3DView</text>
+            <text class="node-sub" x="928" y="284" text-anchor="middle">PSD / STFT / RBP / Band Ratio / Peak Freq / IAPF / Theta-Beta / FAA / Brainbeat / TNK</text>
+          </g>
+
+          <!-- Backend nodes -->
+          <g class="node">
+            <rect x="42" y="456" width="250" height="96" rx="10"/>
+            <text class="node-title" x="167" y="482" text-anchor="middle">回溯滤波与信号导出/预览</text>
+            <text class="node-sub mono" x="167" y="502" text-anchor="middle">/api/live-filters (含 checkpoint)</text>
+            <text class="node-sub mono" x="167" y="520" text-anchor="middle">/api/recordings · /preview · /export</text>
+            <text class="node-sub" x="167" y="539" text-anchor="middle">Review 走有状态滤波 · 工作区走预览</text>
+          </g>
+          <g class="node key">
+            <rect x="332" y="456" width="400" height="96" rx="10"/>
+            <text class="node-title" x="532" y="484" text-anchor="middle">DynamicWindowService（按需动态窗口）</text>
+            <text class="node-sub mono" x="532" y="505" text-anchor="middle">/api/analysis-windows · /topomap · /result-scalars</text>
+            <text class="node-sub" x="532" y="527" text-anchor="middle">窗口规划 · 过滤检查点 · 复用缓存 · TNK 流式投递</text>
+          </g>
+          <g class="node key">
+            <rect x="772" y="456" width="426" height="96" rx="10"/>
+            <text class="node-title" x="985" y="484" text-anchor="middle">PersistentRunQueue &amp; BatchRunService</text>
+            <text class="node-sub mono" x="985" y="505" text-anchor="middle">/api/runs · /api/batch-runs · /api/results · /api/validations</text>
+            <text class="node-sub" x="985" y="527" text-anchor="middle">SQLite 持久化队列 · RunWorker 后台执行 · 产物与审计</text>
+          </g>
+
+          <g class="node violet">
+            <rect x="332" y="610" width="866" height="78" rx="10"/>
+            <text class="node-title" x="765" y="638" text-anchor="middle">ScientificComputeCoordinator → algorithm_runtime（11 个官方公共算法包）</text>
+            <text class="node-sub" x="765" y="661" text-anchor="middle">psd · stft · rbp · band_ratio · peak_frequency · iapf · theta_beta · faa · brainbeat · brainbeat_individualized · tnk_biofeedback (含 4 个 ANT 子指标)</text>
+          </g>
+
+          <g class="node">
+            <rect x="42" y="718" width="1156" height="64" rx="10"/>
+            <text class="node-title" x="620" y="744" text-anchor="middle">持久化与只读数据层（SQLite · storage/recordings · artifacts/dynamic-windows · 冻结验证基线）</text>
+            <text class="node-sub" x="620" y="766" text-anchor="middle">原始录音只读 · 导联/预处理派生输入 · 参数快照 + provenance + request_id 全链路可复现</text>
+          </g>
+
+          <!-- Edges -->
+          <path class="edge control" d="M 167 150 L 167 216"/>
+          <path class="edge control" d="M 457 150 L 457 216"/>
+          <path class="edge control" d="M 928 150 L 928 216"/>
+
+          <path class="edge" d="M 167 308 L 167 456"/>
+          <path class="edge" d="M 457 308 L 457 456"/>
+          <path class="edge" d="M 928 308 L 928 456"/>
+
+          <path class="edge" d="M 532 552 L 532 610"/>
+          <path class="edge" d="M 985 552 L 985 610"/>
+
+          <path class="edge control" d="M 167 552 L 167 718"/>
+          <path class="edge control" d="M 765 688 L 765 718"/>
+        </svg>
+      </div>
+    </details>
+
+    <!-- ================= PART 3: CONTRACTS & MODULE MATRIX ================= -->
+    <div class="divider-head">
+      <h2>三、核心架构契约、算法接入矩阵与模块边界速查</h2>
+      <p>与当前代码基线和 <code>docs/工程开发契约.md</code> 对齐的关键工程红线与模块职责清单。</p>
+    </div>
+
+    <details class="panel" open>
+      <summary>算法接入矩阵：采集实时分析 vs 算法工作区 vs Review 回溯</summary>
+      <table class="algo-table">
+        <thead>
+          <tr>
+            <th style="width:18%">工作模式</th>
+            <th style="width:24%">后端调度与注册入口</th>
+            <th style="width:32%">当前已注册算法</th>
+            <th style="width:26%">桌面端呈现与边界</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>采集期实时分析</strong><br/><span class="pill violet">本次重构新增</span></td>
+            <td><code>LiveAnalysisCoordinator</code><br/><code>LiveAnalysisAlgorithmRegistry</code><br/><code>/api/live-recordings/.../algorithms</code></td>
+            <td>
+              <span class="pill violet">rbp</span>
+              <span class="pill violet">psd</span>
+              <span class="pill violet">stft</span>
+              <span class="pill violet">rbp-topomap</span>
+              <span class="pill violet">psd-topomap</span>
+            </td>
+            <td><code>LiveSpectralAnalysisViewModel</code><br/><code>LiveRbpAnalysisViewModel</code><br/>仅临时展示，不落盘、不进入离线 Run</td>
+          </tr>
+          <tr>
+            <td><strong>离线算法工作区</strong><br/><span class="pill">11 / 11 已注册</span></td>
+            <td><code>PersistentRunQueue</code><br/><code>algorithm_runtime</code><br/><code>/api/runs</code></td>
+            <td>
+              <span class="pill">psd</span><span class="pill">stft</span><span class="pill">rbp</span>
+              <span class="pill">band_ratio</span><span class="pill">peak_frequency</span><span class="pill">iapf</span>
+              <span class="pill">theta_beta</span><span class="pill">faa</span><span class="pill">brainbeat</span>
+              <span class="pill">brainbeat_individualized</span><span class="pill">tnk_biofeedback</span>
+            </td>
+            <td><code>AlgorithmUiRegistry</code><br/><code>AlgorithmRunResultHandlerRegistry</code><br/>支持预设、批量 Run、结果持久化</td>
+          </tr>
+          <tr>
+            <td><strong>Review 交互回溯</strong><br/><span class="pill">9 / 11 已注册</span></td>
+            <td><code>DynamicWindowService</code><br/><code>ScientificComputeCoordinator</code><br/><code>/api/analysis-windows</code></td>
+            <td>
+              已接入上述 9 个算法<br/>
+              <span class="pill gray">未接入：band_ratio</span>
+              <span class="pill gray">未接入：peak_frequency</span>
+            </td>
+            <td><code>ReviewAnalysisCoordinator</code><br/><code>ReviewAlgorithmPanels</code><br/>绑定前强制校验规范配置 SHA-256</td>
+          </tr>
+        </tbody>
+      </table>
+    </details>
+
+    <details class="panel">
+      <summary>工程红线与前后端职责边界清单</summary>
+      <div class="cards">
+        <div class="card blue">
+          <h3>1. 时间、单位与通道红线</h3>
+          <ul>
+            <li>后端内部连续信号统一 <code>float64</code>、形状 <code>(samples, channels)</code>、单位 <strong>V</strong>；API 波形返回统一 <strong>µV</strong>。</li>
+            <li>离线与调试时间统一为<strong>文件绝对秒</strong>；采集实时分析统一以采集会话首样本 <code>S0</code> 为原点计算 <code>start_s / end_s</code>。</li>
+            <li><code>ch_names</code> 与列顺序严格同步，禁止按 UI 显示名猜测信号角色。</li>
+          </ul>
+        </div>
+        <div class="card violet">
+          <h3>2. 实时调度与失败显式表达</h3>
+          <ul>
+            <li>实时协调器固定 <strong>4 个全局 worker 槽</strong>，每算法最多 <strong>1 个在飞窗口</strong>，禁止无界队列。</li>
+            <li>跨缺口或被覆盖的样本区间直接返回 <code>unavailable</code>；算力繁忙返回 <code>overloaded</code> + <code>skipped_windows</code>。</li>
+            <li>严禁用零值或复用旧值掩盖缺失数据；<code>revision</code> 单调递增杜绝乱序覆盖。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>3. 模块划分与跨端边界</h3>
+          <ul>
+            <li><strong>桌面端 10 个业务模块</strong>：<code>Acquisition</code>、<code>Devices</code>、<code>Channels</code>、<code>Montages</code>、<code>Projects</code>、<code>Recordings</code>、<code>Events</code>、<code>Review</code>、<code>Algorithms</code>、<code>Settings</code>。</li>
+            <li><strong>科学计算零侵入 WPF</strong>：桌面端只负责采集、显示投影、交互状态与配置校验；科学计算统一归 Python 后端。</li>
+            <li>业务文件软上限 400 行，超线需在 <code>docs/code-size-policy.json</code> 登记评估。</li>
+          </ul>
+        </div>
+      </div>
+    </details>
+  </article>
+
+  <footer class="page-foot">
+    EEG 科研平台系统架构图 · 基于当前代码基线（HEAD: <code>072ee78</code>）生成 · 支持离线直接打开与打印导出 PDF
+  </footer>
+</main>
+</body>
+</html>

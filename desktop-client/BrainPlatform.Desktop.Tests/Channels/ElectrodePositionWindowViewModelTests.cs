@@ -52,4 +52,32 @@ public sealed class ElectrodePositionWindowViewModelTests
         Assert.Equal(["Fp1"], viewModel.EnabledElectrodeLabels);
         Assert.Equal(new ElectrodeMapPosition(-0.1, 0.2), viewModel.PositionRows[0].ManualMapPosition);
     }
+
+    [Fact]
+    public void ThreeViewsRemainExclusiveAndNotifyAllBindings()
+    {
+        var configuration = new ChannelConfigurationWorkspaceViewModel(new ChannelMappingViewModel());
+        using var model = new ElectrodePositionWindowViewModel(configuration, null);
+        var changed = new List<string?>();
+        model.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+        Assert.True(model.IsTwoDimensional);
+        model.IsTopographic = true;
+        Assert.True(model.IsTopographic);
+        Assert.False(model.IsThreeDimensional);
+        Assert.False(model.IsTwoDimensional);
+        Assert.Contains("只读", model.PositionViewHint);
+        Assert.Contains(nameof(model.IsTopographic), changed);
+        Assert.Contains(nameof(model.IsThreeDimensional), changed);
+        Assert.Contains(nameof(model.IsTwoDimensional), changed);
+        model.IsTopographic = false;
+        Assert.True(model.IsTopographic); // RadioButton unchecking must not select a different view.
+        model.IsThreeDimensional = true;
+        Assert.True(model.IsThreeDimensional);
+        Assert.False(model.IsTopographic);
+        Assert.False(model.IsTwoDimensional);
+        model.IsTwoDimensional = true;
+        Assert.True(model.IsTwoDimensional);
+        Assert.False(model.IsTopographic);
+        Assert.False(model.IsThreeDimensional);
+    }
 }

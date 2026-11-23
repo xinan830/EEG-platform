@@ -160,21 +160,12 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
                 string.Equals(output.PositiveLabel, Channel, StringComparison.OrdinalIgnoreCase))?.Name ?? Channels.FirstOrDefault();
             SetProperty(ref channel, nextChannel, nameof(Channel));
             if (!IsOpen || previous is null) return;
-            SetActive(null, "导联已切换，等待新窗口");
-            var restartGeneration = Interlocked.Read(ref generation);
             try
             {
-                await runtime.SetLiveAlgorithmEnabledAsync(previous.View.Id, false, default, CancellationToken.None);
-                if (previous.View.Id == "rbp")
-                    await runtime.SetLiveAlgorithmEnabledAsync("rbp-topomap", false, default, CancellationToken.None);
-                if (disposed || !IsSessionReady || restartGeneration != Interlocked.Read(ref generation) ||
-                    runtime.LiveMontage?.Revision != montage.Revision) return;
-                await ApplyAsync();
+                await ApplyAsync(forceRestart: true, expectedMontageRevision: montage.Revision);
             }
             catch (Exception exception)
             {
-                if (restartGeneration == Interlocked.Read(ref generation))
-                    SetActive(null, "导联切换后算法重启失败");
                 DesktopLog.Warning($"live_analysis_montage_restart_failed revision={montage.Revision} {exception.Message}");
             }
         });
@@ -206,10 +197,13 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
         await ApplyAsync();
     }
 
-    private async Task ApplyAsync()
+    private Task ApplyAsync() => ApplyAsync(forceRestart: false, expectedMontageRevision: null);
+
+    private async Task ApplyAsync(bool forceRestart, long? expectedMontageRevision)
     {
-        if (!IsInteractive || !IsOpen || runtime.State.SessionId is not { } session ||
+        if ((!forceRestart && !IsInteractive) || !IsSessionReady || !IsOpen || runtime.State.SessionId is not { } session ||
             runtime.StreamMetadata is not { } stream) return;
+        if (expectedMontageRevision is { } expected && runtime.LiveMontage?.Revision != expected) return;
         if (Channels.Count == 0) throw new InvalidOperationException("当前采集会话没有可用的脑电通道。");
 
         var id = SelectedView.Id;
@@ -226,7 +220,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
                 ? LiveSpectralPresentation.MapConfig(montage, [mapField])
                 : LiveSpectralPresentation.MapConfig(stream, [mapField]);
         var next = new Selection(session, SelectedView, selectedChannel, NeedsBand ? Band : null, mapField, config);
-        if (active?.Config.GetRawText() == config.GetRawText() && active.View.Id == id) return;
+        if (!forceRestart && active?.Config.GetRawText() == config.GetRawText() && active.View.Id == id) return;
         await ChangeAsync(next);
     }
 
@@ -243,8 +237,11 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
                     await runtime.SetLiveAlgorithmEnabledAsync("rbp-topomap", false, default, CancellationToken.None);
             }
 
-            SetActive(null, "选择图表");
-            if (next is null || runtime.State.SessionId != next.Session || !IsSessionReady) return;
+            if (next is null || runtime.State.SessionId != next.Session || !IsSessionReady)
+            {
+                SetActive(null, "选择图表");
+                return;
+            }
 
             // The bridge can publish the first cached window before enable returns.
             SetActive(next, "等待可用的 10 秒窗口");

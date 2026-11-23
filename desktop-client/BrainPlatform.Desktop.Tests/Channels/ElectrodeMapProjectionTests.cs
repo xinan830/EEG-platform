@@ -170,7 +170,7 @@ public sealed class ElectrodeMapProjectionTests
     {
         var points = ElectrodeMapProjection.ProjectWithHardwareLandmarks([]);
 
-        Assert.Equal(new ElectrodeMapPoint("REF", 0.0036, 0.4514, true), points[0]);
+        Assert.Equal(new ElectrodeMapPoint("REF", 0.0036, 0.62, true), points[0]);
         Assert.Equal(new ElectrodeMapPoint("GND", 0.0021, -0.7338, true), points[1]);
         Assert.All(points, point => Assert.True(point.IsHardwareLandmark));
     }
@@ -185,7 +185,7 @@ public sealed class ElectrodeMapProjectionTests
     }
 
     [Theory]
-    [InlineData(0.0036, 0.4514, "REF")]
+    [InlineData(0.0036, 0.62, "REF")]
     [InlineData(0.0021, -0.7338, "GND")]
     public void HitTestFindsHardwareLandmarksIndependentlyOfSelectedChannel(double x, double y, string expected)
     {
@@ -193,7 +193,7 @@ public sealed class ElectrodeMapProjectionTests
         const double height = 400;
         var centerX = width / 2;
         var centerY = height / 2 + ScalpMapRenderer.VerticalOffset;
-        var radius = Math.Min(width, height - ScalpMapRenderer.ReservedHeight) * ScalpMapRenderer.RadiusScale;
+        var radius = ElectrodePositionMap.GetHeadBounds(width, height).Width / 2;
         var pointer = new System.Windows.Point(centerX + x * radius, centerY + y * radius);
 
         var result = ElectrodePositionMap.HitTestHardwareLandmark(
@@ -209,6 +209,42 @@ public sealed class ElectrodeMapProjectionTests
         row.SetManualMapPosition(new ElectrodeMapPosition(0.25, -0.4));
 
         Assert.Empty(ElectrodeMapProjection.Project([row]));
+    }
+
+    [Theory]
+    [InlineData(400, 400)]
+    [InlineData(900, 700)]
+    [InlineData(1600, 900)]
+    public void FormerDefaultReferenceClearsPzAndCanBeHitWithoutChangingSavedCoordinates(double width, double height)
+    {
+        var saved = new ElectrodeMapPosition(0.0036, 0.4514);
+        var pz = Row("Pz", 0, 0, mapX: 0.0036, mapY: 0.35);
+        var points = ElectrodeMapProjection.ProjectWithHardwareLandmarks([pz], saved);
+        var bounds = ElectrodePositionMap.GetHeadBounds(width, height);
+        var reference = ScalpMapRenderer.ToCanvas(points[1].X, points[1].Y, bounds);
+        var standard = ScalpMapRenderer.ToCanvas(points[0].X, points[0].Y, bounds);
+
+        Assert.True((reference - standard).Length > ElectrodeMarker.Diameter(bounds) + 4);
+        Assert.Equal("REF", ElectrodePositionMap.HitTestHardwareLandmark(reference, width, height,
+            saved, ElectrodeMapDefaults.Ground, 12));
+        Assert.Equal(new ElectrodeMapPoint("Pz", 0.0036, 0.35), points[0]);
+        Assert.Equal(0.4514, saved.Y);
+    }
+
+    [Theory]
+    [InlineData(400, 400, -0.4, 0.2)]
+    [InlineData(1400, 800, 0.2, -0.6)]
+    public void EnlargedMapUsesSameGeometryForDrawingAndDragging(double width, double height, double x, double y)
+    {
+        var bounds = ElectrodePositionMap.GetHeadBounds(width, height);
+        var oldBounds = ScalpMapRenderer.GetHeadBounds(width, height,
+            ScalpMapRenderer.VerticalOffset, ScalpMapRenderer.ReservedHeight);
+        Assert.True(bounds.Width > oldBounds.Width);
+        var position = ElectrodePositionMap.ToMapPosition(ScalpMapRenderer.ToCanvas(x, y, bounds), width, height)!;
+        Assert.Equal(x, position.X, 12);
+        Assert.Equal(y, position.Y, 12);
+        Assert.Null(ElectrodePositionMap.ToMapPosition(new Point(0, 0), width, height));
+        Assert.Null(ElectrodePositionMap.ToMapPosition(new Point(), 0, 0));
     }
 
     private static ChannelConfigurationDraftRow Row(

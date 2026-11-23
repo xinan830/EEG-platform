@@ -243,6 +243,8 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: 来源 (Source) -->
@@ -323,10 +325,101 @@
                         <shared:ColorPicker Grid.Row="4" Grid.Column="2" Margin="0,0,0,20"
                                             SelectedColor="{Binding DraftColor, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                        <!-- Row 5: 快捷键 (DraftShortcut) -->
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="快捷键" Foreground="#334155" FontSize="15"
+                        <!-- Row 5: 事件类型 (单个事件 / 持续事件) -->
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="事件类型" Foreground="#334155" FontSize="15"
+                                   FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,10,0,0" />
+                        <StackPanel Grid.Row="5" Grid.Column="2" Margin="0,0,0,20">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <RadioButton Content="单个事件（如眨眼、呼吸）" GroupName="EventKindGroup"
+                                             IsChecked="{Binding IsDraftPointKind, Mode=TwoWay}"
+                                             FontSize="14" Foreground="#0F172A" VerticalContentAlignment="Center" Margin="0,0,24,0" />
+                                <RadioButton Content="持续事件（如睁眼-闭眼、吸气-呼气）" GroupName="EventKindGroup"
+                                             IsChecked="{Binding IsDraftIntervalKind, Mode=TwoWay}"
+                                             FontSize="14" Foreground="#0F172A" VerticalContentAlignment="Center" />
+                            </StackPanel>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDraftIntervalKind}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="开始名称（例如：睁眼）" Foreground="#64748B" FontSize="12.5" Margin="0,0,0,6" />
+                                    <TextBox Style="{StaticResource FormTextBoxStyle}"
+                                             Text="{Binding DraftStartLabel, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="结束名称（例如：闭眼）" Foreground="#64748B" FontSize="12.5" Margin="0,0,0,6" />
+                                    <TextBox Style="{StaticResource FormTextBoxStyle}"
+                                             Text="{Binding DraftEndLabel, UpdateSourceTrigger=PropertyChanged}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Row 6: 事件图标 (PNG / SVG) -->
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="事件图标" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,20" />
-                        <Grid Grid.Row="5" Grid.Column="2" Margin="0,0,0,20">
+                        <StackPanel Grid.Row="6" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,20">
+                            <Border Width="52" Height="52" CornerRadius="12" Background="#F8FAFC" BorderBrush="#CBD5E1" BorderThickness="1">
+                                <Grid>
+                                    <Border Width="30" Height="30" CornerRadius="8" Background="{Binding DraftColor}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasDraftIcon}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                    </Border>
+                                    <Image Source="{Binding DraftIconImage}" Width="36" Height="36" Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality">
+                                        <Image.Style>
+                                            <Style TargetType="Image">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasDraftIcon}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Image.Style>
+                                    </Image>
+                                </Grid>
+                            </Border>
+                            <Button Content="上传图标 (PNG / SVG)" Click="OnUploadIconClick" Margin="14,0,0,0"
+                                    Height="36" Padding="14,0" Style="{StaticResource AppCompactActionButtonStyle}" />
+                            <Button Content="恢复默认颜色" Click="OnClearIconClick" Margin="8,0,0,0"
+                                    Height="36" Padding="12,0">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource AppCompactActionButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasDraftIcon}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Row 7: 快捷键 (DraftShortcut) -->
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="快捷键" Foreground="#334155" FontSize="15"
+                                   FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,20" />
+                        <Grid Grid.Row="7" Grid.Column="2" Margin="0,0,0,20">
                             <TextBox Style="{StaticResource SystemProtectedEditorStyle}"
                                      Text="{Binding DraftShortcut, UpdateSourceTrigger=PropertyChanged}"
                                      IsReadOnly="True" PreviewKeyDown="OnShortcutPreviewKeyDown"
@@ -368,10 +461,10 @@
                             </Button>
                         </Grid>
 
-                        <!-- Row 6: 快捷键作用范围 (DraftShortcutScope) -->
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="快捷键作用范围" Foreground="#334155" FontSize="15"
+                        <!-- Row 8: 快捷键作用范围 (DraftShortcutScope) -->
+                        <TextBlock Grid.Row="8" Grid.Column="0" Text="快捷键作用范围" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,20" />
-                        <ComboBox Grid.Row="6" Grid.Column="2" Style="{StaticResource SystemProtectedComboBoxStyle}"
+                        <ComboBox Grid.Row="8" Grid.Column="2" Style="{StaticResource SystemProtectedComboBoxStyle}"
                                   ItemsSource="{Binding ShortcutScopes}"
                                   SelectedItem="{Binding DraftShortcutScope, Mode=TwoWay}"
                                   Margin="0,0,0,20">
@@ -396,10 +489,10 @@
                             </ComboBox.ItemTemplate>
                         </ComboBox>
 
-                        <!-- Row 7: 启用状态 (DraftIsEnabled) -->
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="启用状态" Foreground="#334155" FontSize="15"
+                        <!-- Row 9: 启用状态 (DraftIsEnabled) -->
+                        <TextBlock Grid.Row="9" Grid.Column="0" Text="启用状态" Foreground="#334155" FontSize="15"
                                    FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,8" />
-                        <StackPanel Grid.Row="7" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                        <StackPanel Grid.Row="9" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
                             <ToggleButton IsChecked="{Binding DraftIsEnabled, Mode=TwoWay}"
                                           Width="38" Height="22" Cursor="Hand" BorderThickness="0" ToolTip="切换启用状态">
                                 <ToggleButton.Style>

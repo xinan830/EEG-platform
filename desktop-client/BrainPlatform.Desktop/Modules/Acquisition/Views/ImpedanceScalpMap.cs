@@ -46,51 +46,31 @@ public sealed class ImpedanceScalpMap : Grid
         if (Rows is null) return;
         var bounds = ScalpMapRenderer.GetHeadBounds(ActualWidth, ActualHeight, 5, 24);
         if (bounds.IsEmpty) return;
-        var dense = Rows.Count(row => row.Position is not null) > 24;
-        var markerWidth = dense ? 26d : 44d;
-        var markerHeight = dense ? 24d : 36d;
+        var diameter = ElectrodeMarker.Diameter(bounds);
         foreach (var row in Rows.Where(row => row.Position is not null))
         {
-            var text = new TextBlock { TextAlignment = TextAlignment.Center, FontSize = dense ? 9 : 11, FontWeight = FontWeights.SemiBold };
-            text.SetBinding(TextBlock.TextProperty, new Binding(dense ? nameof(row.Label) : nameof(row.MapText)) { Source = row });
-            var button = new Button
+            var button = new ElectrodeMarker
             {
-                Content = text, Width = markerWidth, Height = markerHeight, Padding = new Thickness(0),
-                Foreground = Brushes.White, Cursor = System.Windows.Input.Cursors.Hand,
-                Template = CreateMarkerTemplate(), Tag = row,
+                Label = row.Label, Width = diameter + 16, Height = diameter + 20, Tag = row,
             };
+            button.SetBinding(ElectrodeMarker.ReadingProperty, new Binding(nameof(row.ValueText)) { Source = row });
             button.SetBinding(BackgroundProperty, new Binding(nameof(row.Color)) { Source = row });
             button.SetBinding(ToolTipProperty, new Binding(nameof(row.AccessibleText)) { Source = row });
             button.SetBinding(System.Windows.Automation.AutomationProperties.NameProperty, new Binding(nameof(row.AccessibleText)) { Source = row });
             button.Click += (_, _) => SelectedRow = row;
             var point = ScalpMapRenderer.ToCanvas(row.Position!.X, row.Position.Y, bounds);
-            Canvas.SetLeft(button, point.X - markerWidth / 2);
-            Canvas.SetTop(button, point.Y - markerHeight / 2);
+            Canvas.SetLeft(button, point.X - button.Width / 2);
+            Canvas.SetTop(button, point.Y - diameter / 2 - 20);
             markers.Children.Add(button);
         }
         UpdateSelection();
     }
     private void UpdateSelection()
     {
-        foreach (var button in markers.Children.OfType<Button>())
+        foreach (var button in markers.Children.OfType<ElectrodeMarker>())
         {
-            var isSelected = ReferenceEquals(button.Tag, SelectedRow);
-            button.BorderBrush = isSelected ? Brushes.DarkBlue : Brushes.White;
-            button.BorderThickness = new Thickness(isSelected ? 3 : 1);
+            button.IsSelected = ReferenceEquals(button.Tag, SelectedRow);
         }
-    }
-    private static ControlTemplate CreateMarkerTemplate()
-    {
-        var border = new FrameworkElementFactory(typeof(Border));
-        border.SetValue(Border.CornerRadiusProperty, new CornerRadius(12));
-        border.SetBinding(Border.BorderThicknessProperty, new Binding(nameof(Button.BorderThickness)) { RelativeSource = RelativeSource.TemplatedParent });
-        border.SetBinding(Border.BorderBrushProperty, new Binding(nameof(Button.BorderBrush)) { RelativeSource = RelativeSource.TemplatedParent });
-        border.SetBinding(Border.BackgroundProperty, new Binding(nameof(Button.Background)) { RelativeSource = RelativeSource.TemplatedParent });
-        var content = new FrameworkElementFactory(typeof(ContentPresenter));
-        content.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Center);
-        content.SetValue(VerticalAlignmentProperty, VerticalAlignment.Center);
-        border.AppendChild(content);
-        return new ControlTemplate(typeof(Button)) { VisualTree = border };
     }
     private sealed class HeadOutline : FrameworkElement
     {

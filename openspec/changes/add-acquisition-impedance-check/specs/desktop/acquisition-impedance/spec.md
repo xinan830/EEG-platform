@@ -60,12 +60,41 @@ The impedance view SHALL map SDK native channel role/index to the selected acqui
 - **AND** unpositioned measurements remain available by native identity in the list, while missing measurements show an explicit unavailable state
 
 ### Requirement: Impedance presentation uses explicit operator thresholds
-The tool window SHALL offer an electrode map, selectable electrode details, a resistance-sorted list and a visible kΩ legend. For valid operator thresholds 0 < T1 < T2, values ≤ T1 SHALL be green, values > T1 and ≤ T2 yellow, and values > T2 red. Values and state text SHALL accompany colors. Thresholds SHALL NOT be labelled as manufacturer or medical acceptance standards without evidence.
+The tool window SHALL offer a selectable electrode map, resistance-sorted list and continuous kΩ color scale with three editable ordered nonnegative anchors and colors. Valid readings SHALL interpolate between anchors and saturate outside the range without altering numeric readings. Invalid configuration SHALL be neutral; unavailable readings SHALL remain gray. These settings SHALL NOT imply medical acceptance standards.
+
+#### Scenario: Share named circle presentation
+- **WHEN** channel positions or impedance electrodes are displayed
+- **THEN** both use the shared circle with a centered electrode name, with impedance readings above the circle
+- **AND** configured positions and manual position editing remain unchanged
+- **AND** existing algorithm topomap black dots, coordinates and rendering remain unchanged
+
+#### Scenario: Refine electrode position window layout
+- **WHEN** the electrode position window opens
+- **THEN** it is maximized, preserves its explanatory text and enlarges its editable head map with matching hit and drag geometry
+- **AND** the default REF diagram marker is separated from Pz in both channel and impedance views, including profiles with the former default coordinate
+- **AND** saved profiles are not rewritten, other custom positions and standard EEG coordinates remain unchanged
+
+#### Scenario: Select a third electrode position view
+- **WHEN** the operator switches among 2D, 3D and topographic view
+- **THEN** exactly one view is visible; topographic view uses the same configured positions and shared black dot rendering without generated measurements
+- **AND** only 2D edits positions, while switching preserves the chosen configuration and existing instruction text
+
+#### Scenario: Pan the three dimensional head
+- **WHEN** the operator holds Shift and drags in the 3D view
+- **THEN** the visible head moves in the pointer's horizontal and vertical screen direction for any valid camera orientation
+- **AND** panning does not alter electrode coordinates, rotation or scientific results
 
 #### Scenario: Thresholds are unset or invalid
-- **WHEN** no valid threshold pair is configured
+- **WHEN** anchor values or colors are unset or invalid
 - **THEN** measurement remains available with numeric values and a neutral unclassified appearance
-- **AND** the UI requests valid kΩ thresholds without silently choosing clinical limits
+- **AND** the UI requests valid ordered kΩ anchors and colors without silently choosing clinical limits
+
+#### Scenario: Edit continuous scale anchors
+- **WHEN** the operator edits a numeric anchor or its color
+- **THEN** the legend, electrode fills and list indicators use the same updated mapping
+- **AND** the legend displays all three numeric anchors and kΩ units
+- **AND** missing or stale readings remain unavailable gray regardless of the configured gradient
+- **AND** the initial editable colors are green, yellow and red without preset clinical limits
 
 #### Scenario: Select and inspect one electrode
 - **WHEN** the operator selects an electrode on the map or in the list

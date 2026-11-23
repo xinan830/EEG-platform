@@ -40,17 +40,16 @@ public static class ScalpMapRenderer
         new(headBounds.X + headBounds.Width / 2 + x * headBounds.Width / 2,
             headBounds.Y + headBounds.Height / 2 + y * headBounds.Height / 2);
 
-    public static void DrawElectrode(DrawingContext context, string label, Point position, bool isHardwareLandmark, bool isManual, double pixelsPerDip)
+    public static void DrawElectrode(DrawingContext context, string label, Point position, bool isHardwareLandmark, bool isManual, double pixelsPerDip, double diameter = 28, bool selected = false)
     {
         var color = isHardwareLandmark
             ? label.Equals("REF", StringComparison.OrdinalIgnoreCase) ? "#7C3AED" : "#059669"
             : isManual ? "#D97706" : "#2563EB";
-        var markerSize = isHardwareLandmark ? 5 : 3.5;
-        context.DrawEllipse(Brush(color), null, position, markerSize, markerSize);
-        context.DrawText(new FormattedText(label, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"), 10, Brush("#0F172A"), pixelsPerDip),
-            new Point(position.X + 4, position.Y - 7));
+        ElectrodeMarker.Draw(context, label, position, diameter, Brushes.White, Brush(color), pixelsPerDip, selected: selected);
     }
+
+    public static void DrawElectrodeDot(DrawingContext context, Point position) =>
+        context.DrawEllipse(Brushes.Black, null, position, 1.8, 1.8);
 
     private static void DrawOrientation(DrawingContext context, Point center, double radius, Pen outline,
         double pixelsPerDip, bool showFrontLabel)

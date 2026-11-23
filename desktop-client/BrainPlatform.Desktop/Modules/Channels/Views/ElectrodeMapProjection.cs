@@ -25,7 +25,7 @@ public static class ElectrodeMapProjection
         ElectrodeMapPosition? groundPosition = null)
     {
         var points = Project(rows).ToList();
-        var reference = referencePosition ?? ElectrodeMapDefaults.Reference;
+        var reference = ElectrodeMapDefaults.ReferenceForDisplay(referencePosition ?? ElectrodeMapDefaults.Reference);
         var ground = groundPosition ?? ElectrodeMapDefaults.Ground;
         if (IsValidMapPosition(reference))
         {

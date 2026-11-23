@@ -56,7 +56,7 @@ public partial class AcquisitionWorkspaceView : UserControl
         e.Handled = true;
         try
         {
-            await workspace.Acquisition.MarkEventAsync(definition.Id, EventSource.KeyboardShortcut, shortcut);
+            await workspace.Acquisition.TriggerEventFromGridAsync(definition, null, EventSource.KeyboardShortcut, shortcut);
         }
         catch (Exception exception)
         {

@@ -139,8 +139,12 @@ public sealed record ElectrodeMapPosition(double X, double Y);
 /// <summary>Default normalized diagram sites, not measured 3D coordinates.</summary>
 public static class ElectrodeMapDefaults
 {
-    public static ElectrodeMapPosition Reference { get; } = new(0.0036, 0.4514);
+    public static ElectrodeMapPosition Reference { get; } = new(0.0036, 0.62);
     public static ElectrodeMapPosition Ground { get; } = new(0.0021, -0.7338);
+
+    // The former built-in diagram site overlaps Pz when names are inside circles.
+    public static ElectrodeMapPosition ReferenceForDisplay(ElectrodeMapPosition position) =>
+        position == new ElectrodeMapPosition(0.0036, 0.4514) ? Reference : position;
 }
 
 public sealed record ElectrodeLocationSnapshot(

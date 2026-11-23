@@ -80,11 +80,46 @@ public sealed class Topomap3DRenderingTests
             new Vector3D(0, 0, 2), new Vector3D(0, 1, 0));
         var unitsPerPixel = 4 * Math.Tan(42 * Math.PI / 360) / 100;
 
-        Assert.Equal(-10 * unitsPerPixel, offset.X, 10);
+        Assert.Equal(10 * unitsPerPixel, offset.X, 10);
         Assert.Equal(20 * unitsPerPixel, offset.Y, 10);
         Assert.Equal(0, offset.Z, 10);
         Assert.Equal(default, Topomap3DView.CalculatePanOffset(10, 20, 0, 42,
             new Vector3D(0, 0, 2), new Vector3D(0, 1, 0)));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 2, 10, 0)]
+    [InlineData(0, 0, -2, -10, 0)]
+    [InlineData(1, -0.5, 2, 0, 20)]
+    [InlineData(-1, 0.5, -2, 0, -20)]
+    [InlineData(1, -0.5, -2, 10, -20)]
+    public void PanningMovesProjectedHeadInThePointerDirection(double lookX, double lookY, double lookZ, double dx, double dy)
+    {
+        const double viewportHeight = 600;
+        const double fieldOfView = 42;
+        var look = new Vector3D(lookX, lookY, lookZ);
+        var up = new Vector3D(0, 1, 0);
+        var head = new Point3D();
+        var camera = head - look;
+        var before = Project(head, camera, look, up, viewportHeight, fieldOfView);
+        var offset = Topomap3DView.CalculatePanOffset(dx, dy, viewportHeight, fieldOfView, look, up);
+        var after = Project(head, camera + offset, look, up, viewportHeight, fieldOfView);
+
+        Assert.Equal(dx, after.X - before.X, 9);
+        Assert.Equal(dy, after.Y - before.Y, 9);
+        Assert.Equal(0, Vector3D.DotProduct(offset, look), 10);
+    }
+
+    private static System.Windows.Point Project(Point3D point, Point3D camera, Vector3D look, Vector3D up,
+        double height, double fieldOfView)
+    {
+        look.Normalize();
+        var right = Vector3D.CrossProduct(look, up);
+        right.Normalize();
+        var vertical = Vector3D.CrossProduct(right, look);
+        var relative = point - camera;
+        var scale = height / (2 * Vector3D.DotProduct(relative, look) * Math.Tan(fieldOfView * Math.PI / 360));
+        return new(Vector3D.DotProduct(relative, right) * scale, -Vector3D.DotProduct(relative, vertical) * scale);
     }
 
     private static ElectrodeScalpModel3D CreateModel()

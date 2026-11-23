@@ -8,8 +8,7 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
     private double? resistanceOhms;
     private ImpedanceReadingStatus status = ImpedanceReadingStatus.Missing;
     private bool stale;
-    private double? lower;
-    private double? upper;
+    private ImpedanceColorScale? scale;
     public ImpedanceElectrodeRow(ImpedanceChannelIdentity identity, string label, ElectrodeMapPosition? position)
     {
         Identity = identity;
@@ -26,14 +25,13 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
     {
         ImpedanceReadingStatus.Missing => "等待测量",
         ImpedanceReadingStatus.Invalid => "SDK 返回无效数值",
-        _ when lower is null => "未设置操作阈值",
-        _ when resistanceOhms / 1000d <= lower => "低于第一阈值",
-        _ when resistanceOhms / 1000d <= upper => "介于两阈值之间",
-        _ => "高于第二阈值",
+        _ when scale is null => "未设置有效色标",
+        _ when resistanceOhms / 1000d < scale.Minimum => "低于色标下限",
+        _ when resistanceOhms / 1000d > scale.Maximum => "高于色标上限",
+        _ => "色标范围内",
     };
     public string Color => stale || status != ImpedanceReadingStatus.Valid ? "#94A3B8" :
-        ThresholdColor(resistanceOhms!.Value / 1000d, lower, upper);
-    public string MapText => $"{Label}\n{ValueText}";
+        scale?.ColorAt(resistanceOhms!.Value / 1000d) ?? "#64748B";
     public string AccessibleText => $"{Label}，{ValueText} kΩ，{StatusText}，{NativeIdentityText}";
 
     public void Update(ImpedanceReading reading)
@@ -43,21 +41,17 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
         stale = false;
         Notify();
     }
-    public void SetPresentation(double? first, double? second, bool isStale)
+    public void SetPresentation(ImpedanceColorScale? colorScale, bool isStale)
     {
-        lower = first;
-        upper = second;
+        scale = colorScale;
         stale = isStale;
         Notify();
     }
     private void Notify()
     {
         foreach (var property in new[] { nameof(ValueText), nameof(StatusText), nameof(Color),
-            nameof(MapText), nameof(AccessibleText), nameof(SortResistance) }) RaisePropertyChanged(property);
+            nameof(AccessibleText), nameof(SortResistance) }) RaisePropertyChanged(property);
     }
-    public static string ThresholdColor(double kilohms, double? first, double? second) =>
-        first is not > 0 || second is null || !double.IsFinite(first.Value) || !double.IsFinite(second.Value) || first >= second
-            ? "#64748B" : kilohms <= first ? "#16A34A" : kilohms <= second ? "#D97706" : "#DC2626";
 
     public static ImpedanceElectrodeRow Create(ImpedanceReading reading, ChannelConfigurationProfile physical)
     {
@@ -71,7 +65,8 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
         };
         var position = reading.Kind switch
         {
-            AcquisitionChannelKind.ImpedanceReference => physical.ReferenceMapPosition,
+            AcquisitionChannelKind.ImpedanceReference => physical.ReferenceMapPosition is { } reference
+                ? ElectrodeMapDefaults.ReferenceForDisplay(reference) : null,
             AcquisitionChannelKind.ImpedanceGround => physical.GroundMapPosition,
             _ => entry?.ManualMapPosition ?? ElectrodeMapProjection.ResolvePosition(label, entry?.ElectrodeLocation),
         };

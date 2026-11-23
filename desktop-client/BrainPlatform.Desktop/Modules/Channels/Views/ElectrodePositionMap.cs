@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Input;
@@ -13,12 +14,16 @@ namespace BrainPlatform.Desktop.Modules.Channels.Views;
 public sealed class ElectrodePositionMap : FrameworkElement
 {
     private const double LandmarkHitRadius = 12;
+    internal const double HeadRadiusScale = 0.46;
+    public static readonly DependencyProperty IsTopographicProperty = DependencyProperty.Register(
+        nameof(IsTopographic), typeof(bool), typeof(ElectrodePositionMap),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty RowsProperty = DependencyProperty.Register(
         nameof(Rows), typeof(IEnumerable<ChannelConfigurationDraftRow>), typeof(ElectrodePositionMap),
         new FrameworkPropertyMetadata(null, OnRowsChanged));
     public static readonly DependencyProperty SelectedRowProperty = DependencyProperty.Register(
         nameof(SelectedRow), typeof(ChannelConfigurationDraftRow), typeof(ElectrodePositionMap),
-        new FrameworkPropertyMetadata(null));
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty ReferencePositionProperty = DependencyProperty.Register(
         nameof(ReferencePosition), typeof(ElectrodeMapPosition), typeof(ElectrodePositionMap),
         new FrameworkPropertyMetadata(ElectrodeMapDefaults.Reference, OnMapPositionChanged));
@@ -29,6 +34,12 @@ public sealed class ElectrodePositionMap : FrameworkElement
     private INotifyCollectionChanged? observedCollection;
     private ChannelConfigurationDraftRow[] observedRows = [];
     private string? draggedLandmark;
+
+    public bool IsTopographic
+    {
+        get => (bool)GetValue(IsTopographicProperty);
+        set => SetValue(IsTopographicProperty, value);
+    }
 
     public IEnumerable<ChannelConfigurationDraftRow>? Rows
     {
@@ -59,14 +70,24 @@ public sealed class ElectrodePositionMap : FrameworkElement
         base.OnRender(drawingContext);
         var headBounds = ScalpMapRenderer.DrawHead(drawingContext, ActualWidth, ActualHeight,
             ScalpMapRenderer.VerticalOffset, ScalpMapRenderer.ReservedHeight,
-            VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            VisualTreeHelper.GetDpi(this).PixelsPerDip, radiusScale: HeadRadiusScale);
         if (headBounds.IsEmpty) return;
 
         foreach (var point in ElectrodeMapProjection.ProjectWithHardwareLandmarks(Rows ?? [], ReferencePosition, GroundPosition))
         {
             var position = ScalpMapRenderer.ToCanvas(point.X, point.Y, headBounds);
+            if (IsTopographic)
+            {
+                ScalpMapRenderer.DrawElectrodeDot(drawingContext, position);
+                var label = new FormattedText(point.Label, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+                    new Typeface("Segoe UI"), 12, Brushes.Black, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+                drawingContext.DrawText(label, new Point(position.X - label.Width / 2, position.Y + 5));
+                continue;
+            }
             var isManual = (Rows ?? []).FirstOrDefault(row => row.ElectrodeLabel == point.Label)?.ManualMapPosition is not null;
-            ScalpMapRenderer.DrawElectrode(drawingContext, point.Label, position, point.IsHardwareLandmark, isManual, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            ScalpMapRenderer.DrawElectrode(drawingContext, point.Label, position, point.IsHardwareLandmark, isManual,
+                VisualTreeHelper.GetDpi(this).PixelsPerDip, ElectrodeMarker.Diameter(headBounds),
+                !point.IsHardwareLandmark && SelectedRow?.ElectrodeLabel == point.Label);
         }
     }
 
@@ -75,7 +96,8 @@ public sealed class ElectrodePositionMap : FrameworkElement
         base.OnMouseLeftButtonDown(e);
         var pointer = e.GetPosition(this);
         draggedLandmark = HitTestHardwareLandmark(
-            pointer, ActualWidth, ActualHeight, ReferencePosition, GroundPosition, LandmarkHitRadius);
+            pointer, ActualWidth, ActualHeight, ReferencePosition, GroundPosition,
+            Math.Max(LandmarkHitRadius, ElectrodeMarker.Diameter(GetHeadBounds(ActualWidth, ActualHeight)) / 2));
         if (draggedLandmark is not null)
         {
             CaptureMouse();
@@ -123,34 +145,18 @@ public sealed class ElectrodePositionMap : FrameworkElement
 
     private void PlaceSelectedRow(Point pointer)
     {
-        var center = new Point(ActualWidth / 2, ActualHeight / 2 + ScalpMapRenderer.VerticalOffset);
-        var radius = Math.Min(ActualWidth, ActualHeight - ScalpMapRenderer.ReservedHeight) * ScalpMapRenderer.RadiusScale;
-        if (radius <= 0 || SelectedRow is not { } row || !CanPlaceRow(row))
+        if (SelectedRow is not { } row || !CanPlaceRow(row) ||
+            ToMapPosition(pointer, ActualWidth, ActualHeight) is not { } position)
         {
             return;
         }
-        var x = Math.Clamp((pointer.X - center.X) / radius, -1, 1);
-        var y = Math.Clamp((pointer.Y - center.Y) / radius, -1, 1);
-        if (x * x + y * y <= 1)
-        {
-            row.SetManualMapPosition(new ElectrodeMapPosition(x, y));
-            InvalidateVisual();
-        }
+        row.SetManualMapPosition(position);
+        InvalidateVisual();
     }
 
     private void MoveHardwareLandmark(Point pointer)
     {
-        var center = new Point(ActualWidth / 2, ActualHeight / 2 + ScalpMapRenderer.VerticalOffset);
-        var radius = Math.Min(ActualWidth, ActualHeight - ScalpMapRenderer.ReservedHeight) * ScalpMapRenderer.RadiusScale;
-        if (radius <= 0)
-        {
-            return;
-        }
-
-        var position = new ElectrodeMapPosition(
-            Math.Clamp((pointer.X - center.X) / radius, -1, 1),
-            Math.Clamp((pointer.Y - center.Y) / radius, -1, 1));
-        if (position.X * position.X + position.Y * position.Y > 1)
+        if (ToMapPosition(pointer, ActualWidth, ActualHeight) is not { } position)
         {
             return;
         }
@@ -174,15 +180,15 @@ public sealed class ElectrodePositionMap : FrameworkElement
         ElectrodeMapPosition groundPosition,
         double hitRadius)
     {
-        var center = new Point(width / 2, height / 2 + ScalpMapRenderer.VerticalOffset);
-        var radius = Math.Min(width, height - ScalpMapRenderer.ReservedHeight) * ScalpMapRenderer.RadiusScale;
-        if (radius <= 0 || hitRadius < 0)
+        var bounds = GetHeadBounds(width, height);
+        if (bounds.IsEmpty || hitRadius < 0)
         {
             return null;
         }
 
-        var reference = ToCanvasPosition(referencePosition, center, radius);
-        var ground = ToCanvasPosition(groundPosition, center, radius);
+        referencePosition = ElectrodeMapDefaults.ReferenceForDisplay(referencePosition);
+        var reference = ScalpMapRenderer.ToCanvas(referencePosition.X, referencePosition.Y, bounds);
+        var ground = ScalpMapRenderer.ToCanvas(groundPosition.X, groundPosition.Y, bounds);
         var referenceDistance = (pointer - reference).Length;
         var groundDistance = (pointer - ground).Length;
         if (referenceDistance > hitRadius && groundDistance > hitRadius)
@@ -192,8 +198,18 @@ public sealed class ElectrodePositionMap : FrameworkElement
         return referenceDistance <= groundDistance ? "REF" : "GND";
     }
 
-    private static Point ToCanvasPosition(ElectrodeMapPosition position, Point center, double radius) =>
-        new(center.X + position.X * radius, center.Y + position.Y * radius);
+    internal static Rect GetHeadBounds(double width, double height) => ScalpMapRenderer.GetHeadBounds(
+        width, height, ScalpMapRenderer.VerticalOffset, ScalpMapRenderer.ReservedHeight, HeadRadiusScale);
+
+    internal static ElectrodeMapPosition? ToMapPosition(Point pointer, double width, double height)
+    {
+        var bounds = GetHeadBounds(width, height);
+        if (bounds.IsEmpty) return null;
+        var radius = bounds.Width / 2;
+        var x = Math.Clamp((pointer.X - bounds.X - radius) / radius, -1, 1);
+        var y = Math.Clamp((pointer.Y - bounds.Y - radius) / radius, -1, 1);
+        return x * x + y * y <= 1 ? new ElectrodeMapPosition(x, y) : null;
+    }
 
     internal static bool CanPlaceRow(ChannelConfigurationDraftRow? row) => row is { IsEegInput: true };
 

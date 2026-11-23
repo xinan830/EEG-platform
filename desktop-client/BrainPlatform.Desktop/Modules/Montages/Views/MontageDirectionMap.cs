@@ -37,7 +37,7 @@ public sealed class MontageDirectionMap : FrameworkElement
         {
             var from = ScalpMapRenderer.ToCanvas(arrow.FromX, arrow.FromY, headBounds);
             var to = ScalpMapRenderer.ToCanvas(arrow.ToX, arrow.ToY, headBounds);
-            DrawArrow(drawingContext, from, to, Brush("#2563EB"));
+            DrawArrow(drawingContext, from, to, Brush("#2563EB"), ElectrodeMarker.Diameter(headBounds) / 2 + 3);
         }
         foreach (var electrode in Points ?? [])
         {
@@ -45,16 +45,16 @@ public sealed class MontageDirectionMap : FrameworkElement
             var point = ScalpMapRenderer.ToCanvas(electrode.X, electrode.Y, headBounds);
             ScalpMapRenderer.DrawElectrode(drawingContext, label, point,
                 label.Equals("REF", StringComparison.OrdinalIgnoreCase) || label.Equals("GND", StringComparison.OrdinalIgnoreCase),
-                false, VisualTreeHelper.GetDpi(this).PixelsPerDip);
+                false, VisualTreeHelper.GetDpi(this).PixelsPerDip, ElectrodeMarker.Diameter(headBounds));
         }
     }
 
-    private static void DrawArrow(DrawingContext context, Point from, Point to, Brush brush)
+    private static void DrawArrow(DrawingContext context, Point from, Point to, Brush brush, double markerRadius)
     {
         var vector = to - from;
-        if (vector.Length < 2) return;
+        if (vector.Length <= markerRadius + 7) return;
         vector.Normalize();
-        var end = to - vector * 8;
+        var end = to - vector * markerRadius;
         context.DrawLine(new Pen(brush, 1.5), from, end);
         var perpendicular = new Vector(-vector.Y, vector.X);
         var head = new StreamGeometry();

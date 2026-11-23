@@ -94,25 +94,8 @@
 
                             <Border Width="1" Height="28" Background="#E2E8F0" Margin="6,0,6,0" VerticalAlignment="Center" />
 
-                            <!-- 事件类型选择下拉框与事件标记工具按钮 -->
-                            <ComboBox Style="{StaticResource AppFilterComboBoxStyle}"
-                                      ItemsSource="{Binding Acquisition.EnabledEventDefinitions}"
-                                      SelectedValuePath="Id"
-                                      SelectedValue="{Binding Acquisition.SelectedEventDefinitionId, Mode=TwoWay}"
-                                      Width="120" Height="32" Margin="2,0,4,0"
-                                      VerticalAlignment="Center"
-                                      ToolTip="选择要标记的事件类型">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-
-                            <controls:EegToolButton Content="事件标记" Glyph="&#xE70F;"
-                                                    Command="{Binding Acquisition.MarkSelectedEventCommand}"
-                                                    IsEnabled="{Binding Acquisition.CanPause}"
-                                                    ToolTip="在当前采样坐标添加标记" />
+                            <!-- 统一宫格事件标注弹窗按钮 -->
+                            <views:AcquisitionAnnotationTool />
 
                             <Border Width="1" Height="28" Background="#E2E8F0" Margin="6,0,6,0" VerticalAlignment="Center" />
 
@@ -139,60 +122,6 @@
                         </StackPanel>
 
                         <!-- 右侧：会话运行状态与计时器胶囊 -->
-                        <Border DockPanel.Dock="Right" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1"
-                                CornerRadius="6" Height="34" Padding="12,0" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <!-- 状态指示灯与状态文字 -->
-                                <Ellipse Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,6,0">
-                                    <Ellipse.Style>
-                                        <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="#94A3B8" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsRecording}" Value="True">
-                                                    <Setter Property="Fill" Value="#EF4444" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPaused}" Value="True">
-                                                    <Setter Property="Fill" Value="#F59E0B" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPreviewing}" Value="True">
-                                                    <Setter Property="Fill" Value="{StaticResource BlueBrandPrimaryBrush}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Ellipse.Style>
-                                </Ellipse>
-                                <TextBlock FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Text" Value="就绪" />
-                                            <Setter Property="Foreground" Value="#64748B" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsRecording}" Value="True">
-                                                    <Setter Property="Text" Value="录制中" />
-                                                    <Setter Property="Foreground" Value="#DC2626" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPaused}" Value="True">
-                                                    <Setter Property="Text" Value="已暂停" />
-                                                    <Setter Property="Foreground" Value="#D97706" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPreviewing}" Value="True">
-                                                    <Setter Property="Text" Value="预览中" />
-                                                    <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <!-- 分割竖线 -->
-                                <Border Width="1" Height="14" Background="#CBD5E1" Margin="10,0" VerticalAlignment="Center" />
-
-                                <!-- 计时器 -->
-                                <TextBlock Text="{Binding Acquisition.LiveMonitor.RecordingElapsedText}"
-                                           FontFamily="Consolas, monospace" FontWeight="SemiBold"
-                                           FontSize="13.5" Foreground="#0F172A" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Border>
                     </DockPanel>
                 </Border>
 
@@ -334,6 +263,9 @@
                                     IsEnabled="{Binding Acquisition.LiveMonitor.HasOpenStream}"
                                     VerticalAlignment="Bottom" ToolTip="打开完整导联设置；保存后切换整套临时波形配置，不参与算法" />
                         </StackPanel>
+
+                        <!-- 右侧：与滤波参数同一行的预览/录制状态栏 -->
+                        <views:AcquisitionStatusBanner DockPanel.Dock="Right" VerticalAlignment="Bottom" />
                     </DockPanel>
                 </Border>
             </Grid>
@@ -342,7 +274,36 @@
         <views:EegWorkspaceShell.Waveform>
             <panels:AnalysisDockHost IsPanelOpen="{Binding Acquisition.LiveAnalysis.IsOpen}" PanelTitle="实时分析">
                 <panels:AnalysisDockHost.Waveform>
-                    <waveform:LiveSciChartCanvas DataContext="{Binding Acquisition.LiveMonitor}" />
+                    <Grid>
+                        <waveform:LiveSciChartCanvas DataContext="{Binding Acquisition.LiveMonitor}" />
+                        <Border HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                IsHitTestVisible="False"
+                                Panel.ZIndex="10"
+                                MinWidth="320"
+                                Padding="72,28"
+                                CornerRadius="14"
+                                Background="#4D64748B"
+                                BorderBrush="#66475569"
+                                BorderThickness="1.5">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Acquisition.LiveMonitor.IsPreviewing}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="未 采 集"
+                                       FontSize="42"
+                                       FontWeight="Bold"
+                                       Foreground="#D9FFFFFF"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                    </Grid>
                 </panels:AnalysisDockHost.Waveform>
                 <panels:AnalysisDockHost.Panel>
                     <views:LiveSpectralAnalysisPanel DataContext="{Binding Acquisition.LiveAnalysis}" />

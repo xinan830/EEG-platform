@@ -500,9 +500,16 @@ public sealed class LiveSciChartCanvas : UserControl
                 ? Math.Clamp((end.Value - pageStart) / (double)frame.WindowSampleCount, leftFraction, 1d)
                 : leftFraction;
             var color = ParseColor(item.DefinitionSnapshot.Color);
+            var isPendingStart = string.Equals(
+                item.Id,
+                AcquisitionWorkspaceViewModel.PendingIntervalEventId,
+                StringComparison.Ordinal);
+            var leftX = plotArea.Left + leftFraction * plotArea.Width;
             var marker = new Border
             {
-                ToolTip = monitor.FormatEventMarker(item),
+                ToolTip = isPendingStart
+                    ? $"{item.DefinitionSnapshot.Name}（{item.DefinitionSnapshot.EffectiveStartLabel} · 进行中）"
+                    : monitor.FormatEventMarker(item),
                 IsHitTestVisible = !item.IsInterval,
                 Width = item.IsInterval
                     ? Math.Max(2d, (rightFraction - leftFraction) * plotArea.Width)
@@ -511,21 +518,41 @@ public sealed class LiveSciChartCanvas : UserControl
                 Background = item.IsInterval
                     ? new SolidColorBrush(Color.FromArgb(32, color.R, color.G, color.B))
                     : new SolidColorBrush(color),
-                BorderBrush = item.IsInterval ? new SolidColorBrush(Color.FromArgb(150, color.R, color.G, color.B)) : null,
-                BorderThickness = item.IsInterval ? new Thickness(1, 0, 1, 0) : new Thickness(0),
+                BorderBrush = item.IsInterval ? new SolidColorBrush(Color.FromArgb(165, color.R, color.G, color.B)) : null,
+                BorderThickness = item.IsInterval ? new Thickness(1.5, 0, 1.5, 0) : new Thickness(0),
             };
-            Canvas.SetLeft(marker, plotArea.Left + leftFraction * plotArea.Width);
+            Canvas.SetLeft(marker, leftX);
             Canvas.SetTop(marker, plotArea.Top);
             eventMarkers.Children.Add(marker);
             if (monitor.FormatEventClockTime(item) is { } clockTime)
             {
+                var startLabelText = isPendingStart
+                    ? $"▶ {item.DefinitionSnapshot.EffectiveStartLabel} {clockTime}"
+                    : item.IsInterval
+                        ? $"{item.DefinitionSnapshot.EffectiveStartLabel} {clockTime}"
+                        : $"{item.DefinitionSnapshot.Name} {clockTime}";
                 WaveformEventTimeLabel.Add(
                     eventMarkers,
-                    plotArea.Left + leftFraction * plotArea.Width,
+                    leftX,
                     plotArea.Top + 3,
-                    clockTime,
+                    startLabelText,
                     color,
-                    monitor.FormatEventMarker(item));
+                    marker.ToolTip?.ToString() ?? clockTime);
+
+                if (item.IsInterval && end.Value < pageEndExclusive)
+                {
+                    var rightX = plotArea.Left + rightFraction * plotArea.Width;
+                    if (rightX - leftX >= 56)
+                    {
+                        WaveformEventTimeLabel.Add(
+                            eventMarkers,
+                            rightX,
+                            plotArea.Top + 3,
+                            item.DefinitionSnapshot.EffectiveEndLabel,
+                            color,
+                            marker.ToolTip?.ToString() ?? item.DefinitionSnapshot.EffectiveEndLabel);
+                    }
+                }
             }
         }
 

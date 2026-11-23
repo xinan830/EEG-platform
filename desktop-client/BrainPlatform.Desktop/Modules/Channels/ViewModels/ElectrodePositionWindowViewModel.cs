@@ -14,7 +14,8 @@ public sealed class ElectrodePositionWindowViewModel : ObservableObject, IDispos
     private ElectrodeScalpModel3D? model;
     private string? modelError;
     private bool isModelLoading;
-    private bool isThreeDimensional;
+    private PositionView selectedView;
+    private enum PositionView { TwoDimensional, ThreeDimensional, Topographic }
 
     public ElectrodePositionWindowViewModel(ChannelConfigurationWorkspaceViewModel channelConfigurations,
         IElectrodeLocationClient? electrodeLocationClient)
@@ -70,19 +71,30 @@ public sealed class ElectrodePositionWindowViewModel : ObservableObject, IDispos
 
     public bool IsThreeDimensional
     {
-        get => isThreeDimensional;
-        set
-        {
-            if (!SetProperty(ref isThreeDimensional, value)) return;
-            RaisePropertyChanged(nameof(IsTwoDimensional));
-            RaisePropertyChanged(nameof(PositionViewHint));
-        }
+        get => selectedView == PositionView.ThreeDimensional;
+        set { if (value) SelectView(PositionView.ThreeDimensional); }
     }
 
     public bool IsTwoDimensional
     {
-        get => !IsThreeDimensional;
-        set { if (value) IsThreeDimensional = false; }
+        get => selectedView == PositionView.TwoDimensional;
+        set { if (value) SelectView(PositionView.TwoDimensional); }
+    }
+
+    public bool IsTopographic
+    {
+        get => selectedView == PositionView.Topographic;
+        set { if (value) SelectView(PositionView.Topographic); }
+    }
+
+    private void SelectView(PositionView view)
+    {
+        if (selectedView == view) return;
+        selectedView = view;
+        RaisePropertyChanged(nameof(IsTwoDimensional));
+        RaisePropertyChanged(nameof(IsThreeDimensional));
+        RaisePropertyChanged(nameof(IsTopographic));
+        RaisePropertyChanged(nameof(PositionViewHint));
     }
 
     public IReadOnlyList<ChannelConfigurationDraftRow> PositionRows
@@ -110,6 +122,7 @@ public sealed class ElectrodePositionWindowViewModel : ObservableObject, IDispos
     {
         get
         {
+            if (IsTopographic) return "黑点：已配置电极位置 · 地形图只读，不显示功率或阻抗插值。位置调整请切换到 2D。";
             if (!IsThreeDimensional)
                 return "蓝色：标准模板位置 · 橙色：手动 EEG 示意位置 · 紫色：REF · 绿色：GND。仅 2D 位置可编辑。";
             if (!string.IsNullOrWhiteSpace(ModelError)) return ModelError;

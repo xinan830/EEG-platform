@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using BrainPlatform.Desktop.Modules.Events.ViewModels;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
@@ -13,10 +14,19 @@ public sealed partial class RecordingReviewViewModel
     private bool isEventSaving;
     private string eventErrorText = string.Empty;
     private RecordingEvent? selectedRecordingEvent;
+    private EventDefinition? activeIntervalDefinition;
+    private long? activeIntervalStartSample;
 
     public ObservableCollection<RecordingEvent> RecordingEvents { get; } = [];
     public ObservableCollection<RecordingEventOption> RecordingEventOptions { get; } = [];
     public ObservableCollection<EventDefinition> EnabledEventDefinitions { get; } = [];
+    public ObservableCollection<EventGridTileItem> EventGridTiles { get; } = [];
+    public bool HasActiveInterval => activeIntervalDefinition is not null;
+    public EventDefinition? ActiveIntervalDefinition => activeIntervalDefinition;
+    public long? ActiveIntervalStartSample => activeIntervalStartSample;
+    public string ActiveIntervalStatusText => activeIntervalDefinition is null || activeIntervalStartSample is not { } startSample
+        ? string.Empty
+        : $"进行中：{activeIntervalDefinition.Name}（{activeIntervalDefinition.EffectiveStartLabel} @ {ReviewEventTime.Format(startSample / (double)samplingRateHz)}）· 移动游标后再次点击结束“{activeIntervalDefinition.EffectiveEndLabel}”";
     public IReadOnlyList<RecordingLifecycleBoundary> LifecycleBoundaries => reviewReader.LifecycleBoundaries;
     public EventDefinitionService? EventDefinitionService { get; }
     public ICommand MarkSelectedEventCommand { get; private set; } = null!;
@@ -101,9 +111,17 @@ public sealed partial class RecordingReviewViewModel
         foreach (var item in events.OrderBy(item => item.StartSample))
         {
             RecordingEvents.Add(item);
-            RecordingEventOptions.Add(new RecordingEventOption(item,
-                $"{TimeDisplay.FormatPoint(item.StartSample / (double)samplingRateHz)} {item.DefinitionSnapshot.Name}",
-                RecordingEventDisplayTime.FormatMarker(item, recordingStartUtc, samplingRateHz)));
+            var timeText = TimeDisplay.FormatPoint(item.StartSample / (double)samplingRateHz);
+            var intervalBadge = item.IsInterval
+                ? $"{item.DefinitionSnapshot.EffectiveStartLabel} → {item.DefinitionSnapshot.EffectiveEndLabel} · {item.DurationSamples / (double)samplingRateHz:0.#}s"
+                : string.Empty;
+            var durationSuffix = item.IsInterval ? $"（{intervalBadge}）" : string.Empty;
+            RecordingEventOptions.Add(new RecordingEventOption(
+                item,
+                $"{timeText} {item.DefinitionSnapshot.Name}{durationSuffix}",
+                RecordingEventDisplayTime.FormatMarker(item, recordingStartUtc, samplingRateHz),
+                timeText,
+                intervalBadge));
         }
         SelectedRecordingEvent = RecordingEvents.FirstOrDefault(item => item.Id == selectedId);
         RaisePropertyChanged(nameof(RecordingEvents));
@@ -118,12 +136,99 @@ public sealed partial class RecordingReviewViewModel
             EnabledEventDefinitions.Add(definition);
         SelectedEventDefinitionId ??= EnabledEventDefinitions.FirstOrDefault()?.Id;
         AddEventTimeText = ReviewEventTime.Format(PositionSeconds);
+        SyncEventGridTiles();
+    }
+
+    public void SyncEventGridTiles()
+    {
+        var activeId = activeIntervalDefinition?.Id;
+        EventGridTiles.Clear();
+        var activeStillPresent = false;
+        foreach (var definition in EnabledEventDefinitions)
+        {
+            var tile = new EventGridTileItem(definition);
+            if (activeId is not null && string.Equals(definition.Id, activeId, StringComparison.Ordinal))
+            {
+                tile.IsActiveInterval = true;
+                tile.ActivePromptText = $"点击结束：{definition.EffectiveEndLabel}";
+                activeStillPresent = true;
+            }
+
+            EventGridTiles.Add(tile);
+        }
+
+        if (activeId is not null && !activeStillPresent)
+        {
+            CancelActiveInterval();
+        }
+    }
+
+    public async Task TriggerEventFromGridAsync(EventDefinition definition, string? note = null, EventSource source = EventSource.ManualButton, string detail = "review-grid")
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        SelectedEventDefinitionId = definition.Id;
+        var trimmedNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        var currentSample = EventSampleFromSeconds(PositionSeconds);
+
+        if (!definition.IsIntervalKind)
+        {
+            await CreateEventAtSampleAsync(definition.Id, currentSample, source, detail, trimmedNote, durationSamples: 0);
+            return;
+        }
+
+        if (activeIntervalDefinition is not null
+            && string.Equals(activeIntervalDefinition.Id, definition.Id, StringComparison.Ordinal)
+            && activeIntervalStartSample is { } firstSample)
+        {
+            var startSample = Math.Min(firstSample, currentSample);
+            var endSample = Math.Max(firstSample, currentSample);
+            var maxDuration = Math.Max(1L, EventSampleCount - startSample);
+            var durationSamples = Math.Min(maxDuration, Math.Max(1L, endSample - startSample));
+            CancelActiveInterval();
+            await CreateEventAtSampleAsync(definition.Id, startSample, source, detail, trimmedNote, durationSamples);
+            return;
+        }
+
+        activeIntervalDefinition = definition;
+        activeIntervalStartSample = currentSample;
+        UpdateTileActiveStates();
+        RaisePropertyChanged(nameof(HasActiveInterval));
+        RaisePropertyChanged(nameof(ActiveIntervalStatusText));
+        RaisePropertyChanged(nameof(RecordingEvents));
+        notifications?.PublishInformation($"已设置“{definition.Name}（{definition.EffectiveStartLabel}）”起点，移动游标后再次点击结束“{definition.EffectiveEndLabel}”。");
+    }
+
+    public void CancelActiveInterval()
+    {
+        if (activeIntervalDefinition is null && activeIntervalStartSample is null) return;
+        activeIntervalDefinition = null;
+        activeIntervalStartSample = null;
+        UpdateTileActiveStates();
+        RaisePropertyChanged(nameof(HasActiveInterval));
+        RaisePropertyChanged(nameof(ActiveIntervalStatusText));
+        RaisePropertyChanged(nameof(RecordingEvents));
+    }
+
+    private void UpdateTileActiveStates()
+    {
+        var activeId = activeIntervalDefinition?.Id;
+        foreach (var tile in EventGridTiles)
+        {
+            var isActive = activeId is not null && string.Equals(tile.Id, activeId, StringComparison.Ordinal);
+            tile.IsActiveInterval = isActive;
+            tile.ActivePromptText = isActive ? $"点击结束：{tile.Definition.EffectiveEndLabel}" : null;
+        }
     }
 
     public Task CreateManualEventAsync(string definitionId, string? note = null) =>
         CreateEventAtSampleAsync(definitionId, EventSampleFromSeconds(PositionSeconds), EventSource.ManualButton, "review-toolbar", note);
-    public Task CreateKeyboardEventAsync(string definitionId, string shortcut) =>
-        CreateEventAtSampleAsync(definitionId, EventSampleFromSeconds(PositionSeconds), EventSource.KeyboardShortcut, shortcut);
+    public Task CreateKeyboardEventAsync(string definitionId, string shortcut)
+    {
+        var definition = EnabledEventDefinitions.FirstOrDefault(item => string.Equals(item.Id, definitionId, StringComparison.Ordinal));
+        return definition is not null
+            ? TriggerEventFromGridAsync(definition, null, EventSource.KeyboardShortcut, shortcut)
+            : CreateEventAtSampleAsync(definitionId, EventSampleFromSeconds(PositionSeconds), EventSource.KeyboardShortcut, shortcut);
+    }
     public void ReportEventShortcutError(Exception exception) => ReportEventError(exception);
 
     public Task AddEventAtEnteredTimeAsync()
@@ -148,13 +253,15 @@ public sealed partial class RecordingReviewViewModel
         finally { IsEventSaving = false; }
     }
 
-    private Task CreateEventAtSampleAsync(string definitionId, long sample, EventSource source, string detail, string? note = null) =>
+    private Task CreateEventAtSampleAsync(string definitionId, long sample, EventSource source, string detail, string? note = null, long durationSamples = 0) =>
         WriteEventAsync(async service =>
         {
-            var created = await service.CreateAsync(definitionId, sample, 0, source, detail, null, note, CancellationToken.None);
+            var created = await service.CreateAsync(definitionId, sample, durationSamples, source, detail, null, note, CancellationToken.None);
             await LoadEventsAsync();
             SelectedRecordingEvent = RecordingEvents.FirstOrDefault(item => item.Id == created.Id);
-            notifications?.PublishSuccess("事件已标记。");
+            notifications?.PublishSuccess(created.IsInterval
+                ? $"持续事件“{created.DefinitionSnapshot.Name}（{created.DefinitionSnapshot.EffectiveStartLabel} → {created.DefinitionSnapshot.EffectiveEndLabel}）”已标记。"
+                : "事件已标记。");
         });
 
     public Task DeleteSelectedEventAsync()

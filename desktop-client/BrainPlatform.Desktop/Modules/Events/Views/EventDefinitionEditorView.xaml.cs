@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Microsoft.Win32;
+using BrainPlatform.Desktop.Modules.Events.Services;
 
 namespace BrainPlatform.Desktop.Modules.Events.Views;
 
@@ -51,6 +53,34 @@ public partial class EventDefinitionEditorView : UserControl
             !workspace.EventDefinitions.IsDraftSystemDefinition)
         {
             workspace.EventDefinitions.DraftShortcut = string.Empty;
+        }
+    }
+
+    private void OnUploadIconClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel workspace) return;
+        var dialog = new OpenFileDialog
+        {
+            Title = "选择事件图标",
+            Filter = EventIconAssetService.FileDialogFilter,
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        try
+        {
+            workspace.EventDefinitions.ImportDraftIcon(dialog.FileName);
+        }
+        catch (Exception exception)
+        {
+            workspace.Notifications.PublishError(exception.Message);
+        }
+    }
+
+    private void OnClearIconClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is DesktopWorkspaceViewModel workspace)
+        {
+            workspace.EventDefinitions.ClearDraftIcon();
         }
     }
 

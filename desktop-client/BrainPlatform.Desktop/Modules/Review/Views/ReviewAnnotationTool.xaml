@@ -12,9 +12,9 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid>
-        <controls:EegToolButton x:Name="AnnotationButton" Content="事件标记" Glyph="&#xE70F;"
-                                Click="OnOpenClick" ToolTip="打开事件标记：添加、定位或编辑事件"
-                                AutomationProperties.Name="事件标记">
+        <controls:EegToolButton x:Name="AnnotationButton" Content="事件标注" Glyph="&#xE70F;"
+                                Click="OnOpenClick" ToolTip="打开事件标注面板（宫格快捷标记、持续事件、定位与编辑）"
+                                AutomationProperties.Name="事件标注">
             <controls:EegToolButton.Style>
                 <Style TargetType="{x:Type controls:EegToolButton}" BasedOn="{StaticResource {x:Type controls:EegToolButton}}">
                     <Style.Triggers>

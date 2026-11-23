@@ -1,0 +1,227 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Events.Views.EventAnnotationGridControl"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Active Interval Banner -->
+        <Border Grid.Row="0" Margin="0,0,0,12" Padding="12,9" CornerRadius="10"
+                Background="#FEF2F2" BorderBrush="#FCA5A5" BorderThickness="1">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasActiveInterval, ElementName=Root}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="取消" Click="OnCancelActiveIntervalClick"
+                        Cursor="Hand" Padding="10,3" FontSize="12" Foreground="#B91C1C"
+                        Background="#FFFFFF" BorderBrush="#FCA5A5" BorderThickness="1">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="BtnBorder" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="BtnBorder" Property="Background" Value="#FEE2E2" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                    <Ellipse Width="8" Height="8" Fill="#DC2626" Margin="0,0,8,0" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding ActiveIntervalStatusText, ElementName=Root}"
+                               Foreground="#991B1B" FontSize="12" FontWeight="SemiBold"
+                               VerticalAlignment="Center" TextWrapping="Wrap" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- 3-Column Icon Tile Grid -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Tiles, ElementName=Root}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="3" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Click="OnTileClick" Tag="{Binding}" Cursor="Hand"
+                                Background="Transparent" BorderThickness="0" Padding="4,8">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <StackPanel HorizontalAlignment="Center" Width="110">
+                                        <!-- Rounded White Icon Card -->
+                                        <Border x:Name="IconCard" Width="74" Height="74" CornerRadius="18"
+                                                Background="#FFFFFF" BorderBrush="#E5EFFA" BorderThickness="1.5">
+                                            <Border.Effect>
+                                                <DropShadowEffect BlurRadius="14" ShadowDepth="3" Opacity="0.08" Color="#1E3A5F" />
+                                            </Border.Effect>
+                                            <Grid>
+                                                <!-- Default color tile when no custom icon -->
+                                                <Border Width="44" Height="44" CornerRadius="12" Background="{Binding ColorBrush}">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="{Binding InitialGlyph}" Foreground="#FFFFFF"
+                                                               FontSize="20" FontWeight="Bold"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+
+                                                <!-- Uploaded PNG / SVG icon -->
+                                                <Image Source="{Binding IconImage}" Width="46" Height="46" Stretch="Uniform"
+                                                       RenderOptions.BitmapScalingMode="HighQuality">
+                                                    <Image.Style>
+                                                        <Style TargetType="Image">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Image.Style>
+                                                </Image>
+
+                                                <!-- Subtle continuous-event corner badge -->
+                                                <Border HorizontalAlignment="Right" VerticalAlignment="Top" Margin="5"
+                                                        Padding="5,1" CornerRadius="6" Background="#EFF6FF">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsIntervalKind}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsActiveInterval}" Value="True">
+                                                                    <Setter Property="Background" Value="#DC2626" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock FontSize="9" FontWeight="SemiBold">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="持续" />
+                                                                <Setter Property="Foreground" Value="#2563EB" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsActiveInterval}" Value="True">
+                                                                        <Setter Property="Text" Value="进行中" />
+                                                                        <Setter Property="Foreground" Value="#FFFFFF" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Event Name -->
+                                        <TextBlock Text="{Binding Name}" Margin="0,9,0,0"
+                                                   FontSize="13.5" FontWeight="Medium" Foreground="#1E293B"
+                                                   TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+
+                                        <!-- Subtitle (only shown for interval events / active prompt / shortcut) -->
+                                        <TextBlock Text="{Binding DisplaySubtitle}" Margin="0,2,0,0"
+                                                   FontSize="11" TextAlignment="Center" TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#64748B" />
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasSubtitle}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsActiveInterval}" Value="True">
+                                                            <Setter Property="Foreground" Value="#DC2626" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="IconCard" Property="BorderBrush" Value="#3B82F6" />
+                                            <Setter TargetName="IconCard" Property="Background" Value="#FAFDFF" />
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="IconCard" Property="Background" Value="#EFF6FF" />
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding IsActiveInterval}" Value="True">
+                                            <Setter TargetName="IconCard" Property="BorderBrush" Value="#DC2626" />
+                                            <Setter TargetName="IconCard" Property="Background" Value="#FFF5F5" />
+                                        </DataTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Empty state -->
+        <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16,32">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasNoTiles, ElementName=Root}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <TextBlock Text="暂无可用事件" Foreground="#475569" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Text="请先在「事件设置」中新建或启用事件定义" Foreground="#94A3B8" FontSize="12" Margin="0,6,0,0" HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Clean Pill Note Input -->
+        <Border Grid.Row="2" Margin="0,12,0,0" Background="#FFFFFF" BorderBrush="#DCE6F2"
+                BorderThickness="1" CornerRadius="10" Padding="10,0" Height="36">
+            <Grid>
+                <TextBox Text="{Binding NoteText, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         BorderThickness="0" Background="Transparent"
+                         VerticalContentAlignment="Center" FontSize="12.5" Foreground="#1E293B"
+                         ToolTip="可选：本次事件标注的附加备注" />
+                <TextBlock Text="添加备注（可选）..." IsHitTestVisible="False"
+                           Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center" Margin="2,0,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NoteText, ElementName=Root}" Value="">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -59,8 +59,10 @@ internal sealed class ReviewEventMarkerLayer
                 BorderBrush = item.IsInterval ? new SolidColorBrush(Color.FromArgb(150, color.R, color.G, color.B)) : null,
                 BorderThickness = item.IsInterval ? new Thickness(1, 0, 1, 0) : new Thickness(0),
             };
-            var label = WaveformEventTimeLabel.Create(
-                viewModel.TimeDisplay.FormatPoint(startSeconds), color, tooltip);
+            var labelText = item.IsInterval
+                ? $"{item.DefinitionSnapshot.EffectiveStartLabel} {viewModel.TimeDisplay.FormatPoint(startSeconds)}"
+                : $"{item.DefinitionSnapshot.Name} {viewModel.TimeDisplay.FormatPoint(startSeconds)}";
+            var label = WaveformEventTimeLabel.Create(labelText, color, tooltip);
             label.Tag = item;
             label.Cursor = item.Source is EventSource.ManualButton or EventSource.KeyboardShortcut
                 ? System.Windows.Input.Cursors.SizeWE : System.Windows.Input.Cursors.Hand;
@@ -68,7 +70,34 @@ internal sealed class ReviewEventMarkerLayer
             shape.ToolTip = tooltip;
             Canvas.Children.Add(shape);
             Canvas.Children.Add(label);
-            eventVisuals.Add(new EventVisual(shape, label, startSeconds, endSeconds, item.IsInterval));
+            TextBlock? endLabel = null;
+            if (item.IsInterval)
+            {
+                endLabel = WaveformEventTimeLabel.Create(item.DefinitionSnapshot.EffectiveEndLabel, color, tooltip);
+                endLabel.Tag = item;
+                endLabel.Cursor = label.Cursor;
+                Canvas.Children.Add(endLabel);
+            }
+            eventVisuals.Add(new EventVisual(shape, label, endLabel, startSeconds, endSeconds, item.IsInterval));
+        }
+
+        if (viewModel.ActiveIntervalDefinition is { } pendingDef && viewModel.ActiveIntervalStartSample is { } pendingSample)
+        {
+            var startSeconds = RecordingTimeMapper.ToElapsedSeconds(pendingSample, viewModel.SamplingRateHz);
+            var color = ParseColor(pendingDef.Color);
+            var tooltip = $"{pendingDef.Name}（{pendingDef.EffectiveStartLabel} · 进行中，移动游标后再次点击结束）";
+            var shape = new Border
+            {
+                IsHitTestVisible = false,
+                Background = new SolidColorBrush(color),
+            };
+            var label = WaveformEventTimeLabel.Create(
+                $"▶ {pendingDef.EffectiveStartLabel} {viewModel.TimeDisplay.FormatPoint(startSeconds)}",
+                color,
+                tooltip);
+            Canvas.Children.Add(shape);
+            Canvas.Children.Add(label);
+            eventVisuals.Add(new EventVisual(shape, label, null, startSeconds, startSeconds, false));
         }
 
         foreach (var boundary in viewModel.LifecycleBoundaries)
@@ -97,7 +126,11 @@ internal sealed class ReviewEventMarkerLayer
     {
         if (viewModel is null || Canvas.ActualWidth <= 0 || Canvas.ActualHeight <= 0)
         {
-            foreach (var visual in eventVisuals) SetVisible(visual.Shape, visual.Label, false);
+            foreach (var visual in eventVisuals)
+            {
+                SetVisible(visual.Shape, visual.Label, false);
+                if (visual.EndLabel is not null) visual.EndLabel.Visibility = Visibility.Collapsed;
+            }
             foreach (var visual in lifecycleVisuals) SetVisible(visual.Line, visual.Label, false);
             return;
         }
@@ -113,6 +146,7 @@ internal sealed class ReviewEventMarkerLayer
             if (visual.EndSeconds < start || visual.StartSeconds > end)
             {
                 SetVisible(visual.Shape, visual.Label, false);
+                if (visual.EndLabel is not null) visual.EndLabel.Visibility = Visibility.Collapsed;
                 continue;
             }
 
@@ -123,6 +157,15 @@ internal sealed class ReviewEventMarkerLayer
             visual.Shape.Margin = new Thickness(left, origin.Y, 0, 0);
             WaveformEventTimeLabel.Position(Canvas, visual.Label, left, origin.Y + 3);
             SetVisible(visual.Shape, visual.Label, true);
+            if (visual.EndLabel is not null)
+            {
+                var showEndLabel = visual.EndSeconds <= end && right - left >= 56;
+                visual.EndLabel.Visibility = showEndLabel ? Visibility.Visible : Visibility.Collapsed;
+                if (showEndLabel)
+                {
+                    WaveformEventTimeLabel.Position(Canvas, visual.EndLabel, right, origin.Y + 3);
+                }
+            }
         }
 
         foreach (var visual in lifecycleVisuals)
@@ -165,6 +208,6 @@ internal sealed class ReviewEventMarkerLayer
         _ => kind.ToString(),
     };
 
-    private sealed record EventVisual(Border Shape, TextBlock Label, double StartSeconds, double EndSeconds, bool IsInterval);
+    private sealed record EventVisual(Border Shape, TextBlock Label, TextBlock? EndLabel, double StartSeconds, double EndSeconds, bool IsInterval);
     private sealed record LifecycleVisual(Line Line, TextBlock Label, double Seconds);
 }
