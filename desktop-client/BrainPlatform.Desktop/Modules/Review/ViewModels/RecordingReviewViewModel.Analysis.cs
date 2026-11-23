@@ -83,7 +83,7 @@ public sealed partial class RecordingReviewViewModel
                 if (analysisRecordingDirectory is null)
                     throw new InvalidOperationException("当前回溯记录不支持算法注册。");
                 analysisRecording ??= await analysisCoordinator.RegisterAsync(analysisRecordingDirectory, token,
-                    CompatibleViewingMontages.ToArray());
+                    montageSelection.AvailableMontages.ToArray());
                 token.ThrowIfCancellationRequested();
                 var algorithm = await analysisCoordinator.GetAlgorithmAsync(token);
                 var rbpAlgorithm = IsSpectralInspectionPanelOpen

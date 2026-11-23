@@ -53,6 +53,66 @@ public sealed class RecordingReviewSessionTests
     }
 
     [Fact]
+    public async Task TemporaryDisplayMontageDoesNotChangeWorkspaceAlgorithmSelection()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new FakeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(acquisition, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]), [new CompatibleRecordingMontage(acquisition)], []);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog, selection, visibleDurationSeconds: 10);
+        await session.InitializeAsync();
+
+        var originalIdentity = session.CurrentFrame!.DisplaySourceIdentity;
+        var originalNames = session.CurrentFrame.OutputChannelNames.ToArray();
+
+        await session.SetTemporaryMontageProfileAsync(TemporaryMontageFixture.Create(configuration));
+
+        Assert.Same(acquisition, selection.SelectedMontage);
+        Assert.Equal(0, selection.Revision);
+        Assert.Equal(["F3-F4", "F4-F3"], session.CurrentFrame!.OutputChannelNames);
+        Assert.Equal("在线导联", session.CurrentFrame.ViewingMontageName);
+        Assert.Equal(["#123456", "#123456"], session.CurrentFrame.OutputChannelColors);
+        Assert.Equal(originalNames.Length, session.CurrentFrame.OutputChannelNames.Count);
+        Assert.NotEqual(originalIdentity, session.CurrentFrame.DisplaySourceIdentity);
+        Assert.True(session.CurrentFrame.HasTemporaryMontage);
+        Assert.Null(await session.TryBuildDisplayFrameAsync(session.CurrentFrame, 0, 10, 1000, CancellationToken.None));
+
+        await session.SetTemporaryMontageProfileAsync(null);
+
+        Assert.Equal(originalNames, session.CurrentFrame!.OutputChannelNames);
+        Assert.Equal(originalIdentity, session.CurrentFrame.DisplaySourceIdentity);
+        Assert.False(session.CurrentFrame.HasTemporaryMontage);
+        await session.SetTemporaryMontageProfileAsync(TemporaryMontageFixture.Create("F4", "F3"));
+        await session.DisposeAsync();
+        Assert.Null(session.TemporaryMontageProfile);
+    }
+
+    [Fact]
+    public async Task TemporaryMontageChangeSupersedesPendingProjection()
+    {
+        var configuration = Configuration(2);
+        var montage = Profile("REF", configuration, 2);
+        var first = new TaskCompletionSource<RecordingReviewWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<RecordingReviewWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reader = new FakeReader(300, Manifest(configuration), first, second);
+        var catalog = new RecordingMontageCatalogResult(montage, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]), [new CompatibleRecordingMontage(montage)], []);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10);
+
+        var initial = session.InitializeAsync();
+        var temporary = session.SetTemporaryMontageProfileAsync(TemporaryMontageFixture.Create(configuration));
+        first.SetResult(Window());
+        second.SetResult(Window());
+        await Task.WhenAll(initial, temporary);
+
+        Assert.Equal(["F3-F4", "F4-F3"], session.CurrentFrame!.OutputChannelNames);
+        Assert.True(session.CurrentFrame.HasTemporaryMontage);
+    }
+
+    [Fact]
     public async Task OlderWindowCompletionCannotReplaceNewerMontageSelection()
     {
         var configuration = Configuration(2);

@@ -101,19 +101,24 @@ public static class WaveformDisplayFrameBuilder
             // skipped rather than displaying an arbitrary channel.
             .Where(group => group.Count() == 1)
             .ToDictionary(group => group.Key, group => group.First().StreamIndex, StringComparer.OrdinalIgnoreCase);
-        if (source.MontageProfile is null)
-        {
-            return source.Channels
+        var rawTraces = source.MontageProfile is null
+            ? source.Channels
                 .Where(channel => channel.IsVisible)
                 .Select(channel => new WaveformDisplayTrace(
                     channel.Label,
                     BuildTrace(displayBatches, channel.StreamIndex, spans, bucketSize, filterBoundaries,
                         (batch, sampleIndex) => ReadValue(batch, sampleIndex, channel.StreamIndex))))
-                .ToArray();
+                .ToList()
+            : [];
+        if (source.MontageProfile is null)
+        {
+            return rawTraces;
         }
 
         var resolvedChannels = new List<ResolvedMontageChannel>();
-        foreach (var (montageChannel, outputIndex) in source.MontageProfile.DerivedChannels
+        var definitions = (source.MontageProfile?.DerivedChannels ?? [])
+            .ToList();
+        foreach (var (montageChannel, outputIndex) in definitions
                      .OrderBy(channel => channel.DisplayOrder)
                      .Select((channel, index) => (channel, index))
                      .Where(item => source.VisibleMontageChannelNames is null || source.VisibleMontageChannelNames.Contains(item.channel.Name)))
@@ -145,7 +150,7 @@ public static class WaveformDisplayFrameBuilder
         var referenceCache = ReferenceSignalCache.Create(
             displayBatches.Select(displayBatch => displayBatch.Batch).ToArray(),
             resolvedChannels);
-        return resolvedChannels.Select(channel => new WaveformDisplayTrace(
+        rawTraces.AddRange(resolvedChannels.Select(channel => new WaveformDisplayTrace(
                 channel.Definition.Name,
                 BuildTrace(
                     displayBatches,
@@ -155,7 +160,8 @@ public static class WaveformDisplayFrameBuilder
                     filterBoundaries,
                     CreateMontageValueSelector(channel, referenceCache)),
                 channel.Definition.Color))
-            .ToArray();
+            .ToArray());
+        return rawTraces;
     }
 
     private static Func<AcquisitionBatch, int, double> CreateMontageValueSelector(

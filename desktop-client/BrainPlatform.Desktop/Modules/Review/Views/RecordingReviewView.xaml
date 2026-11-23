@@ -205,6 +205,8 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                             </controls:EegParameterField>
+                            <Button Content="在线导联" Click="OnOnlineMontageClick" Style="{StaticResource AppCompactActionButtonStyle}" Margin="0,0,8,0"
+                                    VerticalAlignment="Bottom" ToolTip="打开完整导联设置；保存后切换整套临时波形配置，不参与算法" />
 
                             <TextBlock Text="无兼容导联" FontSize="11" Foreground="#94A3B8"
                                        VerticalAlignment="Center" Margin="2,0,8,0" ToolTip="{Binding MontageSelectionHint}">

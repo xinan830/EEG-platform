@@ -8,7 +8,7 @@ namespace BrainPlatform.Desktop.Modules.Montages.ViewModels;
 /// Coordinates display-montage profiles. Channel configuration owns physical
 /// source channels; this workspace only selects a controlled rereference rule.
 /// </summary>
-public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
+public sealed partial class MontageConfigurationWorkspaceViewModel : ObservableObject
 {
     private readonly ChannelConfigurationWorkspaceViewModel channelConfigurations;
     private readonly MontageProfileStore store;
@@ -214,7 +214,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
     public bool ShowReferenceGroup => CanEditDraft || DraftRows.Any(row =>
         row.NegativeKind is MontageNegativeKind.Mean or MontageNegativeKind.SpecifiedPair);
 
-    public bool CanSelectDraftChannelConfiguration => CanEditDraft && !IsEditingExisting;
+    public bool CanSelectDraftChannelConfiguration => !IsSessionDraft && CanEditDraft && !IsEditingExisting;
 
     public bool CanDeleteSelected => SelectedProfile?.CanDelete == true;
 
@@ -286,6 +286,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
     public void BeginNewProfile()
     {
+        IsSessionDraft = false;
         isReadOnlyDraft = false;
         draftPermissionText = "可编辑";
         hasSparseOutputTopology = false;
@@ -367,6 +368,7 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
 
     public void CloseDraft()
     {
+        IsSessionDraft = false;
         isReadOnlyDraft = false;
         hasSparseOutputTopology = false;
         draftProfileId = null;
@@ -424,6 +426,11 @@ public sealed class MontageConfigurationWorkspaceViewModel : ObservableObject
             now,
             MontageProfileFingerprint.Create(channelFingerprint, channels, averageLabels),
             averageLabels);
+        if (IsSessionDraft)
+        {
+            SessionProfileSaved?.Invoke(this, profile);
+            return;
+        }
         await store.SaveAsync(profile, CancellationToken.None);
         await RefreshAsync();
         SelectedProfile = Profiles.FirstOrDefault(item => item.Id == profile.Id)

@@ -6,15 +6,23 @@ namespace BrainPlatform.Desktop.Modules.Montages.Views;
 public partial class MontageDetailView : UserControl
 {
     private MontageDirectionWindow? directionWindow;
+    public event EventHandler? SessionCloseRequested;
+    private MontageConfigurationWorkspaceViewModel? Editor => DataContext switch
+    {
+        DesktopWorkspaceViewModel workspace => workspace.MontageConfigurations,
+        TemporaryMontageEditorContext temporary => temporary.MontageConfigurations,
+        _ => null,
+    };
 
     public MontageDetailView()
     {
         InitializeComponent();
+        Unloaded += (_, _) => directionWindow?.Close();
     }
 
     private void OnOpenDirectionMapClick(object sender, RoutedEventArgs e)
     {
-        if (DataContext is not DesktopWorkspaceViewModel workspace)
+        if (Editor is not { } editor)
         {
             return;
         }
@@ -24,7 +32,7 @@ public partial class MontageDetailView : UserControl
         }
         try
         {
-            directionWindow = new MontageDirectionWindow(workspace.MontageConfigurations)
+            directionWindow = new MontageDirectionWindow(editor)
             {
                 Owner = Window.GetWindow(this),
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -34,12 +42,14 @@ public partial class MontageDetailView : UserControl
         }
         catch (InvalidOperationException exception)
         {
-            workspace.Notifications.PublishError(exception.Message);
+            if (DataContext is DesktopWorkspaceViewModel workspace) workspace.Notifications.PublishError(exception.Message);
+            else MessageBox.Show(Window.GetWindow(this), exception.Message, "导联设置", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 
     private void OnBackToMontageListClick(object sender, RoutedEventArgs e)
     {
+        if (Editor?.IsSessionDraft == true) { SessionCloseRequested?.Invoke(this, EventArgs.Empty); return; }
         if (Window.GetWindow(this) is IDesktopNavigation navigation)
         {
             navigation.ShowMontageListView();
@@ -48,6 +58,7 @@ public partial class MontageDetailView : UserControl
 
     private void OnCancelMontageDraftClick(object sender, RoutedEventArgs e)
     {
+        if (Editor?.IsSessionDraft == true) { SessionCloseRequested?.Invoke(this, EventArgs.Empty); return; }
         if (DataContext is DesktopWorkspaceViewModel viewModel)
         {
             viewModel.MontageConfigurations.CloseDraft();

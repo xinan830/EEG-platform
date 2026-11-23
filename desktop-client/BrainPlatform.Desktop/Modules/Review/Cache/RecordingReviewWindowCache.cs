@@ -65,6 +65,7 @@ internal sealed class RecordingReviewWindowCache
         double viewportEndSeconds,
         RecordingReviewFilterSettings settings,
         MontageProfile? montage,
+        MontageProfile? temporaryProfile,
         out RecordingReviewFrame frame,
         out bool filterUnavailable)
     {
@@ -72,7 +73,7 @@ internal sealed class RecordingReviewWindowCache
         {
             var entry = frameEntries.FirstOrDefault(item =>
                 item.Settings == settings &&
-                string.Equals(item.MontageFingerprint, MontageFingerprint(montage), StringComparison.Ordinal) &&
+                string.Equals(item.MontageFingerprint, MontageFingerprint(montage, temporaryProfile), StringComparison.Ordinal) &&
                 Covers(item.Frame, viewportStartSeconds, viewportEndSeconds));
             if (entry is null)
             {
@@ -83,7 +84,7 @@ internal sealed class RecordingReviewWindowCache
 
             Touch(frameEntries, entry);
             // Equivalent signal projections may belong to differently named presets.
-            var montageName = montage?.Name ?? "原始设备通道";
+            var montageName = (temporaryProfile ?? montage)?.Name ?? "原始设备通道";
             frame = entry.Frame.ViewingMontageName == montageName
                 ? entry.Frame
                 : entry.Frame with { ViewingMontageName = montageName };
@@ -96,6 +97,7 @@ internal sealed class RecordingReviewWindowCache
         RecordingReviewFrame frame,
         RecordingReviewFilterSettings settings,
         MontageProfile? montage,
+        MontageProfile? temporaryProfile,
         bool filterUnavailable)
     {
         var bytes = frame.Segments.Sum(segment => segment.Channels.Sum(channel => channel.Values.LongLength * sizeof(double)));
@@ -103,16 +105,21 @@ internal sealed class RecordingReviewWindowCache
         lock (gate)
         {
             var existing = frameEntries.FirstOrDefault(entry => ReferenceEquals(entry.Frame, frame) &&
-                entry.Settings == settings && entry.MontageFingerprint == MontageFingerprint(montage) &&
+                entry.Settings == settings && entry.MontageFingerprint == MontageFingerprint(montage, temporaryProfile) &&
                 entry.FilterUnavailable == filterUnavailable);
             if (existing is not null)
             {
                 Touch(frameEntries, existing);
                 return;
             }
-            frameEntries.AddFirst(new FrameEntry(frame, settings, MontageFingerprint(montage), filterUnavailable, bytes));
+            frameEntries.AddFirst(new FrameEntry(frame, settings, MontageFingerprint(montage, temporaryProfile), filterUnavailable, bytes));
             Trim(frameEntries, MaximumFrames, maximumFramePayloadBytes, entry => entry.PayloadBytes);
         }
+    }
+
+    public void ClearFrames()
+    {
+        lock (gate) frameEntries.Clear();
     }
 
 
@@ -128,7 +135,12 @@ internal sealed class RecordingReviewWindowCache
         Math.Abs(left.ActualStartSeconds - right.ActualStartSeconds) < 0.000_001 &&
         Math.Abs(left.ActualEndSeconds - right.ActualEndSeconds) < 0.000_001;
 
-    private static string MontageFingerprint(MontageProfile? montage) => montage?.Fingerprint ?? "raw";
+    private static string MontageFingerprint(MontageProfile? montage, MontageProfile? temporaryProfile)
+    {
+        var selected = temporaryProfile ?? montage;
+        return $"{(temporaryProfile is null ? "saved" : "temporary")}|{(selected is null ? "raw" : MontageProfileFingerprint.Create(
+            selected.ChannelConfigurationFingerprint, selected.DerivedChannels, selected.AverageReferenceLabels))}";
+    }
 
     private static void Touch<T>(LinkedList<T> entries, T entry)
     {

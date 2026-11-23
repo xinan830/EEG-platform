@@ -6,12 +6,13 @@ using System.Text.Json;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
 public sealed record AcquisitionChannelRow(int StreamIndex, int NativeChannelIndex, string Role, string Label, string Unit);
 
-public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisposable
+public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisposable
 {
     private readonly ConfiguredAcquisitionRuntime runtime;
     private readonly DeviceSessionManager deviceSession;
@@ -270,10 +271,13 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         get => liveDisplayMontageProfile;
         set
         {
+            if (value is null) return;
             if (ReferenceEquals(value, liveDisplayMontageProfile))
             {
                 return;
             }
+
+            if (TrySelectTemporaryDisplayMontage(value)) return;
 
             if (!CanSwitchLiveDisplayMontage)
             {
@@ -290,6 +294,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
 
             if (SetProperty(ref liveDisplayMontageProfile, value))
             {
+                if (temporaryWaveformMontage is not null) regularDisplayMontage = value;
                 runtime.SelectLiveMontage(value);
                 LiveMonitor.ConfigureMontage(value);
             }
@@ -600,6 +605,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         disposed = true;
         runtime.StateChanged -= OnRuntimeStateChanged;
         runtime.AnalysisFaulted -= OnAnalysisFaulted;
+        ClearTemporaryWaveformMontage();
         LiveAnalysis.Dispose();
         deviceSession.PropertyChanged -= OnDeviceSessionPropertyChanged;
         channelMapping.DisplayChannelsChanged -= OnDisplayChannelsChanged;
@@ -722,6 +728,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         liveDisplayMontageProfile = montage;
         RaisePropertyChanged(nameof(LiveDisplayMontageProfile));
         LiveMonitor.ConfigureMontage(montage);
+        ClearTemporaryWaveformMontage();
         runtime.ConfigureDisplayFilter(DisplayPreferences.FilterSettings);
         await deviceSession.ConfigureForStreamAsync(
             AntEegoAcquisitionDriver.CreateConfiguration(new AntEegoAdapterOptions(
@@ -790,6 +797,7 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
     {
         var stoppedState = runtime.State.State;
         await runtime.StopAsync(CancellationToken.None);
+        ClearTemporaryWaveformMontage();
         recordingHistory.Refresh(SelectedProject?.RecordingsDirectory ?? string.Empty);
         LiveMonitor.Refresh();
         AcquisitionStatusText = runtime.State.Detail;
@@ -885,7 +893,12 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
                 _ = RefreshEventDefinitionsAsync();
             }
 
+            if (state.State is AcquisitionState.Stopped or AcquisitionState.Faulted or AcquisitionState.Ready)
+            {
+                ClearTemporaryWaveformMontage();
+            }
             LiveMonitor.Refresh();
+            RaisePropertyChanged(nameof(CanSelectWaveformMontage));
             RaiseCommandAvailabilityChanged();
         });
     }
@@ -1097,9 +1110,6 @@ public sealed class AcquisitionWorkspaceViewModel : ObservableObject, IAsyncDisp
         RaisePropertyChanged(nameof(CanConfirmInputRangeEdit));
         DisplayPreferences.RefreshAvailability();
     }
-
-    public IReadOnlyList<MontageProfile> FilterCompatibleLiveDisplayMontages(IEnumerable<MontageProfile> candidates) =>
-        candidates.Where(IsCompatibleLiveDisplayMontage).ToArray();
 
     private bool IsCompatibleLiveDisplayMontage(MontageProfile profile) =>
         SelectedMontageProfile is { } selected &&

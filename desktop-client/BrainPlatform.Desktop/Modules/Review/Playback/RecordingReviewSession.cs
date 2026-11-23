@@ -13,7 +13,8 @@ public sealed record RecordingReviewFrame(
     IReadOnlyList<ProjectedMontageSegment> Segments, IReadOnlyList<string> OutputChannelNames,
     string SourceRevision,
     IReadOnlyList<string>? OutputChannelColors = null,
-    string? DisplaySourceIdentity = null);
+    string? DisplaySourceIdentity = null,
+    bool HasTemporaryMontage = false);
 
 /// <summary>
 /// Owns bounded review-window loading. A frame is a cache block; the viewport
@@ -39,6 +40,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     private long revision;
     private WaveformDisplayRequestContext currentDisplayRequest;
     private RecordingReviewFilterSettings filterSettings = new(1, 30, 50);
+    private MontageProfile? temporaryMontageProfile;
     private int disposed;
 
     public RecordingReviewSession(IRecordingAccessSession reader, RecordingMontageCatalogResult catalog,
@@ -64,7 +66,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     public event EventHandler? Changed;
     public Guid ReviewSessionId { get; } = Guid.NewGuid();
     public MontageProfile? AcquisitionMontage => montageSelection.AcquisitionMontage;
-    public MontageProfile? SelectedViewingMontage => montageSelection.SelectedMontage;
+    public MontageProfile? SelectedViewingMontage => temporaryMontageProfile ?? montageSelection.SelectedMontage;
     public double PositionSeconds { get; private set; }
     public double ViewportStartSeconds { get; private set; }
     public double DurationSeconds => reader.DurationSeconds;
@@ -73,6 +75,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     public bool IsLoading { get; private set; }
     public string StatusText { get; private set; } = "等待读取记录。";
     public RecordingReviewFilterSettings FilterSettings => filterSettings;
+    public MontageProfile? TemporaryMontageProfile => temporaryMontageProfile;
     public ReviewPreparationState PreparationState { get; private set; } = ReviewPreparationState.Idle;
 
     /// <summary>
@@ -87,6 +90,8 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         int plotWidthPixels,
         CancellationToken cancellationToken)
     {
+        // Temporary projections stay in this session's bounded memory cache.
+        if (referenceFrame.HasTemporaryMontage) return null;
         var display = await displayLevelProvider.TryReadAsync(referenceFrame, viewportStartSeconds,
             visibleDurationSeconds, plotWidthPixels, cancellationToken);
         if (display is not null || string.IsNullOrWhiteSpace(referenceFrame.DisplaySourceIdentity))
@@ -146,7 +151,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         var targetPosition = Math.Clamp(positionSeconds, 0, DurationSeconds);
         var targetViewportStart = ClampViewportStart(viewportStartSeconds);
         if (cache.TryGetFrame(targetViewportStart, Math.Min(DurationSeconds, targetViewportStart + VisibleDurationSeconds),
-                filterSettings, SelectedViewingMontage, out var cached, out var filterUnavailable))
+                filterSettings, SelectedViewingMontage, temporaryMontageProfile, out var cached, out var filterUnavailable))
         {
             SupersedePendingLoad();
             PositionSeconds = targetPosition;
@@ -170,7 +175,8 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         try
         {
             var started = Stopwatch.GetTimestamp();
-            var result = await BuildFrameAsync(GetCacheStart(targetViewportStart), token,
+            var temporary = temporaryMontageProfile;
+            var result = await BuildFrameAsync(GetCacheStart(targetViewportStart), token, temporary,
                 CreatePreparationProgress(requestRevision, token));
             token.ThrowIfCancellationRequested();
             if (requestRevision != Volatile.Read(ref revision)) return false;
@@ -184,7 +190,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
                 token,
                 payload =>
                 {
-                    cache.StoreFrame(payload, filterSettings, SelectedViewingMontage, result.FilterUnavailable);
+                    cache.StoreFrame(payload, filterSettings, SelectedViewingMontage, temporary, result.FilterUnavailable);
                     PositionSeconds = targetPosition;
                     ViewportStartSeconds = targetViewportStart;
                     CurrentFrame = payload;
@@ -241,6 +247,16 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         return LoadViewportAsync(ViewportStartSeconds, positionSeconds ?? PositionSeconds);
     }
 
+    public Task SetTemporaryMontageProfileAsync(MontageProfile? profile)
+    {
+        ThrowIfDisposed();
+        if (profile is not null) TemporaryWaveformMontage.ValidateSources(profile, catalog.RawSignalView.ChannelLabels);
+        temporaryMontageProfile = profile;
+        SupersedePendingLoad();
+        cache.ClearFrames();
+        return LoadViewportAsync(ViewportStartSeconds, PositionSeconds);
+    }
+
     public Task SetFilterAsync(RecordingReviewFilterSettings settings, double? positionSeconds = null)
     {
         ThrowIfDisposed();
@@ -278,7 +294,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
 
     private bool TryActivateCachedViewport()
     {
-        if (!cache.TryGetFrame(ViewportStartSeconds, ViewportEndSeconds, filterSettings, SelectedViewingMontage,
+        if (!cache.TryGetFrame(ViewportStartSeconds, ViewportEndSeconds, filterSettings, SelectedViewingMontage, temporaryMontageProfile,
                 out var cached, out var filterUnavailable))
         {
             return false;
@@ -311,15 +327,18 @@ public sealed class RecordingReviewSession : IAsyncDisposable
 
         var nextViewport = ClampViewportStart(frame.WindowEndSeconds - VisibleDurationSeconds * 0.1);
         if (cache.TryGetFrame(nextViewport, Math.Min(DurationSeconds, nextViewport + VisibleDurationSeconds),
-                filterSettings, SelectedViewingMontage, out _, out _))
+                filterSettings, SelectedViewingMontage, temporaryMontageProfile, out _, out _))
             return;
 
         try
         {
+            var expectedRevision = Volatile.Read(ref revision);
             var settings = filterSettings;
             var montage = SelectedViewingMontage;
-            var result = await BuildFrameAsync(GetCacheStart(nextViewport), lifetime.Token);
-            cache.StoreFrame(result.Frame, settings, montage, result.FilterUnavailable);
+            var temporary = temporaryMontageProfile;
+            var result = await BuildFrameAsync(GetCacheStart(nextViewport), lifetime.Token, temporary);
+            if (expectedRevision == Volatile.Read(ref revision) && ReferenceEquals(temporary, temporaryMontageProfile))
+                cache.StoreFrame(result.Frame, settings, montage, temporary, result.FilterUnavailable);
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch { /* Prefetch is opportunistic; foreground reads report errors. */ }
@@ -330,6 +349,8 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
         SupersedePendingLoad();
         lifetime.Cancel();
+        temporaryMontageProfile = null;
+        cache.ClearFrames();
         montageSelection.SelectionChanged -= OnMontageSelectionChanged;
         lifetime.Dispose();
         await sourceLoader.DisposeAsync();
@@ -355,7 +376,8 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         try
         {
             var started = Stopwatch.GetTimestamp();
-            var result = await BuildFrameAsync(cacheStartSeconds, token,
+            var temporary = temporaryMontageProfile;
+            var result = await BuildFrameAsync(cacheStartSeconds, token, temporary,
                 CreatePreparationProgress(requestRevision, token));
             token.ThrowIfCancellationRequested();
             if (requestRevision != Volatile.Read(ref revision)) return;
@@ -369,7 +391,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
                 token,
                 payload =>
                 {
-                    cache.StoreFrame(payload, filterSettings, SelectedViewingMontage, result.FilterUnavailable);
+                    cache.StoreFrame(payload, filterSettings, SelectedViewingMontage, temporary, result.FilterUnavailable);
                     CurrentFrame = payload;
                     StatusText = DescribeFrame(payload, result.FilterUnavailable);
                 });
@@ -405,11 +427,12 @@ public sealed class RecordingReviewSession : IAsyncDisposable
     }
 
     private async Task<FrameBuildResult> BuildFrameAsync(double cacheStartSeconds, CancellationToken token,
+        MontageProfile? temporaryProfile,
         Action<ReviewPreparationState>? progress = null)
     {
         var cacheEndSeconds = Math.Min(DurationSeconds, cacheStartSeconds + CacheDurationSeconds);
         var settings = filterSettings;
-        var montage = SelectedViewingMontage;
+        var montage = temporaryProfile ?? montageSelection.SelectedMontage;
         var sourceResult = await sourceLoader.LoadAsync(cacheStartSeconds, cacheEndSeconds, settings, token, progress);
         var displayWindow = sourceResult.Window;
 
@@ -425,10 +448,10 @@ public sealed class RecordingReviewSession : IAsyncDisposable
             montage?.Name ?? "原始设备通道", projected, outputNames,
             reader.Metadata.Revision,
             MontageOutputAppearance.ResolveColors(montage, outputNames),
-            sourceResult.FilterUnavailable || sourceResult.FilterContract is null
+            ReviewDisplaySourceIdentity.AddTemporaryProfile(sourceResult.FilterUnavailable || sourceResult.FilterContract is null
                 ? ReviewDisplaySourceIdentity.CreateRaw(reader.Manifest, montage)
                 : ReviewDisplaySourceIdentity.CreateFiltered(reader.Manifest, montage,
-                    settings, sourceResult.FilterContract)),
+                    settings, sourceResult.FilterContract), temporaryProfile), temporaryProfile is not null),
             sourceResult.FilterUnavailable, sourceResult.Source);
     }
 

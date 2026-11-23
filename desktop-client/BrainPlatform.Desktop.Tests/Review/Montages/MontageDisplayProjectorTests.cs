@@ -55,6 +55,25 @@ public sealed class MontageDisplayProjectorTests
         Assert.Equal(4, result[1].FirstSampleCounter);
     }
 
+    [Fact]
+    public void ProjectorReplacesAllOutputsUsingTemporaryProfileOrder()
+    {
+        var configuration = Configuration("F3", "F4", "M1");
+        var manifest = Manifest(configuration);
+        var profile = Profile(configuration, MontageNegativeKind.Channel, ["M1"]);
+        var temporary = TemporaryMontageFixture.Create("F3", "F4");
+        var window = new RecordingReviewWindow(0, 0, 0.002,
+            [new RecordingReviewSegment(0, 2, 4, [10e-6, 4e-6, 2e-6, 0, 8e-6, 3e-6, 1e-6, 0])]);
+
+        var saved = MontageDisplayProjector.Project(window, manifest, profile);
+        var withTemporary = MontageDisplayProjector.Project(window, manifest, temporary);
+
+        Assert.Equal(["F3-F4", "F4-F3"], withTemporary[0].Channels.Select(channel => channel.Label));
+        Assert.Equal(["F3-M1", "F4-M1"], saved[0].Channels.Select(channel => channel.Label));
+        Assert.Equal(6e-6, withTemporary[0].Channels[0].Values[0], precision: 12);
+        Assert.Equal(5e-6, withTemporary[0].Channels[0].Values[1], precision: 12);
+    }
+
     private static LocalRawRecordingManifest Manifest(ChannelConfigurationProfile configuration) => new(
         Guid.NewGuid(),
         "sample_major_float64_v1_with_receive_utc_ticks_and_per_channel_units",

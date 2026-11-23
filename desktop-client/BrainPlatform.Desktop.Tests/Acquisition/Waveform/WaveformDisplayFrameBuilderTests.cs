@@ -191,6 +191,35 @@ public sealed class WaveformDisplayFrameBuilderTests
     }
 
     [Fact]
+    public void Build_ReplacesWholeWaveformWithTemporaryProfile()
+    {
+        var rawValues = new[] { 5e-6, 2e-6, 7e-6, 3e-6 };
+        var batch = new AcquisitionBatch(10, 2, 2, rawValues.ToArray(), DateTimeOffset.UtcNow);
+        var channels = new[]
+        {
+            new LiveDisplayChannel(0, 0, "F3", "Reference", true),
+            new LiveDisplayChannel(1, 1, "F4", "Reference", true),
+        };
+        var source = new LiveWaveformSource(
+            new AcquisitionStreamMetadata("device", "device", 2,
+            [
+                new AcquisitionChannel(0, 0, "F3", AcquisitionChannelKind.Reference, "V"),
+                new AcquisitionChannel(1, 1, "F4", AcquisitionChannelKind.Reference, "V"),
+            ], 2, DateTimeOffset.UtcNow),
+            [batch], channels,
+            MontageSourceChannels: channels,
+            MontageProfile: TemporaryMontageFixture.Create("F3", "F4"));
+
+        var frame = Assert.IsType<WaveformDisplayFrame>(WaveformDisplayFrameBuilder.Build(source, 1, 500));
+
+        Assert.Equal(["F3-F4", "F4-F3"], frame.Traces.Select(trace => trace.Label));
+        Assert.All(frame.Traces, trace => Assert.Equal("#123456", trace.Color));
+        Assert.Equal(3e-6, frame.Traces[0].Points[0].MinVolts, precision: 12);
+        Assert.Equal(4e-6, frame.Traces[0].Points[^1].MaxVolts, precision: 12);
+        Assert.Equal(rawValues, batch.SampleMajorValues);
+    }
+
+    [Fact]
     public void Build_DerivesSharedAverageReferenceWithoutChangingTheRawBatch()
     {
         var channelSnapshot = new ChannelConfigurationProfile(

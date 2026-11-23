@@ -17,6 +17,9 @@ internal static class ReviewDisplaySourceIdentity
         return Hash(BuildCanonical(manifest, montage, "raw", null, null));
     }
 
+    public static string AddTemporaryProfile(string identity, MontageProfile? profile) =>
+        profile is null ? identity : Hash($"{identity}|temporary:{MontageProfileFingerprint.Create(profile.ChannelConfigurationFingerprint, profile.DerivedChannels, profile.AverageReferenceLabels)}");
+
     public static string CreateFiltered(
         LocalRawRecordingManifest manifest,
         MontageProfile? montage,

@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using BrainPlatform.Desktop.Modules.Events.Views;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
+using BrainPlatform.Desktop.Modules.Montages.Views;
 
 namespace BrainPlatform.Desktop.Modules.Review.Views;
 
@@ -231,6 +232,16 @@ public partial class RecordingReviewView : UserControl
             ReferenceEquals(profile, viewModel.CurrentViewingMontage)) return;
 
         try { await viewModel.SelectViewingMontageAsync(profile); }
+        catch (Exception exception) { viewModel.ReportMontageSelectionError(exception); }
+    }
+
+    private async void OnOnlineMontageClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } viewModel) return;
+        var dialog = new TemporaryMontageEditorWindow(viewModel.OnlineMontageSource,
+            viewModel.TemporaryWaveformMontage, Window.GetWindow(this));
+        if (dialog.ShowDialog() != true || dialog.SavedProfile is not { } profile) return;
+        try { await viewModel.SetTemporaryWaveformMontageAsync(profile); }
         catch (Exception exception) { viewModel.ReportMontageSelectionError(exception); }
     }
 

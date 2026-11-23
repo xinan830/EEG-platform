@@ -3,6 +3,12 @@
   "strong_review_lines": 600,
   "critical_lines": 1000,
   "reviews": {
+    "desktop-client/BrainPlatform.Desktop.Tests/Review/Playback/RecordingReviewSessionTests.cs": {
+      "decision": "split",
+      "max_lines": 690,
+      "reason": "High-risk test-fixture review: session tests share fake readers/filter fixtures across navigation, source caching and lifecycle cases. Temporary whole-profile tests replace old append assertions and verify unchanged algorithm selection, exact output names/colors, cache identity, pending-request cancellation and cleanup. Preserve the behavior-based fixture split plan below.",
+      "follow_up": "Extract shared review-session fixtures, then separate navigation-race tests from source-cache and display-projection tests by behavior."
+    },
     "desktop-client/BrainPlatform.Desktop/Modules/Algorithms/Views/Shared/TnkAnalysisPlotView.cs": {
       "decision": "keep",
       "max_lines": 470,
@@ -128,7 +134,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
       "max_lines": 580,
-        "reason": "576 lines. Trace projection and event/lifecycle visuals have focused owners. Event pointer handling and preview are isolated in RecordingReviewSciChartCanvas.EventPlacement; the main canvas only connects lifecycle and property changes. The remaining chart binding, layout and viewport concerns reuse the existing samples, filters and montage mapping.",
+      "reason": "576 lines. Trace projection and event/lifecycle visuals have focused owners. Event pointer handling and preview are isolated in RecordingReviewSciChartCanvas.EventPlacement; the main canvas only connects lifecycle and property changes. The remaining chart binding, layout and viewport concerns reuse the existing samples, filters and montage mapping.",
       "follow_up": "Split chart binding and viewport concerns from the canvas only when a concrete review behavior needs another owner."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/Views/MontageDetailView.xaml": {
@@ -139,7 +145,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/ViewModels/MontageConfigurationWorkspaceViewModel.cs": {
       "decision": "split",
       "max_lines": 830,
-      "reason": "Existing montage catalogue/editor lifecycle remains oversized at 822 lines. Draft construction is extracted into MontageDraftRowFactory and ordering into MontageOutputOrder; colors live on draft/domain outputs. No raw acquisition, reference math or compatibility ownership is introduced here. Further lifecycle extraction would broaden this presentation change.",
+      "reason": "High-risk review: the full catalogue/draft owner remains at 823 lines. Session entry is separated by responsibility into the Session partial; save branches only at the existing persistence boundary, reusing the exact same validation and draft model. No new projection, raw storage, reference math or algorithm ownership is added. Further catalogue/draft persistence extraction is outside this feature and remains tracked below.",
       "follow_up": "Extract catalogue synchronization and draft persistence workflows into dedicated collaborators in a separate maintenance change; preserve the single draft owner and target a composition file below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Waveform/LiveSciChartCanvas.cs": {
@@ -150,19 +156,19 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/LiveMonitoringViewModel.cs": {
       "decision": "split",
-      "max_lines": 645,
-      "reason": "Existing live display selection is 639 lines. A derived color list delegates to MontageOutputAppearance for preview without introducing a second montage owner.",
+      "max_lines": 660,
+      "reason": "High-risk review: the monitor keeps its existing whole-profile waveform projection and no longer owns a second appended-trace override. Session profile selection belongs to AcquisitionWorkspaceViewModel.OnlineMontage. The 640-line monitor remains unchanged apart from removing the erroneous appended trace; status/source extraction remains the documented maintenance boundary.",
       "follow_up": "Extract live source/visibility projection from monitor status coordination in separate acquisition maintenance."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Waveform/WaveformDisplayFrameBuilder.cs": {
       "decision": "keep",
-      "max_lines": 545,
-      "reason": "One pure bounded display-frame transformation remains 542 lines. Color travels with each already-resolved output; the reference formulas, native source indexes, counter gaps and extrema algorithm are unchanged."
+      "max_lines": 555,
+      "reason": "One pure bounded display-frame transformation resolves saved and temporary display definitions using existing source indexes and reference math; counter gaps and extrema behavior are unchanged."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Playback/RecordingReviewSession.cs": {
       "decision": "keep",
-      "max_lines": 560,
-      "reason": "The session owns navigation revisions, foreground cancellation, cache activation, complete-frame publication, and the workspace montage-selection subscription. Raw/filtered source loading and checkpoint lifetime live in ReviewSourceLoader; shared chunk ownership/progress lives in ReviewSourceChunkWork. Keep one foreground revision owner rather than fragmenting its state to meet a mechanical line target; re-evaluate before exceeding 560 lines."
+      "max_lines": 570,
+      "reason": "One bounded review-window state machine owns navigation, cancellation and frame publication. The temporary whole-profile override reuses the same projector with full fingerprint identities, revision-fenced prefetch and in-memory-only display frames. Raw/filter source work remains in ReviewSourceLoader; no algorithm selection ownership is added."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventDefinitionEditorView.xaml": {
       "decision": "split",
@@ -182,8 +188,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/AcquisitionWorkspaceViewModel.cs": {
       "decision": "split",
-      "max_lines": 1200,
-      "reason": "The acquisition workspace ViewModel still owns device setup, recording commands, event bindings, and transient preview display-montage selection/filtering (~1170 lines, within 1200). Live spectral selection, result delivery and display state live in LiveSpectralAnalysisViewModel, and existing live services own window scheduling and sample retention.",
+      "max_lines": 1220,
+      "reason": "Critical-size review: the existing composition remains above 1000 lines. Session-only montage selection is isolated in the OnlineMontage partial; the main file only integrates existing setter, lifecycle and compatible-list hooks. Algorithm montage selection and raw writer snapshots are untouched by temporary selection. Preserve the executable device/setup then event-command split plan below rather than expanding unrelated refactoring.",
       "follow_up": "Extract device-backed setup and range selection, then move recording-event commands into the existing event workflow boundary. Keep one runtime and device session and target a composition file below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/ConfiguredAcquisitionRuntime.cs": {
@@ -284,9 +290,9 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/ViewModels/RecordingReviewViewModel.cs": {
       "decision": "split",
-        "max_lines": 515,
-        "reason": "510 lines after extracting event loading/editing and commands into Events, and placement state into EventPlacement partials. Existing analysis, navigation and viewport owners remain in use; no second persistence path, playback clock or scientific computation is introduced. Main composition is now below the 600-line high-risk threshold.",
-        "follow_up": "Extract remaining display-setting bindings and constructor composition when those workflows change. Keep one playback cursor and event service; target a main composition below 400 lines without mechanical file splitting."
+      "max_lines": 545,
+      "reason": "Display-only temporary selection is composed through the OnlineMontage partial and owning review session. The regular shared analysis montage selection retains its semantics; temporary profiles are excluded from backend registration. Keep one playback cursor and one display session.",
+      "follow_up": "Extract remaining display-setting bindings and constructor composition when those workflows change. Keep one playback cursor and event service; target a main composition below 400 lines without mechanical file splitting."
     },
     "desktop-client/BrainPlatform.Desktop/Views/LiveSciChartCanvas.cs": {
       "decision": "keep",

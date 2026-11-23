@@ -319,7 +319,7 @@
                                 <ComboBox Style="{StaticResource EegParameterComboBoxStyle}"
                                           ItemsSource="{Binding CompatibleLiveDisplayMontages}"
                                           SelectedItem="{Binding Acquisition.LiveDisplayMontageProfile, Mode=TwoWay}"
-                                          IsEnabled="{Binding Acquisition.CanSwitchLiveDisplayMontage}"
+                                          IsEnabled="{Binding Acquisition.CanSelectWaveformMontage}"
                                           ToolTip="仅切换实时波形显示导联；不改变原始数据、录制入库导联或算法输入。">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
@@ -328,6 +328,9 @@
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
                             </controls:EegParameterField>
+                            <Button Content="在线导联" Click="OnOnlineMontageClick" Style="{StaticResource AppCompactActionButtonStyle}" Margin="0,0,8,0"
+                                    IsEnabled="{Binding Acquisition.LiveMonitor.HasOpenStream}"
+                                    VerticalAlignment="Bottom" ToolTip="打开完整导联设置；保存后切换整套临时波形配置，不参与算法" />
                         </StackPanel>
                     </DockPanel>
                 </Border>

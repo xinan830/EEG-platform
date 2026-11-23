@@ -74,11 +74,32 @@ public sealed class LiveAcquisitionMappingTests
                 .GetAwaiter().GetResult();
             probe.Workspace.LiveDisplayMontageProfile = recordingMontage;
             Assert.True(probe.Workspace.CanSwitchLiveDisplayMontage);
+            probe.Workspace.LiveMonitor.Refresh();
+            var algorithmMontage = probe.Runtime.LiveMontage?.Profile;
+            var online = TemporaryMontageFixture.Create(recordingMontage.ChannelConfigurationSnapshot);
+            probe.Workspace.SetTemporaryWaveformMontage(online);
+            Assert.Same(algorithmMontage, probe.Runtime.LiveMontage?.Profile);
+            Assert.Same(recordingMontage, probe.Workspace.SelectedMontageProfile);
+            Assert.Same(online, probe.Workspace.LiveDisplayMontageProfile);
+            Assert.Contains(online, probe.Workspace.FilterCompatibleLiveDisplayMontages([recordingMontage]));
+            Assert.Contains(recordingMontage, probe.Workspace.FilterCompatibleLiveDisplayMontages([]));
+            Assert.Equal(online.DerivedChannels.Select(channel => channel.Name), probe.Workspace.LiveMonitor.VisibleChannelLabels);
+            Assert.Throws<InvalidOperationException>(() => probe.Workspace.SetTemporaryWaveformMontage(
+                TemporaryMontageFixture.Create("missing-channel", "another-missing")));
 
             var alternate = recordingMontage with { Id = "probe-alternate", Name = "Alternate" };
             probe.Workspace.LiveDisplayMontageProfile = alternate;
 
             Assert.Same(recordingMontage, probe.Workspace.SelectedMontageProfile);
+
+            var selectedAlgorithmMontage = probe.Runtime.LiveMontage;
+            probe.Workspace.LiveDisplayMontageProfile = online;
+            Assert.Same(online, probe.Workspace.LiveDisplayMontageProfile);
+            Assert.Same(selectedAlgorithmMontage, probe.Runtime.LiveMontage);
+            probe.Workspace.LiveDisplayMontageProfile = alternate;
+            probe.Workspace.SetTemporaryWaveformMontage(null);
+            Assert.DoesNotContain(probe.Workspace.LiveMonitor.VisibleChannelLabels, name => name.Contains("临时"));
+            Assert.Same(selectedAlgorithmMontage, probe.Runtime.LiveMontage);
             Assert.Same(alternate, probe.Workspace.LiveDisplayMontageProfile);
             Assert.Equal("Alternate", probe.Workspace.LiveMonitor.CurrentMontageName);
 
@@ -100,6 +121,26 @@ public sealed class LiveAcquisitionMappingTests
             probe.Workspace.LiveDisplayMontageProfile = recordingMontage;
             Assert.Same(alternate, probe.Workspace.LiveDisplayMontageProfile);
             Assert.Same(recordingMontage, probe.Workspace.SelectedMontageProfile);
+            var recordingAlgorithmMontage = probe.Runtime.LiveMontage;
+            probe.Workspace.SetTemporaryWaveformMontage(online with { Name = "录制在线配置" });
+            Assert.Same(recordingAlgorithmMontage, probe.Runtime.LiveMontage);
+            Assert.Same(recordingMontage, probe.Workspace.SelectedMontageProfile);
+            var manifest = System.Text.Json.JsonSerializer.Deserialize<LocalRawRecordingManifest>(
+                File.ReadAllText(Path.Combine(probe.Runtime.RecordingDirectory!, "manifest.json")))!;
+            Assert.Equal(probe.Runtime.StreamMetadata!.Channels, manifest.Channels);
+            Assert.DoesNotContain("录制在线配置", System.Text.Json.JsonSerializer.Serialize(manifest.HardwareConfiguration));
+            var recordingOnline = probe.Workspace.TemporaryWaveformMontage;
+            probe.Workspace.LiveDisplayMontageProfile = alternate;
+            Assert.Same(alternate, probe.Workspace.LiveDisplayMontageProfile);
+            Assert.Same(recordingAlgorithmMontage, probe.Runtime.LiveMontage);
+            probe.Workspace.LiveDisplayMontageProfile = recordingOnline;
+            Assert.Same(recordingOnline, probe.Workspace.LiveDisplayMontageProfile);
+            Assert.Same(recordingAlgorithmMontage, probe.Runtime.LiveMontage);
+
+            probe.Runtime.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
+            DrainDispatcher();
+            probe.Workspace.LiveMonitor.Refresh();
+            Assert.Null(probe.Workspace.TemporaryWaveformMontage);
         });
     }
 

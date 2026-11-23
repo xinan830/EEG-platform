@@ -36,12 +36,40 @@ public sealed class RecordingReviewWindowCacheTests
         var frame = new RecordingReviewFrame(Guid.NewGuid(), 1, 10, 0, 0, 1, "F3",
             [new ProjectedMontageSegment(0, 2, [new ProjectedMontageChannel("F3", [1d, 2d])])], ["F3"], "fixture-source");
 
-        cache.StoreFrame(frame, new RecordingReviewFilterSettings(1, 30, 50), null, false);
+        cache.StoreFrame(frame, new RecordingReviewFilterSettings(1, 30, 50), null, null, false);
 
-        Assert.True(cache.TryGetFrame(0, 1, new RecordingReviewFilterSettings(1, 30, 50), null,
+        Assert.True(cache.TryGetFrame(0, 1, new RecordingReviewFilterSettings(1, 30, 50), null, null,
             out var retained, out _));
         Assert.Equal(frame.Segments, retained.Segments);
         Assert.Equal(frame.OutputChannelNames, retained.OutputChannelNames);
+    }
+
+    [Fact]
+    public void Temporary_profile_cache_is_separate_and_clearing_frames_preserves_raw_windows()
+    {
+        var cache = new RecordingReviewWindowCache();
+        var settings = new RecordingReviewFilterSettings(1, 30, 50);
+        var temporary = TemporaryMontageFixture.Create("F3", "F4");
+        var frame = new RecordingReviewFrame(Guid.NewGuid(), 1, 10, 0, 0, 1, "F3-F4",
+            [new ProjectedMontageSegment(0, 1, [new ProjectedMontageChannel(temporary.Name, [1d])])],
+            [temporary.Name], "fixture-source");
+        cache.StoreRaw(Window(0, 1, 2));
+        cache.StoreFrame(frame, settings, null, temporary, false);
+
+        Assert.True(cache.TryGetFrame(0, 1, settings, null, temporary, out _, out _));
+        Assert.False(cache.TryGetFrame(0, 1, settings, null, null, out _, out _));
+        Assert.False(cache.TryGetFrame(0, 1, settings, null,
+            TemporaryMontageFixture.Create("F4", "F3"), out _, out _));
+        var recolored = temporary with
+        {
+            DerivedChannels = temporary.DerivedChannels.Select(channel => channel with { Color = "#654321" }).ToArray(),
+        };
+        Assert.False(cache.TryGetFrame(0, 1, settings, null, recolored, out _, out _));
+
+        cache.ClearFrames();
+
+        Assert.False(cache.TryGetFrame(0, 1, settings, null, temporary, out _, out _));
+        Assert.True(cache.TryGetRaw(0, 1, out _));
     }
 
     private static RecordingReviewWindow Window(double start, int sampleCount, int channelCount) =>

@@ -141,7 +141,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         session.Changed += OnSessionChanged;
     }
 
-    public IReadOnlyList<MontageProfile> CompatibleViewingMontages => montageSelection.AvailableMontages;
+    public IReadOnlyList<MontageProfile> CompatibleViewingMontages => temporaryWaveformMontage is { } temporary
+        ? [.. montageSelection.AvailableMontages, temporary] : montageSelection.AvailableMontages;
 
     internal WorkspaceMontageSelection<MontageProfile> WorkspaceMontageSelection => montageSelection;
 
@@ -199,7 +200,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public MontageProfile? AcquisitionMontage => session.AcquisitionMontage;
 
-    public MontageProfile? CurrentViewingMontage => montageSelection.SelectedMontage;
+    public MontageProfile? CurrentViewingMontage => session.SelectedViewingMontage;
 
     public RecordingReviewFrame? CurrentFrame => session.CurrentFrame;
 
@@ -388,15 +389,26 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     public async Task SelectViewingMontageAsync(MontageProfile? montage)
     {
+        if (temporaryWaveformMontage is not null && ReferenceEquals(montage, temporaryWaveformMontage))
+        {
+            await session.SetTemporaryMontageProfileAsync(montage);
+            RaisePropertyChanged(nameof(CurrentViewingMontage));
+            return;
+        }
         var previous = montageSelection.Capture();
-        if (!montageSelection.Select(montage)) return;
+        var changed = montageSelection.Select(montage);
+        if (!changed && session.TemporaryMontageProfile is null) return;
         var selected = montageSelection.Capture();
-
+        if (changed)
+        {
+            if (analysisRecording is { } registered)
+                UpdateAlgorithmMontageInputs(registered, previous, selected);
+            InvalidateAnalysisConfiguration();
+        }
+        if (session.TemporaryMontageProfile is not null)
+            await session.SetTemporaryMontageProfileAsync(null);
+        else await session.RefreshMontageSelectionAsync(playback.PositionSeconds);
         RaisePropertyChanged(nameof(CurrentViewingMontage));
-        if (analysisRecording is { } registered)
-            UpdateAlgorithmMontageInputs(registered, previous, selected);
-        InvalidateAnalysisConfiguration();
-        await session.RefreshMontageSelectionAsync(playback.PositionSeconds);
     }
 
     public void ReportMontageSelectionError(Exception exception) => ReportCommandError(exception);
@@ -422,6 +434,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         try { await DetachAnalysisAsync(); }
         finally { analysisPreparationGate.Release(); }
         await session.DisposeAsync();
+        temporaryWaveformMontage = null;
         if (ownsPlayback) playback.Dispose();
     }
 

@@ -205,7 +205,9 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
 
     private void OnAcquisitionPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
-        if (eventArgs.PropertyName is nameof(AcquisitionWorkspaceViewModel.SelectedMontageProfile) or "")
+        if (eventArgs.PropertyName is nameof(AcquisitionWorkspaceViewModel.SelectedMontageProfile)
+            or nameof(AcquisitionWorkspaceViewModel.TemporaryWaveformMontage)
+            or nameof(AcquisitionWorkspaceViewModel.CanSelectWaveformMontage) or "")
         {
             RefreshCompatibleLiveDisplayMontages();
         }

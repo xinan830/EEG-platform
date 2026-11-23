@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using BrainPlatform.Desktop.Modules.Events.Views;
+using BrainPlatform.Desktop.Modules.Montages.Views;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Views;
 
@@ -54,6 +55,16 @@ public partial class AcquisitionWorkspaceView : UserControl
         {
             workspace.Notifications.PublishError(exception.Message);
         }
+    }
+
+    private void OnOnlineMontageClick(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not DesktopWorkspaceViewModel workspace) return;
+        if (workspace.Acquisition.OnlineMontageSource is not { } source) return;
+        var dialog = new TemporaryMontageEditorWindow(source, workspace.Acquisition.TemporaryWaveformMontage, Window.GetWindow(this));
+        if (dialog.ShowDialog() != true || dialog.SavedProfile is not { } profile) return;
+        try { workspace.Acquisition.SetTemporaryWaveformMontage(profile); }
+        catch (Exception exception) { workspace.Notifications.PublishError(exception.Message); }
     }
 
 }
