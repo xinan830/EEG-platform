@@ -8,23 +8,34 @@ namespace BrainPlatform.Desktop.Modules.Devices.Drivers.AntEego;
 /// </summary>
 internal static class AntEegoNativeRuntime
 {
-    private static readonly object gate = new();
-    private static readonly AntEegoNativeStreamGate streamGate = new();
-    private static AntEegoNativeApi? api;
-    private static string? loadedPath;
-    private static int leaseCount;
+    private static readonly AntEegoNativeRuntimeState shared = new(AntEegoNativeApi.Load);
 
-    public static AntEegoNativeLease Acquire(string sdkLibraryPath, bool forStream)
+    public static AntEegoNativeLease Acquire(string sdkLibraryPath, bool forStream) => shared.Acquire(sdkLibraryPath, forStream);
+
+    public static void Shutdown() => shared.Shutdown();
+}
+
+internal sealed class AntEegoNativeRuntimeState(Func<string, AntEegoNativeApi> loadApi)
+{
+    private readonly object gate = new();
+    private readonly AntEegoNativeStreamGate streamGate = new();
+    private AntEegoNativeApi? api;
+    private string? loadedPath;
+    private int leaseCount;
+    private bool shutdown;
+
+    public AntEegoNativeLease Acquire(string sdkLibraryPath, bool forStream)
     {
         var fullPath = Path.GetFullPath(sdkLibraryPath);
         lock (gate)
         {
+            ObjectDisposedException.ThrowIf(shutdown, this);
             if (forStream && streamGate.IsOccupied) streamGate.Acquire();
             if (streamGate.IsOccupied || (forStream && leaseCount != 0))
                 throw new AcquisitionDeviceBusyException("设备正在使用或检测，请稍后重试。");
             if (api is null)
             {
-                api = AntEegoNativeApi.Load(fullPath);
+                api = loadApi(fullPath);
                 loadedPath = fullPath;
             }
             else if (!string.Equals(loadedPath, fullPath, StringComparison.OrdinalIgnoreCase))
@@ -45,7 +56,25 @@ internal static class AntEegoNativeRuntime
         }
     }
 
-    private static void Release(bool wasStream)
+    public void Shutdown()
+    {
+        lock (gate)
+        {
+            if (shutdown) return;
+            if (leaseCount != 0)
+            {
+                throw new InvalidOperationException("Cannot shut down the ANT/eego SDK while native leases are active.");
+            }
+
+            shutdown = true;
+            var activeApi = api;
+            api = null;
+            loadedPath = null;
+            activeApi?.Dispose();
+        }
+    }
+
+    private void Release(bool wasStream)
     {
         lock (gate)
         {
@@ -59,14 +88,6 @@ internal static class AntEegoNativeRuntime
             {
                 leaseCount = 0;
                 throw new InvalidOperationException("ANT/eego native lease was released more than once.");
-            }
-
-            if (leaseCount == 0 && api is not null)
-            {
-                var activeApi = api;
-                api = null;
-                loadedPath = null;
-                activeApi.Dispose();
             }
         }
     }

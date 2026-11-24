@@ -5,9 +5,10 @@ internal sealed class ImpedanceReadingSession(IAcquisitionImpedanceStream stream
 {
     private readonly CancellationTokenSource cancellation = new();
     private readonly object stopGate = new();
+    private readonly SemaphoreSlim streamDisposeGate = new(1, 1);
     private Task? reader;
     private Task? stopTask;
-    private int streamReleased;
+    private bool streamReleased;
 
     public Guid SessionId { get; } = sessionId;
     public event EventHandler<ImpedanceSnapshot>? Updated;
@@ -46,7 +47,10 @@ internal sealed class ImpedanceReadingSession(IAcquisitionImpedanceStream stream
     {
         lock (stopGate)
         {
-            return stopTask ??= StopCoreAsync();
+            if (stopTask is { IsCompleted: false } or { IsCompletedSuccessfully: true })
+                return stopTask;
+
+            return stopTask = StopCoreAsync();
         }
     }
 
@@ -62,9 +66,16 @@ internal sealed class ImpedanceReadingSession(IAcquisitionImpedanceStream stream
 
     private async Task DisposeStreamOnceAsync()
     {
-        if (Interlocked.Exchange(ref streamReleased, 1) == 0)
+        await streamDisposeGate.WaitAsync().ConfigureAwait(false);
+        try
         {
+            if (streamReleased) return;
             await stream.DisposeAsync().ConfigureAwait(false);
+            streamReleased = true;
+        }
+        finally
+        {
+            streamDisposeGate.Release();
         }
     }
 }

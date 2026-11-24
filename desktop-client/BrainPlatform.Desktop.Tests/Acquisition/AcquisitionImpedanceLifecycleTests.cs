@@ -107,6 +107,7 @@ public sealed class AcquisitionImpedanceLifecycleTests
         driver.Adapter.Impedance.FailClose = false;
         await runtime.StopImpedanceAsync();
         Assert.Equal(AcquisitionDeviceMode.Idle, runtime.DeviceMode.Mode);
+        Assert.Equal(1, driver.Adapter.Impedance.CloseCount);
     }
 
     [Fact]

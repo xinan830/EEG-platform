@@ -104,6 +104,15 @@ public partial class App : System.Windows.Application
         }
         finally
         {
+            try
+            {
+                Modules.Devices.Drivers.AntEego.AntEegoNativeRuntime.Shutdown();
+            }
+            catch (Exception exception)
+            {
+                DesktopLog.Error("ant_eego_sdk_shutdown_failed", exception);
+            }
+
             // 关闭后端进程（打包模式下）
             _backendProcess?.Dispose();
             DesktopLog.Info("desktop_stopped");

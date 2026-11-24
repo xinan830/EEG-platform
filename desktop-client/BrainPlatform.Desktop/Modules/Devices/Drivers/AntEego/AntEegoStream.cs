@@ -17,8 +17,11 @@ internal sealed class AntEegoStream : IAcquisitionStream
     private readonly TimeSpan emptyReadDelay;
     private readonly Action<AntEegoStream> onDisposed;
     private readonly AntEegoNativeStreamOwnership ownership;
+    private readonly long openedTimestamp = Stopwatch.GetTimestamp();
     private int closing;
     private int disposed;
+    private int firstBatchLogged;
+    private int noDataWarningLogged;
 
     public AntEegoStream(
         AntEegoNativeLease lease,
@@ -62,6 +65,12 @@ internal sealed class AntEegoStream : IAcquisitionStream
             var readCompletedTimestamp = Stopwatch.GetTimestamp();
             if (values is null)
             {
+                if (Stopwatch.GetElapsedTime(openedTimestamp) >= TimeSpan.FromSeconds(3) &&
+                    Interlocked.Exchange(ref noDataWarningLogged, 1) == 0)
+                {
+                    DesktopLog.Warning($"ant_eego_eeg_no_data device_id={Metadata.DeviceId} stream_id={streamId} " +
+                        $"elapsed_ms={Stopwatch.GetElapsedTime(openedTimestamp).TotalMilliseconds:F0}");
+                }
                 await Task.Delay(emptyReadDelay, cancellationToken);
                 continue;
             }
@@ -80,6 +89,12 @@ internal sealed class AntEegoStream : IAcquisitionStream
                 sampleCount,
                 channelCount,
                 Metadata.SampleCounterChannelIndex);
+            if (Interlocked.Exchange(ref firstBatchLogged, 1) == 0)
+            {
+                DesktopLog.Info($"ant_eego_eeg_first_batch device_id={Metadata.DeviceId} stream_id={streamId} " +
+                    $"first_sample_counter={firstSampleCounter} sample_count={sampleCount} " +
+                    $"elapsed_ms={Stopwatch.GetElapsedTime(openedTimestamp).TotalMilliseconds:F0}");
+            }
             var readCallMs = Stopwatch.GetElapsedTime(readStartedTimestamp, readCompletedTimestamp).TotalMilliseconds;
             if (previousReadCompletedTimestamp is { } previousReadCompleted &&
                 previousLastSampleCounter is { } previousLast && firstSampleCounter > previousLast + 1)
