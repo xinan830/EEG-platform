@@ -59,7 +59,7 @@ public sealed class AcquisitionImpedanceLifecycleTests
     }
 
     [Fact]
-    public async Task RecordingIsFinalizedBeforeDetection_AndFollowingPreviewHasFreshIdentity()
+    public async Task RecordingAndPausedRecordingRejectImpedance_WithoutChangingTheRecording()
     {
         var directory = Path.Combine(Path.GetTempPath(), "eeg-impedance-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -69,14 +69,22 @@ public sealed class AcquisitionImpedanceLifecycleTests
         var firstSession = await runtime.StartPreviewAsync(EegRequest(directory), default);
         await runtime.StartRecordingAsync(default);
         var recording = runtime.RecordingSessionId;
-        var recordDirectory = runtime.RecordingDirectory!;
-        driver.Adapter.BeforeImpedanceOpen = () =>
-        {
-            Assert.Equal(AcquisitionState.Stopped, runtime.State.State);
-            Assert.True(driver.Adapter.EegClosed);
-            Assert.True(File.Exists(Path.Combine(recordDirectory, "manifest.json")));
-        };
-        await runtime.StartImpedanceAsync(Request(), firstSession, recording, default);
+        var recordDirectory = runtime.RecordingDirectory;
+        await Assert.ThrowsAsync<AcquisitionUnavailableException>(() => runtime.StartImpedanceAsync(Request(), firstSession, recording, default));
+        Assert.Equal(AcquisitionState.Recording, runtime.State.State);
+        Assert.Equal(recording, runtime.RecordingSessionId);
+        Assert.Equal(recordDirectory, runtime.RecordingDirectory);
+        Assert.Equal(0, driver.Adapter.ImpedanceOpens);
+
+        await runtime.PauseAsync(default);
+        await Assert.ThrowsAsync<AcquisitionUnavailableException>(() => runtime.StartImpedanceAsync(Request(), firstSession, recording, default));
+        Assert.Equal(AcquisitionState.Paused, runtime.State.State);
+        Assert.Equal(recording, runtime.RecordingSessionId);
+        Assert.Equal(0, driver.Adapter.ImpedanceOpens);
+
+        await runtime.ResumeAsync(default);
+        await runtime.StopAsync(default);
+        await runtime.StartImpedanceAsync(Request(), runtime.State.SessionId, runtime.RecordingSessionId, default);
         await runtime.StopImpedanceAsync();
         var secondSession = await runtime.StartPreviewAsync(EegRequest(directory), default);
         Assert.NotEqual(firstSession, secondSession);
@@ -177,34 +185,6 @@ public sealed class AcquisitionImpedanceLifecycleTests
         Assert.Null(runtime.RecordingDirectory);
         Assert.Null(runtime.State.SessionId);
         Assert.Empty(runtime.GetDisplaySnapshot());
-    }
-
-    [Fact]
-    public async Task FinalizationFailureBlocksDetectionAndRetainsRecoverableRecordingArtifacts()
-    {
-        var directory = Path.Combine(Path.GetTempPath(), "eeg-impedance-finalize-tests", Guid.NewGuid().ToString("N"));
-        var driver = new Driver();
-        var runtime = Runtime(driver);
-        await runtime.ConfigureAsync(Configuration(), default);
-        var sessionId = await runtime.StartPreviewAsync(EegRequest(directory), default);
-        await runtime.StartRecordingAsync(default);
-        var recordingId = runtime.RecordingSessionId;
-        var recordingDirectory = runtime.RecordingDirectory!;
-        var summaryPath = Path.Combine(recordingDirectory, "recording-summary.json");
-        using (var locked = new FileStream(summaryPath, FileMode.Create, FileAccess.ReadWrite, FileShare.None))
-        {
-            await Assert.ThrowsAnyAsync<Exception>(() => runtime.StartImpedanceAsync(Request(), sessionId, recordingId, default));
-            Assert.Equal(0, driver.Adapter.ImpedanceOpens);
-            Assert.Equal(AcquisitionDeviceMode.ImpedanceFaulted, runtime.DeviceMode.Mode);
-            Assert.True(File.Exists(Path.Combine(recordingDirectory, "manifest.json")));
-            Assert.Equal(recordingDirectory, runtime.RecordingDirectory);
-            await Assert.ThrowsAsync<AcquisitionDeviceBusyException>(() => runtime.StartPreviewAsync(EegRequest(directory), default));
-        }
-        await Assert.ThrowsAsync<InvalidOperationException>(() => runtime.StopImpedanceAsync());
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await runtime.DisposeAsync());
-        Assert.Equal(AcquisitionDeviceMode.ImpedanceFaulted, runtime.DeviceMode.Mode);
-        Assert.Equal(0, driver.Adapter.ImpedanceOpens);
-        Assert.True(File.Exists(Path.Combine(recordingDirectory, "manifest.json")));
     }
 
     private static ConfiguredAcquisitionRuntime Runtime(Driver driver) => new(driverRegistry: new([driver]));

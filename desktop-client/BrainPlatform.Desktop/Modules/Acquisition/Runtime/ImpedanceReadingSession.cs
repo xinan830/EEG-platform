@@ -4,9 +4,11 @@ namespace BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 internal sealed class ImpedanceReadingSession(IAcquisitionImpedanceStream stream, Guid sessionId)
 {
     private readonly CancellationTokenSource cancellation = new();
+    private readonly object stopGate = new();
     private Task? reader;
-    private bool stopped;
-    private bool streamReleased;
+    private Task? stopTask;
+    private int streamReleased;
+
     public Guid SessionId { get; } = sessionId;
     public event EventHandler<ImpedanceSnapshot>? Updated;
     public event EventHandler<Exception>? Failed;
@@ -30,8 +32,7 @@ internal sealed class ImpedanceReadingSession(IAcquisitionImpedanceStream stream
         {
             try
             {
-                await stream.DisposeAsync().ConfigureAwait(false);
-                streamReleased = true;
+                await DisposeStreamOnceAsync().ConfigureAwait(false);
             }
             catch (Exception closeException)
             {
@@ -41,17 +42,29 @@ internal sealed class ImpedanceReadingSession(IAcquisitionImpedanceStream stream
         }
     }
 
-    public async Task StopAsync()
+    public Task StopAsync()
     {
-        if (stopped) return;
-        cancellation.Cancel();
-        if (reader is not null) await reader.ConfigureAwait(false);
-        if (!streamReleased)
+        lock (stopGate)
         {
-            await Task.Run(async () => await stream.DisposeAsync().ConfigureAwait(false)).ConfigureAwait(false);
-            streamReleased = true;
+            return stopTask ??= StopCoreAsync();
         }
-        stopped = true;
+    }
+
+    private async Task StopCoreAsync()
+    {
+        try { cancellation.Cancel(); }
+        catch (ObjectDisposedException) { }
+
+        if (reader is not null) await reader.ConfigureAwait(false);
+        await Task.Run(DisposeStreamOnceAsync).ConfigureAwait(false);
         cancellation.Dispose();
+    }
+
+    private async Task DisposeStreamOnceAsync()
+    {
+        if (Interlocked.Exchange(ref streamReleased, 1) == 0)
+        {
+            await stream.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

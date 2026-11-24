@@ -1,0 +1,54 @@
+# Python
+backend/.venv/
+backend/.pytest_cache/
+**/__pycache__/
+backend/**/*.py[cod]
+backend/*.egg-info/
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+node_modules/
+
+# 运行数据
+storage/recordings/
+storage/artifacts/
+storage/*.sqlite3
+*.log
+
+# 本地编辑器/临时文件
+新建 文本文档.txt
+
+# Codex isolated worktrees
+.worktrees/
+.superpowers/
+
+# Desktop client build output and external vendor material
+desktop-client/**/bin/
+desktop-client/**/obj/
+desktop-client/.vs/
+ANT-Amplify/
+
+# Local release packages and generated PyInstaller specification
+/dist/
+/backend/brain_backend.spec
+
+# Keep reusable verification sources, not local results or build artifacts
+/_verify/*
+!/_verify/*.py
+!/_verify/acquisition-mapping-probe/
+/_verify/**/bin/
+/_verify/**/obj/
+/storage/logs/
+/ANT-Amplify.zip
+/.artifacts/
+**/.artifacts/
+/code_over_600.csv
+/desktop-client.Tests/Review/Waveform/ReviewDisplayLevelReaderTests.cs
+
+# Test and temporary output
+**/TestResults/
+**/_temp*/
+**/.isolated-build/
+/.tmp/

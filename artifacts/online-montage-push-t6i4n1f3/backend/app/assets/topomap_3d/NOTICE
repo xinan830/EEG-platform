@@ -1,0 +1,3 @@
+GNM Head skin mesh and electrode mapping
+Copyright and license information are provided by the GNM project under Apache License 2.0.
+The bundled mesh is a generic statistical head model used for standard-template visualization; it is not patient-specific or a clinical localization model.

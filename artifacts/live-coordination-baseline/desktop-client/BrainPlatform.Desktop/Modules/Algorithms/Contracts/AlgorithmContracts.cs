@@ -1,0 +1,380 @@
+using System.Net;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+
+public sealed record AlgorithmCatalogResponse(
+    [property: JsonPropertyName("algorithms")] IReadOnlyList<AlgorithmCatalogItem> Algorithms);
+
+public sealed record AlgorithmCatalogItem(
+    [property: JsonPropertyName("source")] string Source,
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("version")] string Version,
+    [property: JsonPropertyName("display_name_zh")] string DisplayNameZh,
+    [property: JsonPropertyName("abbreviation")] string Abbreviation,
+    [property: JsonPropertyName("description")] string Description,
+    [property: JsonPropertyName("parameters")] IReadOnlyList<AlgorithmParameter> Parameters,
+    [property: JsonPropertyName("modes")] IReadOnlyList<string> Modes,
+    [property: JsonPropertyName("output_schema")] JsonElement OutputSchema,
+    [property: JsonPropertyName("dynamic_policy")] DynamicAnalysisPolicy DynamicPolicy,
+    [property: JsonPropertyName("availability")] string Availability,
+    [property: JsonPropertyName("is_runnable")] bool IsRunnable,
+    [property: JsonPropertyName("definition_id")] string? DefinitionId,
+    [property: JsonPropertyName("definition_version")] string? DefinitionVersion,
+    [property: JsonPropertyName("implementation_identity")] string? ImplementationIdentity,
+    [property: JsonPropertyName("dynamic_capabilities")] JsonElement DynamicCapabilities = default,
+    [property: JsonPropertyName("group")] string? Group = null)
+{
+    public bool SupportsDeclaredOnDemand =>
+        HasDeclaredImplementation("on_demand");
+
+    public bool SupportsDeclaredFullResultToPreview =>
+        HasDeclaredImplementation("full_result_to_preview");
+
+    public bool SupportsDeclaredCombined =>
+        HasDeclaredImplementation("combined_preview_background_full");
+
+    private bool HasDeclaredImplementation(string path) =>
+        DynamicCapabilities.ValueKind == JsonValueKind.Object &&
+        DynamicCapabilities.TryGetProperty(path, out var capability) &&
+        capability.TryGetProperty("implementation", out var implementation) &&
+        implementation.ValueKind == JsonValueKind.String &&
+        implementation.GetString() == "implemented";
+
+    public string ModesDisplay =>
+        Modes.Count == 0 ? "未声明" : string.Join("、", Modes.Select(FormatMode));
+
+    public string AvailabilityDisplay => Availability switch
+    {
+        "available" when IsRunnable => "可运行",
+        "available" => "可用但不可运行",
+        "shadow_validation" => "验证中",
+        "unavailable" => "不可用",
+        _ => Availability,
+    };
+
+    public string StatusDisplay => Availability switch
+    {
+        "available" when IsRunnable => "可用",
+        "available" => "不可运行",
+        "shadow_validation" => "验证中",
+        "unavailable" => "不可用",
+        _ => "未知",
+    };
+
+    // This is a display classification only. The backend output schema and
+    // algorithm id remain the scientific source of truth; the desktop must not
+    // infer or recompute scientific values from this label.
+    public string ResultTypeDisplay => Id switch
+    {
+        "psd" => "频谱图",
+        "stft" => "时频图",
+        "rbp" => "频段功率结果",
+        "tnk_biofeedback" => "TNK 指标组",
+        _ => "标量结果",
+    };
+
+    public string AlgorithmTypeDisplay => Id switch
+    {
+        "psd" => "频谱",
+        "stft" => "时频",
+        "rbp" => "频段功率",
+        "tnk_biofeedback" => "TNK 指标",
+        _ => "标量",
+    };
+
+    private static string FormatMode(string mode) => mode switch
+    {
+        "static" => "静态",
+        "dynamic" => "动态",
+        _ => mode,
+    };
+}
+
+public sealed record AlgorithmParameter(
+    [property: JsonPropertyName("key")] string Key,
+    [property: JsonPropertyName("label_zh")] string LabelZh,
+    [property: JsonPropertyName("value_type")] string ValueType,
+    [property: JsonPropertyName("required")] bool Required,
+    [property: JsonPropertyName("default")] JsonElement? Default,
+    [property: JsonPropertyName("unit")] string? Unit,
+    [property: JsonPropertyName("minimum")] double? Minimum,
+    [property: JsonPropertyName("maximum")] double? Maximum,
+    [property: JsonPropertyName("step")] double? Step,
+    [property: JsonPropertyName("affects_science")] bool AffectsScience,
+    [property: JsonPropertyName("visibility")] string Visibility,
+    [property: JsonPropertyName("options")] IReadOnlyList<AlgorithmParameterOption> Options,
+    [property: JsonPropertyName("description_zh")] string DescriptionZh);
+
+public sealed record AlgorithmParameterOption(
+    [property: JsonPropertyName("value")] JsonElement Value,
+    [property: JsonPropertyName("label_zh")] string LabelZh);
+
+public sealed record DynamicAnalysisPolicy(
+    [property: JsonPropertyName("minimum_window_s")] double MinimumWindowSeconds,
+    [property: JsonPropertyName("window_options_s")] IReadOnlyList<double> WindowOptionsSeconds,
+    [property: JsonPropertyName("default_window_s")] double DefaultWindowSeconds,
+    [property: JsonPropertyName("refresh_step_s")] double RefreshStepSeconds,
+    [property: JsonPropertyName("allow_warmup")] bool AllowWarmup,
+    [property: JsonPropertyName("refresh_step_options_s")] IReadOnlyList<double>? RefreshStepOptionsSeconds = null);
+
+public sealed record AnalysisRunRequest(
+    [property: JsonPropertyName("recording_id")] string RecordingId,
+    [property: JsonPropertyName("analysis_type")] string AnalysisType,
+    [property: JsonPropertyName("config")] JsonElement Config,
+    [property: JsonPropertyName("idempotency_key")] string? IdempotencyKey = null);
+
+public sealed record AnalysisRunResponse(
+    [property: JsonPropertyName("run_id")] string RunId,
+    [property: JsonPropertyName("recording_id")] string RecordingId,
+    [property: JsonPropertyName("analysis_type")] string AnalysisType,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("scientific_version")] string? ScientificVersion,
+    [property: JsonPropertyName("requested_range")] TimeRange? RequestedRange,
+    [property: JsonPropertyName("actual_range")] TimeRange? ActualRange,
+    [property: JsonPropertyName("result_summary")] JsonElement? ResultSummary,
+    [property: JsonPropertyName("analysis_provenance")] JsonElement? AnalysisProvenance,
+    [property: JsonPropertyName("error")] StructuredRunError? Error,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt,
+    [property: JsonPropertyName("updated_at")] DateTimeOffset UpdatedAt,
+    [property: JsonPropertyName("progress_completed")] int ProgressCompleted = 0,
+    [property: JsonPropertyName("progress_total")] int? ProgressTotal = null,
+    [property: JsonPropertyName("progress_stage")] string? ProgressStage = null,
+    [property: JsonPropertyName("progress_message")] string? ProgressMessage = null,
+    [property: JsonPropertyName("reused_from_run_id")] string? ReusedFromRunId = null)
+{
+    public double ProgressPercent => Status == "completed" ? 100 :
+        ProgressTotal is > 0 ? Math.Clamp(100.0 * ProgressCompleted / ProgressTotal.Value, 0, Status == "running" ? 99 : 100) : 0;
+
+    public string ProgressText => Status switch
+    {
+        "completed" => "100%",
+        "queued" => "等待中",
+        "running" when ProgressTotal is > 0 => $"{ProgressPercent:0}%（{ProgressCompleted}/{ProgressTotal}）",
+        "running" => "运行中",
+        "cancelled" => $"已取消（{ProgressCompleted}/{ProgressTotal?.ToString() ?? "未知"}）",
+        "failed" or "gate_failed" => "失败",
+        "interrupted" => "已中断",
+        _ => "未运行",
+    };
+}
+
+public sealed record TimeRange(
+    [property: JsonPropertyName("start_s")] double StartSeconds,
+    [property: JsonPropertyName("end_s")] double EndSeconds);
+
+public sealed record StructuredRunError(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("stage")] string? Stage,
+    [property: JsonPropertyName("details")] JsonElement? Details);
+
+public sealed record RunArtifact(
+    [property: JsonPropertyName("artifact_id")] string ArtifactId,
+    [property: JsonPropertyName("run_id")] string RunId,
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("relative_path")] string RelativePath,
+    [property: JsonPropertyName("media_type")] string MediaType,
+    [property: JsonPropertyName("byte_size")] long ByteSize,
+    [property: JsonPropertyName("sha256")] string Sha256,
+    [property: JsonPropertyName("unit")] string? Unit,
+    [property: JsonPropertyName("shape")] IReadOnlyDictionary<string, int[]> Shape,
+    [property: JsonPropertyName("created_at")] DateTimeOffset CreatedAt);
+
+// This mirrors ResultService.structured_preview: the backend owns all axes,
+// units, values, and window states; the desktop only renders the bounded view.
+public sealed record StructuredPreviewResponse(
+    [property: JsonPropertyName("run_id")] string RunId,
+    [property: JsonPropertyName("artifact")] RunArtifact Artifact,
+    [property: JsonPropertyName("output")] JsonElement? Output,
+    [property: JsonPropertyName("channel_order")] IReadOnlyList<string> ChannelOrder,
+    [property: JsonPropertyName("requested_range")] TimeRange? RequestedRange,
+    [property: JsonPropertyName("actual_range")] TimeRange? ActualRange,
+    [property: JsonPropertyName("axes")] IReadOnlyDictionary<string, JsonElement> Axes,
+    [property: JsonPropertyName("axis_metadata")] IReadOnlyDictionary<string, JsonElement> AxisMetadata,
+    [property: JsonPropertyName("arrays")] IReadOnlyDictionary<string, JsonElement> Arrays,
+    [property: JsonPropertyName("array_metadata")] IReadOnlyDictionary<string, JsonElement> ArrayMetadata,
+    [property: JsonPropertyName("windows")] IReadOnlyList<JsonElement> Windows,
+    [property: JsonPropertyName("window_state_counts")] IReadOnlyDictionary<string, int> WindowStateCounts,
+    [property: JsonPropertyName("quality")] JsonElement? Quality,
+    [property: JsonPropertyName("scientific_version")] string? ScientificVersion,
+    [property: JsonPropertyName("implementation_version")] string? ImplementationVersion,
+    [property: JsonPropertyName("failure")] JsonElement? Failure = null,
+    [property: JsonPropertyName("spectral_evidence")] JsonElement? SpectralEvidence = null,
+    [property: JsonPropertyName("calculation_trace")] JsonElement? CalculationTrace = null);
+
+public sealed record WindowPreviewWindow(
+    [property: JsonPropertyName("window_id")] string WindowId,
+    [property: JsonPropertyName("window_index")] int WindowIndex,
+    [property: JsonPropertyName("start_sample")] long StartSample,
+    [property: JsonPropertyName("end_sample")] long EndSample,
+    [property: JsonPropertyName("window_state")] string WindowState,
+    [property: JsonPropertyName("quality_status")] string QualityStatus,
+    [property: JsonPropertyName("reason_codes")] IReadOnlyList<string> ReasonCodes,
+    [property: JsonPropertyName("provenance")] JsonElement? Provenance = null);
+
+public sealed record WindowPreviewResponse(
+    [property: JsonPropertyName("run_id")] string RunId,
+    [property: JsonPropertyName("recording_id")] string RecordingId,
+    [property: JsonPropertyName("cursor_sample")] long CursorSample,
+    [property: JsonPropertyName("cursor_s")] double CursorSeconds,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("reason_codes")] IReadOnlyList<string> ReasonCodes,
+    [property: JsonPropertyName("window")] WindowPreviewWindow? Window,
+    [property: JsonPropertyName("has_uncovered_tail")] bool HasUncoveredTail,
+    [property: JsonPropertyName("output")] JsonElement? Output,
+    [property: JsonPropertyName("quality")] JsonElement? Quality,
+    [property: JsonPropertyName("axes")] IReadOnlyDictionary<string, JsonElement>? Axes,
+    [property: JsonPropertyName("axis_metadata")] IReadOnlyDictionary<string, JsonElement>? AxisMetadata,
+    [property: JsonPropertyName("arrays")] IReadOnlyDictionary<string, JsonElement>? Arrays,
+    [property: JsonPropertyName("array_metadata")] IReadOnlyDictionary<string, JsonElement>? ArrayMetadata,
+    [property: JsonPropertyName("scientific_version")] string? ScientificVersion,
+    [property: JsonPropertyName("implementation_version")] string? ImplementationVersion,
+    [property: JsonIgnore] JsonElement? BackendIdentity = null,
+    [property: JsonIgnore] string? ScientificConfigurationJson = null,
+    [property: JsonIgnore] JsonElement? Evidence = null,
+    [property: JsonIgnore] JsonElement? Provenance = null,
+    [property: JsonIgnore] double? WindowStartSeconds = null,
+    [property: JsonIgnore] double? WindowEndSeconds = null)
+{
+    [JsonIgnore]
+    public DynamicWindowResponse? DynamicResponse { get; init; }
+}
+
+/// <summary>
+/// Backend-planned request for one dynamic analysis window. The desktop sends
+/// only the recording-relative cursor; the backend owns the actual range.
+/// </summary>
+public sealed record DynamicWindowRequest(
+    [property: JsonPropertyName("recording_id")] string RecordingId,
+    [property: JsonPropertyName("algorithm_id")] string AlgorithmId,
+    [property: JsonPropertyName("definition_id")] string? DefinitionId,
+    [property: JsonPropertyName("definition_version")] string? DefinitionVersion,
+    [property: JsonPropertyName("config")] JsonElement Config,
+    [property: JsonPropertyName("cursor_sample")] long CursorSample,
+    [property: JsonPropertyName("project_id")] string? ProjectId = null,
+    [property: JsonPropertyName("request_id")] string? RequestId = null,
+    [property: JsonPropertyName("retry")] bool Retry = false,
+    [property: JsonPropertyName("retry_of_window_id")] string? RetryOfWindowId = null,
+    [property: JsonPropertyName("playback_delivery")] bool PlaybackDelivery = false,
+    [property: JsonPropertyName("playback_delivery_id")] string? PlaybackDeliveryId = null,
+    [property: JsonIgnore] long PlaybackGeneration = 0,
+    [property: JsonIgnore] long AnalysisContextGeneration = 0);
+
+public sealed record TnkPlaybackFrameEventResponse(
+    [property: JsonPropertyName("delivery_sequence")] long DeliverySequence,
+    [property: JsonPropertyName("session_id")] string SessionId,
+    [property: JsonPropertyName("delivery_id")] string DeliveryId,
+    [property: JsonPropertyName("window_id")] string WindowId,
+    [property: JsonPropertyName("window_id_kind")] string WindowIdKind,
+    [property: JsonPropertyName("identity")] JsonElement Identity,
+    [property: JsonPropertyName("window_start_s")] double WindowStartSeconds,
+    [property: JsonPropertyName("window_end_s")] double WindowEndSeconds,
+    [property: JsonPropertyName("sampling_rate_hz")] double SamplingRateHz,
+      [property: JsonPropertyName("result")] DynamicWindowResultResponse Result,
+      [property: JsonPropertyName("published_at_utc")] DateTimeOffset? PublishedAtUtc = null);
+
+public sealed record TnkPlaybackDiscontinuityResponse(
+    [property: JsonPropertyName("first_missing_sequence")] long FirstMissingSequence,
+    [property: JsonPropertyName("last_missing_sequence")] long LastMissingSequence,
+    [property: JsonPropertyName("affected_start_sample")] long AffectedStartSample,
+    [property: JsonPropertyName("affected_end_sample")] long AffectedEndSample,
+    [property: JsonPropertyName("sample_range_exact")] bool SampleRangeExact);
+
+public sealed record TnkPlaybackGap(
+    long FirstMissingSequence,
+    long LastMissingSequence,
+    long AffectedStartSample,
+    long AffectedEndSample,
+    double StartSeconds,
+    double EndSeconds,
+    bool SampleRangeExact,
+    string? DeliveryId = null,
+    string? ReasonCode = null);
+
+public sealed record TnkPlaybackDeliveryStatusResponse(
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("code")] string? Code = null,
+    [property: JsonPropertyName("failed_start_sample")] long? FailedStartSample = null,
+    [property: JsonPropertyName("failed_end_sample")] long? FailedEndSample = null);
+
+public sealed record TnkPlaybackEventBatchResponse(
+    [property: JsonPropertyName("delivery_id")] string DeliveryId,
+    [property: JsonPropertyName("events")] IReadOnlyList<TnkPlaybackFrameEventResponse> Events,
+    [property: JsonPropertyName("next_sequence")] long NextSequence,
+    [property: JsonPropertyName("latest_sequence")] long LatestSequence,
+    [property: JsonPropertyName("has_more")] bool HasMore,
+    [property: JsonPropertyName("coverage")] string Coverage,
+    [property: JsonPropertyName("discontinuity")] TnkPlaybackDiscontinuityResponse? Discontinuity,
+    [property: JsonPropertyName("delivery")] TnkPlaybackDeliveryStatusResponse? Delivery = null);
+
+public sealed record DynamicWindowPlanResponse(
+    [property: JsonPropertyName("cursor_sample")] long CursorSample,
+    [property: JsonPropertyName("start_sample")] long StartSample,
+    [property: JsonPropertyName("end_sample")] long EndSample,
+    [property: JsonPropertyName("start_s")] double StartSeconds,
+    [property: JsonPropertyName("end_s")] double EndSeconds,
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("reason")] string? Reason,
+    [property: JsonPropertyName("session_identity")] JsonElement? SessionIdentity = null,
+    [property: JsonPropertyName("cursor_s")] double? CursorSeconds = null);
+
+public sealed record DynamicWindowRange(
+    [property: JsonPropertyName("start_sample")] long StartSample,
+    [property: JsonPropertyName("end_sample")] long EndSample,
+    [property: JsonPropertyName("start_s")] double StartSeconds,
+    [property: JsonPropertyName("end_s")] double EndSeconds);
+
+public sealed record DynamicWindowResultResponse(
+    [property: JsonPropertyName("identity")] JsonElement? Identity,
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("output_kind")] string? OutputKind,
+    [property: JsonPropertyName("axes")] IReadOnlyDictionary<string, JsonElement>? Axes,
+    [property: JsonPropertyName("axis_units")] IReadOnlyDictionary<string, string>? AxisUnits,
+    [property: JsonPropertyName("arrays")] IReadOnlyDictionary<string, JsonElement>? Arrays,
+    [property: JsonPropertyName("array_units")] IReadOnlyDictionary<string, string>? ArrayUnits,
+    [property: JsonPropertyName("quality")] string? Quality,
+    [property: JsonPropertyName("failure")] JsonElement? Failure,
+    [property: JsonPropertyName("evidence")] JsonElement? Evidence,
+    [property: JsonPropertyName("provenance")] JsonElement? Provenance);
+
+public sealed record DynamicWindowFailure(
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("message")] string Message,
+    [property: JsonPropertyName("details")] JsonElement? Details = null);
+
+public sealed record DynamicWindowResponse(
+    [property: JsonPropertyName("session_id")] string SessionId,
+    [property: JsonPropertyName("window_id")] string WindowId,
+    [property: JsonPropertyName("request_id")] string RequestId,
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("identity")] JsonElement? Identity,
+    [property: JsonPropertyName("plan")] DynamicWindowPlanResponse? Plan,
+    [property: JsonPropertyName("range")] DynamicWindowRange? Range,
+    [property: JsonPropertyName("quality")] string? Quality,
+    [property: JsonPropertyName("failure")] DynamicWindowFailure? Failure,
+    [property: JsonPropertyName("result")] DynamicWindowResultResponse? Result,
+    [property: JsonPropertyName("subscription_id")] string? SubscriptionId = null,
+    [property: JsonPropertyName("scientific_configuration_json")] string? ScientificConfigurationJson = null);
+
+public sealed record DynamicSubscriptionResponse(
+    [property: JsonPropertyName("subscription_id")] string SubscriptionId,
+    [property: JsonPropertyName("window_id")] string WindowId,
+    [property: JsonPropertyName("request_id")] string RequestId,
+    [property: JsonPropertyName("project_id")] string? ProjectId,
+    [property: JsonPropertyName("state")] string State);
+
+public sealed class AlgorithmApiException : Exception
+{
+    public AlgorithmApiException(HttpStatusCode statusCode, string code, string message)
+        : base(message)
+    {
+        StatusCode = statusCode;
+        Code = code;
+    }
+
+    public HttpStatusCode StatusCode { get; }
+
+    public string Code { get; }
+}

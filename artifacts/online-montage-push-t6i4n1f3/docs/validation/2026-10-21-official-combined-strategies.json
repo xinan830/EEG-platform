@@ -1,0 +1,1665 @@
+{
+  "schema": "official-combined-strategy-validation-v1",
+  "scope": "synthetic_engineering_validation_only_not_clinical_or_large_recording_performance",
+  "environment": {
+    "python": "3.13.3",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "tolerances": {
+    "rtol": 1e-10,
+    "atol": 1e-20
+  },
+  "reference_identity": "uncached-current-full-executor-strategy-parity-not-independent-formula-reference",
+  "evidence_sha256": {
+    "backend/tests/combined_strategy_support.py": "e38e6f31675036448462fb7f7634193d4b0a9fb8a4e898b679abef2f4503e2c5",
+    "backend/tests/test_official_combined_strategies.py": "50cddfc220c38adf071f12ee4831fc4b455576be27d9c88267cef21c53eb15ac",
+    "backend/tests/test_official_directional_reuse.py": "89056d9f442b134005f680572d34d72711da3668ddb797cbe123debfb679252c",
+    "backend/app/services/offline_window_reuse.py": "b7a363f59d2704a1cc8d0980327acc7b22a0a956264435ae87b3dff69e338c44",
+    "docs/validation/official-algorithm-strategy-matrix.json": "3cbc7cf4a414f00bf437e8924218cf3f78596b4eb666ba995b123d60d72e0095"
+  },
+  "passed_cases": [
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-psd]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-stft]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-rbp]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-band_ratio]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-peak_frequency]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-iapf]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-theta_beta]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-faa]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-brainbeat]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-psd]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-stft]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-rbp]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-band_ratio]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-peak_frequency]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-iapf]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-theta_beta]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-faa]",
+    "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-brainbeat]",
+    "test_combined_background_cancellation_preserves_ready_preview[psd]",
+    "test_combined_background_cancellation_preserves_ready_preview[stft]",
+    "test_combined_background_cancellation_preserves_ready_preview[rbp]",
+    "test_combined_background_cancellation_preserves_ready_preview[band_ratio]",
+    "test_combined_background_cancellation_preserves_ready_preview[peak_frequency]",
+    "test_combined_background_cancellation_preserves_ready_preview[iapf]",
+    "test_combined_background_cancellation_preserves_ready_preview[theta_beta]",
+    "test_combined_background_cancellation_preserves_ready_preview[faa]",
+    "test_combined_background_cancellation_preserves_ready_preview[brainbeat]",
+    "test_on_demand_to_full_matches_uncached_execution[None-psd]",
+    "test_on_demand_to_full_matches_uncached_execution[None-stft]",
+    "test_on_demand_to_full_matches_uncached_execution[missing_manifest-psd]",
+    "test_on_demand_to_full_matches_uncached_execution[missing_manifest-stft]",
+    "test_on_demand_to_full_matches_uncached_execution[cache_key-psd]",
+    "test_on_demand_to_full_matches_uncached_execution[cache_key-stft]",
+    "test_frozen_contract_matrix_matches_all_current_official_modules",
+    "test_every_declared_reuse_path_has_algorithm_scoped_test_evidence",
+    "test_full_and_on_demand_cache_identity_matches_only_for_exact_scientific_context",
+    "test_dynamic_window_identity_rejects_changed_source_config_and_sample_bounds",
+    "test_numeric_reference_report_has_frozen_environment_tolerances_and_checksum",
+    "test_strategy_baseline_freezes_all_nine_algorithm_series_and_artifact_arrays",
+    "test_capability_report_validates_only_explicit_algorithm_scoped_evidence",
+    "test_new_modules_do_not_inherit_combined_or_inverse_validation"
+  ],
+  "comparisons": [
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-psd]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 197
+        },
+        "band_share": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 70
+        },
+        "psd": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 2758
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "4ad52f36586388278ce0a7a4c1d59ff93695bae03c6a4fb92447915d3c0f6200",
+        "config": {
+          "algorithm_id": "psd",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "full_producer_claimed": 13
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "ee55b18926f7f1c5e235a0ea4655367691b845473a2ea8515020e280c0ab9cbd",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 1,
+          "scientific_cache_key": "ae6d54bed10d661823b70b93377f6730e42b0a04eaf26583b761011ea831b600",
+          "served_from": "on_demand_window_artifact"
+        },
+        "implementation_identity": "psd-runtime-v3-explicit-filters",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "offline-spectral-v3",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-stft]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 117
+        },
+        "axis_time_center_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 7
+        },
+        "power_db": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        },
+        "power_linear": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "924e11ca900f833636f51e4f9bdaa6ac3812157c66542256dc26357ba86e45d8",
+        "config": {
+          "algorithm_id": "stft",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "full_producer_claimed": 13
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "fc851161ee62c154f6ed845c94905f382c64c0bde0dbd4cc88bb1f127d69e78d",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 1,
+          "scientific_cache_key": "044a5553e6dca3928b6f3edfedaeb247080d6bae6fbcd5ce64e3a4c3e76eae78",
+          "served_from": "on_demand_window_artifact"
+        },
+        "implementation_identity": "stft-runtime-v4-relative-window-times",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "spectrogram-v2",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-rbp]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "9afa014d594e986d8535a68c761c132392d1cab7b91b79d0533f7205b040d0c3",
+        "config": {
+          "algorithm_id": "rbp",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "80f446fb4a6a39b1ff0b3fe5b2f20decec45d2b70e9bddc7d2f117966a2cf912",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "a5db1cef8066cc41072f58959a31b1a09d759354352ea054052d2e7408ce581c",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "rbp-runtime-v2-five-band",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-rbp-v2",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-band_ratio]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "3e5ecbd4f89b6475636aa4ae6464655de58f31daf50afa789f5100fb43f0c0a1",
+        "config": {
+          "algorithm_id": "band_ratio",
+          "channel": "F3-REF",
+          "denominator_high_hz": 25,
+          "denominator_low_hz": 15,
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "numerator_high_hz": 12,
+          "numerator_low_hz": 8,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "9d5473070db94fa2218ecc66d04c9392fb24938927d799e8e772ddaf552eb3a6",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "e9af3aa2cf1644ff5e1ed4bebb2bd4012dfccd4f4146c99d8673c7d8909e1491",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "band-ratio-runtime-v2-frequency-contract",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-band-ratio-v1",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-peak_frequency]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "da1c303274dcd891c7ef8ded33548f8b436a8307e138bb04a8f26156b9907851",
+        "config": {
+          "algorithm_id": "peak_frequency",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 12,
+          "low_hz": 8,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "c3f41fe9c6845d21bd78a994fe2244dbc70c13d82dd6a6e2f493fe8001b118e3",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "4f3ce095e3840a983362f3c2bec70869bd9494f46efadef247d3ba4d2e44fa28",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "peak-frequency-runtime-v2-frequency-contract",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-peak-frequency-v1",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-iapf]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "da1c303274dcd891c7ef8ded33548f8b436a8307e138bb04a8f26156b9907851",
+        "config": {
+          "algorithm_id": "iapf",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "b7bc9de74d61a0281ae9530e6cb2a704f23f7b3630be4c2af6d504dc285070c1",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "8db39e5dd1dee6274e7c5fd98e5cfcfd3f0aeba6ab2e77b3db8e4ca69d144d6a",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "iapf-runtime-v3",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-iapf-v2",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-theta_beta]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "67ad0c04e15bfabe9458e1998df982d60e56cec0671ca2ad169bb36f7f31b564",
+        "config": {
+          "algorithm_id": "theta_beta",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "b7518ad12eaa55fc1f637d5943ca95b96cbfdd43542543341cef70fb08ac9339",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "cb4728a4844b5354ce6a79e5369a898880d6cfd870b39f33ff52f48325233386",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "theta-beta-runtime-v1",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-theta-beta-v2",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-faa]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 6
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 6
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "f8bd5a239bed3737c32b9b6cc43292a1ee2ee7cd2718caa9e9b367578ebd2870",
+        "config": {
+          "algorithm_id": "faa",
+          "channel": "F3-REF",
+          "dynamic_window_s": 20,
+          "f4_channel": "F4-REF",
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 6,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 6,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "016246de9259e6c0821f94a497612b6cf1f0a24d4b6665de314d94ba77682d77",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "234cbcc87dcb2f5a4119a1d9050668c91ec7c1c3fc1d6ed48b1e76fbc6d7c615",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "faa-runtime-v2",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-faa-v2",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[False-brainbeat]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "c7744c8cf8bd0c9550bd61907faeb74ae1bb599504aeee692caeac00f3d5d084",
+        "config": {
+          "algorithm_id": "brainbeat",
+          "channel": "Fz-REF",
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "secondary_channel": "Pz-REF",
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "b1aa54ee7a6e37d4638fe38dd706fd08e33d9e67e077fe338ddc9767b577f78e",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "9523ac7dc67febf4b422db9dc05aa109d6d62b50f8cb3936f387d3dcd16775a5",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "brainbeat-runtime-v1",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-brainbeat-v1",
+        "source_sha256": "4303eef98e6aea8897791f28872f873af330d643089c40fff331e08c699d519a"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-psd]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 197
+        },
+        "band_share": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 70
+        },
+        "psd": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 2758
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "3cb4945d69ab0e9b935ca4d1ed4cec847d6f7ff4bcdb415951e2cde4bd2efbb7",
+        "config": {
+          "algorithm_id": "psd",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "full_producer_claimed": 13,
+            "not_reusable_state": 1
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 14,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "421d4a7a1f0932c8818b29b68b775dc0bfc926b843ccb5f950002c9441ba5a77",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "fa128865dce3b65b8dd2a37695b86b2bb0093d03511b7f160afc205c347c7fa0",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "psd-runtime-v3-explicit-filters",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "offline-spectral-v3",
+        "source_sha256": "ccbf48c9ae35471f5b2e32f2951ee6b57b774bb9bf68ea2fca6262252a119d70"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-stft]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 117
+        },
+        "axis_time_center_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 7
+        },
+        "power_db": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        },
+        "power_linear": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "d05b112f10b4e5b44fca10d87ed2562dc8cf92185f45d2437a969c63b9f16c20",
+        "config": {
+          "algorithm_id": "stft",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "full_producer_claimed": 13,
+            "not_reusable_state": 1
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 14,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "42dbb66eb27ca279e12e1f278be1d2dc19a4451a2ce2e082ae2f123e3606a2c6",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "33f4ea763c591bcfe7c46ddc1eaf92ba33924b059847c29da3505d2ab8eb509e",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "stft-runtime-v4-relative-window-times",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "spectrogram-v2",
+        "source_sha256": "ccbf48c9ae35471f5b2e32f2951ee6b57b774bb9bf68ea2fca6262252a119d70"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-rbp]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "9afa014d594e986d8535a68c761c132392d1cab7b91b79d0533f7205b040d0c3",
+        "config": {
+          "algorithm_id": "rbp",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 14,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "ae4f36fc38bd306f5509621d1ca85d8b8836eefef931c1734a48fbd481deab2a",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "5a0951c9a771cb0aafe82908ee07f59a87af66d8b7c27d11740040316f1c10ae",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "rbp-runtime-v2-five-band",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-rbp-v2",
+        "source_sha256": "ccbf48c9ae35471f5b2e32f2951ee6b57b774bb9bf68ea2fca6262252a119d70"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-band_ratio]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "9afa014d594e986d8535a68c761c132392d1cab7b91b79d0533f7205b040d0c3",
+        "config": {
+          "algorithm_id": "band_ratio",
+          "channel": "F3-REF",
+          "denominator_high_hz": 25,
+          "denominator_low_hz": 15,
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "numerator_high_hz": 12,
+          "numerator_low_hz": 8,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 14,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "d2ef454a66dce54565ec38a909c609c97fe7c77db056e94dfa456a9511bcc5e3",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "b10fbf9b498624af7f7b00a838df1a1d67bc6e54012df480448cd6fccdcb0192",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "band-ratio-runtime-v2-frequency-contract",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-band-ratio-v1",
+        "source_sha256": "ccbf48c9ae35471f5b2e32f2951ee6b57b774bb9bf68ea2fca6262252a119d70"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-peak_frequency]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "9afa014d594e986d8535a68c761c132392d1cab7b91b79d0533f7205b040d0c3",
+        "config": {
+          "algorithm_id": "peak_frequency",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 12,
+          "low_hz": 8,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 14,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "5af4146bca354e20c99c6a0ade606a7905d2dbd7b8b55e00f43574279fc93f10",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "a1c44404b491619dedc2eba030f0c7c541e7182c6f10a4952d488f85b168b25f",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "peak-frequency-runtime-v2-frequency-contract",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-peak-frequency-v1",
+        "source_sha256": "ccbf48c9ae35471f5b2e32f2951ee6b57b774bb9bf68ea2fca6262252a119d70"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-iapf]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "9afa014d594e986d8535a68c761c132392d1cab7b91b79d0533f7205b040d0c3",
+        "config": {
+          "algorithm_id": "iapf",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 14,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "cccc9d7080aa68341249c477ab1f3ecc1f7882a381a50d4092157a0ad0f43cad",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "52f1d02dfdc7cc5ff0417d4d9103b4c01730f6ce8724c3048c5c17cdb4e6fd95",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "iapf-runtime-v3",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-iapf-v2",
+        "source_sha256": "ccbf48c9ae35471f5b2e32f2951ee6b57b774bb9bf68ea2fca6262252a119d70"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-theta_beta]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "9afa014d594e986d8535a68c761c132392d1cab7b91b79d0533f7205b040d0c3",
+        "config": {
+          "algorithm_id": "theta_beta",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 14,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "bfc08f8b3f50a2ad8e8b63e7149c5c0b189b2ab9066185c89d6f7ca32ba6179d",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "270921ee6bf6922a6580487d396ff4430fb2c7cafff2eef5ff983ec1114e4b4e",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "theta-beta-runtime-v1",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-theta-beta-v2",
+        "source_sha256": "ccbf48c9ae35471f5b2e32f2951ee6b57b774bb9bf68ea2fca6262252a119d70"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-faa]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 6
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 6
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "f5e733e5e7dd5dba330c4c326624b42d1918c09e2b81f5cf45f9a8b464672f75",
+        "config": {
+          "algorithm_id": "faa",
+          "channel": "F3-REF",
+          "dynamic_window_s": 20,
+          "f4_channel": "F4-REF",
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 6,
+            "rejected_windows": 6,
+            "state": "complete",
+            "terminal_windows": 6,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "3ef46b85453da514e8f8044a1430df4c892dc2889e26a1106aed160b3327d66a",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "ee4ca508cae085fbba9fe38db610e015644a1c08bb23296dbd78ad32ac365ea8",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "faa-runtime-v2",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-faa-v2",
+        "source_sha256": "ccbf48c9ae35471f5b2e32f2951ee6b57b774bb9bf68ea2fca6262252a119d70"
+      }
+    },
+    {
+      "case": "test_combined_matches_uncached_full_and_isolates_preview_cancellation[True-brainbeat]",
+      "arrays": {
+        "metric_time_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        },
+        "metric_values": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 14
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "9afa014d594e986d8535a68c761c132392d1cab7b91b79d0533f7205b040d0c3",
+        "config": {
+          "algorithm_id": "brainbeat",
+          "channel": "Fz-REF",
+          "dynamic_window_s": 10,
+          "mode": "dynamic",
+          "refresh_step_s": 2,
+          "secondary_channel": "Pz-REF",
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {},
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 14,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "28da182f0b1d2bbe42a24d05fecdb9a00efb97c29ad58fca8e2cbc7c35b45dd0",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "ed02b0ea4387d4fc105f4d92b1693f4e7b7cda4e8f0773333d904985097f30ad",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "brainbeat-runtime-v1",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "official-brainbeat-v1",
+        "source_sha256": "f2787a94ff0f1a60ceb10d1672b025664303bee6a2c84ce37a384302eb2a05fb"
+      }
+    },
+    {
+      "case": "test_on_demand_to_full_matches_uncached_execution[None-psd]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 197
+        },
+        "band_share": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 70
+        },
+        "psd": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 2758
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "4ad52f36586388278ce0a7a4c1d59ff93695bae03c6a4fb92447915d3c0f6200",
+        "config": {
+          "algorithm_id": "psd",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "full_producer_claimed": 13
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "c0a11adeb97ed793f1dc582f2aae3d52f20c0be9f1513294e5668a808b7c0282",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 1,
+          "scientific_cache_key": "e7fcf26ef6613cb2f4d6cb1eaf91e971a93be3265f8c5e47db263884f544edec",
+          "served_from": "on_demand_window_artifact"
+        },
+        "implementation_identity": "psd-runtime-v3-explicit-filters",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "offline-spectral-v3",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_on_demand_to_full_matches_uncached_execution[None-stft]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 117
+        },
+        "axis_time_center_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 7
+        },
+        "power_db": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        },
+        "power_linear": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "924e11ca900f833636f51e4f9bdaa6ac3812157c66542256dc26357ba86e45d8",
+        "config": {
+          "algorithm_id": "stft",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "full_producer_claimed": 13
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "203b9f19f461c82e6911187b449033246000cb5a3729021a73d9b99fd09c76bb",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 1,
+          "scientific_cache_key": "d31902d74a117128775aa39af982786b07b827e4c2d9d25533847bdfac971cea",
+          "served_from": "on_demand_window_artifact"
+        },
+        "implementation_identity": "stft-runtime-v4-relative-window-times",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "spectrogram-v2",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_on_demand_to_full_matches_uncached_execution[missing_manifest-psd]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 197
+        },
+        "band_share": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 70
+        },
+        "psd": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 2758
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "4ad52f36586388278ce0a7a4c1d59ff93695bae03c6a4fb92447915d3c0f6200",
+        "config": {
+          "algorithm_id": "psd",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "full_producer_claimed": 13,
+            "manifest_unverified": 1
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "1ec7816cd7963fc564711388dc36550f602e6fc975eee0315d3957aa53070022",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "00d86ada4d8d51ac476f9c1b1b50468b70d6b1448fa8cb33d1c146b6d83b69a4",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "psd-runtime-v3-explicit-filters",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "offline-spectral-v3",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_on_demand_to_full_matches_uncached_execution[missing_manifest-stft]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 117
+        },
+        "axis_time_center_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 7
+        },
+        "power_db": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        },
+        "power_linear": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "924e11ca900f833636f51e4f9bdaa6ac3812157c66542256dc26357ba86e45d8",
+        "config": {
+          "algorithm_id": "stft",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "full_producer_claimed": 13,
+            "manifest_unverified": 1
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "5e0128ed2fcc8f4d75c28d3887fa5687faa37e06292010a9bd26dd940f1641cb",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "24cad4b3a0493094192bac048ea6d6ec0e877390cc0e9a442c45231b1859e426",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "stft-runtime-v4-relative-window-times",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "spectrogram-v2",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_on_demand_to_full_matches_uncached_execution[cache_key-psd]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 197
+        },
+        "band_share": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 70
+        },
+        "psd": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 2758
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "4ad52f36586388278ce0a7a4c1d59ff93695bae03c6a4fb92447915d3c0f6200",
+        "config": {
+          "algorithm_id": "psd",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "cache_key_mismatch": 1,
+            "full_producer_claimed": 13
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "75815bbfb37747faee2f628e2396fb192a7e688b1a2bcad4ddefc4104cad2075",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "5a023821b4e6c0b8ae01ff41624b2f04667c242401e6aa1557d1f28c525c94ce",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "psd-runtime-v3-explicit-filters",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "offline-spectral-v3",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    },
+    {
+      "case": "test_on_demand_to_full_matches_uncached_execution[cache_key-stft]",
+      "arrays": {
+        "axis_frequency_hz": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 117
+        },
+        "axis_time_center_s": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 7
+        },
+        "power_db": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        },
+        "power_linear": {
+          "failed_coordinates": [],
+          "failed_point_count": 0,
+          "max_absolute_error": 0.0,
+          "max_relative_error": 0.0,
+          "point_count": 11466
+        }
+      },
+      "context": {
+        "actual_range": {
+          "end_s": 30.0,
+          "start_s": 0.0
+        },
+        "artifact_sha256": "924e11ca900f833636f51e4f9bdaa6ac3812157c66542256dc26357ba86e45d8",
+        "config": {
+          "algorithm_id": "stft",
+          "channel": "F3-REF",
+          "dynamic_window_s": 10,
+          "high_hz": 30,
+          "low_hz": 1,
+          "mode": "dynamic",
+          "notch_hz": null,
+          "refresh_step_s": 2,
+          "time": {
+            "end_s": 30,
+            "start_s": 0
+          }
+        },
+        "execution_provenance": {
+          "cache_miss_reasons": {
+            "cache_key_mismatch": 1,
+            "full_producer_claimed": 13
+          },
+          "contract_version": "offline-analysis-v1",
+          "coverage": {
+            "planned_windows": 14,
+            "rejected_windows": 0,
+            "state": "complete",
+            "terminal_windows": 14,
+            "unavailable_windows": 0
+          },
+          "execution_mode": "full",
+          "producer_mode": "full",
+          "provenance_id": "cf549866ac4d71e2035fc6622e9a3615ef0e732c44d4f364e88cab8d8f2e4838",
+          "result_scope": "full_run",
+          "reused_on_demand_window_count": 0,
+          "scientific_cache_key": "ba036a47e87450409086185247d25cac93da153e2d6c1b5a72989a77a6d9f449",
+          "served_from": "full_computation"
+        },
+        "implementation_identity": "stft-runtime-v4-relative-window-times",
+        "sampling_rate_hz": 200.0,
+        "scientific_version": "spectrogram-v2",
+        "source_sha256": "86faaa0f366911d86e223034beb4529667c808193e40164cab93cbf26b2fafac"
+      }
+    }
+  ]
+}

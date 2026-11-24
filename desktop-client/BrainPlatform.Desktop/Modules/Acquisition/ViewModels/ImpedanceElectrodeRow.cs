@@ -18,8 +18,10 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
     public ImpedanceChannelIdentity Identity { get; }
     public string Label { get; }
     public ElectrodeMapPosition? Position { get; }
+    public double? ResistanceKiloOhms => resistanceOhms is { } value ? value / 1000d : null;
+    public bool IsWithinRange => !stale && status == ImpedanceReadingStatus.Valid && scale is not null &&
+        ResistanceKiloOhms is { } k && k <= scale.Maximum;
     public string NativeIdentityText => $"{Identity.Kind} · #{Identity.NativeChannelIndex}";
-    public double SortResistance => status == ImpedanceReadingStatus.Valid ? resistanceOhms ?? double.MaxValue : double.MaxValue;
     public string ValueText => resistanceOhms is { } value ? (value / 1000d).ToString("0.0", CultureInfo.CurrentCulture) : "—";
     public string StatusText => stale ? "通信超时，数值已过期" : status switch
     {
@@ -43,6 +45,7 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
     }
     public void SetPresentation(ImpedanceColorScale? colorScale, bool isStale)
     {
+        if (ReferenceEquals(scale, colorScale) && stale == isStale) return;
         scale = colorScale;
         stale = isStale;
         Notify();
@@ -50,12 +53,12 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
     private void Notify()
     {
         foreach (var property in new[] { nameof(ValueText), nameof(StatusText), nameof(Color),
-            nameof(AccessibleText), nameof(SortResistance) }) RaisePropertyChanged(property);
+            nameof(AccessibleText) }) RaisePropertyChanged(property);
     }
 
     public static ImpedanceElectrodeRow Create(ImpedanceReading reading, ChannelConfigurationProfile physical)
     {
-        var entry = physical.Channels.SingleOrDefault(channel => channel.NativeChannelIndex == reading.NativeChannelIndex &&
+        var entry = physical.Channels.FirstOrDefault(channel => channel.NativeChannelIndex == reading.NativeChannelIndex &&
             channel.ExpectedKind == reading.Kind);
         var label = reading.Kind switch
         {

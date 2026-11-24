@@ -1,0 +1,50 @@
+namespace BrainPlatform.Desktop.Modules.Events.Services;
+
+public sealed class ShortcutRegistry
+{
+    private readonly object sync = new();
+    private readonly Dictionary<(ShortcutScope Scope, string Shortcut), string> registrations = new();
+
+    public ShortcutRegistrationResult TryRegister(string shortcut, ShortcutScope scope, string commandId)
+    {
+        if (string.IsNullOrWhiteSpace(shortcut)) return ShortcutRegistrationResult.Success();
+        var key = (scope, Normalize(shortcut));
+        lock (sync)
+        {
+            foreach (var registration in registrations)
+            {
+                if (ScopesOverlap(registration.Key.Scope, scope) &&
+                    registration.Key.Shortcut == key.Item2 &&
+                    !string.Equals(registration.Value, commandId, StringComparison.Ordinal))
+                {
+                    return ShortcutRegistrationResult.Failed(
+                        new ShortcutConflict(key.Item2, registration.Key.Scope, registration.Value));
+                }
+            }
+            registrations[key] = commandId;
+            return ShortcutRegistrationResult.Success();
+        }
+    }
+
+    public void Unregister(string shortcut, ShortcutScope scope, string commandId)
+    {
+        if (string.IsNullOrWhiteSpace(shortcut)) return;
+        lock (sync)
+        {
+            var key = (scope, Normalize(shortcut));
+            if (registrations.TryGetValue(key, out var existing) && existing == commandId)
+                registrations.Remove(key);
+        }
+    }
+
+    public bool IsRegistered(string shortcut, ShortcutScope scope)
+    {
+        if (string.IsNullOrWhiteSpace(shortcut)) return false;
+        lock (sync) return registrations.ContainsKey((scope, Normalize(shortcut)));
+    }
+
+    internal static string Normalize(string shortcut) => string.Join('+', shortcut.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(part => part.ToUpperInvariant()));
+
+    internal static bool ScopesOverlap(ShortcutScope left, ShortcutScope right) =>
+        left == ShortcutScope.Global || right == ShortcutScope.Global || left == right;
+}

@@ -1,0 +1,225 @@
+namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
+
+using System.Text.Json;
+using System.IO;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
+using BrainPlatform.Desktop.Modules.Review.Montages;
+using BrainPlatform.Desktop.Modules.Review.Playback;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
+
+public sealed partial class AlgorithmListViewModel
+{
+    private async Task ReleaseAlgorithmRecordingAsync()
+    {
+        if (algorithmRecording is null)
+            return;
+        var lease = algorithmRecording;
+        algorithmRecording = null;
+        await lease.DisposeAsync();
+    }
+
+    private async Task AutoRegisterSelectedRecordingAsync()
+    {
+        try
+        {
+            await RegisterAsync();
+            ScheduleAutomaticRun();
+        }
+        catch (Exception exception)
+        {
+            ReportRunError(exception);
+        }
+    }
+
+    private void ScheduleAutomaticRun()
+    {
+        InvalidateAlgorithmConfiguration();
+        if (LastRun is { Status: "queued" or "running" } obsoleteRun)
+            _ = CancelObsoleteRunAsync(obsoleteRun);
+        if (disposed || detailSuspended) return;
+        if (SelectedProjectRecording is not { Status: "已完成" } ||
+            RegisteredRecording is null ||
+            SelectedAlgorithm is null ||
+            string.IsNullOrWhiteSpace(SelectedChannel))
+            return;
+
+        automaticRunPending = true;
+        automaticRunDebounceTimer.Stop();
+        automaticRunDebounceTimer.Start();
+    }
+
+    private async Task RegisterAsync()
+    {
+        ResultSummaryText = "暂无结果摘要。";
+        ProvenanceText = "暂无溯源信息。";
+        StructuredPreviewText = "暂无结构化预览。";
+        DynamicSeriesText = "暂无动态结果。";
+        ClearPreviews();
+        if (SelectedProjectRecording is not { Status: "已完成" } || string.IsNullOrWhiteSpace(SourceDirectory))
+            throw new InvalidOperationException("请先从项目中选择一条已完成的记录。");
+
+        if (recordingSessionManager is not null)
+        {
+            if (!Guid.TryParseExact(SelectedProjectRecording.SessionId, "N", out var sessionId))
+                throw new RecordingAccessException(
+                    RecordingAccessErrorCodes.IdentityInvalid, "所选录音的会话标识无效。", null);
+
+            if (algorithmRecording is not null)
+                await algorithmRecording.DisposeAsync();
+            algorithmRecording = await recordingSessionManager.OpenLocalAsync(
+                SourceDirectory.Trim(), sessionId, CancellationToken.None);
+            ValidateSharedRecordingSource(algorithmRecording);
+        }
+
+        var profiles = await montageStore.LoadAsync(CancellationToken.None);
+        var manifestPath = Path.Combine(SourceDirectory.Trim(), "manifest.json");
+        await using var manifestStream = File.OpenRead(manifestPath);
+        var manifest = await JsonSerializer.DeserializeAsync<LocalRawRecordingManifest>(
+            manifestStream, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, CancellationToken.None)
+            ?? throw new InvalidOperationException("记录清单为空，无法验证兼容导联。");
+        var montageCatalog = RecordingMontageCatalog.Build(manifest, profiles.Where(profile => !profile.IsArchived));
+        var acquisitionProfile = montageCatalog.AcquisitionMontage;
+        var compatibleProfiles = montageCatalog.CompatibleViewingMontages.Select(item => item.Profile)
+            .Where(profile => acquisitionProfile is null ||
+                !string.Equals(profile.Id, acquisitionProfile.Id, StringComparison.Ordinal) ||
+                !string.Equals(profile.Fingerprint, acquisitionProfile.Fingerprint, StringComparison.Ordinal))
+            .ToArray();
+        RegisteredRecording = await runCoordinator.RegisterRecordingAsync(
+            SourceDirectory.Trim(), CancellationToken.None, compatibleProfiles);
+        if (RegisteredRecording.Channels.Count == 0 || RegisteredRecording.DurationSeconds is not > 0)
+            throw new InvalidOperationException("注册记录没有有效的通道或时长。");
+        if (RegisteredRecording.SamplingRateHz is not > 0 ||
+            !double.IsFinite(RegisteredRecording.SamplingRateHz.Value) ||
+            RegisteredRecording.SamplingRateHz.Value != Math.Truncate(RegisteredRecording.SamplingRateHz.Value))
+            throw new InvalidOperationException("注册记录没有有效的整数采样率。");
+        var samplingRateHz = checked((int)RegisteredRecording.SamplingRateHz.Value);
+        var durationSamples = checked((long)Math.Round(
+            RegisteredRecording.DurationSeconds.Value * samplingRateHz, MidpointRounding.AwayFromZero));
+        var expectedRecordingId = RegisteredRecording.Id;
+        if (injectedPlaybackCoordinator is not null &&
+            (!string.Equals(injectedPlaybackCoordinator.RecordingId, expectedRecordingId, StringComparison.Ordinal) ||
+             injectedPlaybackCoordinator.SamplingRateHz != samplingRateHz ||
+             injectedPlaybackCoordinator.DurationSamples != durationSamples))
+            throw new InvalidOperationException("注入的播放协调器与注册录音身份或采样范围不一致。");
+
+        if (ownsPlaybackCoordinator)
+            playbackCoordinator?.Dispose();
+        playbackCoordinator = injectedPlaybackCoordinator ?? new RecordingPlaybackTimeCoordinator(
+            expectedRecordingId, samplingRateHz, durationSamples);
+        ownsPlaybackCoordinator = injectedPlaybackCoordinator is null;
+        RaisePropertyChanged(nameof(PlaybackCoordinator));
+
+        RegisteredChannels.Clear();
+        MontageProfiles.Clear();
+        foreach (var profile in HistoricalMontageCatalogue.Deduplicate(
+                     RegisteredRecording.MontageCatalogue ?? []))
+            MontageProfiles.Add(profile);
+        InitializeAlgorithmMontageSelection(RegisteredRecording.Id);
+        if (montageSelection is null || montageSelection.AvailableMontages.Count == 0)
+            throw new InvalidOperationException("注册记录没有可用的历史导联配置。");
+        RaisePropertyChanged(nameof(HasRegisteredChannels));
+        if (montageSelection.SelectedMontage is null)
+        {
+            SelectedChannel = string.Empty;
+            SelectedF4Channel = string.Empty;
+        }
+        else
+        {
+            SelectedChannel = RegisteredChannels.FirstOrDefault() ?? string.Empty;
+            SelectedF4Channel = RegisteredChannels.Count > 1 ? RegisteredChannels[1] : string.Empty;
+        }
+        ApplyAlgorithmChannelDefaults();
+        RefreshTnkRoleChannels();
+        EndSecondsText = RegisteredRecording.DurationSeconds.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+        StatusText = $"已注册记录：{RegisteredRecording.OriginalName}，{RegisteredRecording.DurationSeconds.Value:0.###} 秒。请选择分析导联和范围。";
+    }
+
+    internal static void ValidateSharedRecordingSource(IRecordingAccessSession recording)
+    {
+        var metadata = recording.Metadata;
+        if (!string.Equals(metadata.Manifest.EegSignalUnit, "V", StringComparison.OrdinalIgnoreCase))
+            throw new RecordingAccessException(
+                RecordingAccessErrorCodes.SourceUnavailable,
+                $"录音源单位必须是 V，实际为 {metadata.Manifest.EegSignalUnit}。", metadata.RecordingId);
+        if (metadata.SamplingRateHz <= 0 || metadata.LastSampleCounter < metadata.FirstSampleCounter)
+            throw new RecordingAccessException(
+                RecordingAccessErrorCodes.SourceUnavailable, "录音源采样范围无效。", metadata.RecordingId);
+        if (metadata.Manifest.Channels.Count == 0 || metadata.Manifest.Channels.Any(channel =>
+                string.IsNullOrWhiteSpace(channel.Label)))
+            throw new RecordingAccessException(
+                RecordingAccessErrorCodes.SourceUnavailable, "录音源没有完整的有序通道表。", metadata.RecordingId);
+    }
+
+    private void ApplyAlgorithmChannelDefaults()
+    {
+        if (RegisteredChannels.Count == 0)
+            return;
+
+        if (SelectedAlgorithm?.Id.StartsWith("tnk_", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            var primaryRole = SelectedAlgorithm.Parameters.FirstOrDefault(parameter => parameter.Key == "channel")?.LabelZh
+                .Replace(" 分析通道", string.Empty, StringComparison.Ordinal).Trim();
+            var tnkPrimary = FindRegisteredChannel(primaryRole);
+            if (tnkPrimary is not null)
+                SelectedChannel = tnkPrimary;
+        }
+
+        var descriptor = AlgorithmUiRegistry.For(SelectedAlgorithm?.Id ?? string.Empty);
+        var primary = FindRegisteredChannel(descriptor.PreferredPrimaryChannel);
+        var secondary = FindRegisteredChannel(descriptor.PreferredSecondaryChannel);
+        if (primary is not null)
+            SelectedChannel = primary;
+        if (secondary is not null)
+            SelectedF4Channel = secondary;
+    }
+
+    private void ApplyAlgorithmParameterDefaults()
+    {
+        var presetName = AlgorithmUiRegistry.For(SelectedAlgorithm?.Id ?? string.Empty).DefaultPeakBandPreset;
+        if (presetName is null)
+            return;
+
+        applyingBandPreset = true;
+        try
+        {
+            SelectedPeakBandPreset = presetName;
+        }
+        finally
+        {
+            applyingBandPreset = false;
+        }
+    }
+
+    private string? FindRegisteredChannel(string? preferred)
+    {
+        if (string.IsNullOrWhiteSpace(preferred))
+            return null;
+        return RegisteredChannels.FirstOrDefault(channel =>
+            string.Equals(channel, preferred, StringComparison.OrdinalIgnoreCase))
+            ?? RegisteredChannels.FirstOrDefault(channel =>
+                string.Equals(channel, preferred + "-REF", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void RefreshTnkRoleChannels()
+    {
+        TnkRoleChannels.Clear();
+        if (!string.Equals(SelectedAlgorithm?.Id, "tnk_biofeedback", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        foreach (var role in new[] { "Fz", "Pz", "Oz", "F3", "F4" })
+        {
+            var preferredChannel = SelectedMontageProfile?.Outputs.FirstOrDefault(output => output.Available &&
+                string.Equals(output.Role, role, StringComparison.OrdinalIgnoreCase))?.Id;
+            preferredChannel ??= RegisteredChannels.FirstOrDefault(channel =>
+                string.Equals(channel, role, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(channel, role + "-REF", StringComparison.OrdinalIgnoreCase));
+            var selection = new TnkRoleChannelSelection(role, $"{role} 来源通道", preferredChannel ?? string.Empty);
+            selection.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(TnkRoleChannelSelection.SelectedChannel))
+                    ScheduleAutomaticRun();
+            };
+            TnkRoleChannels.Add(selection);
+        }
+    }
+}

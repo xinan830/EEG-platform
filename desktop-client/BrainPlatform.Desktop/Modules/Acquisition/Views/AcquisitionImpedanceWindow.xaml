@@ -3,100 +3,307 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:BrainPlatform.Desktop.Modules.Acquisition.Views"
         xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
-        Title="阻抗检测" Width="1120" Height="900" MinWidth="900" MinHeight="700"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="#F3F5F8"
+        Title="阻抗检测" Width="1060" Height="740" MinWidth="840" MinHeight="620"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Background="#F4F7FB"
         FontFamily="Microsoft YaHei UI" FontSize="13" UseLayoutRounding="True" Closing="OnClosing">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="RangePresetButtonStyle" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="FontWeight" Value="Medium" />
+                <Setter Property="Foreground" Value="#475569" />
+                <Setter Property="Background" Value="#F8FAFC" />
+                <Setter Property="BorderBrush" Value="#E2E8F0" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#EFF6FF" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#93C5FD" />
+                                    <Setter Property="Foreground" Value="#1D4ED8" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#DBEAFE" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ImpedanceSecondaryActionStyle" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Height" Value="40" />
+                <Setter Property="FontSize" Value="13.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#334155" />
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#CBD5E1" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="9">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#F8FAFC" />
+                                    <Setter TargetName="Bd" Property="BorderBrush" Value="#94A3B8" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#F1F5F9" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ImpedancePrimaryActionStyle" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Height" Value="40" />
+                <Setter Property="FontSize" Value="13.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="#FFFFFF" />
+                <Setter Property="Background" Value="#2563EB" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="9">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#1D4ED8" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#1E40AF" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
-    <Grid Margin="24" Background="#F3F5F8">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        <StackPanel Margin="0,0,0,18">
-            <TextBlock Text="阻抗检测" FontSize="22" FontWeight="SemiBold" Foreground="#0F172A"/>
-            <TextBlock Text="{Binding DeviceText}" Foreground="#64748B" Margin="0,5,0,0"/>
-            <TextBlock Text="{Binding StatusText}" Foreground="#2563EB" Margin="0,6,0,0" TextWrapping="Wrap"/>
-        </StackPanel>
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
-            <Border Background="White" CornerRadius="12" BorderBrush="#E2E8F0" BorderThickness="1" Padding="12">
-                <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <TextBlock Text="物理电极 · 接触阻抗" FontWeight="SemiBold" Foreground="#334155"/>
-                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                                  HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch">
-                        <views:ImpedanceScalpMap MinWidth="480" MinHeight="480" Rows="{Binding Rows}"
-                                                SelectedRow="{Binding SelectedRow, Mode=TwoWay}"/>
-                    </ScrollViewer>
-                    <StackPanel Grid.Row="2">
-                        <views:ImpedanceScaleLegend x:Name="ColorLegend" Height="62" Scale="{Binding ColorScale}"
-                                                    AutomationProperties.Name="{Binding LegendText}"/>
-                        <TextBlock Text="圈内为电极名称，圈上为阻抗值 / kΩ；无坐标项见列表。"
-                                   Foreground="#64748B" TextWrapping="Wrap" FontSize="11" HorizontalAlignment="Center"/>
+
+    <Grid Margin="20">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="18" />
+            <ColumnDefinition Width="320" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: Clean Spacious 2D Scalp Impedance Map Card -->
+        <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="14" BorderBrush="#E2E8F0" BorderThickness="1" Padding="18,14,18,16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" Margin="2,0,2,8">
+                    <Border DockPanel.Dock="Right" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1"
+                            CornerRadius="12" Padding="10,4" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding SummaryText}" FontSize="12" FontWeight="SemiBold" Foreground="#1D4ED8" />
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="实时电极阻抗分布" FontSize="16" FontWeight="SemiBold" Foreground="#0F172A" />
+                        <TextBlock Text="各电极独立测量接触电阻（kΩ），点击电极可与右侧列表联动"
+                                   FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0" />
                     </StackPanel>
-                </Grid>
+                </DockPanel>
+
+                <views:ImpedanceScalpMap Grid.Row="1" MinWidth="420" MinHeight="420"
+                                         Rows="{Binding Rows}"
+                                         SelectedRow="{Binding SelectedRow, Mode=TwoWay}"
+                                         AutomationProperties.Name="脑电电极阻抗图" />
+            </Grid>
+        </Border>
+
+        <!-- Right: Clean Control & Electrode List Sidebar -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="14" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="14" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Card 1: Color Scale & Range Threshold -->
+            <Border Grid.Row="0" Background="#FFFFFF" CornerRadius="14" BorderBrush="#E2E8F0" BorderThickness="1" Padding="16,14">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,12">
+                        <Border DockPanel.Dock="Right" Background="#EFF6FF" CornerRadius="8" Padding="9,3" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding ColorScaleMaximumText}" Foreground="#2563EB" FontSize="13" FontWeight="Bold" />
+                        </Border>
+                        <TextBlock Text="阻抗色标上限" Foreground="#0F172A" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <!-- Quick Common Clinical Threshold Presets -->
+                    <UniformGrid Columns="5" Margin="0,0,0,12">
+                        <Button Content="10k" Tag="10" Click="OnRangePresetClick" Style="{StaticResource RangePresetButtonStyle}" Margin="0,0,4,0" ToolTip="上限设为 10 kΩ" />
+                        <Button Content="20k" Tag="20" Click="OnRangePresetClick" Style="{StaticResource RangePresetButtonStyle}" Margin="2,0,2,0" ToolTip="上限设为 20 kΩ" />
+                        <Button Content="50k" Tag="50" Click="OnRangePresetClick" Style="{StaticResource RangePresetButtonStyle}" Margin="2,0,2,0" ToolTip="上限设为 50 kΩ" />
+                        <Button Content="100k" Tag="100" Click="OnRangePresetClick" Style="{StaticResource RangePresetButtonStyle}" Margin="2,0,2,0" ToolTip="上限设为 100 kΩ" />
+                        <Button Content="200k" Tag="200" Click="OnRangePresetClick" Style="{StaticResource RangePresetButtonStyle}" Margin="4,0,0,0" ToolTip="上限设为 200 kΩ" />
+                    </UniformGrid>
+
+                    <!-- Slim, Refined Gradient Slider -->
+                    <Slider Height="26" Minimum="0" Maximum="200" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Background="{Binding ColorScale.Brush}"
+                            Value="{Binding ColorScaleMaximumKiloOhms, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            AutomationProperties.Name="阻抗颜色范围，0 到 200 千欧；拖动滑块设置当前上限">
+                        <Slider.Template>
+                            <ControlTemplate TargetType="Slider">
+                                <Grid Background="Transparent" Height="{TemplateBinding Height}">
+                                    <Border Height="8" CornerRadius="4" BorderBrush="#CBD5E1" BorderThickness="0.8"
+                                            Background="{TemplateBinding Background}" VerticalAlignment="Center" />
+                                    <Track x:Name="PART_Track" Height="26" VerticalAlignment="Center"
+                                           IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
+                                        <Track.DecreaseRepeatButton>
+                                            <RepeatButton Command="{x:Static Slider.DecreaseLarge}" Opacity="0" IsTabStop="False" />
+                                        </Track.DecreaseRepeatButton>
+                                        <Track.IncreaseRepeatButton>
+                                            <RepeatButton Command="{x:Static Slider.IncreaseLarge}" Opacity="0" IsTabStop="False" />
+                                        </Track.IncreaseRepeatButton>
+                                        <Track.Thumb>
+                                            <Thumb Width="13" Height="13" Cursor="SizeWE" Focusable="False">
+                                                <Thumb.Template>
+                                                    <ControlTemplate TargetType="Thumb">
+                                                        <Ellipse Fill="#FFFFFF" Stroke="#2563EB" StrokeThickness="2">
+                                                            <Ellipse.Effect>
+                                                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.16" Color="#0F172A" />
+                                                            </Ellipse.Effect>
+                                                        </Ellipse>
+                                                    </ControlTemplate>
+                                                </Thumb.Template>
+                                            </Thumb>
+                                        </Track.Thumb>
+                                    </Track>
+                                </Grid>
+                            </ControlTemplate>
+                        </Slider.Template>
+                    </Slider>
+
+                    <Grid Margin="0,2,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                            <ColumnDefinition />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="0 kΩ" Foreground="#94A3B8" FontSize="11" HorizontalAlignment="Left" />
+                        <TextBlock Grid.Column="1" Text="100 kΩ" Foreground="#94A3B8" FontSize="11" HorizontalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Text="200 kΩ" Foreground="#94A3B8" FontSize="11" HorizontalAlignment="Right" />
+                    </Grid>
+
+                    <!-- Clean 3-Stop Color Customization Row -->
+                    <Border BorderBrush="#F1F5F9" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                        <UniformGrid Columns="3">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                <TextBlock Text="低值" Foreground="#64748B" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <shared:ColorPicker IsCompact="True" SelectedColor="{Binding LowColor, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="中值" Foreground="#64748B" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <shared:ColorPicker IsCompact="True" SelectedColor="{Binding MiddleColor, Mode=TwoWay}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <TextBlock Text="高值" Foreground="#64748B" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <shared:ColorPicker IsCompact="True" SelectedColor="{Binding HighColor, Mode=TwoWay}" />
+                            </StackPanel>
+                        </UniformGrid>
+                    </Border>
+                </StackPanel>
             </Border>
-            <Border Grid.Column="2" Background="White" CornerRadius="12" BorderBrush="#E2E8F0" BorderThickness="1" Padding="14">
+
+            <!-- Card 2: Live Electrode Readings List -->
+            <Border Grid.Row="2" Background="#FFFFFF" CornerRadius="14" BorderBrush="#E2E8F0" BorderThickness="1" Padding="14,12">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <TextBlock Text="电极读数 / kΩ · 阻抗降序" FontWeight="SemiBold" Foreground="#334155" Margin="0,0,0,10"/>
-                    <ListBox Grid.Row="1" ItemsSource="{Binding RowsView}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
-                             BorderThickness="0" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch"
-                             AutomationProperties.Name="物理电极阻抗读数">
-                        <ListBox.ItemTemplate><DataTemplate>
-                            <Grid Margin="0,6" ToolTip="{Binding AccessibleText}" AutomationProperties.Name="{Binding AccessibleText}">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions>
-                                <Ellipse Width="8" Height="8" Fill="{Binding Color}" VerticalAlignment="Center"/>
-                                <StackPanel Grid.Column="1"><TextBlock Text="{Binding Label}" FontWeight="SemiBold"/><TextBlock Text="{Binding NativeIdentityText}" FontSize="10" Foreground="#64748B"/></StackPanel>
-                                <TextBlock Grid.Column="2" Text="{Binding ValueText}" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Right"/>
-                            </Grid>
-                        </DataTemplate></ListBox.ItemTemplate>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0" Margin="2,0,2,10">
+                        <TextBlock DockPanel.Dock="Right" Text="单位：kΩ" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center" />
+                        <TextBlock Text="电极数值明细" FontSize="14" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <ListBox Grid.Row="1" ItemsSource="{Binding Rows}" SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                             BorderThickness="0" Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0,0,0,4" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="RowBorder" Background="#F8FAFC" BorderBrush="Transparent"
+                                                    BorderThickness="1" CornerRadius="8" Padding="10,7">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="RowBorder" Property="Background" Value="#F1F5F9" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="RowBorder" Property="Background" Value="#EFF6FF" />
+                                                    <Setter TargetName="RowBorder" Property="BorderBrush" Value="#93C5FD" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel ToolTip="{Binding AccessibleText}">
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ValueText}"
+                                               FontSize="13" FontWeight="SemiBold" Foreground="#0F172A"
+                                               VerticalAlignment="Center" MinWidth="42" TextAlignment="Right" />
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Ellipse Width="10" Height="10" Fill="{Binding Color}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="#1E293B" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
                     </ListBox>
-                    <StackPanel Grid.Row="2" Margin="0,12,0,0">
-                        <TextBlock Text="{Binding HardwareStatusText}" TextWrapping="Wrap" Foreground="#64748B" FontSize="11" Margin="0,0,0,8"/>
-                        <TextBlock Text="{Binding SelectedRow.AccessibleText}" TextWrapping="Wrap" Foreground="#475569" FontSize="12"/>
-                        <TextBlock Text="{Binding LastReceivedText}" Foreground="#64748B" FontSize="11" Margin="0,6,0,0"/>
-                    </StackPanel>
-                    <Expander Grid.Row="3" Header="渐变色标 · 范围与颜色" IsExpanded="True"
-                              Foreground="#334155" Margin="0,16,0,0">
-                        <StackPanel Margin="0,8,0,0">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="38"/><ColumnDefinition Width="*"/><ColumnDefinition Width="26"/><ColumnDefinition Width="44"/></Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions><RowDefinition Height="36"/><RowDefinition Height="36"/><RowDefinition Height="36"/></Grid.RowDefinitions>
-                                <TextBlock Text="最低" VerticalAlignment="Center"/>
-                                <TextBox Grid.Column="1" Text="{Binding MinimumText, UpdateSourceTrigger=PropertyChanged}" Padding="6" Margin="0,2,4,2"
-                                         VerticalContentAlignment="Center" AutomationProperties.Name="色标最低值，千欧"/>
-                                <TextBlock Grid.Column="2" Text="kΩ" VerticalAlignment="Center"/>
-                                <shared:ColorPicker Grid.Column="3" IsCompact="True" SelectedColor="{Binding LowColor, Mode=TwoWay}"
-                                                    ToolTip="最低阻抗颜色" AutomationProperties.Name="最低阻抗颜色"/>
-                                <TextBlock Grid.Row="1" Text="中间" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding MiddleText, UpdateSourceTrigger=PropertyChanged}" Padding="6" Margin="0,2,4,2"
-                                         VerticalContentAlignment="Center" AutomationProperties.Name="色标中间值，千欧"/>
-                                <TextBlock Grid.Row="1" Grid.Column="2" Text="kΩ" VerticalAlignment="Center"/>
-                                <shared:ColorPicker Grid.Row="1" Grid.Column="3" IsCompact="True" SelectedColor="{Binding MiddleColor, Mode=TwoWay}"
-                                                    ToolTip="中间阻抗颜色" AutomationProperties.Name="中间阻抗颜色"/>
-                                <TextBlock Grid.Row="2" Text="最高" VerticalAlignment="Center"/>
-                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MaximumText, UpdateSourceTrigger=PropertyChanged}" Padding="6" Margin="0,2,4,2"
-                                         VerticalContentAlignment="Center" AutomationProperties.Name="色标最高值，千欧"/>
-                                <TextBlock Grid.Row="2" Grid.Column="2" Text="kΩ" VerticalAlignment="Center"/>
-                                <shared:ColorPicker Grid.Row="2" Grid.Column="3" IsCompact="True" SelectedColor="{Binding HighColor, Mode=TwoWay}"
-                                                    ToolTip="最高阻抗颜色" AutomationProperties.Name="最高阻抗颜色"/>
-                            </Grid>
-                            <TextBlock Text="{Binding LegendText}" Foreground="#64748B" Margin="0,8,0,0" TextWrapping="Wrap" FontSize="11"/>
-                        </StackPanel>
-                    </Expander>
                 </Grid>
             </Border>
+
+            <!-- Bottom Actions (High Contrast, Balanced) -->
+            <UniformGrid Grid.Row="4" Columns="2">
+                <Button Content="结束检测" Click="OnStopClick" Style="{StaticResource ImpedanceSecondaryActionStyle}" Margin="0,0,6,0" />
+                <Button Content="结束检测并预览" Click="OnPreviewClick" Style="{StaticResource ImpedancePrimaryActionStyle}" Margin="6,0,0,0" />
+            </UniformGrid>
         </Grid>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-            <Button Content="结束检测" Click="OnStopClick" Style="{StaticResource ModernDialogSecondaryButtonStyle}"/>
-            <Button Content="结束检测并预览" Click="OnPreviewClick" Style="{StaticResource ModernDialogPrimaryButtonStyle}" Margin="10,0,0,0"/>
-        </StackPanel>
     </Grid>
 </Window>

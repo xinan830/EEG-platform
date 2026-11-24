@@ -24,17 +24,21 @@ public sealed class LiveAcquisitionMappingTests
 
             probe.Runtime.StartPreviewAsync(new AcquisitionStreamRequest(
                 "probe:1", 1000, probe.Project), CancellationToken.None).GetAwaiter().GetResult();
+            Assert.True(probe.Workspace.CanStartImpedance);
             WaitForSamples(probe.Runtime);
             probe.AssertTraceValues(electrode);
 
             probe.Runtime.StartRecordingAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Assert.False(probe.Workspace.CanStartImpedance);
             probe.AssertTraceValues(electrode);
             probe.Runtime.PauseAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Assert.False(probe.Workspace.CanStartImpedance);
             probe.AssertTraceValues(electrode);
             probe.Runtime.ResumeAsync(CancellationToken.None).GetAwaiter().GetResult();
             probe.AssertTraceValues(electrode);
             probe.Runtime.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
             DrainDispatcher();
+            Assert.True(probe.Workspace.CanStartImpedance);
             probe.AssertMapping(electrode);
         });
     }

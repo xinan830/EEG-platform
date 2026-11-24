@@ -32,19 +32,29 @@ The desktop SHALL serialize impedance, EEG opening, stopping, reconfiguration an
 - **WHEN** the operator selects impedance detection during EEG preview
 - **THEN** the current preview session and its pending display/analysis work end before impedance opens
 - **AND** the UI explains that live EEG is suspended during measurement
+- **AND** the visible waveform and sweep erase band remain frozen until preview resumes
+- **AND** resumed preview follows the frozen display history on a display-only timeline with an explicit segment break
+- **AND** samples retained for this display are never reused for recording, filtering or analysis
 
-### Requirement: Recording is finalized before impedance detection
-An impedance request during recording or recording pause SHALL require explicit confirmation to end the current recording. The desktop SHALL successfully drain accepted recording data, finalize storage and close EEG before opening impedance. Cancellation or finalization failure SHALL NOT open impedance or discard accepted samples.
+#### Scenario: Preserve preview display across impedance
+- **WHEN** the operator closes impedance after opening it from preview
+- **THEN** the last visible EEG trace remains on screen while impedance owns the device
+- **AND** new EEG samples continue from the frozen trace position and begin a new disconnected segment
+- **AND** the impedance interval is not represented as EEG samples or as a continuous waveform
+- **AND** a different sampling rate or physical stream layout starts a new display instead of mixing incompatible channel data
 
-#### Scenario: Operator cancels while recording
-- **WHEN** an operator cancels the request to end a recording for impedance detection
-- **THEN** the current recording continues unchanged and no impedance stream opens
+### Requirement: Recording blocks impedance detection
+The impedance entry SHALL be disabled while recording or recording is paused. The workspace and acquisition runtime SHALL reject impedance requests in either state, without stopping EEG or finalizing the active recording.
 
-#### Scenario: Save succeeds or fails
-- **WHEN** an operator confirms ending an active or paused recording
-- **THEN** impedance opens only after successful recording finalization and EEG closure
-- **AND** a storage or closure failure is shown explicitly, retains recoverable recording artifacts, and blocks detection
-- **AND** any later recording creates a separate recording identity and file
+#### Scenario: Impedance entry during recording
+- **WHEN** the operator starts or pauses a recording
+- **THEN** the impedance entry is disabled
+- **AND** direct or stale UI requests are rejected while EEG and the active recording remain unchanged
+
+#### Scenario: Detection after recording finishes
+- **WHEN** the recording is fully stopped and the device is available
+- **THEN** the operator may open impedance detection from the idle state
+- **AND** returning to preview creates a new EEG session and a later recording receives a separate identity
 
 ### Requirement: Physical electrode identity comes from acquisition configuration
 The impedance view SHALL map SDK native channel role/index to the selected acquisition configuration's physical channel snapshot, never to software-derived display or analysis channels. It SHALL use persisted electrode coordinates where available and preserve unmapped readings in a labelled list. REF and GND SHALL remain distinct physical roles with measured values only when returned by the SDK.
@@ -60,7 +70,7 @@ The impedance view SHALL map SDK native channel role/index to the selected acqui
 - **AND** unpositioned measurements remain available by native identity in the list, while missing measurements show an explicit unavailable state
 
 ### Requirement: Impedance presentation uses explicit operator thresholds
-The tool window SHALL offer a selectable electrode map, resistance-sorted list and continuous kΩ color scale with three editable ordered nonnegative anchors and colors. Valid readings SHALL interpolate between anchors and saturate outside the range without altering numeric readings. Invalid configuration SHALL be neutral; unavailable readings SHALL remain gray. These settings SHALL NOT imply medical acceptance standards.
+The tool window SHALL show a selectable physical-electrode map with kΩ values and a continuous 0–200 kΩ color band that also acts as its upper-limit slider. The slider SHALL default to 20 kΩ; its three editable colors apply at 0, half the selected limit and the selected limit, with higher values saturated at the high color. Missing or stale readings remain gray. Colors SHALL NOT imply medical thresholds.
 
 #### Scenario: Share named circle presentation
 - **WHEN** channel positions or impedance electrodes are displayed
@@ -85,16 +95,21 @@ The tool window SHALL offer a selectable electrode map, resistance-sorted list a
 - **AND** panning does not alter electrode coordinates, rotation or scientific results
 
 #### Scenario: Thresholds are unset or invalid
-- **WHEN** anchor values or colors are unset or invalid
+- **WHEN** a scale color is invalid
 - **THEN** measurement remains available with numeric values and a neutral unclassified appearance
-- **AND** the UI requests valid ordered kΩ anchors and colors without silently choosing clinical limits
+- **AND** unavailable readings remain gray and the UI does not silently apply an invalid color
 
-#### Scenario: Edit continuous scale anchors
-- **WHEN** the operator edits a numeric anchor or its color
+#### Scenario: Edit continuous scale colors and upper limit
+- **WHEN** the operator edits any of the three colors or drags the thumb on the color band
 - **THEN** the legend, electrode fills and list indicators use the same updated mapping
-- **AND** the legend displays all three numeric anchors and kΩ units
+- **AND** the band spans 0–200 kΩ, the selected upper limit can be 0–200 kΩ and defaults to 20 kΩ, and the middle anchor follows half of the upper limit
 - **AND** missing or stale readings remain unavailable gray regardless of the configured gradient
-- **AND** the initial editable colors are green, yellow and red without preset clinical limits
+- **AND** the map and gradient bar use the initial green, yellow and red colors without implying clinical limits
+
+#### Scenario: Inspect impedance color range
+- **WHEN** the impedance map is displayed
+- **THEN** the electrode map is enlarged and the integrated gradient slider clearly labels 0, the selected upper limit and 200 kΩ
+- **AND** changing a color updates the bar and electrode colors through the same scale
 
 #### Scenario: Select and inspect one electrode
 - **WHEN** the operator selects an electrode on the map or in the list
@@ -106,8 +121,15 @@ The tool window SHALL offer a selectable electrode map, resistance-sorted list a
 - **THEN** it is shown as unavailable with a reason instead of 0 kΩ or a green state
 - **AND** transport freshness is distinguished from whether the last numeric resistance changed
 
-### Requirement: Detection cleanup and return to EEG are explicit
-Closing the tool window, stopping detection, leaving the acquisition workspace or exiting the application SHALL cancel and release impedance ownership. Returning to preview SHALL close impedance first and create a new EEG session; recording SHALL require a separate user action. Release failure SHALL block new streams until recovery.
+### Requirement: Detection cleanup releases hardware ownership
+Closing the tool window, stopping detection, leaving the acquisition workspace or exiting the application SHALL cancel and release impedance ownership. Release failure SHALL block new streams until recovery.
+
+#### Scenario: Cleanup after leaving acquisition
+- **WHEN** the operator leaves the acquisition workspace or exits the application
+- **THEN** detection ends and releases the device without automatically starting preview or recording
+
+### Requirement: Preview resumes as a fresh session after impedance
+Closing an impedance window opened from preview SHALL release impedance first and start a new EEG preview session. Closing after an idle start SHALL remain idle. Recording SHALL require a separate user action.
 
 #### Scenario: Return to preview after checking electrodes
 - **WHEN** the operator selects end detection and enter preview
@@ -115,9 +137,14 @@ Closing the tool window, stopping detection, leaving the acquisition workspace o
 - **AND** old EEG/impedance callbacks cannot populate the new session
 - **AND** pre-detection samples and analysis windows are not joined to post-detection samples
 
-#### Scenario: Close without requesting preview
-- **WHEN** the operator closes the tool window or leaves the acquisition workspace
-- **THEN** detection ends and the device is released without automatically starting preview or recording
+#### Scenario: Close detection after preview
+- **WHEN** the operator closes the tool window that was opened from EEG preview
+- **THEN** detection ends and releases the device before a new EEG preview starts
+- **AND** the new preview contains no pre-detection samples and does not start recording
+
+#### Scenario: Close detection from idle
+- **WHEN** the operator closes a tool window opened from idle
+- **THEN** detection ends and releases the device without automatically starting preview or recording
 
 #### Scenario: Device failure or disconnection
 - **WHEN** impedance opening or reading fails or the amplifier disconnects

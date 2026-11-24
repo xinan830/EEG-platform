@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 390" width="100%" height="100%" fill="none">
+  <!-- 左右脑外轮廓 -->
+  <path d="M 195 52 C 188 25, 145 25, 132 48 C 105 45, 82 65, 82 92 C 58 98, 45 122, 54 148 C 34 162, 32 192, 48 212 C 28 228, 30 262, 55 276 C 48 300, 65 324, 92 322 C 100 346, 132 352, 152 338 C 165 355, 195 348, 195 322" stroke="#000000" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 195 52 C 202 25, 245 25, 258 48 C 285 45, 308 65, 308 92 C 332 98, 345 122, 336 148 C 356 162, 358 192, 342 212 C 362 228, 360 262, 335 276 C 342 300, 325 324, 298 322 C 290 346, 258 352, 238 338 C 225 355, 195 348, 195 322" stroke="#000000" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- 脑中纵裂线 -->
+  <line x1="195" y1="52" x2="195" y2="175" stroke="#000000" stroke-width="8.5" stroke-linecap="round" />
+  <line x1="195" y1="242" x2="195" y2="322" stroke="#000000" stroke-width="8.5" stroke-linecap="round" />
+
+  <!-- 脑沟细节 -->
+  <g stroke="#000000" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 165 75 C 162 95, 145 102, 132 98" />
+    <path d="M 122 128 C 142 122, 158 132, 162 152" />
+    <path d="M 85 292 C 82 305, 86 315, 92 322" />
+    <path d="M 165 278 C 158 295, 142 295, 130 304" />
+    <path d="M 164 325 C 158 332, 154 336, 152 338" />
+    <path d="M 225 75 C 228 95, 245 102, 258 98" />
+    <path d="M 268 128 C 248 122, 232 132, 228 152" />
+    <path d="M 305 292 C 308 305, 304 315, 298 322" />
+    <path d="M 225 278 C 232 295, 248 295, 260 304" />
+    <path d="M 226 325 C 232 332, 236 336, 238 338" />
+  </g>
+
+  <!-- α_L 与 α_R -->
+  <text x="86" y="185" fill="#000000" font-family="system-ui, sans-serif" font-weight="700" font-style="italic" font-size="50">α</text>
+  <text x="122" y="196" fill="#000000" font-family="system-ui, sans-serif" font-weight="700" font-size="30">L</text>
+  <text x="255" y="185" fill="#000000" font-family="system-ui, sans-serif" font-weight="700" font-style="italic" font-size="50">α</text>
+  <text x="291" y="196" fill="#000000" font-family="system-ui, sans-serif" font-weight="700" font-size="30">R</text>
+
+  <!-- 双向箭头 -->
+  <line x1="164" y1="208" x2="226" y2="208" stroke="#000000" stroke-width="8.5" stroke-linecap="round" />
+  <path d="M 176 192 L 161 208 L 176 224 M 214 192 L 229 208 L 214 224" stroke="#000000" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- 左右脑波形 -->
+  <path d="M 62 240 C 68 240, 72 232, 77 232 C 83 232, 87 252, 93 252 C 100 252, 104 215, 110 215 C 116 215, 121 252, 127 252 C 133 252, 138 228, 144 228 C 148 228, 151 238, 156 238" stroke="#000000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M 234 240 C 240 240, 244 232, 249 232 C 255 232, 259 252, 265 252 C 272 252, 276 215, 282 215 C 288 215, 293 252, 299 252 C 305 252, 310 228, 316 228 C 320 228, 323 238, 328 238" stroke="#000000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

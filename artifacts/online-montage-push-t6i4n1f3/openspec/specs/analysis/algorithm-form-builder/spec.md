@@ -1,0 +1,129 @@
+# analysis/algorithm-form-builder Specification
+
+> 状态：历史浏览器工作台规范，不能作为当前 WPF 已实现功能清单。下方表单/JSON 双编辑、开发者详情及 scalar preview 条款描述已退役工作台；图/公式执行已由 [退役实现移除规范](../retired-algorithm-removal/spec.md)明确排除。Definition 元数据校验仍保留，当前官方模块和 typed 执行边界见 [算法 Runtime](../algorithm-runtime/spec.md)及[当前接入指南](../../../../docs/algorithms/official-algorithm-development.md)。此次仅标注适用状态，不变更接口或科学行为。
+
+## Purpose
+Provide local research users a safe, traceable way to author and inspect
+algorithm definitions without duplicating scientific validation or EEG math in
+the browser.
+## Requirements
+### Requirement: Author a canonical definition draft
+
+The system SHALL provide a form and advanced JSON representation of one shared
+definition draft, including identity, SemVer, inputs, outputs, graph nodes,
+parameters, units, quality rules, and references. A valid edit in either view
+SHALL update the other view without discarding unspecified graph fields.
+
+#### Scenario: Edit an input through the form
+- **WHEN** a user changes a draft input or its declared unit in the form
+- **THEN** the advanced JSON representation SHALL show the same canonical draft
+
+#### Scenario: Invalid advanced JSON
+- **WHEN** a user enters syntactically invalid JSON
+- **THEN** the system SHALL preserve the last valid draft, show a local parse error, and SHALL NOT send a save or preview request
+
+### Requirement: Use backend validation as the scientific authority
+
+The system SHALL submit canonical drafts to the backend for validation before
+creating a version, publishing it, or running a preview. The browser SHALL NOT
+derive unit compatibility, graph validity, channel suitability, or EEG output.
+
+#### Scenario: Backend rejects a graph
+- **WHEN** backend validation returns a structured graph or unit error
+- **THEN** the workbench SHALL display its stable code and SHALL NOT create or publish a version
+
+### Requirement: Preserve immutable version lifecycle
+
+The system SHALL let a user create a draft definition, create a version, clone
+a definition, compare two versions, and publish only a backend-valid version.
+Published versions SHALL remain read-only; changing one SHALL require a new
+SemVer version or a cloned definition.
+
+#### Scenario: Clone an official definition
+- **WHEN** a user clones an official definition
+- **THEN** the system SHALL create a distinct user-owned definition and retain the original version unchanged
+
+### Requirement: Keep composite definitions honest
+
+The workbench SHALL expose the execution category and quality contract of an
+official composite definition. It SHALL NOT present a composite-only official
+definition as editable and executable through the generic graph runtime.
+
+#### Scenario: Inspect IAPF
+- **WHEN** a user selects an IAPF definition marked composite-only
+- **THEN** the workbench SHALL display its immutable contract and SHALL disable generic graph execution for that version
+
+### Requirement: Run an isolated preview with provenance
+
+The system SHALL create a persisted preview AnalysisRun from a recording
+identity, absolute requested range, canonical draft, and explicitly typed
+scalar simulation inputs. Its output SHALL be labeled preview, retain units
+and quality state, and SHALL NOT overwrite a formal run or its artifacts.
+
+#### Scenario: Complete a scalar preview
+- **WHEN** a validated draft and typed scalar simulation inputs are submitted
+- **THEN** the system SHALL return an AnalysisRun with `is_preview=true`, a
+  preview-only result summary, and the requested/actual absolute range
+
+#### Scenario: Reject unavailable preview data
+- **WHEN** a preview input is absent, invalid, or has an incompatible unit
+- **THEN** the system SHALL return a structured error and SHALL NOT fabricate a zero-valued output
+
+### Requirement: Localize official algorithm labels without changing identity
+
+The workbench SHALL display Chinese names and concise purpose text for known
+official definitions while retaining the backend definition identity for all
+requests, versions and provenance.
+
+#### Scenario: Display Official FAA
+- **WHEN** the workbench receives the official definition named `Official FAA`
+- **THEN** it SHALL display `额叶 Alpha 不对称性` and the `FAA` abbreviation
+- **AND THEN** it SHALL not modify the backend-returned definition name or ID.
+
+### Requirement: A readable algorithm explanation is the default view
+
+The algorithm workbench SHALL show a Chinese-readable explanation by default
+for each official algorithm. The explanation SHALL include the algorithm name,
+purpose, backend calculation steps, and result/unit interpretation.
+
+#### Scenario: User opens an official Theta/Beta definition
+
+- **WHEN** the workbench selects Official THETA_BETA in default mode
+- **THEN** it shows a Chinese explanation of the backend processing steps and
+  describes the result as a dimensionless ratio
+- **AND THEN** it does not expose graph adapter names such as `official_result`
+  or `out`.
+
+### Requirement: Developer details require explicit opt-in
+
+The workbench SHALL provide a `开发者详情` control. Activating it SHALL expose
+the definition form, graph nodes, units, JSON, preview, version comparison, and
+authoring controls that existed before this change.
+
+#### Scenario: Developer inspects a definition
+
+- **WHEN** the user activates `开发者详情`
+- **THEN** the previous technical editor is available
+- **AND THEN** official composite definitions remain non-editable.
+
+### Requirement: Presentation does not alter scientific execution
+
+The workbench SHALL not change persisted definition identities, version
+identities, algorithm execution, or scientific results as a result of changing
+presentation modes. The frontend SHALL NOT calculate EEG-derived values.
+
+#### Scenario: User switches display modes
+
+- **WHEN** a user changes between readable and developer modes
+- **THEN** the same selected definition and version remain selected
+- **AND THEN** no scientific calculation is submitted.
+
+### Requirement: Definition selection cannot show stale activity status
+
+The workbench SHALL clear preview and action-status state when a different
+definition is selected.
+
+#### Scenario: User changes algorithm after validation
+
+- **WHEN** an action message is present for one definition and the user selects another definition
+- **THEN** the previous action message and preview output are not displayed for the newly selected definition.

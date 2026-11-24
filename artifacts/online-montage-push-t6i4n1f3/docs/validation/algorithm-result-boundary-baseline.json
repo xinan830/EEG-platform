@@ -1,0 +1,369 @@
+{
+  "schema": "algorithm-result-boundary-baseline-v1",
+  "scope": "engineering_validation_only_not_clinical_validation",
+  "capture": "Before result-serializer extraction; provenance uses HEAD source before FAA projection extraction; chapter-2 typed input evidence retained.",
+  "provenance_source_sha256": "47afdde665604451754d88fdb82987b9d9b567ae6daa4dfe7be3e611e4666fe1",
+  "tolerances": {
+    "rtol": 1e-10,
+    "atol": 1e-20
+  },
+  "environment": {
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "excluded_allocations": [
+    "raw-recording montage UUID (identity form checked; scientific fingerprint compared exactly)",
+    "artifact UUID/path/compressed checksum (verified separately per Run)",
+    "Definition allocated row id",
+    "scientific cache key containing allocated Definition identity"
+  ],
+  "artifact": {
+    "path": "docs/validation/algorithm-result-boundary-baseline.npz",
+    "sha256": "66e020b9656f7613f30824d126a6cc96372728335f1100f5e3ad831f3eeb7717",
+    "byte_size": 525506
+  },
+  "cases": [
+    {
+      "case": "band_ratio__static__clean",
+      "algorithm_id": "band_ratio",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "band_ratio__static__rejected",
+      "algorithm_id": "band_ratio",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "band_ratio__dynamic__clean",
+      "algorithm_id": "band_ratio",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "band_ratio__dynamic__rejected",
+      "algorithm_id": "band_ratio",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "brainbeat__static__clean",
+      "algorithm_id": "brainbeat",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "brainbeat__static__rejected",
+      "algorithm_id": "brainbeat",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "brainbeat__dynamic__clean",
+      "algorithm_id": "brainbeat",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "brainbeat__dynamic__rejected",
+      "algorithm_id": "brainbeat",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "faa__static__clean",
+      "algorithm_id": "faa",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "faa__static__rejected",
+      "algorithm_id": "faa",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "faa__dynamic__clean",
+      "algorithm_id": "faa",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "faa__dynamic__rejected",
+      "algorithm_id": "faa",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "iapf__static__clean",
+      "algorithm_id": "iapf",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "iapf__static__rejected",
+      "algorithm_id": "iapf",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "iapf__dynamic__clean",
+      "algorithm_id": "iapf",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "iapf__dynamic__rejected",
+      "algorithm_id": "iapf",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "peak_frequency__static__clean",
+      "algorithm_id": "peak_frequency",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "peak_frequency__static__rejected",
+      "algorithm_id": "peak_frequency",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "peak_frequency__dynamic__clean",
+      "algorithm_id": "peak_frequency",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "peak_frequency__dynamic__rejected",
+      "algorithm_id": "peak_frequency",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "psd__static__clean",
+      "algorithm_id": "psd",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "psd",
+        "band_share",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "psd__static__rejected",
+      "algorithm_id": "psd",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "psd__dynamic__clean",
+      "algorithm_id": "psd",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "psd",
+        "band_share",
+        "window_evidence_json",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "psd__dynamic__rejected",
+      "algorithm_id": "psd",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "psd",
+        "band_share",
+        "window_evidence_json",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "rbp__static__clean",
+      "algorithm_id": "rbp",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value",
+        "band_share_values"
+      ]
+    },
+    {
+      "case": "rbp__static__rejected",
+      "algorithm_id": "rbp",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "rbp__dynamic__clean",
+      "algorithm_id": "rbp",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "rbp__dynamic__rejected",
+      "algorithm_id": "rbp",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "stft__static__clean",
+      "algorithm_id": "stft",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "power_linear",
+        "power_db",
+        "axis_time_center_s",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "stft__static__rejected",
+      "algorithm_id": "stft",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "stft__dynamic__clean",
+      "algorithm_id": "stft",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "power_linear",
+        "power_db",
+        "window_evidence_json",
+        "axis_time_center_s",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "stft__dynamic__rejected",
+      "algorithm_id": "stft",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "power_linear",
+        "power_db",
+        "window_evidence_json",
+        "axis_time_center_s",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "theta_beta__static__clean",
+      "algorithm_id": "theta_beta",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "theta_beta__static__rejected",
+      "algorithm_id": "theta_beta",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "theta_beta__dynamic__clean",
+      "algorithm_id": "theta_beta",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "theta_beta__dynamic__rejected",
+      "algorithm_id": "theta_beta",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    }
+  ]
+}

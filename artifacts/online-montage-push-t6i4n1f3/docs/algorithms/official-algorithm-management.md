@@ -1,0 +1,89 @@
+# 官方算法管理基线
+
+本文记录官方算法在后端、桌面端和验证材料中的字段归属及接入基线。算法公式、预处理和质量规则仍由各算法包负责；共享管理层协调身份、运行策略、调度、持久化和 provenance。
+
+## 字段归属和消费者
+
+| 字段/职责 | 权威维护位置 | 主要消费者 | 当前边界 |
+| --- | --- | --- | --- |
+| 算法 ID、中文名称、缩写、用途、科学版本、实现身份、current 标记、支持模式、输出声明、策略能力 | `backend/app/algorithms/<id>/manifest.py`；模块组合在 `builtin_modules.py` | `algorithm_runtime`、`algorithms/catalog.py`、API、Run、动态结果校验 | 科学版本与实现身份、Definition 版本、动态结果契约版本语义不同，不能合并 |
+| Definition 名称/版本、可选不可变描述 payload | manifest 的 `definition_persistence` | Definition repository、Run/window identity provenance | 属存储 provenance；已发布记录不可变。旧描述 payload 可能与当前科学版本不同，不提供旧计算器执行路径 |
+| 参数模型、通道解析、执行快照、静态/动态计算 | 各算法包的 `config.py`、`runner.py`、`compute.py`、`window.py`、`official.py` | 后端 runtime/executor、Run 服务、按需 worker | 公式及算法专属质量/通道角色不得移入通用运行时或 WPF |
+| 算法注册与执行生命周期 | `backend/app/algorithm_runtime/` 和闭合工厂表 `backend/app/algorithms/builtin_modules.py` | catalog、Run、动态窗口能力注册、worker | 共享层执行通用校验、解析、调度和 provenance；科学计算委托模块 |
+| Definition 图与持久化摘要 | `backend/app/algorithms/catalog.py`，由模块元数据生成；校验在 `backend/app/definitions/validation.py` | Definition repository、当前存储和校验服务 | 图结构不自动等同于官方科学实现；不提供旧图执行器或公式预览；RBP 有额外 graph contract/digest 约束 |
+| UI 标题、排序、详细视图工厂、通道提示和显示参数 | WPF `AlgorithmUiRegistry.cs` | 算法工作区、detail view model | presentation metadata；不拥有科学身份或公式 |
+| Run 结果映射、结果投影和按需视图能力 | WPF `AlgorithmRunResultHandlerRegistry.cs` 及各算法 handler/detail | Run 展示、按需预览、全量结果投影 | 是独立客户端集成点；不能仅凭后端目录项推断已完成 |
+| Review 面板注册与窗口结果展示 | WPF `ReviewAlgorithmPanels.cs` 及 Review adapter/presenter | 记录回溯的游标联动分析 | 独立于算法工作区 UI/handler 注册；逐项状态见[客户端接入状态表](review-adapter-onboarding.md)，注册不等于验收 |
+| 三种策略与方向性复用调度 | 后端动态能力 registry、window reuse/publisher/consumer；WPF `AlgorithmListViewModel` 共享调度 | 动态 API、Run 和桌面交互 | full→preview 与 on-demand→full 是不同方向；声明、代码实现、验证证据分开记录 |
+| 验证证据 | `backend/tests/`、`desktop-client/BrainPlatform.Desktop.Tests/`、`docs/validation/` | 发布检查和审阅 | GUI 正常路径、自动化等价测试、组合压力证据不是同一种证据 |
+
+## 策略和复用状态矩阵
+
+状态含义：`implemented` 表示代码路径存在；`validated` 表示有对应策略/方向的验证证据；`unsupported` 表示当前明确不提供；`unvalidated` 表示实现或可能性存在，但缺少该路径所需的证据。正常单独路径的历史验收不能推导组合压力验证。矩阵中的 combined 状态不把两种独立模式的成功相加。
+
+| 算法 | Full | On-demand | Combined preview + background full | Full→preview | On-demand→full |
+| --- | --- | --- | --- | --- | --- |
+| PSD | implemented / validated | implemented / validated | implemented / validated | implemented / validated | implemented / validated |
+| STFT | implemented / validated | implemented / validated | implemented / validated | implemented / validated | implemented / validated |
+| RBP | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| Band Ratio | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| Peak Frequency | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| IAPF | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| Theta/Beta | implemented / validated | implemented / validated | implemented / validated | implemented / validated | unsupported |
+| FAA | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
+| 经典 Brainbeat (`brainbeat`) | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
+| 个体化 Brainbeat (`brainbeat_individualized`) | implemented / validated | implemented / validated | implemented / validated | unsupported | unsupported |
+| TNK metrics group (`tnk_biofeedback`) | implemented / unvalidated | implemented / unvalidated | implemented / unvalidated | unsupported | unsupported |
+
+矩阵按当前 manifest 与专项证据核对。十个独立算法的 combined 路径由 `test_official_combined_strategies.py` 的真实队列/窗口服务合成集成测试及 WPF `OfficialCombinedStrategyTests` 验证；覆盖数值、状态、质量、范围、provenance 和双向取消隔离。TNK 组的 full、on-demand 和 combined 当前均为已实现但未验证；它的 manifest 明确声明两个反向复用方向不支持。PSD/STFT 的 on-demand→full 由 `test_official_directional_reuse.py` 对照无缓存全量，并检查损坏证据重算。能力构造器缺省仍为 unvalidated，新算法必须显式提交自己的证据。
+
+这些 validated 状态限定为可重跑的工程验证，不代表所有真实长记录、导联与滤波组合均通过压力或临床验证。2026-10-21 的九算法真实记录服务测量见 `docs/validation/2026-10-21-official-algorithm-real-recording-pressure.json`，仅证明该记录与环境。专门的真实记录组合调度压力报告见 PSD 的 `docs/validation/2026-10-17-background-full-orchestration-real-psd.md`；不能将其推广为九算法的完整组合压力结论。
+
+可机读的冻结策略和契约矩阵见
+[official-algorithm-strategy-matrix.json](../validation/official-algorithm-strategy-matrix.json)。该文件记录九个原有独立算法和 TNK 组的当时声明，未包含 `brainbeat_individualized`，部分科学版本也早于当前 manifest，不能作为当前 11 项目录的完整快照。当前声明以 manifest 为准，组合测试的 `ALGORITHM_IDS` 已包含十个独立 ID；本次不改写冻结矩阵或数值基线。只有共享生命周期证据的路径不能据此宣称算法专属数值等价。
+
+独立数值参考和当前合成输入/输出数组快照见
+[official-algorithm-numeric-baseline.json](../validation/official-algorithm-numeric-baseline.json) 与
+[NPZ 数组 artifact](../validation/official-algorithm-numeric-baseline-arrays.npz)。九算法全量系列快照另见 `official-algorithm-strategy-baseline.json/.npz`。本轮不重生成这些冻结数组；新增策略专项测试重新计算无缓存对照，再逐点比较组合结果并报告最大绝对/相对误差及失败坐标。已有独立数值参考负责公式正确性，策略对照负责执行路径一致性，两者不能互相替代。当前验证范围和重跑命令见 [组合策略报告](../validation/2026-10-21-official-combined-strategies.md)。以上均为工程验证。
+
+## Latest-only 版本规则
+
+每个官方算法 manifest 显式设置 `is_current_version=True`。官方解析必须走显式 current resolver，且每个官方 ID 恰好一个 current。版本字符串不参与“最新”排序。未标 current、没有 current 或有多个 current 都应失败。通用/用户算法的注册语义与官方策略分开；此字段不隐式赋予它们官方身份。
+
+已退役科学版本不提供执行、迁移、解释或展示兼容；此策略不要求删除数据库中已有 Run、记录或 artifact 字节。Definition semver/digest 是单独的不可变存储 provenance，不等于科学版本；已部署 Definition 记录继续按其存储 digest 标识，当前通用官方结果适配器不会执行其历史 graph。版本推进时需要更新算法模块、身份、针对性验证证据和 current 声明，并运行 completeness gate。
+
+
+## 新算法接入清单
+
+1. **冻结科学契约**：在 OpenSpec 写明算法 ID、科学版本、输入/输出单位、频率轴或标量含义、通道角色、预处理、窗口/质量语义、provenance 和容差。参考仓库内的 [官方算法接入指南](official-algorithm-development.md)；提交前运行 `openspec validate <change> --strict`。
+2. **实现算法包**：在 `backend/app/algorithms/<id>/` 增加 manifest、config、runner 和必要的 compute/window/evidence 文件；公式和算法专属质量逻辑留在该包。每个公式变更需添加独立数值参考或边界测试。
+3. **声明身份与策略**：manifest 明确 scientific version/current、implementation identity、`SignalRequirements`、`AlgorithmOutputContract`、output schema、supported modes、capability implementation/validation/evidence。输入走 typed source adapter；结果由 Runtime 和当前格式读取边界校验，公共层不加算法 ID 科学分支。full→preview 与 on-demand→full 分方向申报，缺少专项证据时保留 `unvalidated`。
+4. **注册后端一次**：在 `backend/app/algorithms/builtin_modules.py` 加入唯一工厂；参数 schema 和运行时配置由模块提供。运行 `python -m pytest backend/tests/test_builtin_algorithm_registry.py backend/tests/test_algorithms_catalog_api.py backend/tests/test_algorithm_runtime_architecture.py -q`，检查目录与 manifest parity、current 唯一性、科学实现边界和注册缺口。可运行 manifest 缺少 runtime module 或目录身份/输出契约不一致时，API 必须返回 `OFFICIAL_ALGORITHM_CATALOG_UNAVAILABLE`，不得拼出默认参数或动态策略。
+5. **接入算法工作区与按需接入 Review**：在 `AlgorithmUiRegistry.cs` 注册 detail factory/presentation；在 `AlgorithmRunResultHandlerRegistry.cs` 注册结果 handler，并完成参数序列化、输出绑定、状态/null/failure/provenance 展示。若需求包含 Review，还需在 `ReviewAlgorithmPanels.cs` 注册面板并实现/验证 adapter 与 presenter，见[回溯接入清单](review-adapter-onboarding.md)。不能仅凭后端 catalog 或算法工作区注册声称 Review 支持完整。
+6. **补契约与行为测试**：后端测试覆盖配置边界、科学输出、状态、范围与 identity；WPF 测试覆盖 catalog JSON 的 identity、参数、能力、输出 schema 解码，以及 handler、请求、显示、窗口投影及错误。运行 `dotnet test desktop-client/BrainPlatform.Desktop.Tests`。算法工作区注册完整性由 `official_registration_report()` 检查 UI、handler、detail 和已声明的 on-demand/full→preview 支持；它不证明 Review 面板已注册或验收。Catalog parity 由 `backend/tests/test_algorithms_catalog_api.py` 验证；WPF wire contract 由 `AlgorithmCatalogCapabilityTests` 验证。
+7. **产生策略验证证据**：对声称 validated 的每条路径提供对应自动化测试或受控验证报告；combined 必须有组合执行专属证据。验证 Run identity 从请求冻结到结果、实际样本范围、source/serving provenance 和 artifact checksum。
+8. **发布前闭环**：更新本文矩阵和 evidence 链接；运行后端全套、WPF 全套、`openspec validate <change> --strict`、`git diff --check`；检查变更文件规模符合 [`docs/工程开发契约.md`](../工程开发契约.md)。
+
+官方算法采用 latest-only：版本升级后只解析显式 current；退役官方科学版本没有执行、迁移、解释或展示兼容路径。保留的历史 Run/artifact 字节属于审计数据，不代表其可由当前算法重新计算或由 UI 解释。
+
+
+## Run provenance and latest-only retirement
+
+For an official Run, the trace chain is frozen at enqueue time: algorithm ID, Definition ID/version, scientific version, module-owned implementation identity, implementation build, scientific configuration hash/cache key, selected execution mode, requested and actual sample bounds, result strategy provenance, and artifact checksum. `analysis_provenance` is a projection of persisted values and result evidence; it does not calculate metrics or fill missing historical identity values.
+
+Retired versions remain identifiable when their stored metadata is present, so an audit can distinguish the old identity and artifact. The current application does not execute, migrate, interpret, or add special display compatibility for retired versions. New requests resolve only the explicitly marked current version and reject retired identities before EEG loading or queueing.
+
+## 历史导联选择与 Run 联动
+
+算法详情提供两个选择器。“导联配置”默认采用采集配置，合并基于记录保存的官方 ANT 通道快照生成的预设，以及兼容的当前用户 profile；生成预设不依赖用户目录是否已持久化，同 ID 的当前配置不得覆盖记录映射。候选经桌面筛选后，仍必须由后端校验设备、完整通道映射、硬件 REF/GND、公式依赖和 V 单位。后端按 recording 保存独立内容寻址快照；后续全局 profile 修改不会改变记录快照，原始采集 manifest/chunk 保持不变。“分析导联”由选定快照和算法输入角色生成。切换配置会保留角色并更新输出名称及 Run 科学配置修订。单通道算法映射其声明的角色；FAA、Brainbeat 等多输入算法逐角色映射并保留输入顺序，缺少角色时结构化拒绝。
+
+Run 将配置 id/revision/fingerprint、角色到输出、源通道映射及公式纳入请求身份、缓存身份和 provenance。后端从原始采集样本按所选且已验证的历史/分析快照投影，算法包仍负责自己的科学计算。原始数据只读。阅图显示导联独立于分析导联，显示设置改变不会改变算法请求或触发重算。旧记录可在重新注册并通过兼容性校验后获得当前 profile 的独立分析快照；不允许以当前配置静默推断未提交的导联。
+
+
+## 兼容策略清理
+
+官方算法只维护当前 scientific version。当前完整 Run 的结果根版本为 `official-algorithm-result-v1`，标量动态摘要和点版本为 `dynamic-analysis-frame-v6`。数值只从 `output.value` 读取；动态点显式提供 `analysis_state`，结构化窗口显式提供 `state`。不再输出或解析重复顶层 `value`、`warmup`，也不从质量字段推导缺失状态。后端发布、读取、预览、provenance、导出和 WPF 消费者使用同一当前格式；不合格式的已完成官方结果统一报 `ALGORITHM_RESULT_INVALID`，不转换、不重新执行。历史存储字节不迁移、不删除。
+
+旧 FAA evidence 不再被重新解释；当前动态全量 Run 导出仍须通过 coverage 校验。频谱服务使用当前 ScientificSpectralGateway，不保留历史 monkeypatch/facade 入口。数据库 schema migration 仍保留，因为它负责数据库启动和结构升级，不执行旧科学算法。`allow_warmup` 是当前 Partial 窗口规划策略，与已删除的结果兼容字段不同。证据与覆盖范围见 [当前结果契约验证](../validation/current-algorithm-result-contract-validation.md)。
+
+退役清理后，旧实时频谱、shadow 包与脚本、旧三通道指标组合、graph/formula 执行器和测试 provider 旧签名适配均已删除。当前 Definition 校验归入 `backend/app/definitions/validation.py`；Brainbeat 纯公式归入自己的算法包。WPF 两条完整结果预览路径只使用后端保存的 STFT 窗口证据，缺失或不符合当前契约时返回 `FULL_WINDOW_CONTRACT_UNAVAILABLE` 并要求重新计算，不补造 provenance。

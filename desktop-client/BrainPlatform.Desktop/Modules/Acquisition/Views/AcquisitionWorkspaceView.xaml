@@ -45,6 +45,7 @@
                         <!-- 左侧：主要采集控制工具按钮组 -->
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <controls:EegToolButton Content="阻抗检测" Glyph="&#xE9D9;" Click="OnImpedanceClick"
+                                                    IsEnabled="{Binding Acquisition.CanStartImpedance}"
                                                     ToolTip="结束当前 EEG 会话后检测物理电极阻抗"/>
                             <!-- 开始记录按钮 (预览中显示) -->
                             <controls:EegToolButton Content="开始记录" Glyph="&#xE768;"

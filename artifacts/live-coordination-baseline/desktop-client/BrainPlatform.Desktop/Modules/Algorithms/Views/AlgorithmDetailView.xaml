@@ -1,0 +1,126 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.AlgorithmDetailView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:psd="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Psd"
+             xmlns:stft="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Stft"
+             xmlns:rbp="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp"
+             xmlns:faa="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Faa"
+             xmlns:iapf="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Iapf"
+             xmlns:peak="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.PeakFrequency"
+             xmlns:ratio="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.BandRatio"
+             xmlns:theta="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.ThetaBeta"
+             xmlns:brainbeat="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Brainbeat"
+             xmlns:sharedvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared"
+             xmlns:psdvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd"
+             xmlns:stftvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft"
+             xmlns:rbpvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp"
+             xmlns:faavm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Faa"
+             xmlns:iapfvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Iapf"
+             xmlns:peakvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.PeakFrequency"
+             xmlns:ratiovm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.BandRatio"
+             xmlns:thetavm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.ThetaBeta"
+             xmlns:brainbeatvm="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Brainbeat"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Shared"
+             xmlns:controls="clr-namespace:BrainPlatform.Desktop.Shared.Controls"
+             xmlns:time="clr-namespace:BrainPlatform.Desktop.Shared.Waveform"
+             time:RecordingTimeAxisPresentation.Context="{Binding AlgorithmWorkspace.Detail.Context.TimeDisplay}"
+             Background="#F8FAFC">
+    <UserControl.Resources>
+        <DataTemplate DataType="{x:Type psdvm:PsdDetailViewModel}"><psd:PsdDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type stftvm:StftDetailViewModel}"><stft:StftDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type rbpvm:RbpDetailViewModel}"><rbp:RbpDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type faavm:FaaDetailViewModel}"><faa:FaaDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type iapfvm:IapfDetailViewModel}"><iapf:IapfDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type peakvm:PeakFrequencyDetailViewModel}"><peak:PeakFrequencyDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type ratiovm:BandRatioDetailViewModel}"><ratio:BandRatioDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type thetavm:ThetaBetaDetailViewModel}"><theta:ThetaBetaDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type brainbeatvm:BrainbeatDetailViewModel}"><brainbeat:BrainbeatDetailView /></DataTemplate>
+        <DataTemplate DataType="{x:Type sharedvm:TnkDetailViewModel}"><shared:TnkDetailView /></DataTemplate>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="16,12,16,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <!-- Top Header & Navigation -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                <Button Command="{Binding AlgorithmWorkspace.BackToListCommand}" Style="{StaticResource AppIconButtonStyle}" Width="Auto" Height="26" HorizontalAlignment="Left" Margin="0,0,0,14" Cursor="Hand">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Path Data="M 12,6 L 4,6 M 7,3 L 4,6 L 7,9" Stroke="#334155" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="10" Height="10" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="返回算法列表" FontSize="13" FontWeight="Medium" Foreground="#334155" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <!-- Title Row: Title & Right Badges in SAME horizontal alignment -->
+                <Grid VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.DisplayNameZh, TargetNullValue=功率谱密度}" FontSize="22" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                        <Border Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="10" Padding="10,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.Abbreviation, TargetNullValue=PSD}" Foreground="{StaticResource BlueBrandPrimaryBrush}" FontSize="12" FontWeight="SemiBold" />
+                        </Border>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- 可用 Badge -->
+                        <Border Background="#ECFDF5" BorderBrush="#A7F3D0" BorderThickness="1" CornerRadius="6" Padding="12,4" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse Width="6" Height="6" Fill="#10B981" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.StatusDisplay, TargetNullValue=可用}" Foreground="#059669" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                        <!-- Divider 1 -->
+                        <Border Width="1" Height="14" Background="#CBD5E1" Margin="14,0" VerticalAlignment="Center" />
+                        <!-- 科学版本 -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="科学版本" FontSize="12" Foreground="#64748B" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.Version, TargetNullValue=v1.0.0}" FontSize="12" FontWeight="Medium" Foreground="#0F172A" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <!-- Divider 2 -->
+                        <Border Width="1" Height="14" Background="#CBD5E1" Margin="14,0" VerticalAlignment="Center" />
+                        <!-- 支持模式 -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="支持模式" FontSize="12" Foreground="#64748B" Margin="0,0,8,0" VerticalAlignment="Center" />
+                            <Border Background="{StaticResource BlueBrandSoftBrush}" CornerRadius="6" Padding="12,4" Margin="0,0,6,0" VerticalAlignment="Center"><TextBlock Text="静态" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource BlueBrandDeepBrush}" /></Border>
+                            <Border Background="#FFEDD5" CornerRadius="6" Padding="12,4" VerticalAlignment="Center"><TextBlock Text="动态" FontSize="12" FontWeight="SemiBold" Foreground="#C2410C" /></Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+                <!-- Subtitle below the title row -->
+                <DockPanel Margin="0,6,0,0">
+                    <controls:RecordingTimeSelector DockPanel.Dock="Right" HorizontalAlignment="Right"
+                        DataContext="{Binding AlgorithmWorkspace.Detail.Context.TimeDisplay}" />
+                    <TextBlock Text="{Binding AlgorithmWorkspace.Detail.Algorithm.Description}" Foreground="#64748B"
+                               FontSize="12.5" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+                </DockPanel>
+            </StackPanel>
+
+            <StackPanel Grid.Row="1">
+                <StackPanel.Style><Style TargetType="StackPanel"><Style.Triggers>
+                    <DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Context.Catalog.IsTnkSelected}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+                </Style.Triggers></Style></StackPanel.Style>
+                <shared:AnalysisTargetCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                <shared:AnalysisParameterCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="1*" MinWidth="440"/><ColumnDefinition Width="16"/><ColumnDefinition Width="1*" MinWidth="440"/></Grid.ColumnDefinitions><shared:AnalysisExecutionCard Grid.Column="0" DataContext="{Binding AlgorithmWorkspace.Detail.Context}"/><shared:QualityStatusCard Grid.Column="2" DataContext="{Binding AlgorithmWorkspace.Detail.Quality}" /></Grid>
+            </StackPanel>
+            <Expander Grid.Row="2" Header="记录、导联与运行设置" IsExpanded="False" Margin="0,0,0,10">
+                <Expander.Style><Style TargetType="Expander"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers>
+                    <DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Context.Catalog.IsTnkSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                </Style.Triggers></Style></Expander.Style>
+                <StackPanel>
+                    <shared:AnalysisTargetCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                    <shared:AnalysisParameterCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                    <shared:AnalysisExecutionCard DataContext="{Binding AlgorithmWorkspace.Detail.Context}"/>
+                </StackPanel>
+            </Expander>
+            <!-- Row 4: PSD 结果和结果溯源分成两个完整宽度区块 -->
+            <StackPanel Grid.Row="4">
+                <!-- Left: Card 6 PSD 结果 View -->
+                <ContentControl Content="{Binding AlgorithmWorkspace.Detail.CurrentModule}" />
+
+                <Grid Margin="0,14,0,0">
+                    <Grid.Style><Style TargetType="Grid"><Style.Triggers><DataTrigger Binding="{Binding AlgorithmWorkspace.Detail.Context.Catalog.IsTnkSelected}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Grid.Style>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="1.05*" MinWidth="430"/><ColumnDefinition Width="14"/><ColumnDefinition Width="1.45*" MinWidth="620"/></Grid.ColumnDefinitions><shared:ResultProvenanceCard Grid.Column="0" DataContext="{Binding AlgorithmWorkspace.Detail.Context.Provenance}"/><shared:DynamicResultCard Grid.Column="2" DataContext="{Binding AlgorithmWorkspace.Detail.Context}" />
+                </Grid>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

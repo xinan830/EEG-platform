@@ -1,0 +1,5 @@
+- [x] Define explicit acquisition-view contract and legacy compatibility.
+- [x] Add snapshot validation and bounded derived signal reader.
+- [x] Isolate registration identities and persist signal provenance.
+- [x] Wire WPF registration and selection labels.
+- [x] Verify formula values, request payload, backend and desktop regressions.

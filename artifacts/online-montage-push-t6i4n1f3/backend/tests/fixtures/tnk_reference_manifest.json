@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "reference_id": "tnk-ant-reference-v1",
+  "reference_kind": "analytic_synthetic_only",
+  "source_identity": {
+    "project": "ANT-Amplify/eeg-process-main",
+    "source_files": [
+      "src/processing/processor.py",
+      "src/processing/iapf_estimator.py"
+    ],
+    "source_sha256": {
+      "src/processing/processor.py": "64FAC13099370B5E51C59A26489409AB65CC7A770E2F4B21ADA5EC63AB2BE8CE",
+      "src/processing/iapf_estimator.py": "9DCA3B79C45AF8EF05E65E5DF4DC31DA7E72605CE3C1A95F45D156E76C2BF169"
+    },
+    "formula_ledger": "docs/algorithms/tnk-source-ledger.md"
+  },
+  "environment": {
+    "platform": "Windows x64",
+    "python": "3.10.20",
+    "numpy": "2.2.6",
+    "scipy": "1.15.3",
+    "mne": "1.12.1",
+    "specparam": "2.0.0rc6"
+  },
+  "fixture": {
+    "sampling_rate_hz": 100,
+    "duration_s": 40,
+    "sample_layout": "samples_by_channels",
+    "unit": "V",
+    "channel_order": ["Fz", "Pz", "Oz", "F3", "F4"],
+    "generation": "deterministic_sum_of_sinusoids",
+    "random_seed": null,
+    "channel_formulas": {
+      "Fz": "20e-6*sin(2*pi*6*t)+10e-6*sin(2*pi*20*t)",
+      "Pz": "20e-6*sin(2*pi*10*t)+5e-6*sin(2*pi*6*t)",
+      "Oz": "15e-6*sin(2*pi*10*t)+8e-6*sin(2*pi*2*t)",
+      "F3": "10e-6*sin(2*pi*10*t)",
+      "F4": "20e-6*sin(2*pi*10*t)"
+    },
+    "formula_sha256": "1a1e3688ab5350978b5ad9854bc21e482d8882c879b1620b5ada50d8b11658ce"
+  },
+  "frozen_reference_arrays": {
+    "welch_2s_fz_frequency_psd_sha256_le_f64": "c51bbba7de50fe11a6b355e515e37656177bd25159c55bd27db48a4d3daffaca",
+    "frequency_shape": [101],
+    "psd_shape": [1, 101],
+    "frequency_axis": "0-50 Hz inclusive, 0.5 Hz resolution"
+  },
+  "analytic_expectations": {
+    "faa_f4_double_amplitude": "ln(4)",
+    "welch_two_second_frequency_resolution_hz": 0.5,
+    "sample_bounds": "half-open integer indices"
+  },
+  "tolerances": {
+    "scalar_rtol": 1e-6,
+    "scalar_atol": 1e-8,
+    "psd_rtol": 1e-6,
+    "psd_atol_v2_per_hz": 1e-18,
+    "integrated_power_atol_v2": 1e-20,
+    "frequency_axis": "array_equal"
+  },
+  "identity_warning": "This manifest pins the source reference environment. Running under the platform environment does not produce frozen-reference evidence."
+}

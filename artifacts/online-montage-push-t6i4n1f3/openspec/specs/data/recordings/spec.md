@@ -1,0 +1,154 @@
+# Recording data baseline
+
+## Purpose
+
+Define the current import, storage, metadata, channel-order, and source-file behavior that future traceability work must preserve.
+## Requirements
+### Requirement: Import supported EEG files
+
+The system SHALL accept non-empty EDF and BDF files, store each file under an internal recording identifier, and reject unsupported or unreadable files without retaining a partial recording.
+
+#### Scenario: Import a readable recording
+
+- **WHEN** a user imports a non-empty readable EDF or BDF file
+- **THEN** the system stores it under a generated internal name and returns the recording identifier, original base filename, extension, sampling frequency, duration, and file channel labels
+
+#### Scenario: Reject an unreadable recording
+
+- **WHEN** metadata cannot be read from the uploaded file
+- **THEN** the system returns a validation failure and removes both the partially stored file and metadata row
+
+### Requirement: Preserve source channel order
+
+The system SHALL preserve the order and raw labels reported by the source file
+and SHALL offer those raw labels as algorithm input choices.  It SHALL NOT
+persist, infer, or expose a global semantic channel mapping.
+
+#### Scenario: Analyze an imported O2 channel
+
+- **WHEN** an imported recording exposes raw label `O2` and a user selects it
+  for an algorithm
+- **THEN** the Run records and returns `O2` as its source channel
+- **AND THEN** no semantic `Oz` assignment is created
+
+#### Scenario: List imported channels
+
+- **WHEN** recording metadata is returned
+- **THEN** channel labels appear in source-file order
+
+### Requirement: Keep source files immutable
+
+The system SHALL treat imported EEG files as read-only inputs. Preview, playback, filtering, montage, and analysis SHALL create derived in-memory or persisted values without modifying the source bytes.
+
+#### Scenario: Analyze a recording
+
+- **WHEN** any current viewer or analysis operation runs
+- **THEN** it reads the stored source file and does not overwrite that file
+
+### Requirement: Expose current recording resources
+
+The system SHALL retain recording import, list, detail, preview, window,
+montage, spectrum, spectrogram, playback, and read-only historical result
+resources.  It SHALL remove the recording mapping resource in this approved
+breaking change.
+
+#### Scenario: Request the retired mapping route
+
+- **WHEN** a client calls the retired recording mapping route
+- **THEN** it receives a structured endpoint-retired response and no mapping
+  state is created or modified
+
+#### Scenario: Upgrade internal storage
+
+- **WHEN** a later migration adds metadata or derived resources
+- **THEN** current non-mapping recording routes remain callable with their
+  existing request forms
+- **AND THEN** the retired mapping storage is not required for historical
+  result retrieval
+
+### Requirement: Identify immutable source bytes
+
+Each recording SHALL persist the SHA-256 and byte length of its stored source file. Existing rows SHALL be backfilled when the source file is available and SHALL remain readable with an explicit unavailable identity when it is not.
+
+#### Scenario: Import a new recording
+
+- **WHEN** a readable EDF or BDF is imported
+- **THEN** its recorded SHA-256 matches the exact stored bytes and its byte length matches the file size
+
+#### Scenario: Upgrade a missing legacy source
+
+- **WHEN** an existing metadata row references a source file that is not present during migration
+- **THEN** migration completes without deleting the row and its source identity remains explicitly unavailable
+
+### Requirement: Persist channel import metadata
+
+The recording SHALL persist ordered raw labels, ordered canonical labels, channel types, channel units, and an import-contract version. Raw labels SHALL remain lossless and canonicalization SHALL NOT silently merge two distinct source channels.
+
+#### Scenario: Normalize imported labels
+
+- **WHEN** source labels contain case or surrounding whitespace differences
+- **THEN** raw labels preserve source text, canonical labels use deterministic normalization, and array positions remain aligned across labels, types, and units
+
+### Requirement: Apply versioned non-destructive migrations
+
+The database SHALL maintain a single schema version and apply ordered migrations transactionally and idempotently without deleting existing recording, analysis, event, audit, or report data.
+
+#### Scenario: Start with an existing database
+
+- **WHEN** the application opens a supported older schema
+- **THEN** each pending migration runs once, existing rows remain readable, and schema version advances only after successful commit
+
+#### Scenario: Repeat startup
+
+- **WHEN** the application starts again after all migrations completed
+- **THEN** migration makes no duplicate tables, columns, or data changes
+
+#### Scenario: Migration step fails
+
+- **WHEN** a migration statement or backfill fails before commit
+- **THEN** that migration is rolled back and the stored schema version is not advanced
+
+### Requirement: Provide deliberate semantic channel mapping
+
+The system SHALL distinguish source channel labels from persisted semantic
+roles. It SHALL expose a normal-workbench flow to inspect and save the Fz/Pz/Oz
+mapping without blocking waveform viewing.
+
+#### Scenario: Confirm an O2 posterior channel
+
+- **WHEN** a recording contains Fz, Pz, and O2 but no exact Oz label
+- **THEN** the mapping editor MAY suggest O2 for the Oz role
+- **AND THEN** it saves that role only after an explicit user confirmation
+
+#### Scenario: View without a mapping
+
+- **WHEN** a recording has no persisted semantic mapping
+- **THEN** the user can still select raw channels and view the waveform
+
+### Requirement: Restrict automatic import mapping to exact labels
+
+The importer SHALL automatically persist a mapping only when Fz, Pz, and Oz
+each have exactly one case/whitespace-normalized source-label match. It SHALL
+not infer semantic roles from aliases or source order.
+
+#### Scenario: Exact source labels
+
+- **WHEN** a source file contains exact logical labels Fz, Pz, and Oz
+- **THEN** the importer persists the matching mapping
+
+#### Scenario: O2 is not Oz
+
+- **WHEN** a source file contains O2 but lacks Oz
+- **THEN** the importer does not persist an Oz mapping automatically
+
+### Requirement: Rebind moved content-identical WPF recordings
+When a validated WPF recording matches an existing recording by content identity and the existing source directory is unavailable, registration SHALL update the stored source directory to the submitted directory before resolving the recording catalogue. Registration SHALL preserve the recording identifier and all recording-bound montage snapshots.
+
+#### Scenario: Re-register a moved WPF recording
+- **WHEN** a completed WPF recording is registered from a directory whose validated content identity matches an existing recording and the existing directory is missing
+- **THEN** the existing recording is rebound to the submitted directory before its catalogue is read
+- **AND** registration returns the same recording identifier and its existing montage snapshots
+
+#### Scenario: Keep a still-available source directory
+- **WHEN** a content-identical WPF recording is registered from another directory while the existing source directory remains available
+- **THEN** registration keeps the existing source directory and recording identity

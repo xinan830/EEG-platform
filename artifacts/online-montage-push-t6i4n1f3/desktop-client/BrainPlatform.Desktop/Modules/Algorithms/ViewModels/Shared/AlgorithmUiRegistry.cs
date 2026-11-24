@@ -1,0 +1,71 @@
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.BandRatio;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Brainbeat;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Faa;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Iapf;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.PeakFrequency;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.ThetaBeta;
+
+namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
+
+internal sealed record AlgorithmUiDescriptor(
+    string Id,
+    AlgorithmDetailKind DetailKind,
+    string ChannelLabel,
+    Func<AlgorithmListViewModel, object> CreateModule,
+    int DisplayOrder = int.MaxValue,
+    string? PreferredPrimaryChannel = null,
+    string? PreferredSecondaryChannel = null,
+    string? DefaultPeakBandPreset = null,
+    bool HasBandRatioParameters = false,
+    bool HasPeakFrequencyParameters = false);
+
+/// <summary>
+/// Desktop composition metadata.  Algorithm modules own their behavior; this
+/// registry only maps catalog IDs to their detail module and display metadata.
+/// Keep this as the single UI mapping instead of adding ID switches to views.
+/// </summary>
+internal static class AlgorithmUiRegistry
+{
+    private static readonly IReadOnlyDictionary<string, AlgorithmUiDescriptor> Descriptors =
+        new Dictionary<string, AlgorithmUiDescriptor>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["psd"] = new("psd", AlgorithmDetailKind.FrequencySpectrum, "PSD 通道", catalog => new PsdDetailViewModel(catalog), 0),
+            ["stft"] = new("stft", AlgorithmDetailKind.TimeFrequency, "STFT 通道", catalog => new StftDetailViewModel(catalog), 1),
+            ["rbp"] = new("rbp", AlgorithmDetailKind.RelativeBandPower, "RBP 通道", catalog => new RbpDetailViewModel(catalog), 2),
+            ["faa"] = new("faa", AlgorithmDetailKind.Faa, "FAA F3 通道", catalog => new FaaDetailViewModel(catalog), 3, "F3", "F4"),
+            ["iapf"] = new("iapf", AlgorithmDetailKind.Iapf, "IAPF 通道", catalog => new IapfDetailViewModel(catalog), 4),
+            ["peak_frequency"] = new("peak_frequency", AlgorithmDetailKind.PeakFrequency, "峰频率通道", catalog => new PeakFrequencyDetailViewModel(catalog), 5, DefaultPeakBandPreset: "Alpha（8–13 Hz）", HasPeakFrequencyParameters: true),
+            ["band_ratio"] = new("band_ratio", AlgorithmDetailKind.BandRatio, "频段比通道", catalog => new BandRatioDetailViewModel(catalog), 6, HasBandRatioParameters: true),
+            ["theta_beta"] = new("theta_beta", AlgorithmDetailKind.ThetaBeta, "Theta/Beta 通道", catalog => new ThetaBetaDetailViewModel(catalog), 7),
+            ["brainbeat"] = new("brainbeat", AlgorithmDetailKind.Brainbeat, "Brainbeat Fz 通道", catalog => new BrainbeatDetailViewModel(catalog), 8, "Fz", "Pz"),
+            ["brainbeat_individualized"] = new("brainbeat_individualized", AlgorithmDetailKind.Brainbeat, "个体化 BrainBeat Fz 通道", catalog => new BrainbeatDetailViewModel(catalog, "brainbeat_individualized"), 9, "Fz", "Pz"),
+            ["tnk_biofeedback"] = new("tnk_biofeedback", AlgorithmDetailKind.Scalar, "TNK 来源通道映射", catalog => new TnkDetailViewModel(catalog, "tnk_biofeedback"), 100),
+        };
+
+    internal static bool TryGet(string? algorithmId, out AlgorithmUiDescriptor descriptor)
+    {
+        if (algorithmId is not null && Descriptors.TryGetValue(algorithmId, out var found))
+        {
+            descriptor = found;
+            return true;
+        }
+
+        descriptor = new AlgorithmUiDescriptor(string.Empty, AlgorithmDetailKind.Scalar, "分析通道", _ => new object());
+        return false;
+    }
+
+    internal static AlgorithmUiDescriptor For(string algorithmId) =>
+        TryGet(algorithmId, out var descriptor)
+            ? descriptor
+            : new AlgorithmUiDescriptor(algorithmId, AlgorithmDetailKind.Scalar, "分析通道", _ => new object());
+
+    internal static bool IsSelected(string? algorithmId, string expectedId) =>
+        string.Equals(algorithmId, expectedId, StringComparison.OrdinalIgnoreCase);
+
+    internal static IReadOnlyDictionary<string, object> CreateModules(AlgorithmListViewModel catalog) =>
+        Descriptors.Values.ToDictionary(item => item.Id, item => item.CreateModule(catalog), StringComparer.OrdinalIgnoreCase);
+}

@@ -1,0 +1,55 @@
+"""Public contracts for current offline quantitative analysis."""
+
+ANALYSIS_ALGORITHM_VERSION = "offline-spectral-v4"
+
+FREQUENCY_BANDS_HZ = (
+    ("delta", 1.0, 4.0),
+    ("theta", 4.0, 8.0),
+    ("alpha", 8.0, 13.0),
+    ("beta", 13.0, 30.0),
+    ("gamma", 30.0, 50.0),
+)
+
+ANALYSIS_CONTRACT: dict[str, object] = {
+    "algorithm_version": ANALYSIS_ALGORITHM_VERSION,
+    "input_unit": "V",
+    "preprocessing_phase": "zero_phase",
+    "filter_form": "second_order_sections",
+    "bandpass_type": "butterworth",
+    "bandpass_prototype_order": 4,
+    "bandpass_hz": [1.0, 50.0],
+    "notch_hz": 50.0,
+    "notch_quality_factor": 30.0,
+    "welch_segment_s": 4.0,
+    "welch_segment_overlap": 0.5,
+    "welch_step_s": 2.0,
+    "welch_window": "hann",
+    "welch_scaling": "density",
+    "artifact_peak_uv": 150.0,
+    "flatline_peak_to_peak_uv": 0.5,
+    "clipping_minimum_samples": 3,
+    "clipping_minimum_ratio": 0.01,
+    "minimum_clean_epoch_ratio": 0.75,
+    "quality_gate_policy": "average_clean_segments_only_then_fail_below_ratio",
+    "quality_reason_codes": [
+        "non_finite", "amplitude_threshold", "flatline", "clipping", "missing_samples",
+    ],
+    "frequency_band_edges": {
+        name: [low, high, "closed" if name == "beta" else "left_closed_right_open"]
+        for name, low, high in FREQUENCY_BANDS_HZ
+    },
+    "iapf_search_hz": [7.0, 13.0],
+    "iapf_lock_candidates": 3,
+    "aperiodic_model": "ordinary_least_squares_log10_power_vs_log10_frequency",
+    "aperiodic_fit_hz": [3.0, 30.0],
+    "aperiodic_fit_excludes_iapf_search_band": True,
+    "metric_start_s": 7.0,
+    "rhythm_stability_history_points": 8,
+    "brainbeat_formula": "relative_theta_Fz / relative_alpha_Pz",
+    "fatigue_formula": "theta / beta",
+    "reference": "original_recording_no_software_rereference",
+    "faa_formula": "ln(alpha_power_F4) - ln(alpha_power_F3)",
+    "faa_static_scope": "exact_requested_absolute_range",
+    "metric_iapf_policy": "global_locked_else_last_candidate_else_10Hz",
+    "validation_status": "engineering_verified_not_clinically_validated",
+}

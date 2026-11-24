@@ -1,0 +1,685 @@
+
+using BrainPlatform.Desktop.Modules.Review.Diagnostics;
+
+namespace BrainPlatform.Desktop.Tests.Review;
+
+public sealed class RecordingReviewSessionTests
+{
+    [Fact]
+    public async Task SameIdDoesNotAllowUnverifiedProfileObjectToBeApplied()
+    {
+        var configuration = Configuration(2);
+        var verified = Profile("采集导联", configuration, 2);
+        var reader = new FakeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(verified, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]), [new CompatibleRecordingMontage(verified)], []);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog, selection, visibleDurationSeconds: 10);
+        var unverified = verified with { Name = "同 ID 未验证对象" };
+
+        Assert.Throws<InvalidOperationException>(() => selection.Select(unverified));
+        Assert.Same(verified, selection.SelectedMontage);
+    }
+
+    [Fact]
+    public async Task SwitchingFromTwentyToThirteenOutputsPreservesPositionAndWindow()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var alternate = Profile("替代导联", configuration, 1);
+        var reader = new FakeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)],
+            []);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog, selection, visibleDurationSeconds: 10);
+
+        await session.InitializeAsync();
+        await session.SeekAsync(125);
+        var previousFrame = session.CurrentFrame;
+        selection.Select(alternate);
+        Assert.Same(previousFrame, session.CurrentFrame);
+        await session.RefreshMontageSelectionAsync();
+
+        Assert.Same(acquisition, session.AcquisitionMontage);
+        Assert.Same(alternate, selection.SelectedMontage);
+        Assert.Equal(125, session.PositionSeconds);
+        Assert.Equal(10, session.VisibleDurationSeconds);
+        Assert.NotSame(previousFrame, session.CurrentFrame);
+        Assert.Single(session.CurrentFrame!.OutputChannelNames);
+    }
+
+    [Fact]
+    public async Task TemporaryDisplayMontageDoesNotChangeWorkspaceAlgorithmSelection()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new FakeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(acquisition, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]), [new CompatibleRecordingMontage(acquisition)], []);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog, selection, visibleDurationSeconds: 10);
+        await session.InitializeAsync();
+
+        var originalIdentity = session.CurrentFrame!.DisplaySourceIdentity;
+        var originalNames = session.CurrentFrame.OutputChannelNames.ToArray();
+
+        await session.SetTemporaryMontageProfileAsync(TemporaryMontageFixture.Create(configuration));
+
+        Assert.Same(acquisition, selection.SelectedMontage);
+        Assert.Equal(0, selection.Revision);
+        Assert.Equal(["F3-F4", "F4-F3"], session.CurrentFrame!.OutputChannelNames);
+        Assert.Equal("在线导联", session.CurrentFrame.ViewingMontageName);
+        Assert.Equal(["#123456", "#123456"], session.CurrentFrame.OutputChannelColors);
+        Assert.Equal(originalNames.Length, session.CurrentFrame.OutputChannelNames.Count);
+        Assert.NotEqual(originalIdentity, session.CurrentFrame.DisplaySourceIdentity);
+        Assert.True(session.CurrentFrame.HasTemporaryMontage);
+        Assert.Null(await session.TryBuildDisplayFrameAsync(session.CurrentFrame, 0, 10, 1000, CancellationToken.None));
+
+        await session.SetTemporaryMontageProfileAsync(null);
+
+        Assert.Equal(originalNames, session.CurrentFrame!.OutputChannelNames);
+        Assert.Equal(originalIdentity, session.CurrentFrame.DisplaySourceIdentity);
+        Assert.False(session.CurrentFrame.HasTemporaryMontage);
+        await session.SetTemporaryMontageProfileAsync(TemporaryMontageFixture.Create("F4", "F3"));
+        await session.DisposeAsync();
+        Assert.Null(session.TemporaryMontageProfile);
+    }
+
+    [Fact]
+    public async Task TemporaryMontageChangeSupersedesPendingProjection()
+    {
+        var configuration = Configuration(2);
+        var montage = Profile("REF", configuration, 2);
+        var first = new TaskCompletionSource<RecordingReviewWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<RecordingReviewWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reader = new FakeReader(300, Manifest(configuration), first, second);
+        var catalog = new RecordingMontageCatalogResult(montage, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]), [new CompatibleRecordingMontage(montage)], []);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10);
+
+        var initial = session.InitializeAsync();
+        var temporary = session.SetTemporaryMontageProfileAsync(TemporaryMontageFixture.Create(configuration));
+        first.SetResult(Window());
+        second.SetResult(Window());
+        await Task.WhenAll(initial, temporary);
+
+        Assert.Equal(["F3-F4", "F4-F3"], session.CurrentFrame!.OutputChannelNames);
+        Assert.True(session.CurrentFrame.HasTemporaryMontage);
+    }
+
+    [Fact]
+    public async Task OlderWindowCompletionCannotReplaceNewerMontageSelection()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var alternate = Profile("替代导联", configuration, 1);
+        var firstRead = new TaskCompletionSource<RecordingReviewWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondRead = new TaskCompletionSource<RecordingReviewWindow>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reader = new FakeReader(300, Manifest(configuration), firstRead, secondRead);
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)],
+            []);
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog, selection, visibleDurationSeconds: 10);
+
+        var initial = session.InitializeAsync();
+        selection.Select(alternate);
+        var alternateLoad = session.RefreshMontageSelectionAsync();
+        firstRead.SetResult(Window());
+        secondRead.SetResult(Window());
+        await Task.WhenAll(initial, alternateLoad);
+
+        Assert.Same(alternate, selection.SelectedMontage);
+        Assert.Equal(alternate.Name, session.CurrentFrame!.ViewingMontageName);
+    }
+
+    [Fact]
+    public async Task FilterChangeRebuildsOneWindowWithoutMutatingRawValues()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new FakeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var filter = new FakeFilter();
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
+
+        await session.InitializeAsync();
+        await session.SetFilterAsync(new RecordingReviewFilterSettings(0.5, 40, null));
+
+        // The visible cache spans two fixed 10 s filtered-source chunks. A
+        // changed filter fingerprint rebuilds both chunks without touching raw.
+        Assert.Equal(4, filter.CallCount);
+        Assert.Equal(new RecordingReviewFilterSettings(0.5, 40, null), filter.LastSettings);
+        Assert.Equal(1e-6, filter.LastSourceValue);
+    }
+
+    [Fact]
+    public async Task Published_frame_carries_the_recording_source_revision()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new FakeReader(30, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10);
+
+        await session.InitializeAsync();
+
+        Assert.Equal(((IRecordingAccessSession)reader).Metadata.Revision, session.CurrentFrame?.SourceRevision);
+    }
+
+    [Fact]
+    public async Task SeekingInsideTheBoundedCacheDoesNotReadOrFilterAgain()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new RangeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var filter = new FakeFilter();
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
+
+        await session.InitializeAsync();
+        await session.LoadViewportAsync(5, 5);
+
+        Assert.Equal(2, reader.ReadCount);
+        Assert.Equal(2, filter.CallCount);
+        Assert.Equal(5, session.PositionSeconds);
+        Assert.Equal(5, session.ViewportStartSeconds);
+    }
+
+    [Fact]
+    public async Task ReturningToAnAlreadyFilteredViewportReusesTheDerivedFrame()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new RangeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var filter = new FakeFilter();
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
+
+        await session.InitializeAsync();
+        await session.SetFilterAsync(new RecordingReviewFilterSettings(0.5, 40, null));
+        await session.SetFilterAsync(new RecordingReviewFilterSettings(1, 30, 50));
+
+        Assert.Equal(4, filter.CallCount);
+        Assert.Equal(2, reader.ReadCount);
+    }
+
+    [Fact]
+    public async Task ReviewDisplayMontageSwitchKeepsAcquisitionIdentityAndOnlyReprojectsFrame()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var alternate = Profile("替代导联", configuration, 1);
+        var reader = new RangeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition), new CompatibleRecordingMontage(alternate)],
+            []);
+        var filter = new FakeFilter();
+        var selection = ReviewMontageSelectionFixture.Create(reader, catalog);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            selection, 10, filter);
+
+        await session.InitializeAsync();
+        selection.Select(alternate);
+        await session.RefreshMontageSelectionAsync();
+
+        Assert.Equal(2, filter.CallCount);
+        Assert.Equal(2, reader.ReadCount);
+        Assert.Same(acquisition, session.AcquisitionMontage);
+        Assert.Same(alternate, session.SelectedViewingMontage);
+        Assert.Equal(alternate.Name, session.CurrentFrame!.ViewingMontageName);
+    }
+
+    [Fact]
+    public async Task NewDragTargetJoinsAnInFlightFilteredChunkInsteadOfRestartingIt()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new RangeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var filter = new BlockingFilter();
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
+
+        var initial = session.InitializeAsync();
+        await filter.FirstCallStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var moved = session.LoadViewportAsync(5, 5);
+        filter.Release.TrySetResult();
+        await Task.WhenAll(initial, moved);
+
+        Assert.Equal(2, filter.CallCount);
+        Assert.Equal(2, reader.ReadCount);
+    }
+
+    [Fact]
+    public async Task PerformanceProbeRecordsBoundedReviewStagesWithoutSignalValues()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new RangeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var sink = new CapturePerformanceSink();
+
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, new DelayedFilter(), performanceSink: sink);
+        await session.InitializeAsync();
+
+        Assert.Contains(sink.Samples, sample =>
+            sample.Stage == ReviewPerformanceStage.RawRead &&
+            sample.Source == ReviewPerformanceSource.Disk);
+        Assert.Contains(sink.Samples, sample =>
+            sample.Stage == ReviewPerformanceStage.FilteredSource &&
+            sample.Source == ReviewPerformanceSource.FilterService);
+        Assert.All(sink.Samples.Where(sample =>
+                sample.Stage == ReviewPerformanceStage.FilteredSource &&
+                sample.Source == ReviewPerformanceSource.FilterService),
+            sample => Assert.True(sample.ElapsedMilliseconds >= 10));
+        Assert.Contains(sink.Samples, sample => sample.Stage == ReviewPerformanceStage.FrameBuild);
+        Assert.Contains(sink.Samples, sample =>
+            sample.Stage == ReviewPerformanceStage.NavigationTarget &&
+            sample.Source == ReviewPerformanceSource.InteractiveTarget);
+        Assert.NotEqual(Guid.Empty, sink.Samples[0].ReviewSessionId);
+        Assert.All(sink.Samples, sample =>
+        {
+            Assert.Equal(sink.Samples[0].ReviewSessionId, sample.ReviewSessionId);
+            Assert.Equal(reader.Manifest.SessionId, sample.RecordingSessionId);
+            Assert.True(sample.PointCount >= 0);
+            Assert.True(sample.ElapsedMilliseconds >= 0);
+        });
+    }
+
+    [Fact]
+    public async Task TrackClickKeepsExistingFrameUntilTargetFrameIsComplete()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new TrackClickBlockingReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10);
+
+        await session.InitializeAsync();
+        var initialFrame = session.CurrentFrame;
+        var navigation = session.NavigateFromTrackClickAsync(100, 102.5);
+        await reader.TargetReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(0, session.PositionSeconds);
+        Assert.Equal(0, session.ViewportStartSeconds);
+        Assert.Same(initialFrame, session.CurrentFrame);
+
+        reader.ReleaseTarget.TrySetResult();
+        Assert.True(await navigation);
+        Assert.Equal(102.5, session.PositionSeconds);
+        Assert.Equal(100, session.ViewportStartSeconds);
+        Assert.NotSame(initialFrame, session.CurrentFrame);
+    }
+
+    [Fact]
+    public async Task CachedTrackClickCommitsWithoutAnotherRead()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new RangeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10);
+
+        await session.InitializeAsync();
+        Assert.True(await session.NavigateFromTrackClickAsync(100, 102.5));
+        var readsAfterFirstJump = reader.ReadCount;
+
+        Assert.True(await session.NavigateFromTrackClickAsync(100, 102.5));
+
+        Assert.Equal(readsAfterFirstJump, reader.ReadCount);
+    }
+
+    [Fact]
+    public async Task NonInitialReviewWindowWarmsTheFilterFromContiguousRawSamples()
+    {
+        var configuration = Configuration(2);
+        var acquisition = Profile("采集导联", configuration, 2);
+        var reader = new RangeReader(300, Manifest(configuration));
+        var catalog = new RecordingMontageCatalogResult(
+            acquisition,
+            AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3", "F4"]),
+            [new CompatibleRecordingMontage(acquisition)],
+            []);
+        var filter = new WarmupCapturingFilter();
+        await using var session = new RecordingReviewSession(reader, catalog,
+            ReviewMontageSelectionFixture.Create(reader, catalog), 10, filter);
+
+        await session.SeekAsync(100);
+
+        var warmup = Assert.IsType<RecordingReviewWindow>(filter.LastWarmup);
+        var displayed = Assert.IsType<RecordingReviewWindow>(filter.LastSource);
+        Assert.Equal(displayed.Segments[0].FirstSampleCounter, warmup.Segments[0].LastSampleCounter + 1L);
+        Assert.True(warmup.ActualEndSeconds <= displayed.ActualStartSeconds);
+    }
+
+    private static RecordingReviewWindow Window() => new(
+        0,
+        0,
+        0.004,
+        [new RecordingReviewSegment(0, 2, 3, [1e-6, 2e-6, 0, 3e-6, 4e-6, 0])]);
+
+    private static LocalRawRecordingManifest Manifest(ChannelConfigurationProfile configuration) => new(
+        Guid.NewGuid(),
+        "sample_major_float64_v1_with_receive_utc_ticks_and_per_channel_units",
+        "V",
+        "device",
+        "device",
+        500,
+        2,
+        DateTimeOffset.UtcNow,
+        configuration.Channels.Select((channel, index) => new AcquisitionChannel(index, index, channel.ElectrodeLabel, channel.ExpectedKind, "V"))
+            .Append(new AcquisitionChannel(configuration.Channels.Count, 99, "Counter", AcquisitionChannelKind.SampleCounter, "count"))
+            .ToArray(),
+        new AcquisitionProjectContext("p", "P001", "P", "C:\\p", "{}"),
+        new Dictionary<string, string>());
+
+    private static ChannelConfigurationProfile Configuration(int count) => new(
+        "channel",
+        "通道",
+        "",
+        ChannelConfigurationSource.User,
+        "device",
+        Enumerable.Range(0, count).Select(index => new ChannelConfigurationEntry(index, AcquisitionChannelKind.Reference, $"F{index + 3}", true, index)).ToArray(),
+        DateTimeOffset.UnixEpoch,
+        DateTimeOffset.UnixEpoch);
+
+    private static MontageProfile Profile(string name, ChannelConfigurationProfile configuration, int outputCount)
+    {
+        var rows = configuration.Channels.Take(outputCount).Select((channel, index) => new DerivedMontageChannel(
+            MontageDisplay.CreateName(channel.ElectrodeLabel, MontageNegativeKind.OriginalHardwareReference, null),
+            channel.ElectrodeLabel,
+            MontageNegativeKind.OriginalHardwareReference,
+            [],
+            index)).ToArray();
+        var fingerprint = ChannelConfigurationFingerprint.Create(configuration);
+        return new MontageProfile(
+            name,
+            name,
+            "",
+            MontageProfileSource.User,
+            "device",
+            fingerprint,
+            configuration,
+            rows,
+            1,
+            DateTimeOffset.UnixEpoch,
+            DateTimeOffset.UnixEpoch,
+            MontageProfileFingerprint.Create(fingerprint, rows));
+    }
+
+    private sealed class FakeReader : IRecordingAccessSession
+    {
+        private readonly TaskCompletionSource<RecordingReviewWindow>? first;
+        private readonly TaskCompletionSource<RecordingReviewWindow>? second;
+        private int callCount;
+
+        public FakeReader(
+            double durationSeconds,
+            LocalRawRecordingManifest manifest,
+            TaskCompletionSource<RecordingReviewWindow>? first = null,
+            TaskCompletionSource<RecordingReviewWindow>? second = null)
+        {
+            DurationSeconds = durationSeconds;
+            Manifest = manifest;
+            this.first = first;
+            this.second = second;
+        }
+
+        public LocalRawRecordingManifest Manifest { get; }
+
+        public double DurationSeconds { get; }
+
+        public Task<RecordingReviewWindow> ReadWindowAsync(double startSeconds, double durationSeconds, CancellationToken cancellationToken)
+        {
+            var call = Interlocked.Increment(ref callCount);
+            if (call == 1 && first is not null)
+            {
+                return first.Task;
+            }
+
+            if (call == 2 && second is not null)
+            {
+                return second.Task;
+            }
+
+            return Task.FromResult(Window());
+        }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
+    }
+
+    private sealed class FakeFilter : IRecordingReviewFilter
+    {
+        public int CallCount { get; private set; }
+
+        public RecordingReviewFilterSettings? LastSettings { get; private set; }
+
+        public double LastSourceValue { get; private set; }
+
+        public Task<RecordingReviewWindow> ApplyAsync(
+            RecordingReviewWindow source,
+            LocalRawRecordingManifest manifest,
+            RecordingReviewFilterSettings settings,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            LastSettings = settings;
+            LastSourceValue = source.Segments[0].SampleMajorValues[0];
+            var copied = source.Segments.Select(segment =>
+                segment with { SampleMajorValues = segment.SampleMajorValues.ToArray() }).ToArray();
+            return Task.FromResult(source with { Segments = copied });
+        }
+    }
+
+    private sealed class DelayedFilter : IRecordingReviewFilter
+    {
+        public Task<RecordingReviewWindow> ApplyAsync(
+            RecordingReviewWindow source,
+            LocalRawRecordingManifest manifest,
+            RecordingReviewFilterSettings settings,
+            CancellationToken cancellationToken) =>
+            ApplyWithWarmupAsync(null, source, manifest, settings, cancellationToken);
+
+        public async Task<RecordingReviewWindow> ApplyWithWarmupAsync(
+            RecordingReviewWindow? warmup,
+            RecordingReviewWindow source,
+            LocalRawRecordingManifest manifest,
+            RecordingReviewFilterSettings settings,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(25, cancellationToken);
+            return source;
+        }
+    }
+
+    private sealed class RangeReader(double durationSeconds, LocalRawRecordingManifest manifest) : IRecordingAccessSession
+    {
+        private int readCount;
+
+        public LocalRawRecordingManifest Manifest { get; } = manifest;
+
+        public double DurationSeconds { get; } = durationSeconds;
+
+        public int ReadCount => Volatile.Read(ref readCount);
+
+        public Task<RecordingReviewWindow> ReadWindowAsync(double startSeconds, double durationSeconds, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref readCount);
+            var firstSample = (long)Math.Round(startSeconds * Manifest.SamplingRateHz);
+            var sampleCount = (int)Math.Ceiling(durationSeconds * Manifest.SamplingRateHz);
+            var values = new double[sampleCount * 3];
+            for (var index = 0; index < sampleCount; index++)
+            {
+                values[index * 3] = 1e-6;
+                values[index * 3 + 1] = 2e-6;
+            }
+            return Task.FromResult(new RecordingReviewWindow(
+                startSeconds,
+                startSeconds,
+                startSeconds + durationSeconds,
+                [new RecordingReviewSegment(firstSample, sampleCount, 3, values)]));
+        }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
+    }
+
+    private sealed class TrackClickBlockingReader(double durationSeconds, LocalRawRecordingManifest manifest) : IRecordingAccessSession
+    {
+        private int readCount;
+
+        public LocalRawRecordingManifest Manifest { get; } = manifest;
+        public double DurationSeconds { get; } = durationSeconds;
+        public TaskCompletionSource TargetReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseTarget { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<RecordingReviewWindow> ReadWindowAsync(double startSeconds, double durationSeconds, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref readCount) > 1)
+            {
+                TargetReadStarted.TrySetResult();
+                await ReleaseTarget.Task.WaitAsync(cancellationToken);
+            }
+
+            var firstSample = (long)Math.Round(startSeconds * Manifest.SamplingRateHz);
+            var sampleCount = (int)Math.Ceiling(durationSeconds * Manifest.SamplingRateHz);
+            var values = new double[sampleCount * 3];
+            for (var index = 0; index < sampleCount; index++)
+            {
+                values[index * 3] = 1e-6;
+                values[index * 3 + 1] = 2e-6;
+            }
+
+            return new RecordingReviewWindow(startSeconds, startSeconds, startSeconds + durationSeconds,
+                [new RecordingReviewSegment(firstSample, sampleCount, 3, values)]);
+        }
+
+        public Task<RecordingAccessReadResult> ReadSamplesAsync(
+            RecordingSampleRange range,
+            IReadOnlyList<int>? channelIndexes,
+            CancellationToken cancellationToken) =>
+            RecordingAccessTestHelpers.ReadAsync(
+                Manifest, 0, ReadWindowAsync, range, channelIndexes, cancellationToken);
+    }
+
+    private sealed class WarmupCapturingFilter : IRecordingReviewFilter
+    {
+        public RecordingReviewWindow? LastWarmup { get; private set; }
+        public RecordingReviewWindow? LastSource { get; private set; }
+
+        public Task<RecordingReviewWindow> ApplyAsync(RecordingReviewWindow source,
+            LocalRawRecordingManifest manifest, RecordingReviewFilterSettings settings, CancellationToken cancellationToken) =>
+            Task.FromResult(source);
+
+        public Task<RecordingReviewWindow> ApplyWithWarmupAsync(RecordingReviewWindow? warmup,
+            RecordingReviewWindow source, LocalRawRecordingManifest manifest,
+            RecordingReviewFilterSettings settings, CancellationToken cancellationToken)
+        {
+            LastWarmup = warmup;
+            LastSource = source;
+            return Task.FromResult(source);
+        }
+    }
+
+    private sealed class BlockingFilter : IRecordingReviewFilter
+    {
+        private int callCount;
+        public TaskCompletionSource FirstCallStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public int CallCount => Volatile.Read(ref callCount);
+
+        public Task<RecordingReviewWindow> ApplyAsync(RecordingReviewWindow source,
+            LocalRawRecordingManifest manifest, RecordingReviewFilterSettings settings, CancellationToken cancellationToken) =>
+            ApplyWithWarmupAsync(null, source, manifest, settings, cancellationToken);
+
+        public async Task<RecordingReviewWindow> ApplyWithWarmupAsync(RecordingReviewWindow? warmup,
+            RecordingReviewWindow source, LocalRawRecordingManifest manifest,
+            RecordingReviewFilterSettings settings, CancellationToken cancellationToken)
+        {
+            var call = Interlocked.Increment(ref callCount);
+            if (call == 1)
+            {
+                FirstCallStarted.TrySetResult();
+                await Release.Task.WaitAsync(cancellationToken);
+            }
+
+            return source;
+        }
+    }
+
+    private sealed class CapturePerformanceSink : IReviewPerformanceSink
+    {
+        public List<ReviewPerformanceSample> Samples { get; } = [];
+
+        public void Record(ReviewPerformanceSample sample) => Samples.Add(sample);
+    }
+}

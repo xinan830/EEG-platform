@@ -1,0 +1,551 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Net.Http;
+using BrainPlatform.Desktop.Modules.Acquisition.Views;
+using BrainPlatform.Desktop.Modules.Settings.Views;
+using BrainPlatform.Desktop.Modules.Channels.Views;
+using BrainPlatform.Desktop.Modules.Montages.Views;
+using EventListView = BrainPlatform.Desktop.Modules.Events.Views.EventListView;
+using EventDefinitionEditorView = BrainPlatform.Desktop.Modules.Events.Views.EventDefinitionEditorView;
+using RecordingReviewView = BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView;
+using BrainPlatform.Desktop.Modules.Recordings.Access;
+
+namespace BrainPlatform.Desktop;
+
+public partial class MainWindow : Window, IDesktopNavigation
+{
+    private bool isApprovedClose;
+    private bool isConfirmingChannelDraftExit;
+    private bool isWindowCloseConfirmationPending;
+    private AcquisitionPreparationView? acquisitionPreparationView;
+    private DeviceOverviewView? overviewView;
+    private ProjectListView? projectListView;
+    private ProjectDetailView? projectDetailView;
+    private SettingsView? settingsView;
+    private ScreenCalibrationView? screenCalibrationView;
+    private ChannelListView? channelListView;
+    private ChannelDetailView? channelDetailView;
+    private MontageListView? montageListView;
+    private MontageDetailView? montageDetailView;
+    private EventListView? eventListView;
+    private EventDefinitionEditorView? eventDefinitionEditorView;
+    private AlgorithmWorkspaceView? algorithmWorkspaceView;
+    private RecordingReviewViewModel? recordingReviewViewModel;
+    private RecordingSessionManager.RecordingAccessLease? recordingReviewRecording;
+    private RecordingPlaybackTimeCoordinator? recordingReviewPlayback;
+    private EegSessionWindow? acquisitionSessionWindow;
+    private EegSessionWindow? reviewSessionWindow;
+    private readonly IRecordingReviewFilter? recordingReviewFilter;
+
+    public MainWindow(IRecordingReviewFilter? recordingReviewFilter, MainWindowViewSet views)
+    {
+        ArgumentNullException.ThrowIfNull(views);
+        this.recordingReviewFilter = recordingReviewFilter;
+        InitializeComponent();
+
+        acquisitionPreparationView = views.AcquisitionPreparation;
+        overviewView = views.Overview;
+        projectListView = views.ProjectList;
+        projectDetailView = views.ProjectDetail;
+        settingsView = views.Settings;
+        screenCalibrationView = views.ScreenCalibration;
+        channelListView = views.ChannelList;
+        channelDetailView = views.ChannelDetail;
+        montageListView = views.MontageList;
+        montageDetailView = views.MontageDetail;
+        eventListView = views.EventList;
+        eventDefinitionEditorView = views.EventDefinitionEditor;
+        algorithmWorkspaceView = views.AlgorithmWorkspace;
+        MainContentHost.Content = projectListView;
+        SelectNavigation(NavProjectsBtn);
+    }
+
+    public void ShowChannelListView()
+    {
+        SetImmersiveChrome(false);
+        channelListView ??= new ChannelListView();
+        MainContentHost.Content = channelListView;
+        SelectNavigation(NavSettingsBtn);
+    }
+
+    public void ShowChannelDetailView(bool newProfile = false, bool preserveDraft = false)
+    {
+        SetImmersiveChrome(false);
+        channelDetailView ??= new ChannelDetailView();
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            if (newProfile)
+            {
+                viewModel.ChannelConfigurations.BeginNewProfile();
+            }
+            else if (!preserveDraft)
+            {
+                viewModel.ChannelConfigurations.BeginEditSelected();
+            }
+        }
+        MainContentHost.Content = channelDetailView;
+        SelectNavigation(NavSettingsBtn);
+    }
+
+    public async void ShowMontageListView()
+    {
+        SetImmersiveChrome(false);
+        montageListView ??= new MontageListView();
+        MainContentHost.Content = montageListView;
+        SelectNavigation(NavSettingsBtn);
+        if (DataContext is DesktopWorkspaceViewModel workspace)
+        {
+            try { await workspace.MontageConfigurations.RefreshReferencesAsync(); }
+            catch (Exception exception) { workspace.Notifications.PublishError(exception.Message); }
+        }
+    }
+
+    public void ShowMontageDetailView(bool newProfile = false, bool preserveDraft = false)
+    {
+        SetImmersiveChrome(false);
+        montageDetailView ??= new MontageDetailView();
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            if (newProfile)
+            {
+                viewModel.MontageConfigurations.BeginNewProfile();
+            }
+            else if (!preserveDraft)
+            {
+                viewModel.MontageConfigurations.BeginEditSelected();
+            }
+        }
+        MainContentHost.Content = montageDetailView;
+        SelectNavigation(NavSettingsBtn);
+    }
+
+    public void ShowSettingsView()
+    {
+        SetImmersiveChrome(false);
+        settingsView ??= new SettingsView();
+        MainContentHost.Content = settingsView;
+        SelectNavigation(NavSettingsBtn);
+    }
+
+    public void ShowScreenCalibrationView()
+    {
+        SetImmersiveChrome(false);
+        screenCalibrationView ??= new ScreenCalibrationView();
+        MainContentHost.Content = screenCalibrationView;
+        SelectNavigation(NavSettingsBtn);
+    }
+
+    public async void ShowEventListView(bool refreshDefinitions = true)
+    {
+        SetImmersiveChrome(false);
+        eventListView ??= new EventListView();
+        MainContentHost.Content = eventListView;
+        SelectNavigation(NavSettingsBtn);
+        if (refreshDefinitions && DataContext is DesktopWorkspaceViewModel workspace)
+        {
+            try
+            {
+                await workspace.EventDefinitions.RefreshAsync();
+            }
+            catch (Exception exception)
+            {
+                workspace.Notifications.PublishError($"无法加载事件列表：{exception.Message}");
+            }
+        }
+    }
+
+    public void ShowEventDefinitionEditorView(EventDefinition? definition = null)
+    {
+        SetImmersiveChrome(false);
+        if (DataContext is not DesktopWorkspaceViewModel workspace)
+        {
+            return;
+        }
+
+        if (definition is null)
+        {
+            workspace.EventDefinitions.BeginNew();
+        }
+        else
+        {
+            workspace.EventDefinitions.SelectedDefinition = definition;
+            workspace.EventDefinitions.BeginEditSelected();
+        }
+
+        eventDefinitionEditorView ??= new EventDefinitionEditorView();
+        eventDefinitionEditorView.DataContext = workspace;
+        MainContentHost.Content = eventDefinitionEditorView;
+        SelectNavigation(NavSettingsBtn);
+    }
+
+    public void ShowAcquisitionView()
+    {
+        if (acquisitionSessionWindow is { IsLoaded: true })
+        {
+            acquisitionSessionWindow.Activate();
+            return;
+        }
+
+        if (DataContext is not DesktopWorkspaceViewModel workspace)
+        {
+            return;
+        }
+
+        var view = new AcquisitionWorkspaceView { DataContext = workspace };
+        acquisitionSessionWindow = new EegSessionWindow(
+            this,
+            "实时采集",
+            view,
+            SessionCloseRequest.Acquisition,
+            async () =>
+            {
+                if (workspace.Acquisition.CanStop)
+                {
+                    await workspace.Acquisition.FinishAcquisitionAsync();
+                }
+            },
+            () =>
+            {
+                acquisitionSessionWindow = null;
+                workspace.Projects.RefreshRecordings();
+                ShowProjectDetailView();
+            });
+        acquisitionSessionWindow.Show();
+    }
+
+    public async void ShowAcquisitionPreparationView()
+    {
+        SetImmersiveChrome(false);
+        acquisitionPreparationView ??= new AcquisitionPreparationView();
+        MainContentHost.Content = acquisitionPreparationView;
+        SelectNavigation(NavProjectsBtn);
+
+        if (DataContext is not DesktopWorkspaceViewModel workspace)
+        {
+            return;
+        }
+
+        try
+        {
+            // Re-evaluate the device-compatible montage list at the boundary
+            // where an operator is about to open a stream. No configuration is
+            // silently selected or mutated here.
+            await workspace.ChannelConfigurations.RefreshAsync();
+            await workspace.MontageConfigurations.RefreshAsync();
+
+            // A device change or a channel/montage edit can make the previous
+            // preparation selection unavailable. Never retain an invisible,
+            // stale montage as though it were still valid for this session.
+            if (workspace.Acquisition.SelectedMontageProfile is { } selectedMontage &&
+                !workspace.MontageConfigurations.AvailableForAcquisition.Any(profile =>
+                    string.Equals(profile.Id, selectedMontage.Id, StringComparison.Ordinal) &&
+                    string.Equals(profile.Fingerprint, selectedMontage.Fingerprint, StringComparison.Ordinal)))
+            {
+                workspace.Acquisition.SelectedMontageProfile = null;
+                workspace.Notifications.PublishWarning("先前选择的导联配置已不再兼容当前设备或通道配置，请重新选择。");
+            }
+        }
+        catch (Exception exception)
+        {
+            workspace.Notifications.PublishError($"无法刷新采集准备配置：{exception.Message}");
+        }
+    }
+
+    public void ShowProjectListView()
+    {
+        SetImmersiveChrome(false);
+        projectListView ??= new ProjectListView();
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            viewModel.Projects.RefreshRecordings();
+        }
+        MainContentHost.Content = projectListView;
+        SelectNavigation(NavProjectsBtn);
+    }
+
+    public void ShowProjectDetailView()
+    {
+        SetImmersiveChrome(false);
+        projectDetailView ??= new ProjectDetailView();
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            if (viewModel.Projects.SelectedProject is null)
+            {
+                ShowProjectListView();
+                return;
+            }
+
+            viewModel.Projects.RefreshRecordings();
+        }
+
+        MainContentHost.Content = projectDetailView;
+        SelectNavigation(NavProjectsBtn);
+    }
+
+    public async Task ShowRecordingReviewViewAsync(
+        ProjectRecordingRow recording,
+        IEnumerable<MontageProfile> profiles)
+    {
+        ArgumentNullException.ThrowIfNull(recording);
+        if (reviewSessionWindow is { IsLoaded: true })
+        {
+            reviewSessionWindow.Activate();
+            if (DataContext is DesktopWorkspaceViewModel activeWorkspace)
+            {
+                activeWorkspace.Notifications.PublishWarning("已有一个数据回溯窗口，请先关闭后再打开另一条记录。");
+            }
+            return;
+        }
+
+        if (!Guid.TryParseExact(recording.SessionId, "N", out var expectedSessionId))
+        {
+            throw new RecordingReadException("RECORDING_IDENTITY_INVALID", "所选录音的会话标识无效。");
+        }
+
+        if (DataContext is not DesktopWorkspaceViewModel workspace)
+            throw new InvalidOperationException("工作区尚未初始化，无法打开录音回溯。");
+
+        var loadedRecording = await workspace.RecordingSessions.OpenLocalAsync(
+            recording.RecordingDirectory,
+            expectedSessionId,
+            CancellationToken.None);
+        try
+        {
+            if (DataContext is DesktopWorkspaceViewModel referenceWorkspace)
+                await referenceWorkspace.MontageConfigurations.RegisterRecordingReferenceAsync(
+                    loadedRecording.Manifest.HardwareConfiguration, recording.RecordingDirectory);
+        }
+        catch (Exception exception)
+        {
+            (DataContext as DesktopWorkspaceViewModel)?.Notifications.PublishWarning(
+                $"历史导联引用无法登记，记录仍可查看：{exception.Message}");
+        }
+        var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
+        var playbackCoordinator = new RecordingPlaybackTimeCoordinator(
+            loadedRecording.Manifest.SessionId.ToString("N"),
+            loadedRecording.Manifest.SamplingRateHz,
+            checked(loadedRecording.LastSampleCounter - loadedRecording.FirstSampleCounter + 1L));
+        RecordingReviewViewModel? viewModel = null;
+        try
+        {
+            viewModel = new RecordingReviewViewModel(
+                loadedRecording,
+                catalog,
+                recordingName: recording.Name,
+                projectName: loadedRecording.Manifest.Project.Name,
+                filter: recordingReviewFilter,
+                recordingDirectory: recording.RecordingDirectory,
+                eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
+                notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications,
+                algorithmClient: workspace.Algorithms,
+                timeDisplaySettings: (DataContext as DesktopWorkspaceViewModel)?.TimeDisplaySettings,
+                playbackCoordinator: playbackCoordinator);
+            await viewModel.InitializeAsync();
+        }
+        catch
+        {
+            if (viewModel is not null)
+                await viewModel.DisposeAsync();
+            playbackCoordinator.Dispose();
+            await loadedRecording.DisposeAsync();
+            throw;
+        }
+
+        recordingReviewRecording = loadedRecording;
+        recordingReviewPlayback = playbackCoordinator;
+        recordingReviewViewModel = viewModel;
+        var view = new RecordingReviewView { DataContext = viewModel };
+        reviewSessionWindow = new EegSessionWindow(
+            this,
+            "数据回溯",
+            view,
+            SessionCloseRequest.Review,
+            DisposeRecordingReviewAsync,
+            () =>
+            {
+                reviewSessionWindow = null;
+                ShowProjectDetailView();
+            });
+        reviewSessionWindow.Show();
+    }
+
+    private async void OnWindowLoaded(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is DesktopWorkspaceViewModel viewModel)
+        {
+            await viewModel.RefreshBackendAsync();
+            await viewModel.Projects.RefreshAsync();
+            await viewModel.ChannelConfigurations.RefreshAsync();
+            await viewModel.MontageConfigurations.RefreshAsync();
+            await viewModel.EventDefinitions.RefreshAsync();
+        }
+    }
+
+    public async Task<bool> ConfirmChannelDraftLeaveAsync()
+    {
+        if (DataContext is not DesktopWorkspaceViewModel workspace ||
+            !ReferenceEquals(MainContentHost.Content, channelDetailView) ||
+            !workspace.ChannelConfigurations.IsDraftOpen)
+        {
+            return true;
+        }
+
+        if (isConfirmingChannelDraftExit)
+        {
+            return false;
+        }
+
+        isConfirmingChannelDraftExit = true;
+        try
+        {
+            return await ChannelDraftLeaveGuard.ConfirmAndCloseAsync(this, workspace);
+        }
+        finally
+        {
+            isConfirmingChannelDraftExit = false;
+        }
+    }
+
+    private void OnWindowClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (isApprovedClose || DataContext is not DesktopWorkspaceViewModel workspace ||
+            !ReferenceEquals(MainContentHost.Content, channelDetailView) ||
+            !workspace.ChannelConfigurations.IsDraftOpen)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        if (isWindowCloseConfirmationPending)
+        {
+            return;
+        }
+
+        isWindowCloseConfirmationPending = true;
+        Dispatcher.BeginInvoke(() => _ = ConfirmCloseAfterClosingAsync(workspace));
+    }
+
+    private async Task ConfirmCloseAfterClosingAsync(DesktopWorkspaceViewModel workspace)
+    {
+        try
+        {
+            if (await ConfirmChannelDraftLeaveAsync())
+            {
+                isApprovedClose = true;
+                Close();
+            }
+        }
+        catch (Exception exception)
+        {
+            workspace.Notifications.PublishError($"无法关闭窗口：{exception.Message}");
+        }
+        finally
+        {
+            if (!isApprovedClose)
+            {
+                isWindowCloseConfirmationPending = false;
+            }
+        }
+    }
+
+    private async void OnNavigationClick(object sender, RoutedEventArgs e)
+    {
+        if (!await ConfirmChannelDraftLeaveAsync())
+        {
+            if (sender is RadioButton navigationItem)
+            {
+                SelectNavigationForCurrentView(navigationItem);
+            }
+            return;
+        }
+
+        if (DataContext is DesktopWorkspaceViewModel activeWorkspace && activeWorkspace.Acquisition.CanStop)
+        {
+            ShowAcquisitionView();
+            activeWorkspace.Notifications.PublishWarning("采集会话运行期间请留在实时采集页；终止采集后可切换页面。");
+            return;
+        }
+
+        if (sender == NavOverviewBtn)
+        {
+            SetImmersiveChrome(false);
+            overviewView ??= new DeviceOverviewView();
+            MainContentHost.Content = overviewView;
+        }
+        else if (sender == NavProjectsBtn)
+        {
+            ShowProjectListView();
+        }
+        else if (sender == NavSettingsBtn)
+        {
+            ShowSettingsView();
+        }
+        else if (sender == NavAlgorithmsBtn)
+        {
+            SetImmersiveChrome(false);
+            algorithmWorkspaceView ??= new AlgorithmWorkspaceView();
+            MainContentHost.Content = algorithmWorkspaceView;
+            SelectNavigation(NavAlgorithmsBtn);
+            if (DataContext is DesktopWorkspaceViewModel workspace)
+            {
+                algorithmWorkspaceView.DataContext = workspace;
+                workspace.Projects.RefreshRecordings();
+                _ = workspace.AlgorithmCatalog.RefreshAsync();
+            }
+        }
+        else
+        {
+            ShowUnavailableWorkspace((sender as RadioButton)?.ToolTip?.ToString() ?? "此功能");
+        }
+    }
+
+    private void SelectNavigationForCurrentView(RadioButton attemptedNavigation)
+    {
+        if (ReferenceEquals(MainContentHost.Content, channelDetailView))
+        {
+            SelectNavigation(NavSettingsBtn);
+            return;
+        }
+
+        attemptedNavigation.IsChecked = false;
+    }
+
+    private void SelectNavigation(RadioButton navigationItem)
+    {
+        navigationItem.IsChecked = true;
+    }
+
+    public void ShowUnavailableWorkspace(string title)
+    {
+        SetImmersiveChrome(false);
+        MainContentHost.Content = new WorkspaceUnavailableView(title);
+    }
+
+    private void SetImmersiveChrome(bool immersive)
+    {
+        NavigationColumn.Width = immersive ? new GridLength(0) : new GridLength(72);
+        GlobalNavigationHost.Visibility = immersive ? Visibility.Collapsed : Visibility.Visible;
+        Grid.SetColumn(MainContentHost, immersive ? 0 : 1);
+        Grid.SetColumnSpan(MainContentHost, immersive ? 2 : 1);
+        Grid.SetColumn(NotificationHost, immersive ? 0 : 1);
+        Grid.SetColumnSpan(NotificationHost, immersive ? 2 : 1);
+    }
+
+    private async Task DisposeRecordingReviewAsync()
+    {
+        if (recordingReviewViewModel is { } viewModel)
+        {
+            recordingReviewViewModel = null;
+            await viewModel.DisposeAsync();
+        }
+
+        if (recordingReviewRecording is { } loadedRecording)
+        {
+            recordingReviewRecording = null;
+            await loadedRecording.DisposeAsync();
+        }
+
+        recordingReviewPlayback?.Dispose();
+        recordingReviewPlayback = null;
+    }
+}

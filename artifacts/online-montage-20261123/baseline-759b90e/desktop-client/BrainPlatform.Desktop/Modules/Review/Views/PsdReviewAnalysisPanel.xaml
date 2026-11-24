@@ -1,0 +1,140 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.PsdReviewAnalysisPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
+             xmlns:psd="clr-namespace:BrainPlatform.Desktop.Modules.Algorithms.Views.Psd"
+             xmlns:topomap="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Topomap">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <shared:AnalysisPanelShell Title="" CloseCommand="{Binding CloseAnalysisCommand}"
+                               StatusText="{Binding AnalysisPreparationText}">
+        <shared:AnalysisPanelShell.HeaderContent>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <ComboBox ItemsSource="{Binding PsdAnalysis.Channels}"
+                          SelectedItem="{Binding PsdAnalysis.SelectedChannel, UpdateSourceTrigger=PropertyChanged}"
+                          Height="32" MinWidth="120" VerticalAlignment="Center">
+                    <ComboBox.Style>
+                        <Style TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ComboBox.Style>
+                </ComboBox>
+                <ComboBox ItemsSource="{Binding PsdAnalysis.ViewOptions}"
+                          SelectedItem="{Binding PsdAnalysis.SelectedView, UpdateSourceTrigger=PropertyChanged}"
+                          Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="120"
+                          Margin="8,0,0,0" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding PsdAnalysis.TopomapBandOptions}"
+                          SelectedValuePath="Id"
+                          SelectedValue="{Binding PsdAnalysis.SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"
+                          Height="32" MinWidth="130" ToolTip="频带平均 PSD，单位 µV²/Hz"
+                          Margin="8,0,0,0" VerticalAlignment="Center">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Label}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                    <ComboBox.Style>
+                        <Style TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ComboBox.Style>
+                </ComboBox>
+            </StackPanel>
+        </shared:AnalysisPanelShell.HeaderContent>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <psd:PsdSpectrumChart Grid.Row="0" MinHeight="180" Points="{Binding PsdAnalysis.Points}"
+                                  Unit="{Binding PsdAnalysis.ValueUnit}">
+                <psd:PsdSpectrumChart.Style>
+                    <Style TargetType="psd:PsdSpectrumChart">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </psd:PsdSpectrumChart.Style>
+            </psd:PsdSpectrumChart>
+            <ItemsControl Grid.Row="0" ItemsSource="{Binding PsdAnalysis.TopomapBands}">
+                <ItemsControl.Style>
+                    <Style TargetType="ItemsControl">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True" />
+                                    <Condition Binding="{Binding PsdAnalysis.IsAllTopomapBandsSelected}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ItemsControl.Style>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="2" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <topomap:TopomapCanvas Field="{Binding Field}"
+                            ColorScaleState="{Binding DataContext.PsdAnalysis.TopomapColorScales, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <topomap:TopomapCanvas Grid.Row="0" Field="{Binding PsdAnalysis.TopomapField}"
+                                   ColorScaleState="{Binding PsdAnalysis.TopomapColorScales}">
+                <topomap:TopomapCanvas.Style>
+                    <Style TargetType="topomap:TopomapCanvas">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding PsdAnalysis.IsAllTopomapBandsSelected}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </topomap:TopomapCanvas.Style>
+            </topomap:TopomapCanvas>
+            <TextBlock Grid.Row="0" Text="{Binding PsdAnalysis.CurrentRangeText}"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                       Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                       IsHitTestVisible="False" Panel.ZIndex="2" />
+            <TextBlock Grid.Row="1" Text="{Binding PsdAnalysis.StatusText}" TextWrapping="Wrap"
+                       Foreground="#64748B" FontSize="11" Margin="2,4,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding PsdAnalysis.StatusText}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Grid>
+    </shared:AnalysisPanelShell>
+</UserControl>

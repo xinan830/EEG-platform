@@ -185,16 +185,12 @@ public partial class Topomap3DView : UserControl
 
             if (isRealField)
             {
-                BandText.Text = string.IsNullOrWhiteSpace(field!.Label) ? "3D 脑电地形图" : $"{field.Label} · 3D 地形图";
-                WindowText.Text = $"有效头皮通道：{sceneData.Markers.Count} · 单位：{FormatUnitLabel(field.Unit)}";
+                InteractionHintPill.Margin = new Thickness(10, 0, 0, 34);
                 UnavailableText.Text = sceneData.Markers.Count == 0 ? "当前地形图没有可映射到标准 3D 头皮的通道" : string.Empty;
             }
             else
             {
-                BandText.Text = isHeatmap ? "3D 地形图视觉预览（示意分布）" : "标准电极位置";
-                WindowText.Text = isHeatmap
-                    ? "头皮平滑插值 · 面部与颈部自动遮罩隔离（右上角可切换分布与色带）"
-                    : "只显示已启用且有标准 3D 坐标的 EEG 电极";
+                InteractionHintPill.Margin = new Thickness(12);
                 var hasMappedLabel = currentMarkers.Count > 0;
                 UnavailableText.Text = labels.Count == 0
                     ? "当前配置没有启用的 EEG 通道"

@@ -1,0 +1,423 @@
+{
+  "schema": "algorithm-result-boundary-v4-baseline-v1",
+  "scope": "engineering_validation_only_not_clinical_validation",
+  "scientific_contract": "offline-spectral-v4",
+  "capture": "Current Run/artifact snapshots after shared 1-50 Hz preprocessing and default 50 Hz notch contract.",
+  "environment": {
+    "python": "3.13.3",
+    "numpy": "2.5.4",
+    "scipy": "1.18.1"
+  },
+  "tolerances": {
+    "rtol": 1e-10,
+    "atol": 1e-20
+  },
+  "historical_baseline": {
+    "path": "docs/validation/algorithm-result-boundary-baseline.npz",
+    "sha256": "66e020b9656f7613f30824d126a6cc96372728335f1100f5e3ad831f3eeb7717",
+    "preserved": true
+  },
+  "artifact": {
+    "path": "docs/validation/algorithm-result-boundary-v4-baseline.npz",
+    "sha256": "682e72c05fa39cd965a66917c80803ebb2c74a935b08f012ecc5c7600f3cd00d",
+    "byte_size": 1118532
+  },
+  "cases": [
+    {
+      "case": "band_ratio__static__clean",
+      "algorithm_id": "band_ratio",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "band_ratio__static__rejected",
+      "algorithm_id": "band_ratio",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "band_ratio__dynamic__clean",
+      "algorithm_id": "band_ratio",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "band_ratio__dynamic__rejected",
+      "algorithm_id": "band_ratio",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "brainbeat__static__clean",
+      "algorithm_id": "brainbeat",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "brainbeat__static__rejected",
+      "algorithm_id": "brainbeat",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "brainbeat__dynamic__clean",
+      "algorithm_id": "brainbeat",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "brainbeat__dynamic__rejected",
+      "algorithm_id": "brainbeat",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "faa__static__clean",
+      "algorithm_id": "faa",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "faa__static__rejected",
+      "algorithm_id": "faa",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "faa__dynamic__clean",
+      "algorithm_id": "faa",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "faa__dynamic__rejected",
+      "algorithm_id": "faa",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "iapf__static__clean",
+      "algorithm_id": "iapf",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "iapf__static__rejected",
+      "algorithm_id": "iapf",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "iapf__dynamic__clean",
+      "algorithm_id": "iapf",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "iapf__dynamic__rejected",
+      "algorithm_id": "iapf",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "peak_frequency__static__clean",
+      "algorithm_id": "peak_frequency",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "peak_frequency__static__rejected",
+      "algorithm_id": "peak_frequency",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "peak_frequency__dynamic__clean",
+      "algorithm_id": "peak_frequency",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "peak_frequency__dynamic__rejected",
+      "algorithm_id": "peak_frequency",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "psd__static__clean",
+      "algorithm_id": "psd",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "psd",
+        "band_share",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "psd__static__rejected",
+      "algorithm_id": "psd",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": [
+        "psd",
+        "band_share",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "psd__dynamic__clean",
+      "algorithm_id": "psd",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "psd",
+        "band_share",
+        "axis_frequency_hz",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "psd__dynamic__rejected",
+      "algorithm_id": "psd",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "psd",
+        "band_share",
+        "axis_frequency_hz",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "rbp__static__clean",
+      "algorithm_id": "rbp",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "delta",
+        "delta_absolute_power",
+        "theta",
+        "theta_absolute_power",
+        "alpha",
+        "alpha_absolute_power",
+        "beta",
+        "beta_absolute_power",
+        "gamma",
+        "gamma_absolute_power",
+        "axis_time_s",
+        "axis_channel_index"
+      ]
+    },
+    {
+      "case": "rbp__static__rejected",
+      "algorithm_id": "rbp",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": [
+        "delta",
+        "delta_absolute_power",
+        "theta",
+        "theta_absolute_power",
+        "alpha",
+        "alpha_absolute_power",
+        "beta",
+        "beta_absolute_power",
+        "gamma",
+        "gamma_absolute_power",
+        "axis_time_s",
+        "axis_channel_index"
+      ]
+    },
+    {
+      "case": "rbp__dynamic__clean",
+      "algorithm_id": "rbp",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "delta",
+        "delta_absolute_power",
+        "theta",
+        "theta_absolute_power",
+        "alpha",
+        "alpha_absolute_power",
+        "beta",
+        "beta_absolute_power",
+        "gamma",
+        "gamma_absolute_power",
+        "axis_time_s",
+        "axis_channel_index",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "rbp__dynamic__rejected",
+      "algorithm_id": "rbp",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "delta",
+        "delta_absolute_power",
+        "theta",
+        "theta_absolute_power",
+        "alpha",
+        "alpha_absolute_power",
+        "beta",
+        "beta_absolute_power",
+        "gamma",
+        "gamma_absolute_power",
+        "axis_time_s",
+        "axis_channel_index",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "stft__static__clean",
+      "algorithm_id": "stft",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "power_linear",
+        "power_db",
+        "axis_time_center_s",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "stft__static__rejected",
+      "algorithm_id": "stft",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": [
+        "power_linear",
+        "power_db",
+        "axis_time_center_s",
+        "axis_frequency_hz"
+      ]
+    },
+    {
+      "case": "stft__dynamic__clean",
+      "algorithm_id": "stft",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "power_linear",
+        "power_db",
+        "axis_time_center_s",
+        "axis_frequency_hz",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "stft__dynamic__rejected",
+      "algorithm_id": "stft",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "power_linear",
+        "power_db",
+        "axis_time_center_s",
+        "axis_frequency_hz",
+        "window_evidence_json"
+      ]
+    },
+    {
+      "case": "theta_beta__static__clean",
+      "algorithm_id": "theta_beta",
+      "mode": "static",
+      "rejected": false,
+      "array_keys": [
+        "metric_value"
+      ]
+    },
+    {
+      "case": "theta_beta__static__rejected",
+      "algorithm_id": "theta_beta",
+      "mode": "static",
+      "rejected": true,
+      "array_keys": []
+    },
+    {
+      "case": "theta_beta__dynamic__clean",
+      "algorithm_id": "theta_beta",
+      "mode": "dynamic",
+      "rejected": false,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    },
+    {
+      "case": "theta_beta__dynamic__rejected",
+      "algorithm_id": "theta_beta",
+      "mode": "dynamic",
+      "rejected": true,
+      "array_keys": [
+        "metric_time_s",
+        "metric_values"
+      ]
+    }
+  ]
+}

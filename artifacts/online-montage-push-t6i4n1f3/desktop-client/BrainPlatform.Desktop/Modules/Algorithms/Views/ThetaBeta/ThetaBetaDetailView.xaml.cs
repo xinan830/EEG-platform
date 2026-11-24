@@ -1,0 +1,1 @@
+using System.Windows.Controls; namespace BrainPlatform.Desktop.Modules.Algorithms.Views.ThetaBeta; public partial class ThetaBetaDetailView : UserControl { public ThetaBetaDetailView() => InitializeComponent(); }

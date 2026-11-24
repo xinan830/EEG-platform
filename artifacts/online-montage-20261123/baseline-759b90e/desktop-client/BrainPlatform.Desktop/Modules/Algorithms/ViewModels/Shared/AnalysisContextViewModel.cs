@@ -1,0 +1,309 @@
+using System.Collections.ObjectModel;
+using System.Text.Json;
+using System.Windows.Input;
+
+namespace BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Shared;
+
+/// <summary>
+/// Shared analysis context exposed to every algorithm-specific detail module.
+/// The catalog remains the single owner of selection and run state.
+/// </summary>
+public sealed class AnalysisContextViewModel : ObservableObject
+{
+    internal AnalysisContextViewModel(AlgorithmListViewModel catalog)
+    {
+        Catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        Parameters = new AlgorithmParameterContext(Catalog);
+        Catalog.PropertyChanged += OnCatalogPropertyChanged;
+        if (Catalog.Projects is not null)
+            Catalog.Projects.PropertyChanged += OnProjectsPropertyChanged;
+    }
+
+    public AlgorithmListViewModel Catalog { get; }
+    public RecordingTimeDisplayContext TimeDisplay => Catalog.TimeDisplay;
+    public AlgorithmParameterContext Parameters { get; }
+    public ProjectWorkspaceViewModel? Projects => Catalog.Projects;
+    public ResearchProject? SelectedProject { get => Catalog.Projects?.SelectedProject; set { if (Catalog.Projects is not null) Catalog.Projects.SelectedProject = value; } }
+    public ProjectRecordingRow? SelectedProjectRecording { get => Catalog.SelectedProjectRecording; set => Catalog.SelectedProjectRecording = value; }
+    public IReadOnlyList<ProjectRecordingRow> CompletedRecordings => Catalog.Projects?.CompletedRecordings ?? [];
+    public IReadOnlyList<string> RegisteredChannels => Catalog.RegisteredChannels;
+    public IReadOnlyList<HistoricalMontageDescriptor> MontageProfiles => Catalog.MontageProfiles;
+    public HistoricalMontageDescriptor? SelectedMontageProfile { get => Catalog.SelectedMontageProfile; set => Catalog.SelectedMontageProfile = value; }
+    public string AnalysisMontageText => Catalog.AnalysisMontageText;
+    public string AnalysisMontageDetailsText => Catalog.AnalysisMontageDetailsText;
+    public IReadOnlyList<string> AnalysisModes => Catalog.AnalysisModes;
+    public IReadOnlyList<double> DynamicWindowOptions => Catalog.DynamicWindowOptions;
+    public IReadOnlyList<double> DynamicStepOptions => Catalog.DynamicStepOptions;
+    public IReadOnlyList<string> DynamicExecutionModes => Catalog.DynamicExecutionModes;
+    public string DynamicStepText { get => Catalog.DynamicStepText; set => Catalog.DynamicStepText = value; }
+    public double SelectedDynamicStepSeconds { get => Catalog.SelectedDynamicStepSeconds; set => Catalog.SelectedDynamicStepSeconds = value; }
+    public double SelectedDynamicWindowSeconds { get => Catalog.SelectedDynamicWindowSeconds; set => Catalog.SelectedDynamicWindowSeconds = value; }
+    public string SelectedAnalysisMode { get => Catalog.SelectedAnalysisMode; set => Catalog.SelectedAnalysisMode = value; }
+    public string SelectedDynamicExecutionMode { get => Catalog.SelectedDynamicExecutionMode; set => Catalog.SelectedDynamicExecutionMode = value; }
+    public bool IsOnDemandExecutionModeSelected => Catalog.IsOnDemandExecutionModeSelected;
+    public bool IsCombinedExecutionModeSelected => Catalog.IsCombinedExecutionModeSelected;
+    public bool IsDynamicMode => Catalog.IsDynamicMode;
+    public bool SupportsStaticMode => Catalog.SupportsStaticMode;
+    public bool IsDynamicModeAvailable => Catalog.IsDynamicModeAvailable;
+    public bool IsDynamicPreviewPlaying => Catalog.IsDynamicPreviewPlaying;
+    public double DynamicPreviewCursorSeconds => Catalog.DynamicPreviewCursorSeconds;
+    public string DynamicPreviewCursorText => Catalog.DynamicPreviewCursorText;
+    public bool HasDynamicPreview => Catalog.HasDynamicPreview;
+    public string DynamicPreviewStatusText => Catalog.DynamicPreviewStatusText;
+    public ObservableCollection<DynamicWindowRow> DynamicPreviewRows => Catalog.DynamicPreviewRows;
+    public RegisteredRecording? RegisteredRecording => Catalog.RegisteredRecording;
+    public ICommand RegisterCommand => Catalog.RegisterCommand;
+    public ICommand RunCommand => Catalog.RunCommand;
+    public ICommand SelectStaticModeCommand => Catalog.SelectStaticModeCommand;
+    public ICommand SelectDynamicModeCommand => Catalog.SelectDynamicModeCommand;
+    public ICommand StartDynamicPreviewCommand => Catalog.StartDynamicPreviewCommand;
+    public ICommand PauseDynamicPreviewCommand => Catalog.PauseDynamicPreviewCommand;
+    public ICommand StepDynamicPreviewCommand => Catalog.StepDynamicPreviewCommand;
+    public ICommand ResetDynamicPreviewCommand => Catalog.ResetDynamicPreviewCommand;
+    public void BeginDynamicPreviewSeek() => Catalog.BeginDynamicPreviewSeek();
+    public void CommitDynamicPreviewSeek() => Catalog.CommitDynamicPreviewSeek();
+    public bool HasProject => Catalog.Projects?.SelectedProject is not null;
+    public bool HasCompletedRecording => Catalog.SelectedProjectRecording is not null;
+    public bool HasRegisteredRecording => Catalog.RegisteredRecording is not null;
+    public bool HasChannel => Catalog.HasRegisteredChannels;
+    public string SelectedChannel { get => Catalog.SelectedChannel; set => Catalog.SelectedChannel = value; }
+    public string SelectedF4Channel { get => Catalog.SelectedF4Channel; set => Catalog.SelectedF4Channel = value; }
+    public string ChannelLabel => Catalog.ChannelLabel;
+    public bool IsFaaSelected => Catalog.IsFaaSelected;
+    public bool IsBrainbeatSelected => Catalog.IsBrainbeatSelected;
+    public bool IsBandRatioSelected => Catalog.IsBandRatioSelected;
+    public bool IsPeakFrequencySelected => Catalog.IsPeakFrequencySelected;
+    public string StartSeconds { get => Catalog.StartSecondsText; set => Catalog.StartSecondsText = value; }
+    public string EndSeconds { get => Catalog.EndSecondsText; set => Catalog.EndSecondsText = value; }
+    public string RunStatus => Catalog.RunStatusText;
+    public string RunIdText => Catalog.DisplayedAnalysisWindow is { } window ? $"窗口 {window.WindowId}" : Catalog.LastRun?.RunId ?? "未运行";
+    public string RequestedRangeText => FormatRange(Catalog.WindowRequestedRange ?? Catalog.LastRun?.RequestedRange);
+    public string ActualRangeText => FormatRange(Catalog.DisplayedAnalysisWindow?.Range is { } range
+        ? new TimeRange(range.StartSeconds, range.EndSeconds) : Catalog.LastRun?.ActualRange);
+    public string ResultTimeText => Catalog.LastRun?.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss.fff") ?? "未运行";
+    public string OutputUnit
+    {
+        get
+        {
+            if (Catalog.DisplayedAnalysisWindow?.Result?.ArrayUnits is { Count: > 0 } units &&
+                units.Values.Distinct(StringComparer.Ordinal).ToArray() is [var windowUnit]) return windowUnit;
+            var detailKind = Catalog.SelectedAlgorithm is { } algorithm
+                ? AlgorithmUiRegistry.For(algorithm.Id).DetailKind
+                : AlgorithmDetailKind.Scalar;
+            return detailKind switch
+            {
+                AlgorithmDetailKind.FrequencySpectrum => Catalog.PsdValueUnit,
+                AlgorithmDetailKind.TimeFrequency => Catalog.StftResult?.PowerUnit ?? "后端未提供",
+                _ => MetricOutputUnit(Catalog.LastRun?.ResultSummary) ?? "后端未提供",
+            };
+        }
+    }
+    public string RecordingIdText => RegisteredRecording?.Id ?? "未注册";
+    public string AlgorithmVersionText => Catalog.SelectedAlgorithm?.Version ?? "后端未提供";
+    public string ImplementationVersionText => Catalog.SelectedAlgorithm?.ImplementationIdentity ?? "后端未提供";
+    public string SelectedChannelText => SelectedChannel is { Length: > 0 } value ? value : "未选择";
+    public string ParameterSnapshotText => Catalog.IsOnDemandAnalysis ? "由按需配置会话固化" : "由本次 Run 固化";
+    public string OutputUnitText => OutputUnit;
+    public AnalysisContextViewModel Provenance => this;
+    public string WindowStateText
+    {
+        get
+        {
+            var detailKind = Catalog.SelectedAlgorithm is { } algorithm
+                ? AlgorithmUiRegistry.For(algorithm.Id).DetailKind
+                : AlgorithmDetailKind.Scalar;
+            if (detailKind == AlgorithmDetailKind.FrequencySpectrum)
+                return Catalog.PsdWindowStateText;
+            if (detailKind == AlgorithmDetailKind.TimeFrequency)
+            {
+                return Catalog.StftStructuredPreview is { } preview && preview.WindowStateCounts.Count > 0
+                    ? string.Join("、", preview.WindowStateCounts.Select(item => $"{item.Key}：{item.Value}"))
+                    : "尚未产生窗口结果";
+            }
+            return Catalog.DynamicWindowRows.Count > 0
+                ? string.Join("、", Catalog.DynamicWindowRows.GroupBy(row => row.State)
+                    .Select(group => $"{group.Key}：{group.Count()}"))
+                : "尚未产生窗口结果";
+        }
+    }
+    public double RunProgressPercent => Catalog.LastRun?.ProgressPercent ?? 0;
+    public string RunProgressText => Catalog.IsOnDemandAnalysis ? Catalog.RunStatusText : Catalog.LastRun?.ProgressText ?? "未运行";
+    public bool HasBackgroundFullRun => Catalog.HasBackgroundFullRun;
+    public double BackgroundFullRunProgressPercent => Catalog.BackgroundFullRunProgressPercent;
+    public string BackgroundFullRunProgressText => Catalog.BackgroundFullRunProgressText;
+    public string BackgroundFullRunStatusText => Catalog.BackgroundFullRunStatusText;
+    public ICommand CancelRunCommand => Catalog.CancelRunCommand;
+    public ICommand CancelBackgroundFullRunCommand => Catalog.CancelBackgroundFullRunCommand;
+    public bool CanCancelBackgroundFullRun => Catalog.IsBackgroundFullRunActive;
+    public double DynamicTimeProgressPercent { get => Catalog.DynamicTimeProgressPercent; set => Catalog.DynamicTimeProgressPercent = value; }
+    public string DynamicTimeProgressText => Catalog.DynamicTimeProgressText;
+    public string DynamicCurrentWindowText => Catalog.DynamicCurrentWindowText;
+    public bool IsRunning => Catalog.IsRunActive;
+    public bool CanCancelRun => Catalog.IsOnDemandAnalysis && Catalog.IsRunActive ||
+        Catalog.LastRun?.Status is "queued" or "running";
+    public string ResultSummary => Catalog.ResultSummaryText;
+
+    private void OnCatalogPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(AlgorithmListViewModel.BackgroundFullRun)
+            or nameof(AlgorithmListViewModel.IsBackgroundFullRunActive)
+            or nameof(AlgorithmListViewModel.HasBackgroundFullRun)
+            or nameof(AlgorithmListViewModel.BackgroundFullRunProgressPercent)
+            or nameof(AlgorithmListViewModel.BackgroundFullRunProgressText)
+            or nameof(AlgorithmListViewModel.BackgroundFullRunStatusText))
+        {
+            RaisePropertyChanged(nameof(HasBackgroundFullRun));
+            RaisePropertyChanged(nameof(BackgroundFullRunProgressPercent));
+            RaisePropertyChanged(nameof(BackgroundFullRunProgressText));
+            RaisePropertyChanged(nameof(BackgroundFullRunStatusText));
+            RaisePropertyChanged(nameof(CanCancelBackgroundFullRun));
+            return;
+        }
+
+        if (args.PropertyName is nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)
+            or nameof(AlgorithmListViewModel.DynamicPreviewCursorText)
+            or nameof(AlgorithmListViewModel.DynamicTimeProgressPercent)
+            or nameof(AlgorithmListViewModel.DynamicTimeProgressText)
+            or nameof(AlgorithmListViewModel.DynamicCurrentWindowText)
+            or nameof(AlgorithmListViewModel.IsDynamicPreviewPlaying)
+            or nameof(AlgorithmListViewModel.DynamicPreviewStatusText))
+        {
+            RaisePropertyChanged(args.PropertyName);
+            return;
+        }
+
+        if (args.PropertyName is nameof(AlgorithmListViewModel.TimeDisplay)
+            or nameof(AlgorithmListViewModel.SelectedProjectRecording)
+            or nameof(AlgorithmListViewModel.SelectedAlgorithm)
+            or nameof(AlgorithmListViewModel.RegisteredChannels)
+            or nameof(AlgorithmListViewModel.MontageProfiles)
+            or nameof(AlgorithmListViewModel.SelectedMontageProfile)
+            or nameof(AlgorithmListViewModel.AnalysisMontageText)
+            or nameof(AlgorithmListViewModel.RegisteredRecording)
+            or nameof(AlgorithmListViewModel.SelectedChannel)
+            or nameof(AlgorithmListViewModel.SelectedF4Channel)
+            or nameof(AlgorithmListViewModel.StartSecondsText)
+            or nameof(AlgorithmListViewModel.EndSecondsText)
+            or nameof(AlgorithmListViewModel.SelectedAnalysisMode)
+            or nameof(AlgorithmListViewModel.IsDynamicMode)
+            or nameof(AlgorithmListViewModel.SupportsStaticMode)
+            or nameof(AlgorithmListViewModel.IsDynamicModeAvailable)
+            or nameof(AlgorithmListViewModel.DynamicWindowOptions)
+            or nameof(AlgorithmListViewModel.DynamicStepOptions)
+            or nameof(AlgorithmListViewModel.DynamicExecutionModes)
+            or nameof(AlgorithmListViewModel.SelectedDynamicExecutionMode)
+            or nameof(AlgorithmListViewModel.IsOnDemandExecutionModeSelected)
+             or nameof(AlgorithmListViewModel.IsCombinedExecutionModeSelected)
+            or nameof(AlgorithmListViewModel.SelectedDynamicWindowSeconds)
+            or nameof(AlgorithmListViewModel.DynamicStepText)
+            or nameof(AlgorithmListViewModel.SelectedDynamicStepSeconds)
+            or nameof(AlgorithmListViewModel.IsDynamicPreviewPlaying)
+            or nameof(AlgorithmListViewModel.DynamicPreviewCursorSeconds)
+            or nameof(AlgorithmListViewModel.DynamicPreviewCursorText)
+            or nameof(AlgorithmListViewModel.HasDynamicPreview)
+            or nameof(AlgorithmListViewModel.DynamicPreviewStatusText)
+            or nameof(AlgorithmListViewModel.DynamicPreviewRows)
+            or nameof(AlgorithmListViewModel.DynamicWindowRows)
+            or nameof(AlgorithmListViewModel.RunStatusText)
+            or nameof(AlgorithmListViewModel.LastRun)
+            or nameof(AlgorithmListViewModel.DisplayedAnalysisWindow)
+            or nameof(AlgorithmListViewModel.IsOnDemandAnalysis)
+            or nameof(AlgorithmListViewModel.IsRunActive)
+            or nameof(AlgorithmListViewModel.DynamicTimeProgressPercent)
+            or nameof(AlgorithmListViewModel.DynamicTimeProgressText)
+            or nameof(AlgorithmListViewModel.DynamicCurrentWindowText)
+            or nameof(AlgorithmListViewModel.ResultSummaryText)
+            or nameof(AlgorithmListViewModel.ProvenanceText))
+        {
+            RaisePropertyChanged(nameof(TimeDisplay));
+            RaisePropertyChanged(nameof(HasProject));
+            RaisePropertyChanged(nameof(HasCompletedRecording));
+            RaisePropertyChanged(nameof(HasRegisteredRecording));
+            RaisePropertyChanged(nameof(HasChannel));
+            RaisePropertyChanged(nameof(SelectedChannel));
+            RaisePropertyChanged(nameof(SelectedF4Channel));
+            RaisePropertyChanged(nameof(ChannelLabel));
+            RaisePropertyChanged(nameof(IsFaaSelected));
+            RaisePropertyChanged(nameof(IsBrainbeatSelected));
+            RaisePropertyChanged(nameof(IsBandRatioSelected));
+            RaisePropertyChanged(nameof(IsPeakFrequencySelected));
+            RaisePropertyChanged(nameof(StartSeconds));
+            RaisePropertyChanged(nameof(EndSeconds));
+            RaisePropertyChanged(nameof(RunStatus));
+            RaisePropertyChanged(nameof(RunIdText));
+            RaisePropertyChanged(nameof(RequestedRangeText));
+            RaisePropertyChanged(nameof(ActualRangeText));
+            RaisePropertyChanged(nameof(ResultTimeText));
+            RaisePropertyChanged(nameof(OutputUnit));
+            RaisePropertyChanged(nameof(RecordingIdText));
+            RaisePropertyChanged(nameof(AlgorithmVersionText));
+            RaisePropertyChanged(nameof(ImplementationVersionText));
+            RaisePropertyChanged(nameof(SelectedChannelText));
+            RaisePropertyChanged(nameof(ParameterSnapshotText));
+            RaisePropertyChanged(nameof(OutputUnitText));
+            RaisePropertyChanged(nameof(WindowStateText));
+            RaisePropertyChanged(nameof(RunProgressPercent));
+            RaisePropertyChanged(nameof(RunProgressText));
+            RaisePropertyChanged(nameof(DynamicTimeProgressPercent));
+            RaisePropertyChanged(nameof(DynamicTimeProgressText));
+            RaisePropertyChanged(nameof(DynamicCurrentWindowText));
+            RaisePropertyChanged(nameof(IsRunning));
+            RaisePropertyChanged(nameof(CanCancelRun));
+            RaisePropertyChanged(nameof(ResultSummary));
+            RaisePropertyChanged(nameof(Provenance));
+            RaisePropertyChanged(nameof(Projects));
+            RaisePropertyChanged(nameof(SelectedProject));
+            RaisePropertyChanged(nameof(SelectedProjectRecording));
+            RaisePropertyChanged(nameof(CompletedRecordings));
+            RaisePropertyChanged(nameof(RegisteredChannels));
+            RaisePropertyChanged(nameof(MontageProfiles));
+            RaisePropertyChanged(nameof(SelectedMontageProfile));
+            RaisePropertyChanged(nameof(AnalysisMontageText));
+            RaisePropertyChanged(nameof(AnalysisMontageDetailsText));
+            RaisePropertyChanged(nameof(SelectedAnalysisMode));
+            RaisePropertyChanged(nameof(DynamicStepText));
+            RaisePropertyChanged(nameof(SelectedDynamicStepSeconds));
+            RaisePropertyChanged(nameof(SelectedDynamicWindowSeconds));
+            RaisePropertyChanged(nameof(DynamicWindowOptions));
+            RaisePropertyChanged(nameof(DynamicStepOptions));
+            RaisePropertyChanged(nameof(DynamicExecutionModes));
+            RaisePropertyChanged(nameof(SelectedDynamicExecutionMode));
+            RaisePropertyChanged(nameof(IsOnDemandExecutionModeSelected));
+            RaisePropertyChanged(nameof(IsCombinedExecutionModeSelected));
+            RaisePropertyChanged(nameof(IsDynamicMode));
+            RaisePropertyChanged(nameof(SupportsStaticMode));
+            RaisePropertyChanged(nameof(IsDynamicModeAvailable));
+            RaisePropertyChanged(nameof(IsDynamicPreviewPlaying));
+            RaisePropertyChanged(nameof(DynamicPreviewCursorSeconds));
+            RaisePropertyChanged(nameof(DynamicPreviewCursorText));
+            RaisePropertyChanged(nameof(HasDynamicPreview));
+            RaisePropertyChanged(nameof(DynamicPreviewStatusText));
+            RaisePropertyChanged(nameof(DynamicPreviewRows));
+            RaisePropertyChanged(nameof(RegisteredRecording));
+        }
+    }
+
+    private string FormatRange(TimeRange? range) => range is null
+        ? "未运行"
+        : TimeDisplay.FormatRange(range.StartSeconds, range.EndSeconds);
+
+    private static string? MetricOutputUnit(JsonElement? summary) =>
+        summary is { ValueKind: JsonValueKind.Object } root &&
+        root.TryGetProperty("metric", out var metric) && metric.ValueKind == JsonValueKind.Object &&
+        metric.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Object &&
+        output.TryGetProperty("unit", out var unit) && unit.ValueKind == JsonValueKind.String
+            ? unit.GetString() : null;
+
+    private void OnProjectsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(ProjectWorkspaceViewModel.SelectedProject)
+            or nameof(ProjectWorkspaceViewModel.CompletedRecordings))
+        {
+            RaisePropertyChanged(nameof(Projects));
+            RaisePropertyChanged(nameof(SelectedProject));
+            RaisePropertyChanged(nameof(CompletedRecordings));
+            RaisePropertyChanged(nameof(HasProject));
+            RaisePropertyChanged(nameof(HasCompletedRecording));
+        }
+    }
+}

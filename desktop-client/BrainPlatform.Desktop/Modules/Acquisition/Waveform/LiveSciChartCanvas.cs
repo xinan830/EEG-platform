@@ -423,6 +423,11 @@ public sealed class LiveSciChartCanvas : UserControl
 
     private void AdvanceEraseBand()
     {
+        if ((DataContext as LiveMonitoringViewModel)?.IsDisplayFrozen == true)
+        {
+            return;
+        }
+
         if (eraseBandAnimator.TryAdvance(Environment.TickCount64, out var cursorPosition))
         {
             UpdateEraseBand(cursorPosition, activeDisplayWindowSeconds, activeTraceCount);

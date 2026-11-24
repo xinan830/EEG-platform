@@ -1,0 +1,176 @@
+from time import monotonic, sleep
+from uuid import uuid4
+
+import numpy as np
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
+from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
+from app.services.live_rbp_algorithm import LiveRbpAlgorithm
+
+
+@pytest.fixture
+def live_api(monkeypatch):
+    coordinator = LiveAnalysisCoordinator(LiveAnalysisAlgorithmRegistry((LiveRbpAlgorithm(),)))
+    monkeypatch.setattr(app.state, "live_analysis_coordinator", coordinator)
+    session_id = uuid4().hex
+    path = f"/api/live-recordings/sessions/{session_id}"
+    client = TestClient(app)
+    response = client.post("/api/live-recordings/sessions", json={
+        "session_id": session_id, "stream_revision": "stream-v1", "schema_revision": "schema-v1",
+        "sampling_rate_hz": 250, "channel_names": ["F3", "F4"], "channel_units": ["V", "V"],
+        "capacity_samples": 10000,
+    })
+    assert response.status_code == 201
+    assert response.json()["channel_names"] == ["F3", "F4"]
+    assert response.json()["channel_units"] == ["V", "V"]
+    yield client, path
+    client.delete(path)
+    coordinator.shutdown()
+
+
+def wait_api(client, path):
+    deadline = monotonic() + 5
+    while monotonic() < deadline:
+        response = client.get(path + "/algorithms/rbp")
+        assert response.status_code == 200
+        result = response.json()
+        if result["revision"] > 0:
+            return result
+        sleep(0.001)
+    raise AssertionError("live API result did not arrive")
+
+
+def test_generic_binary_api_keeps_rbp_payload_and_ephemeral_lifecycle(live_api):
+    client, path = live_api
+    t = np.arange(1000) / 250
+    values = np.column_stack((18e-6 * np.sin(2 * np.pi * 10 * t), 16e-6 * np.sin(2 * np.pi * 6 * t)))
+    response = client.post(path + "/batches/binary?first_sample_counter=1000&sample_count=1000",
+        content=values.astype("<f8").tobytes())
+    assert response.status_code == 200
+    assert response.json()["schema_version"] == "live-sample-ack-v2"
+    assert response.json()["updates"] == []
+    started = client.post(path + "/algorithms/rbp", json={
+        "schema_version": "live-analysis-config-v1",
+        "config": {"schema_version": "live-rbp-config-v1", "channels": ["F4", "F3"], "window_s": 4},
+    })
+    assert started.status_code == 201
+    result = wait_api(client, path)
+    assert result["type"] == "live_analysis_update"
+    assert result["schema_version"] == "live-analysis-update-v2"
+    assert result["algorithm_id"] == "rbp" and result["state"] == "ready"
+    assert (result["start_sample"], result["end_sample"], result["start_s"], result["end_s"]) == (1000, 2000, 0, 4)
+    assert result["payload"]["channels"] == ["F4", "F3"]
+    assert result["payload"]["scientific_identity"] == "rbp-live-v1"
+    assert result["payload"]["units"]["alpha"] == "ratio"
+    assert client.delete(path + "/algorithms/rbp").status_code == 204
+    assert client.get(path + "/algorithms/rbp").json()["code"] == "LIVE_ALGORITHM_NOT_STARTED"
+    assert client.delete(path).status_code == 204
+    stale = client.post(path + "/batches/binary?first_sample_counter=2000&sample_count=1", content=values[:1].tobytes())
+    assert stale.status_code == 422 and stale.json()["code"] == "LIVE_SESSION_NOT_FOUND"
+
+
+def test_live_montage_update_projects_algorithm_inputs_and_reuses_retained_samples(live_api):
+    client, path = live_api
+    profile = {"DerivedChannels": [
+        {"Name": "F3-F4", "PositiveLabel": "F3", "NegativeLabels": ["F4"], "DisplayOrder": 0},
+        {"Name": "F4-REF", "PositiveLabel": "F4", "NegativeLabels": [], "DisplayOrder": 1},
+    ]}
+    updated = client.put(path + "/montage", json={
+        "schema_version": "live-montage-v1", "revision": 1,
+        "effective_from_sample_counter": 1000, "fingerprint": "montage-a", "profile": profile,
+    })
+    assert updated.status_code == 200
+    assert updated.json()["channel_names"] == ["F3-F4", "F4-REF"]
+    t = np.arange(1000) / 250
+    raw = np.column_stack((18e-6 * np.sin(2 * np.pi * 10 * t), 16e-6 * np.sin(2 * np.pi * 6 * t)))
+    assert client.post(path + "/batches/binary?first_sample_counter=1000&sample_count=1000",
+        content=raw.astype("<f8").tobytes()).status_code == 200
+    started = client.post(path + "/algorithms/rbp", json={
+        "schema_version": "live-analysis-config-v1",
+        "config": {"schema_version": "live-rbp-config-v1", "channels": ["F4-REF", "F3-F4"], "window_s": 4},
+    })
+    assert started.status_code == 201
+    result = wait_api(client, path)
+    assert result["payload"]["channels"] == ["F4-REF", "F3-F4"]
+    assert result["state"] == "ready"
+
+    changed = client.put(path + "/montage", json={
+        "schema_version": "live-montage-v1", "revision": 2,
+        "effective_from_sample_counter": 2000, "fingerprint": "montage-b",
+        "profile": {"DerivedChannels": [
+            {"Name": "F3-REF", "PositiveLabel": "F3", "NegativeLabels": [], "DisplayOrder": 0},
+        ]},
+    })
+    assert changed.status_code == 200
+    assert client.get(path + "/algorithms/rbp").json()["code"] == "LIVE_ALGORITHM_NOT_STARTED"
+    restarted = client.post(path + "/algorithms/rbp", json={
+        "schema_version": "live-analysis-config-v1",
+        "config": {"schema_version": "live-rbp-config-v1", "channels": ["F3-REF"], "window_s": 4},
+    })
+    assert restarted.status_code == 201
+    result = wait_api(client, path)
+    assert (result["start_sample"], result["end_sample"], result["start_s"], result["end_s"]) == (1000, 2000, 0, 4)
+    assert result["payload"]["channels"] == ["F3-REF"]
+    assert result["montage_revision"] == 2
+
+    assert client.post(path + "/batches/binary?first_sample_counter=2000&sample_count=1000",
+        content=raw.astype("<f8").tobytes()).status_code == 200
+    result = wait_api(client, path)
+    assert (result["start_sample"], result["end_sample"], result["start_s"], result["end_s"]) == (2000, 3000, 4, 8)
+
+
+def test_live_montage_switch_calculates_latest_ten_second_window_immediately(live_api):
+    client, path = live_api
+    first_montage = {"DerivedChannels": [
+        {"Name": "F3-F4", "PositiveLabel": "F3", "NegativeLabels": ["F4"], "DisplayOrder": 0},
+    ]}
+    assert client.put(path + "/montage", json={
+        "schema_version": "live-montage-v1", "revision": 1,
+        "effective_from_sample_counter": 0, "fingerprint": "montage-a", "profile": first_montage,
+    }).status_code == 200
+    t = np.arange(23 * 250) / 250
+    raw = np.column_stack((18e-6 * np.sin(2 * np.pi * 10 * t), 16e-6 * np.sin(2 * np.pi * 6 * t)))
+    assert client.post(path + "/batches/binary?first_sample_counter=0&sample_count=5750",
+        content=raw.astype("<f8").tobytes()).status_code == 200
+
+    switched = client.put(path + "/montage", json={
+        "schema_version": "live-montage-v1", "revision": 2,
+        "effective_from_sample_counter": 5750, "fingerprint": "montage-b",
+        "profile": {"DerivedChannels": [
+            {"Name": "F3-REF", "PositiveLabel": "F3", "NegativeLabels": [], "DisplayOrder": 0},
+        ]},
+    })
+    assert switched.status_code == 200
+    started = client.post(path + "/algorithms/rbp", json={
+        "schema_version": "live-analysis-config-v1",
+        "config": {"schema_version": "live-rbp-config-v1", "channels": ["F3-REF"]},
+    })
+    assert started.status_code == 201
+    result = wait_api(client, path)
+    assert (result["start_sample"], result["end_sample"], result["start_s"], result["end_s"]) == (3250, 5750, 13, 23)
+    assert result["payload"]["channels"] == ["F3-REF"]
+
+
+@pytest.mark.parametrize("algorithm,config,code", [
+    ("unknown", {}, "LIVE_ALGORITHM_UNSUPPORTED"),
+    ("rbp", {"channels": ["F3", "f3"]}, "LIVE_CONFIG_INVALID"),
+    ("rbp", {"channels": ["missing"]}, "LIVE_CHANNEL_NOT_FOUND"),
+    ("rbp", {"channels": ["F3"], "window_s": 60}, "LIVE_WINDOW_EXCEEDS_RETENTION"),
+])
+def test_generic_start_failures_are_typed_and_do_not_break_samples(live_api, algorithm, config, code):
+    client, path = live_api
+    response = client.post(path + "/algorithms/" + algorithm, json={"config": config})
+    assert response.status_code == 422 and response.json()["code"] == code
+    assert response.json()["request_id"]
+    assert client.get(path + "/range").status_code == 200
+
+
+def test_generic_commands_reject_wrong_schema_and_closed_sessions(live_api):
+    client, path = live_api
+    assert client.post(path + "/algorithms/rbp", json={"schema_version": "wrong", "config": {}}).status_code == 422
+    client.delete(path)
+    assert client.post(path + "/algorithms/rbp", json={"config": {"channels": ["F3"]}}).json()["code"] == "LIVE_SESSION_NOT_FOUND"
+    assert client.delete(path + "/algorithms/rbp").json()["code"] == "LIVE_SESSION_NOT_FOUND"

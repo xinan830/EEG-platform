@@ -1,0 +1,422 @@
+using System.Reflection;
+using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Algorithms.Api;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Montages.Domain;
+
+namespace BrainPlatform.Desktop.Tests.Algorithms;
+
+internal sealed class OnDemandDetailClient : IAlgorithmClient
+{
+    public List<DynamicWindowRequest> Requests { get; } = [];
+    public Func<DynamicWindowRequest, DynamicWindowResponse> Respond { get; set; } = RbpResponse;
+    public int FullRunCalls { get; private set; }
+    public int Released { get; private set; }
+    public int CancelledRuns { get; private set; }
+    public int GetRunCalls { get; private set; }
+    public int FullWindowPreviewCalls { get; private set; }
+    public int StructuredPreviewCalls { get; private set; }
+    public List<AnalysisRunRequest> FullRunRequests { get; } = [];
+    private AnalysisRunRequest? lastFullRunRequest;
+    public Queue<AnalysisRunResponse> PollResponses { get; } = [];
+    public Func<AnalysisRunRequest, AnalysisRunResponse> RespondFullRun { get; set; } = ThrowFullRun;
+    public Func<string, long, WindowPreviewResponse> RespondFullWindowPreview { get; set; } =
+        (_, sample) => FullPsdWindowPreview(sample);
+    public Func<string, StructuredPreviewResponse> RespondFullStructuredPreview { get; set; } =
+        _ => FullPsdStructuredPreview();
+
+    internal static AlgorithmListViewModel Catalog(OnDemandDetailClient client, string id = "rbp", string unit = "ratio",
+        string primaryChannel = "F3", string secondaryChannel = "F7")
+    {
+        var supportsFullToPreview = id is "psd" or "stft" or "rbp" or "peak_frequency" or "iapf" or "band_ratio" or "theta_beta";
+        var fullToPreviewImplementation = supportsFullToPreview ? "implemented" : "unsupported";
+        var fullToPreviewValidation = supportsFullToPreview ? "validated" : "not_applicable";
+        var capabilityJson = $"{{\"on_demand\":{{\"implementation\":\"implemented\",\"validation\":\"validated\"}},\"combined_preview_background_full\":{{\"implementation\":\"implemented\",\"validation\":\"unvalidated\"}},\"full_result_to_preview\":{{\"implementation\":\"{fullToPreviewImplementation}\",\"validation\":\"{fullToPreviewValidation}\"}}}}";
+        var profile = new HistoricalMontageDescriptor(
+            "fixture-montage", "revision-1", "fingerprint-fixture", "Fixture 导联", true, true, null,
+            [
+                new HistoricalMontageOutput(primaryChannel, primaryChannel, primaryChannel, "V", true, null),
+                new HistoricalMontageOutput(secondaryChannel, secondaryChannel, secondaryChannel, "V", true, null),
+            ]);
+        var selection = new WorkspaceMontageSelection<HistoricalMontageDescriptor>(
+            "recording", profile, [profile]);
+        var catalog = new AlgorithmListViewModel(client, new OperationNotificationCenter(),
+            initialMontageSelection: selection)
+        {
+            SelectedAlgorithm = new AlgorithmCatalogItem("official", id, "fixture-v1", id, id, "", [],
+                ["static", "dynamic"], default, new DynamicAnalysisPolicy(4, [5, 10], 5, 1, true),
+                "available", true, null, null, null, JsonDocument.Parse(capabilityJson).RootElement),
+        };
+        catalog.MontageProfiles.Add(profile);
+        typeof(AlgorithmListViewModel).GetProperty(nameof(AlgorithmListViewModel.RegisteredRecording))!
+            .SetValue(catalog, new RegisteredRecording("recording", "fixture", ".wpf", "2026-10-13T00:00:00Z",
+                200, 30, [primaryChannel, secondaryChannel], "hash"));
+        catalog.SelectedChannel = primaryChannel;
+        catalog.SelectedF4Channel = secondaryChannel;
+        catalog.EndSecondsText = "30";
+        catalog.SelectedAnalysisMode = "动态";
+        catalog.SelectedDynamicExecutionMode = "按需分析";
+        return catalog;
+    }
+
+    internal static Task Run(AlgorithmListViewModel catalog) =>
+        (Task)typeof(AlgorithmListViewModel).GetMethod("RunAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(catalog, null)!;
+
+    internal static DynamicWindowResponse RbpResponse(DynamicWindowRequest request)
+    {
+        var end = request.CursorSample / 200d;
+        var state = end < 4 ? "insufficient_data" : "ready";
+        string[] names = ["delta", "theta", "alpha", "beta", "gamma"];
+        double[] shares = [0.1, 0.1, 0.6, 0.15, 0.05];
+        var arrays = new Dictionary<string, JsonElement>();
+        var units = new Dictionary<string, string>();
+        for (var index = 0; index < names.Length; index++)
+        {
+            arrays[names[index]] = JsonSerializer.SerializeToElement(new[] { shares[index] });
+            arrays[$"{names[index]}_absolute_power"] = JsonSerializer.SerializeToElement(new[] { (index + 1d) * 10 });
+            units[names[index]] = "ratio";
+            units[$"{names[index]}_absolute_power"] = "uV^2";
+        }
+        var result = new DynamicWindowResultResponse(null, state, "algorithm_group",
+            new Dictionary<string, JsonElement> {
+                ["time_s"] = JsonSerializer.SerializeToElement(new[] { end }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new[] { 0d }) },
+            new Dictionary<string, string> { ["time_s"] = "s", ["channel_index"] = "index" },
+            arrays, units, "clean", null,
+            JsonSerializer.SerializeToElement(new { extensions = new { channel_order = new { channels = new[] { request.Config.TryGetProperty("channel", out var selected) ? selected.GetString() : "F3" } }, channel_failures = new { by_channel = new { } } } }),
+            JsonSerializer.SerializeToElement(new { analysis_state = "Partial" }));
+        return new DynamicWindowResponse("session", $"window-{request.CursorSample}", request.RequestId!, state,
+            JsonSerializer.SerializeToElement(new { recording_id = request.RecordingId }), null,
+            new DynamicWindowRange(Math.Max(0, request.CursorSample - 1000), request.CursorSample, Math.Max(0, end - 5), end),
+            state == "ready" ? "clean" : "insufficient_data",
+            state == "ready" ? null : new DynamicWindowFailure("RBP_WINDOW_INSUFFICIENT_DATA", "数据不足", null),
+            state == "ready" ? result : null, "subscription");
+    }
+
+    public Task<DynamicWindowResponse> EnsureDynamicWindowAsync(DynamicWindowRequest request, CancellationToken token)
+    {
+        Requests.Add(request);
+        return Task.FromResult(Respond(request));
+    }
+    public Task<DynamicSubscriptionResponse> CancelDynamicSubscriptionAsync(string id, string? project, CancellationToken token)
+    {
+        Released++;
+        return Task.FromResult(new DynamicSubscriptionResponse(id, "window", "request", project, "cancelled"));
+    }
+    public Task<AnalysisRunResponse> CreateRunAsync(AnalysisRunRequest request, CancellationToken token)
+    {
+        FullRunCalls++;
+        FullRunRequests.Add(request);
+        lastFullRunRequest = request;
+        return Task.FromResult(WithMontageProvenance(RespondFullRun(request), request));
+    }
+    public Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken token) => throw new NotSupportedException();
+    public Task<AnalysisRunResponse> GetRunAsync(string id, CancellationToken token)
+    {
+        GetRunCalls++;
+        if (PollResponses.TryDequeue(out var response))
+            return Task.FromResult(lastFullRunRequest is { } request
+                ? WithMontageProvenance(response, request)
+                : response);
+        throw new NotSupportedException();
+    }
+
+    private static AnalysisRunResponse WithMontageProvenance(AnalysisRunResponse response, AnalysisRunRequest request)
+    {
+        if (response.Status != "completed" ||
+            !request.Config.TryGetProperty("analysis_montage_id", out var id) ||
+            id.ValueKind != JsonValueKind.String)
+            return response;
+
+        var provenance = JsonSerializer.SerializeToElement(new
+        {
+            channel_mapping = new
+            {
+                analysis_montage = new
+                {
+                    id = id.GetString(),
+                    revision = request.Config.GetProperty("analysis_montage_revision").GetString(),
+                    fingerprint = request.Config.GetProperty("analysis_montage_fingerprint").GetString(),
+                },
+            },
+        });
+        return response with { AnalysisProvenance = provenance };
+    }
+    public Task<AnalysisRunResponse> CancelRunAsync(string id, CancellationToken token)
+    {
+        CancelledRuns++;
+        return Task.FromResult(new AnalysisRunResponse(
+            id, "recording", "official_algorithm", "cancelled", "fixture-v1", null, null,
+            null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 2, 10,
+            "analysis", "已取消"));
+    }
+    public Task<IReadOnlyList<RunArtifact>> ListArtifactsAsync(string id, CancellationToken token) => throw new NotSupportedException();
+    public Task<StructuredPreviewResponse> GetStructuredPreviewAsync(string id, int cells, CancellationToken token)
+    {
+        StructuredPreviewCalls++;
+        return Task.FromResult(RespondFullStructuredPreview(id));
+    }
+    public Task<WindowPreviewResponse> GetWindowPreviewAsync(
+        string id, long? cursorSample, double? cursorSeconds, CancellationToken token)
+    {
+        FullWindowPreviewCalls++;
+        var sample = cursorSample ?? checked((long)Math.Round(cursorSeconds!.Value * 200));
+        return Task.FromResult(RespondFullWindowPreview(id, sample));
+    }
+
+    internal static DynamicWindowResponse PsdResponse(DynamicWindowRequest request)
+    {
+        var end = request.CursorSample / 200d;
+        var frequencies = JsonSerializer.SerializeToElement(new[] { 1d, 2d, 3d });
+        var channels = request.Config.TryGetProperty("channels", out var configuredChannels) && configuredChannels.ValueKind == JsonValueKind.Array
+            ? configuredChannels.GetArrayLength()
+            : 1;
+        var values = JsonSerializer.SerializeToElement(Enumerable.Range(0, channels).Select(_ => new[] { 1d, 2d, 1d }).ToArray());
+        var result = new DynamicWindowResultResponse(
+            JsonSerializer.SerializeToElement(new { recording_id = request.RecordingId }),
+            "ready", "frequency_series",
+            new Dictionary<string, JsonElement> { ["frequency_hz"] = frequencies },
+            new Dictionary<string, string> { ["frequency_hz"] = "Hz" },
+            new Dictionary<string, JsonElement> { ["psd"] = values,
+                ["band_share"] = JsonSerializer.SerializeToElement(Enumerable.Range(0, channels)
+                    .Select(_ => new[] { 0.2, 0.2, 0.2, 0.2, 0.2 }).ToArray()) },
+            new Dictionary<string, string> { ["psd"] = "V^2/Hz", ["band_share"] = "ratio" },
+            "clean", null, null, null);
+        return new DynamicWindowResponse(
+            "session", $"window-{request.CursorSample}", request.RequestId!, "ready",
+            JsonSerializer.SerializeToElement(new { recording_id = request.RecordingId }), null,
+            new DynamicWindowRange(Math.Max(0, request.CursorSample - 1000), request.CursorSample,
+                Math.Max(0, end - 5), end), "clean", null, result, "subscription",
+            JsonSerializer.Serialize(new
+            {
+                scientific_configuration_contract = "scientific-config-v1",
+                config = request.Config,
+                context = new { },
+            }));
+    }
+
+    internal static DynamicWindowResponse StftResponse(DynamicWindowRequest request)
+    {
+        var end = request.CursorSample / 200d;
+        if (end < 4)
+            return new DynamicWindowResponse(
+                "session", $"window-{request.CursorSample}", request.RequestId!, "insufficient_data",
+                JsonSerializer.SerializeToElement(new { recording_id = request.RecordingId }), null,
+                new DynamicWindowRange(0, request.CursorSample, 0, end), "insufficient_data",
+                new DynamicWindowFailure("STFT_WINDOW_INSUFFICIENT_DATA", "数据不足"), null, "subscription");
+        var result = new DynamicWindowResultResponse(
+            JsonSerializer.SerializeToElement(new { recording_id = request.RecordingId }), "ready", "time_frequency",
+            new Dictionary<string, JsonElement>
+            {
+                ["time_center_s"] = JsonSerializer.SerializeToElement(new[] { 2d, 3d }),
+                ["frequency_hz"] = JsonSerializer.SerializeToElement(new[] { 10d, 11d }),
+            },
+            new Dictionary<string, string> { ["time_center_s"] = "s", ["frequency_hz"] = "Hz" },
+            new Dictionary<string, JsonElement>
+            {
+                ["power_linear"] = JsonSerializer.SerializeToElement(new[] { new[] { 1e-12, 2e-12 }, new[] { 2e-12, 3e-12 } }),
+                ["power_db"] = JsonSerializer.SerializeToElement(new[] { new[] { 1d, 2d }, new[] { 2d, 3d } }),
+            },
+            new Dictionary<string, string> { ["power_linear"] = "V^2/Hz", ["power_db"] = "dB re 1 uV^2/Hz" },
+            "clean", null, null,
+            JsonSerializer.SerializeToElement(new
+            {
+                preprocessing_scope = "bounded_window_with_finite_context",
+                inner_time_axis = "relative_window_time_center_s",
+                analysis_state = "Complete",
+            }));
+        return new DynamicWindowResponse(
+            "session", $"window-{request.CursorSample}", request.RequestId!, "ready",
+            JsonSerializer.SerializeToElement(new { recording_id = request.RecordingId }), null,
+            new DynamicWindowRange(request.CursorSample - 1000, request.CursorSample, end - 5, end),
+            "clean", null, result, "subscription");
+    }
+
+    internal static WindowPreviewResponse FullPsdWindowPreview(long sample) =>
+        FullPsdWindowPreview(sample, Math.Max(0, sample - 1000), Math.Max(1, sample));
+
+    private static WindowPreviewResponse FullPsdWindowPreview(long sample, long startSample, long endSample) =>
+        new(
+            "full-run-1", "recording", sample, sample / 200d, "available", [],
+            new WindowPreviewWindow("full-window-1", 0, startSample, endSample, "Complete", "valid", []),
+            false, JsonSerializer.SerializeToElement(new { kind = "frequency_series" }),
+            JsonSerializer.SerializeToElement("clean"),
+            new Dictionary<string, JsonElement>
+            {
+                ["axis_frequency_hz"] = JsonSerializer.SerializeToElement(new[] { 1d, 2d, 3d }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["frequency_hz"] = JsonSerializer.SerializeToElement(new { array_key = "axis_frequency_hz", unit = "Hz" }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["psd"] = JsonSerializer.SerializeToElement(new[] { new[] { 9d, 8d, 7d } }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["psd"] = JsonSerializer.SerializeToElement(new { unit = "V^2/Hz" }),
+            },
+            "fixture-v1", "fixture-v1");
+
+    internal static StructuredPreviewResponse FullPsdStructuredPreview(int windowCount = 1) =>
+        new(
+            "full-run-1",
+            new RunArtifact("artifact", "full-run-1", "official_algorithm", "artifact.npz",
+                "application/npz", 1, "sha256", "V^2/Hz",
+                new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+            JsonSerializer.SerializeToElement(new { kind = "frequency_series" }),
+            ["F3"],
+            new TimeRange(0, windowCount * 5),
+            new TimeRange(0, windowCount * 5),
+            new Dictionary<string, JsonElement>
+            {
+                ["frequency_hz"] = JsonSerializer.SerializeToElement(new[] { 1d, 2d, 3d }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["frequency_hz"] = JsonSerializer.SerializeToElement(new { unit = "Hz" }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["psd"] = JsonSerializer.SerializeToElement(
+                    Enumerable.Range(0, windowCount)
+                        .Select(_ => new[] { new[] { 9d, 8d, 7d } }).ToArray()),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["psd"] = JsonSerializer.SerializeToElement(new { unit = "V^2/Hz" }),
+            },
+            Enumerable.Range(0, windowCount).Select(index => JsonSerializer.SerializeToElement(new
+            {
+                window_id = $"full-window-{index}", window_index = index,
+                start_sample = index * 1000, end_sample = (index + 1) * 1000,
+                state = "Complete", quality = "clean",
+            })).ToArray(),
+            new Dictionary<string, int> { ["Complete"] = windowCount },
+            JsonSerializer.SerializeToElement("clean"), "fixture-v1", "fixture-v1");
+
+    internal static StructuredPreviewResponse FullStftStructuredPreview() =>
+        new(
+            "full-run-1",
+            new RunArtifact("artifact", "full-run-1", "official_algorithm", "artifact.npz",
+                "application/npz", 1, "sha256", "V^2/Hz",
+                new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+            JsonSerializer.SerializeToElement(new { kind = "time_frequency" }),
+            ["F3"],
+            new TimeRange(0, 30),
+            new TimeRange(0, 30),
+            new Dictionary<string, JsonElement>
+            {
+                ["time_center_s"] = JsonSerializer.SerializeToElement(new[] { 2d, 3d }),
+                ["frequency_hz"] = JsonSerializer.SerializeToElement(new[] { 10d, 11d }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["time_center_s"] = JsonSerializer.SerializeToElement(new { unit = "s" }),
+                ["frequency_hz"] = JsonSerializer.SerializeToElement(new { unit = "Hz" }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["power_linear"] = JsonSerializer.SerializeToElement(new[]
+                {
+                    new[] { new[] { 1e-12, 2e-12 }, new[] { 2e-12, 3e-12 } },
+                    new[] { new[] { 2e-12, 3e-12 }, new[] { 3e-12, 4e-12 } },
+                    new[] { new[] { 3e-12, 4e-12 }, new[] { 4e-12, 5e-12 } },
+                }),
+                ["power_db"] = JsonSerializer.SerializeToElement(new[]
+                {
+                    new[] { new[] { 1d, 2d }, new[] { 2d, 3d } },
+                    new[] { new[] { 2d, 3d }, new[] { 3d, 4d } },
+                    new[] { new[] { 3d, 4d }, new[] { 4d, 5d } },
+                }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["power_linear"] = JsonSerializer.SerializeToElement(new { unit = "V^2/Hz" }),
+                ["power_db"] = JsonSerializer.SerializeToElement(new { unit = "dB re 1 uV^2/Hz" }),
+            },
+            [
+                JsonSerializer.SerializeToElement(new
+                {
+                    window_id = "full-window-0", window_index = 0, start_sample = 0,
+                    end_sample = 1000, start_s = 0d, end_s = 5d, state = "Complete", quality = "clean",
+                    provenance = new
+                    {
+                        preprocessing_scope = "bounded_window_with_finite_context",
+                        inner_time_axis = "relative_window_time_center_s", analysis_state = "Complete",
+                    },
+                }),
+                JsonSerializer.SerializeToElement(new
+                {
+                    window_id = "full-window-1", window_index = 1, start_sample = 1000,
+                    end_sample = 2000, start_s = 5d, end_s = 10d, state = "Complete", quality = "clean",
+                    provenance = new
+                    {
+                        preprocessing_scope = "bounded_window_with_finite_context",
+                        inner_time_axis = "relative_window_time_center_s", analysis_state = "Complete",
+                    },
+                }),
+                JsonSerializer.SerializeToElement(new
+                {
+                    window_id = "full-window-2", window_index = 2, start_sample = 2000,
+                    end_sample = 3000, start_s = 10d, end_s = 15d, state = "Complete", quality = "clean",
+                    provenance = new
+                    {
+                        preprocessing_scope = "bounded_window_with_finite_context",
+                        inner_time_axis = "relative_window_time_center_s", analysis_state = "Complete",
+                    },
+                }),
+            ],
+            new Dictionary<string, int> { ["Complete"] = 3 },
+            JsonSerializer.SerializeToElement("clean"), "fixture-v1", "fixture-v1");
+
+    internal static StructuredPreviewResponse FullRbpStructuredPreview() =>
+        new(
+            "full-run-1",
+            new RunArtifact("artifact", "full-run-1", "official_algorithm", "artifact.npz",
+                "application/npz", 1, "sha256", "ratio", new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+            JsonSerializer.SerializeToElement(new { kind = "algorithm_group", algorithm_id = "rbp" }),
+            ["F3", "F7"], new TimeRange(0, 30), new TimeRange(0, 30),
+            new Dictionary<string, JsonElement>
+            {
+                ["time_s"] = JsonSerializer.SerializeToElement(new[] { 5d, 10d, 15d }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new[] { 0d, 1d }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["time_s"] = JsonSerializer.SerializeToElement(new { unit = "s" }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new { unit = "index" }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["delta"] = JsonSerializer.SerializeToElement(new[] { new[] { .1, .2 }, new[] { .1, .2 }, new[] { .1, .2 } }),
+                ["theta"] = JsonSerializer.SerializeToElement(new[] { new[] { .1, .1 }, new[] { .1, .1 }, new[] { .1, .1 } }),
+                ["alpha"] = JsonSerializer.SerializeToElement(new[] { new[] { .6, .5 }, new[] { .6, .5 }, new[] { .6, .5 } }),
+                ["beta"] = JsonSerializer.SerializeToElement(new[] { new[] { .15, .15 }, new[] { .15, .15 }, new[] { .15, .15 } }),
+                ["gamma"] = JsonSerializer.SerializeToElement(new[] { new[] { .05, .05 }, new[] { .05, .05 }, new[] { .05, .05 } }),
+            },
+            new Dictionary<string, JsonElement>
+            {
+                ["delta"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+                ["theta"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+                ["alpha"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+                ["beta"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+                ["gamma"] = JsonSerializer.SerializeToElement(new { unit = "ratio" }),
+            },
+            Enumerable.Range(0, 3).Select(index => JsonSerializer.SerializeToElement(new
+            {
+                window_id = $"full-window-{index}", window_index = index, start_sample = index * 1000L,
+                end_sample = (index + 1) * 1000L, start_s = index * 5d, end_s = (index + 1) * 5d,
+                state = "Complete", quality = "clean",
+            })).ToArray(),
+            new Dictionary<string, int> { ["Complete"] = 3 }, JsonSerializer.SerializeToElement("clean"),
+            "official-rbp-v4", "rbp-runtime-v5-channel-quality");
+
+    private static AnalysisRunResponse CompletedFullRun(AnalysisRunRequest request) => new(
+        "full-run-1", request.RecordingId, request.AnalysisType, "completed", "fixture-v1", null, null,
+        null, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, 10, 10, "completed", "已完成");
+
+    private static AnalysisRunResponse ThrowFullRun(AnalysisRunRequest request) => throw new NotSupportedException();
+}

@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "xtASF9rUCRo=",
+  "success": true,
+  "projectFilePath": "D:\\AI\\EEG-platform\\desktop-client\\BrainPlatform.Desktop\\BrainPlatform.Desktop.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\xda\\.nuget\\packages\\scichart\\9.1.0.29201\\scichart.9.1.0.29201.nupkg.sha512"
+  ],
+  "logs": []
+}

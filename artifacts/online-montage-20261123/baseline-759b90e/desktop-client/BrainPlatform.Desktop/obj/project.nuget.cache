@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "9pb86iKS6BU=",
+  "success": true,
+  "projectFilePath": "D:\\AI\\EEG-platform\\artifacts\\online-montage-20261123\\baseline-759b90e\\desktop-client\\BrainPlatform.Desktop\\BrainPlatform.Desktop.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\xda\\.nuget\\packages\\scichart\\9.1.0.29201\\scichart.9.1.0.29201.nupkg.sha512"
+  ],
+  "logs": []
+}

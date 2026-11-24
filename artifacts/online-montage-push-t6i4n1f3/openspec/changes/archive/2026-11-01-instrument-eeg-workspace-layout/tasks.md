@@ -1,0 +1,6 @@
+- [x] Record the approved scope, boundaries and rollback.
+- [x] Add shared instrument resources and caption menu presentation.
+- [x] Recompose acquisition and review without changing commands or parameters.
+- [x] Add focused presentation and binding tests.
+- [x] Run targeted regression tests, Release build, strict spec and size checks.
+- [x] Record validation and native acceptance limitations.

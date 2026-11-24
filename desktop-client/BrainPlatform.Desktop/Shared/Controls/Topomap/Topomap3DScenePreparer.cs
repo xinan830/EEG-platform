@@ -115,21 +115,22 @@ internal static class Topomap3DScenePreparer
         if (vertices.Length == 0 || faces.Count == 0) throw new InvalidDataException("三维模型缺少网格几何。");
         var geometry = GetSceneGeometry(model, vertices, faces, cancellationToken);
 
-        var rawValuesByLabel = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var rawValuesByLabel = new Dictionary<string, (double Value, string DisplayLabel)>(StringComparer.OrdinalIgnoreCase);
         foreach (var point in field.Points)
         {
             if (point.Value is not { } val || !double.IsFinite(val)) continue;
             if (!string.IsNullOrWhiteSpace(point.Status) &&
+                !string.Equals(point.Status, "included", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(point.Status, "ok", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(point.Status, "valid", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(point.ElectrodeLabel))
-                rawValuesByLabel[point.ElectrodeLabel.Trim()] = val;
-            if (!string.IsNullOrWhiteSpace(point.Channel))
-                rawValuesByLabel[point.Channel.Trim()] = val;
+            foreach (var candidate in CandidateSiteNames(point))
+            {
+                rawValuesByLabel.TryAdd(candidate, (val, candidate));
+            }
         }
 
         var markerRadius = ElectrodeMarkerRadiusFactor * geometry.Scale;
@@ -144,15 +145,9 @@ internal static class Topomap3DScenePreparer
         {
             cancellationToken.ThrowIfCancellationRequested();
             var site = group.First();
-            var value = rawValuesByLabel.TryGetValue(site.Channel, out var direct)
+            var (value, displayLabel) = rawValuesByLabel.TryGetValue(site.Channel, out var direct)
                 ? direct
                 : rawValuesByLabel[site.CanonicalChannel];
-            var displayLabel = field.Points.FirstOrDefault(p =>
-                string.Equals(p.ElectrodeLabel?.Trim(), site.Channel, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(p.ElectrodeLabel?.Trim(), site.CanonicalChannel, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(p.Channel?.Trim(), site.Channel, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(p.Channel?.Trim(), site.CanonicalChannel, StringComparison.OrdinalIgnoreCase))?.ElectrodeLabel?.Trim()
-                ?? site.Channel;
 
             var rawCenter = MapElectrodePosition(site.CoordinateGnm, model, geometry);
             var outward = new Vector3D(rawCenter.X, rawCenter.Y, rawCenter.Z);
@@ -162,11 +157,8 @@ internal static class Topomap3DScenePreparer
             var marker = new Topomap3DElectrodeMarker(displayLabel, site.CanonicalChannel, surfaceCenter, outward, markerRadius);
             AddSphere(markerMesh, surfaceCenter, markerRadius);
             allMarkers.Add(marker);
-            if (site.IsScalpFieldSite)
-            {
-                scalpMarkers.Add(marker);
-                matchedValues.Add((marker, value));
-            }
+            scalpMarkers.Add(marker);
+            matchedValues.Add((marker, value));
         }
 
         var (scaleMin, scaleMax) = ResolveFieldScaleBounds(field, matchedValues.Select(item => item.Value).ToArray(), colorScaleState);
@@ -201,6 +193,28 @@ internal static class Topomap3DScenePreparer
 
         scene.Freeze();
         return new Topomap3DSceneData(scene, allMarkers, scaleMin, scaleMax);
+    }
+
+    private static IEnumerable<string> CandidateSiteNames(TopomapPoint point)
+    {
+        foreach (var raw in new[] { point.ElectrodeLabel, point.Channel })
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            var trimmed = raw.Trim();
+            yield return trimmed;
+            if (trimmed.StartsWith("EEG ", StringComparison.OrdinalIgnoreCase))
+            {
+                trimmed = trimmed[4..].Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed)) yield return trimmed;
+            }
+
+            var dashIndex = trimmed.IndexOf('-');
+            if (dashIndex > 0)
+            {
+                var positive = trimmed[..dashIndex].Trim();
+                if (!string.IsNullOrWhiteSpace(positive)) yield return positive;
+            }
+        }
     }
 
     private static (double Minimum, double Maximum) ResolveFieldScaleBounds(

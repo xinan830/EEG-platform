@@ -593,7 +593,12 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         IsPreparationStartInProgress = true;
         try
         {
+            var resumeFrozenDisplay = LiveMonitor.IsDisplayFrozen;
             await StartPreviewCoreAsync();
+            if (resumeFrozenDisplay)
+                LiveMonitor.ResumePreviewDisplay();
+            else
+                LiveMonitor.ClearPreviewDisplayContinuity();
         }
         finally
         {
@@ -1121,6 +1126,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         RaisePropertyChanged(nameof(CanTestConnection));
         RaisePropertyChanged(nameof(CanStart));
         RaisePropertyChanged(nameof(CanStartRecording));
+        RaisePropertyChanged(nameof(CanStartImpedance));
         RaisePropertyChanged(nameof(CanSwitchLiveDisplayMontage));
         RaisePropertyChanged(nameof(CanStop));
         RaisePropertyChanged(nameof(CanPause));

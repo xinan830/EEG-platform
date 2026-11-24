@@ -9,16 +9,18 @@ public partial class AcquisitionImpedanceWindow : Window
     private readonly ConfiguredAcquisitionRuntime runtime;
     private readonly Func<Task> startPreview;
     private readonly OperationNotificationCenter? notifications;
+    private readonly bool resumePreviewOnClose;
     private Task? closingTask;
     private bool closeApproved;
     private bool stopping;
     public AcquisitionImpedanceWindow(AcquisitionImpedanceViewModel model, ConfiguredAcquisitionRuntime runtime,
-        Func<Task> startPreview, OperationNotificationCenter? notifications)
+        Func<Task> startPreview, OperationNotificationCenter? notifications, bool resumePreviewOnClose = false)
     {
         this.model = model;
         this.runtime = runtime;
         this.startPreview = startPreview;
         this.notifications = notifications;
+        this.resumePreviewOnClose = resumePreviewOnClose;
         InitializeComponent();
         DataContext = model;
         Closed += (_, _) => model.Dispose();
@@ -27,10 +29,18 @@ public partial class AcquisitionImpedanceWindow : Window
     {
         if (closeApproved) return;
         args.Cancel = true;
-        Dispatcher.BeginInvoke(() => _ = StopSafelyAsync(false));
+        Dispatcher.BeginInvoke(() => _ = StopSafelyAsync(resumePreviewOnClose));
     }
     private async void OnStopClick(object sender, RoutedEventArgs args) => await StopSafelyAsync(false);
     private async void OnPreviewClick(object sender, RoutedEventArgs args) => await StopSafelyAsync(true);
+    private void OnRangePresetClick(object sender, RoutedEventArgs args)
+    {
+        if (sender is FrameworkElement { Tag: string text } &&
+            double.TryParse(text, System.Globalization.CultureInfo.InvariantCulture, out var kiloOhms))
+        {
+            model.ColorScaleMaximumKiloOhms = kiloOhms;
+        }
+    }
     private async Task StopSafelyAsync(bool preview)
     {
         if (stopping) return;

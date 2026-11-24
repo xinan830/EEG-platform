@@ -1,0 +1,118 @@
+"""Traceable analysis run resources."""
+
+import logging
+
+from fastapi import APIRouter, Query, Request, status
+from fastapi.responses import JSONResponse
+
+from app.core.api_contract import error_response
+from app.models.run import RunCreateRequest
+from app.models.run_read import AnalysisRunRead
+from app.services.analysis_provenance import serialize_analysis_run
+from app.services.runs import RunConflictError, RunService
+
+
+router = APIRouter(prefix="/api/runs", tags=["runs"])
+logger = logging.getLogger("brain_platform.api.runs")
+
+
+def _service(request: Request) -> RunService:
+    return request.app.state.run_service
+
+
+@router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=AnalysisRunRead, response_model_exclude_unset=True)
+def create_run(payload: RunCreateRequest, request: Request):
+    try:
+        service = _service(request)
+        run = service.enqueue(payload) if hasattr(service, "enqueue") else service.create(payload)
+        worker = getattr(request.app.state, "run_worker", None)
+        if worker is not None:
+            worker.wake()
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "RUN_REQUEST_INVALID", str(exc))
+    request.app.state.audit_service.record(
+        "run.create", str(getattr(request.state, "request_id", "unknown")),
+        recording_id=run.recording_id,
+        parameters={"run_id": run.run_id, "analysis_type": run.analysis_type, "status": run.status.value},
+    )
+    logger.info(
+        "run_created request_id=%s run_id=%s recording_id=%s analysis_type=%s status=%s",
+        getattr(request.state, "request_id", "unknown"), run.run_id, run.recording_id, run.analysis_type, run.status.value,
+    )
+    return serialize_analysis_run(run)
+
+
+@router.post("/ensure", status_code=status.HTTP_202_ACCEPTED, response_model=AnalysisRunRead, response_model_exclude_unset=True)
+def ensure_run(payload: RunCreateRequest, request: Request):
+    """Return a matching completed/in-flight Run or enqueue exactly one new Run."""
+    try:
+        service = _service(request)
+        if hasattr(service, "enqueue"):
+            run = service.enqueue(payload, reuse_completed=True)
+        elif hasattr(service, "create"):
+            # Synchronous legacy service keeps its existing cache-alias behavior.
+            run = service.create(payload)
+        else:
+            return error_response(request, 409, "RUN_ENSURE_UNAVAILABLE", "当前运行服务不支持结果复用")
+        worker = getattr(request.app.state, "run_worker", None)
+        if worker is not None and run.status.value == "queued":
+            worker.wake()
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "RUN_REQUEST_INVALID", str(exc))
+    logger.info(
+        "run_ensured request_id=%s run_id=%s recording_id=%s analysis_type=%s status=%s",
+        getattr(request.state, "request_id", "unknown"), run.run_id, run.recording_id, run.analysis_type, run.status.value,
+    )
+    return serialize_analysis_run(run)
+
+
+@router.get("", response_model=list[AnalysisRunRead], response_model_exclude_unset=True)
+def list_runs(request: Request, recording_id: str | None = None, limit: int = Query(100, ge=1, le=1000)):
+    return [serialize_analysis_run(item) for item in _service(request).list(recording_id, limit)]
+
+
+@router.get("/{run_id}", response_model=AnalysisRunRead, response_model_exclude_unset=True)
+def get_run(run_id: str, request: Request):
+    try:
+        return serialize_analysis_run(_service(request).get(run_id))
+    except KeyError:
+        return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
+
+
+@router.post("/{run_id}/cancel")
+def cancel_run(run_id: str, request: Request):
+    try:
+        return serialize_analysis_run(_service(request).cancel(run_id))
+    except KeyError:
+        return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
+    except (RunConflictError, ValueError) as exc:
+        return error_response(request, 409, "RUN_NOT_CANCELLABLE", str(exc))
+
+
+@router.post("/{run_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+def retry_run(run_id: str, request: Request):
+    try:
+        service = _service(request)
+        if not hasattr(service, "retry"):
+            return error_response(request, 409, "RUN_RETRY_UNAVAILABLE", "当前运行服务不支持队列重试")
+        run = service.retry(run_id)
+        worker = getattr(request.app.state, "run_worker", None)
+        if worker is not None:
+            worker.wake()
+        return serialize_analysis_run(run)
+    except KeyError:
+        return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")
+    except ValueError as exc:
+        return error_response(request, 409, "RUN_NOT_RETRYABLE", str(exc))
+
+
+@router.get("/{run_id}/artifacts")
+def list_run_artifacts(run_id: str, request: Request):
+    try:
+        return [item.model_dump(mode="json") for item in _service(request).list_artifacts(run_id)]
+    except KeyError:
+        return error_response(request, 404, "RUN_NOT_FOUND", "分析运行不存在")

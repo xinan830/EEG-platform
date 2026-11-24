@@ -1,0 +1,30 @@
+# 按需动态能力与验证入口
+
+更新日期：2026-11-09（澄清客户端范围及冻结矩阵覆盖）。本文提供单窗边界和证据导航；完整三策略/双方向矩阵统一维护在[官方算法管理基线](official-algorithm-management.md)，历史机读快照见[冻结策略矩阵](../validation/official-algorithm-strategy-matrix.json)，当前声明以 manifest 为准。
+
+10 个独立算法 ID 都有完整动态 Run 与按需单窗能力；TNK 指标组作为第 11 个公共目录项也支持相应动态工作流。WPF 算法工作区提供全量、按需或组合选择；这不代表 Review 覆盖全部 ID，Review 当前注册 9 个，未注册 Band Ratio 与 Peak Frequency，见[客户端接入状态表](review-adapter-onboarding.md)。模块声明窗口能力，公共服务协调；不能从 supported_modes 自动推断单窗实现或复用能力。
+
+| 模块 | 单窗输入及专属规则 | Full→preview | On-demand→full |
+| --- | --- | --- | --- |
+| PSD | Welch、连续预处理、明确样本窗与谱质量门 | 支持 | 支持 |
+| STFT | 独立时频轴/内部行、连续预处理、拒绝伪造行 | 支持 | 支持 |
+| RBP | 固定预处理、五频带及分母 | 支持 | 不支持 |
+| Band Ratio | 分子/分母功率、正分母门 | 支持 | 不支持 |
+| Peak Frequency | 声明频段与频率网格 | 支持 | 不支持 |
+| IAPF | 峰/COG、残差与失败证据 | 支持 | 不支持 |
+| Theta/Beta | IAPF 驱动频段及功率 | 支持 | 不支持 |
+| FAA | F3/F4 paired-epoch 与连续处理范围 | 不支持 | 不支持 |
+| Brainbeat / BrainBeat Individualized | Fz/Pz 成对频谱；经典固定绝对功率比不依赖 IAPF，个体化版本独立逐窗估计 IAPF；均无跨窗 EMA | 不支持 | 不支持 |
+| TNK 指标组 | 五角色映射；组内按子模块窗口和状态执行 | 不支持 | 不支持 |
+
+冻结策略矩阵记录九个原有独立算法及 TNK 组的当时声明，不含个体化 BrainBeat；新增个体化 BrainBeat 的 on-demand/combined 行为有独立的后端数值对照与 WPF 请求契约测试，但不改写旧冻结基线。TNK 指标组的 full、on-demand 和 combined 路径已实现但尚未验证，不能视为已验收。上表不支持的反向复用方向仍不提供。不能据此宣称所有真实记录和配置均验证过。最小窗口、Partial、尾窗、角色与滤波以各模块动态策略和 config 为准。
+
+## 当前证据
+
+- [组合策略专项报告](../validation/2026-10-21-official-combined-strategies.md)：九算法队列/窗口服务的合成对照、范围、状态、质量、provenance 和取消隔离。
+- `backend/tests/test_official_directional_reuse.py`：PSD/STFT 逆向复用与损坏证据重算。
+- [当前结果格式验证](../validation/current-algorithm-result-contract-validation.md)：完整结果与窗口消费者。
+- [2026-10-15 人工验收](../validation/2026-10-15-offline-modes-wpf-acceptance.md)：仅代表该日期记录的 GUI 范围。
+- [验证索引](../validation/README.md)：各阶段报告、独立参考及真实记录证据。
+
+新增算法需要逐路径声明 implemented/validated/unsupported，并提供自己的证据。共享服务存在不自动使新算法的组合模式或复用变为 validated。

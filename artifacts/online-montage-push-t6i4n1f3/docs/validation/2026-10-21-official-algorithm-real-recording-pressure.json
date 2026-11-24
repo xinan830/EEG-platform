@@ -1,0 +1,554 @@
+{
+  "runs": [
+    {
+      "algorithm": "band_ratio",
+      "mode": "static",
+      "elapsed_s": 2.4838,
+      "status": "completed",
+      "processed_windows": 1,
+      "total_windows": 1,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "official-band-ratio-v1",
+      "per_window_ms": null,
+      "progress_write_ms": null,
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": null,
+      "preview_seed_state": null,
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "band_ratio",
+      "mode": "dynamic",
+      "elapsed_s": 4.7012,
+      "status": "completed",
+      "processed_windows": 146,
+      "total_windows": 146,
+      "artifact_verified": true,
+      "window_states": {
+        "Partial": 1,
+        "Complete": 145
+      },
+      "scientific_version": "official-band-ratio-v1",
+      "per_window_ms": {
+        "p50": 19.761,
+        "p95": 29.944,
+        "max": 57.492,
+        "count": 146
+      },
+      "progress_write_ms": {
+        "p50": 10.574,
+        "p95": 12.62,
+        "max": 48.205,
+        "count": 146
+      },
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": 0.1211,
+      "preview_seed_state": "ready",
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "brainbeat",
+      "mode": "static",
+      "elapsed_s": 0.1787,
+      "status": "completed",
+      "processed_windows": 1,
+      "total_windows": 1,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "official-brainbeat-v1",
+      "per_window_ms": null,
+      "progress_write_ms": null,
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": null,
+      "preview_seed_state": null,
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "brainbeat",
+      "mode": "dynamic",
+      "elapsed_s": 7.1622,
+      "status": "completed",
+      "processed_windows": 146,
+      "total_windows": 146,
+      "artifact_verified": true,
+      "window_states": {
+        "Complete": 144,
+        "Rejected": 2
+      },
+      "scientific_version": "official-brainbeat-v1",
+      "per_window_ms": {
+        "p50": 28.081,
+        "p95": 41.658,
+        "max": 86.773,
+        "count": 146
+      },
+      "progress_write_ms": {
+        "p50": 14.518,
+        "p95": 18.841,
+        "max": 72.886,
+        "count": 146
+      },
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": 0.1594,
+      "preview_seed_state": "rejected",
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "faa",
+      "mode": "static",
+      "elapsed_s": 4.7055,
+      "status": "completed",
+      "processed_windows": 1,
+      "total_windows": 1,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "official-faa-v2",
+      "per_window_ms": null,
+      "progress_write_ms": null,
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": null,
+      "preview_seed_state": null,
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "faa",
+      "mode": "dynamic",
+      "elapsed_s": 5.9932,
+      "status": "completed",
+      "processed_windows": 130,
+      "total_windows": 130,
+      "artifact_verified": true,
+      "window_states": {
+        "Complete": 130
+      },
+      "scientific_version": "official-faa-v2",
+      "per_window_ms": {
+        "p50": 15.963,
+        "p95": 21.709,
+        "max": 2890.054,
+        "count": 130
+      },
+      "progress_write_ms": {
+        "p50": 8.89,
+        "p95": 11.814,
+        "max": 37.816,
+        "count": 130
+      },
+      "faa_frame_compute_ms": {
+        "p50": 1.924,
+        "p95": 2.455,
+        "max": 2852.035,
+        "count": 130
+      },
+      "faa_frame_outliers": [
+        {
+          "window_index": 0,
+          "compute_ms": 2852.035
+        }
+      ],
+      "preview_seed_elapsed_s": 3.0539,
+      "preview_seed_state": "ready",
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "iapf",
+      "mode": "static",
+      "elapsed_s": 0.1063,
+      "status": "completed",
+      "processed_windows": 1,
+      "total_windows": 1,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "official-iapf-v2",
+      "per_window_ms": null,
+      "progress_write_ms": null,
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": null,
+      "preview_seed_state": null,
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "iapf",
+      "mode": "dynamic",
+      "elapsed_s": 4.1714,
+      "status": "completed",
+      "processed_windows": 146,
+      "total_windows": 146,
+      "artifact_verified": true,
+      "window_states": {
+        "Partial": 1,
+        "Complete": 145
+      },
+      "scientific_version": "official-iapf-v2",
+      "per_window_ms": {
+        "p50": 18.676,
+        "p95": 27.088,
+        "max": 50.54,
+        "count": 146
+      },
+      "progress_write_ms": {
+        "p50": 9.986,
+        "p95": 12.439,
+        "max": 41.935,
+        "count": 146
+      },
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": 0.1381,
+      "preview_seed_state": "ready",
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "peak_frequency",
+      "mode": "static",
+      "elapsed_s": 0.1466,
+      "status": "completed",
+      "processed_windows": 1,
+      "total_windows": 1,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "official-peak-frequency-v1",
+      "per_window_ms": null,
+      "progress_write_ms": null,
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": null,
+      "preview_seed_state": null,
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "peak_frequency",
+      "mode": "dynamic",
+      "elapsed_s": 4.774,
+      "status": "completed",
+      "processed_windows": 146,
+      "total_windows": 146,
+      "artifact_verified": true,
+      "window_states": {
+        "Partial": 1,
+        "Complete": 145
+      },
+      "scientific_version": "official-peak-frequency-v1",
+      "per_window_ms": {
+        "p50": 19.9,
+        "p95": 28.407,
+        "max": 46.028,
+        "count": 146
+      },
+      "progress_write_ms": {
+        "p50": 10.785,
+        "p95": 16.146,
+        "max": 37.385,
+        "count": 146
+      },
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": 0.1547,
+      "preview_seed_state": "ready",
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "psd",
+      "mode": "static",
+      "elapsed_s": 6.6641,
+      "status": "completed",
+      "processed_windows": 1,
+      "total_windows": 1,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "offline-spectral-v3",
+      "per_window_ms": null,
+      "progress_write_ms": null,
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": null,
+      "preview_seed_state": null,
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "psd",
+      "mode": "dynamic",
+      "elapsed_s": 22.0508,
+      "status": "completed",
+      "processed_windows": 146,
+      "total_windows": 146,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "offline-spectral-v3",
+      "per_window_ms": {
+        "p50": 71.908,
+        "p95": 117.101,
+        "max": 207.332,
+        "count": 146
+      },
+      "progress_write_ms": {
+        "p50": 17.647,
+        "p95": 26.514,
+        "max": 46.949,
+        "count": 146
+      },
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": 0.3045,
+      "preview_seed_state": "ready",
+      "reused_on_demand_window_count": 1
+    },
+    {
+      "algorithm": "rbp",
+      "mode": "static",
+      "elapsed_s": 0.1274,
+      "status": "completed",
+      "processed_windows": 1,
+      "total_windows": 1,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "official-rbp-v2",
+      "per_window_ms": null,
+      "progress_write_ms": null,
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": null,
+      "preview_seed_state": null,
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "rbp",
+      "mode": "dynamic",
+      "elapsed_s": 3.9651,
+      "status": "completed",
+      "processed_windows": 146,
+      "total_windows": 146,
+      "artifact_verified": true,
+      "window_states": {
+        "Partial": 1,
+        "Complete": 145
+      },
+      "scientific_version": "official-rbp-v2",
+      "per_window_ms": {
+        "p50": 17.71,
+        "p95": 26.002,
+        "max": 52.595,
+        "count": 146
+      },
+      "progress_write_ms": {
+        "p50": 9.621,
+        "p95": 11.412,
+        "max": 44.193,
+        "count": 146
+      },
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": 0.1833,
+      "preview_seed_state": "ready",
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "stft",
+      "mode": "static",
+      "elapsed_s": 0.1919,
+      "status": "completed",
+      "processed_windows": 1,
+      "total_windows": 1,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "spectrogram-v2",
+      "per_window_ms": null,
+      "progress_write_ms": null,
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": null,
+      "preview_seed_state": null,
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "stft",
+      "mode": "dynamic",
+      "elapsed_s": 14.9963,
+      "status": "completed",
+      "processed_windows": 146,
+      "total_windows": 146,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "spectrogram-v2",
+      "per_window_ms": {
+        "p50": 38.746,
+        "p95": 51.366,
+        "max": 96.42,
+        "count": 146
+      },
+      "progress_write_ms": {
+        "p50": 9.621,
+        "p95": 15.322,
+        "max": 57.057,
+        "count": 146
+      },
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": 0.168,
+      "preview_seed_state": "ready",
+      "reused_on_demand_window_count": 1
+    },
+    {
+      "algorithm": "theta_beta",
+      "mode": "static",
+      "elapsed_s": 0.1273,
+      "status": "completed",
+      "processed_windows": 1,
+      "total_windows": 1,
+      "artifact_verified": true,
+      "window_states": {},
+      "scientific_version": "official-theta-beta-v2",
+      "per_window_ms": null,
+      "progress_write_ms": null,
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": null,
+      "preview_seed_state": null,
+      "reused_on_demand_window_count": 0
+    },
+    {
+      "algorithm": "theta_beta",
+      "mode": "dynamic",
+      "elapsed_s": 3.7851,
+      "status": "completed",
+      "processed_windows": 146,
+      "total_windows": 146,
+      "artifact_verified": true,
+      "window_states": {
+        "Partial": 1,
+        "Complete": 145
+      },
+      "scientific_version": "official-theta-beta-v2",
+      "per_window_ms": {
+        "p50": 16.292,
+        "p95": 23.298,
+        "max": 45.323,
+        "count": 146
+      },
+      "progress_write_ms": {
+        "p50": 8.676,
+        "p95": 13.561,
+        "max": 38.487,
+        "count": 146
+      },
+      "faa_frame_compute_ms": null,
+      "faa_frame_outliers": [],
+      "preview_seed_elapsed_s": 0.1888,
+      "preview_seed_state": "ready",
+      "reused_on_demand_window_count": 0
+    }
+  ],
+  "cancellations": [
+    {
+      "algorithm": "band_ratio",
+      "completed": 1,
+      "total": 145,
+      "cancel_to_terminal_ms": 21.769,
+      "cancel_phase_elapsed_ms": 82.427
+    },
+    {
+      "algorithm": "brainbeat",
+      "completed": 1,
+      "total": 145,
+      "cancel_to_terminal_ms": 28.372,
+      "cancel_phase_elapsed_ms": 99.911
+    },
+    {
+      "algorithm": "faa",
+      "completed": 1,
+      "total": 129,
+      "cancel_to_terminal_ms": 19.008,
+      "cancel_phase_elapsed_ms": 3164.367
+    },
+    {
+      "algorithm": "iapf",
+      "completed": 1,
+      "total": 145,
+      "cancel_to_terminal_ms": 19.176,
+      "cancel_phase_elapsed_ms": 62.705
+    },
+    {
+      "algorithm": "peak_frequency",
+      "completed": 1,
+      "total": 145,
+      "cancel_to_terminal_ms": 17.499,
+      "cancel_phase_elapsed_ms": 60.289
+    },
+    {
+      "algorithm": "psd",
+      "completed": 1,
+      "total": 145,
+      "cancel_to_terminal_ms": 22.162,
+      "cancel_phase_elapsed_ms": 94.681
+    },
+    {
+      "algorithm": "rbp",
+      "completed": 1,
+      "total": 145,
+      "cancel_to_terminal_ms": 21.701,
+      "cancel_phase_elapsed_ms": 67.119
+    },
+    {
+      "algorithm": "stft",
+      "completed": 1,
+      "total": 145,
+      "cancel_to_terminal_ms": 22.559,
+      "cancel_phase_elapsed_ms": 97.257
+    },
+    {
+      "algorithm": "theta_beta",
+      "completed": 1,
+      "total": 145,
+      "cancel_to_terminal_ms": 18.152,
+      "cancel_phase_elapsed_ms": 64.579
+    }
+  ],
+  "faa": {
+    "version": "official-faa-v2",
+    "checked_windows": 130,
+    "availability_matches": 130,
+    "available_windows": 130,
+    "max_independent_absolute_error": 3.552713678800501e-15,
+    "max_legacy_absolute_difference": 7.382728746563316e-06,
+    "legacy_quality_different_windows": 0,
+    "rtol": 1e-11,
+    "atol": 1e-12
+  },
+  "memory": {
+    "baseline_working_set_bytes": 115478528,
+    "peak_working_set_bytes": 266207232,
+    "peak_delta_bytes": 150728704
+  },
+  "source": {
+    "sha256": "1c3a9ef23771d6b768ec31bd9f072d9504d32d4149fe799dbd8e976f27465983",
+    "duration_s": 149.982,
+    "sfreq_hz": 1000.0,
+    "channel_count": 28
+  },
+  "schema": "official-algorithm-real-recording-pressure-v1",
+  "environment": {
+    "python": "3.13.3",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "numpy": "2.3.4",
+    "scipy": "1.16.3"
+  },
+  "measurement_notes": {
+    "input_identity": "SHA-256 only; de-identified recording",
+    "storage": "temporary database and artifacts; source recording was not modified",
+    "per_window_ms": "wall-clock between observed progress updates; includes scheduling and persistence overhead",
+    "faa_frame_compute_ms": "timed FaaAlgorithm.execute_static per dynamic frame; includes source loading/preprocessing and the paired-epoch calculation",
+    "progress_write_ms": "time spent persisting the progress update associated with each completed window",
+    "faa_outlier_interpretation": "the first FAA frame includes whole-recording continuous preprocessing; later frames use the in-run prepared signal",
+    "reuse_scope": "only PSD and STFT declare on-demand-to-full reuse; one eligible preview window was seeded for each",
+    "duration_limit": "149.982 seconds; does not establish hour-scale behavior",
+    "cancellation": "cancel requested after first completed dynamic window; reports cancel-to-terminal latency and total cancellation phase separately",
+    "run_data_source": "single detailed rerun; per-frame FAA compute and progress-write timings captured during the same execution"
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "capability": "welch_psd",
+      "kind": "primitive",
+      "canonical_import": "app.scientific.primitives.spectral.estimate_welch_psd",
+      "owner": "scientific",
+      "scientific_version": "offline-spectral-v4",
+      "implementation_identity": "scientific-spectral-v4",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "band_power",
+      "kind": "primitive",
+      "canonical_import": "app.scientific.primitives.spectral.band_power",
+      "owner": "scientific",
+      "scientific_version": "offline-spectral-v4",
+      "implementation_identity": "scientific-spectral-v4",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "stft",
+      "kind": "primitive",
+      "canonical_import": "app.scientific.primitives.spectral.estimate_spectrogram",
+      "owner": "scientific",
+      "scientific_version": "offline-spectral-v4",
+      "implementation_identity": "scientific-spectral-v4",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_psd",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.psd.runner.PsdAlgorithm",
+      "owner": "algorithms",
+      "scientific_version": "offline-spectral-v6-shared-1-50-notch",
+      "implementation_identity": "psd-runtime-v6-shared-1-50-notch",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_stft",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.stft.runner.StftAlgorithm",
+      "owner": "algorithms",
+      "scientific_version": "spectrogram-v4-bounded-notch",
+      "implementation_identity": "stft-runtime-v8-bounded-notch",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_faa",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.faa.official.compute_faa",
+      "owner": "algorithms",
+      "scientific_version": "official-faa-v2",
+      "implementation_identity": "faa-runtime-v2",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_iapf",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.iapf.official.estimate_iapf",
+      "owner": "algorithms",
+      "scientific_version": "official-iapf-v5",
+      "implementation_identity": "iapf-runtime-v7-20s-segment-diagnostics",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_rbp",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.rbp.runner.RbpAlgorithm.execute_static",
+      "owner": "algorithms",
+      "scientific_version": "official-rbp-v4",
+      "implementation_identity": "rbp-runtime-v7-configurable-notch",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_theta_beta",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.theta_beta.compute.compute_theta_beta",
+      "owner": "algorithms",
+      "scientific_version": "official-theta-beta-v5",
+      "implementation_identity": "theta-beta-runtime-v4-iapf-v5-frequency-modes",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_peak_frequency",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.peak_frequency.runner.PeakFrequencyAlgorithm",
+      "owner": "algorithms",
+      "scientific_version": "official-peak-frequency-v2",
+      "implementation_identity": "peak-frequency-runtime-v3-shared-1-50-notch",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "official_band_ratio",
+      "kind": "algorithm",
+      "canonical_import": "app.algorithms.band_ratio.runner.BandRatioAlgorithm",
+      "owner": "algorithms",
+      "scientific_version": "official-band-ratio-v2",
+      "implementation_identity": "band-ratio-runtime-v3-shared-1-50-notch",
+      "authority": true,
+      "executable": true,
+      "reference_only": false
+    },
+    {
+      "capability": "validation_official_algorithms",
+      "kind": "validation",
+      "canonical_import": "app.services.independent_spectral_reference.IndependentSpectralReferenceService",
+      "owner": "services",
+      "scientific_version": "offline-spectral-v4",
+      "implementation_identity": "independent-scipy-mne-spectral-reference-v2",
+      "authority": false,
+      "executable": false,
+      "reference_only": true,
+      "delegate_to": "validation-only"
+    }
+  ]
+}

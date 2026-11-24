@@ -1,0 +1,6 @@
+- [x] Record the live mapping contract, cause, scope and file-size assessment.
+- [x] Add failing regression tests for native mapping and lifecycle transitions.
+- [x] Preserve acquisition setup for equivalent selected device facts.
+- [x] Verify disconnect and actual device/capability changes still refresh setup.
+- [x] Run desktop tests, Release build, reproduction and OpenSpec strict validation.
+- [x] Update the implementation playbook and inspect the final diff.

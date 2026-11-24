@@ -1,0 +1,53 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "BrainPlatform.Desktop/1.0.0": {
+        "dependencies": {
+          "SciChart": "9.1.0.29201"
+        },
+        "runtime": {
+          "BrainPlatform.Desktop.dll": {}
+        }
+      },
+      "SciChart/9.1.0.29201": {
+        "runtime": {
+          "lib/net6.0-windows7.0/SciChart.Charting.dll": {
+            "assemblyVersion": "9.1.0.29201",
+            "fileVersion": "9.1.0.29201"
+          },
+          "lib/net6.0-windows7.0/SciChart.Core.dll": {
+            "assemblyVersion": "9.1.0.29201",
+            "fileVersion": "9.1.0.29201"
+          },
+          "lib/net6.0-windows7.0/SciChart.Data.dll": {
+            "assemblyVersion": "9.1.0.29201",
+            "fileVersion": "9.1.0.29201"
+          },
+          "lib/net6.0-windows7.0/SciChart.Drawing.dll": {
+            "assemblyVersion": "9.1.0.29201",
+            "fileVersion": "9.1.0.29201"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "BrainPlatform.Desktop/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "SciChart/9.1.0.29201": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-OBFDwVFxc3WD2RQWg7IOUCNOLuzqtnIyhGRlsn4QvbYEPsDZgeBk5YthjMn2tneg86ZwUN0f34YxNPz0kgmkAg==",
+      "path": "scichart/9.1.0.29201",
+      "hashPath": "scichart.9.1.0.29201.nupkg.sha512"
+    }
+  }
+}

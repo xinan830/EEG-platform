@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using BrainPlatform.Desktop.Tests.Shared;
 
 namespace BrainPlatform.Desktop.Tests.Acquisition;
@@ -10,6 +11,33 @@ namespace BrainPlatform.Desktop.Tests.Acquisition;
 [Collection("WPF application resources")]
 public sealed class ImpedancePresentationTests(WpfApplicationFixture application)
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ClosingWindowResumesOnlyWhenItInterruptedPreview(bool resumePreview) => application.Run(() =>
+    {
+        var runtime = new ConfiguredAcquisitionRuntime();
+        using var model = new AcquisitionImpedanceViewModel(runtime, Physical(), Guid.NewGuid(), Dispatcher.CurrentDispatcher);
+        var resumed = false;
+        var window = new AcquisitionImpedanceWindow(model, runtime, () =>
+        {
+            Assert.Equal(AcquisitionDeviceMode.Idle, runtime.DeviceMode.Mode);
+            resumed = true;
+            return Task.CompletedTask;
+        }, null, resumePreviewOnClose: resumePreview);
+        var frame = new DispatcherFrame();
+        var timeout = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        timeout.Tick += (_, _) => { timeout.Stop(); frame.Continue = false; };
+        window.Closed += (_, _) => frame.Continue = false;
+        window.Show();
+        window.Close();
+        timeout.Start();
+        Dispatcher.PushFrame(frame);
+        timeout.Stop();
+        Assert.Equal(resumePreview, resumed);
+        runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+    });
+
     [Theory]
     [InlineData(0, "#16A34A")]
     [InlineData(5, "#FACC15")]
@@ -34,15 +62,13 @@ public sealed class ImpedancePresentationTests(WpfApplicationFixture application
     }
 
     [Fact]
-    public void GradientUsesContinuousRgbAndSharesNonuniformLegendAnchors()
+    public void GradientUsesContinuousRgbAcrossConfiguredAnchors()
     {
         var scale = ImpedanceColorScale.Create(10, 20, 50, "#000000", "#646464", "#C8C8C8")!;
         Assert.Equal("#323232", scale.ColorAt(15));
         Assert.Equal("#969696", scale.ColorAt(35));
         Assert.Equal("#000000", scale.ColorAt(5));
-        Assert.Equal(0.25, scale.MiddleOffset);
-        Assert.Equal(scale.MiddleOffset, scale.Brush.GradientStops[1].Offset);
-        Assert.True(scale.Brush.IsFrozen);
+        Assert.Equal("#646464", scale.ColorAt(20));
         Assert.Null(ImpedanceColorScale.Create(0, 5, 10, "bad"));
         Assert.Null(ImpedanceColorScale.Create(-1, 5, 10));
         Assert.Null(ImpedanceColorScale.Create(0, 0, 10));
@@ -88,12 +114,17 @@ public sealed class ImpedancePresentationTests(WpfApplicationFixture application
     }
 
     [Fact]
-    public void WindowLoadsAndMapClickSharesSelectionWithList() => application.Run(() =>
+    public void WindowLoadsAsMapAndGradientEditorsAndMapClickHighlightsElectrode() => application.Run(() =>
     {
         var runtime = new ConfiguredAcquisitionRuntime();
         using var model = new AcquisitionImpedanceViewModel(runtime, Physical(), Guid.NewGuid(), System.Windows.Threading.Dispatcher.CurrentDispatcher);
         var window = new AcquisitionImpedanceWindow(model, runtime, () => Task.CompletedTask, null);
         Assert.Same(model, window.DataContext);
+        Assert.NotNull(model.ColorScale);
+        Assert.Equal((0, 10, 20), (model.ColorScale.Minimum, model.ColorScale.Middle, model.ColorScale.Maximum));
+        Assert.Equal(3, Descendants((FrameworkElement)window.Content).OfType<BrainPlatform.Desktop.Shared.Controls.ColorPicker>().Count());
+        Assert.DoesNotContain(Descendants((FrameworkElement)window.Content).OfType<TextBlock>(), text =>
+            text.Text.Contains("EEG 已停止", StringComparison.Ordinal) || text.Text.Contains("ANT/eego", StringComparison.Ordinal));
         foreach (var item in new[] { ("Fz", 0d, -0.6), ("C3", -0.55, 0d), ("Cz", 0d, 0d), ("C4", 0.55, 0d), ("Pz", 0d, 0.6) })
         {
             var electrode = new ImpedanceElectrodeRow(new(model.Rows.Count, AcquisitionChannelKind.Reference), item.Item1, new(item.Item2, item.Item3));
@@ -102,10 +133,20 @@ public sealed class ImpedancePresentationTests(WpfApplicationFixture application
             model.Rows.Add(electrode);
         }
         var content = (FrameworkElement)window.Content;
-        content.Measure(new Size(980, 630));
-        content.Arrange(new Rect(0, 0, 980, 630));
+        content.Measure(new Size(980, 840));
+        content.Arrange(new Rect(0, 0, 980, 840));
         content.UpdateLayout();
-        var bitmap = new RenderTargetBitmap(980, 630, 96, 96, PixelFormats.Pbgra32);
+        var slider = Assert.Single(Descendants(content).OfType<Slider>());
+        Assert.Equal(0, slider.Minimum);
+        Assert.Equal(200, slider.Maximum);
+        Assert.Equal(20, slider.Value);
+        slider.Value = 200;
+        Assert.Equal(200, model.ColorScale!.Maximum);
+        Assert.Same(model.ColorScale.Brush, slider.Background);
+        slider.Value = 20;
+        model.MiddleColor = "#0000FF";
+        Assert.Equal("#0000FF", model.ColorScale!.ColorAt(10));
+        var bitmap = new RenderTargetBitmap(980, 840, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(content);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
@@ -133,8 +174,6 @@ public sealed class ImpedancePresentationTests(WpfApplicationFixture application
     {
         var runtime = new ConfiguredAcquisitionRuntime();
         using var model = new AcquisitionImpedanceViewModel(runtime, Physical(), Guid.NewGuid(), System.Windows.Threading.Dispatcher.CurrentDispatcher);
-        model.MiddleText = "20";
-        model.MaximumText = "100";
         var window = new AcquisitionImpedanceWindow(model, runtime, () => Task.CompletedTask, null);
         // Synthetic positions exercise dense layout only; they are never acquisition defaults.
         for (var i = 0; i < 32; i++)
@@ -154,7 +193,7 @@ public sealed class ImpedancePresentationTests(WpfApplicationFixture application
         var map = Descendants(content).OfType<ImpedanceScalpMap>().Single();
         Assert.True(map.ActualWidth >= 480);
         Assert.True(map.ActualHeight >= 480);
-        var bounds = ScalpMapRenderer.GetHeadBounds(map.ActualWidth, map.ActualHeight, 5, 24);
+        var bounds = ScalpMapRenderer.GetHeadBounds(map.ActualWidth, map.ActualHeight, 5, 24, 0.48);
         var markers = Descendants(map).OfType<ElectrodeMarker>().ToArray();
         Assert.Equal(32, markers.Length);
         Assert.All(markers, marker =>
@@ -171,8 +210,7 @@ public sealed class ImpedancePresentationTests(WpfApplicationFixture application
             Assert.True(Canvas.GetTop(marker) >= 0);
             Assert.True(Canvas.GetTop(marker) + marker.Height <= map.ActualHeight);
         });
-        var legend = Assert.IsType<ImpedanceScaleLegend>(window.FindName("ColorLegend"));
-        Assert.Same(model.ColorScale, legend.Scale);
+        Assert.Equal(20, model.ColorScale!.Maximum);
         var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
         bitmap.Render(content);
         var encoder = new PngBitmapEncoder();
@@ -193,20 +231,30 @@ public sealed class ImpedancePresentationTests(WpfApplicationFixture application
     }
 
     [Fact]
-    public void ColorScaleEditorUpdatesLegendAndReadingsThroughOneMapping() => application.Run(() =>
+    public void ColorEditorsAndGradientSliderUpdateTheSameMapping() => application.Run(() =>
     {
         var runtime = new ConfiguredAcquisitionRuntime();
         using var model = new AcquisitionImpedanceViewModel(runtime, Physical(), Guid.NewGuid(), System.Windows.Threading.Dispatcher.CurrentDispatcher);
-        Assert.Null(model.ColorScale);
-        model.MiddleText = "20";
-        model.MaximumText = "100";
-        Assert.Equal(0.2, model.ColorScale!.MiddleOffset);
-        model.MiddleColor = "#112233";
-        Assert.Equal("#112233", model.ColorScale!.ColorAt(20));
-        Assert.Contains("100", model.LegendText);
-        model.MaximumText = "invalid";
-        Assert.Null(model.ColorScale);
-        Assert.Contains("设置色标", model.LegendText);
+        Assert.NotNull(model.ColorScale);
+        Assert.Equal((0, 10, 20), (model.ColorScale!.Minimum, model.ColorScale.Middle, model.ColorScale.Maximum));
+        model.ColorScaleMaximumKiloOhms = 200;
+        model.LowColor = "#0000FF";
+        model.MiddleColor = "#FFFFFF";
+        model.HighColor = "#000000";
+        Assert.Equal("#0000FF", model.ColorScale!.ColorAt(0));
+        Assert.Equal("#FFFFFF", model.ColorScale.ColorAt(100));
+        Assert.Equal("#000000", model.ColorScale.ColorAt(200));
+        Assert.Equal("#808080", model.ColorScale.ColorAt(150));
+        Assert.Equal("#000000", model.ColorScale.ColorAt(250));
+        model.ColorScaleMaximumKiloOhms = 5;
+        Assert.Equal(5, model.ColorScale!.Maximum);
+        model.ColorScaleMaximumKiloOhms = 0;
+        Assert.Equal(0, model.ColorScale!.Maximum);
+        Assert.Equal("#0000FF", model.ColorScale.ColorAt(0));
+        Assert.Equal("#000000", model.ColorScale.ColorAt(0.1));
+        model.ColorScaleMaximumKiloOhms = 1000;
+        Assert.Equal(200, model.ColorScale!.Maximum);
+        Assert.True(model.ColorScale.Brush.IsFrozen);
         runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
     });
 

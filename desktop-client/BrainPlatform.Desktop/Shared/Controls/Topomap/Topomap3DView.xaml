@@ -62,17 +62,6 @@
         <!-- 3D-Projected Electrode Name Labels (auto backface-culled, transparent background) -->
         <Canvas x:Name="ElectrodeLabelOverlay" IsHitTestVisible="False" ClipToBounds="True" />
 
-        <!-- Top-left metadata card -->
-        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
-                Background="#E8FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
-                CornerRadius="8" Padding="10,7" IsHitTestVisible="False">
-            <StackPanel>
-                <TextBlock x:Name="BandText" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" />
-                <TextBlock x:Name="WindowText" FontSize="11" Foreground="#475569" Margin="0,2,0,0" />
-                <TextBlock Text="标准模板可视化 · 非个体定位" FontSize="10" Foreground="#64748B" Margin="0,2,0,0" />
-            </StackPanel>
-        </Border>
-
         <!-- Top-right Action Bar (Heatmap Preset / Colormap Switcher + Reset View Button) -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12">
             <Button x:Name="PresetCycleButton" Content="分布：枕叶 Alpha" Click="OnCyclePresetClick"
@@ -118,7 +107,7 @@
         </Border>
 
         <!-- Bottom-left Interaction Hint Pill -->
-        <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12"
+        <Border x:Name="InteractionHintPill" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12"
                 Background="#DCFFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
                 CornerRadius="14" Padding="12,5" IsHitTestVisible="False">
             <TextBlock Text="左键拖动：旋转  ·  Shift + 左键：平移  ·  滚轮：缩放"

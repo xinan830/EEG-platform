@@ -1,0 +1,9 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style x:Key="AppDialogPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource AppPrimaryButtonStyle}" />
+    <Style x:Key="AppDialogSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource AppSecondaryButtonStyle}" />
+    <Style x:Key="AppDialogDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource AppDangerButtonStyle}" />
+    <Style x:Key="AppDialogCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource AppIconButtonStyle}">
+        <Setter Property="ToolTip" Value="关闭" />
+    </Style>
+</ResourceDictionary>

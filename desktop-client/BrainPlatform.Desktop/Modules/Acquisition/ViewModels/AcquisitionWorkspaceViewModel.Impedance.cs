@@ -10,10 +10,15 @@ public sealed partial class AcquisitionWorkspaceViewModel
     private CancellationTokenSource? impedanceOpeningCancellation;
     private TaskCompletionSource? impedanceOpeningCompletion;
 
+    public bool CanStartImpedance => runtime.State.State is not (AcquisitionState.Recording or AcquisitionState.Paused or
+        AcquisitionState.Starting or AcquisitionState.Stopping) && (impedanceWindow is not null || !openingImpedance);
+
     public async Task ShowImpedanceAsync(Window owner)
     {
         if (impedanceWindow is { } existing) { existing.Activate(); return; }
         if (openingImpedance) return;
+        if (runtime.State.State is AcquisitionState.Recording or AcquisitionState.Paused)
+            throw new InvalidOperationException("开始录制后不能打开阻抗检测；请先完成当前记录。");
         openingImpedance = true;
         RaiseCommandAvailabilityChanged();
         using var cancellation = new CancellationTokenSource();
@@ -25,7 +30,6 @@ public sealed partial class AcquisitionWorkspaceViewModel
         {
             var expectedSession = runtime.State.SessionId;
             var expectedRecording = runtime.RecordingSessionId;
-            var completedDirectory = runtime.RecordingDirectory;
             var previousState = runtime.State.State;
             var physical = GetImpedancePhysicalSnapshot();
             var device = SelectedDevice ?? throw new InvalidOperationException("请先检测并选择放大器。");
@@ -37,14 +41,11 @@ public sealed partial class AcquisitionWorkspaceViewModel
                 throw new InvalidOperationException("物理通道配置与当前放大器不匹配，请重新选择采集配置。");
             var request = new ImpedanceStreamRequest(Guid.NewGuid(), device.DeviceId, identities);
             request.Validate();
-            if (previousState is AcquisitionState.Previewing or AcquisitionState.Recording or AcquisitionState.Paused)
+            if (previousState == AcquisitionState.Previewing)
             {
-                var recording = previousState is AcquisitionState.Recording or AcquisitionState.Paused;
                 if (!OperationConfirmationDialog.Confirm(owner, new("切换到阻抗检测",
-                    recording
-                        ? $"当前记录 {expectedRecording:N} 将结束并保存。检测期间不采集 EEG，完成后需要重新预览和开始新记录。"
-                        : "当前 EEG 预览和实时算法将结束。检测期间不采集 EEG，结束后可重新预览。",
-                    recording ? "保存记录并检测" : "结束预览并检测"))) return;
+                    "当前 EEG 预览和实时算法将结束。检测期间不采集 EEG，关闭检测窗后会重新开始预览。",
+                    "结束预览并检测"))) return;
             }
             else
             {
@@ -58,13 +59,12 @@ public sealed partial class AcquisitionWorkspaceViewModel
             model = new AcquisitionImpedanceViewModel(runtime, physical, request.DetectionSessionId, dispatcher);
             try
             {
+                if (previousState == AcquisitionState.Previewing)
+                    LiveMonitor.FreezePreviewDisplayForImpedance();
                 await runtime.StartImpedanceAsync(request, expectedSession, expectedRecording, cancellation.Token);
             }
             finally
             {
-                // A successfully finalized recording stays registered even when the subsequent impedance open fails.
-                if (previousState is AcquisitionState.Recording or AcquisitionState.Paused && runtime.State.State == AcquisitionState.Stopped)
-                    await CompleteStoppedRecordingPresentationAsync(previousState, completedDirectory);
                 LiveMonitor.Refresh();
                 RaiseCommandAvailabilityChanged();
             }
@@ -73,7 +73,7 @@ public sealed partial class AcquisitionWorkspaceViewModel
             {
                 await StartPreparedPreviewAsync();
                 (owner as IDesktopNavigation)?.ShowAcquisitionView();
-            }, notifications) { Owner = owner };
+            }, notifications, resumePreviewOnClose: previousState == AcquisitionState.Previewing) { Owner = owner };
             impedanceWindow = window;
             window.Closed += (_, _) => { impedanceWindow = null; RaiseCommandAvailabilityChanged(); };
             window.Show();

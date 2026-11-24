@@ -1,0 +1,262 @@
+using System.Text.Json;
+using System.Runtime.ExceptionServices;
+using BrainPlatform.Desktop.Modules.Algorithms.Api;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Catalog;
+using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Rbp;
+using BrainPlatform.Desktop.Modules.Algorithms.Views.Rbp;
+using SciChart.Charting.Model.DataSeries;
+using SciChart.Charting.Visuals;
+using SciChart.Charting.Visuals.RenderableSeries;
+
+namespace BrainPlatform.Desktop.Tests.Algorithms;
+
+public sealed class RbpResultPreviewTests
+{
+    [Fact]
+    public void Annotated_full_window_keeps_values_and_isolates_channel_warning()
+    {
+        var full = OnDemandDetailClient.FullRbpStructuredPreview();
+        var evidence = JsonSerializer.SerializeToElement(new { extensions = new {
+            channel_warnings = new { by_channel = new Dictionary<string, object> {
+                ["F3"] = new { status = "warning", reasons = new[] { "amplitude_threshold" } } } },
+            channel_failures = new { by_channel = new { } } } });
+        var windows = full.Windows.Select(item => JsonSerializer.SerializeToElement(new {
+            start_s = item.GetProperty("start_s").GetDouble(), end_s = item.GetProperty("end_s").GetDouble(),
+            state = "Complete", quality = "partial", evidence })).ToArray();
+        var preview = RbpResultPreview.FromStructured(full with { Windows = windows });
+        var affected = preview.ChannelWindows.First(item => item.Channel == "F3").Window;
+        var healthy = preview.ChannelWindows.First(item => item.Channel == "F7").Window;
+        Assert.Equal("partial", affected.Quality);
+        Assert.Equal("幅值超限", affected.Warning);
+        Assert.All(affected.Shares, value => Assert.NotNull(value));
+        Assert.Equal("clean", healthy.Quality);
+        Assert.Empty(healthy.Warning);
+        var history = Assert.Single(RbpHistoryProjection.FromFull(preview.ChannelWindows.Where(item => item.Channel == "F3")));
+        Assert.Contains("质量警告：3", history.QualitySummary);
+    }
+
+    [Fact]
+    public void Static_UsesBackendSharesInDeclaredBandOrder()
+    {
+        var preview = RbpResultPreview.Parse(Run("""
+            {"metric":{"quality":{"status":"clean"},"band_values":{"gamma":0.1,"beta":0.2,"alpha":0.3,"theta":0.2,"delta":0.2},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
+            """));
+
+        Assert.Equal([0.2, 0.2, 0.3, 0.2, 0.1], preview.BandsAt(0).Select(band => band.Share));
+        Assert.Equal("20.0%", preview.BandsAt(0)[0].ShareText);
+        Assert.False(preview.IsDynamic);
+    }
+
+    [Fact]
+    public void CurrentVersion_UsesFiveBackendSharesIncludingGamma()
+    {
+        var preview = RbpResultPreview.Parse(Run("""
+            {"metric":{"quality":{"status":"clean"},"band_values":{"gamma":0.3,"beta":0.2,"alpha":0.2,"theta":0.2,"delta":0.1},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
+            """, "official-rbp-v4"));
+
+        Assert.Equal(5, preview.BandsAt(0).Count);
+        Assert.Equal([0.1, 0.2, 0.2, 0.2, 0.3], preview.BandsAt(0).Select(band => band.Share));
+        Assert.Equal("30–50 Hz", preview.BandsAt(0)[4].Range);
+        Assert.Equal("30.0%", preview.BandsAt(0)[4].ShareText);
+    }
+
+    [Fact]
+    public void CurrentVersion_MissingGammaDoesNotDisplayFourBandSharesAsFiveBandResult()
+    {
+        var preview = RbpResultPreview.Parse(Run("""
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
+            """, "official-rbp-v4"));
+
+        Assert.All(preview.BandsAt(0), band => Assert.Null(band.Share));
+    }
+
+    [Fact]
+    public void RetiredVersion_IsNotInterpretedOrDisplayed()
+    {
+        var preview = RbpResultPreview.Parse(Run("""
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
+            """, "official-rbp-v1"));
+
+        Assert.Empty(preview.BandsAt(10));
+    }
+
+    [Fact]
+    public void CurrentVersion_InvalidGammaMakesTheFiveBandMeasurementUnavailableAsASet()
+    {
+        var preview = RbpResultPreview.Parse(Run("""
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4,"gamma":1.1},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
+            """, "official-rbp-v4"));
+
+        Assert.All(preview.BandsAt(0), band => Assert.Null(band.Share));
+    }
+
+    [Fact]
+    public void Dynamic_RespectsCursorAndPreservesRejectedWindowAsGap()
+    {
+        var preview = RbpResultPreview.Parse(Run("""
+            {"metric":{"series":[{"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":5,"window_start_s":1,"window_end_s":5,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["PSD_QUALITY_GATE_FAILED"]},"band_values":{"delta":null,"theta":null,"alpha":null,"beta":null},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
+            """));
+
+        Assert.True(preview.IsDynamic);
+        Assert.All(preview.BandsAt(3), band => Assert.Null(band.Share));
+        Assert.Equal(0.1, preview.BandsAt(4)[0].Share);
+        Assert.All(preview.BandsAt(5), band => Assert.Null(band.Share));
+        Assert.Equal("PSD_QUALITY_GATE_FAILED", preview.Windows[1].Failure);
+        Assert.Equal(0.2, preview.BandsAt(6)[0].Share);
+    }
+
+    [Fact]
+    public void InvalidOrRejectedShares_NeverBecomeZero()
+    {
+        var rejected = RbpResultPreview.Parse(Run("""
+            {"metric":{"quality":{"status":"gate_failed"},"band_values":{"delta":0.5,"theta":0.5,"alpha":0,"beta":0,"gamma":0},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
+            """));
+        var missing = RbpResultPreview.Parse(Run("""
+            {"metric":{"quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.4,"gamma":null},"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30}},"result_contract_version":"official-algorithm-result-v1"}
+            """));
+
+        Assert.All(rejected.BandsAt(0), band => Assert.Null(band.Share));
+        Assert.All(missing.BandsAt(0), band => Assert.Null(band.Share));
+    }
+
+    [Fact]
+    public void StaticStructuredPreview_UsesOneDimensionalChannelArrays()
+    {
+        var preview = RbpResultPreview.FromStructured(new StructuredPreviewResponse(
+            "run", new RunArtifact("artifact", "run", "official_algorithm", "result.npz", "application/npz", 1, "hash", null,
+                new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+            JsonSerializer.SerializeToElement(new { kind = "algorithm_group", algorithm_id = "rbp" }),
+            ["Fp1-REF", "Fp2-REF"], new TimeRange(0, 30), new TimeRange(0, 30),
+            new Dictionary<string, JsonElement>
+            {
+                ["time_s"] = JsonSerializer.SerializeToElement(new[] { 30d }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new[] { 0d, 1d }),
+            }, new Dictionary<string, JsonElement>(),
+            new Dictionary<string, JsonElement>
+            {
+                ["delta"] = JsonSerializer.SerializeToElement(new[] { .1, .2 }),
+                ["theta"] = JsonSerializer.SerializeToElement(new[] { .2, .2 }),
+                ["alpha"] = JsonSerializer.SerializeToElement(new[] { .3, .2 }),
+                ["beta"] = JsonSerializer.SerializeToElement(new[] { .3, .3 }),
+                ["gamma"] = JsonSerializer.SerializeToElement(new[] { .1, .1 }),
+            }, new Dictionary<string, JsonElement>(), [], new Dictionary<string, int>(),
+            JsonSerializer.SerializeToElement(new { status = "clean", reasons = Array.Empty<string>() }), "official-rbp-v4", "rbp-runtime-v5-channel-quality"));
+
+        Assert.Equal("clean", preview.StaticQuality);
+        Assert.False(preview.IsDynamic);
+        Assert.Equal(.1, preview.BandsAt(0)[0].Share);
+        Assert.Equal([.1, .2, .3, .3, .1], preview.BandsAt(30).Select(band => band.Share));
+        Assert.Equal(30, preview.ChannelWindows.First(window => window.Channel == "Fp1-REF").Window.EndSeconds);
+    }
+
+    [Fact]
+    public void StaticStructuredPreview_UsesBackendQualityStatus()
+    {
+        var preview = RbpResultPreview.FromStructured(new StructuredPreviewResponse(
+            "run", new RunArtifact("artifact", "run", "official_algorithm", "result.npz", "application/npz", 1, "hash", null,
+                new Dictionary<string, int[]>(), DateTimeOffset.UtcNow),
+            JsonSerializer.SerializeToElement(new { kind = "algorithm_group", algorithm_id = "rbp" }),
+            ["Fp1-REF"], new TimeRange(0, 30), new TimeRange(0, 30),
+            new Dictionary<string, JsonElement>
+            {
+                ["time_s"] = JsonSerializer.SerializeToElement(new[] { 30d }),
+                ["channel_index"] = JsonSerializer.SerializeToElement(new[] { 0d }),
+            }, new Dictionary<string, JsonElement>(),
+            new Dictionary<string, JsonElement>
+            {
+                ["delta"] = JsonSerializer.SerializeToElement(new[] { .1 }),
+                ["theta"] = JsonSerializer.SerializeToElement(new[] { .2 }),
+                ["alpha"] = JsonSerializer.SerializeToElement(new[] { .3 }),
+                ["beta"] = JsonSerializer.SerializeToElement(new[] { .3 }),
+                ["gamma"] = JsonSerializer.SerializeToElement(new[] { .1 }),
+            }, new Dictionary<string, JsonElement>(), [], new Dictionary<string, int>(),
+            JsonSerializer.SerializeToElement(new { status = "clean", reasons = Array.Empty<string>() }), "official-rbp-v4", "rbp-runtime-v5-channel-quality"));
+
+        Assert.Equal("clean", preview.StaticQuality);
+    }
+
+    [Fact]
+    public void DynamicWindows_UseSharedCursorAndKeepRejectedWindow()
+    {
+        var catalog = new AlgorithmListViewModel(new UnusedAlgorithmClient(), new OperationNotificationCenter());
+        catalog.SelectedAnalysisMode = "动态";
+        RbpRunResultHandler.ApplyDynamicWindows(catalog, DynamicRun());
+
+        Assert.Equal(6, catalog.DynamicPreviewCursorSeconds);
+        Assert.Equal(3, catalog.DynamicPreviewRows.Count);
+
+        catalog.DynamicPreviewCursorSecondsForTest(5);
+        Assert.Equal(2, catalog.DynamicPreviewRows.Count);
+        Assert.Equal("已拒绝", catalog.DynamicPreviewRows[^1].State);
+    }
+
+    [Fact]
+    public void SciChartTrend_LeavesRejectedWindowAsNanGap()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var preview = RbpResultPreview.Parse(DynamicRun());
+                var chart = new RbpChart { IsTrend = true, Bands = preview.BandsAt(6), Windows = preview.Windows };
+                var surface = Assert.IsType<SciChartSurface>(chart.Content);
+                Assert.Equal(5, surface.RenderableSeries.Count);
+                var firstLine = Assert.IsType<FastLineRenderableSeries>(surface.RenderableSeries[0]);
+                var values = Assert.IsType<XyDataSeries<double, double>>(firstLine.DataSeries);
+                Assert.Equal(0.1, values.YValues[0]);
+                Assert.True(double.IsNaN(values.YValues[1]));
+                Assert.Equal(0.2, values.YValues[2]);
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
+    public void CurrentVersion_SciChartTrendContainsFiveSeriesIncludingGamma()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var run = Run("""
+                    {"metric":{"series":[{"time_s":5,"window_start_s":0,"window_end_s":5,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.2,"beta":0.2,"gamma":0.3},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
+                    """, "official-rbp-v4");
+                var preview = RbpResultPreview.Parse(run);
+                var chart = new RbpChart { IsTrend = true, Bands = preview.BandsAt(5), Windows = preview.Windows };
+                var surface = Assert.IsType<SciChartSurface>(chart.Content);
+                Assert.Equal(5, surface.RenderableSeries.Count);
+                Assert.Equal("γ Gamma", Assert.IsType<FastLineRenderableSeries>(surface.RenderableSeries[4]).DataSeries.SeriesName);
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static AnalysisRunResponse DynamicRun() => Run("""
+        {"metric":{"series":[{"time_s":4,"window_start_s":0,"window_end_s":4,"analysis_state":"Partial","quality":{"status":"clean"},"band_values":{"delta":0.1,"theta":0.2,"alpha":0.3,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":5,"window_start_s":1,"window_end_s":5,"analysis_state":"Rejected","quality":{"status":"gate_failed","reasons":["RBP_WINDOW_QUALITY_GATE_FAILED"]},"band_values":{"delta":null,"theta":null,"alpha":null,"beta":null},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}},{"time_s":6,"window_start_s":2,"window_end_s":6,"analysis_state":"Complete","quality":{"status":"clean"},"band_values":{"delta":0.2,"theta":0.2,"alpha":0.2,"beta":0.3,"gamma":0.1},"result_contract_version":"dynamic-analysis-frame-v6","output":{"value":null,"unit":"ratio"}}],"output":{"unit":"ratio","value":null},"actual_range":{"start_s":0,"end_s":30},"mode":"dynamic","result_contract_version":"dynamic-analysis-frame-v6"},"result_contract_version":"official-algorithm-result-v1"}
+        """);
+
+    private static AnalysisRunResponse Run(string summary, string scientificVersion = "official-rbp-v4") => new(
+        "run-1", "recording-1", "official_algorithm", "completed", scientificVersion,
+        new TimeRange(0, 20), new TimeRange(0, 20), JsonSerializer.Deserialize<JsonElement>(summary),
+        null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+    private sealed class UnusedAlgorithmClient : IAlgorithmClient
+    {
+        public Task<IReadOnlyList<AlgorithmCatalogItem>> ListAlgorithmsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<AnalysisRunResponse> CreateRunAsync(AnalysisRunRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<AnalysisRunResponse> GetRunAsync(string runId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<RunArtifact>> ListArtifactsAsync(string runId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<StructuredPreviewResponse> GetStructuredPreviewAsync(string runId, int maxCells, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+}

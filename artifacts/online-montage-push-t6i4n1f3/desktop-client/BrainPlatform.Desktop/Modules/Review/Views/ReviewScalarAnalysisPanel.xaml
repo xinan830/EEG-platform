@@ -1,0 +1,49 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Review.Views.ReviewScalarAnalysisPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shared="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Analysis"
+             xmlns:review="clr-namespace:BrainPlatform.Desktop.Modules.Review.Views">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/AnalysisStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <shared:AnalysisPanelShell Title="" CloseCommand="{Binding CloseAnalysisCommand}"
+                               StatusText="{Binding ActiveScalarAnalysis.StatusText}">
+        <shared:AnalysisPanelShell.HeaderContent>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <ComboBox ItemsSource="{Binding ActiveScalarParameters.Channels}"
+                          SelectedItem="{Binding ActiveScalarParameters.Channel}"
+                          Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="105"
+                          VerticalAlignment="Center" ToolTip="输入通道" />
+                <ComboBox Margin="6,0,0,0" ItemsSource="{Binding ActiveScalarParameters.SecondaryChannels}"
+                          SelectedItem="{Binding ActiveScalarParameters.SecondaryChannel}"
+                          Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="105"
+                          VerticalAlignment="Center" ToolTip="第二输入通道"
+                          Visibility="{Binding HasSecondaryScalarChannel, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <ComboBox Margin="6,0,0,0" Style="{StaticResource AppFilterComboBoxStyle}" Height="32" MinWidth="190"
+                          SelectedValuePath="Tag" SelectedValue="{Binding ActiveScalarParameters.FrequencyMode, Mode=TwoWay}"
+                          Visibility="{Binding ActiveScalarParameters.IsThetaBeta, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ComboBoxItem Content="标准频段（4–8 / 13–30 Hz）" Tag="standard" />
+                    <ComboBoxItem Content="IAF 相对频段" Tag="individualized" />
+                </ComboBox>
+            </StackPanel>
+        </shared:AnalysisPanelShell.HeaderContent>
+        <Grid>
+            <Grid.RowDefinitions><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <review:ReviewScalarTrendChart Grid.Row="0" MinHeight="180"
+                Points="{Binding ActiveScalarAnalysis.Points}"
+                Unit="{Binding ActiveScalarAnalysis.Unit}"
+                StartSeconds="{Binding AnalysisPanelStartSeconds}"
+                EndSeconds="{Binding PositionSeconds}" />
+            <TextBlock Grid.Row="0" Text="{Binding ActiveScalarAnalysis.CurrentWindowRangeText}"
+                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                       Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                       IsHitTestVisible="False" Panel.ZIndex="2" />
+        </Grid>
+    </shared:AnalysisPanelShell>
+</UserControl>

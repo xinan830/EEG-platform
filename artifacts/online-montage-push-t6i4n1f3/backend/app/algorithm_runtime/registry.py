@@ -1,0 +1,64 @@
+"""Single registry for current executable algorithms."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from .contracts import AlgorithmModule
+from .errors import AmbiguousAlgorithmVersionError, DuplicateAlgorithmError, UnknownAlgorithmError
+
+
+@dataclass(frozen=True)
+class RegistryKey:
+    algorithm_id: str
+    scientific_version: str
+
+
+class AlgorithmRegistry:
+    def __init__(self) -> None:
+        self._modules: dict[RegistryKey, AlgorithmModule] = {}
+
+    def register(self, algorithm: AlgorithmModule) -> None:
+        key = RegistryKey(algorithm.manifest.algorithm_id, algorithm.manifest.scientific_version)
+        if key in self._modules:
+            raise DuplicateAlgorithmError(
+                f"algorithm {key.algorithm_id}@{key.scientific_version} is already registered",
+                detail={"algorithm_id": key.algorithm_id, "scientific_version": key.scientific_version},
+            )
+        self._modules[key] = algorithm
+
+    def get(self, algorithm_id: str, scientific_version: str | None = None) -> AlgorithmModule:
+        matches = [
+            module for key, module in self._modules.items()
+            if key.algorithm_id == algorithm_id
+            and (scientific_version is None or key.scientific_version == scientific_version)
+        ]
+        if not matches:
+            raise UnknownAlgorithmError(
+                f"algorithm {algorithm_id!r} is not registered",
+                detail={"algorithm_id": algorithm_id, "scientific_version": scientific_version},
+            )
+        if scientific_version is None:
+            if len(matches) != 1:
+                raise AmbiguousAlgorithmVersionError(
+                    f"algorithm {algorithm_id!r} has multiple registered scientific versions",
+                    detail={"algorithm_id": algorithm_id, "available_versions": sorted(item.manifest.scientific_version for item in matches)},
+                )
+            return matches[0]
+        return matches[0]
+
+    def list(self) -> list[AlgorithmModule]:
+        return sorted(self._modules.values(), key=lambda item: (item.manifest.algorithm_id, item.manifest.scientific_version))
+
+    def get_current(self, algorithm_id: str) -> AlgorithmModule:
+        """Resolve an explicitly current module without inferring version order."""
+        matches = [
+            module for module in self._modules.values()
+            if module.manifest.algorithm_id == algorithm_id and module.manifest.is_current_version
+        ]
+        if len(matches) != 1:
+            raise UnknownAlgorithmError(
+                f"algorithm {algorithm_id!r} does not have exactly one declared current version",
+                detail={"algorithm_id": algorithm_id, "current_versions": [m.manifest.scientific_version for m in matches]},
+            )
+        return matches[0]

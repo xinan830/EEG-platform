@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-16
+goal: Remove global semantic mapping and compatibility facades while keeping
+  historical results read-only.

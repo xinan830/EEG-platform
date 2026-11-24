@@ -52,7 +52,7 @@ public partial class TopomapSwitchableView : UserControl
 
     private void OnModeChanged(object sender, RoutedEventArgs e)
     {
-        if (Canvas2D is null || Host3D is null) return;
+        if (Canvas2D is null || Host3D is null || Radio3D is null) return;
         var is3D = Radio3D.IsChecked == true;
         Canvas2D.Visibility = is3D ? Visibility.Collapsed : Visibility.Visible;
         Host3D.Visibility = is3D ? Visibility.Visible : Visibility.Collapsed;

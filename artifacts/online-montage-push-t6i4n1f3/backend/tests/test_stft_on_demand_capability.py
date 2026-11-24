@@ -1,0 +1,177 @@
+from types import SimpleNamespace
+
+import numpy as np
+import pytest
+
+from app.algorithm_runtime.contracts import AlgorithmInputs
+from app.algorithm_runtime.on_demand import DynamicSessionIdentity, DynamicWindowIdentity
+from app.algorithms.stft.config import StftConfig
+from app.algorithms.stft.frame import frequency_axis, relative_time_axis
+from app.algorithms.stft.runner import StftAlgorithm
+
+
+def _session() -> DynamicSessionIdentity:
+    return DynamicSessionIdentity(
+        recording_id="recording", source_sha256="source", algorithm_id="stft",
+        definition_id="definition", definition_version="1", scientific_version="spectrogram-v4-bounded-notch",
+        implementation_identity="implementation", configuration_sha256="config",
+        window_policy_version="stft-dynamic-window-v3-bounded",
+    )
+
+
+def _config() -> StftConfig:
+    return StftConfig(channel="F3", mode="dynamic", start_s=0, end_s=20,
+                      window_s=5, step_s=1, low_hz=1, high_hz=30, notch_hz=None)
+
+
+def _inputs(recording) -> AlgorithmInputs:
+    return AlgorithmInputs(recording_id="recording", channel="F3", sfreq_hz=200,
+                           duration_s=20, payload=recording)
+
+
+def _identity(plan) -> DynamicWindowIdentity:
+    return DynamicWindowIdentity(**_session().model_dump(),
+                                 start_sample=plan.start_sample, end_sample=plan.end_sample)
+
+
+def _payload(window_s=5.0, bad_windows=0, start_s=0.0):
+    frequencies = frequency_axis(200, 1, 30)
+    times = relative_time_axis(200, window_s)
+    count = len(times)
+    linear_uv = np.arange(count * frequencies.size, dtype=float).reshape(count, -1) + 1
+    db = np.full_like(linear_uv, 10.0)
+    linear_uv[:bad_windows] = np.nan
+    db[:bad_windows] = np.nan
+    return {
+        "window_start_s": start_s,
+        "window_duration_s": window_s,
+        "times_s": (times + start_s).tolist(),
+        "frequencies_hz": frequencies.tolist(),
+        "power_linear": {"F3": linear_uv.tolist()},
+        "power_db": {"F3": db.tolist()},
+        "spectrogram_contract_version": "spectrogram-v4-bounded-notch",
+        "segment_s": 4.0,
+        "step_s": 1.0,
+        "frequency_range_hz": {"low_hz": 1.0, "high_hz": 30.0},
+        "filter_frequency_range_hz": {"low_hz": 1.0, "high_hz": 30.0},
+        "notch_hz": None,
+        "preprocessing": {
+            "algorithm_version": "spectral-window-v1", "scope": "bounded_window_with_finite_context",
+            "context_s": 3.0, "context_samples": 600,
+            "target_range_samples": {"start": round(start_s * 200), "end": round((start_s + window_s) * 200)},
+            "read_range_samples": {"start": max(0, round(start_s * 200) - 600),
+                                   "end": min(4000, round((start_s + window_s) * 200) + 600)},
+            "boundary_policy": "clamp_to_recording", "filter_phase": "zero_phase",
+            "unit": "V", "channel_order": ["F3"], "gap_policy": "reject",
+        },
+        "quality": {"windows": [{"status": "bad" if index < bad_windows else "clean"}
+                                for index in range(count)],
+                    "bad_windows": bad_windows, "total_windows": count, "evidence": {}},
+    }
+
+
+def test_stft_capability_plans_partial_then_complete_policy_windows():
+    algorithm = StftAlgorithm()
+    inputs = _inputs(SimpleNamespace())
+    partial = algorithm.plan_window(inputs, _config(), 800, _session())
+    complete = algorithm.plan_window(inputs, _config(), 1000, _session())
+    assert partial.state == "planned"
+    assert (partial.start_s, partial.end_s) == pytest.approx((0, 4))
+    assert (partial.start_sample, partial.end_sample) == (0, 800)
+    assert (complete.start_s, complete.end_s) == pytest.approx((0, 5))
+
+
+def test_stft_window_returns_real_partial_matrix_and_provenance():
+    recording = SimpleNamespace(load_spectrogram=lambda **kwargs: _payload(kwargs["window_s"]))
+    algorithm = StftAlgorithm()
+    config = _config()
+    inputs = _inputs(recording)
+    plan = algorithm.plan_window(inputs, config, 800, _session())
+    result = algorithm.execute_window(inputs, config, plan, _identity(plan))
+    assert result.state == "ready"
+    assert result.output_kind == "time_frequency"
+    assert result.axes["time_center_s"].shape == (1,)
+    assert result.arrays["power_linear"].shape == (1, 117)
+    assert result.array_units == {"power_linear": "V^2/Hz", "power_db": "dB re 1 uV^2/Hz"}
+    assert result.provenance["preprocessing_scope"] == "bounded_window_with_finite_context"
+    assert result.provenance["analysis_state"] == "Partial"
+
+
+def test_stft_window_matches_full_dynamic_frame_for_complete_window():
+    algorithm = StftAlgorithm()
+    config = _config()
+
+    def loader(**kwargs):
+        return _payload(kwargs["window_s"], start_s=kwargs["start_s"])
+
+    recording = SimpleNamespace(load_spectrogram=loader)
+    inputs = _inputs(recording)
+    full = algorithm.execute_dynamic(inputs, config)
+    plan = algorithm.plan_window(inputs, config, 1000, _session())
+    single = algorithm.execute_window(inputs, config, plan, _identity(plan))
+    assert single.state == "ready"
+    np.testing.assert_array_equal(single.axes["frequency_hz"], full.axes["frequency_hz"])
+    np.testing.assert_allclose(single.axes["time_center_s"], [2.0, 3.0])
+    np.testing.assert_allclose(single.arrays["power_linear"], full.arrays["power_linear"][1])
+    np.testing.assert_allclose(single.arrays["power_db"], full.arrays["power_db"][1])
+    assert single.evidence == full.windows[1].evidence
+
+
+def test_stft_window_normalizes_absolute_source_times_to_relative_coordinates():
+    algorithm = StftAlgorithm()
+    config = _config().model_copy(update={"start_s": 10, "end_s": 20})
+    inputs = _inputs(SimpleNamespace(load_spectrogram=lambda **_: {
+        **_payload(5.0, start_s=10), "times_s": [12.0, 13.0],
+    }))
+    plan = algorithm.plan_window(inputs, config, 3000, _session())
+    result = algorithm.execute_window(inputs, config, plan, _identity(plan))
+    assert result.state == "ready"
+    np.testing.assert_array_equal(result.axes["time_center_s"], [2.0, 3.0])
+    assert result.provenance["inner_time_axis"] == "relative_window_time_center_s"
+
+
+def test_stft_reuse_acceptance_rejects_partial_and_accepts_complete_contract():
+    algorithm = StftAlgorithm()
+    config = _config().model_dump(mode="json")
+    frequencies = frequency_axis(200, 1, 30)
+
+    def loader(**kwargs):
+        count = 1 if kwargs["window_s"] < 5 else 2
+        values = _payload(kwargs["window_s"])
+        values["frequencies_hz"] = frequencies.tolist()
+        values["power_linear"]["F3"] = np.ones((count, frequencies.size)).tolist()
+        values["power_db"]["F3"] = np.ones((count, frequencies.size)).tolist()
+        return values
+
+    recording = SimpleNamespace(load_spectrogram=loader)
+    inputs = _inputs(recording)
+    plan = algorithm.plan_window(inputs, _config(), 1000, _session())
+    result = algorithm.execute_window(inputs, _config(), plan, _identity(plan))
+    assert algorithm.can_reuse_offline_window(result, sampling_rate_hz=200, config=config)
+    partial_plan = algorithm.plan_window(inputs, _config(), 800, _session())
+    partial = algorithm.execute_window(inputs, _config(), partial_plan, _identity(partial_plan))
+    assert not algorithm.can_reuse_offline_window(partial, sampling_rate_hz=200, config=config)
+
+
+def test_stft_quality_rejection_has_failure_without_publishing_matrix():
+    recording = SimpleNamespace(load_spectrogram=lambda **kwargs: _payload(kwargs["window_s"], bad_windows=1))
+    algorithm = StftAlgorithm()
+    config = _config()
+    inputs = _inputs(recording)
+    plan = algorithm.plan_window(inputs, config, 1000, _session())
+    result = algorithm.execute_window(inputs, config, plan, _identity(plan))
+    assert result.state == "rejected"
+    assert result.failure["code"] == "STFT_WINDOW_QUALITY_GATE_FAILED"
+    assert result.arrays == {}
+    assert result.axes == {}
+
+
+def test_stft_window_checks_cancellation_before_loading():
+    recording = SimpleNamespace(load_spectrogram=lambda **_: pytest.fail("cancelled work must not load data"))
+    algorithm = StftAlgorithm()
+    config = _config()
+    inputs = _inputs(recording)
+    plan = algorithm.plan_window(inputs, config, 1000, _session())
+    with pytest.raises(RuntimeError, match="cancelled"):
+        algorithm.execute_window(inputs, config, plan, _identity(plan),
+                                 check_cancelled=lambda: (_ for _ in ()).throw(RuntimeError("cancelled")))

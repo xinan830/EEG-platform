@@ -5,7 +5,7 @@ using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
-public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
+public sealed partial class LiveMonitoringViewModel : ObservableObject, IDisposable
 {
     private readonly Func<AcquisitionStateSnapshot> stateProvider;
     private readonly Func<AcquisitionStreamMetadata?> metadataProvider;
@@ -322,8 +322,8 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     public void Refresh()
     {
-        var currentMetadata = metadataProvider();
-        if (!ReferenceEquals(streamMetadata, currentMetadata))
+        var currentMetadata = IsDisplayFrozen ? streamMetadata : metadataProvider();
+        if (!IsDisplayFrozen && !ReferenceEquals(streamMetadata, currentMetadata))
         {
             if (streamMetadata is null || currentMetadata is null)
             {
@@ -337,7 +337,9 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
         var state = stateProvider();
         var batches = currentMetadata is null ? [] : displaySnapshotProvider();
         UpdateDisplayTimeline(state.State, batches);
-        CaptureStatusText = state.State switch
+        CaptureStatusText = IsDisplayFrozen
+            ? "阻抗检测中，EEG 已停止；波形已冻结"
+            : state.State switch
         {
             AcquisitionState.Previewing => "实时预览中，尚未记录",
             AcquisitionState.Recording => "正在记录真实 EEG",
@@ -363,6 +365,11 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
 
     public LiveWaveformSource? GetWaveformSource()
     {
+        if (IsDisplayFrozen)
+        {
+            return frozenPreviewSource;
+        }
+
         var metadata = streamMetadata;
         if (metadata is null)
         {
@@ -375,7 +382,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
             ? FormatDuration(GetEffectiveAcquisitionDuration(metadata, batches, recordingFirstSampleCounterProvider()))
             : "--:--:--";
 
-        return new LiveWaveformSource(
+        var source = new LiveWaveformSource(
             metadata,
             batches,
             Channels.Where(channel => channel.IsVisible).ToArray(),
@@ -390,6 +397,7 @@ public sealed class LiveMonitoringViewModel : ObservableObject, IDisposable
                     .Where(channel => channel.IsVisible)
                     .Select(channel => channel.Name)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase));
+        return previewDisplayContinuity?.Compose(source) ?? source;
     }
 
     /// <summary>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 350" width="100%" height="100%" fill="none">
+  <!-- 坐标轴与箭头 -->
+  <path d="M 55 45 L 55 280 L 350 280" stroke="#000000" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" />
+  <polygon points="55,22 42,48 68,48" fill="#000000" />
+  <polygon points="370,280 344,267 344,293" fill="#000000" />
+
+  <!-- PSD 双峰包络线 -->
+  <path d="M 57 260 C 73 252, 83 185, 98 185 C 111 185, 117 212, 133 212 C 157 212, 168 108, 187 108 C 206 108, 219 232, 248 235 C 263 236, 270 233, 283 240 C 300 250, 315 257, 357 257" stroke="#000000" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- 峰值点与虚线 -->
+  <circle cx="187" cy="108" r="11" fill="#000000" />
+  <line x1="187" y1="122" x2="187" y2="280" stroke="#000000" stroke-width="5.5" stroke-dasharray="10 11" stroke-linecap="round" />
+
+  <!-- 箭头与标注 -->
+  <line x1="220" y1="58" x2="194" y2="84" stroke="#000000" stroke-width="6" stroke-linecap="round" />
+  <path d="M 192 70 L 191 87 L 208 86" stroke="#000000" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+  <text x="231" y="59" fill="#000000" font-family="system-ui, sans-serif" font-weight="700" font-size="34">IAPF</text>
+  <text x="32" y="155" fill="#000000" font-family="system-ui, sans-serif" font-weight="600" font-size="32" text-anchor="middle" transform="rotate(-90, 32, 155)">PSD</text>
+  <text x="205" y="326" fill="#000000" font-family="system-ui, sans-serif" font-weight="600" font-size="30" text-anchor="middle">Frequency (Hz)</text>
+</svg>

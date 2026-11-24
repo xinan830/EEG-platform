@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-14
+goal: Turn saved formulas into backend-computed, readable research results
+  without browser-side EEG math.

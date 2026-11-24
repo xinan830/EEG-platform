@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-04
+goal: Make Theta/Beta semantics explicit and reproducible across Official Run
+  and recording review.

@@ -1,0 +1,103 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
+
+from app.algorithm_runtime.contracts import AlgorithmConfigBase, AlgorithmExecutionSnapshot, AlgorithmInputs, AlgorithmFailure, AlgorithmResult, AlgorithmSeriesResult
+from app.algorithm_runtime.parameter_schema import AlgorithmParameter, ParameterOption, ParameterSchema
+from app.algorithm_runtime.windows import build_dynamic_analysis_frames, controlled_frames
+from app.algorithm_runtime.scalar_window import ScalarDynamicWindowCapability
+from app.algorithms.spectral_snapshot import spectral_execution_snapshot
+from app.scientific.quality import SpectralQualityGateError
+from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
+
+from .compute import compute_band_ratio
+from .config import BandRatioConfig
+from .manifest import MANIFEST
+
+
+class BandRatioAlgorithm(ScalarDynamicWindowCapability):
+    window_preprocessing_scope = "whole_recording_before_window_slice"
+    manifest = MANIFEST
+    on_demand_default_enabled = True
+    config_model = BandRatioConfig
+    output_schema = MANIFEST.output_schema
+
+    def _execute_frame(self, inputs: AlgorithmInputs, config: BandRatioConfig,
+                       start_s: float, end_s: float) -> AlgorithmResult:
+        return self._calculate(inputs, config, start_s, end_s)
+
+    def parameter_schema(self) -> ParameterSchema:
+        number = lambda key, label: AlgorithmParameter(key=key, label_zh=label, value_type="number", unit="Hz", minimum=ANALYSIS_CONTRACT["bandpass_hz"][0], maximum=ANALYSIS_CONTRACT["bandpass_hz"][1], step=0.001)
+        return ParameterSchema(parameters=[
+            AlgorithmParameter(key="channel", label_zh="分析通道", value_type="string", description_zh="从原始记录通道中选择一个通道。"),
+            AlgorithmParameter(key="mode", label_zh="分析模式", value_type="enum", options=[ParameterOption(value="static", label_zh="静态"), ParameterOption(value="dynamic", label_zh="动态")]),
+            AlgorithmParameter(key="start_s", label_zh="分析开始", value_type="number", unit="s", minimum=0, step=0.001),
+            AlgorithmParameter(key="end_s", label_zh="分析结束", value_type="number", unit="s", minimum=0, step=0.001),
+            number("numerator_low_hz", "分子频段下限"), number("numerator_high_hz", "分子频段上限"), number("denominator_low_hz", "分母频段下限"), number("denominator_high_hz", "分母频段上限"),
+            AlgorithmParameter(key="window_s", label_zh="动态分析窗口", value_type="number", unit="s", minimum=4, step=1, required=False),
+            AlgorithmParameter(key="step_s", label_zh="刷新步长", value_type="number", unit="s", minimum=0.1, maximum=10, step=0.1, required=False),
+        ])
+
+    def requested_channels(self, config: AlgorithmConfigBase) -> list[str]:
+        return [config.channel]
+
+    def execution_snapshot(self, config: AlgorithmConfigBase) -> AlgorithmExecutionSnapshot:
+        snapshot = spectral_execution_snapshot(config)
+        snapshot.window["numerator_band_hz"] = [config.numerator_low_hz, config.numerator_high_hz]
+        snapshot.window["denominator_band_hz"] = [config.denominator_low_hz, config.denominator_high_hz]
+        snapshot.window["ratio_policy"] = "numerator_power_divided_by_positive_denominator_power"
+        return snapshot
+
+    def resolve_inputs(self, recording: Any, config: BandRatioConfig) -> AlgorithmInputs:
+        labels = list(getattr(recording, "channel_names", getattr(recording, "channels", [])))
+        selected = next((str(label) for label in labels if str(label).casefold() == config.channel.casefold()), None)
+        if selected is None:
+            raise ValueError(f"未知原始通道: {config.channel}")
+        if max(config.numerator_high_hz, config.denominator_high_hz) >= float(recording.sfreq_hz) / 2:
+            raise ValueError("频段上限必须低于 Nyquist 频率")
+        return AlgorithmInputs(recording_id=str(getattr(recording, "id", "unknown")), channel=selected, sfreq_hz=float(recording.sfreq_hz), duration_s=float(recording.duration_s), payload=recording)
+
+    @staticmethod
+    def _load(recording: Any, *, channel: str, start_s: float, window_s: float, notch_hz: float | None) -> Any:
+        loader: Callable[..., Any] = getattr(recording, "load_spectrum")
+        return loader(start_s=start_s, window_s=window_s, channels=[channel], notch_hz=notch_hz)
+
+    def _calculate(self, inputs: AlgorithmInputs, config: BandRatioConfig, start_s: float, end_s: float) -> AlgorithmResult:
+        return compute_band_ratio(self._load(inputs.payload, channel=inputs.channel, start_s=start_s, window_s=end_s - start_s, notch_hz=config.notch_hz), channel=inputs.channel,
+                                  numerator_low_hz=config.numerator_low_hz, numerator_high_hz=config.numerator_high_hz,
+                                  denominator_low_hz=config.denominator_low_hz, denominator_high_hz=config.denominator_high_hz,
+                                  requested_range={"start_s": start_s, "end_s": end_s}, actual_range={"start_s": start_s, "end_s": end_s})
+
+    def execute_static(self, inputs: AlgorithmInputs, config: BandRatioConfig) -> AlgorithmResult:
+        return self._calculate(inputs, config, config.start_s, config.end_s)
+
+    def execute_dynamic(self, inputs: AlgorithmInputs, config: BandRatioConfig) -> AlgorithmSeriesResult:
+        window_s, step_s = config.window_s or 10.0, config.step_s or 1.0
+        frames = build_dynamic_analysis_frames(config.start_s, config.end_s, duration_s=inputs.duration_s, window_s=window_s, step_s=step_s,
+                                               minimum_window_s=self.manifest.dynamic_policy.minimum_window_s, allow_warmup=self.manifest.dynamic_policy.allow_warmup)
+        results: list[AlgorithmResult] = []
+        for frame in controlled_frames(frames, inputs.execution_context):
+            requested_range = {"start_s": frame.window_start_s, "end_s": frame.window_end_s}
+            try:
+                results.append(self._calculate(inputs, config, frame.window_start_s, frame.window_end_s))
+            except SpectralQualityGateError as exc:
+                quality = dict(exc.quality)
+                results.append(AlgorithmResult(
+                    value=None, unit="ratio", channel=inputs.channel,
+                    requested_range=requested_range, actual_range=requested_range,
+                    quality="gate_failed",
+                    failure=AlgorithmFailure(code="PSD_QUALITY_GATE_FAILED", message="当前动态窗口未通过 PSD 质量门", detail=quality),
+                    evidence={
+                        "source_quality": {key: quality[key] for key in (
+                            "clean_segments", "total_segments", "clean_ratio", "gate_failed", "rejected_reasons",
+                        ) if key in quality},
+                        "spectral_evidence": dict(quality.get("evidence", {})),
+                    },
+                ))
+        return AlgorithmSeriesResult(values=[item.value for item in results], time_s=[frame.time_s for frame in frames], unit="ratio", channel=inputs.channel,
+                                     windows=[{"start_s": frame.window_start_s, "end_s": frame.window_end_s} for frame in frames], quality=[item.quality for item in results],
+                                     failures=[item.failure for item in results],
+                                     states=["Rejected" if item.failure and item.quality == "gate_failed" else "Unavailable" if item.failure else frame.state for frame, item in zip(frames, results, strict=True)],
+                                     point_evidence=[item.evidence for item in results],
+                                     evidence={"points": len(results), "numerator_band_hz": [config.numerator_low_hz, config.numerator_high_hz], "denominator_band_hz": [config.denominator_low_hz, config.denominator_high_hz]})

@@ -1,0 +1,146 @@
+"""HTTP resources for opt-in, single dynamic-analysis windows."""
+
+import logging
+import math
+from time import perf_counter
+from typing import Any
+from fastapi import APIRouter, Query, Request, status
+from fastapi.responses import JSONResponse
+from uuid import uuid4
+
+from app.algorithm_runtime.on_demand import DynamicSubscriptionRequest, DynamicWindowRequest
+from app.algorithm_runtime.errors import AlgorithmRuntimeError
+from app.core.api_contract import error_response
+
+
+router = APIRouter(prefix="/api/analysis-windows", tags=["analysis-windows"])
+logger = logging.getLogger("brain_platform.dynamic_window")
+
+
+def _json_safe(value: Any) -> Any:
+    """Project unavailable numeric values to JSON null at the HTTP boundary.
+
+    Scientific artifacts keep NaN internally to preserve array shape and
+    unavailable masks. JSON has no NaN value, so API responses must expose
+    those points as null without changing the persisted numeric artifact.
+    """
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def _service(request: Request):
+    return request.app.state.dynamic_window_service
+
+
+@router.post("/ensure", status_code=status.HTTP_202_ACCEPTED)
+def ensure_window(payload: DynamicWindowRequest, request: Request):
+    started = perf_counter()
+    payload = payload.model_copy(update={"request_id": payload.request_id or str(getattr(request.state, "request_id", None) or uuid4().hex)})
+    try:
+        value = _service(request).ensure(payload)
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except AlgorithmRuntimeError as exc:
+        http_status = {"WINDOW_CAPACITY_EXCEEDED": 429, "WINDOW_PROJECT_FORBIDDEN": 403,
+                       "WINDOW_CURSOR_INVALID": 422}.get(exc.code, 409)
+        return error_response(request, http_status, exc.code, exc.message)
+    except ValueError as exc:
+        message = str(exc)
+        return error_response(request, 422, "WINDOW_REQUEST_INVALID", message)
+    service_ms = (perf_counter() - started) * 1000
+    result = value.get("result") if isinstance(value.get("result"), dict) else None
+    provenance = result.get("provenance") if isinstance(result, dict) else None
+    served_from = provenance.get("served_from") if isinstance(provenance, dict) else None
+    logger.info(
+        "dynamic_window_ensure_result window_id=%s state=%s served_from=%s cache_hit=%s "
+        "scientific_cache_key=%s start_sample=%s end_sample=%s",
+        value.get("window_id"), value.get("state"), served_from,
+        bool(value.get("state") in {"ready", "rejected", "unavailable", "insufficient_data"}),
+        value.get("scientific_cache_key"),
+        (value.get("range") or {}).get("start_sample"),
+        (value.get("range") or {}).get("end_sample"),
+    )
+    audit_started = perf_counter()
+    request.app.state.audit_service.record("dynamic_window.ensure", payload.request_id,
+        recording_id=payload.recording_id, session_id=value["session_id"], parameters={
+            "window_id": value["window_id"], "subscription_id": value["subscription_id"],
+            "algorithm_id": payload.algorithm_id, "project_id": payload.project_id,
+            "configuration_sha256": value["identity"]["configuration_sha256"],
+            "state": value["state"], "cursor_sample": payload.cursor_sample})
+    audit_ms = (perf_counter() - audit_started) * 1000
+    encode_started = perf_counter()
+    response = JSONResponse(_json_safe(value), status_code=status.HTTP_200_OK if value.get("state") == "ready" else status.HTTP_202_ACCEPTED)
+    logger.info("dynamic_window_api_perf request_id=%s analysis_request_id=%s window_id=%s state=%s service_ms=%.3f audit_ms=%.3f response_encode_ms=%.3f response_bytes=%d total_ms=%.3f",
+        getattr(request.state, "request_id", "unknown"), payload.request_id, value["window_id"], value["state"],
+        service_ms, audit_ms, (perf_counter() - encode_started) * 1000, len(response.body), (perf_counter() - started) * 1000)
+    return response
+
+
+@router.get("/{window_id}")
+def get_window(window_id: str, request: Request):
+    try:
+        value = _service(request).get(window_id, project_id=request.query_params.get("project_id"))
+        return _json_safe(value)
+    except KeyError:
+        return error_response(request, 404, "WINDOW_NOT_FOUND", "分析窗口不存在")
+    except ValueError as exc:
+        return error_response(request, 409, "WINDOW_RESULT_CORRUPT", str(exc))
+
+
+@router.get("/playback/{delivery_id}/events")
+def playback_events(delivery_id: str, request: Request,
+                    after_sequence: int = Query(default=0, ge=0),
+                    limit: int = Query(default=256, ge=1, le=512),
+                    project_id: str | None = None):
+    try:
+        return _service(request).playback_events(
+            delivery_id, after_sequence=after_sequence, limit=limit, project_id=project_id,
+        )
+    except KeyError as exc:
+        return error_response(request, 404, "TNK_PLAYBACK_DELIVERY_NOT_FOUND", str(exc))
+    except ValueError as exc:
+        return error_response(request, 422, "TNK_PLAYBACK_CURSOR_INVALID", str(exc))
+
+
+@router.delete("/playback/{delivery_id}/events")
+def close_playback_events(delivery_id: str, request: Request,
+                          project_id: str | None = None):
+    try:
+        _service(request).close_playback_delivery(delivery_id, project_id=project_id)
+        return {"delivery_id": delivery_id, "state": "closed"}
+    except KeyError as exc:
+        return error_response(request, 404, "TNK_PLAYBACK_DELIVERY_NOT_FOUND", str(exc))
+
+
+@router.post("/{window_id}/subscriptions", status_code=status.HTTP_201_CREATED)
+def subscribe(window_id: str, payload: DynamicSubscriptionRequest, request: Request):
+    try:
+        request_id = str(payload.request_id or getattr(request.state, "request_id", ""))
+        return _service(request).subscribe(window_id, request_id, project_id=payload.project_id)
+    except (KeyError, ValueError) as exc:
+        return error_response(request, 404 if isinstance(exc, KeyError) else 422, "WINDOW_NOT_FOUND" if isinstance(exc, KeyError) else "WINDOW_SUBSCRIPTION_INVALID", str(exc))
+
+
+@router.delete("/subscriptions/{subscription_id}")
+def cancel_subscription(subscription_id: str, request: Request):
+    started = perf_counter()
+    try:
+        value = _service(request).cancel_subscription(subscription_id, project_id=request.query_params.get("project_id"))
+    except KeyError:
+        return error_response(request, 404, "WINDOW_SUBSCRIPTION_NOT_FOUND", "窗口订阅不存在")
+    service_ms = (perf_counter() - started) * 1000
+    audit_started = perf_counter()
+    request.app.state.audit_service.record("dynamic_window.cancel_subscription",
+        str(getattr(request.state, "request_id", "unknown")), parameters={
+            "window_id": value["window_id"], "subscription_id": subscription_id, "state": value["state"]})
+    logger.info("dynamic_subscription_release_perf request_id=%s subscription_id=%s window_id=%s state=%s service_ms=%.3f audit_ms=%.3f total_ms=%.3f",
+        getattr(request.state, "request_id", "unknown"), subscription_id, value["window_id"], value["state"],
+        service_ms, (perf_counter() - audit_started) * 1000, (perf_counter() - started) * 1000)
+    return value

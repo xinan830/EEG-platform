@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-09-14
+goal: Make import, waveform review, spectral analysis, time-frequency analysis,
+  and results easier to navigate without changing EEG computations.

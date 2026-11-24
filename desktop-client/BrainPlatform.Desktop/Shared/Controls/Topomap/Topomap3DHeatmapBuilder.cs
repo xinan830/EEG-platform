@@ -114,10 +114,12 @@ internal static class Topomap3DHeatmapBuilder
             // 1. Proximity mask to the active electrode array (smoothly feathers out beyond the outer ring)
             var proximityMask = 1d - SmoothStep(0.16, 0.29, minDist);
 
-            // 2. Anatomical cranial cap mask (excludes eye sockets, nose, ears, and neck cleanly)
+            // 2. Anatomical cranial cap mask (cradles Fp1/Fp2/F7/F8 cleanly while staying above brow, eyes, and neck)
             var frontBlend = SmoothStep(-0.04, -0.24, p.Z); // 1 on forehead/face (-Z), 0 on back (+Z)
-            var cutoffY = minElectrodeY - 0.035 + frontBlend * Math.Max(0.02, (minFrontElectrodeY - minElectrodeY) + 0.025);
-            var heightMask = SmoothStep(cutoffY - 0.045, cutoffY + 0.045, p.Y);
+            var frontCutoffY = minFrontElectrodeY - 0.068;
+            var backCutoffY = minElectrodeY - 0.045;
+            var cutoffY = backCutoffY + frontBlend * (frontCutoffY - backCutoffY);
+            var heightMask = SmoothStep(cutoffY - 0.036, cutoffY + 0.036, p.Y);
 
             // 3. Ear exclusion (lateral protrusions around |X| > 0.36 and low Y)
             var earLateral = SmoothStep(0.33, 0.41, Math.Abs(p.X)) * (1d - SmoothStep(minElectrodeY - 0.02, minElectrodeY + 0.09, p.Y));

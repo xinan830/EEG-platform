@@ -1,0 +1,604 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Algorithms.Views.Shared.AnalysisParameterCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="PeakFrequencyInputStyle" TargetType="TextBox" BasedOn="{StaticResource AppTextBoxStyle}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="PeakFrequencyPresetStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <!-- Segmented Control Button (Static Analysis) -->
+        <Style x:Key="StaticSegmentButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="1"
+                                BorderBrush="Transparent"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E2E8F0" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsDynamicMode}" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#FFFFFF" />
+                                <Setter TargetName="border" Property="BorderBrush" Value="#CBD5E1" />
+                                <Setter TargetName="border" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Opacity="0.10" Color="#0F172A" />
+                                    </Setter.Value>
+                                </Setter>
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="#1E293B" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsDynamicMode}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Segmented Control Button (Dynamic Analysis) -->
+        <Style x:Key="DynamicSegmentButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="1"
+                                BorderBrush="Transparent"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#E2E8F0" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsDynamicMode}" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#FFFFFF" />
+                                <Setter TargetName="border" Property="BorderBrush" Value="#CBD5E1" />
+                                <Setter TargetName="border" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Opacity="0.10" Color="#0F172A" />
+                                    </Setter.Value>
+                                </Setter>
+                            </DataTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Foreground" Value="#1E293B" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsDynamicMode}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="#94A3B8" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+ <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="1.15*" MinWidth="340"/><ColumnDefinition Width="16"/><ColumnDefinition Width="1.85*" MinWidth="540"/></Grid.ColumnDefinitions>
+  <Border Grid.Column="0" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="20,16"><StackPanel>
+   <StackPanel Orientation="Horizontal" Margin="0,0,0,14"><Border Width="20" Height="20" CornerRadius="10" Background="{StaticResource BlueBrandPrimaryBrush}" Margin="0,0,8,0"><TextBlock Text="2" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="分析范围" FontSize="15" FontWeight="Bold"/></StackPanel>
+   <!-- Modern Segmented Control for Static / Dynamic Analysis -->
+   <Border Background="#F1F5F9" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="3" HorizontalAlignment="Left" Margin="0,0,0,14">
+       <StackPanel Orientation="Horizontal">
+           <Button Content="静态分析"
+                   Command="{Binding SelectStaticModeCommand}">
+               <Button.Style>
+                   <Style TargetType="Button" BasedOn="{StaticResource StaticSegmentButtonStyle}">
+                       <Style.Triggers>
+                           <DataTrigger Binding="{Binding SupportsStaticMode}" Value="False">
+                               <Setter Property="Visibility" Value="Collapsed" />
+                           </DataTrigger>
+                       </Style.Triggers>
+                   </Style>
+               </Button.Style>
+           </Button>
+           <Button Content="动态分析"
+                   Command="{Binding SelectDynamicModeCommand}"
+                   IsEnabled="{Binding IsDynamicModeAvailable}"
+                   Style="{StaticResource DynamicSegmentButtonStyle}"
+                   Margin="3,0,0,0" />
+       </StackPanel>
+   </Border>
+   <Grid Margin="0,0,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="开始时间（记录秒数）" FontSize="12" Foreground="#475569"/><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding StartSeconds, UpdateSourceTrigger=LostFocus}"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="结束时间（记录秒数）" FontSize="12" Foreground="#475569"/><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding EndSeconds, UpdateSourceTrigger=LostFocus}"/></StackPanel></Grid>
+   <StackPanel Margin="0,0,0,14">
+       <StackPanel.Style><Style TargetType="StackPanel"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Parameters.IsThetaBetaSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></StackPanel.Style>
+       <TextBlock Text="Theta/Beta 频段模式" FontSize="12" Foreground="#475569" Margin="0,0,0,4"/>
+       <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" SelectedValuePath="Tag"
+                 SelectedValue="{Binding Parameters.SelectedThetaBetaFrequencyMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+           <ComboBoxItem Content="标准频段（Theta 4–8 Hz，Beta 13–30 Hz）" Tag="standard"/>
+           <ComboBoxItem Content="IAF 相对频段（Theta IAF−6 至 IAF−4 Hz）" Tag="individualized"/>
+       </ComboBox>
+   </StackPanel>
+   <Grid Margin="0,0,0,14">
+       <Grid.Style>
+           <Style TargetType="Grid">
+               <Setter Property="Visibility" Value="Collapsed" />
+               <Style.Triggers>
+                   <DataTrigger Binding="{Binding IsBrainbeatSelected}" Value="True">
+                       <Setter Property="Visibility" Value="Visible" />
+                   </DataTrigger>
+               </Style.Triggers>
+           </Style>
+       </Grid.Style>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+       <StackPanel>
+           <TextBlock Text="Brainbeat Fz 通道" FontSize="12" Foreground="#475569" Margin="0,0,0,4" />
+           <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedChannel, Mode=TwoWay}" />
+       </StackPanel>
+       <StackPanel Grid.Column="2">
+           <TextBlock Text="Brainbeat Pz 通道" FontSize="12" Foreground="#475569" Margin="0,0,0,4" />
+           <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedF4Channel, Mode=TwoWay}" />
+       </StackPanel>
+   </Grid>
+   <Grid Margin="0,0,0,14">
+       <Grid.Style>
+           <Style TargetType="Grid">
+               <Setter Property="Visibility" Value="Collapsed" />
+               <Style.Triggers>
+                   <DataTrigger Binding="{Binding IsFaaSelected}" Value="True">
+                       <Setter Property="Visibility" Value="Visible" />
+                   </DataTrigger>
+               </Style.Triggers>
+           </Style>
+       </Grid.Style>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+       <StackPanel>
+           <TextBlock Text="FAA F3 来源通道" FontSize="12" Foreground="#475569" Margin="0,0,0,4" />
+           <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedChannel, Mode=TwoWay}" />
+       </StackPanel>
+       <StackPanel Grid.Column="2">
+           <TextBlock Text="FAA F4 来源通道" FontSize="12" Foreground="#475569" Margin="0,0,0,4" />
+           <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedF4Channel, Mode=TwoWay}" />
+       </StackPanel>
+   </Grid>
+   <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="12,10" Margin="0,0,0,12"><Border.Style><Style TargetType="Border"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Parameters.IsBandRatioSelected}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Border.Style><StackPanel><Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="频段功率比参数" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A"/><ComboBox Grid.Column="1" Width="132" Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding Parameters.BandRatioPresetNames}" SelectedItem="{Binding Parameters.SelectedRatioPreset, Mode=TwoWay}"/></Grid><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="分子频段（Hz）" FontSize="12" Foreground="#475569"/><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.NumeratorLowFrequencyText, UpdateSourceTrigger=LostFocus}"/><TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B"/><TextBox Grid.Column="2" Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.NumeratorHighFrequencyText, UpdateSourceTrigger=LostFocus}"/></Grid></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="分母频段（Hz）" FontSize="12" Foreground="#475569"/><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBox Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.DenominatorLowFrequencyText, UpdateSourceTrigger=LostFocus}"/><TextBlock Grid.Column="1" Text="至" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#64748B"/><TextBox Grid.Column="2" Style="{StaticResource AppTextBoxStyle}" Text="{Binding Parameters.DenominatorHighFrequencyText, UpdateSourceTrigger=LostFocus}"/></Grid></StackPanel></Grid></StackPanel></Border><Border Background="{StaticResource BlueBrandSoftBrush}" CornerRadius="6" Padding="14,10"><StackPanel><TextBlock FontSize="12" Foreground="#334155"><Run Text="实际分析范围："/><Run Text="{Binding ActualRangeText, Mode=OneWay}" FontWeight="Medium"/></TextBlock><TextBlock FontSize="12" Foreground="#334155" Margin="0,3,0,0"><Run Text="窗口状态："/><Run Text="{Binding WindowStateText, Mode=OneWay}" FontWeight="Medium"/></TextBlock></StackPanel></Border>
+   <StackPanel Margin="0,12,0,0">
+       <StackPanel.Style>
+           <Style TargetType="StackPanel">
+               <Setter Property="Visibility" Value="Collapsed" />
+               <Style.Triggers>
+                   <DataTrigger Binding="{Binding IsDynamicMode}" Value="True">
+                       <Setter Property="Visibility" Value="Visible" />
+                   </DataTrigger>
+               </Style.Triggers>
+           </Style>
+       </StackPanel.Style>
+       <TextBlock Text="动态参数" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6" />
+       <Grid>
+           <Grid.RowDefinitions>
+               <RowDefinition Height="Auto" />
+               <RowDefinition Height="Auto" />
+           </Grid.RowDefinitions>
+           <Grid.ColumnDefinitions>
+               <ColumnDefinition Width="*" />
+               <ColumnDefinition Width="12" />
+               <ColumnDefinition Width="*" />
+           </Grid.ColumnDefinitions>
+           <StackPanel>
+               <TextBlock Text="动态窗口" FontSize="12" Foreground="#475569" />
+               <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding DynamicWindowOptions}"
+                         SelectedItem="{Binding SelectedDynamicWindowSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+           </StackPanel>
+           <StackPanel Grid.Column="2">
+               <TextBlock Text="刷新步长" FontSize="12" Foreground="#475569" />
+               <ComboBox Style="{StaticResource AppFilterComboBoxStyle}" ItemsSource="{Binding DynamicStepOptions}"
+                         SelectedItem="{Binding SelectedDynamicStepSeconds, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+           </StackPanel>
+           <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Margin="0,10,0,0">
+               <TextBlock Text="分析方式" FontSize="12" Foreground="#475569" />
+               <ComboBox x:Name="DynamicExecutionModeComboBox" Style="{StaticResource AppFilterComboBoxStyle}"
+                         ItemsSource="{Binding DynamicExecutionModes}"
+                         SelectedItem="{Binding SelectedDynamicExecutionMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          ToolTip="全量分析：计算整个所选区间；按需分析：跟随游标计算目标窗口；按需预览 + 后台全量：先显示当前窗口，再后台补齐全量结果。" />
+           </StackPanel>
+       </Grid>
+   </StackPanel>
+  <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="14,12" Margin="0,0,0,12">
+      <Border.Style>
+          <Style TargetType="Border">
+              <Setter Property="Visibility" Value="Collapsed" />
+              <Style.Triggers>
+                  <DataTrigger Binding="{Binding Parameters.IsPeakFrequencySelected}" Value="True">
+                      <Setter Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+              </Style.Triggers>
+          </Style>
+      </Border.Style>
+      <StackPanel>
+          <Grid Margin="0,0,0,10">
+              <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="峰频率搜索范围" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1" Width="156" Style="{StaticResource PeakFrequencyPresetStyle}" ItemsSource="{Binding Parameters.PeakBandPresetNames}" SelectedItem="{Binding Parameters.SelectedPeakBandPreset, Mode=TwoWay}" />
+          </Grid>
+          <Grid>
+              <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="24" />
+                  <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                  <TextBlock Text="最低频率（Hz）" FontSize="12" Foreground="#475569" Margin="0,0,0,4" />
+                  <TextBox Style="{StaticResource PeakFrequencyInputStyle}" Text="{Binding Parameters.LowFrequencyText, UpdateSourceTrigger=LostFocus}" />
+              </StackPanel>
+              <TextBlock Grid.Column="1" Text="至" FontSize="12" Foreground="#64748B" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,18,0,0" />
+              <StackPanel Grid.Column="2">
+                  <TextBlock Text="最高频率（Hz）" FontSize="12" Foreground="#475569" Margin="0,0,0,4" />
+                  <TextBox Style="{StaticResource PeakFrequencyInputStyle}" Text="{Binding Parameters.HighFrequencyText, UpdateSourceTrigger=LostFocus}" />
+              </StackPanel>
+          </Grid>
+      </StackPanel>
+  </Border>
+  </StackPanel></Border>
+   <!-- Card 3: 频谱参数 -->
+   <Border Grid.Column="2" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12" Padding="20,18">
+       <StackPanel>
+           <!-- Header -->
+           <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,16">
+               <Border Width="22" Height="22" CornerRadius="11" Background="{StaticResource BlueBrandPrimaryBrush}" Margin="0,0,8,0">
+                   <TextBlock Text="3" Foreground="White" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+               </Border>
+               <TextBlock Text="频谱参数" FontSize="15" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center"/>
+           </StackPanel>
+
+            <!-- Table Container with Rounded Borders & Table Header -->
+            <Border Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
+                <Border.Resources>
+                    <Style x:Key="TableParamTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource AppTextBoxStyle}">
+                        <Setter Property="Height" Value="26" />
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="Padding" Value="4,0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                        <Setter Property="TextAlignment" Value="Center" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
+                        <Setter Property="BorderBrush" Value="#CBD5E1" />
+                        <Setter Property="BorderThickness" Value="1" />
+                    </Style>
+                    <Style x:Key="TableParamComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource AppFilterComboBoxStyle}">
+                        <Setter Property="Height" Value="26" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
+                    </Style>
+                </Border.Resources>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Table Header -->
+                    <Border Grid.Row="0" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="130" />
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="50" />
+                                <ColumnDefinition Width="70" />
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="参数名称" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="设定值" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="单位" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="默认值" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="4" Text="约束条件" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            <TextBlock Grid.Column="5" Text="参数说明" FontSize="12" FontWeight="SemiBold" Foreground="#475569" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Table Rows -->
+                    <StackPanel Grid.Row="1">
+                        <!-- Row 0: 高通截止频率 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Parameters.IsPeakFrequencySelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="高通截止频率" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBox Grid.Column="1" Width="84" Style="{StaticResource TableParamTextBoxStyle}" Text="{Binding Parameters.LowFrequencyText, UpdateSourceTrigger=LostFocus}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="Hz" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="1" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="4" Text="> 0" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="5" Text="去除低于此频率的慢漂移成分" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 1: 低通截止频率 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Parameters.IsPeakFrequencySelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="低通截止频率" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBox Grid.Column="1" Width="84" Style="{StaticResource TableParamTextBoxStyle}" Text="{Binding Parameters.HighFrequencyText, UpdateSourceTrigger=LostFocus}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="Hz" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="50" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="4" Text="&lt; 奈奎斯特频率" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="5" Text="去除高于此频率的成分" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 2: 陷波频率 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="陷波频率" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <ComboBox Grid.Column="1" Width="104" Style="{StaticResource TableParamComboBoxStyle}" ItemsSource="{Binding Parameters.NotchFrequencyOptions}" SelectedItem="{Binding Parameters.SelectedNotchFrequency, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="50" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="4" Text="关闭 / 50 / 60" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="5" Text="抑制工频干扰" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 3: Welch 窗口长度 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Welch 窗口长度" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="4" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="s" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="4" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <Border Grid.Column="4" Background="#F1F5F9" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="官方固定" FontSize="11" Foreground="#475569" HorizontalAlignment="Center" TextAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="5" Text="官方 Welch 合同" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 4: Welch 重叠比例 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Welch 重叠比例" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="50" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="%" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="50" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <Border Grid.Column="4" Background="#F1F5F9" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="官方固定" FontSize="11" Foreground="#475569" HorizontalAlignment="Center" TextAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="5" Text="官方 Welch 合同" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Row 5: 窗函数 -->
+                        <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="0,4">
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="窗函数" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="Hann" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="Hann" FontSize="12" Foreground="#334155" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <Border Grid.Column="4" Background="#F1F5F9" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="官方固定" FontSize="11" Foreground="#475569" HorizontalAlignment="Center" TextAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="5" Text="平滑截断减少频谱泄漏" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- TNK uses its role mapping as the only channel configuration. -->
+                        <Border Padding="0,4">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsFaaSelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsBrainbeatSelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Catalog.IsTnkSelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding ChannelLabel}" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <ComboBox Grid.Column="1" Width="104" Style="{StaticResource TableParamComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedChannel, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                <Border Grid.Column="4" Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="可分析导联列表" FontSize="11" Foreground="{StaticResource BlueBrandDeepBrush}" FontWeight="Medium" HorizontalAlignment="Center" TextAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="5" Text="用于当前算法分析的信号导联" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <!-- TNK role channels are the canonical sources for the whole group. -->
+                        <ItemsControl Margin="0,4,0,0" ItemsSource="{Binding Catalog.TnkRoleChannels}">
+                            <ItemsControl.Style>
+                                <Style TargetType="ItemsControl">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Catalog.IsTnkSelected}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ItemsControl.Style>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Height="40" Margin="0,2,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="130" />
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="50" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <ComboBox Grid.Column="1" Width="104" Style="{StaticResource TableParamComboBoxStyle}"
+                                                  ItemsSource="{Binding DataContext.Catalog.RegisteredChannels, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                  SelectedItem="{Binding SelectedChannel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  ToolTip="请选择该角色的实际来源通道；系统不会根据名称或通道顺序自动替代。" />
+                                        <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <TextBlock Grid.Column="3" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        <Border Grid.Column="4" Background="#FEF3C7" BorderBrush="#FDE68A" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <TextBlock Text="必选且不可重复" FontSize="11" Foreground="#92400E" FontWeight="Medium" HorizontalAlignment="Center" TextAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Grid.Column="5" Text="请选择有效来源通道；此角色没有精确默认映射时需手动指定。" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Brainbeat has an explicit second source channel (Pz). -->
+                        <Border Padding="0,4">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid Height="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130" /><ColumnDefinition Width="110" /><ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="70" /><ColumnDefinition Width="140" /><ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Brainbeat Pz 通道" FontSize="12" Foreground="#1E293B" FontWeight="Medium" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                <ComboBox Grid.Column="1" Width="104" Style="{StaticResource TableParamComboBoxStyle}" ItemsSource="{Binding RegisteredChannels}" SelectedItem="{Binding SelectedF4Channel, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="-" FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                <Border Grid.Column="4" Background="{StaticResource BlueBrandSoftBrush}" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4" Padding="8,2" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="必需且不同" FontSize="11" Foreground="{StaticResource BlueBrandDeepBrush}" FontWeight="Medium" /></Border>
+                                <TextBlock Grid.Column="5" Text="用于 Pz 相对 Alpha 功率计算" FontSize="12" Foreground="#64748B" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+           <!-- STFT Specific Parameters (Collapsible) -->
+           <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="7" Padding="12,10" Margin="0,12,0,0">
+               <Border.Style>
+                   <Style TargetType="Border">
+                       <Setter Property="Visibility" Value="Collapsed"/>
+                       <Style.Triggers>
+                           <DataTrigger Binding="{Binding IsStft}" Value="True">
+                               <Setter Property="Visibility" Value="Visible"/>
+                           </DataTrigger>
+                       </Style.Triggers>
+                   </Style>
+               </Border.Style>
+               <StackPanel>
+                   <TextBlock Text="STFT 参数" FontSize="12" FontWeight="SemiBold" Foreground="#0F172A" />
+                   <TextBlock Text="时频窗长 4 s · 步进 1 s · Hann 窗" FontSize="11.5" Foreground="#64748B" Margin="0,4,0,0" />
+               </StackPanel>
+           </Border>
+       </StackPanel>
+   </Border>
+ </Grid>
+</UserControl>

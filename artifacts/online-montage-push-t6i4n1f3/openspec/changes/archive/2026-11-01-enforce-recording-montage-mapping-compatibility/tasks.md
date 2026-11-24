@@ -1,0 +1,7 @@
+- [x] Record the compatibility contract and migration behavior.
+- [x] Add a pure mapping compatibility resolver.
+- [x] Integrate the resolver into the recording montage catalog.
+- [x] Add regression tests for mapping and reference dependencies.
+- [x] Remove mixed selection wrappers and accept only verified profile instances.
+- [x] Cross-check actual manifest sources against the historical snapshot.
+- [x] Run WPF tests/build, OpenSpec strict validation, and `git diff --check`.

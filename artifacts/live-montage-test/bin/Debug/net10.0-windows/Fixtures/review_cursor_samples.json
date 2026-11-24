@@ -1,0 +1,18 @@
+{
+  "contract": "recording-relative-cursor-v1",
+  "cases": [
+    { "seconds": 0, "sampling_rate_hz": 1000, "duration_samples": 48216, "expected_sample": 0 },
+    { "seconds": 3.999999, "sampling_rate_hz": 1000, "duration_samples": 48216, "expected_sample": 3999 },
+    { "seconds": 4, "sampling_rate_hz": 1000, "duration_samples": 48216, "expected_sample": 4000 },
+    { "seconds": 4.000001, "sampling_rate_hz": 1000, "duration_samples": 48216, "expected_sample": 4000 },
+    { "seconds": 17.4, "sampling_rate_hz": 1000, "duration_samples": 48216, "expected_sample": 17400 },
+    { "seconds": 48.216, "sampling_rate_hz": 1000, "duration_samples": 48216, "expected_sample": 48216 },
+    { "seconds": 1.250244140625, "sampling_rate_hz": 4096, "duration_samples": 8192, "expected_sample": 5121 },
+    { "seconds": 10, "sampling_rate_hz": 1000, "duration_samples": 20000, "expected_sample": 10000 }
+  ],
+  "counter_cases": [
+    { "first_counter": 8000000, "counter": 8004000, "expected_sample": 4000 },
+    { "first_counter": 8000000, "counter": 8010000, "expected_sample": 10000 },
+    { "first_counter": 9007199254740992, "counter": 9007199254744992, "expected_sample": 4000 }
+  ]
+}

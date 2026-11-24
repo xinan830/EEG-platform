@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 355" width="100%" height="100%" fill="none">
+  <!-- 坐标轴与箭头 -->
+  <path d="M 65 45 L 65 285 L 355 285" stroke="#000000" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" />
+  <polygon points="65,22 52,48 78,48" fill="#000000" />
+  <polygon points="375,285 349,272 349,298" fill="#000000" />
+
+  <!-- PSD 曲线 -->
+  <path d="M 67 265 C 82 258, 93 165, 109 165 C 124 165, 129 222, 141 222 C 149 222, 153 207, 160 207 C 167 207, 171 216, 179 216 C 193 216, 202 105, 217 105 C 232 105, 243 235, 262 235 C 269 235, 273 230, 280 230 C 292 230, 304 262, 328 262 L 360 262" stroke="#000000" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- 峰值点与虚线 -->
+  <circle cx="217" cy="105" r="11" fill="#000000" />
+  <line x1="217" y1="118" x2="217" y2="285" stroke="#000000" stroke-width="5.5" stroke-dasharray="10 11" stroke-linecap="round" />
+
+  <!-- 坐标轴标注 -->
+  <text x="40" y="165" fill="#000000" font-family="system-ui, sans-serif" font-weight="600" font-size="32" text-anchor="middle" transform="rotate(-90, 40, 165)">PSD</text>
+</svg>

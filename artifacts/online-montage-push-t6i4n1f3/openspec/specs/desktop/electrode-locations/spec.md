@@ -1,0 +1,153 @@
+# desktop/electrode-locations Specification
+## Purpose
+Preserve an explicit, stable scalp-site mapping for configured EEG input electrodes so future spatial displays can place values using recorded configuration metadata instead of guessing from channel text.
+## Requirements
+### Requirement: Channel settings disclose standard electrode locations
+The system SHALL resolve recognized electrode labels by exact case-insensitive matching after trimming outer whitespace against MNE `colin27_1020`. It SHALL return XYZ in meters, coordinate frame `mri`, the MNE version, and source identifier. Results SHALL be identified as standard-template locations, not measured cap-specific or patient-specific sensor positions. Unsupported labels SHALL be explicitly unavailable; the system MUST NOT infer or alias nearby sites. Resolution SHALL use a typed read-only backend API and keep MNE objects internal to the backend.
+
+#### Scenario: Recognized electrode label
+- **WHEN** a channel configuration contains a supported 10–20 electrode label
+- **THEN** channel settings show its canonical scalp site and standard location status
+
+#### Scenario: Unsupported or non-electrode label
+- **WHEN** a channel label is unsupported, blank, or names a reference/ground rather than a scalp electrode
+- **THEN** its scalp location is shown as unavailable and is excluded from spatial consumers
+
+#### Scenario: Alias-like legacy label
+- **WHEN** a channel uses a legacy name such as T3 and the operator expects T7
+- **THEN** the resolver returns only the exact T3 site if present in the selected montage and never silently substitutes T7
+
+#### Scenario: View resolved sites on a head map
+- **WHEN** the user opens channel settings with resolved standard-template locations
+- **THEN** the page shows those sites on a head-top illustration with the anterior direction at the top, labels each site, and identifies the positions as standard-template estimates rather than measured placement
+- **AND** unresolved, reference, ground, or invalid snapshots are not assigned an invented map position
+
+#### Scenario: Place a custom channel in a floating diagram
+- **WHEN** the user opens the modeless electrode-map window, selects a configured custom EEG label, and clicks or drags within the head outline
+- **THEN** the diagram shows and saves a separate normalized 2D manual position with the channel configuration
+- **AND** the floating window does not block editing the channel settings
+- **AND** the manual position is identified as diagram-only and is never stored as an MNE or measured XYZ location
+- **AND** changing the channel label clears its previous manual position
+
+#### Scenario: Override a standard-template position in the diagram
+- **WHEN** the user selects an EEG channel with a resolved standard-template location and clicks or drags within the head outline
+- **THEN** the diagram uses and saves the normalized 2D manual position for that channel while retaining its resolved standard XYZ snapshot unchanged
+- **AND** the override is identified as diagram-only and is never treated as measured or standard XYZ coordinates
+- **AND** the manually overridden point is visually distinguishable from an unmodified standard-template point
+- **AND** changing the diagram-only position changes the saved spatial snapshot identity, so new analysis montage runs use a new position version while existing runs retain their original snapshot
+
+#### Scenario: Restore all default template positions
+- **WHEN** the user activates restore all default template positions
+- **THEN** every EEG channel's manual 2D override is cleared
+- **AND** standard-template channels return to their resolved standard-template diagram positions without changing their XYZ snapshots
+- **AND** custom channels without standard-template positions are omitted from the diagram
+
+#### Scenario: Hide a channel from the position diagram
+- **WHEN** a configured EEG channel has a standard or manual position but its display toggle is off
+- **THEN** the channel remains selectable for editing or placement
+- **AND** its position is omitted from the electrode diagram until display is enabled again
+
+#### Scenario: Show and move hardware reference and ground landmarks
+- **WHEN** the user opens the floating electrode map for a channel configuration
+- **THEN** it shows separate REF and GND landmarks at the configured positions, defaulting to the Pz/Cz midpoint and Fz/Fpz midpoint
+- **AND** the user can drag either landmark independently without selecting an EEG channel
+- **AND** moving a landmark updates the profile's saved 2D diagram position
+- **AND** the landmark positions are persisted as normalized diagram metadata with the profile
+- **AND** these landmarks are not EEG channel rows, sample columns, MNE scalp snapshots, or signal-fingerprint inputs
+- **AND** existing hardware REF/GND wiring labels and acquisition provenance remain unchanged
+- **AND** restoring default positions returns the landmarks to the default diagram positions
+
+### Requirement: Electrode locations are preserved with configuration identity
+The system SHALL persist the resolved site identity, coordinate values, coordinate convention, coordinate-source version, and normalized MapX/MapY position with the channel configuration entry and any recording snapshot that carries that configuration. Channel and REF/GND map positions SHALL participate in the channel configuration fingerprint. Older snapshots without location fields SHALL remain readable; the unified recording-access layer MAY materialize standard-template MapX/MapY from the authoritative resolver and SHALL expose its source and version in provenance, while loading them SHALL NOT change raw samples.
+
+#### Scenario: Save and reload channel configuration
+- **WHEN** a user saves a configuration containing recognized electrode labels and reloads it
+- **THEN** the same site identities and coordinates are restored with the same coordinate convention and source version
+
+#### Scenario: Historical snapshot after active profile edit
+- **WHEN** the active channel profile changes after a recording snapshot was created
+- **THEN** the historical snapshot retains its original electrode locations and fingerprint
+
+#### Scenario: Legacy snapshot without locations
+- **WHEN** the system opens a profile or recording snapshot created before spatial fields existed
+- **THEN** it remains usable for existing acquisition/review behavior and reports location unavailable without fabricating coordinates
+
+### Requirement: Channel location validation rejects contradictory mappings
+The system SHALL validate that a stored standard site agrees with the configured electrode identity and declared source, frame, unit, version, finite-coordinate contract. Authoritative coordinates SHALL come from the backend resolver; the desktop SHALL NOT maintain a duplicate coordinate table. It SHALL reject duplicate assignment of one physical scalp site to multiple configured EEG inputs unless the profile explicitly represents separate inputs at the same site; blank and unsupported positions SHALL remain valid unavailable states for non-spatial use.
+
+#### Scenario: Malformed or contradictory location snapshot
+- **WHEN** a saved entry claims a site inconsistent with its channel label, has non-finite coordinates, or declares an unsupported frame, unit, or source
+- **THEN** configuration validation fails with an actionable location error
+
+#### Scenario: Duplicate scalp site
+- **WHEN** two EEG inputs map to the same canonical scalp site without an explicit duplicate-site allowance
+- **THEN** configuration validation identifies the duplicate site and blocks saving
+
+### Requirement: Spatial metadata does not imply electrical values
+The system SHALL treat scalp locations as display metadata only. It MUST NOT treat a bipolar derivation as the potential at either endpoint, derive an electrode potential from a bipolar value, or alter signal/reference calculations based on location metadata.
+
+#### Scenario: Bipolar derivation is used by a spatial consumer
+- **WHEN** a downstream spatial display receives a bipolar montage output without an explicitly defined spatial-value rule
+- **THEN** the output is marked spatially ineligible rather than assigned to one endpoint
+
+#### Scenario: Location metadata changes
+- **WHEN** a user edits electrode location metadata
+- **THEN** raw samples, montage reference formulas, and scientific analysis values remain unchanged while configuration identity reflects the metadata change
+
+### Requirement: Standard 3D electrode locations resolve through an explicit GNM mapping
+The system SHALL provide a typed read-only 3D location resolution path for exact `colin27_1020` electrode labels. A mapped result SHALL include the authoritative MNE source identity and coordinates, mapping identity, target GNM model identity, target coordinates, explicit source/target frames and units, and an explicit `is_scalp_field_site` classification. Coordinate availability SHALL remain independent from eligibility for scalp-field interpolation. The existing 2D resolution and manual diagram positions SHALL remain independent. A missing or invalid 3D mapping SHALL return a structured unavailable result and MUST NOT fall back to `MapX`/`MapY` or an approximate mapping.
+
+#### Scenario: Resolve a mapped electrode location
+- **WHEN** a requested label exactly matches a site in the validated mapping and the model identities validate
+- **THEN** the API returns its GNM coordinates and complete source/target provenance in request order
+- **AND** reports whether that location is a scalp-field site independently from coordinate availability
+
+#### Scenario: Resolve an unsupported or unmapped label
+- **WHEN** a requested label is blank, unsupported, REF/GND, or absent from the mapping
+- **THEN** its 3D location is unavailable with a reason and no coordinate is inferred
+
+#### Scenario: Mapping assets are incompatible
+- **WHEN** the source frame/unit cannot be related explicitly to the platform's MNE coordinates or the mapping references another GNM mesh
+- **THEN** the API returns a stable structured error/unavailable status and leaves the existing 2D location behavior unchanged
+
+### Requirement: Channel Settings can inspect mapped locations in 2D or 3D
+The Channel Settings electrode-position window SHALL allow switching between its existing editable 2D diagram and a read-only 3D view of the shared GNM model. The 3D view SHALL use the verified standard model and mapping and SHALL show only currently enabled EEG inputs with exact mapped locations, including mapped A1/A2/M1/M2 when configured. Location resolution SHALL use the shared `is_scalp_field_site` classification; display availability MUST NOT be conflated with scalp-field eligibility. It MUST NOT derive 3D coordinates from editable `MapX`/`MapY`. REF/GND and unmapped labels SHALL remain unavailable in 3D with no inferred position. The camera target and rotation pivot SHALL share the normalized model origin. Zoom SHALL change the camera field of view while keeping the camera outside a bounding sphere enclosing the complete displayed model.
+
+#### Scenario: Switch to the 3D electrode view
+- **WHEN** the operator selects 3D in the Channel Settings electrode-position window
+- **THEN** the shared head model is displayed with the mapped positions for currently enabled EEG inputs
+- **AND** switching back to 2D preserves the existing editable diagram and draft positions
+
+#### Scenario: A configured channel has no 3D scalp site
+- **WHEN** an enabled EEG label is absent from the standard mapping
+- **THEN** the 3D view reports that label as unavailable and does not place it from its 2D diagram position
+
+#### Scenario: A mapped mastoid channel is enabled
+- **WHEN** A1, A2, M1, or M2 is enabled as an EEG input and has an exact standard mapping
+- **THEN** Channel Settings displays its mapped 3D location marker
+- **AND** its scalp-field-site classification remains false
+
+#### Scenario: Channel Settings uses mapped markers without floating labels
+- **WHEN** the operator views mapped EEG inputs in Channel Settings 3D
+- **THEN** each enabled mapped electrode is represented by a marker at its standard 3D location
+- **AND** channel names remain available in the adjacent channel list
+- **AND** the 3D view does not render floating channel-name labels or connector lines
+- **AND** the marker coordinates and backend mapping remain unchanged
+
+#### Scenario: The operator zooms toward the model
+- **WHEN** the operator zooms in repeatedly
+- **THEN** the view magnifies by narrowing the field of view while the camera remains outside the model's enclosing sphere
+- **AND** the camera does not pass through the head surface at any supported zoom level
+
+#### Scenario: The operator pans the model with Shift-drag
+- **WHEN** the operator drags the pointer while holding Shift
+- **THEN** the model follows the pointer in both horizontal and vertical screen directions
+
+#### Scenario: The operator edits 2D positions or hardware landmarks
+- **WHEN** the operator drags an EEG marker, REF, or GND in the 2D view
+- **THEN** only the existing 2D draft position changes; the read-only 3D standard mapping remains unchanged
+
+#### Scenario: A saved profile is previewed without a loaded device draft
+- **WHEN** a saved channel profile is selected but no device draft is loaded
+- **THEN** the position window shows its saved EEG channel labels and enabled states in both views
+- **AND** the 2D positions remain read-only while the 3D view uses only the shared standard mapping

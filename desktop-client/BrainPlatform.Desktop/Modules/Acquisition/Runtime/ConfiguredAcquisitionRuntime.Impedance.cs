@@ -31,6 +31,8 @@ public sealed partial class ConfiguredAcquisitionRuntime
             EnsureNoImpedance();
             if (State.SessionId != expectedSessionId || RecordingSessionId != expectedRecordingId)
                 throw new AcquisitionUnavailableException("采集会话已变化，请重新确认后再进入阻抗检测。");
+            if (State.State is AcquisitionState.Recording or AcquisitionState.Paused)
+                throw new AcquisitionUnavailableException("开始录制后不能打开阻抗检测；请先完成当前记录。");
             if (State.State is AcquisitionState.Faulted or AcquisitionState.Starting or AcquisitionState.Stopping)
                 throw new AcquisitionUnavailableException("请先处理采集错误或等待当前操作完成。");
             var capability = adapter as IAcquisitionImpedanceDeviceAdapter
@@ -38,7 +40,7 @@ public sealed partial class ConfiguredAcquisitionRuntime
             if (capability.ImpedanceCapability == ImpedanceCapabilityStatus.Unsupported)
                 throw new AcquisitionUnavailableException("当前 SDK 不支持阻抗检测。");
             SetImpedanceMode(AcquisitionDeviceMode.OpeningImpedance, request.DetectionSessionId, "正在结束 EEG 并打开阻抗检测…");
-            if (IsEegActive)
+            if (State.State == AcquisitionState.Previewing)
             {
                 await RequireCoordinator().StopAsync(cancellationToken);
                 if (State.State != AcquisitionState.Stopped)
