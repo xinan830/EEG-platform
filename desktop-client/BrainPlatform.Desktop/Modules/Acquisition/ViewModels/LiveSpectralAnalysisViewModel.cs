@@ -332,6 +332,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
                     if (update.AlgorithmId == "rbp" && LiveRbpPresentation.Read(update, Channels) is { } rbp) Rbp.Apply(rbp);
                     else if (update.AlgorithmId == "rbp-topomap")
                     {
+                        if (update.State == "overloaded") return;
                         if (update.State is not ("ready" or "partial"))
                         {
                             Rbp.ClearTopomap();
@@ -342,6 +343,7 @@ public sealed class LiveSpectralAnalysisViewModel : ObservableObject, IDisposabl
                     }
                     return;
                 }
+                if (update.State == "overloaded") return;
                 if (update.State is not ("ready" or "partial"))
                 {
                     Psd.Clear();

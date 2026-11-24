@@ -83,6 +83,47 @@ public sealed class BoundedLiveAccessDispatcherTests
             bridge.Batches.SelectMany(batch => batch.Batch.SampleMajorValues));
     }
 
+    [Fact]
+    public async Task CoalescesQueuedContiguousBlocksWhenBacklogBuildsUp()
+    {
+        var bridge = new GatedBridge();
+        await using var dispatcher = new BoundedLiveAccessDispatcher(bridge, capacity: 16);
+
+        Assert.True(dispatcher.TryQueue(CreateBatch(0, sampleCount: 13)));
+        await bridge.FirstPublishStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        for (var i = 1; i <= 6; i++)
+        {
+            Assert.True(dispatcher.TryQueue(CreateBatch(i * 13, sampleCount: 13)));
+        }
+
+        bridge.ReleaseFirstPublish.TrySetResult();
+        await dispatcher.CloseSessionAsync(CancellationToken.None);
+
+        // First block published while paused + remaining 6 contiguous blocks merged into a single catch-up publish.
+        Assert.Equal(2, bridge.Batches.Count);
+        Assert.Equal(new[] { 13, 78 }, bridge.Batches.Select(b => b.Batch.SampleCount));
+        Assert.Equal(
+            Enumerable.Range(0, 91).Select(v => (double)v),
+            bridge.Batches.SelectMany(b => b.Batch.SampleMajorValues));
+    }
+
+    [Fact]
+    public async Task SingleInstanceGuardBlocksDuplicateAndAllowsReacquireAfterDispose()
+    {
+        var name = $"Local\\BrainPlatform.Test.SingleInstance.{Guid.NewGuid():N}";
+        using (var first = BrainPlatform.Desktop.Infrastructure.SingleInstanceGuard.TryAcquire(name))
+        {
+            Assert.NotNull(first);
+            // Win32 Mutex is re-entrant on the owning thread; verify contention from another thread/process.
+            var duplicate = await Task.Run(() => BrainPlatform.Desktop.Infrastructure.SingleInstanceGuard.TryAcquire(name));
+            Assert.Null(duplicate);
+        }
+
+        using var reacquired = await Task.Run(() => BrainPlatform.Desktop.Infrastructure.SingleInstanceGuard.TryAcquire(name));
+        Assert.NotNull(reacquired);
+    }
+
     private static AcquisitionAnalysisBatch CreateBatch(long firstSampleCounter, int sampleCount) => new(
         SessionId,
         new AcquisitionStreamMetadata(
@@ -138,6 +179,29 @@ public sealed class BoundedLiveAccessDispatcherTests
             Disposed = true;
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class GatedBridge : ILiveSampleAccessBridge
+    {
+        private int callCount;
+        public TaskCompletionSource FirstPublishStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseFirstPublish { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<AcquisitionAnalysisBatch> Batches { get; } = [];
+
+        public async Task PublishAsync(AcquisitionAnalysisBatch batch, CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref callCount) == 1)
+            {
+                FirstPublishStarted.TrySetResult();
+                await ReleaseFirstPublish.Task.WaitAsync(cancellationToken);
+            }
+            Batches.Add(batch);
+        }
+
+        public Task SetAlgorithmEnabledAsync(string algorithmId, bool enabled, System.Text.Json.JsonElement config, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task CloseSessionAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public event EventHandler<LiveAnalysisUpdate>? AnalysisUpdated { add { } remove { } }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class FailingBridge : ILiveSampleAccessBridge

@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Windows;
+using BrainPlatform.Desktop.Infrastructure;
 using BrainPlatform.Desktop.Infrastructure.Backend;
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using SciChart.Charting.Visuals;
@@ -8,6 +9,8 @@ namespace BrainPlatform.Desktop;
 
 public partial class App : System.Windows.Application
 {
+    private const string SingleInstanceMutexName = "Local\\BrainPlatform.Desktop.SingleInstance";
+    private SingleInstanceGuard? singleInstanceGuard;
     private BackendProcessManager? _backendProcess;
     private DesktopWorkspaceViewModel? workspace;
     private Modules.Acquisition.Session.DeviceSessionAvailabilityMonitor? deviceAvailabilityMonitor;
@@ -15,6 +18,22 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        singleInstanceGuard = SingleInstanceGuard.TryAcquire(SingleInstanceMutexName);
+        if (singleInstanceGuard is null)
+        {
+            DesktopLog.Warning("desktop_duplicate_instance_blocked");
+            SingleInstanceGuard.ActivateExistingWindow();
+            MessageBox.Show(
+                "脑科研平台桌面客户端已在运行，已为您切换到现有窗口。\n\n为避免多实例同时扫描或抢占放大器连接，本次重复启动已自动退出。",
+                "脑科研平台",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(0);
+            return;
+        }
+
         DesktopLog.Info("desktop_started");
 
         ShutdownMode = ShutdownMode.OnMainWindowClose;
@@ -52,7 +71,7 @@ public partial class App : System.Windows.Application
         var runtime = new Modules.Acquisition.Runtime.ConfiguredAcquisitionRuntime(new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
         {
             BaseAddress = backendEndpoint,
-            Timeout = TimeSpan.FromSeconds(2),
+            Timeout = TimeSpan.FromSeconds(5),
         });
         var deviceSession = new Modules.Acquisition.Session.DeviceSessionManager(runtime);
         deviceAvailabilityMonitor = new Modules.Acquisition.Session.DeviceSessionAvailabilityMonitor(deviceSession, Dispatcher);
@@ -97,6 +116,12 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (singleInstanceGuard is null)
+        {
+            base.OnExit(e);
+            return;
+        }
+
         try
         {
             deviceAvailabilityMonitor?.Dispose();
@@ -115,6 +140,8 @@ public partial class App : System.Windows.Application
 
             // 关闭后端进程（打包模式下）
             _backendProcess?.Dispose();
+            singleInstanceGuard.Dispose();
+            singleInstanceGuard = null;
             DesktopLog.Info("desktop_stopped");
             base.OnExit(e);
         }

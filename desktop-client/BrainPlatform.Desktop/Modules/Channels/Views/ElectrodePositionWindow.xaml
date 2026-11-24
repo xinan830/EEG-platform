@@ -197,6 +197,7 @@
                                               ElectrodeLabels="{Binding EnabledElectrodeLabels}"
                                               SelectedElectrodeLabel="{Binding SelectedItem.ElectrodeLabel, ElementName=ElectrodeRows}"
                                               IsHeatmapPreview="{Binding IsThreeDimensionalTopographic}"
+                                              EnablePreviewLabModes="True"
                                               HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 </Border>
             </Grid>

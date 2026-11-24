@@ -51,9 +51,9 @@ public sealed class AcquisitionCoordinator : IAsyncDisposable
         IAcquisitionRawWriterFactory rawWriterFactory,
         IAcquisitionAnalysisBridge analysisBridge,
         int ringBufferCapacitySamples = 30_000,
-        int analysisQueueCapacity = 8,
+        int analysisQueueCapacity = BoundedAnalysisDispatcher.DefaultQueueCapacity,
         ILiveSampleAccessBridge? liveAccessBridge = null,
-        int liveAccessQueueCapacity = 8)
+        int liveAccessQueueCapacity = BoundedLiveAccessDispatcher.DefaultQueueCapacity)
     {
         this.deviceAdapter = deviceAdapter ?? throw new ArgumentNullException(nameof(deviceAdapter));
         this.rawWriterFactory = rawWriterFactory ?? throw new ArgumentNullException(nameof(rawWriterFactory));

@@ -1,4 +1,5 @@
 import * as THREE from "./three.module.min.js";
+import { createConnectomeLayer } from "./connectome_layer.js";
 
 // --- Colormaps ---
 const COLORMAPS = {
@@ -33,18 +34,19 @@ const COLORMAPS = {
 };
 const COLORMAP_ORDER = ["turbo", "jet", "rdbu", "viridis"];
 const PRESETS = [
-  { id: "frontal", label: "额区双侧激活", yaw: -0.32, pitch: -0.35 },
-  { id: "occipital", label: "枕叶 Alpha 优势", yaw: 2.55, pitch: -0.32 },
-  { id: "asymmetry", label: "右半球偏侧激活", yaw: 0.78, pitch: -0.32 },
+  { id: "frontal", label: "额区双侧激活", yaw: 0.32, pitch: -0.35 },
+  { id: "occipital", label: "枕叶 Alpha 优势", yaw: -2.55, pitch: -0.32 },
+  { id: "asymmetry", label: "右半球偏侧激活", yaw: -0.78, pitch: -0.32 },
 ];
 
 const state = {
-  mode: "cortex",          // "cortex" | "atlas" | "scalp" | "electrodes"
+  mode: "cortex",          // "cortex" | "atlas" | "scalp" | "connectome" | "electrodes"
   atlasId: "lobes",
   colormap: "turbo",
   presetIndex: 0,
   isRealField: false,
   isPreviewHeatmap: false,
+  enableLabModes: false,
   showDimSwitcher: false,
   scalpData: null,         // normalized vertices, normals, indices, transform info
   cortexData: null,        // normalized vertices, indices, sulc, atlases
@@ -91,17 +93,19 @@ let scalpOpaqueMesh = null;
 let scalpDepthMesh = null;
 let scalpFrostedMesh = null;
 let cortexMesh = null;
+let cortexSolidMaterial = null;
 const electrodeGroup = new THREE.Group();
 rootGroup.add(electrodeGroup);
+let connectomeLayer = null;
 let electrodeMeshes = [];
 let labelElements = [];
 let selectedMarkerMesh = null;
 let pulseStartMs = -1;
 
-// Orbit / Pan / Zoom & Smooth Fly-To state
+// Orbit / Pan / Zoom & Smooth Fly-To state (yaw=+0.50 shows subject's LEFT 3/4 profile: Fp1/F3/F7/C3/T3/M1)
 const camCtrl = {
-  yaw: -0.48, pitch: 0.24, distance: 2.35, target: new THREE.Vector3(0, 0.02, 0),
-  defaultYaw: -0.48, defaultPitch: 0.24, defaultDistance: 2.35, defaultTarget: new THREE.Vector3(0, 0.02, 0),
+  yaw: 0.50, pitch: 0.24, distance: 2.35, target: new THREE.Vector3(0, 0.02, 0),
+  defaultYaw: 0.50, defaultPitch: 0.24, defaultDistance: 2.35, defaultTarget: new THREE.Vector3(0, 0.02, 0),
   anim: null,
   dragging: false, panning: false, lastX: 0, lastY: 0, movedPx: 0,
 };
@@ -184,8 +188,8 @@ function buildTransformFromScalp(payload) {
   for (let i = 0; i < rawVerts.length; i++) {
     const p = rawVerts[i];
     const dx = p[0] - origin[0], dy = p[1] - origin[1], dz = p[2] - origin[2];
-    // +X = Right, +Y = Up, +Z = Forward (face points toward +Z, camera starts on +Z!)
-    const x = dx * R[0] + dy * R[1] + dz * R[2];
+    // Proper right-handed basis (det = +1): +X = Subject LEFT (-R), +Y = Up (+U), +Z = Forward (+F)
+    const x = -(dx * R[0] + dy * R[1] + dz * R[2]);
     const y = dx * U[0] + dy * U[1] + dz * U[2];
     const z = dx * F[0] + dy * F[1] + dz * F[2];
     headPts[i * 3] = x; headPts[i * 3 + 1] = y; headPts[i * 3 + 2] = z;
@@ -199,7 +203,7 @@ function buildTransformFromScalp(payload) {
 
   const mapPoint = (gx, gy, gz) => {
     const dx = gx - origin[0], dy = gy - origin[1], dz = gz - origin[2];
-    const x = dx * R[0] + dy * R[1] + dz * R[2];
+    const x = -(dx * R[0] + dy * R[1] + dz * R[2]);
     const y = dx * U[0] + dy * U[1] + dz * U[2];
     const z = dx * F[0] + dy * F[1] + dz * F[2];
     return [(x - cx) * scale, (y - cy) * scale, (z - cz) * scale];
@@ -215,8 +219,9 @@ function buildTransformFromScalp(payload) {
 }
 
 function createFrostedScalpMaterial() {
-  // Single-layer frosted porcelain-glass shell (paired with depth prepass so face/chin/neck
-  // never show distracting X-ray double walls while the inner cortex stays crisp and luminous).
+  // Height-graded frosted alabaster shell (paired with depth prepass):
+  // - Lower head/face/ears/neck read as a crisp, sculpted frosted-marble mannequin with clear facial relief.
+  // - Upper cranial dome stays translucent frosted glass with a defined rim so the colorful inner brain pops.
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -224,14 +229,18 @@ function createFrostedScalpMaterial() {
     depthFunc: THREE.LessEqualDepth,
     side: THREE.FrontSide,
     uniforms: {
-      uBaseColor: { value: new THREE.Color(0xeaf0f7) },
-      uRimColor: { value: new THREE.Color(0xc5d2e3) },
-      uLightDir: { value: new THREE.Vector3(0.42, 0.72, 0.62).normalize() },
+      uLightCol: { value: new THREE.Vector3(0.92, 0.94, 0.97) },
+      uShadowCol: { value: new THREE.Vector3(0.71, 0.75, 0.82) },
+      uRimCol: { value: new THREE.Vector3(0.68, 0.74, 0.82) },
+      uKeyDir: { value: new THREE.Vector3(0.42, 0.70, 0.58).normalize() },
+      uFillDir: { value: new THREE.Vector3(-0.55, 0.20, 0.75).normalize() },
     },
     vertexShader: `
       varying vec3 vNormalView;
       varying vec3 vViewPos;
+      varying float vLocalY;
       void main() {
+        vLocalY = position.y;
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
         vViewPos = -mvPosition.xyz;
         vNormalView = normalize(normalMatrix * normal);
@@ -239,21 +248,36 @@ function createFrostedScalpMaterial() {
       }
     `,
     fragmentShader: `
-      uniform vec3 uBaseColor;
-      uniform vec3 uRimColor;
-      uniform vec3 uLightDir;
+      uniform vec3 uLightCol;
+      uniform vec3 uShadowCol;
+      uniform vec3 uRimCol;
+      uniform vec3 uKeyDir;
+      uniform vec3 uFillDir;
       varying vec3 vNormalView;
       varying vec3 vViewPos;
+      varying float vLocalY;
       void main() {
         vec3 N = normalize(vNormalView);
         vec3 V = normalize(vViewPos);
         float ndotv = clamp(dot(N, V), 0.0, 1.0);
-        float fresnel = pow(1.0 - ndotv, 2.15);
-        float diffuse = clamp(dot(N, uLightDir) * 0.5 + 0.5, 0.0, 1.0);
-        vec3 H = normalize(uLightDir + V);
-        float spec = pow(clamp(dot(N, H), 0.0, 1.0), 28.0) * 0.14;
-        vec3 col = mix(uBaseColor * (0.86 + 0.18 * diffuse), uRimColor, fresnel * 0.62) + vec3(spec);
-        float alpha = clamp(0.11 + fresnel * 0.58, 0.09, 0.72);
+        float fresnel = pow(1.0 - ndotv, 1.95);
+
+        // Two-light sculpted shading so nose, brow, eye sockets, jaw, and ears read crisply
+        float key = clamp(dot(N, uKeyDir) * 0.5 + 0.5, 0.0, 1.0);
+        float fill = clamp(dot(N, uFillDir) * 0.5 + 0.5, 0.0, 1.0);
+        float shade = clamp(key * 0.74 + fill * 0.26, 0.0, 1.0);
+        vec3 H = normalize(uKeyDir + V);
+        float spec = pow(clamp(dot(N, H), 0.0, 1.0), 30.0) * 0.12;
+
+        vec3 baseCol = mix(uShadowCol, uLightCol, smoothstep(0.12, 0.92, shade));
+        vec3 col = mix(baseCol, uRimCol, fresnel * 0.55) + vec3(spec);
+
+        // Face/jaw/neck (vLocalY < -0.04) are more opaque alabaster; cranial dome stays clear frosted glass
+        float dome = smoothstep(-0.08, 0.14, vLocalY);
+        float faceAlpha = clamp(0.56 + fresnel * 0.34, 0.54, 0.90);
+        float domeAlpha = clamp(0.18 + fresnel * 0.58, 0.16, 0.78);
+        float alpha = mix(faceAlpha, domeAlpha, dome);
+
         gl_FragColor = vec4(col, alpha);
       }
     `,
@@ -265,16 +289,28 @@ function loadScalpMesh(payload) {
   const tris = payload.triangles;
   const indices = new Uint32Array(tris.length * 3);
   for (let i = 0; i < tris.length; i++) {
-    // Flip winding because F moved from -Z to +Z (keeps outward normals pointing outward!)
     indices[i * 3] = tris[i][0];
-    indices[i * 3 + 1] = tris[i][2];
-    indices[i * 3 + 2] = tris[i][1];
+    indices[i * 3 + 1] = tris[i][1];
+    indices[i * 3 + 2] = tris[i][2];
   }
 
   const geom = new THREE.BufferGeometry();
   geom.setAttribute("position", new THREE.BufferAttribute(normVerts, 3));
   geom.setIndex(new THREE.BufferAttribute(indices, 1));
   geom.computeVertexNormals();
+  const sPos = geom.getAttribute("position");
+  const sNorm = geom.getAttribute("normal");
+  let sDot = 0;
+  for (let i = 0; i < sPos.count; i += 8) {
+    sDot += sPos.getX(i) * sNorm.getX(i) + sPos.getY(i) * sNorm.getY(i) + sPos.getZ(i) * sNorm.getZ(i);
+  }
+  if (sDot < 0) {
+    for (let i = 0; i < indices.length; i += 3) {
+      const tmp = indices[i + 1]; indices[i + 1] = indices[i + 2]; indices[i + 2] = tmp;
+    }
+    geom.setIndex(new THREE.BufferAttribute(indices, 1));
+    geom.computeVertexNormals();
+  }
 
   const colors = new Float32Array(normVerts.length);
   const nR = srgbToLinear(205 / 255), nG = srgbToLinear(211 / 255), nB = srgbToLinear(218 / 255);
@@ -294,8 +330,10 @@ function loadScalpMesh(payload) {
   scalpOpaqueMesh.renderOrder = 1;
   rootGroup.add(scalpOpaqueMesh);
 
-  // Depth prepass writes only the nearest front scalp surface so overlapping folds (chin/neck/ear) never ghost
+  // Depth prepass runs in the transparent queue (renderOrder 4) AFTER inner ghost cortex (2)
+  // and connectome arcs (3), writing only the nearest front scalp surface so chin/neck/ear never ghost.
   const depthMat = new THREE.MeshBasicMaterial({
+    transparent: true,
     colorWrite: false,
     depthWrite: true,
     side: THREE.FrontSide,
@@ -365,6 +403,7 @@ function loadCortexMesh(cortexPayload) {
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true, roughness: 0.44, metalness: 0.04,
   });
+  cortexSolidMaterial = mat;
   cortexMesh = new THREE.Mesh(geom, mat);
   cortexMesh.renderOrder = 2;
   rootGroup.add(cortexMesh);
@@ -394,7 +433,8 @@ function evalPresetValue(pos, presetId) {
     return 0.90 * g(-0.11, 0.14, -0.34, 0.22) + 0.95 * g(0.12, 0.14, -0.34, 0.22) + 0.50 * g(0.0, 0.36, -0.16, 0.24);
   }
   if (presetId === "asymmetry") {
-    return 0.95 * g(0.26, 0.28, 0.06, 0.23) + 0.72 * g(0.22, 0.24, 0.24, 0.21) - 0.45 * g(-0.26, 0.26, 0.04, 0.22) + 0.35;
+    // Subject Right hemisphere is -X in proper right-handed coordinates
+    return 0.95 * g(-0.26, 0.28, 0.06, 0.23) + 0.72 * g(-0.22, 0.24, 0.24, 0.21) - 0.45 * g(0.26, 0.26, 0.04, 0.22) + 0.35;
   }
   // frontal
   return 0.95 * g(0.0, 0.24, 0.34, 0.24) + 0.80 * g(-0.18, 0.20, 0.26, 0.22) + 0.82 * g(0.18, 0.20, 0.26, 0.22);
@@ -703,30 +743,61 @@ function recolorScalpSurface() {
   colorAttr.needsUpdate = true;
 }
 
+function ensureConnectomeLayer() {
+  if (!connectomeLayer) {
+    connectomeLayer = createConnectomeLayer({ rootGroup, evalColormap, srgbToLinear });
+  }
+  return connectomeLayer;
+}
+
+function updateConnectomeStatusUI(stats) {
+  const s = stats || connectomeLayer?.getStats() || { shown: 0, total: 0 };
+  document.getElementById("connectome-edge-count").textContent = `显示 ${s.shown} / ${s.total} 条连边`;
+}
+
 function recolorActiveSurfaces() {
   if (state.mode === "cortex" && cortexMesh) recolorCortexHeatmap();
   else if (state.mode === "atlas" && cortexMesh) recolorCortexAtlas();
+  else if (state.mode === "connectome") {
+    const layer = ensureConnectomeLayer();
+    layer.setColormap(state.colormap);
+    const stats = layer.setElectrodes(state.electrodes, state.cortexData?.normVerts);
+    updateConnectomeStatusUI(stats);
+  }
   else recolorScalpSurface();
 }
 
 function applyModeVisibility() {
   const hasCortex = !!cortexMesh;
-  const showCortex = (state.mode === "cortex" || state.mode === "atlas") && hasCortex;
-  if (scalpOpaqueMesh) scalpOpaqueMesh.visible = !showCortex;
-  if (scalpDepthMesh) scalpDepthMesh.visible = showCortex;
-  if (scalpFrostedMesh) scalpFrostedMesh.visible = showCortex;
-  if (cortexMesh) cortexMesh.visible = showCortex;
+  const isConnectome = state.mode === "connectome";
+  const showFrostedShell = (state.mode === "cortex" || state.mode === "atlas" || isConnectome) && hasCortex;
+  if (scalpOpaqueMesh) scalpOpaqueMesh.visible = !showFrostedShell;
+  if (scalpDepthMesh) scalpDepthMesh.visible = showFrostedShell;
+  if (scalpFrostedMesh) scalpFrostedMesh.visible = showFrostedShell;
+  if (cortexMesh) {
+    cortexMesh.visible = showFrostedShell;
+    if (isConnectome) {
+      cortexMesh.material = ensureConnectomeLayer().ghostCortexMaterial;
+    } else if (cortexSolidMaterial) {
+      cortexMesh.material = cortexSolidMaterial;
+    }
+  }
+  electrodeGroup.visible = !isConnectome;
+  if (isConnectome) ensureConnectomeLayer().setVisible(true);
+  else if (connectomeLayer) connectomeLayer.setVisible(false);
 
+  document.getElementById("mode-connectome-btn").classList.toggle("hidden", !state.enableLabModes);
   document.querySelectorAll("#mode-group .seg-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.mode === state.mode);
   });
   document.getElementById("mode-group").classList.toggle("hidden", state.mode === "electrodes");
   document.getElementById("atlas-select").classList.toggle("hidden", state.mode !== "atlas");
   document.getElementById("atlas-card").classList.toggle("hidden", state.mode !== "atlas");
-  const showHeatUi = state.mode === "cortex" || state.mode === "scalp";
+  document.getElementById("connectome-bar").classList.toggle("hidden", !isConnectome);
+  const showHeatUi = state.mode === "cortex" || state.mode === "scalp" || isConnectome;
   document.getElementById("colorbar-card").classList.toggle("hidden", !showHeatUi);
   document.getElementById("colormap-btn").classList.toggle("hidden", !showHeatUi);
-  document.getElementById("preset-btn").classList.toggle("hidden", !(showHeatUi && !state.isRealField));
+  document.getElementById("preset-btn").classList.toggle("hidden", !((showHeatUi && !state.isRealField) || isConnectome));
   document.getElementById("dim-switcher").style.display = state.showDimSwitcher ? "inline-flex" : "none";
 
   updateColorbarUI();
@@ -735,14 +806,24 @@ function applyModeVisibility() {
 
 function updateColorbarUI() {
   const cm = COLORMAPS[state.colormap] || COLORMAPS.turbo;
+  const isConnectome = state.mode === "connectome";
   document.getElementById("colormap-btn").textContent = `色带：${cm.label}`;
-  document.getElementById("preset-btn").textContent = `分布：${PRESETS[state.presetIndex].label}`;
+  document.getElementById("preset-btn").textContent = isConnectome
+    ? `网络：${ensureConnectomeLayer().getPreset().label}`
+    : `分布：${PRESETS[state.presetIndex].label}`;
   const gradStops = [...cm.stops].reverse().map(([p, rgb]) => `rgb(${rgb[0]},${rgb[1]},${rgb[2]}) ${((1 - p) * 100).toFixed(1)}%`).join(", ");
   document.getElementById("colorbar-gradient").style.background = `linear-gradient(to bottom, ${gradStops})`;
-  document.getElementById("colorbar-unit").textContent = state.scaleInfo.unit;
-  document.getElementById("tick-max").textContent = state.scaleInfo.maxText;
-  document.getElementById("tick-mid").textContent = state.scaleInfo.midText;
-  document.getElementById("tick-min").textContent = state.scaleInfo.minText;
+  if (isConnectome) {
+    document.getElementById("colorbar-unit").textContent = "连接强度";
+    document.getElementById("tick-max").textContent = "1.00";
+    document.getElementById("tick-mid").textContent = "0.60";
+    document.getElementById("tick-min").textContent = "0.20";
+  } else {
+    document.getElementById("colorbar-unit").textContent = state.scaleInfo.unit;
+    document.getElementById("tick-max").textContent = state.scaleInfo.maxText;
+    document.getElementById("tick-mid").textContent = state.scaleInfo.midText;
+    document.getElementById("tick-min").textContent = state.scaleInfo.minText;
+  }
 }
 
 function updateAtlasLegendUI() {
@@ -821,15 +902,24 @@ function projectLabels() {
   const camPos = camera.position;
   const v = new THREE.Vector3();
   const toCam = new THREE.Vector3();
+  const inConnectome = state.mode === "connectome" && !!connectomeLayer;
   for (const { el, e } of labelElements) {
     const isSel = isSelectedElectrode(e);
-    toCam.copy(camPos).sub(e.pos).normalize();
-    const dot = e.normal.dot(toCam);
+    let anchorPos = e.pos;
+    let anchorNormal = e.normal;
+    if (inConnectome) {
+      const cNode = connectomeLayer.getNodeForElectrode(e);
+      if (!cNode) { el.style.display = "none"; continue; }
+      anchorPos = cNode.pos;
+      anchorNormal = cNode.normal;
+    }
+    toCam.copy(camPos).sub(anchorPos).normalize();
+    const dot = anchorNormal.dot(toCam);
     if (!isSel && dot <= 0.05) {
       el.style.display = "none";
       continue;
     }
-    v.copy(e.pos).project(camera);
+    v.copy(anchorPos).project(camera);
     if (v.z > 1 || v.x < -1.1 || v.x > 1.1 || v.y < -1.1 || v.y > 1.1) {
       el.style.display = "none";
       continue;
@@ -837,9 +927,9 @@ function projectLabels() {
     const sx = (v.x * 0.5 + 0.5) * w;
     const sy = (-v.y * 0.5 + 0.5) * h;
     // Dynamic pixel offset proportional to apparent sphere radius so label never overlaps sphere
-    const dist = camPos.distanceTo(e.pos);
+    const dist = camPos.distanceTo(anchorPos);
     const halfHWorld = dist * Math.tan((camera.fov * Math.PI) / 360);
-    const spherePx = ((isSel ? 0.017 : 0.011) / Math.max(0.01, halfHWorld)) * (h * 0.5);
+    const spherePx = ((isSel ? 0.017 : (inConnectome ? 0.015 : 0.011)) / Math.max(0.01, halfHWorld)) * (h * 0.5);
     const opacity = isSel ? (dot > -0.15 ? 1 : 0.45) : Math.max(0, Math.min(1, (dot - 0.05) / 0.22));
     el.style.display = "block";
     el.style.opacity = opacity.toFixed(2);
@@ -903,6 +993,20 @@ host.addEventListener("pointermove", (ev) => {
     }
     if (state.hoveredRegionId !== -1) { state.hoveredRegionId = -1; recolorCortexAtlas(); }
     tooltip.style.display = "none";
+  } else if (state.mode === "connectome" && connectomeLayer) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointerNdc.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+    pointerNdc.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointerNdc, camera);
+    const info = connectomeLayer.pickHover(raycaster);
+    if (info) {
+      tooltip.innerHTML = `<div>${info.title}</div><div class="sub">${info.sub}</div>`;
+      tooltip.style.display = "block";
+      tooltip.style.left = `${Math.min(rect.width - 170, ev.clientX - rect.left + 14)}px`;
+      tooltip.style.top = `${Math.max(10, ev.clientY - rect.top - 12)}px`;
+    } else {
+      tooltip.style.display = "none";
+    }
   } else {
     tooltip.style.display = "none";
   }
@@ -954,6 +1058,13 @@ document.getElementById("colormap-btn").addEventListener("click", () => {
 });
 
 document.getElementById("preset-btn").addEventListener("click", () => {
+  if (state.mode === "connectome") {
+    const { preset, stats } = ensureConnectomeLayer().cyclePreset();
+    updateColorbarUI();
+    updateConnectomeStatusUI(stats);
+    startCameraAnim(preset.yaw, preset.pitch, camCtrl.distance, camCtrl.defaultTarget, 560);
+    return;
+  }
   state.presetIndex = (state.presetIndex + 1) % PRESETS.length;
   const p = PRESETS[state.presetIndex];
   updateColorbarUI();
@@ -964,6 +1075,15 @@ document.getElementById("preset-btn").addEventListener("click", () => {
   if (span > 1e-6) for (const e of state.electrodes) e.valueNorm = 0.05 + 0.90 * ((e.valueNorm - mn) / span);
   recolorActiveSurfaces();
   startCameraAnim(p.yaw, -p.pitch, camCtrl.distance, camCtrl.defaultTarget, 560);
+});
+
+document.getElementById("connectome-threshold").addEventListener("input", (ev) => {
+  const val = parseFloat(ev.target.value);
+  document.getElementById("connectome-threshold-val").textContent = val.toFixed(2);
+  if (state.mode === "connectome") {
+    const stats = ensureConnectomeLayer().setThreshold(val);
+    updateConnectomeStatusUI(stats);
+  }
 });
 
 document.getElementById("reset-btn").addEventListener("click", () => {
@@ -993,12 +1113,15 @@ window.chrome?.webview?.addEventListener("message", (ev) => {
   } else if (msg.type === "setSceneState") {
     state.isRealField = !!msg.isRealField;
     state.isPreviewHeatmap = !!msg.isPreviewHeatmap;
+    state.enableLabModes = !!msg.enableLabModes;
     state.showDimSwitcher = !!msg.showDimSwitcher;
     if (msg.forcedMode) {
       state.mode = msg.forcedMode;
     } else if (!state.isRealField && !state.isPreviewHeatmap) {
       state.mode = "electrodes";
     } else if (state.mode === "electrodes") {
+      state.mode = "cortex";
+    } else if (state.mode === "connectome" && !state.enableLabModes) {
       state.mode = "cortex";
     }
     if (msg.scaleInfo) state.scaleInfo = msg.scaleInfo;

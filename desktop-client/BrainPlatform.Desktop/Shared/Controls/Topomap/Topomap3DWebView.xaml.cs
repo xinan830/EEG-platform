@@ -53,6 +53,10 @@ public partial class Topomap3DWebView : UserControl
         nameof(WindowText), typeof(string), typeof(Topomap3DWebView),
         new PropertyMetadata(null, OnSceneInputChanged));
 
+    public static readonly DependencyProperty EnablePreviewLabModesProperty = DependencyProperty.Register(
+        nameof(EnablePreviewLabModes), typeof(bool), typeof(Topomap3DWebView),
+        new PropertyMetadata(false, OnSceneInputChanged));
+
     private CancellationTokenSource? syncCts;
     private bool initStarted;
     private bool viewerReady;
@@ -120,6 +124,12 @@ public partial class Topomap3DWebView : UserControl
     {
         get => (string?)GetValue(WindowTextProperty);
         set => SetValue(WindowTextProperty, value);
+    }
+
+    public bool EnablePreviewLabModes
+    {
+        get => (bool)GetValue(EnablePreviewLabModesProperty);
+        set => SetValue(EnablePreviewLabModesProperty, value);
     }
 
     private static void OnSceneInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
@@ -272,7 +282,8 @@ public partial class Topomap3DWebView : UserControl
         var isPreview = IsHeatmapPreview;
         var showDim = ShowDimensionSwitcher;
         var windowText = WindowText;
-        _ = SyncSceneAsync(scalp, labels, field, scaleState, isPreview, showDim, windowText, cts, cts.Token);
+        var enableLabModes = EnablePreviewLabModes;
+        _ = SyncSceneAsync(scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes, cts, cts.Token);
     }
 
     private async Task SyncSceneAsync(
@@ -283,6 +294,7 @@ public partial class Topomap3DWebView : UserControl
         bool isPreview,
         bool showDim,
         string? windowText,
+        bool enableLabModes,
         CancellationTokenSource owner,
         CancellationToken token)
     {
@@ -319,7 +331,7 @@ public partial class Topomap3DWebView : UserControl
             }
 
             var sceneMessage = Topomap3DWebPayloadBuilder.BuildSceneStateJson(
-                scalp, labels, field, scaleState, isPreview, showDim, windowText);
+                scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes);
             WebView.CoreWebView2.PostWebMessageAsJson(sceneMessage);
             PostSelectedElectrode();
         }

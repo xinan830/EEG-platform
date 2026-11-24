@@ -19,7 +19,8 @@ internal static class Topomap3DWebPayloadBuilder
         TopomapColorScaleState? scaleState,
         bool isPreview,
         bool showDim,
-        string? windowText)
+        string? windowText,
+        bool enableLabModes = false)
     {
         var electrodes = new List<object>();
         object scaleInfo;
@@ -122,6 +123,7 @@ internal static class Topomap3DWebPayloadBuilder
             type = "setSceneState",
             isRealField,
             isPreviewHeatmap = isPreview,
+            enableLabModes,
             showDimSwitcher = showDim,
             windowText = string.IsNullOrWhiteSpace(windowText) ? null : windowText.Trim(),
             scaleInfo,

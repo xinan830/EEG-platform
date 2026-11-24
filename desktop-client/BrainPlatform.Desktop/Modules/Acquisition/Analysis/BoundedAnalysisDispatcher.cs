@@ -14,7 +14,10 @@ public sealed record AnalysisDispatchResult(
 /// </summary>
 public sealed class BoundedAnalysisDispatcher : IAsyncDisposable
 {
+    public const int DefaultQueueCapacity = 120;
     private const int DisplayFilterBlockDurationMilliseconds = 50;
+    private const int BacklogCoalesceThreshold = 3;
+    private const int MaxCoalescedBlocks = 20;
     private readonly Channel<AcquisitionAnalysisBatch> channel;
     private readonly FixedDurationAnalysisBlockAggregator aggregator =
         new(DisplayFilterBlockDurationMilliseconds);
@@ -22,7 +25,7 @@ public sealed class BoundedAnalysisDispatcher : IAsyncDisposable
     private readonly Task worker;
     private int isFaulted;
 
-    public BoundedAnalysisDispatcher(IAcquisitionAnalysisBridge bridge, int capacity = 8)
+    public BoundedAnalysisDispatcher(IAcquisitionAnalysisBridge bridge, int capacity = DefaultQueueCapacity)
     {
         ArgumentNullException.ThrowIfNull(bridge);
         if (capacity <= 0)
@@ -85,9 +88,48 @@ public sealed class BoundedAnalysisDispatcher : IAsyncDisposable
     {
         try
         {
-            await foreach (var block in channel.Reader.ReadAllAsync(cancellationToken))
+            AcquisitionAnalysisBatch? lookahead = null;
+            var merged = new List<AcquisitionAnalysisBatch>(MaxCoalescedBlocks);
+            while (true)
             {
-                await PublishBlockAsync(bridge, block, cancellationToken);
+                AcquisitionAnalysisBatch first;
+                if (lookahead is not null)
+                {
+                    first = lookahead;
+                    lookahead = null;
+                }
+                else if (!await channel.Reader.WaitToReadAsync(cancellationToken))
+                {
+                    break;
+                }
+                else if (!channel.Reader.TryRead(out first!))
+                {
+                    continue;
+                }
+
+                if (channel.Reader.Count >= BacklogCoalesceThreshold)
+                {
+                    merged.Clear();
+                    merged.Add(first);
+                    var tail = first;
+                    while (merged.Count < MaxCoalescedBlocks && channel.Reader.TryRead(out var next))
+                    {
+                        if (FixedDurationAnalysisBlockAggregator.CanMergeContiguous(tail, next))
+                        {
+                            merged.Add(next);
+                            tail = next;
+                        }
+                        else
+                        {
+                            lookahead = next;
+                            break;
+                        }
+                    }
+
+                    first = FixedDurationAnalysisBlockAggregator.MergeContiguous(merged);
+                }
+
+                await PublishBlockAsync(bridge, first, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

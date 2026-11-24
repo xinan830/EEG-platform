@@ -13,7 +13,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid>
-        <Border Margin="4,2,4,4" Padding="8" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">
+        <Border Margin="4,2,4,4" Padding="4" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="Visibility" Value="Collapsed" />
@@ -25,23 +25,7 @@
                 </Style>
             </Border.Style>
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="4,0,0,4">
-                    <ComboBox Width="120" Height="32" Margin="0,0,8,0"
-                              ItemsSource="{Binding TopomapPowerTypeOptions}"
-                              DisplayMemberPath="Label" SelectedValuePath="Id"
-                              SelectedValue="{Binding SelectedTopomapPowerType, UpdateSourceTrigger=PropertyChanged}"
-                              ToolTip="选择功率类型" Style="{StaticResource AppFilterComboBoxStyle}" />
-                    <ComboBox Width="120" Height="32"
-                              ItemsSource="{Binding TopomapBandOptions}"
-                              DisplayMemberPath="Label" SelectedValuePath="Id"
-                              SelectedValue="{Binding SelectedTopomapBandId, UpdateSourceTrigger=PropertyChanged}"
-                              ToolTip="选择地形图频段" Style="{StaticResource AppFilterComboBoxStyle}" />
-                </StackPanel>
-                <ItemsControl Grid.Row="1" ItemsSource="{Binding TopomapBands}">
+                <ItemsControl ItemsSource="{Binding TopomapBands}">
                     <ItemsControl.Style>
                         <Style TargetType="ItemsControl">
                             <Setter Property="Visibility" Value="Visible" />
@@ -68,7 +52,7 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <Grid Grid.Row="1">
+                <Grid>
                     <Grid.Style>
                         <Style TargetType="Grid">
                             <Setter Property="Visibility" Value="Collapsed" />

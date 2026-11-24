@@ -29,6 +29,7 @@ class _LiveAlgorithmSession:
     next_endpoint: int | None
     latest: LiveAnalysisEnvelope
     revision: int = 0
+    delivered_revision: int = -1
     future: Future | None = None
 
 
@@ -124,10 +125,14 @@ class LiveAnalysisCoordinator:
                 raise LiveRecordingAccessError("LIVE_SESSION_SOURCE_MISMATCH", "实时分析数据源已被替换。")
             high = source.range_snapshot().high_watermark_sample if active_sessions else None
             if high is None:
-                return [active.latest for active in active_sessions]
+                return []
+            changed: list[LiveAnalysisEnvelope] = []
             for active in active_sessions:
                 self._schedule(active, high + 1)
-            return [active.latest for active in active_sessions]
+                if active.latest.revision > active.delivered_revision:
+                    active.delivered_revision = active.latest.revision
+                    changed.append(active.latest)
+            return changed
 
     def _schedule(self, active: _LiveAlgorithmSession, available_end: int) -> None:
         bounds = self._reserve_window(active, available_end)

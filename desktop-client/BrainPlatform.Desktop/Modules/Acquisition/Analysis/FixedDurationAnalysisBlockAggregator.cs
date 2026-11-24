@@ -122,5 +122,49 @@ internal sealed class FixedDurationAnalysisBlockAggregator
         1,
         (int)Math.Round(samplingRateHz * blockDurationMilliseconds / 1_000d, MidpointRounding.AwayFromZero)));
 
+    internal static bool CanMergeContiguous(AcquisitionAnalysisBatch previous, AcquisitionAnalysisBatch next)
+    {
+        if (next.GapBeforeBatch is not null ||
+            next.SessionId != previous.SessionId ||
+            next.Stream.SamplingRateHz != previous.Stream.SamplingRateHz ||
+            next.LiveMontage?.Revision != previous.LiveMontage?.Revision ||
+            next.Batch.ChannelCount != previous.Batch.ChannelCount ||
+            !string.Equals(next.RawRecordingDirectory, previous.RawRecordingDirectory, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return next.Batch.FirstSampleCounter == previous.Batch.FirstSampleCounter + previous.Batch.SampleCount;
+    }
+
+    internal static AcquisitionAnalysisBatch MergeContiguous(IReadOnlyList<AcquisitionAnalysisBatch> blocks)
+    {
+        if (blocks.Count == 1) return blocks[0];
+        var first = blocks[0];
+        var last = blocks[^1];
+        var channelCount = first.Batch.ChannelCount;
+        var totalSamples = 0;
+        for (var i = 0; i < blocks.Count; i++) totalSamples = checked(totalSamples + blocks[i].Batch.SampleCount);
+
+        var values = new double[checked(totalSamples * channelCount)];
+        var offset = 0;
+        for (var i = 0; i < blocks.Count; i++)
+        {
+            var src = blocks[i].Batch.SampleMajorValues;
+            Array.Copy(src, 0, values, offset, src.Length);
+            offset += src.Length;
+        }
+
+        return first with
+        {
+            Batch = new AcquisitionBatch(
+                first.Batch.FirstSampleCounter,
+                totalSamples,
+                channelCount,
+                values,
+                last.Batch.ReceivedAtUtc),
+        };
+    }
+
     private sealed record BatchSlice(AcquisitionBatch Batch, int StartSampleIndex, int SampleCount);
 }

@@ -2,6 +2,7 @@ import json
 
 import numpy as np
 from fastapi import APIRouter, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 from typing import Literal
 
 from pydantic import BaseModel, Field, JsonValue
@@ -92,9 +93,11 @@ async def append_batch_binary(
         session = _service(request).require(session_id)
         snapshot = session.append(first_sample_counter, values, sample_count)
         updates = _analysis(request).on_samples(session_id, session)
-        return LiveSampleAcknowledgement(
-            session_id=session_id, range=snapshot.__dict__, updates=updates,
-        ).model_dump(mode="json")
+        return JSONResponse(
+            content=LiveSampleAcknowledgement(
+                session_id=session_id, range=snapshot.__dict__, updates=updates,
+            ).model_dump(mode="json")
+        )
     except LiveRecordingAccessError as exc:
         return _error(request, exc)
 

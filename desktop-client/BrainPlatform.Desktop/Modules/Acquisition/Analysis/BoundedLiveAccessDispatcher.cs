@@ -5,7 +5,10 @@ namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 /// <summary>Transfers live EEG blocks without blocking device capture.</summary>
 public sealed class BoundedLiveAccessDispatcher : IAsyncDisposable
 {
+    public const int DefaultQueueCapacity = 120;
     private const int LiveAccessBlockDurationMilliseconds = 50;
+    private const int BacklogCoalesceThreshold = 3;
+    private const int MaxCoalescedBlocks = 20;
     private readonly Channel<AcquisitionAnalysisBatch> channel;
     private readonly ILiveSampleAccessBridge bridge;
     private readonly FixedDurationAnalysisBlockAggregator aggregator =
@@ -14,7 +17,7 @@ public sealed class BoundedLiveAccessDispatcher : IAsyncDisposable
     private readonly Task worker;
     private AcquisitionFault? fault;
 
-    public BoundedLiveAccessDispatcher(ILiveSampleAccessBridge bridge, int capacity = 8)
+    public BoundedLiveAccessDispatcher(ILiveSampleAccessBridge bridge, int capacity = DefaultQueueCapacity)
     {
         this.bridge = bridge ?? throw new ArgumentNullException(nameof(bridge));
         if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
@@ -78,9 +81,49 @@ public sealed class BoundedLiveAccessDispatcher : IAsyncDisposable
     {
         try
         {
-            await foreach (var batch in channel.Reader.ReadAllAsync(cancellation.Token))
+            AcquisitionAnalysisBatch? lookahead = null;
+            var merged = new List<AcquisitionAnalysisBatch>(MaxCoalescedBlocks);
+            while (true)
             {
-                await bridge.PublishAsync(batch, cancellation.Token);
+                AcquisitionAnalysisBatch first;
+                if (lookahead is not null)
+                {
+                    first = lookahead;
+                    lookahead = null;
+                }
+                else if (!await channel.Reader.WaitToReadAsync(cancellation.Token))
+                {
+                    break;
+                }
+                else if (!channel.Reader.TryRead(out first!))
+                {
+                    continue;
+                }
+
+                // Under normal load publish immediately; when backlog piles up, merge contiguous blocks to catch up in 1 HTTP call.
+                if (channel.Reader.Count >= BacklogCoalesceThreshold)
+                {
+                    merged.Clear();
+                    merged.Add(first);
+                    var tail = first;
+                    while (merged.Count < MaxCoalescedBlocks && channel.Reader.TryRead(out var next))
+                    {
+                        if (FixedDurationAnalysisBlockAggregator.CanMergeContiguous(tail, next))
+                        {
+                            merged.Add(next);
+                            tail = next;
+                        }
+                        else
+                        {
+                            lookahead = next;
+                            break;
+                        }
+                    }
+
+                    first = FixedDurationAnalysisBlockAggregator.MergeContiguous(merged);
+                }
+
+                await bridge.PublishAsync(first, cancellation.Token);
             }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
