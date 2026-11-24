@@ -11,6 +11,12 @@ class ProjectCreateRequest(BaseModel):
     description: str = Field(default="", max_length=4000)
 
 
+class DesktopProjectEnsureRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=4000)
+
+
 class SubjectCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     local_code: str = Field(min_length=1, max_length=160)

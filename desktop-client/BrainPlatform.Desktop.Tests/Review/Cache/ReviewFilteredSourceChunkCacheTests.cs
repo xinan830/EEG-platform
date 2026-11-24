@@ -102,6 +102,21 @@ public sealed class ReviewFilteredSourceChunkCacheTests
         }
     }
 
+    [Fact]
+    public void SourceRevisionParticipatesInCacheIdentity()
+    {
+        var manifest = new LocalRawRecordingManifest(Guid.NewGuid(), "edf-bdf", "V", "imported", ".edf",
+            512, -1, DateTimeOffset.UnixEpoch,
+            [new(0, 0, "F3", AcquisitionChannelKind.Bipolar, "V")],
+            new AcquisitionProjectContext("project", "P001", "Study", "", ""), new Dictionary<string, string>());
+
+        var first = ReviewFilteredSourceChunkKey.CreateManifestFingerprint(manifest, new string('a', 64));
+        var replacedSource = ReviewFilteredSourceChunkKey.CreateManifestFingerprint(manifest, new string('b', 64));
+
+        Assert.NotEqual(first, replacedSource);
+        Assert.Equal(first, ReviewFilteredSourceChunkKey.CreateManifestFingerprint(manifest, new string('a', 64)));
+    }
+
     private static ReviewFilteredSourceChunkKey Key(ReviewFilterContract contract) => new(
         Guid.Parse("712a5e5a-9d4e-4d36-b1ef-9a5254a4d9bb"),
         "raw-manifest", 1000, "schema",

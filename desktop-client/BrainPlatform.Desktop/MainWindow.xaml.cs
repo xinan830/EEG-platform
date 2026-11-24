@@ -9,6 +9,7 @@ using EventListView = BrainPlatform.Desktop.Modules.Events.Views.EventListView;
 using EventDefinitionEditorView = BrainPlatform.Desktop.Modules.Events.Views.EventDefinitionEditorView;
 using RecordingReviewView = BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
+using BrainPlatform.Desktop.Modules.Projects.Api;
 
 namespace BrainPlatform.Desktop;
 
@@ -31,7 +32,7 @@ public partial class MainWindow : Window, IDesktopNavigation
     private EventDefinitionEditorView? eventDefinitionEditorView;
     private AlgorithmWorkspaceView? algorithmWorkspaceView;
     private RecordingReviewViewModel? recordingReviewViewModel;
-    private RecordingSessionManager.RecordingAccessLease? recordingReviewRecording;
+    private IRecordingAccessSession? recordingReviewRecording;
     private RecordingPlaybackTimeCoordinator? recordingReviewPlayback;
     private EegSessionWindow? acquisitionSessionWindow;
     private EegSessionWindow? reviewSessionWindow;
@@ -258,6 +259,7 @@ public partial class MainWindow : Window, IDesktopNavigation
         if (DataContext is DesktopWorkspaceViewModel viewModel)
         {
             viewModel.Projects.RefreshRecordings();
+            _ = viewModel.Projects.RefreshImportedRecordingsAsync();
         }
         MainContentHost.Content = projectListView;
         SelectNavigation(NavProjectsBtn);
@@ -276,6 +278,7 @@ public partial class MainWindow : Window, IDesktopNavigation
             }
 
             viewModel.Projects.RefreshRecordings();
+            _ = viewModel.Projects.RefreshImportedRecordingsAsync();
         }
 
         MainContentHost.Content = projectDetailView;
@@ -297,7 +300,8 @@ public partial class MainWindow : Window, IDesktopNavigation
             return;
         }
 
-        if (!Guid.TryParseExact(recording.SessionId, "N", out var expectedSessionId))
+        var sourceId = recording.SourceKind == "backend" ? recording.RecordingId : recording.SessionId;
+        if (!Guid.TryParseExact(sourceId, "N", out var expectedSessionId))
         {
             throw new RecordingReadException("RECORDING_IDENTITY_INVALID", "所选录音的会话标识无效。");
         }
@@ -305,20 +309,28 @@ public partial class MainWindow : Window, IDesktopNavigation
         if (DataContext is not DesktopWorkspaceViewModel workspace)
             throw new InvalidOperationException("工作区尚未初始化，无法打开录音回溯。");
 
-        var loadedRecording = await workspace.RecordingSessions.OpenLocalAsync(
-            recording.RecordingDirectory,
-            expectedSessionId,
-            CancellationToken.None);
-        try
+        IRecordingAccessSession loadedRecording;
+        if (recording.SourceKind == "backend")
         {
-            if (DataContext is DesktopWorkspaceViewModel referenceWorkspace)
-                await referenceWorkspace.MontageConfigurations.RegisterRecordingReferenceAsync(
-                    loadedRecording.Manifest.HardwareConfiguration, recording.RecordingDirectory);
+            var client = workspace.ResearchProjectClient;
+            var project = workspace.Projects.SelectedProject ?? throw new InvalidOperationException("当前项目已失效。");
+            var backendProject = await client.EnsureProjectAsync(project.Id, project.Name, project.Description, CancellationToken.None);
+            var backendRecording = await client.GetRecordingAsync(recording.RecordingId!, CancellationToken.None);
+            loadedRecording = new BackendRecordingAccessSession(client, backendRecording, backendProject);
         }
-        catch (Exception exception)
+        else
         {
-            (DataContext as DesktopWorkspaceViewModel)?.Notifications.PublishWarning(
-                $"历史导联引用无法登记，记录仍可查看：{exception.Message}");
+            loadedRecording = await workspace.RecordingSessions.OpenLocalAsync(
+                recording.RecordingDirectory, expectedSessionId, CancellationToken.None);
+            try
+            {
+                await workspace.MontageConfigurations.RegisterRecordingReferenceAsync(
+                    loadedRecording.Manifest.HardwareConfiguration, recording.RecordingDirectory);
+            }
+            catch (Exception exception)
+            {
+                workspace.Notifications.PublishWarning($"历史导联引用无法登记，记录仍可查看：{exception.Message}");
+            }
         }
         var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
         var playbackCoordinator = new RecordingPlaybackTimeCoordinator(
@@ -334,7 +346,7 @@ public partial class MainWindow : Window, IDesktopNavigation
                 recordingName: recording.Name,
                 projectName: loadedRecording.Manifest.Project.Name,
                 filter: recordingReviewFilter,
-                recordingDirectory: recording.RecordingDirectory,
+                recordingDirectory: recording.SourceKind == "backend" ? null : recording.RecordingDirectory,
                 eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
                 notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications,
                 algorithmClient: workspace.Algorithms,

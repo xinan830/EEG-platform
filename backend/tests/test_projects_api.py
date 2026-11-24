@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.services.projects import ProjectService
 from app.services.recordings import RecordingService
+from app.models.research_project import ProjectCreateRequest
 from app.persistence import get_schema_version, migrate_database
 
 
@@ -56,8 +57,24 @@ def test_session_cannot_cross_project_boundaries(tmp_path: Path):
     assert response.json()["code"] == "PROJECT_REFERENCE_NOT_FOUND"
 
 
+def test_desktop_project_resolution_is_idempotent(tmp_path: Path):
+    client, _ = _client(tmp_path)
+    desktop_id = "desktop-project-stable-id"
+    payload = {"name": "Desktop project", "description": "local project"}
+
+    first = client.put(f"/api/projects/desktop/{desktop_id}", json=payload)
+    second = client.put(f"/api/projects/desktop/{desktop_id}", json=payload)
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["project_id"] == second.json()["project_id"] == desktop_id
+    assert [item["project_id"] for item in client.get("/api/projects").json()] == [desktop_id]
+
+
 def test_project_migration_is_repeatable(tmp_path: Path):
     database = tmp_path / "migration.sqlite3"
+    service = ProjectService(database)
+    existing = service.create(ProjectCreateRequest(name="Existing"))
 
     assert migrate_database(database) == migrate_database(database)
     assert get_schema_version(database) >= 6
+    assert service.get(existing.project_id) == existing

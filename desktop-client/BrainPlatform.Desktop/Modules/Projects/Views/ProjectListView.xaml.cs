@@ -115,7 +115,11 @@ public partial class ProjectListView : UserControl
         (Window.GetWindow(this) as IDesktopNavigation)?.ShowAcquisitionPreparationView();
     }
 
-    private void OnRefreshRecordingsClick(object sender, RoutedEventArgs e) => Workspace.Projects.RefreshRecordings();
+    private async void OnRefreshRecordingsClick(object sender, RoutedEventArgs e)
+    {
+        Workspace.Projects.RefreshRecordings();
+        await Workspace.Projects.RefreshImportedRecordingsAsync();
+    }
 
     private void OnProjectPageRequested(object sender, PageRequestedEventArgs e) =>
         Workspace.Projects.GoToProjectPage(e.Page);

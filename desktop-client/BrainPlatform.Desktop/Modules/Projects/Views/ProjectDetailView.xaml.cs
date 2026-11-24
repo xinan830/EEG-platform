@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Win32;
 
 namespace BrainPlatform.Desktop.Modules.Projects.Views;
 
@@ -68,6 +69,25 @@ public partial class ProjectDetailView : UserControl
         }
         Workspace.Acquisition.SelectedProject = project;
         (Window.GetWindow(this) as IDesktopNavigation)?.ShowAcquisitionPreparationView();
+    }
+
+    private void OnImportRecordingClick(object sender, RoutedEventArgs e)
+    {
+        var project = Workspace.Projects.SelectedProject;
+        if (project is null) return;
+        var picker = new OpenFileDialog
+        {
+            Title = "选择 EDF 或 BDF 文件",
+            Filter = "EEG 文件 (*.edf;*.bdf)|*.edf;*.bdf",
+            CheckFileExists = true,
+            Multiselect = false,
+        };
+        if (picker.ShowDialog(Window.GetWindow(this)) != true) return;
+        var dialog = new RecordingImportDialog(Workspace.Projects, picker.FileName)
+        {
+            Owner = Window.GetWindow(this),
+        };
+        dialog.ShowDialog();
     }
 
     private void OnOpenProjectDirectoryClick(object sender, RoutedEventArgs e)

@@ -192,7 +192,7 @@ public partial class Topomap3DWebView : UserControl
         {
             var assetsFolder = Path.Combine(AppContext.BaseDirectory, "Assets", "Topomap3D");
             if (!File.Exists(Path.Combine(assetsFolder, "viewer.html")) ||
-                !File.Exists(Path.Combine(assetsFolder, "three.module.min.js")))
+                !File.Exists(Path.Combine(assetsFolder, "vendor", "three.module.min.js")))
             {
                 throw new FileNotFoundException("离线 Three.js 3D 渲染资源缺失。", assetsFolder);
             }

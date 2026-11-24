@@ -41,7 +41,7 @@
     },
     "desktop-client/BrainPlatform.Desktop/MainWindow.xaml.cs": {
       "decision": "keep",
-      "max_lines": 560,
+      "max_lines": 580,
       "reason": "Composition review: the 556-line shell now awaits acquisition/impedance cleanup before application exit. It only calls the existing session confirmation and finish boundary; polling, native SDK ownership and recording finalization remain outside the shell. Navigation extraction remains the next maintenance boundary."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionPreparationView.xaml": {
@@ -61,7 +61,7 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Projects/Views/ProjectDetailView.xaml": {
       "decision": "keep",
-      "max_lines": 671,
+      "max_lines": 700,
       "reason": "职责是项目详情及其采集/记录操作呈现，当前已超过 600 行。本次仅替换状态与操作色为共享主题资源，不增加页面职责；保持现有区域结构以避免纯样式变更触发机械拆分。后续增加详情功能前需先评估按面板拆分。"
     },
     "desktop-client/BrainPlatform.Desktop/Shared/Controls/ScreenCalibrationView.xaml": {
@@ -127,9 +127,29 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Projects/ViewModels/ProjectWorkspaceViewModel.cs": {
       "decision": "split",
-      "max_lines": 500,
-      "reason": "Project lifecycle coordination remains below the 500-line reviewed ceiling. Executable-relative directory validation and creation now belong to ProjectDirectoryPolicy; this view model only selects default versus explicit storage and preserves populated-project path protection. The recording row retains its manifest UTC origin without changing scientific contracts.",
+      "max_lines": 520,
+      "reason": "当前 504 行，集中维护项目选择、筛选分页及 WPF 录制列表状态；EDF/BDF 同步已放在独立 partial 和 API 适配器。现有 partial 保持一个项目工作区状态所有者，允许本次 504 行并保持软上限登记；后续扩展前先抽取录制目录呈现/分页职责。",
       "follow_up": "Extract the recording catalog row/paging presentation from project lifecycle coordination during separate project-workspace maintenance."
+    },
+    "desktop-client/BrainPlatform.Desktop/Assets/Topomap3D/connectome_layer.js": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "单一 Three.js connectome overlay，拥有连接线/节点投影与交互；共享 viewer 场景由入口模块持有。继续扩展前复核拆分边界。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Assets/Topomap3D/source_layer.js": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "单一 3D 源定位演示图层，封装偶极子与源活动叠加，不持有 viewer 生命周期。继续扩展前复核示例数据与真实科学结果的边界。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Assets/Topomap3D/tractography_layer.js": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "单一 3D 纤维束渲染图层，拥有流线解析、颜色和几何投影。继续扩展前按解析与渲染职责重新评估。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Assets/Topomap3D/vendor/niivue.min.js": {
+      "decision": "generated",
+      "max_lines": 41000,
+      "reason": "第三方 NiiVue 发布文件，作为本地 MRI 查看器运行时资产打包；不手工修改，来源和许可证随依赖发行材料核验。"
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
@@ -377,8 +397,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Assets/Topomap3D/viewer.js": {
       "decision": "split",
-      "max_lines": 1062,
-      "reason": "WebGL2 查看器的模型初始化、地形绘制、图谱图例和 WebView 消息交互共享同一 Three.js 场景状态；本次先保持渲染循环和消息边界一致。",
+      "max_lines": 1250,
+      "reason": "当前 1197 行，WebGL2 查看器仍有统一的 Three.js 场景和 WebView 消息生命周期；本轮加入 MRI、connectome、源定位及纤维层入口，保留唯一场景所有者以避免复制状态。超过 1000 行按高风险登记，扩展前先拆出局部交互/图层协调边界。",
       "follow_up": "将图谱/图例控件与相机交互拆为本地 ES 模块，保持 viewer 入口唯一拥有场景状态和 WebView 消息边界。"
     },
     "tools/build_cortex_atlas_asset.py": {

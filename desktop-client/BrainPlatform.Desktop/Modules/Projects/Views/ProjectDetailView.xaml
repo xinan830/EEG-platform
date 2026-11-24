@@ -339,8 +339,11 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- 右侧操作按钮组: 编辑、删除、开始采集 -->
+                <!-- 右侧操作按钮组: 编辑、删除、采集与导入 -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource OutlineActionButtonStyle}" Click="OnImportRecordingClick" Margin="0,0,10,0">
+                        <TextBlock Text="导入 EDF/BDF" VerticalAlignment="Center" />
+                    </Button>
                     <Button Style="{StaticResource OutlineActionButtonStyle}" Click="OnEditProjectClick" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Path Data="M 11,2 L 14,5 M 2,14 L 1,17 L 4,16 L 14.5,5.5 A 2.12,2.12 0 0 0 11.5,2.5 L 2,14 Z"
@@ -603,7 +606,7 @@
                                                         <Path Data="M 1,8 L 4,8 L 6,3 L 9,13 L 12,6 L 14,10 L 16,8 L 19,8"
                                                               Width="15" Height="13" Stretch="Uniform" Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                                                     </Button>
-                                                    <Button Style="{StaticResource RowActionIconBtn}" ToolTip="更多选项" Click="OnOpenRecordingMoreMenuClick">
+                                                    <Button Style="{StaticResource RowActionIconBtn}" ToolTip="更多选项" Click="OnOpenRecordingMoreMenuClick" IsEnabled="{Binding CanManageLocally}">
                                                         <Button.ContextMenu>
                                                             <ContextMenu Style="{StaticResource ModernContextMenuStyle}">
                                                                 <MenuItem Style="{StaticResource ModernMenuItemStyle}" Header="编辑记录名称" Click="OnRenameRecordingClick">

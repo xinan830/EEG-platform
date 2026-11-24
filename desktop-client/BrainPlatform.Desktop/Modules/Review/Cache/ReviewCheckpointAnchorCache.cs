@@ -34,9 +34,10 @@ internal sealed record ReviewCheckpointAnchorGroupKey(
     public static ReviewCheckpointAnchorGroupKey Create(
         LocalRawRecordingManifest manifest,
         RecordingReviewFilterSettings settings,
-        ReviewFilterContract contract) => new(
+        ReviewFilterContract contract,
+        string sourceRevision = "") => new(
             manifest.SessionId,
-            ReviewFilteredSourceChunkKey.CreateManifestFingerprint(manifest),
+            ReviewFilteredSourceChunkKey.CreateManifestFingerprint(manifest, sourceRevision),
             manifest.SamplingRateHz,
             ReviewFilteredSourceChunkKey.CreateChannelSchemaFingerprint(manifest),
             manifest.EegSignalUnit,

@@ -35,6 +35,25 @@ class ProjectService:
             connection.execute("INSERT INTO projects VALUES (?, ?, ?, ?, ?)", tuple(project.model_dump().values()))
         return project
 
+    def ensure_desktop_project(self, project_id: str, name: str, description: str = "") -> Project:
+        """Resolve the stable desktop project ID without creating duplicate rows."""
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise ValueError("project name is required")
+        existing = self.get(project_id)
+        if existing is not None:
+            return existing
+        now = utc_now()
+        project = Project(project_id=project_id, name=normalized_name, description=description,
+                          created_at=now, updated_at=now)
+        with self._connect() as connection:
+            connection.execute("INSERT OR IGNORE INTO projects VALUES (?, ?, ?, ?, ?)",
+                               tuple(project.model_dump().values()))
+            row = connection.execute("SELECT * FROM projects WHERE project_id = ?", (project_id,)).fetchone()
+        if row is None:
+            raise RuntimeError("desktop project resolution failed")
+        return Project(**dict(row))
+
     def get(self, project_id: str) -> Project | None:
         with self._connect() as connection:
             row = connection.execute("SELECT * FROM projects WHERE project_id = ?", (project_id,)).fetchone()

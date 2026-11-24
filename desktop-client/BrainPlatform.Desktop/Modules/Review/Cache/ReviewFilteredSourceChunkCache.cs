@@ -263,7 +263,8 @@ internal sealed record ReviewFilteredSourceChunkKey(
         RecordingSessionId, RawManifestFingerprint, SamplingRateHz, ChannelSchemaFingerprint, Settings,
         FilterContract, StartSampleOffset, SampleCount, WarmupSampleCount, GapContext);
 
-    public static string CreateManifestFingerprint(LocalRawRecordingManifest manifest) => Hash(string.Join("\n",
+    public static string CreateManifestFingerprint(LocalRawRecordingManifest manifest, string sourceRevision = "") => Hash(string.Join("\n",
+        sourceRevision,
         manifest.PayloadFormat,
         manifest.EegSignalUnit,
         manifest.DeviceId,

@@ -1,4 +1,4 @@
-import * as THREE from "./three.module.min.js";
+import * as THREE from "./vendor/three.module.min.js";
 
 /**
  * Self-contained 3D Functional Connectivity (Connectome) layer for Three.js.
@@ -223,8 +223,8 @@ export function createConnectomeLayer({ rootGroup, evalColormap, srgbToLinear })
       const p1 = nodes[e.j].pos;
       const dist = p0.distanceTo(p1);
       const mid = new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
-      // Gentle inward curve toward the true cortex centroid (graceful anatomical arc, never droopy)
-      const pull = Math.min(0.28, 0.10 + dist * 0.22);
+      // Uniform subtle inward arc toward true cortex centroid (10%-18% geometric rhythm)
+      const pull = Math.min(0.18, 0.09 + dist * 0.14);
       const ctrl = mid.lerp(cortexCenter, pull);
 
       const curve = new THREE.QuadraticBezierCurve3(p0, ctrl, p1);
@@ -255,20 +255,24 @@ export function createConnectomeLayer({ rootGroup, evalColormap, srgbToLinear })
       const degNorm = degree[i] / maxDeg;
       const isActive = degree[i] > 1e-4;
       const col = isActive ? colorForWeight(0.35 + degNorm * 0.65) : new THREE.Color(0x94a3b8);
+      const baseEmissive = isActive ? 0.26 + degNorm * 0.44 : 0.04;
+      const baseScale = isActive ? 0.78 + degNorm * 0.66 : 0.46;
       const mat = new THREE.MeshStandardMaterial({
         color: col,
         emissive: col,
-        emissiveIntensity: isActive ? 0.26 + degNorm * 0.44 : 0.04,
+        emissiveIntensity: baseEmissive,
         roughness: 0.25,
         metalness: 0.12,
+        transparent: true,
+        opacity: 1.0,
       });
       const mesh = new THREE.Mesh(nodeGeom, mat);
       mesh.position.copy(nodes[i].pos);
-      mesh.scale.setScalar(isActive ? 0.78 + degNorm * 0.66 : 0.46);
+      mesh.scale.setScalar(baseScale);
       mesh.renderOrder = 3;
       mesh.userData = { kind: "node", nodeIndex: i, degree: degree[i] };
       nodeGroup.add(mesh);
-      nodeMeshes.push({ mesh, nodeIndex: i, degree: degree[i] });
+      nodeMeshes.push({ mesh, nodeIndex: i, degree: degree[i], baseEmissive, baseScale });
     }
 
     return { shown: activeEdges.length, total: edges.length };
@@ -312,34 +316,84 @@ export function createConnectomeLayer({ rootGroup, evalColormap, srgbToLinear })
     return rebuildGeometry();
   }
 
-  function pickHover(raycaster) {
-    if (!group.visible || edgeMeshes.length === 0) return null;
-    const targets = edgeMeshes.map((item) => item.mesh);
-    const hits = raycaster.intersectObjects(targets, false);
-    const hitMesh = hits.length > 0 ? hits[0].object : null;
-
-    if (hoveredMesh !== hitMesh) {
-      hoveredMesh = hitMesh;
+  function applyHoverStyles(hitMesh) {
+    if (!hitMesh) {
       for (const item of edgeMeshes) {
-        if (!hitMesh) {
-          item.mesh.material.opacity = item.baseOpacity;
-          item.mesh.material.emissiveIntensity = item.baseEmissive;
-        } else if (item.mesh === hitMesh) {
-          item.mesh.material.opacity = 1.0;
-          item.mesh.material.emissiveIntensity = 0.95;
-        } else {
-          item.mesh.material.opacity = Math.max(0.12, item.baseOpacity * 0.28);
-          item.mesh.material.emissiveIntensity = 0.10;
-        }
+        item.mesh.material.opacity = item.baseOpacity;
+        item.mesh.material.emissiveIntensity = item.baseEmissive;
+      }
+      for (const item of nodeMeshes) {
+        item.mesh.material.opacity = 1.0;
+        item.mesh.material.emissiveIntensity = item.baseEmissive;
+        item.mesh.scale.setScalar(item.baseScale);
+      }
+      return;
+    }
+
+    const activeNodes = new Set();
+    const isNode = hitMesh.userData.kind === "node";
+    const targetNodeIdx = isNode ? hitMesh.userData.nodeIndex : -1;
+    if (isNode) activeNodes.add(targetNodeIdx);
+
+    for (const item of edgeMeshes) {
+      const related = isNode
+        ? (item.edge.i === targetNodeIdx || item.edge.j === targetNodeIdx)
+        : (item.mesh === hitMesh);
+      if (related) {
+        activeNodes.add(item.edge.i);
+        activeNodes.add(item.edge.j);
+        item.mesh.material.opacity = 1.0;
+        item.mesh.material.emissiveIntensity = 0.90;
+      } else {
+        item.mesh.material.opacity = 0.14;
+        item.mesh.material.emissiveIntensity = 0.08;
       }
     }
 
+    for (const item of nodeMeshes) {
+      const isFocus = isNode && item.nodeIndex === targetNodeIdx;
+      const related = activeNodes.has(item.nodeIndex);
+      item.mesh.material.opacity = related ? 1.0 : 0.24;
+      item.mesh.material.emissiveIntensity = isFocus ? 0.95 : (related ? Math.max(0.55, item.baseEmissive) : 0.05);
+      item.mesh.scale.setScalar(isFocus ? item.baseScale * 1.18 : item.baseScale);
+    }
+  }
+
+  function pickHover(raycaster) {
+    if (!group.visible || (edgeMeshes.length === 0 && nodeMeshes.length === 0)) return null;
+    // Prioritize hub node spheres so dense multi-edge hubs (e.g. P3, P4) are easy to inspect
+    const nodeHits = raycaster.intersectObjects(nodeMeshes.map((i) => i.mesh), false);
+    const hitMesh = nodeHits.length > 0
+      ? nodeHits[0].object
+      : (raycaster.intersectObjects(edgeMeshes.map((i) => i.mesh), false)[0]?.object || null);
+
+    if (hoveredMesh !== hitMesh) {
+      hoveredMesh = hitMesh;
+      applyHoverStyles(hitMesh);
+    }
     if (!hitMesh) return null;
+
+    if (hitMesh.userData.kind === "node") {
+      const ni = hitMesh.userData.nodeIndex;
+      const neighbors = edgeMeshes
+        .filter((item) => item.edge.i === ni || item.edge.j === ni)
+        .map((item) => ({
+          label: nodes[item.edge.i === ni ? item.edge.j : item.edge.i]?.label || "?",
+          weight: item.edge.weight,
+        }))
+        .sort((a, b) => b.weight - a.weight);
+      const topText = neighbors.length > 0
+        ? neighbors.slice(0, 3).map((n) => `${n.label} ${n.weight.toFixed(2)}`).join(" · ")
+        : "当前阈值下无连边";
+      return {
+        title: `${nodes[ni]?.label || "?"} 枢纽节点（${neighbors.length} 条连边）`,
+        sub: topText,
+      };
+    }
+
     const e = hitMesh.userData.edge;
-    const a = nodes[e.i]?.label || "?";
-    const b = nodes[e.j]?.label || "?";
     return {
-      title: `${a} ↔ ${b}`,
+      title: `${nodes[e.i]?.label || "?"} ↔ ${nodes[e.j]?.label || "?"}`,
       sub: `${metricLabel}：${e.weight.toFixed(2)}`,
     };
   }
@@ -347,10 +401,7 @@ export function createConnectomeLayer({ rootGroup, evalColormap, srgbToLinear })
   function clearHover() {
     if (!hoveredMesh) return;
     hoveredMesh = null;
-    for (const item of edgeMeshes) {
-      item.mesh.material.opacity = item.baseOpacity;
-      item.mesh.material.emissiveIntensity = item.baseEmissive;
-    }
+    applyHoverStyles(null);
   }
 
   return {

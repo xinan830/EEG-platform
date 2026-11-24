@@ -19,6 +19,24 @@ its stable recording ID and never moves, copies, or overwrites source data.
 Project text and local codes are not added to artifact filenames or scientific
 configuration digests.
 
+## EDF/BDF Project Import and Review
+
+From a selected project, the desktop can import one EDF/BDF file and associate
+it with an existing subject or a newly entered non-identifying local subject
+code. The desktop project's stable ID resolves to one backend Project. Upload
+is streamed into a temporary file while the backend records its byte length
+and SHA-256, validates the file metadata, and then publishes the Recording
+and Session association together. Cancellation or validation failure removes
+staged data and does not expose a partial project recording.
+
+The original file is stored once in the backend-managed recording store; the
+project list contains only its Recording ID, Session ID, metadata, and source
+kind. Project review reads bounded raw sample ranges from that source in
+source channel order as float64 volts. The existing review filtering, chart,
+and offline analysis paths remain in use. Declared discontinuities stay as
+gaps, and the recording hash participates in derived review-cache identity.
+Removing a desktop project does not delete the backend source file.
+
 ## Persistent Run Queue
 
 `POST /api/runs` now returns HTTP `202 Accepted` with a persisted `queued` Run.

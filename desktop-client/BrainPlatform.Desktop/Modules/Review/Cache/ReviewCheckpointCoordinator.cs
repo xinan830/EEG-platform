@@ -95,7 +95,7 @@ internal sealed class ReviewCheckpointCoordinator(
         CancellationToken cancellationToken,
         Action<ReviewPreparationState>? progress)
     {
-        var group = ReviewCheckpointAnchorGroupKey.Create(reader.Manifest, settings, contract);
+        var group = ReviewCheckpointAnchorGroupKey.Create(reader.Manifest, settings, contract, reader.Metadata.Revision);
         var segmentOrigin = reader.GetContiguousSegmentOrigin(target.FirstSampleCounter);
         var anchor = await anchorCache.FindNearestAsync(
             group, segmentOrigin, target.FirstSampleCounter, cancellationToken);

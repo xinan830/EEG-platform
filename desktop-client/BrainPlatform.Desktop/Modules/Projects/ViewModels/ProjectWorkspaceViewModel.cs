@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Projects.Api;
 
 namespace BrainPlatform.Desktop.Modules.Projects.ViewModels;
 
@@ -13,18 +14,26 @@ public sealed record ProjectRecordingRow(
     string ChannelCountText,
     string Status,
     string RecordingDirectory,
-    DateTimeOffset? RecordingStartUtc = null)
+    DateTimeOffset? RecordingStartUtc = null,
+    string? RecordingId = null,
+    string SourceKind = "wpf",
+    string? SourceSha256 = null,
+    IReadOnlyList<string>? Channels = null,
+    int SamplingRateHz = 0,
+    double DurationSeconds = 0)
 {
-    public bool CanReview => Directory.Exists(RecordingDirectory) &&
+    public bool CanReview => (SourceKind == "backend" || Directory.Exists(RecordingDirectory)) &&
                              Status is "已完成" or "已中止";
+    public bool CanManageLocally => SourceKind == "wpf";
 }
 
-public sealed class ProjectWorkspaceViewModel : ObservableObject
+public sealed partial class ProjectWorkspaceViewModel : ObservableObject
 {
     private readonly ResearchProjectStore store;
     private readonly LocalRecordingCatalog recordingCatalog;
     private readonly OperationNotificationCenter notifications;
     private readonly ProjectDirectoryPolicy directories;
+    private readonly IResearchProjectClient? backendClient;
     private ResearchProject? selectedProject;
     private ProjectRecordingRow? selectedRecording;
     private string searchText = string.Empty;
@@ -41,12 +50,14 @@ public sealed class ProjectWorkspaceViewModel : ObservableObject
         OperationNotificationCenter notifications,
         ResearchProjectStore? store = null,
         LocalRecordingCatalog? recordingCatalog = null,
-        ProjectDirectoryPolicy? directories = null)
+        ProjectDirectoryPolicy? directories = null,
+        IResearchProjectClient? backendClient = null)
     {
         this.notifications = notifications;
         this.store = store ?? new ResearchProjectStore();
         this.recordingCatalog = recordingCatalog ?? new LocalRecordingCatalog();
         this.directories = directories ?? new ProjectDirectoryPolicy();
+        this.backendClient = backendClient;
     }
 
     public ObservableCollection<ResearchProject> Projects { get; } = [];

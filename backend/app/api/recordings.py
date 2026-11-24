@@ -2,10 +2,11 @@ from dataclasses import asdict
 import json
 from typing import Optional
 
+import numpy as np
 from fastapi import APIRouter, File, Query, Request, UploadFile, status
 from pydantic import TypeAdapter, ValidationError
 
-from app.models.recording import RecordingSummary
+from app.models.recording import RawSampleRangeResponse, RecordingSummary
 from app.models.wpf_recording import WpfRecordingRegistrationRequest
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.montage import CustomMontageChannelPayload
@@ -13,10 +14,14 @@ from app.models.spectral_validation import SpectralReferenceValidationRequest
 from app.services.independent_spectral_reference import SpectralReferenceUnavailable
 from app.core.api_contract import error_response
 from app.services.recordings import RecordingService
+from app.services.recording_import import EdfBdfImportService, RecordingImportError
+from app.services.recording_access import RecordingAccessError
+from app.api.recording_uploads import publish_upload, stage_upload
 from app.services.montage import build_montage, describe_montages, montage_formulas
 
 
 router = APIRouter(prefix="/api/recordings", tags=["recordings"])
+MAX_RAW_SAMPLE_CELLS = 500_000
 
 
 def _custom_montage(value: str | None) -> list[dict[str, object]] | None:
@@ -56,11 +61,19 @@ def _record_audit(request: Request, action: str, recording_id: str, parameters: 
 
 @router.post("/import", status_code=status.HTTP_201_CREATED)
 async def import_recording(request: Request, file: UploadFile = File(...)) -> dict:
-    suffix = "." + file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else ""
+    staged = None
     try:
-        recording = _service(request).create_imported_recording(file.filename or "recording", suffix, await file.read())
-    except ValueError as exc:
-        return error_response(request, 422, "RECORDING_IMPORT_INVALID", str(exc))
+        importer = EdfBdfImportService(_service(request))
+        staged = await stage_upload(request, file, importer)
+        recording = await publish_upload(request, lambda check: importer.publish_standalone(staged, check))
+    except RecordingImportError as exc:
+        return error_response(request, exc.status_code, exc.code, str(exc))
+    except OSError:
+        return error_response(request, 507, "RECORDING_IMPORT_STORAGE_FAILED", "无法暂存录制文件，请检查磁盘空间和权限。")
+    finally:
+        if staged is not None:
+            staged.path.unlink(missing_ok=True)
+        await file.close()
     _record_audit(request, "recording.import", recording.id, {"extension": recording.extension, "channel_count": len(recording.channels)})
     return _serialize(recording)
 
@@ -99,6 +112,37 @@ def get_recording(recording_id: str, request: Request) -> dict:
         return _serialize(_service(request).require_recording(recording_id))
     except KeyError:
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+
+
+@router.get("/{recording_id}/raw-samples", response_model=RawSampleRangeResponse)
+def get_raw_samples(
+    recording_id: str,
+    request: Request,
+    start_sample: int = Query(ge=0),
+    end_sample: int = Query(gt=0),
+) -> RawSampleRangeResponse | dict:
+    try:
+        recording = _service(request).require_recording(recording_id)
+        with _service(request).open_access_session(recording) as session:
+            channel_count = len(session.channel_names)
+            if (end_sample > session.sample_count or end_sample <= start_sample
+                    or (end_sample - start_sample) * channel_count > MAX_RAW_SAMPLE_CELLS):
+                return error_response(request, 422, "SAMPLE_RANGE_INVALID", "样本范围无效或超过单次读取上限。")
+            block = session.read_samples(start_sample, end_sample)
+        values = np.where(np.isfinite(block.values_v), block.values_v, None).astype(object).tolist()
+        return RawSampleRangeResponse(
+            recording_id=recording_id, start_sample=start_sample, end_sample=end_sample,
+            sampling_rate_hz=block.sampling_rate_hz, channels=list(block.channel_names),
+            channel_units=list(block.channel_units), values_v=values,
+            unavailable_intervals=[{
+                "start_sample": item.start_sample, "end_sample": item.end_sample,
+                "reason": item.reason, "channels": list(item.channels),
+            } for item in block.unavailable_intervals],
+        )
+    except KeyError:
+        return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
+    except RecordingAccessError as exc:
+        return error_response(request, 422 if exc.code.endswith("INVALID") else 409, exc.code, str(exc))
 
 
 @router.get("/{recording_id}/preview")

@@ -12,6 +12,7 @@ using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Settings.Api;
 using BrainPlatform.Desktop.Modules.Settings.Services;
 using BrainPlatform.Desktop.Modules.Settings.ViewModels;
+using BrainPlatform.Desktop.Modules.Projects.Api;
 using BrainPlatform.Desktop.Shared.Controls.Topomap;
 
 namespace BrainPlatform.Desktop.Application;
@@ -33,7 +34,8 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         MontageProfileStore? montageStore = null,
         IElectrodeLocationClient? electrodeLocationClient = null,
         RecordingSessionManager? recordingSessionManager = null,
-        ICacheMaintenanceClient? cacheMaintenanceClient = null)
+        ICacheMaintenanceClient? cacheMaintenanceClient = null,
+        IResearchProjectClient? researchProjectClient = null)
     {
         this.backendHealthClient = backendHealthClient;
         Notifications = notifications ?? new OperationNotificationCenter();
@@ -54,7 +56,17 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         }
         var cacheMaintenance = new CacheMaintenanceService(cacheMaintenanceClient, new ReviewCacheCleaner(), RecordingSessions);
         CacheMaintenance = new CacheMaintenanceViewModel(() => cacheMaintenance.ClearAsync());
-        Projects = new ProjectWorkspaceViewModel(Notifications, store: projectStore);
+        if (researchProjectClient is null)
+        {
+            maintenanceTransport ??= new HttpClient(new DiagnosticHttpMessageHandler(new HttpClientHandler()))
+            {
+                BaseAddress = new Uri(backendHealthClient.Endpoint.GetLeftPart(UriPartial.Authority) + "/"),
+                Timeout = TimeSpan.FromMinutes(5),
+            };
+            researchProjectClient = new HttpResearchProjectClient(maintenanceTransport);
+        }
+        ResearchProjectClient = researchProjectClient;
+        Projects = new ProjectWorkspaceViewModel(Notifications, store: projectStore, backendClient: researchProjectClient);
         AlgorithmCatalog = new AlgorithmListViewModel(Algorithms, Notifications, Projects, TimeDisplaySettings, montageStore,
             recordingSessionManager: RecordingSessions);
         AlgorithmWorkspace = new AlgorithmWorkspaceViewModel(AlgorithmCatalog);
@@ -105,6 +117,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
     public AlgorithmWorkspaceViewModel AlgorithmWorkspace { get; }
 
     public ProjectWorkspaceViewModel Projects { get; }
+    public IResearchProjectClient ResearchProjectClient { get; }
 
     public OperationNotificationCenter Notifications { get; }
 

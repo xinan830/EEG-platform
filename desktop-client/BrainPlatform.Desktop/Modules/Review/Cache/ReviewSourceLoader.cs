@@ -143,7 +143,7 @@ internal sealed class ReviewSourceLoader : IAsyncDisposable
             Math.Min(startSeconds, GetFilterWarmupSeconds(settings)) * reader.Manifest.SamplingRateHz));
         return new ReviewFilteredSourceChunkKey(
             reader.Manifest.SessionId,
-            ReviewFilteredSourceChunkKey.CreateManifestFingerprint(reader.Manifest),
+            ReviewFilteredSourceChunkKey.CreateManifestFingerprint(reader.Manifest, reader.Metadata.Revision),
             reader.Manifest.SamplingRateHz,
             ReviewFilteredSourceChunkKey.CreateChannelSchemaFingerprint(reader.Manifest),
             settings,
