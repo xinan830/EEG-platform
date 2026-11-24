@@ -103,10 +103,10 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <topomap:TopomapCanvas Grid.Row="0" Field="{Binding PsdAnalysis.TopomapField}"
-                                   ColorScaleState="{Binding PsdAnalysis.TopomapColorScales}">
-                <topomap:TopomapCanvas.Style>
-                    <Style TargetType="topomap:TopomapCanvas">
+            <topomap:TopomapSwitchableView Grid.Row="0" Field="{Binding PsdAnalysis.TopomapField}"
+                                           ColorScaleState="{Binding PsdAnalysis.TopomapColorScales}">
+                <topomap:TopomapSwitchableView.Style>
+                    <Style TargetType="topomap:TopomapSwitchableView">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding PsdAnalysis.IsTopomapSelected}" Value="True">
@@ -117,8 +117,8 @@
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </topomap:TopomapCanvas.Style>
-            </topomap:TopomapCanvas>
+                </topomap:TopomapSwitchableView.Style>
+            </topomap:TopomapSwitchableView>
             <TextBlock Grid.Row="0" Text="{Binding PsdAnalysis.CurrentRangeText}"
                        HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
                        Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"

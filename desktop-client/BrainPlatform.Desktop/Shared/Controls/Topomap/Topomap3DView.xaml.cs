@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using BrainPlatform.Desktop.Infrastructure.Diagnostics;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Channels.Api;
 
 namespace BrainPlatform.Desktop.Shared.Controls.Topomap;
@@ -20,6 +21,15 @@ public partial class Topomap3DView : UserControl
     public static readonly DependencyProperty SelectedElectrodeLabelProperty = DependencyProperty.Register(
         nameof(SelectedElectrodeLabel), typeof(string), typeof(Topomap3DView),
         new PropertyMetadata(null, OnSelectedElectrodeChanged));
+    public static readonly DependencyProperty IsHeatmapPreviewProperty = DependencyProperty.Register(
+        nameof(IsHeatmapPreview), typeof(bool), typeof(Topomap3DView),
+        new PropertyMetadata(false, OnHeatmapModeChanged));
+    public static readonly DependencyProperty FieldProperty = DependencyProperty.Register(
+        nameof(Field), typeof(TopomapField), typeof(Topomap3DView),
+        new PropertyMetadata(null, OnModelChanged));
+    public static readonly DependencyProperty ColorScaleStateProperty = DependencyProperty.Register(
+        nameof(ColorScaleState), typeof(TopomapColorScaleState), typeof(Topomap3DView),
+        new PropertyMetadata(null, OnModelChanged));
 
     private const double InitialFieldOfViewDegrees = 42;
     private const double MinimumFieldOfViewDegrees = 2;
@@ -30,6 +40,8 @@ public partial class Topomap3DView : UserControl
     private CancellationTokenSource? preparation;
     private IReadOnlyList<Topomap3DElectrodeMarker> currentMarkers = [];
     private readonly List<(Topomap3DElectrodeMarker Marker, Border Pill, TextBlock Text)> labelVisuals = [];
+    private Topomap3DPresetKind currentPreset = Topomap3DPresetKind.FrontalActivation;
+    private Topomap3DColormapKind currentColormap = Topomap3DColormapKind.Turbo;
     private Point? dragOrigin;
     private bool isPanning;
     private double yaw;
@@ -81,11 +93,40 @@ public partial class Topomap3DView : UserControl
         set => SetValue(SelectedElectrodeLabelProperty, value);
     }
 
+    public bool IsHeatmapPreview
+    {
+        get => (bool)GetValue(IsHeatmapPreviewProperty);
+        set => SetValue(IsHeatmapPreviewProperty, value);
+    }
+
+    public TopomapField? Field
+    {
+        get => (TopomapField?)GetValue(FieldProperty);
+        set => SetValue(FieldProperty, value);
+    }
+
+    public TopomapColorScaleState? ColorScaleState
+    {
+        get => (TopomapColorScaleState?)GetValue(ColorScaleStateProperty);
+        set => SetValue(ColorScaleStateProperty, value);
+    }
+
     private static void OnModelChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
         ((Topomap3DView)sender).SchedulePreparation();
 
     private static void OnSelectedElectrodeChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args) =>
         ((Topomap3DView)sender).ApplySelectedElectrode(animateToTarget: true);
+
+    private static void OnHeatmapModeChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    {
+        var view = (Topomap3DView)sender;
+        view.SyncHeatmapOverlayControls();
+        view.SchedulePreparation();
+        if (args.NewValue is true && view.IsLoaded)
+        {
+            view.AnimateToPresetShowcaseAngle(view.currentPreset);
+        }
+    }
 
     private void OnLoaded(object sender, RoutedEventArgs e) => SchedulePreparation();
 
@@ -100,34 +141,66 @@ public partial class Topomap3DView : UserControl
         CancelPreparation();
         if (!IsLoaded) return;
         var model = ScalpModel;
-        if (model is null) return;
+        var field = Field;
+        if (model is null && field is null) return;
         var labels = ElectrodeLabels.ToArray();
+        var scaleState = ColorScaleState;
         var cancellation = preparation = new CancellationTokenSource();
         var token = cancellation.Token;
-        UnavailableText.Text = StaticSceneRoot.Children.Count == 0 ? "准备头模" : "头模更新中";
-        UnavailableText.Visibility = Visibility.Visible;
-        _ = PrepareAsync(model, labels, cancellation, token);
+        if (StaticSceneRoot.Children.Count == 0)
+        {
+            UnavailableText.Text = "准备三维头模...";
+            UnavailableText.Visibility = Visibility.Visible;
+        }
+        _ = PrepareAsync(model, labels, field, scaleState, cancellation, token);
     }
 
-    private async Task PrepareAsync(ElectrodeScalpModel3D model, IReadOnlyList<string> labels,
-        CancellationTokenSource owner, CancellationToken token)
+    private async Task PrepareAsync(
+        ElectrodeScalpModel3D? model,
+        IReadOnlyList<string> labels,
+        TopomapField? field,
+        TopomapColorScaleState? scaleState,
+        CancellationTokenSource owner,
+        CancellationToken token)
     {
         try
         {
-            var sceneData = await Task.Run(() =>
-                Topomap3DScenePreparer.PrepareElectrodeSceneData(model, labels, token), token);
+            model ??= await Topomap3DModelProvider.GetScalpModelAsync(token);
             if (token.IsCancellationRequested || !ReferenceEquals(preparation, owner)) return;
+
+            var isRealField = field is not null;
+            var isHeatmap = IsHeatmapPreview;
+            var preset = currentPreset;
+            var colormap = currentColormap;
+            var sceneData = await Task.Run(() => isRealField
+                ? Topomap3DScenePreparer.PrepareRealFieldSceneData(model, field!, scaleState, colormap, token)
+                : Topomap3DScenePreparer.PrepareElectrodeSceneData(model, labels, token, isHeatmap, preset, colormap), token);
+            if (token.IsCancellationRequested || !ReferenceEquals(preparation, owner)) return;
+
             StaticSceneRoot.Children.Clear();
             StaticSceneRoot.Children.Add(sceneData.Scene);
             currentMarkers = sceneData.Markers;
             RebuildLabelVisuals();
+            SyncHeatmapOverlayControls(field, sceneData.ValueMin, sceneData.ValueMax);
 
-            BandText.Text = "标准电极位置";
-            WindowText.Text = "只显示已启用且有标准 3D 坐标的 EEG 电极";
-            var hasMappedLabel = currentMarkers.Count > 0;
-            UnavailableText.Text = labels.Count == 0
-                ? "当前配置没有启用的 EEG 通道"
-                : hasMappedLabel ? string.Empty : "当前启用通道没有可用的标准 3D 位置";
+            if (isRealField)
+            {
+                BandText.Text = string.IsNullOrWhiteSpace(field!.Label) ? "3D 脑电地形图" : $"{field.Label} · 3D 地形图";
+                WindowText.Text = $"有效头皮通道：{sceneData.Markers.Count} · 单位：{FormatUnitLabel(field.Unit)}";
+                UnavailableText.Text = sceneData.Markers.Count == 0 ? "当前地形图没有可映射到标准 3D 头皮的通道" : string.Empty;
+            }
+            else
+            {
+                BandText.Text = isHeatmap ? "3D 地形图视觉预览（示意分布）" : "标准电极位置";
+                WindowText.Text = isHeatmap
+                    ? "头皮平滑插值 · 面部与颈部自动遮罩隔离（右上角可切换分布与色带）"
+                    : "只显示已启用且有标准 3D 坐标的 EEG 电极";
+                var hasMappedLabel = currentMarkers.Count > 0;
+                UnavailableText.Text = labels.Count == 0
+                    ? "当前配置没有启用的 EEG 通道"
+                    : hasMappedLabel ? string.Empty : "当前启用通道没有可用的标准 3D 位置";
+            }
+
             UnavailableText.Visibility = string.IsNullOrEmpty(UnavailableText.Text)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
@@ -137,9 +210,20 @@ public partial class Topomap3DView : UserControl
             {
                 framedModelIdentity = modelIdentity;
                 FrameCamera(StaticSceneRoot.Bounds);
+                if (isRealField)
+                {
+                    // Tilt slightly downward on initial load of real 3D topomap so the cranial dome is prominent.
+                    yaw = 0;
+                    pitch = -24;
+                    ApplySceneRotation();
+                }
             }
 
             ApplySelectedElectrode(animateToTarget: !string.IsNullOrWhiteSpace(SelectedElectrodeLabel));
+            if (!isRealField && isHeatmap && string.IsNullOrWhiteSpace(SelectedElectrodeLabel) && !cameraWasAdjusted)
+            {
+                AnimateToPresetShowcaseAngle(preset);
+            }
             UpdateProjectedLabels();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -287,6 +371,106 @@ public partial class Topomap3DView : UserControl
         var targetYaw = yaw + Topomap3DProjectionHelper.NormalizeShortestAngleDelta(-yaw);
         StartCameraAnimation(targetYaw, 0, defaultCameraPosition, InitialFieldOfViewDegrees, ResetDurationSeconds);
         cameraWasAdjusted = false;
+    }
+
+    private void OnCyclePresetClick(object sender, RoutedEventArgs e)
+    {
+        currentPreset = currentPreset switch
+        {
+            Topomap3DPresetKind.FrontalActivation => Topomap3DPresetKind.OccipitalAlpha,
+            Topomap3DPresetKind.OccipitalAlpha => Topomap3DPresetKind.HemisphericAsymmetry,
+            _ => Topomap3DPresetKind.FrontalActivation,
+        };
+        SyncHeatmapOverlayControls();
+        SchedulePreparation();
+        AnimateToPresetShowcaseAngle(currentPreset);
+    }
+
+    private void OnCycleColormapClick(object sender, RoutedEventArgs e)
+    {
+        currentColormap = currentColormap switch
+        {
+            Topomap3DColormapKind.Turbo => Topomap3DColormapKind.Jet,
+            Topomap3DColormapKind.Jet => Topomap3DColormapKind.RdBuReversed,
+            Topomap3DColormapKind.RdBuReversed => Topomap3DColormapKind.Viridis,
+            _ => Topomap3DColormapKind.Turbo,
+        };
+        SyncHeatmapOverlayControls();
+        SchedulePreparation();
+    }
+
+    private void SyncHeatmapOverlayControls(TopomapField? field = null, double? valueMin = null, double? valueMax = null)
+    {
+        var activeField = field ?? Field;
+        var isRealField = activeField is not null;
+        var showHeatmap = isRealField || IsHeatmapPreview;
+        PresetCycleButton.Visibility = !isRealField && IsHeatmapPreview ? Visibility.Visible : Visibility.Collapsed;
+        ColormapCycleButton.Visibility = showHeatmap ? Visibility.Visible : Visibility.Collapsed;
+        ColorbarCard.Visibility = showHeatmap ? Visibility.Visible : Visibility.Collapsed;
+        if (!showHeatmap) return;
+
+        if (!isRealField)
+        {
+            PresetCycleButton.Content = currentPreset switch
+            {
+                Topomap3DPresetKind.OccipitalAlpha => "分布：枕叶 Alpha 优势",
+                Topomap3DPresetKind.HemisphericAsymmetry => "分布：右半球偏侧激活",
+                _ => "分布：额区双侧激活",
+            };
+            ColorbarUnitText.Text = "示意强度";
+            ColorbarMaxText.Text = "1.0 高";
+            ColorbarMidText.Text = "0.5 中";
+            ColorbarMinText.Text = "0.0 低";
+        }
+        else if (valueMin is { } min && valueMax is { } max)
+        {
+            ColorbarUnitText.Text = FormatUnitLabel(activeField!.Unit);
+            var mid = (min + max) * 0.5;
+            ColorbarMaxText.Text = FormatScaleTick(max, activeField.Unit);
+            ColorbarMidText.Text = FormatScaleTick(mid, activeField.Unit);
+            ColorbarMinText.Text = FormatScaleTick(min, activeField.Unit);
+        }
+
+        ColormapCycleButton.Content = currentColormap switch
+        {
+            Topomap3DColormapKind.Jet => "色带：Jet",
+            Topomap3DColormapKind.RdBuReversed => "色带：RdBu 对称",
+            Topomap3DColormapKind.Viridis => "色带：Viridis",
+            _ => "色带：Turbo",
+        };
+        ColorbarGradientBar.Background = Topomap3DHeatmapBuilder.CreateColorbarBrush(currentColormap);
+    }
+
+    private static string FormatUnitLabel(string? unit) => unit switch
+    {
+        "ratio" => "相对功率 (%)",
+        "uV^2" => "µV²",
+        "V^2/Hz" => "V²/Hz",
+        "dB" => "dB",
+        null or "" => "强度",
+        _ => unit,
+    };
+
+    private static string FormatScaleTick(double value, string? unit)
+    {
+        if (string.Equals(unit, "ratio", StringComparison.OrdinalIgnoreCase))
+            return $"{value * 100d:0.#}%";
+        if (Math.Abs(value) >= 100 || Math.Abs(value) < 0.01 && value != 0)
+            return value.ToString("G3", System.Globalization.CultureInfo.InvariantCulture);
+        return value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private void AnimateToPresetShowcaseAngle(Topomap3DPresetKind preset)
+    {
+        if (StaticSceneRoot.Children.Count == 0) return;
+        var (rawTargetYaw, targetPitch) = preset switch
+        {
+            Topomap3DPresetKind.OccipitalAlpha => (150d, -24d),
+            Topomap3DPresetKind.HemisphericAsymmetry => (52d, -22d),
+            _ => (-18d, -22d),
+        };
+        var targetYaw = yaw + Topomap3DProjectionHelper.NormalizeShortestAngleDelta(rawTargetYaw - yaw);
+        StartCameraAnimation(targetYaw, targetPitch, defaultCameraPosition, Camera.FieldOfView, FocusDurationSeconds);
     }
 
     private void EnsureRenderLoopAttached()

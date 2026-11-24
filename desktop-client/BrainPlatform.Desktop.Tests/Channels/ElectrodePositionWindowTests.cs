@@ -54,7 +54,7 @@ public sealed class ElectrodePositionWindowTests(WpfApplicationFixture applicati
         var window = new ElectrodePositionWindow { DataContext = model };
         var content = (FrameworkElement)window.Content;
         var tabs = Descendants(content).OfType<RadioButton>().ToArray();
-        Assert.Equal(new[] { "2D", "3D", "地形图" }, tabs.Select(tab => tab.Content).Cast<string>());
+        Assert.Equal(new[] { "2D", "3D", "地形图", "3D 地形图" }, tabs.Select(tab => tab.Content).Cast<string>());
         content.Measure(new Size(width, height));
         content.Arrange(new Rect(0, 0, width, height));
         content.UpdateLayout();

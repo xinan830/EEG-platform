@@ -105,8 +105,8 @@
                             </Style>
                         </Viewbox.Style>
                         <Grid Width="640" Height="640">
-                            <topomap:TopomapCanvas Field="{Binding RbpAnalysis.SelectedTopomapField}"
-                                                   ColorScaleState="{Binding RbpAnalysis.TopomapColorScales}" />
+                            <topomap:TopomapSwitchableView Field="{Binding RbpAnalysis.SelectedTopomapField}"
+                                                           ColorScaleState="{Binding RbpAnalysis.TopomapColorScales}" />
                             <TextBlock Text="{Binding RbpAnalysis.TopomapWindowText}"
                                        HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
                                        Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"

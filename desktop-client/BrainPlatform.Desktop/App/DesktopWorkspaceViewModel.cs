@@ -12,6 +12,7 @@ using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Settings.Api;
 using BrainPlatform.Desktop.Modules.Settings.Services;
 using BrainPlatform.Desktop.Modules.Settings.ViewModels;
+using BrainPlatform.Desktop.Shared.Controls.Topomap;
 
 namespace BrainPlatform.Desktop.Application;
 
@@ -38,6 +39,7 @@ public sealed class DesktopWorkspaceViewModel : ObservableObject, IAsyncDisposab
         Notifications = notifications ?? new OperationNotificationCenter();
         Acquisition = acquisition;
         ElectrodeLocationClient = electrodeLocationClient;
+        BrainPlatform.Desktop.Shared.Controls.Topomap.Topomap3DModelProvider.Register(electrodeLocationClient);
         montageStore ??= new MontageProfileStore(projectStore: projectStore);
         Algorithms = algorithmClient ?? throw new ArgumentNullException(nameof(algorithmClient));
         RecordingSessions = recordingSessionManager ?? new RecordingSessionManager();

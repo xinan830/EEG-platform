@@ -1,6 +1,40 @@
 <UserControl x:Class="BrainPlatform.Desktop.Shared.Controls.Topomap.Topomap3DView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="TopomapOverlayActionButtonStyle" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Padding" Value="11,6" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="#1E293B" />
+            <Setter Property="Background" Value="#F2FFFFFF" />
+            <Setter Property="BorderBrush" Value="#CBD5E1" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BtnBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="#EFF6FF" />
+                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#93C5FD" />
+                                <Setter Property="Foreground" Value="#1D4ED8" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="#DBEAFE" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
     <Grid Background="#F8FAFC" ClipToBounds="True">
         <Viewport3D x:Name="SurfaceViewport" ClipToBounds="True"
                     MouseDown="OnViewportMouseDown" MouseMove="OnViewportMouseMove"
@@ -13,9 +47,9 @@
             <ModelVisual3D>
                 <ModelVisual3D.Content>
                     <Model3DGroup>
-                        <AmbientLight Color="#7D8590" />
+                        <AmbientLight Color="#8A929E" />
                         <DirectionalLight Color="#FFFFFF" Direction="-0.4,-0.7,1" />
-                        <DirectionalLight Color="#D8E2EE" Direction="0.5,0.4,-0.8" />
+                        <DirectionalLight Color="#DCE5F0" Direction="0.5,0.4,-0.8" />
                         <Model3DGroup x:Name="SceneRoot">
                             <Model3DGroup x:Name="StaticSceneRoot" />
                             <Model3DGroup x:Name="SelectedMarkerRoot" />
@@ -25,7 +59,7 @@
             </ModelVisual3D>
         </Viewport3D>
 
-        <!-- 3D-Projected Electrode Name Labels (auto backface-culled) -->
+        <!-- 3D-Projected Electrode Name Labels (auto backface-culled, transparent background) -->
         <Canvas x:Name="ElectrodeLabelOverlay" IsHitTestVisible="False" ClipToBounds="True" />
 
         <!-- Top-left metadata card -->
@@ -39,39 +73,49 @@
             </StackPanel>
         </Border>
 
-        <!-- Top-right Reset View Button -->
-        <Button x:Name="ResetViewButton" Content="复位视角" Click="OnResetViewClick"
-                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12"
-                Cursor="Hand" Padding="12,6" FontSize="12" FontWeight="Medium"
-                Foreground="#1E293B" Background="#F2FFFFFF" BorderBrush="#CBD5E1" BorderThickness="1"
-                ToolTip="平滑恢复初始正视视角">
-            <Button.Template>
-                <ControlTemplate TargetType="Button">
-                    <Border x:Name="BtnBorder" Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8" Padding="{TemplateBinding Padding}">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Path Data="M 12 4 A 8 8 0 1 0 19.3 15 M 19 4 L 19 9 L 14 9"
-                                  Stroke="#2563EB" StrokeThickness="1.7" StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                  Width="13" Height="13" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
-                            <ContentPresenter VerticalAlignment="Center" />
-                        </StackPanel>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="BtnBorder" Property="Background" Value="#EFF6FF" />
-                            <Setter TargetName="BtnBorder" Property="BorderBrush" Value="#93C5FD" />
-                            <Setter Property="Foreground" Value="#1D4ED8" />
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="BtnBorder" Property="Background" Value="#DBEAFE" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Button.Template>
-        </Button>
+        <!-- Top-right Action Bar (Heatmap Preset / Colormap Switcher + Reset View Button) -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12">
+            <Button x:Name="PresetCycleButton" Content="分布：枕叶 Alpha" Click="OnCyclePresetClick"
+                    Style="{StaticResource TopomapOverlayActionButtonStyle}" Margin="0,0,8,0"
+                    Visibility="Collapsed" ToolTip="切换 3D 地形图示意脑区分布并自动转向对应脑区" />
+            <Button x:Name="ColormapCycleButton" Content="色带：Turbo" Click="OnCycleColormapClick"
+                    Style="{StaticResource TopomapOverlayActionButtonStyle}" Margin="0,0,8,0"
+                    Visibility="Collapsed" ToolTip="切换 3D 地形图热力色带 (Turbo / Jet / RdBu / Viridis)" />
+            <Button x:Name="ResetViewButton" Click="OnResetViewClick"
+                    Style="{StaticResource TopomapOverlayActionButtonStyle}"
+                    ToolTip="平滑恢复初始正视视角">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Path Data="M 12 4 A 8 8 0 1 0 19.3 15 M 19 4 L 19 9 L 14 9"
+                          Stroke="#2563EB" StrokeThickness="1.7" StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          Width="13" Height="13" Stretch="Uniform" Margin="0,0,6,0" VerticalAlignment="Center" />
+                    <TextBlock Text="复位视角" VerticalAlignment="Center" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
+        <!-- Right Vertical Colorbar (visible in 3D Topomap preview or real Field mode) -->
+        <Border x:Name="ColorbarCard" HorizontalAlignment="Right" VerticalAlignment="Center"
+                Margin="0,48,14,48" Background="#EBFFFFFF" BorderBrush="#E2E8F0" BorderThickness="1"
+                CornerRadius="10" Padding="10,10" Visibility="Collapsed" IsHitTestVisible="False">
+            <StackPanel>
+                <TextBlock x:Name="ColorbarUnitText" Text="示意强度" FontSize="10.5" FontWeight="SemiBold" Foreground="#334155"
+                           HorizontalAlignment="Center" Margin="0,0,0,6" />
+                <Grid Height="168">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="ColorbarGradientBar" Grid.Column="0" Width="14" CornerRadius="4"
+                            BorderBrush="#CBD5E1" BorderThickness="1" />
+                    <Grid Grid.Column="1" Margin="6,0,0,0">
+                        <TextBlock x:Name="ColorbarMaxText" Text="1.0 高" FontSize="10" Foreground="#334155" VerticalAlignment="Top" />
+                        <TextBlock x:Name="ColorbarMidText" Text="0.5 中" FontSize="10" Foreground="#64748B" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ColorbarMinText" Text="0.0 低" FontSize="10" Foreground="#334155" VerticalAlignment="Bottom" />
+                    </Grid>
+                </Grid>
+            </StackPanel>
+        </Border>
 
         <!-- Bottom-left Interaction Hint Pill -->
         <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12"

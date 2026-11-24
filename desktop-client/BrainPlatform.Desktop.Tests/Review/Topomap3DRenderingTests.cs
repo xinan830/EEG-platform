@@ -34,7 +34,7 @@ public sealed class Topomap3DRenderingTests
 
             var mastoidScene = Topomap3DScenePreparer.PrepareElectrodeLocations(model, ["M1", "M2"], CancellationToken.None);
             var mastoidMarkers = (MeshGeometry3D)((GeometryModel3D)mastoidScene.Children[1]).Geometry;
-            Assert.Equal(480, mastoidMarkers.TriangleIndices.Count);
+            Assert.Equal(1680, mastoidMarkers.TriangleIndices.Count);
 
             var noMappedSites = Topomap3DScenePreparer.PrepareElectrodeLocations(model, ["REF"], CancellationToken.None);
             Assert.Single(noMappedSites.Children);

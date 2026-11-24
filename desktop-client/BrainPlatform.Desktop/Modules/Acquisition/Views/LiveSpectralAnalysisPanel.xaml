@@ -50,13 +50,13 @@
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="LiveMap">
-            <topomap:TopomapCanvas Field="{Binding Field}" ColorScaleState="{Binding ColorScales}"
-                                   AutomationProperties.Name="实时头皮地形图" />
+            <topomap:TopomapSwitchableView Field="{Binding Field}" ColorScaleState="{Binding ColorScales}"
+                                           AutomationProperties.Name="实时头皮地形图" />
         </DataTemplate>
         <DataTemplate x:Key="LivePsdTopomap">
             <Grid>
-                <topomap:TopomapCanvas Field="{Binding Field}" ColorScaleState="{Binding ColorScales}"
-                                       AutomationProperties.Name="实时脑电地形图" />
+                <topomap:TopomapSwitchableView Field="{Binding Field}" ColorScaleState="{Binding ColorScales}"
+                                               AutomationProperties.Name="实时脑电地形图" />
                 <TextBlock Text="{Binding Window}"
                            HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
                            Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"

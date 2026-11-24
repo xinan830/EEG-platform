@@ -19,7 +19,9 @@ internal sealed record Topomap3DElectrodeMarker(
 
 internal sealed record Topomap3DSceneData(
     Model3DGroup Scene,
-    IReadOnlyList<Topomap3DElectrodeMarker> Markers);
+    IReadOnlyList<Topomap3DElectrodeMarker> Markers,
+    double? ValueMin = null,
+    double? ValueMax = null);
 
 internal static class Topomap3DScenePreparer
 {
@@ -33,7 +35,11 @@ internal static class Topomap3DScenePreparer
         PrepareElectrodeSceneData(model, enabledLabels, cancellationToken).Scene;
 
     internal static Topomap3DSceneData PrepareElectrodeSceneData(ElectrodeScalpModel3D model,
-        IReadOnlyList<string> enabledLabels, CancellationToken cancellationToken)
+        IReadOnlyList<string> enabledLabels,
+        CancellationToken cancellationToken,
+        bool isHeatmapPreview = false,
+        Topomap3DPresetKind preset = Topomap3DPresetKind.OccipitalAlpha,
+        Topomap3DColormapKind colormap = Topomap3DColormapKind.Turbo)
     {
         ArgumentNullException.ThrowIfNull(enabledLabels);
         cancellationToken.ThrowIfCancellationRequested();
@@ -44,7 +50,6 @@ internal static class Topomap3DScenePreparer
         var geometry = GetSceneGeometry(model, vertices, faces, cancellationToken);
         var scene = new Model3DGroup();
         var scalp = CreateScalpGeometry(geometry.Vertices, geometry.Normals, faces);
-        AddModel(scene, scalp, Color.FromRgb(205, 211, 218));
         var selected = enabledLabels.Where(label => !string.IsNullOrWhiteSpace(label))
             .Select(label => label.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var markerRadius = ElectrodeMarkerRadiusFactor * geometry.Scale;
@@ -70,13 +75,157 @@ internal static class Topomap3DScenePreparer
                 displayLabel, site.CanonicalChannel, surfaceCenter, outward, markerRadius));
         }
 
+        if (isHeatmapPreview && markerInfos.Count > 0)
+        {
+            scalp.TextureCoordinates = Topomap3DHeatmapBuilder.ComputeVertexUvCoordinates(
+                geometry.Vertices, markerInfos, preset);
+            scalp.Freeze();
+            var heatMaterial = Topomap3DHeatmapBuilder.CreateColormapMaterial(colormap);
+            scene.Children.Add(new GeometryModel3D(scalp, heatMaterial) { BackMaterial = heatMaterial });
+        }
+        else
+        {
+            AddModel(scene, scalp, Color.FromRgb(205, 211, 218));
+        }
+
         if (markerMesh.TriangleIndices.Count > 0)
         {
-            AddGlossyModel(scene, markerMesh, Color.FromRgb(29, 78, 216));
+            var markerColor = isHeatmapPreview
+                ? Color.FromRgb(30, 41, 59)
+                : Color.FromRgb(29, 78, 216);
+            AddGlossyModel(scene, markerMesh, markerColor);
         }
 
         scene.Freeze();
         return new Topomap3DSceneData(scene, markerInfos);
+    }
+
+    internal static Topomap3DSceneData PrepareRealFieldSceneData(
+        ElectrodeScalpModel3D model,
+        TopomapField field,
+        TopomapColorScaleState? colorScaleState,
+        Topomap3DColormapKind colormap,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        cancellationToken.ThrowIfCancellationRequested();
+        ValidateModel(model);
+        var vertices = VerticesByIdentity.GetOrAdd(model.MeshGeometrySha256, _ => ValidateAndReadVertices(model));
+        var faces = FacesByIdentity.GetOrAdd(model.MeshGeometrySha256, _ => ValidateAndReadFaces(model, vertices.Length));
+        if (vertices.Length == 0 || faces.Count == 0) throw new InvalidDataException("三维模型缺少网格几何。");
+        var geometry = GetSceneGeometry(model, vertices, faces, cancellationToken);
+
+        var rawValuesByLabel = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (var point in field.Points)
+        {
+            if (point.Value is not { } val || !double.IsFinite(val)) continue;
+            if (!string.IsNullOrWhiteSpace(point.Status) &&
+                !string.Equals(point.Status, "ok", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(point.Status, "valid", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(point.ElectrodeLabel))
+                rawValuesByLabel[point.ElectrodeLabel.Trim()] = val;
+            if (!string.IsNullOrWhiteSpace(point.Channel))
+                rawValuesByLabel[point.Channel.Trim()] = val;
+        }
+
+        var markerRadius = ElectrodeMarkerRadiusFactor * geometry.Scale;
+        var allMarkers = new List<Topomap3DElectrodeMarker>();
+        var scalpMarkers = new List<Topomap3DElectrodeMarker>();
+        var markerMesh = new MeshGeometry3D();
+        var matchedValues = new List<(Topomap3DElectrodeMarker Marker, double Value)>();
+
+        foreach (var group in model.ElectrodeLocations
+                     .Where(site => rawValuesByLabel.ContainsKey(site.Channel) || rawValuesByLabel.ContainsKey(site.CanonicalChannel))
+                     .GroupBy(site => site.CanonicalChannel, StringComparer.OrdinalIgnoreCase))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var site = group.First();
+            var value = rawValuesByLabel.TryGetValue(site.Channel, out var direct)
+                ? direct
+                : rawValuesByLabel[site.CanonicalChannel];
+            var displayLabel = field.Points.FirstOrDefault(p =>
+                string.Equals(p.ElectrodeLabel?.Trim(), site.Channel, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.ElectrodeLabel?.Trim(), site.CanonicalChannel, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.Channel?.Trim(), site.Channel, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(p.Channel?.Trim(), site.CanonicalChannel, StringComparison.OrdinalIgnoreCase))?.ElectrodeLabel?.Trim()
+                ?? site.Channel;
+
+            var rawCenter = MapElectrodePosition(site.CoordinateGnm, model, geometry);
+            var outward = new Vector3D(rawCenter.X, rawCenter.Y, rawCenter.Z);
+            if (outward.LengthSquared > 1e-12) outward.Normalize();
+            else outward = new Vector3D(0, 1, 0);
+            var surfaceCenter = rawCenter + outward * (markerRadius * 0.3);
+            var marker = new Topomap3DElectrodeMarker(displayLabel, site.CanonicalChannel, surfaceCenter, outward, markerRadius);
+            AddSphere(markerMesh, surfaceCenter, markerRadius);
+            allMarkers.Add(marker);
+            if (site.IsScalpFieldSite)
+            {
+                scalpMarkers.Add(marker);
+                matchedValues.Add((marker, value));
+            }
+        }
+
+        var (scaleMin, scaleMax) = ResolveFieldScaleBounds(field, matchedValues.Select(item => item.Value).ToArray(), colorScaleState);
+        var normalizedByChannel = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var span = scaleMax - scaleMin;
+        foreach (var (marker, value) in matchedValues)
+        {
+            var norm = span > 1e-12 ? Math.Clamp((value - scaleMin) / span, 0d, 1d) : 0.5;
+            normalizedByChannel[marker.DisplayLabel] = norm;
+            normalizedByChannel[marker.CanonicalChannel] = norm;
+        }
+
+        var scene = new Model3DGroup();
+        var scalp = CreateScalpGeometry(geometry.Vertices, geometry.Normals, faces);
+        if (scalpMarkers.Count > 0)
+        {
+            scalp.TextureCoordinates = Topomap3DHeatmapBuilder.ComputeVertexUvCoordinates(
+                geometry.Vertices, scalpMarkers, Topomap3DPresetKind.OccipitalAlpha, normalizedByChannel);
+            scalp.Freeze();
+            var heatMaterial = Topomap3DHeatmapBuilder.CreateColormapMaterial(colormap);
+            scene.Children.Add(new GeometryModel3D(scalp, heatMaterial) { BackMaterial = heatMaterial });
+        }
+        else
+        {
+            AddModel(scene, scalp, Color.FromRgb(205, 211, 218));
+        }
+
+        if (markerMesh.TriangleIndices.Count > 0)
+        {
+            AddGlossyModel(scene, markerMesh, Color.FromRgb(30, 41, 59));
+        }
+
+        scene.Freeze();
+        return new Topomap3DSceneData(scene, allMarkers, scaleMin, scaleMax);
+    }
+
+    private static (double Minimum, double Maximum) ResolveFieldScaleBounds(
+        TopomapField field,
+        double[] values,
+        TopomapColorScaleState? colorScaleState)
+    {
+        if (colorScaleState?.GetBounds(field) is { } cached &&
+            double.IsFinite(cached.Minimum) && double.IsFinite(cached.Maximum) && cached.Maximum > cached.Minimum)
+        {
+            return cached;
+        }
+
+        if (values.Length == 0) return (0d, 1d);
+        var min = values.Min();
+        var max = values.Max();
+        if (max - min < 1e-12)
+        {
+            var pad = Math.Max(1e-6, Math.Abs(min) * 0.1);
+            min -= pad;
+            max += pad;
+        }
+
+        colorScaleState?.Remember(field, min, max);
+        return (min, max);
     }
 
     internal static MeshGeometry3D CreateSingleSphereMesh(Point3D center, double radius)

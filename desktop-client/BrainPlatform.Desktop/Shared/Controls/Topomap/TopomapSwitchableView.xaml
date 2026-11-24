@@ -1,0 +1,57 @@
+<UserControl x:Class="BrainPlatform.Desktop.Shared.Controls.Topomap.TopomapSwitchableView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:topomap="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Topomap">
+    <UserControl.Resources>
+        <Style x:Key="ModePillRadioStyle" TargetType="RadioButton">
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="MinWidth" Value="38" />
+            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Pill" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Pill" Property="Background" Value="#FFFFFF" />
+                                <Setter Property="Foreground" Value="#1D4ED8" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#0F172A" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+    <Grid>
+        <!-- 2D Topomap (Default) -->
+        <topomap:TopomapCanvas x:Name="Canvas2D"
+                               Field="{Binding Field, ElementName=Root}"
+                               ColorScaleState="{Binding ColorScaleState, ElementName=Root}" />
+
+        <!-- 3D Topomap Host (Lazily instantiated on first switch to 3D) -->
+        <ContentPresenter x:Name="Host3D" Visibility="Collapsed" />
+
+        <!-- Floating 2D / 3D Switcher (Bottom-Right so it never collides with 3D colorbar/top bar or bottom-left window label) -->
+        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,8"
+                Background="#EBF1F5F9" BorderBrush="#CBD5E1" BorderThickness="1"
+                CornerRadius="8" Padding="2" Panel.ZIndex="10">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="Radio2D" Content="2D" IsChecked="True"
+                             Style="{StaticResource ModePillRadioStyle}" Checked="OnModeChanged" />
+                <RadioButton x:Name="Radio3D" Content="3D"
+                             Style="{StaticResource ModePillRadioStyle}" Checked="OnModeChanged" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

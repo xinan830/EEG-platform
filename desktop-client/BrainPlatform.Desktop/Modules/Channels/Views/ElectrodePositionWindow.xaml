@@ -77,6 +77,10 @@
                     <RadioButton Content="地形图" GroupName="ElectrodePositionView" Margin="2,0,0,0"
                                  Style="{StaticResource PositionViewSegmentStyle}"
                                  IsChecked="{Binding IsTopographic, Mode=TwoWay}" />
+                    <RadioButton Content="3D 地形图" GroupName="ElectrodePositionView" Margin="2,0,0,0"
+                                 Style="{StaticResource PositionViewSegmentStyle}"
+                                 IsChecked="{Binding IsThreeDimensionalTopographic, Mode=TwoWay}"
+                                 Checked="OnThreeDimensionalChecked" />
                 </StackPanel>
             </Border>
         </Grid>
@@ -154,7 +158,7 @@
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsThreeDimensional}" Value="False">
+                                <DataTrigger Binding="{Binding IsAnyThreeDimensional}" Value="False">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -183,7 +187,7 @@
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsThreeDimensional}" Value="True">
+                                <DataTrigger Binding="{Binding IsAnyThreeDimensional}" Value="True">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -192,6 +196,7 @@
                     <topomap:Topomap3DView ScalpModel="{Binding Model}"
                                            ElectrodeLabels="{Binding EnabledElectrodeLabels}"
                                            SelectedElectrodeLabel="{Binding SelectedItem.ElectrodeLabel, ElementName=ElectrodeRows}"
+                                           IsHeatmapPreview="{Binding IsThreeDimensionalTopographic}"
                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 </Border>
             </Grid>

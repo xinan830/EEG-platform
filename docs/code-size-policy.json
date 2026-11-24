@@ -362,6 +362,18 @@
       "max_lines": 570,
       "reason": "当前约 547 行，超过 400 行软目标但仍低于 600 行高风险线；文件集中拥有动态目标协调、全量结果窗口适配、缓存和释放生命周期。本轮只增加 TNK 播放最新目标取消旧观察的调度边界，不增加科学处理职责。",
       "follow_up": "将全量窗口本地适配与通用按需 coordinator 生命周期分离到职责明确的 partial/owner；保持单一动态请求状态和现有最新游标保护。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Shared/Controls/Topomap/Topomap3DScenePreparer.cs": {
+      "decision": "split",
+      "max_lines": 470,
+      "reason": "当前 463 行，3D 场景构建、实测字段映射与摄像机几何仍共享同一网格/坐标契约。本次增加真实 TopomapField 映射与 3D 地形预览；先保留共同的坐标投影与网格缓存，避免复制几何计算。",
+      "follow_up": "提取真实字段到顶点着色的场景构建职责，同时共享现有网格坐标映射和缓存。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Shared/Controls/Topomap/Topomap3DView.xaml.cs": {
+      "decision": "split",
+      "max_lines": 690,
+      "reason": "当前 687 行，WPF 3D 视图集中管理场景加载生命周期、相机交互和地形图浮层；本次加入实际字段渲染与视图切换支持，继续沿用单个控件的视口和相机状态。",
+      "follow_up": "将地形图色带/图例展示状态提取为独立的视图组件，保留视口、场景生命周期与相机交互在此控件。"
     }
   }
 }

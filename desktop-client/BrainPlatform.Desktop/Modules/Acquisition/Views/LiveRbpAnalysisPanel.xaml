@@ -80,8 +80,8 @@
                         </Style>
                     </Viewbox.Style>
                     <Grid Width="640" Height="640">
-                        <topomap:TopomapCanvas Field="{Binding SelectedTopomapField}"
-                                               ColorScaleState="{Binding TopomapColorScales}" />
+                        <topomap:TopomapSwitchableView Field="{Binding SelectedTopomapField}"
+                                                       ColorScaleState="{Binding TopomapColorScales}" />
                         <TextBlock Text="{Binding TopomapWindowText}"
                                    HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
                                    Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
