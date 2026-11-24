@@ -17,4 +17,10 @@ public static class Topomap3DModelProvider
         var activeClient = client ?? throw new InvalidOperationException("三维头模服务尚未初始化。");
         return activeClient.GetScalpModel3DAsync(cancellationToken);
     }
+
+    public static Task<string> GetCortexModelJsonAsync(CancellationToken cancellationToken)
+    {
+        var activeClient = client ?? throw new InvalidOperationException("三维大脑皮层服务尚未初始化。");
+        return activeClient.GetCortexModel3DJsonAsync(cancellationToken);
+    }
 }

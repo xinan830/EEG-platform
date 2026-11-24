@@ -1,11 +1,13 @@
 """Read-only GNM model and standard electrode-location endpoints."""
 
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
 from app.core.api_contract import error_response
 from app.models.topomap_3d import Topomap3DLocationRequest, Topomap3DLocationResponse, Topomap3DModelResponse
 from app.services.topomap_3d_assets import MappingAssetsInvalid
+from app.services.topomap_3d_cortex import load_cortex_atlas_payload
 
 
 router = APIRouter(prefix="/api/topomap/3d", tags=["electrode-locations-3d"])
@@ -29,3 +31,11 @@ def resolve_topomap_3d_locations(body: Topomap3DLocationRequest, request: Reques
         return _json_response(request.app.state.topomap_3d_service.resolve_locations(body.channels))
     except MappingAssetsInvalid as error:
         return error_response(request, 409, "TOPOMAP_3D_ASSET_INVALID", str(error))
+
+
+@router.get("/cortex")
+def get_topomap_3d_cortex(request: Request):
+    try:
+        return JSONResponse(content=load_cortex_atlas_payload())
+    except MappingAssetsInvalid as error:
+        return error_response(request, 409, "TOPOMAP_3D_CORTEX_INVALID", str(error))

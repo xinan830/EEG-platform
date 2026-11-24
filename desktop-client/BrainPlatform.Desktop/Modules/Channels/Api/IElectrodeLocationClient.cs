@@ -22,12 +22,16 @@ public interface IElectrodeLocationClient
         CancellationToken cancellationToken);
 
     Task<ElectrodeScalpModel3D> GetScalpModel3DAsync(CancellationToken cancellationToken);
+
+    Task<string> GetCortexModel3DJsonAsync(CancellationToken cancellationToken) =>
+        Task.FromException<string>(new NotSupportedException("三维大脑皮层资产未配置。"));
 }
 
 public sealed class HttpElectrodeLocationClient(HttpClient httpClient) : IElectrodeLocationClient
 {
     private readonly object modelGate = new();
     private Task<ElectrodeScalpModel3D>? scalpModel;
+    private Task<string>? cortexModelJson;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -77,6 +81,30 @@ public sealed class HttpElectrodeLocationClient(HttpClient httpClient) : IElectr
 
         return await response.Content.ReadFromJsonAsync<ElectrodeScalpModel3D>(JsonOptions, CancellationToken.None)
             ?? throw new JsonException("三维头模响应为空。");
+    }
+
+    public Task<string> GetCortexModel3DJsonAsync(CancellationToken cancellationToken)
+    {
+        Task<string> request;
+        lock (modelGate)
+        {
+            if (cortexModelJson is null || cortexModelJson.IsFaulted || cortexModelJson.IsCanceled)
+                cortexModelJson = LoadCortexModel3DJsonAsync();
+            request = cortexModelJson;
+        }
+        return request.WaitAsync(cancellationToken);
+    }
+
+    private async Task<string> LoadCortexModel3DJsonAsync()
+    {
+        using var response = await httpClient.GetAsync("api/topomap/3d/cortex", CancellationToken.None);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadFromJsonAsync<ApiError>(JsonOptions, CancellationToken.None);
+            throw new HttpRequestException(error?.Message ?? $"三维大脑皮层读取失败（HTTP {(int)response.StatusCode}）。");
+        }
+
+        return await response.Content.ReadAsStringAsync(CancellationToken.None);
     }
 
     private sealed record ResolveRequest(IReadOnlyList<string> Labels);

@@ -1,0 +1,780 @@
+{
+  "schema_version": 1,
+  "model_id": "fsaverage-ico5-pial-gnm",
+  "model_version": "v1",
+  "source_subject": "fsaverage",
+  "source_surface": "pial (ico-5 decimated)",
+  "target_coordinate_frame": "gnm_native",
+  "vertex_count": 20484,
+  "triangle_count": 40960,
+  "lh_vertex_count": 10242,
+  "rh_vertex_count": 10242,
+  "npz_sha256": "6bc806b52b47b2bde555ee4c8f5e9619c5547f0bcd5f9ff07666c71b451fa909",
+  "atlases": {
+    "lobes": {
+      "id": "lobes",
+      "name": "大脑脑叶分区 (PALS-B12)",
+      "regions": [
+        {
+          "id": 0,
+          "code": "unknown",
+          "name": "内侧壁",
+          "name_en": "Medial Wall",
+          "lobe": "内侧壁",
+          "hemi": "both",
+          "color": "#CBD5E1"
+        },
+        {
+          "id": 1,
+          "code": "LOBE.FRONTAL",
+          "name": "额叶",
+          "name_en": "Frontal",
+          "lobe": "额叶",
+          "hemi": "both",
+          "color": "#EF6C6C"
+        },
+        {
+          "id": 2,
+          "code": "LOBE.PARIETAL",
+          "name": "顶叶",
+          "name_en": "Parietal",
+          "lobe": "顶叶",
+          "hemi": "both",
+          "color": "#5B9BD5"
+        },
+        {
+          "id": 3,
+          "code": "LOBE.LIMBIC",
+          "name": "边缘叶",
+          "name_en": "Limbic",
+          "lobe": "边缘叶",
+          "hemi": "both",
+          "color": "#B28CE2"
+        },
+        {
+          "id": 4,
+          "code": "LOBE.TEMPORAL",
+          "name": "颞叶",
+          "name_en": "Temporal",
+          "lobe": "颞叶",
+          "hemi": "both",
+          "color": "#68C37A"
+        },
+        {
+          "id": 5,
+          "code": "LOBE.OCCIPITAL",
+          "name": "枕叶",
+          "name_en": "Occipital",
+          "lobe": "枕叶",
+          "hemi": "both",
+          "color": "#F2B650"
+        }
+      ]
+    },
+    "dk": {
+      "id": "dk",
+      "name": "Desikan-Killiany (68区)",
+      "regions": [
+        {
+          "id": 0,
+          "code": "unknown",
+          "name": "内侧壁",
+          "name_en": "Medial Wall",
+          "lobe": "内侧壁",
+          "hemi": "both",
+          "color": "#CBD5E1"
+        },
+        {
+          "id": 1,
+          "code": "bankssts-lh",
+          "name": "左颞上沟后部",
+          "name_en": "bankssts (LH)",
+          "lobe": "颞叶",
+          "hemi": "lh",
+          "color": "#488253"
+        },
+        {
+          "id": 2,
+          "code": "caudalanteriorcingulate-lh",
+          "name": "左尾侧前扣带回",
+          "name_en": "caudalanteriorcingulate (LH)",
+          "lobe": "边缘叶",
+          "hemi": "lh",
+          "color": "#9682B1"
+        },
+        {
+          "id": 3,
+          "code": "caudalmiddlefrontal-lh",
+          "name": "左额中回尾侧",
+          "name_en": "caudalmiddlefrontal (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#824834"
+        },
+        {
+          "id": 4,
+          "code": "cuneus-lh",
+          "name": "左楔叶",
+          "name_en": "cuneus (LH)",
+          "lobe": "枕叶",
+          "hemi": "lh",
+          "color": "#E04482"
+        },
+        {
+          "id": 5,
+          "code": "entorhinal-lh",
+          "name": "左内嗅皮层",
+          "name_en": "entorhinal (LH)",
+          "lobe": "颞叶",
+          "hemi": "lh",
+          "color": "#E0443C"
+        },
+        {
+          "id": 6,
+          "code": "fusiform-lh",
+          "name": "左梭状回",
+          "name_en": "fusiform (LH)",
+          "lobe": "颞叶",
+          "hemi": "lh",
+          "color": "#C0E0A1"
+        },
+        {
+          "id": 7,
+          "code": "inferiorparietal-lh",
+          "name": "左顶下小叶",
+          "name_en": "inferiorparietal (LH)",
+          "lobe": "顶叶",
+          "hemi": "lh",
+          "color": "#E063E0"
+        },
+        {
+          "id": 8,
+          "code": "inferiortemporal-lh",
+          "name": "左颞下回",
+          "name_en": "inferiortemporal (LH)",
+          "lobe": "颞叶",
+          "hemi": "lh",
+          "color": "#C05392"
+        },
+        {
+          "id": 9,
+          "code": "isthmuscingulate-lh",
+          "name": "左扣带回峡部",
+          "name_en": "isthmuscingulate (LH)",
+          "lobe": "边缘叶",
+          "hemi": "lh",
+          "color": "#A144A1"
+        },
+        {
+          "id": 10,
+          "code": "lateraloccipital-lh",
+          "name": "左枕外侧皮层",
+          "name_en": "lateraloccipital (LH)",
+          "lobe": "枕叶",
+          "hemi": "lh",
+          "color": "#444BA1"
+        },
+        {
+          "id": 11,
+          "code": "lateralorbitofrontal-lh",
+          "name": "左外侧眶额皮层",
+          "name_en": "lateralorbitofrontal (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#4F6E5B"
+        },
+        {
+          "id": 12,
+          "code": "lingual-lh",
+          "name": "左舌回",
+          "name_en": "lingual (LH)",
+          "lobe": "枕叶",
+          "hemi": "lh",
+          "color": "#E4A1A1"
+        },
+        {
+          "id": 13,
+          "code": "medialorbitofrontal-lh",
+          "name": "左内侧眶额皮层",
+          "name_en": "medialorbitofrontal (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#D04F6E"
+        },
+        {
+          "id": 14,
+          "code": "middletemporal-lh",
+          "name": "左颞中回",
+          "name_en": "middletemporal (LH)",
+          "lobe": "颞叶",
+          "hemi": "lh",
+          "color": "#B1825B"
+        },
+        {
+          "id": 15,
+          "code": "parahippocampal-lh",
+          "name": "左海马旁回",
+          "name_en": "parahippocampal (LH)",
+          "lobe": "颞叶",
+          "hemi": "lh",
+          "color": "#44E063"
+        },
+        {
+          "id": 16,
+          "code": "paracentral-lh",
+          "name": "左中央旁小叶",
+          "name_en": "paracentral (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#63E063"
+        },
+        {
+          "id": 17,
+          "code": "parsopercularis-lh",
+          "name": "左额下回岛盖部",
+          "name_en": "parsopercularis (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#E0C0A1"
+        },
+        {
+          "id": 18,
+          "code": "parsorbitalis-lh",
+          "name": "左额下回眶部",
+          "name_en": "parsorbitalis (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#44825B"
+        },
+        {
+          "id": 19,
+          "code": "parstriangularis-lh",
+          "name": "左额下回三角部",
+          "name_en": "parstriangularis (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#E06344"
+        },
+        {
+          "id": 20,
+          "code": "pericalcarine-lh",
+          "name": "左距状裂周围皮层",
+          "name_en": "pericalcarine (LH)",
+          "lobe": "枕叶",
+          "hemi": "lh",
+          "color": "#928263"
+        },
+        {
+          "id": 21,
+          "code": "postcentral-lh",
+          "name": "左中央后回",
+          "name_en": "postcentral (LH)",
+          "lobe": "顶叶",
+          "hemi": "lh",
+          "color": "#E04444"
+        },
+        {
+          "id": 22,
+          "code": "posteriorcingulate-lh",
+          "name": "左后扣带回",
+          "name_en": "posteriorcingulate (LH)",
+          "lobe": "边缘叶",
+          "hemi": "lh",
+          "color": "#E0C0E0"
+        },
+        {
+          "id": 23,
+          "code": "precentral-lh",
+          "name": "左中央前回",
+          "name_en": "precentral (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#6344E0"
+        },
+        {
+          "id": 24,
+          "code": "precuneus-lh",
+          "name": "左楔前叶",
+          "name_en": "precuneus (LH)",
+          "lobe": "顶叶",
+          "hemi": "lh",
+          "color": "#B1A1C0"
+        },
+        {
+          "id": 25,
+          "code": "rostralanteriorcingulate-lh",
+          "name": "左喙侧前扣带回",
+          "name_en": "rostralanteriorcingulate (LH)",
+          "lobe": "边缘叶",
+          "hemi": "lh",
+          "color": "#7244A1"
+        },
+        {
+          "id": 26,
+          "code": "rostralmiddlefrontal-lh",
+          "name": "左额中回喙侧",
+          "name_en": "rostralmiddlefrontal (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#6E5B96"
+        },
+        {
+          "id": 27,
+          "code": "superiorfrontal-lh",
+          "name": "左额上回",
+          "name_en": "superiorfrontal (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#44E0B1"
+        },
+        {
+          "id": 28,
+          "code": "superiorparietal-lh",
+          "name": "左顶上小叶",
+          "name_en": "superiorparietal (LH)",
+          "lobe": "顶叶",
+          "hemi": "lh",
+          "color": "#44C0A1"
+        },
+        {
+          "id": 29,
+          "code": "superiortemporal-lh",
+          "name": "左颞上回",
+          "name_en": "superiortemporal (LH)",
+          "lobe": "颞叶",
+          "hemi": "lh",
+          "color": "#A1E0E0"
+        },
+        {
+          "id": 30,
+          "code": "supramarginal-lh",
+          "name": "左缘上回",
+          "name_en": "supramarginal (LH)",
+          "lobe": "顶叶",
+          "hemi": "lh",
+          "color": "#72B144"
+        },
+        {
+          "id": 31,
+          "code": "frontalpole-lh",
+          "name": "左额极",
+          "name_en": "frontalpole (LH)",
+          "lobe": "额叶",
+          "hemi": "lh",
+          "color": "#823482"
+        },
+        {
+          "id": 32,
+          "code": "temporalpole-lh",
+          "name": "左颞极",
+          "name_en": "temporalpole (LH)",
+          "lobe": "颞叶",
+          "hemi": "lh",
+          "color": "#6B44B9"
+        },
+        {
+          "id": 33,
+          "code": "transversetemporal-lh",
+          "name": "左颞横回",
+          "name_en": "transversetemporal (LH)",
+          "lobe": "颞叶",
+          "hemi": "lh",
+          "color": "#A9A9D0"
+        },
+        {
+          "id": 34,
+          "code": "insula-lh",
+          "name": "左脑岛",
+          "name_en": "insula (LH)",
+          "lobe": "脑岛",
+          "hemi": "lh",
+          "color": "#FBCA4D"
+        },
+        {
+          "id": 35,
+          "code": "bankssts-rh",
+          "name": "右颞上沟后部",
+          "name_en": "bankssts (RH)",
+          "lobe": "颞叶",
+          "hemi": "rh",
+          "color": "#488253"
+        },
+        {
+          "id": 36,
+          "code": "caudalanteriorcingulate-rh",
+          "name": "右尾侧前扣带回",
+          "name_en": "caudalanteriorcingulate (RH)",
+          "lobe": "边缘叶",
+          "hemi": "rh",
+          "color": "#9682B1"
+        },
+        {
+          "id": 37,
+          "code": "caudalmiddlefrontal-rh",
+          "name": "右额中回尾侧",
+          "name_en": "caudalmiddlefrontal (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#824834"
+        },
+        {
+          "id": 38,
+          "code": "cuneus-rh",
+          "name": "右楔叶",
+          "name_en": "cuneus (RH)",
+          "lobe": "枕叶",
+          "hemi": "rh",
+          "color": "#E04482"
+        },
+        {
+          "id": 39,
+          "code": "entorhinal-rh",
+          "name": "右内嗅皮层",
+          "name_en": "entorhinal (RH)",
+          "lobe": "颞叶",
+          "hemi": "rh",
+          "color": "#E0443C"
+        },
+        {
+          "id": 40,
+          "code": "fusiform-rh",
+          "name": "右梭状回",
+          "name_en": "fusiform (RH)",
+          "lobe": "颞叶",
+          "hemi": "rh",
+          "color": "#C0E0A1"
+        },
+        {
+          "id": 41,
+          "code": "inferiorparietal-rh",
+          "name": "右顶下小叶",
+          "name_en": "inferiorparietal (RH)",
+          "lobe": "顶叶",
+          "hemi": "rh",
+          "color": "#E063E0"
+        },
+        {
+          "id": 42,
+          "code": "inferiortemporal-rh",
+          "name": "右颞下回",
+          "name_en": "inferiortemporal (RH)",
+          "lobe": "颞叶",
+          "hemi": "rh",
+          "color": "#C05392"
+        },
+        {
+          "id": 43,
+          "code": "isthmuscingulate-rh",
+          "name": "右扣带回峡部",
+          "name_en": "isthmuscingulate (RH)",
+          "lobe": "边缘叶",
+          "hemi": "rh",
+          "color": "#A144A1"
+        },
+        {
+          "id": 44,
+          "code": "lateraloccipital-rh",
+          "name": "右枕外侧皮层",
+          "name_en": "lateraloccipital (RH)",
+          "lobe": "枕叶",
+          "hemi": "rh",
+          "color": "#444BA1"
+        },
+        {
+          "id": 45,
+          "code": "lateralorbitofrontal-rh",
+          "name": "右外侧眶额皮层",
+          "name_en": "lateralorbitofrontal (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#4F6E5B"
+        },
+        {
+          "id": 46,
+          "code": "lingual-rh",
+          "name": "右舌回",
+          "name_en": "lingual (RH)",
+          "lobe": "枕叶",
+          "hemi": "rh",
+          "color": "#E4A1A1"
+        },
+        {
+          "id": 47,
+          "code": "medialorbitofrontal-rh",
+          "name": "右内侧眶额皮层",
+          "name_en": "medialorbitofrontal (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#D04F6E"
+        },
+        {
+          "id": 48,
+          "code": "middletemporal-rh",
+          "name": "右颞中回",
+          "name_en": "middletemporal (RH)",
+          "lobe": "颞叶",
+          "hemi": "rh",
+          "color": "#B1825B"
+        },
+        {
+          "id": 49,
+          "code": "parahippocampal-rh",
+          "name": "右海马旁回",
+          "name_en": "parahippocampal (RH)",
+          "lobe": "颞叶",
+          "hemi": "rh",
+          "color": "#44E063"
+        },
+        {
+          "id": 50,
+          "code": "paracentral-rh",
+          "name": "右中央旁小叶",
+          "name_en": "paracentral (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#63E063"
+        },
+        {
+          "id": 51,
+          "code": "parsopercularis-rh",
+          "name": "右额下回岛盖部",
+          "name_en": "parsopercularis (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#E0C0A1"
+        },
+        {
+          "id": 52,
+          "code": "parsorbitalis-rh",
+          "name": "右额下回眶部",
+          "name_en": "parsorbitalis (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#44825B"
+        },
+        {
+          "id": 53,
+          "code": "parstriangularis-rh",
+          "name": "右额下回三角部",
+          "name_en": "parstriangularis (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#E06344"
+        },
+        {
+          "id": 54,
+          "code": "pericalcarine-rh",
+          "name": "右距状裂周围皮层",
+          "name_en": "pericalcarine (RH)",
+          "lobe": "枕叶",
+          "hemi": "rh",
+          "color": "#928263"
+        },
+        {
+          "id": 55,
+          "code": "postcentral-rh",
+          "name": "右中央后回",
+          "name_en": "postcentral (RH)",
+          "lobe": "顶叶",
+          "hemi": "rh",
+          "color": "#E04444"
+        },
+        {
+          "id": 56,
+          "code": "posteriorcingulate-rh",
+          "name": "右后扣带回",
+          "name_en": "posteriorcingulate (RH)",
+          "lobe": "边缘叶",
+          "hemi": "rh",
+          "color": "#E0C0E0"
+        },
+        {
+          "id": 57,
+          "code": "precentral-rh",
+          "name": "右中央前回",
+          "name_en": "precentral (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#6344E0"
+        },
+        {
+          "id": 58,
+          "code": "precuneus-rh",
+          "name": "右楔前叶",
+          "name_en": "precuneus (RH)",
+          "lobe": "顶叶",
+          "hemi": "rh",
+          "color": "#B1A1C0"
+        },
+        {
+          "id": 59,
+          "code": "rostralanteriorcingulate-rh",
+          "name": "右喙侧前扣带回",
+          "name_en": "rostralanteriorcingulate (RH)",
+          "lobe": "边缘叶",
+          "hemi": "rh",
+          "color": "#7244A1"
+        },
+        {
+          "id": 60,
+          "code": "rostralmiddlefrontal-rh",
+          "name": "右额中回喙侧",
+          "name_en": "rostralmiddlefrontal (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#6E5B96"
+        },
+        {
+          "id": 61,
+          "code": "superiorfrontal-rh",
+          "name": "右额上回",
+          "name_en": "superiorfrontal (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#44E0B1"
+        },
+        {
+          "id": 62,
+          "code": "superiorparietal-rh",
+          "name": "右顶上小叶",
+          "name_en": "superiorparietal (RH)",
+          "lobe": "顶叶",
+          "hemi": "rh",
+          "color": "#44C0A1"
+        },
+        {
+          "id": 63,
+          "code": "superiortemporal-rh",
+          "name": "右颞上回",
+          "name_en": "superiortemporal (RH)",
+          "lobe": "颞叶",
+          "hemi": "rh",
+          "color": "#A1E0E0"
+        },
+        {
+          "id": 64,
+          "code": "supramarginal-rh",
+          "name": "右缘上回",
+          "name_en": "supramarginal (RH)",
+          "lobe": "顶叶",
+          "hemi": "rh",
+          "color": "#72B144"
+        },
+        {
+          "id": 65,
+          "code": "frontalpole-rh",
+          "name": "右额极",
+          "name_en": "frontalpole (RH)",
+          "lobe": "额叶",
+          "hemi": "rh",
+          "color": "#823482"
+        },
+        {
+          "id": 66,
+          "code": "temporalpole-rh",
+          "name": "右颞极",
+          "name_en": "temporalpole (RH)",
+          "lobe": "颞叶",
+          "hemi": "rh",
+          "color": "#6B44B9"
+        },
+        {
+          "id": 67,
+          "code": "transversetemporal-rh",
+          "name": "右颞横回",
+          "name_en": "transversetemporal (RH)",
+          "lobe": "颞叶",
+          "hemi": "rh",
+          "color": "#A9A9D0"
+        },
+        {
+          "id": 68,
+          "code": "insula-rh",
+          "name": "右脑岛",
+          "name_en": "insula (RH)",
+          "lobe": "脑岛",
+          "hemi": "rh",
+          "color": "#FBCA4D"
+        }
+      ]
+    },
+    "yeo7": {
+      "id": "yeo7",
+      "name": "Yeo-7 功能网络",
+      "regions": [
+        {
+          "id": 0,
+          "code": "unknown",
+          "name": "内侧壁",
+          "name_en": "Medial Wall",
+          "lobe": "内侧壁",
+          "hemi": "both",
+          "color": "#CBD5E1"
+        },
+        {
+          "id": 1,
+          "code": "7Networks_1",
+          "name": "视觉网络 (Visual)",
+          "name_en": "7Networks_1",
+          "lobe": "视觉网络 (Visual)",
+          "hemi": "both",
+          "color": "#8B5CF6"
+        },
+        {
+          "id": 2,
+          "code": "7Networks_2",
+          "name": "躯体运动网络 (Somatomotor)",
+          "name_en": "7Networks_2",
+          "lobe": "躯体运动网络 (Somatomotor)",
+          "hemi": "both",
+          "color": "#3B82F6"
+        },
+        {
+          "id": 3,
+          "code": "7Networks_3",
+          "name": "背侧注意网络 (Dorsal Attention)",
+          "name_en": "7Networks_3",
+          "lobe": "背侧注意网络 (Dorsal Attention)",
+          "hemi": "both",
+          "color": "#10B981"
+        },
+        {
+          "id": 4,
+          "code": "7Networks_4",
+          "name": "腹侧注意网络 (Ventral Attention)",
+          "name_en": "7Networks_4",
+          "lobe": "腹侧注意网络 (Ventral Attention)",
+          "hemi": "both",
+          "color": "#EC4899"
+        },
+        {
+          "id": 5,
+          "code": "7Networks_5",
+          "name": "边缘网络 (Limbic)",
+          "name_en": "7Networks_5",
+          "lobe": "边缘网络 (Limbic)",
+          "hemi": "both",
+          "color": "#F59E0B"
+        },
+        {
+          "id": 6,
+          "code": "7Networks_6",
+          "name": "额顶控制网络 (Frontoparietal)",
+          "name_en": "7Networks_6",
+          "lobe": "额顶控制网络 (Frontoparietal)",
+          "hemi": "both",
+          "color": "#F97316"
+        },
+        {
+          "id": 7,
+          "code": "7Networks_7",
+          "name": "默认模式网络 (Default Mode)",
+          "name_en": "7Networks_7",
+          "lobe": "默认模式网络 (Default Mode)",
+          "hemi": "both",
+          "color": "#EF4444"
+        }
+      ]
+    }
+  }
+}

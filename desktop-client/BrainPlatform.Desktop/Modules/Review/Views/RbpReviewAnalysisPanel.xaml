@@ -93,9 +93,9 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <Viewbox Grid.Row="1" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Viewbox.Style>
-                            <Style TargetType="Viewbox">
+                    <Grid Grid.Row="1">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding RbpAnalysis.IsAllTopomapBandsSelected}" Value="False">
@@ -103,16 +103,15 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Viewbox.Style>
-                        <Grid Width="640" Height="640">
-                            <topomap:TopomapSwitchableView Field="{Binding RbpAnalysis.SelectedTopomapField}"
-                                                           ColorScaleState="{Binding RbpAnalysis.TopomapColorScales}" />
-                            <TextBlock Text="{Binding RbpAnalysis.TopomapWindowText}"
-                                       HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
-                                       Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
-                                       IsHitTestVisible="False" Panel.ZIndex="2" />
-                        </Grid>
-                    </Viewbox>
+                        </Grid.Style>
+                        <topomap:TopomapSwitchableView Field="{Binding RbpAnalysis.SelectedTopomapField}"
+                                                       ColorScaleState="{Binding RbpAnalysis.TopomapColorScales}"
+                                                       WindowText="{Binding RbpAnalysis.TopomapWindowText}" />
+                        <TextBlock Text="{Binding RbpAnalysis.TopomapWindowText}"
+                                   HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8"
+                                   Padding="5,2" Background="#E6FFFFFF" Foreground="#475569" FontSize="10"
+                                   IsHitTestVisible="False" Panel.ZIndex="2" />
+                    </Grid>
                 </Grid>
             </Border>
             <Border Margin="4,2,4,4" Padding="6" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8">

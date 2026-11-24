@@ -18,6 +18,11 @@ from app.services.result_scalar_inputs import (
 
 logger = logging.getLogger("brain_platform.topomap")
 
+_IDW_GEOMETRY_CACHE: dict[
+    tuple[int, float, tuple[tuple[float, float], ...]],
+    tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+] = {}
+
 
 class TopomapService:
     """Project saved dynamic PSD or RBP results without rerunning the algorithm."""
@@ -308,20 +313,38 @@ class TopomapService:
                 usable.append((channel, x, y, numeric))
         return points, usable
 
-    def _interpolate(self, points: list[tuple[str, float, float, float]]) -> TopomapGrid:
-        axis = np.linspace(-self.HEAD_RADIUS, self.HEAD_RADIUS, self.GRID_SIZE)
-        locations = np.asarray([[x, y] for _, x, y, _ in points], dtype=float)
-        samples = np.asarray([value for _, _, _, value in points], dtype=float)
+    @staticmethod
+    def _cached_idw_geometry(
+        grid_size: int,
+        head_radius: float,
+        coords_key: tuple[tuple[float, float], ...],
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        axis = np.linspace(-head_radius, head_radius, grid_size)
+        locations = np.asarray(coords_key, dtype=float)
         grid_x, grid_y = np.meshgrid(axis, axis)
         grid_points = np.column_stack((grid_x.ravel(), grid_y.ravel()))
         distances = np.linalg.norm(grid_points[:, None, :] - locations[None, :, :], axis=2)
         exact = distances < 1e-12
         weights = 1 / np.maximum(distances, 1e-12) ** 2
-        interpolated = (weights @ samples) / weights.sum(axis=1)
+        weights_norm = weights / weights.sum(axis=1, keepdims=True)
+        exact_any = exact.any(axis=1)
         exact_index = np.argmax(exact, axis=1)
-        values_flat = np.where(exact.any(axis=1), samples[exact_index], interpolated)
-        inside = np.hypot(grid_points[:, 0], grid_points[:, 1]) <= self.HEAD_RADIUS
-        values_flat = values_flat.tolist()
+        inside = np.hypot(grid_points[:, 0], grid_points[:, 1]) <= head_radius
+        return weights_norm, exact_any, exact_index, inside
+
+    def _interpolate(self, points: list[tuple[str, float, float, float]]) -> TopomapGrid:
+        coords_key = tuple((x, y) for _, x, y, _ in points)
+        cache_key = (self.GRID_SIZE, self.HEAD_RADIUS, coords_key)
+        cached = _IDW_GEOMETRY_CACHE.get(cache_key)
+        if cached is None:
+            if len(_IDW_GEOMETRY_CACHE) >= 32:
+                _IDW_GEOMETRY_CACHE.clear()
+            cached = self._cached_idw_geometry(self.GRID_SIZE, self.HEAD_RADIUS, coords_key)
+            _IDW_GEOMETRY_CACHE[cache_key] = cached
+        weights_norm, exact_any, exact_index, inside = cached
+        samples = np.asarray([value for _, _, _, value in points], dtype=float)
+        interpolated = weights_norm @ samples
+        values_flat = np.where(exact_any, samples[exact_index], interpolated).tolist()
         values = [
             [float(values_flat[index]) if inside[index] else None
              for index in range(row * self.GRID_SIZE, (row + 1) * self.GRID_SIZE)]

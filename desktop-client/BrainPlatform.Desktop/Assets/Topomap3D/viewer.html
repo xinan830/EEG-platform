@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3D EEG Brain Viewer</title>
+<style>
+  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: radial-gradient(circle at 50% 42%, #ffffff 0%, #f4f7fb 78%, #eaf0f7 100%);
+    font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+    color: #0f172a;
+  }
+  #canvas-host { position: absolute; inset: 0; cursor: grab; }
+  #canvas-host.dragging { cursor: grabbing; }
+  #labels-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .elec-label {
+    position: absolute; transform: translate(-50%, -100%);
+    font-size: 11.5px; font-weight: 600; color: #1e293b;
+    text-shadow: 0 0 3px #fff, 0 0 6px #fff, 0 1px 2px rgba(255,255,255,0.95);
+    white-space: nowrap; will-change: transform, opacity;
+  }
+  .elec-label.selected {
+    font-size: 13px; font-weight: 700; color: #ea580c; z-index: 50;
+  }
+
+  /* Floating Top-Left Toolbar */
+  .top-left-bar {
+    position: absolute; top: 12px; left: 12px; z-index: 20;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .seg-group {
+    display: inline-flex; padding: 3px; gap: 2px;
+    background: rgba(241, 245, 249, 0.92); backdrop-filter: blur(8px);
+    border: 1px solid #cbd5e1; border-radius: 9px;
+  }
+  .seg-btn {
+    border: none; background: transparent; color: #475569;
+    font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 6px;
+    cursor: pointer; transition: all 0.15s ease; font-family: inherit;
+  }
+  .seg-btn:hover { color: #0f172a; background: rgba(255,255,255,0.6); }
+  .seg-btn.active {
+    background: #ffffff; color: #1d4ed8; font-weight: 600;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  }
+  .glass-select {
+    height: 31px; padding: 0 26px 0 10px; font-size: 12px; font-weight: 500;
+    color: #1e293b; background: rgba(255,255,255,0.92); border: 1px solid #cbd5e1;
+    border-radius: 8px; outline: none; cursor: pointer; font-family: inherit;
+  }
+  .glass-select:hover { border-color: #93c5fd; }
+
+  /* Floating Top-Right Toolbar */
+  .top-right-bar {
+    position: absolute; top: 12px; right: 12px; z-index: 20;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .glass-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 31px; padding: 0 11px; font-size: 12px; font-weight: 500;
+    color: #1e293b; background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
+    border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer;
+    transition: all 0.15s ease; font-family: inherit;
+  }
+  .glass-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+  .glass-btn svg { width: 13px; height: 13px; stroke: #2563eb; fill: none; stroke-width: 1.8; }
+
+  /* Right Colorbar & Atlas Legend */
+  .side-card {
+    position: absolute; right: 14px; top: 50%; transform: translateY(-50%); z-index: 18;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(8px);
+    border: 1px solid #e2e8f0; border-radius: 11px; padding: 10px 11px;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  }
+  .colorbar-title { font-size: 10.5px; font-weight: 600; color: #334155; text-align: center; margin-bottom: 7px; }
+  .colorbar-body { display: flex; align-items: stretch; gap: 7px; height: 168px; }
+  .colorbar-gradient { width: 14px; border-radius: 4px; border: 1px solid #cbd5e1; }
+  .colorbar-ticks { display: flex; flex-direction: column; justify-content: space-between; font-size: 10px; color: #475569; min-width: 34px; }
+
+  .atlas-card { width: 146px; max-height: 290px; display: flex; flex-direction: column; }
+  .atlas-title { font-size: 11px; font-weight: 700; color: #1e293b; margin-bottom: 7px; }
+  .atlas-list { overflow-y: auto; display: flex; flex-direction: column; gap: 3px; padding-right: 3px; scrollbar-width: thin; scrollbar-color: rgba(148,163,184,0.5) transparent; }
+  .atlas-list::-webkit-scrollbar { width: 4px; }
+  .atlas-list::-webkit-scrollbar-track { background: transparent; }
+  .atlas-list::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.55); border-radius: 99px; }
+  .atlas-list::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,0.8); }
+  .atlas-item {
+    display: flex; align-items: center; gap: 7px; padding: 3px 5px; border-radius: 5px;
+    font-size: 11px; color: #334155; cursor: pointer; transition: background 0.12s;
+  }
+  .atlas-item:hover, .atlas-item.active { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+  .atlas-swatch { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; border: 1px solid rgba(15,23,42,0.12); }
+  .atlas-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Hover Region Tooltip */
+  #region-tooltip {
+    position: absolute; z-index: 30; pointer-events: none; display: none;
+    background: rgba(15, 23, 42, 0.9); color: #ffffff; padding: 6px 10px;
+    border-radius: 7px; font-size: 11.5px; line-height: 1.45;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.22); white-space: nowrap;
+  }
+  #region-tooltip .sub { font-size: 10px; color: #cbd5e1; }
+
+  /* Bottom-Left Hint + Optional Window Badge */
+  .bottom-left-stack {
+    position: absolute; left: 12px; bottom: 10px; z-index: 18;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 5px; pointer-events: none;
+  }
+  .hint-pill {
+    background: rgba(255,255,255,0.88); border: 1px solid #e2e8f0; border-radius: 14px;
+    padding: 4px 11px; font-size: 11px; color: #475569;
+  }
+  .window-pill {
+    background: rgba(255,255,255,0.9); border: 1px solid #e2e8f0; border-radius: 6px;
+    padding: 2px 7px; font-size: 10.5px; color: #475569; display: none;
+  }
+
+  /* Bottom-Right 2D/3D Switcher (only shown when hosted in TopomapSwitchableView) */
+  #dim-switcher {
+    position: absolute; right: 10px; bottom: 8px; z-index: 25; display: none;
+  }
+
+  /* Loading / Status Center Message */
+  #center-status {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; font-size: 13.5px; color: #64748b; z-index: 15;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+  <div id="canvas-host"></div>
+  <div id="labels-layer"></div>
+  <div id="center-status">正在初始化三维脑模...</div>
+
+  <div class="top-left-bar">
+    <div class="seg-group" id="mode-group">
+      <button class="seg-btn active" data-mode="cortex">皮层投影</button>
+      <button class="seg-btn" data-mode="atlas">脑区图谱</button>
+      <button class="seg-btn" data-mode="scalp">头皮地形图</button>
+    </div>
+    <select id="atlas-select" class="glass-select hidden" title="选择大脑皮层分区图谱">
+      <option value="lobes">大脑脑叶分区 (Lobes)</option>
+      <option value="dk">Desikan-Killiany (68区)</option>
+      <option value="yeo7">Yeo-7 功能网络</option>
+    </select>
+  </div>
+
+  <div class="top-right-bar">
+    <button id="preset-btn" class="glass-btn hidden" title="切换示意分布">分布：额区激活</button>
+    <button id="colormap-btn" class="glass-btn" title="切换热力色带">色带：Turbo</button>
+    <button id="reset-btn" class="glass-btn" title="平滑恢复默认视角">
+      <svg viewBox="0 0 24 24"><path d="M 12 4 A 8 8 0 1 0 19.3 15 M 19 4 L 19 9 L 14 9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>复位视角</span>
+    </button>
+  </div>
+
+  <div id="colorbar-card" class="side-card hidden">
+    <div id="colorbar-unit" class="colorbar-title">相对功率 (%)</div>
+    <div class="colorbar-body">
+      <div id="colorbar-gradient" class="colorbar-gradient"></div>
+      <div class="colorbar-ticks">
+        <span id="tick-max">100%</span>
+        <span id="tick-mid">50%</span>
+        <span id="tick-min">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="atlas-card" class="side-card atlas-card hidden">
+    <div id="atlas-card-title" class="atlas-title">脑区 (Atlas)</div>
+    <div id="atlas-list" class="atlas-list"></div>
+  </div>
+
+  <div id="region-tooltip"></div>
+
+  <div class="bottom-left-stack">
+    <div class="hint-pill">左键拖动：旋转 · Shift + 左键：平移 · 滚轮：缩放</div>
+    <div id="window-pill" class="window-pill"></div>
+  </div>
+
+  <div id="dim-switcher" class="seg-group">
+    <button id="btn-2d" class="seg-btn">2D</button>
+    <button id="btn-3d" class="seg-btn active">3D</button>
+  </div>
+
+  <script type="module" src="./viewer.js"></script>
+</body>
+</html>

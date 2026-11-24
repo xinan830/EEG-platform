@@ -374,6 +374,17 @@
       "max_lines": 690,
       "reason": "当前 687 行，WPF 3D 视图集中管理场景加载生命周期、相机交互和地形图浮层；本次加入实际字段渲染与视图切换支持，继续沿用单个控件的视口和相机状态。",
       "follow_up": "将地形图色带/图例展示状态提取为独立的视图组件，保留视口、场景生命周期与相机交互在此控件。"
+    },
+    "desktop-client/BrainPlatform.Desktop/Assets/Topomap3D/viewer.js": {
+      "decision": "split",
+      "max_lines": 1062,
+      "reason": "WebGL2 查看器的模型初始化、地形绘制、图谱图例和 WebView 消息交互共享同一 Three.js 场景状态；本次先保持渲染循环和消息边界一致。",
+      "follow_up": "将图谱/图例控件与相机交互拆为本地 ES 模块，保持 viewer 入口唯一拥有场景状态和 WebView 消息边界。"
+    },
+    "tools/build_cortex_atlas_asset.py": {
+      "decision": "keep",
+      "max_lines": 422,
+      "reason": "单一可复现资产构建流水线，统一读取 fsaverage 图谱、对齐标准头模坐标、验证解剖覆盖并输出带哈希元数据的打包文件；拆分会分散同一坐标与资产契约。"
     }
   }
 }

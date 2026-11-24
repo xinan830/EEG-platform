@@ -195,7 +195,7 @@ internal static class Topomap3DScenePreparer
         return new Topomap3DSceneData(scene, allMarkers, scaleMin, scaleMax);
     }
 
-    private static IEnumerable<string> CandidateSiteNames(TopomapPoint point)
+    internal static IEnumerable<string> CandidateSiteNames(TopomapPoint point)
     {
         foreach (var raw in new[] { point.ElectrodeLabel, point.Channel })
         {
@@ -217,7 +217,7 @@ internal static class Topomap3DScenePreparer
         }
     }
 
-    private static (double Minimum, double Maximum) ResolveFieldScaleBounds(
+    internal static (double Minimum, double Maximum) ResolveFieldScaleBounds(
         TopomapField field,
         double[] values,
         TopomapColorScaleState? colorScaleState)

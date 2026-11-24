@@ -104,7 +104,8 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
             <topomap:TopomapSwitchableView Grid.Row="0" Field="{Binding PsdAnalysis.TopomapField}"
-                                           ColorScaleState="{Binding PsdAnalysis.TopomapColorScales}">
+                                           ColorScaleState="{Binding PsdAnalysis.TopomapColorScales}"
+                                           WindowText="{Binding PsdAnalysis.CurrentRangeText}">
                 <topomap:TopomapSwitchableView.Style>
                     <Style TargetType="topomap:TopomapSwitchableView">
                         <Setter Property="Visibility" Value="Collapsed" />

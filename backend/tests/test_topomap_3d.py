@@ -90,7 +90,7 @@ def test_3d_location_http_contract_returns_typed_mapping_provenance():
         paths = set(client.get("/openapi.json").json()["paths"])
 
     assert response.status_code == 200
-    assert paths == {"/api/topomap/3d/model", "/api/topomap/3d/locations"}
+    assert paths == {"/api/topomap/3d/model", "/api/topomap/3d/locations", "/api/topomap/3d/cortex"}
     body = response.json()
     assert body["source_coordinate_frame"] == "head"
     assert body["source_coordinate_unit"] == "m"
@@ -99,6 +99,30 @@ def test_3d_location_http_contract_returns_typed_mapping_provenance():
     assert body["locations"][1]["status"] == "available"
     assert body["locations"][1]["target_coordinate_gnm"] is not None
     assert body["locations"][1]["is_scalp_field_site"] is False
+
+
+def test_3d_cortex_http_contract_returns_aligned_pial_and_atlases():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from app.api.topomap_3d import router
+
+    app = FastAPI()
+    app.state.topomap_3d_service = _service()
+    app.include_router(router)
+
+    with TestClient(app) as client:
+        response = client.get("/api/topomap/3d/cortex")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["vertex_count"] == 20484
+    assert body["triangle_count"] == 40960
+    assert body["target_coordinate_frame"] == "gnm_native"
+    assert set(body["atlases"]) == {"lobes", "dk", "yeo7"}
+    assert body["vertices_f32_b64"]
+    assert body["triangles_i32_b64"]
+    assert body["sulc_f32_b64"]
 
 
 @pytest.mark.parametrize("mutation", ["source_frame", "source_unit", "target_unit", "mesh_hash"])

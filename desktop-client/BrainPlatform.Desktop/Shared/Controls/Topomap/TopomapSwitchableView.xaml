@@ -42,8 +42,8 @@
         <!-- 3D Topomap Host (Lazily instantiated on first switch to 3D) -->
         <ContentPresenter x:Name="Host3D" Visibility="Collapsed" />
 
-        <!-- Floating 2D / 3D Switcher (Bottom-Right so it never collides with 3D colorbar/top bar or bottom-left window label) -->
-        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,8"
+        <!-- Floating 2D / 3D Switcher (Visible in 2D or fallback WPF 3D; hidden when WebView2 renders its own in-DOM 2D|3D pill) -->
+        <Border x:Name="DimSwitcherBorder" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,8"
                 Background="#EBF1F5F9" BorderBrush="#CBD5E1" BorderThickness="1"
                 CornerRadius="8" Padding="2" Panel.ZIndex="10">
             <StackPanel Orientation="Horizontal">

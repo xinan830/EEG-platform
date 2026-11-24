@@ -193,11 +193,11 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                    <topomap:Topomap3DView ScalpModel="{Binding Model}"
-                                           ElectrodeLabels="{Binding EnabledElectrodeLabels}"
-                                           SelectedElectrodeLabel="{Binding SelectedItem.ElectrodeLabel, ElementName=ElectrodeRows}"
-                                           IsHeatmapPreview="{Binding IsThreeDimensionalTopographic}"
-                                           HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+                    <topomap:Topomap3DWebView ScalpModel="{Binding Model}"
+                                              ElectrodeLabels="{Binding EnabledElectrodeLabels}"
+                                              SelectedElectrodeLabel="{Binding SelectedItem.ElectrodeLabel, ElementName=ElectrodeRows}"
+                                              IsHeatmapPreview="{Binding IsThreeDimensionalTopographic}"
+                                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
                 </Border>
             </Grid>
             <Button Grid.Row="1" Content="恢复默认位置" Click="ResetAllPositions_Click"
