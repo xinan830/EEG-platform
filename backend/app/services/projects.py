@@ -9,11 +9,11 @@ from uuid import uuid4
 from app.core.config import DATABASE_PATH
 from app.models.research_project import (
     Condition, ConditionCreateRequest, Project, ProjectCreateRequest, Session,
-    SessionCreateRequest, Subject, SubjectCreateRequest,
+    SessionCreateRequest, Subject, SubjectCreateRequest, SubjectDeletionResponse, SubjectResolutionResponse,
 )
 from app.persistence import connect_database, migrate_database
 from app.persistence.clock import utc_now
-from app.services.research_subjects import edit_session_subject
+from app.services.research_subjects import edit_session_subject, resolve_subject, validate_recording_age
 
 
 class ProjectConflictError(ValueError):
@@ -68,13 +68,14 @@ class ProjectService:
     def create_subject(self, project_id: str, request: SubjectCreateRequest) -> Subject:
         self._require_project(project_id)
         subject = Subject(subject_id=uuid4().hex, project_id=project_id,
-                          local_code=(request.local_code or "").strip() or None, name=request.name.strip(), created_at=utc_now())
+                          local_code=(request.local_code or "").strip() or None, name=request.name.strip(),
+                          sex=request.sex, created_at=utc_now())
         if not subject.local_code and not subject.name:
             raise ValueError("受试者编号和姓名至少填写一项。")
         try:
             with self._connect() as connection:
-                connection.execute("INSERT INTO subjects(subject_id, project_id, local_code, created_at, name) VALUES (?, ?, ?, ?, ?)",
-                                   (subject.subject_id, project_id, subject.local_code, subject.created_at, subject.name))
+                connection.execute("INSERT INTO subjects(subject_id, project_id, local_code, created_at, name, sex) VALUES (?, ?, ?, ?, ?, ?)",
+                                   (subject.subject_id, project_id, subject.local_code, subject.created_at, subject.name, subject.sex))
         except sqlite3.IntegrityError as exc:
             raise ProjectConflictError("subject local code already exists in this project") from exc
         return subject
@@ -95,6 +96,46 @@ class ProjectService:
             raise ProjectConflictError("condition code already exists in this project") from exc
         return condition
 
+    def resolve_project_subject(self, project_id: str, request: SubjectCreateRequest) -> SubjectResolutionResponse:
+        """Resolve optional metadata through the same identity rules used by imports."""
+        self._require_project(project_id)
+        with self._connect() as connection:
+            identity = resolve_subject(connection, project_id, utc_now(), code=request.local_code, name=request.name, sex=request.sex)
+            row = connection.execute("SELECT * FROM subjects WHERE subject_id = ?", (identity,)).fetchone()
+        return SubjectResolutionResponse(subject=Subject(**dict(row)) if row else None)
+
+    def update_subject(self, project_id: str, subject_id: str, request: SubjectCreateRequest) -> Subject:
+        """Keep identity and all recording associations stable when metadata changes."""
+        code, name = (request.local_code or "").strip() or None, request.name.strip()
+        if not code and not name:
+            raise ValueError("受试者编号和姓名至少填写一项。")
+        try:
+            with self._connect() as connection:
+                result = connection.execute(
+                    "UPDATE subjects SET local_code = ?, name = ? WHERE subject_id = ? AND project_id = ?",
+                    (code, name, subject_id, project_id))
+                if result.rowcount != 1:
+                    raise KeyError("subject not found")
+                if "sex" in request.model_fields_set:
+                    connection.execute("UPDATE subjects SET sex = ? WHERE subject_id = ?", (request.sex, subject_id))
+                row = connection.execute("SELECT * FROM subjects WHERE subject_id = ?", (subject_id,)).fetchone()
+        except sqlite3.IntegrityError as exc:
+            raise ProjectConflictError("subject local code already exists in this project") from exc
+        return Subject(**dict(row))
+
+    def delete_subject(self, project_id: str, subject_id: str) -> SubjectDeletionResponse:
+        """Detach associations transactionally; recordings and samples remain untouched."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM subjects WHERE subject_id = ? AND project_id = ?", (subject_id, project_id)).fetchone()
+            if row is None:
+                raise KeyError("subject not found")
+            detached = connection.execute(
+                "UPDATE sessions SET subject_id = NULL WHERE subject_id = ? AND project_id = ?",
+                (subject_id, project_id)).rowcount
+            connection.execute("DELETE FROM subjects WHERE subject_id = ? AND project_id = ?", (subject_id, project_id))
+        return SubjectDeletionResponse(subject_id=subject_id, detached_sessions=detached)
+
     def list_conditions(self, project_id: str) -> list[Condition]:
         self._require_project(project_id)
         with self._connect() as connection:
@@ -110,18 +151,18 @@ class ProjectService:
         self._require_recording(request.recording_id)
         session = Session(session_id=uuid4().hex, project_id=project_id, subject_id=request.subject_id,
                           recording_id=request.recording_id, condition_id=request.condition_id,
-                          label=request.label, created_at=utc_now())
+                          label=request.label, created_at=utc_now(), age_at_recording_years=request.age_at_recording_years)
         with self._connect() as connection:
-            connection.execute("INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?)",
+            connection.execute("INSERT INTO sessions(session_id, project_id, subject_id, recording_id, condition_id, label, created_at, age_at_recording_years) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                                (session.session_id, project_id, session.subject_id, session.recording_id,
-                                session.condition_id, session.label, session.created_at))
+                                session.condition_id, session.label, session.created_at, session.age_at_recording_years))
             connection.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (session.created_at, project_id))
         return session
 
     def list_sessions(self, project_id: str) -> list[Session]:
         self._require_project(project_id)
         with self._connect() as connection:
-            rows = connection.execute("""SELECT s.*, u.local_code AS subject_code, COALESCE(u.name, '') AS subject_name
+            rows = connection.execute("""SELECT s.*, u.local_code AS subject_code, COALESCE(u.name, '') AS subject_name, u.sex AS subject_sex
                 FROM sessions s LEFT JOIN subjects u ON u.subject_id = s.subject_id
                 WHERE s.project_id = ? ORDER BY s.created_at""", (project_id,)).fetchall()
         return [Session(**dict(row)) for row in rows]
@@ -133,17 +174,27 @@ class ProjectService:
         return {str(row["recording_id"]) for row in rows}
 
     def rename_session(self, project_id: str, session_id: str, label: str, *,
-                       subject_metadata: tuple[str | None, str | None] | None = None) -> Session:
+                       subject_metadata: tuple[str | None, str | None] | None = None,
+                       subject_binding: tuple[str | None] | None = None,
+                       recording_age: tuple[int | None] | None = None) -> Session:
         """Rename a project recording without mutating its immutable source."""
         normalized = label.strip()
         if not normalized or len(normalized) > 4000:
             raise ValueError("recording name must contain 1 to 4000 characters")
+        if recording_age is not None:
+            validate_recording_age(recording_age[0])
         with self._connect() as connection:
             current = connection.execute(
                 "SELECT subject_id FROM sessions WHERE session_id = ? AND project_id = ?",
                 (session_id, project_id)).fetchone()
             if current is None:
                 raise KeyError("recording session not found")
+            if recording_age is not None:
+                connection.execute("UPDATE sessions SET age_at_recording_years = ? WHERE session_id = ?",
+                                   (recording_age[0], session_id))
+            if subject_binding is not None:
+                identity = resolve_subject(connection, project_id, utc_now(), subject_id=subject_binding[0])
+                connection.execute("UPDATE sessions SET subject_id = ? WHERE session_id = ?", (identity, session_id))
             if subject_metadata is not None:
                 subject_id = edit_session_subject(connection, project_id, current["subject_id"],
                                                   utc_now(), *subject_metadata)
@@ -156,7 +207,7 @@ class ProjectService:
                 raise KeyError("recording session not found")
             connection.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (utc_now(), project_id))
             row = connection.execute(
-                """SELECT s.*, u.local_code AS subject_code, COALESCE(u.name, '') AS subject_name
+                """SELECT s.*, u.local_code AS subject_code, COALESCE(u.name, '') AS subject_name, u.sex AS subject_sex
                 FROM sessions s LEFT JOIN subjects u ON u.subject_id = s.subject_id
                 WHERE s.session_id = ? AND s.project_id = ?""", (session_id, project_id),
             ).fetchone()

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using BrainPlatform.Desktop.Modules.Review.Preprocessing;
 
 namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
@@ -34,6 +35,10 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
     public static readonly DependencyProperty VisibleDurationSecondsProperty =
         DependencyProperty.Register(nameof(VisibleDurationSeconds), typeof(double), typeof(ReviewTimelineNavigator),
             new FrameworkPropertyMetadata(1d, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty ArtifactMarkersProperty =
+        DependencyProperty.Register(nameof(ArtifactMarkers), typeof(IReadOnlyList<ArtifactTimelineMarker>), typeof(ReviewTimelineNavigator),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
     private const double DragStartThresholdDips = 3d;
     private const double ThumbHeight = 12d;
@@ -85,6 +90,12 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         set => SetValue(VisibleDurationSecondsProperty, value);
     }
 
+    public IReadOnlyList<ArtifactTimelineMarker>? ArtifactMarkers
+    {
+        get => (IReadOnlyList<ArtifactTimelineMarker>?)GetValue(ArtifactMarkersProperty);
+        set => SetValue(ArtifactMarkersProperty, value);
+    }
+
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
@@ -103,6 +114,21 @@ public sealed class ReviewTimelineNavigator : FrameworkElement
         var trackY = Math.Max(1, height - 3);
         var linePen = new Pen(new SolidColorBrush(Color.FromRgb(37, 99, 235)), 2);
         drawingContext.DrawLine(linePen, new Point(0, trackY), new Point(width, trackY));
+
+        if (ArtifactMarkers is { Count: > 0 } markers && DurationSeconds > 0)
+        {
+            var redBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+            var amberBrush = new SolidColorBrush(Color.FromRgb(217, 119, 6));
+            foreach (var marker in markers)
+            {
+                var x1 = Math.Clamp(marker.StartSeconds / DurationSeconds, 0, 1) * width;
+                var x2 = Math.Clamp(marker.EndSeconds / DurationSeconds, 0, 1) * width;
+                var brush = string.Equals(marker.Reason, "muscle_zscore", StringComparison.OrdinalIgnoreCase)
+                    ? amberBrush : redBrush;
+                var w = Math.Max(3.5, x2 - x1);
+                drawingContext.DrawRoundedRectangle(brush, null, new Rect(x1, Math.Max(1, trackY - 7), w, 5), 1.5, 1.5);
+            }
+        }
 
         var thumb = GetThumbRect();
         drawingContext.DrawRectangle(

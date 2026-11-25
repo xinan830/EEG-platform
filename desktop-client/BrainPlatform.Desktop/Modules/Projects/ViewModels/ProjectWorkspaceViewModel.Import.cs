@@ -13,6 +13,8 @@ public sealed partial class ProjectWorkspaceViewModel
         {
             var backendProject = await backendClient.EnsureProjectAsync(project.Id, project.Name, project.Description, cancellationToken);
             var sessions = await backendClient.ListSessionsAsync(backendProject.ProjectId, cancellationToken);
+            if (SelectedProject?.Id != project.Id) return;
+            await RefreshLocalSubjectsAsync(project.Id, cancellationToken);
             foreach (var session in sessions)
             {
                 if (SelectedProject?.Id != project.Id) return;
@@ -20,7 +22,7 @@ public sealed partial class ProjectWorkspaceViewModel
                 if (existing is not null)
                 {
                     ReplaceImportedRecording(existing, string.IsNullOrWhiteSpace(session.Label) ? existing.Name : session.Label,
-                        session.SubjectCode ?? "", session.SubjectName);
+                        session.SubjectCode ?? "", session.SubjectName, session.SubjectId, session.SubjectSex, session.AgeAtRecordingYears);
                     continue;
                 }
                 var recording = await backendClient.GetRecordingAsync(session.RecordingId, cancellationToken);
@@ -34,7 +36,7 @@ public sealed partial class ProjectWorkspaceViewModel
                     $"{recording.SamplingRateHz:0.##} Hz", $"{recording.Channels.Count} 信号通道", "已完成", string.Empty,
                     created == DateTimeOffset.MinValue ? null : created, recording.Id, "backend", recording.SourceSha256,
                     recording.Channels, (int)Math.Round(recording.SamplingRateHz ?? 0), recording.DurationSeconds ?? 0,
-                    session.SubjectCode ?? "", session.SubjectName);
+                    session.SubjectCode ?? "", session.SubjectName, session.SubjectId, session.SubjectSex, session.AgeAtRecordingYears);
                 Recordings.Add(row);
                 CompletedRecordings.Add(row);
             }
@@ -45,7 +47,8 @@ public sealed partial class ProjectWorkspaceViewModel
     }
 
     public async Task<BackendImportedRecording> ImportRecordingAsync(string filePath, string? subjectId,
-        string? newSubjectLocalCode, IProgress<long>? progress, CancellationToken cancellationToken, string? newSubjectName = null)
+        string? newSubjectLocalCode, IProgress<long>? progress, CancellationToken cancellationToken, string? newSubjectName = null,
+        string? newSubjectSex = null, int? ageAtRecordingYears = null)
     {
         var project = SelectedProject ?? throw new InvalidOperationException("请先选择项目。");
         var client = backendClient ?? throw new InvalidOperationException("项目导入服务尚未连接后端。");
@@ -54,7 +57,7 @@ public sealed partial class ProjectWorkspaceViewModel
             ? JsonSerializer.Serialize(profile)
             : null;
         var imported = await client.ImportRecordingAsync(backendProject.ProjectId, filePath, subjectId,
-            newSubjectLocalCode, snapshot, progress, cancellationToken, newSubjectName);
+            newSubjectLocalCode, snapshot, progress, cancellationToken, newSubjectName, newSubjectSex, ageAtRecordingYears);
         await RefreshImportedRecordingsAsync(cancellationToken);
         SelectedRecording = Recordings.FirstOrDefault(row => row.RecordingId == imported.RecordingId);
         return imported;
@@ -72,9 +75,13 @@ public sealed partial class ProjectWorkspaceViewModel
         ApplyRecordingPage();
     }
 
-    private void ReplaceImportedRecording(ProjectRecordingRow recording, string name, string? subjectCode = null, string? subjectName = null)
+    private void ReplaceImportedRecording(ProjectRecordingRow recording, string name, string? subjectCode = null, string? subjectName = null,
+        string? subjectId = null, string? subjectSex = null, int? ageAtRecordingYears = null)
     {
-        var renamed = recording with { Name = name, SubjectCode = subjectCode ?? recording.SubjectCode, SubjectName = subjectName ?? recording.SubjectName };
+        var renamed = recording with { Name = name, SubjectCode = subjectCode ?? recording.SubjectCode, SubjectName = subjectName ?? recording.SubjectName,
+            SubjectId = subjectCode is null ? recording.SubjectId : subjectId,
+            SubjectSex = subjectCode is null ? recording.SubjectSex : subjectSex,
+            AgeAtRecordingYears = subjectCode is null ? recording.AgeAtRecordingYears : ageAtRecordingYears };
         if (recording == renamed) return;
         Recordings[Recordings.IndexOf(recording)] = renamed;
         var completedIndex = CompletedRecordings.IndexOf(recording);
@@ -86,7 +93,8 @@ public sealed partial class ProjectWorkspaceViewModel
     {
         var project = SelectedProject ?? throw new InvalidOperationException("请先选择项目。");
         var client = backendClient ?? throw new InvalidOperationException("项目服务尚未连接后端。");
-        var resolved = await client.EnsureProjectAsync(project.Id, project.Name, project.Description, cancellationToken);
-        return await client.ListSubjectsAsync(resolved.ProjectId, cancellationToken);
+        await client.EnsureProjectAsync(project.Id, project.Name, project.Description, cancellationToken);
+        RequireSubjectProject(project.Id);
+        return await RefreshLocalSubjectsAsync(project.Id, cancellationToken);
     }
 }

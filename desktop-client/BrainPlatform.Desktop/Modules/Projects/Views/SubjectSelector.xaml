@@ -1,0 +1,60 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Projects.Views.SubjectSelector"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="SubjectVisibility" />
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <StackPanel x:Name="ContentPanel" IsEnabled="{Binding IsAvailable}">
+        <TextBlock Text="受试者（选填）" Foreground="#1E293B" FontWeight="SemiBold" Margin="0,0,0,8" />
+        <ComboBox x:Name="SubjectsComboBox" ItemsSource="{Binding Subjects}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+                  DisplayMemberPath="DisplayText" IsEnabled="{Binding CanSelect}"
+                  Style="{StaticResource AppRoundedFilterComboBoxStyle}" AutomationProperties.Name="选择受试者" />
+        <StackPanel Orientation="Horizontal" Margin="0,8,0,0" Visibility="{Binding CanManage, Converter={StaticResource SubjectVisibility}}">
+            <Button Content="编辑受试者" Click="OnEditClick" Style="{StaticResource ModernDialogSecondaryButtonStyle}" Padding="10,5" />
+            <Button Content="删除受试者" Click="OnDeleteClick" Style="{StaticResource ModernDialogSecondaryButtonStyle}" Padding="10,5" Margin="8,0,0,0" />
+        </StackPanel>
+        <Grid Margin="0,12,0,0" Visibility="{Binding ShowFields, Converter={StaticResource SubjectVisibility}}">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="编号（选填）" Foreground="#475569" Margin="0,0,0,6" />
+                <TextBox x:Name="NewCodeBox" Text="{Binding Code, UpdateSourceTrigger=PropertyChanged}" MaxLength="160"
+                         Height="38" Padding="10,0" VerticalContentAlignment="Center" AutomationProperties.Name="受试者编号" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="姓名（选填）" Foreground="#475569" Margin="0,0,0,6" />
+                <TextBox x:Name="NewNameBox" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" MaxLength="160"
+                         Height="38" Padding="10,0" VerticalContentAlignment="Center" AutomationProperties.Name="受试者姓名" />
+            </StackPanel>
+        </Grid>
+        <Grid Margin="0,12,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <StackPanel Visibility="{Binding ShowSex, Converter={StaticResource SubjectVisibility}}">
+                <TextBlock Text="性别（选填）" Foreground="#475569" Margin="0,0,0,6" />
+                <ComboBox x:Name="SexComboBox" ItemsSource="{Binding SexOptions}" DisplayMemberPath="Value" SelectedValuePath="Key"
+                          SelectedValue="{Binding Sex, Mode=TwoWay}" IsEnabled="{Binding ShowFields}"
+                          Style="{StaticResource AppRoundedFilterComboBoxStyle}" AutomationProperties.Name="受试者性别（选填）" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="采集时年龄（岁，选填）" Foreground="#475569" Margin="0,0,0,6" />
+                <TextBox x:Name="AgeBox" Text="{Binding AgeText, UpdateSourceTrigger=PropertyChanged}" MaxLength="3"
+                         Height="38" Padding="10,0" VerticalContentAlignment="Center"
+                         ToolTip="填写这条记录采集时的周岁，未知可留空；导入历史文件时填写原始采集时年龄。"
+                         AutomationProperties.Name="采集时年龄（岁，选填）" />
+            </StackPanel>
+        </Grid>
+        <StackPanel Margin="0,10,0,0" Visibility="{Binding IsEditing, Converter={StaticResource SubjectVisibility}}">
+            <TextBlock Text="修改后同步到该受试者的关联记录。" Foreground="#64748B" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                <Button Content="保存受试者" Click="OnSaveClick" Style="{StaticResource ModernDialogPrimaryButtonStyle}" Padding="10,5" />
+                <Button Content="取消编辑" Click="OnCancelClick" Style="{StaticResource ModernDialogSecondaryButtonStyle}" Padding="10,5" Margin="8,0,0,0" />
+            </StackPanel>
+        </StackPanel>
+        <TextBlock Text="{Binding Error}" Foreground="#C00000" TextWrapping="Wrap" Margin="0,6,0,0" />
+    </StackPanel>
+</UserControl>

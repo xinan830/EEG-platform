@@ -1,3 +1,20 @@
+## ADDED Requirements
+
+### Requirement: Optional subject demographics and historical age
+Subjects SHALL support nullable sex (`male`, `female`, `other` or null). Sessions SHALL support nullable age-at-recording in whole years from 0 through 150. Subject changes and deletion SHALL NOT modify any Session age or signal identity. Omitted age in edits SHALL preserve it; explicit null SHALL clear it.
+
+#### Scenario: Historical ages stay independent
+- **WHEN** two recordings for the same subject have ages 25 and 26 and that subject is edited
+- **THEN** both recordings keep their respective ages and scientific source bytes
+
+#### Scenario: Leave demographic information empty
+- **WHEN** sex and age are omitted during import or acquisition
+- **THEN** both remain unknown and normal recording and analysis remain available
+
+#### Scenario: Reject invalid demographic metadata
+- **WHEN** sex is unsupported or age is fractional, negative or above 150
+- **THEN** the request fails without changing recordings or associations
+
 ## MODIFIED Requirements
 
 ### Requirement: Keep local research hierarchy without PII

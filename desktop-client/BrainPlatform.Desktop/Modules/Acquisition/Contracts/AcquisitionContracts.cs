@@ -74,7 +74,10 @@ public sealed record AcquisitionProjectContext(
     string DirectoryPath,
     string SnapshotJson,
     [property: System.Text.Json.Serialization.JsonIgnore] string SubjectCode = "",
-    [property: System.Text.Json.Serialization.JsonIgnore] string SubjectName = "")
+    [property: System.Text.Json.Serialization.JsonIgnore] string SubjectName = "",
+    [property: System.Text.Json.Serialization.JsonIgnore] string? SubjectId = null,
+    [property: System.Text.Json.Serialization.JsonIgnore] string? SubjectSex = null,
+    [property: System.Text.Json.Serialization.JsonIgnore] int? AgeAtRecordingYears = null)
 {
     public string RecordingsDirectory => Path.Combine(DirectoryPath, "recordings");
 }

@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.models.analysis_config import AnalysisTimeRange
+from app.models.analysis_config import AnalysisTimeRange, OfflinePreprocessingRequest
 
 
 OfficialAlgorithmId = Literal[
@@ -40,6 +40,7 @@ class OfficialAlgorithmRunConfig(BaseModel):
     analysis_montage_revision: str | None = Field(default=None, min_length=1, max_length=160)
     analysis_montage_fingerprint: str | None = Field(default=None, min_length=1, max_length=160)
     analysis_montage_outputs: list[dict[str, str]] | None = None
+    preprocessing: OfflinePreprocessingRequest | None = None
 
     @model_validator(mode="before")
     @classmethod

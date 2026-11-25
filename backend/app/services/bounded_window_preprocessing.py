@@ -24,6 +24,7 @@ def prepare_window(
     channels: list[str] | None, low_hz: float, high_hz: float,
     notch_hz: float | None, context_s: float, algorithm_version: str,
     execution_context: Any = None,
+    broadband_sink: list[np.ndarray] | None = None,
 ) -> PreparedWindow:
     """Input/output are sample-major float64 V; the caller owns the session."""
     if not 0 <= start_sample < end_sample <= session.sample_count:
@@ -81,6 +82,10 @@ def prepare_window(
     )
     offset = start_sample - read_start
     cropped = np.asarray(filtered[offset:offset + end_sample - start_sample], dtype=np.float64)
+    if broadband_sink is not None:
+        broadband_sink.append(
+            np.asarray(block.values_v[offset:offset + end_sample - start_sample], dtype=np.float64)
+        )
     if cropped.shape != (end_sample - start_sample, len(requested)):
         raise ValueError("Bounded preprocessing returned an invalid target shape")
     if check is not None:

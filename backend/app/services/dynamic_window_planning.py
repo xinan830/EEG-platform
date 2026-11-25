@@ -116,7 +116,7 @@ class DynamicWindowPlanner:
         else:
             from app.services.imported_analysis_signals import validate_imported_raw_analysis_channels
             validate_imported_raw_analysis_channels(recording, module.requested_channels(typed_config))
-        context = _RecordingAlgorithmContext(self.recordings, recording)
+        context = _RecordingAlgorithmContext(self.recordings, recording, preprocessing=official.preprocessing)
         try:
             input_resolution_started = time.perf_counter()
             inputs = module.resolve_inputs(context, typed_config)

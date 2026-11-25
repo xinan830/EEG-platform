@@ -20,6 +20,8 @@ class PreprocessedRecording:
     channel_names: tuple[str, ...]
     owner: Any = None
     contract: PreparedSourceContract | None = None
+    artifact_intervals: tuple[Any, ...] = ()
+    artifact_removal_evidence: dict[str, object] | None = None
 
 
 @dataclass(frozen=True)

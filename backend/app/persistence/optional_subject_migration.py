@@ -3,6 +3,14 @@
 import sqlite3
 
 
+def migration_026_subject_demographics(connection: sqlite3.Connection) -> None:
+    """Append management metadata; existing people and recording ages stay unknown."""
+    connection.execute("ALTER TABLE subjects ADD COLUMN sex TEXT CHECK(sex IN ('male', 'female', 'other'))")
+    connection.execute("""ALTER TABLE sessions ADD COLUMN age_at_recording_years INTEGER
+        CHECK(age_at_recording_years IS NULL OR
+              (typeof(age_at_recording_years) = 'integer' AND age_at_recording_years BETWEEN 0 AND 150))""")
+
+
 def migration_025_optional_subjects(connection: sqlite3.Connection) -> None:
     connection.execute("""CREATE TABLE subjects_new (
         subject_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, local_code TEXT,

@@ -9,6 +9,7 @@ from app.models.recording import ImportedProjectRecordingResponse
 from app.models.research_project import (
     ConditionCreateRequest, DesktopProjectEnsureRequest, ProjectCreateRequest,
     ProjectRecordingDeletionResponse, Session, SessionCreateRequest, SessionRenameRequest, SubjectCreateRequest,
+    Subject, SubjectDeletionResponse, SubjectResolutionResponse, SubjectSex,
 )
 from app.services.recording_import import EdfBdfImportService, RecordingImportError
 from app.api.recording_uploads import publish_upload, stage_upload
@@ -57,6 +58,21 @@ def list_subjects(project_id: str, request: Request):
     return _read(request, lambda: _service(request).list_subjects(project_id))
 
 
+@router.post("/{project_id}/subjects/resolve", response_model=SubjectResolutionResponse)
+def resolve_project_subject(project_id: str, payload: SubjectCreateRequest, request: Request):
+    return _mutate(request, lambda: _service(request).resolve_project_subject(project_id, payload))
+
+
+@router.patch("/{project_id}/subjects/{subject_id}", response_model=Subject)
+def update_project_subject(project_id: str, subject_id: str, payload: SubjectCreateRequest, request: Request):
+    return _mutate(request, lambda: _service(request).update_subject(project_id, subject_id, payload))
+
+
+@router.delete("/{project_id}/subjects/{subject_id}", response_model=SubjectDeletionResponse)
+def delete_project_subject(project_id: str, subject_id: str, request: Request):
+    return _mutate(request, lambda: _service(request).delete_subject(project_id, subject_id))
+
+
 @router.post("/{project_id}/conditions", status_code=status.HTTP_201_CREATED)
 def create_condition(project_id: str, payload: ConditionCreateRequest, request: Request):
     return _mutate(request, lambda: _service(request).create_condition(project_id, payload))
@@ -81,7 +97,10 @@ def list_sessions(project_id: str, request: Request):
 def rename_project_recording(project_id: str, session_id: str, payload: SessionRenameRequest, request: Request):
     try:
         metadata = (payload.subject_code, payload.subject_name) if {"subject_code", "subject_name"} & payload.model_fields_set else None
-        session = _service(request).rename_session(project_id, session_id, payload.label, subject_metadata=metadata)
+        binding = (payload.subject_id,) if "subject_id" in payload.model_fields_set else None
+        age = (payload.age_at_recording_years,) if "age_at_recording_years" in payload.model_fields_set else None
+        session = _service(request).rename_session(project_id, session_id, payload.label,
+                                                   subject_metadata=metadata, subject_binding=binding, recording_age=age)
     except SubjectBindingError as exc:
         return error_response(request, exc.status_code, exc.code, str(exc))
     except KeyError:
@@ -130,6 +149,8 @@ async def import_project_recording(
     subject_id: str | None = Form(None),
     new_subject_local_code: str | None = Form(None),
     new_subject_name: str | None = Form(None),
+    new_subject_sex: SubjectSex | None = Form(None),
+    age_at_recording_years: int | None = Form(None, ge=0, le=150),
     channel_configuration_snapshot_json: str | None = Form(None),
     export_channel_identity_json: str | None = Form(None),
 ):
@@ -139,7 +160,8 @@ async def import_project_recording(
         staged = await stage_upload(request, file, importer)
         result = await publish_upload(request, lambda check: importer.publish_project(
             staged, project_id, subject_id=subject_id, new_subject_local_code=new_subject_local_code,
-            new_subject_name=new_subject_name,
+            new_subject_name=new_subject_name, new_subject_sex=new_subject_sex,
+            age_at_recording_years=age_at_recording_years,
             channel_configuration_snapshot_json=channel_configuration_snapshot_json,
             export_channel_identity_json=export_channel_identity_json,
             check_cancelled=check,
@@ -185,6 +207,8 @@ def _read(request: Request, operation: Callable[[], list]):
 def _mutate(request: Request, operation: Callable[[], object]):
     try:
         return operation().model_dump(mode="json")
+    except SubjectBindingError as exc:
+        return error_response(request, exc.status_code, exc.code, str(exc))
     except ProjectConflictError as exc:
         code = "SUBJECT_CODE_CONFLICT" if "subject" in str(exc) else "CONDITION_CODE_CONFLICT"
         return error_response(request, 409, code, str(exc))

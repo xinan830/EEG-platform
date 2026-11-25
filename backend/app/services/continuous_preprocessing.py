@@ -28,12 +28,23 @@ class ContinuousPreprocessingService:
     def load(self, recording: RecordingSummary, low_hz: float, high_hz: float,
              notch_hz: float | None, execution_context: ExecutionControl | None,
              channels: list[str] | None = None, *,
-             requested_channels_only: bool = False) -> PreprocessedRecording:
+             requested_channels_only: bool = False,
+             bad_channel_spec: Any = None,
+             preprocessing_spec: Any = None) -> PreprocessedRecording:
         """Prepare continuously once per scientific identity, retaining existing resource limits."""
         from app.services.mapped_preprocessing import mapped_preprocess
         from app.services.prepared_source_identity import prepared_source_identity
 
         started = time.perf_counter()
+        raw_bad = preprocessing_spec.bad_channels if preprocessing_spec is not None else bad_channel_spec
+        norm_bad = raw_bad.normalized() if raw_bad is not None else None
+        bad_active = bool(norm_bad is not None and norm_bad.is_active)
+        raw_art = preprocessing_spec.artifact_rejection if preprocessing_spec is not None else None
+        norm_art = raw_art.normalized() if raw_art is not None else None
+        art_active = bool(norm_art is not None and norm_art.is_active)
+        raw_rem = preprocessing_spec.artifact_removal if preprocessing_spec is not None else None
+        norm_rem = raw_rem.normalized() if raw_rem is not None else None
+        rem_active = bool(norm_rem is not None and norm_rem.is_active)
         selected_channels = None
         if channels and (requested_channels_only or getattr(execution_context, "select_requested_channels", False)):
             # An explicit projection policy may opt into a smaller source.
@@ -51,11 +62,15 @@ class ContinuousPreprocessingService:
                     selected_channels = tuple(available[item.casefold()] for item in channels)
         identity = prepared_source_identity(self.recordings, recording, low_hz=low_hz,
             high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
-            channel_names=selected_channels)
+            channel_names=selected_channels, bad_channel_spec=norm_bad,
+            preprocessing_spec=preprocessing_spec)
         expected_contract = None
         if recording.sfreq is not None and recording.duration_s is not None and recording.channels:
             sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
             contract_channels = selected_channels or tuple(recording.channels)
+            if bad_active and norm_bad.policy == "exclude" and selected_channels is None:
+                bad_folded = {label.casefold() for label in norm_bad.channels}
+                contract_channels = tuple(ch for ch in contract_channels if ch.casefold() not in bad_folded)
             expected_contract = PreparedSourceContract(
                 schema_version="prepared-source-v1", identity=identity, status="ready",
                 sample_rate_hz=float(recording.sfreq),
@@ -90,9 +105,17 @@ class ContinuousPreprocessingService:
                 notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
                 channels=list(selected_channels) if selected_channels is not None else None,
                 execution_context=execution_context,
+                bad_channel_spec=norm_bad if bad_active else None,
+                artifact_rejection_spec=norm_art if art_active else None,
+                artifact_removal_spec=norm_rem if rem_active else None,
             )
             if expected_contract is not None:
-                prepared = replace(prepared, contract=expected_contract)
+                actual_contract = replace(
+                    expected_contract,
+                    channel_names=prepared.channel_names,
+                    channel_units=("V",) * len(prepared.channel_names),
+                )
+                prepared = replace(prepared, contract=actual_contract)
             return prepared
         cached = self.preprocess_cache.get_or_create(
             recording.id, identity, create_preprocessed, expected_contract=expected_contract,

@@ -10,6 +10,15 @@ public partial class AcquisitionPreparationView : UserControl
     public AcquisitionPreparationView()
     {
         InitializeComponent();
+        Loaded += async (_, _) =>
+        {
+            if (DataContext is not DesktopWorkspaceViewModel workspace) return;
+            SubjectPicker.IsEnabled = !workspace.Acquisition.CanStop;
+            if (!SubjectPicker.IsEnabled) return;
+            await SubjectPicker.InitializeAsync(workspace.Projects,
+                new(workspace.Acquisition.SubjectCode, workspace.Acquisition.SubjectName, workspace.Acquisition.SubjectId,
+                    workspace.Acquisition.SubjectSex, workspace.Acquisition.AgeAtRecordingYears));
+        };
         Unloaded += async (_, _) =>
         {
             if (DataContext is not DesktopWorkspaceViewModel workspace) return;
@@ -42,6 +51,14 @@ public partial class AcquisitionPreparationView : UserControl
         startInProgress = true;
         try
         {
+            if (workspace.Acquisition.CanStop) throw new InvalidOperationException("采集会话已运行，请先终止采集。");
+            var subject = await SubjectPicker.ResolveAsync();
+            if (!IsLoaded) return;
+            workspace.Acquisition.SubjectCode = subject.Code;
+            workspace.Acquisition.SubjectName = subject.Name;
+            workspace.Acquisition.SubjectId = subject.SubjectId;
+            workspace.Acquisition.SubjectSex = subject.Sex;
+            workspace.Acquisition.AgeAtRecordingYears = subject.AgeAtRecordingYears;
             await workspace.Acquisition.StartPreparedPreviewAsync();
             navigation?.ShowAcquisitionView();
         }

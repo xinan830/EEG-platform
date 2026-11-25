@@ -9,8 +9,10 @@ import matplotlib.pyplot as plt
 import mne
 import numpy as np
 
+from app.scientific.contracts.preprocessing import STANDARD_MONTAGE_NAME
 
-MONTAGE_NAME = "colin27_1020"
+
+MONTAGE_NAME = STANDARD_MONTAGE_NAME
 SOURCE_ID = "mne.colin27_1020"
 COORDINATE_FRAME = "mri"
 COORDINATE_UNIT = "m"

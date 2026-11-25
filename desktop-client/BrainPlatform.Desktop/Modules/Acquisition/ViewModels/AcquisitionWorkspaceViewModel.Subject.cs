@@ -4,6 +4,9 @@ public sealed partial class AcquisitionWorkspaceViewModel
 {
     private string subjectCode = string.Empty;
     private string subjectName = string.Empty;
+    public string? SubjectId { get; set; }
+    public string? SubjectSex { get; set; }
+    public int? AgeAtRecordingYears { get; set; }
 
     public string SubjectCode
     {

@@ -563,7 +563,7 @@
                                                 </Grid.ColumnDefinitions>
 
                                                 <!-- 0. 记录名称 -->
-                                                <TextBlock Grid.Column="6" Text="{Binding SubjectText}" ToolTip="{Binding SubjectText}" FontSize="12.5" Foreground="#475569" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="8,0" />
+                                                <TextBlock Grid.Column="6" Text="{Binding SubjectText}" ToolTip="{Binding SubjectDetailsText}" FontSize="12.5" Foreground="#475569" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="8,0" />
                                                 <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="#0F172A" VerticalAlignment="Center" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis" Margin="10,0,6,0" />
 
                                                 <!-- 1. 采集时间 -->

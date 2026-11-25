@@ -22,9 +22,13 @@ public sealed record ProjectRecordingRow(
     int SamplingRateHz = 0,
     double DurationSeconds = 0,
     string SubjectCode = "",
-    string SubjectName = "")
+    string SubjectName = "",
+    string? SubjectId = null,
+    string? SubjectSex = null,
+    int? AgeAtRecordingYears = null)
 {
     public string SubjectText => new RecordingSubject(SubjectCode, SubjectName).DisplayText;
+    public string SubjectDetailsText => new RecordingSubject(SubjectCode, SubjectName, SubjectId, SubjectSex, AgeAtRecordingYears).DetailsText;
     public bool CanReview => (SourceKind == "backend" || Directory.Exists(RecordingDirectory)) &&
                              Status is "已完成" or "已中止";
     public bool CanManage => SourceKind is "wpf" or "backend";
@@ -311,7 +315,8 @@ public sealed partial class ProjectWorkspaceViewModel : ObservableObject
                 recording.Status,
                 recording.RecordingDirectory,
                 recording.RecordingStartUtc,
-                SubjectCode: subject.Code, SubjectName: subject.Name));
+                SubjectCode: subject.Code, SubjectName: subject.Name, SubjectId: subject.SubjectId,
+                SubjectSex: subject.Sex, AgeAtRecordingYears: subject.AgeAtRecordingYears));
             if (Recordings[^1].Status == "已完成")
             {
                 CompletedRecordings.Add(Recordings[^1]);

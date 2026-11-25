@@ -17,7 +17,7 @@ from app.models.recording import RecordingSummary
 from app.persistence import connect_database
 from app.services.recording_identity import RECORDING_IMPORT_VERSION, canonical_channel_label
 from app.services.recordings import RecordingService
-from app.services.research_subjects import SubjectBindingError, resolve_subject
+from app.services.research_subjects import SubjectBindingError, resolve_subject, validate_recording_age
 
 CHUNK_BYTES = 1024 * 1024
 
@@ -103,6 +103,8 @@ class EdfBdfImportService:
         subject_id: str | None = None,
         new_subject_local_code: str | None = None,
         new_subject_name: str | None = None,
+        new_subject_sex: str | None = None,
+        age_at_recording_years: int | None = None,
         channel_configuration_snapshot_json: str | None = None,
         export_channel_identity_json: str | None = None,
         check_cancelled: Callable[[], None] = lambda: None,
@@ -116,13 +118,14 @@ class EdfBdfImportService:
         subject_code = new_subject_local_code.strip() if new_subject_local_code is not None else None
         try:
             with connect_database(self.database_path, foreign_keys=True) as connection:
+                validate_recording_age(age_at_recording_years)
                 if connection.execute("SELECT 1 FROM projects WHERE project_id = ?", (project_id,)).fetchone() is None:
                     raise RecordingImportError("PROJECT_NOT_FOUND", "目标项目不存在。", 404)
                 subject_id = resolve_subject(connection, project_id, created_at, subject_id=subject_id,
-                                             code=subject_code, name=new_subject_name)
+                                             code=subject_code, name=new_subject_name, sex=new_subject_sex)
                 self._insert_recording(connection, recording_id, stored_name, staged, created_at, metadata)
-                connection.execute("INSERT INTO sessions VALUES (?, ?, ?, ?, NULL, '', ?)",
-                                   (session_id, project_id, subject_id, recording_id, created_at))
+                connection.execute("INSERT INTO sessions(session_id, project_id, subject_id, recording_id, condition_id, label, created_at, age_at_recording_years) VALUES (?, ?, ?, ?, NULL, '', ?, ?)",
+                                   (session_id, project_id, subject_id, recording_id, created_at, age_at_recording_years))
                 connection.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (created_at, project_id))
                 check_cancelled()
         except SubjectBindingError as exc:

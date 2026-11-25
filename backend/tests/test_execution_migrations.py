@@ -20,6 +20,9 @@ def test_old_schema_upgrade_preserves_run_and_request_identity(tmp_path, previou
         connection.execute("DROP TABLE analysis_montage_snapshots")
         connection.execute("DROP TABLE run_request_keys")
         connection.execute("ALTER TABLE analysis_runs DROP COLUMN execution_lane")
+        connection.execute("ALTER TABLE sessions DROP COLUMN age_at_recording_years")
+        connection.execute("ALTER TABLE subjects DROP COLUMN sex")
+        connection.execute("ALTER TABLE subjects DROP COLUMN name")
         if previous_version == 10:
             for column in ("progress_completed", "progress_total", "progress_stage", "progress_message"):
                 connection.execute(f"ALTER TABLE analysis_runs DROP COLUMN {column}")

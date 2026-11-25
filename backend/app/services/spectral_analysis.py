@@ -99,6 +99,9 @@ class SpectralAnalysisService:
         preprocessing_scope: str = "configured_continuous_before_slice",
         quality_policy: str = "strict",
         include_welch_segments: bool = False,
+        bad_channel_spec: Any = None,
+        artifact_rejection_spec: Any = None,
+        artifact_removal_spec: Any = None,
         _preprocessed: PreprocessedRecording | None = None,
     ) -> dict[str, object]:
         """Return the current PSD, absolute band power, and relative power contract."""
@@ -140,14 +143,59 @@ class SpectralAnalysisService:
                 end_sample=target_end, channels=channels,
                 low_hz=filter_low_hz, high_hz=filter_high_hz,
                 notch_hz=notch_hz, execution_context=execution_context,
+                bad_channel_spec=bad_channel_spec,
+                artifact_rejection_spec=artifact_rejection_spec,
+                artifact_removal_spec=artifact_removal_spec,
             )
             filtered_all, sfreq, names = prepared.data, prepared.sfreq, list(prepared.channel_names)
             bounded_evidence = prepared.evidence
         else:
-            cached = _preprocessed or self.continuous_preprocessing.load(
-                recording, filter_low_hz, filter_high_hz, notch_hz, execution_context,
-                channels=channels)
+            has_offline_specs = any(
+                spec is not None and spec.normalized().is_active
+                for spec in (bad_channel_spec, artifact_rejection_spec, artifact_removal_spec)
+            )
+            offline_prep = getattr(self.recordings, "offline_scientific_preprocessing", None)
+            if _preprocessed is not None:
+                cached = _preprocessed
+            elif has_offline_specs and offline_prep is not None:
+                cached = offline_prep.prepare_continuous(
+                    recording, low_hz=filter_low_hz, high_hz=filter_high_hz, notch_hz=notch_hz,
+                    execution_context=execution_context, channels=channels,
+                    bad_channel_spec=bad_channel_spec,
+                    artifact_rejection_spec=artifact_rejection_spec,
+                    artifact_removal_spec=artifact_removal_spec,
+                )
+            else:
+                cached = self.continuous_preprocessing.load(
+                    recording, filter_low_hz, filter_high_hz, notch_hz, execution_context,
+                    channels=channels)
             filtered_all, sfreq, names = cached.data, cached.sfreq, list(cached.channel_names)
+            if has_offline_specs or cached.artifact_intervals or cached.artifact_removal_evidence is not None:
+                total_samples = int(len(filtered_all))
+                rejected_mask = np.zeros(total_samples, dtype=bool)
+                for seg in cached.artifact_intervals:
+                    s = max(0, int(seg.start_sample))
+                    e = min(total_samples, int(seg.end_sample))
+                    if e > s:
+                        rejected_mask[s:e] = True
+                rejected_samples = int(np.count_nonzero(rejected_mask))
+                clean_ratio = 1.0 if total_samples == 0 else round(float(1.0 - rejected_samples / total_samples), 6)
+                bounded_evidence = {
+                    "scope": "whole_recording_before_window_slice",
+                    "bad_channels": bad_channel_spec.normalized().to_evidence() if bad_channel_spec is not None else None,
+                    "artifact_rejection": (
+                        {
+                            **artifact_rejection_spec.normalized().to_evidence(),
+                            "detected_interval_count": len(cached.artifact_intervals),
+                            "rejected_sample_count": rejected_samples,
+                            "clean_ratio": clean_ratio,
+                            "segments": [seg.to_dict(sfreq) for seg in cached.artifact_intervals],
+                        }
+                        if artifact_rejection_spec is not None
+                        else None
+                    ),
+                    "artifact_removal": cached.artifact_removal_evidence,
+                }
         available = {name.casefold(): name for name in names}
         requested = names if channels is None else [available.get(item.casefold()) for item in channels]
         if any(item is None for item in requested):
@@ -241,7 +289,7 @@ class SpectralAnalysisService:
             "analysis_reference": self.recordings.analysis_signal_provenance(recording)["analysis_reference"],
             "signal_source": self.recordings.analysis_signal_provenance(recording),
             "algorithm_version": (
-                bounded_evidence["algorithm_version"]
+                bounded_evidence.get("algorithm_version", ANALYSIS_CONTRACT["algorithm_version"])
                 if bounded_evidence is not None else ANALYSIS_CONTRACT["algorithm_version"]
             ),
             "filter_contract": {**{key: ANALYSIS_CONTRACT[key] for key in (
@@ -285,6 +333,8 @@ class SpectralAnalysisService:
         low_hz: float = 1.0, high_hz: float = 50.0,
         notch_hz: float | None = POWERLINE_NOTCH_HZ, output_low_hz: float | None = None,
         output_high_hz: float | None = None, execution_context: Any = None,
+        bad_channel_spec: Any = None, artifact_rejection_spec: Any = None,
+        artifact_removal_spec: Any = None,
     ) -> dict[str, object]:
         """Execute current STFT without entering whole-record preprocessing."""
         from app.services.spectrogram_source import load_spectrogram
@@ -294,6 +344,9 @@ class SpectralAnalysisService:
             low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
             output_low_hz=output_low_hz, output_high_hz=output_high_hz,
             execution_context=execution_context,
+            bad_channel_spec=bad_channel_spec,
+            artifact_rejection_spec=artifact_rejection_spec,
+            artifact_removal_spec=artifact_removal_spec,
         )
 
     def load_configured_spectrum(
@@ -306,7 +359,14 @@ class SpectralAnalysisService:
         requested = config.model_dump(mode="json")
         requested_duration = config.time.end_s - config.time.start_s
         loader = spectrum_loader or self.load_spectrum
-        payload = loader(recording, config.time.start_s, requested_duration, config.channels)
+        if config.preprocessing is not None:
+            bad_spec, art_spec, rem_spec = config.preprocessing.to_specs()
+            payload = loader(
+                recording, config.time.start_s, requested_duration, config.channels,
+                bad_channel_spec=bad_spec, artifact_rejection_spec=art_spec, artifact_removal_spec=rem_spec,
+            )
+        else:
+            payload = loader(recording, config.time.start_s, requested_duration, config.channels)
         actual_start = float(payload["window_start_s"])
         actual_end = actual_start + float(payload["window_duration_s"])
         sample_tolerance = 1.5 / float(payload["sfreq_hz"])
@@ -353,7 +413,14 @@ class SpectralAnalysisService:
         requested = config.model_dump(mode="json")
         requested_duration = config.time.end_s - config.time.start_s
         loader = spectrogram_loader or self.load_spectrogram
-        payload = loader(recording, config.time.start_s, requested_duration, config.channels)
+        if config.preprocessing is not None:
+            bad_spec, art_spec, rem_spec = config.preprocessing.to_specs()
+            payload = loader(
+                recording, config.time.start_s, requested_duration, config.channels,
+                bad_channel_spec=bad_spec, artifact_rejection_spec=art_spec, artifact_removal_spec=rem_spec,
+            )
+        else:
+            payload = loader(recording, config.time.start_s, requested_duration, config.channels)
         actual_start = float(payload["window_start_s"])
         actual_end = actual_start + float(payload["window_duration_s"])
         sample_tolerance = 1.5 / float(payload.get("sfreq_hz", 1.0))

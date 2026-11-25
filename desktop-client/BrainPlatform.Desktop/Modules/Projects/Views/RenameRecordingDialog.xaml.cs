@@ -6,23 +6,23 @@ namespace BrainPlatform.Desktop.Modules.Projects.Views;
 
 public sealed partial class RenameRecordingDialog : Window
 {
-    public RenameRecordingDialog(string currentName, string subjectCode = "", string subjectName = "", bool sharedSubject = false)
+    public RenameRecordingDialog(ProjectWorkspaceViewModel workspace, ProjectRecordingRow recording)
     {
         InitializeComponent();
-        NameBox.Text = currentName ?? string.Empty;
-        SubjectCodeBox.Text = subjectCode;
-        SubjectNameBox.Text = subjectName;
-        SharedSubjectNotice.Visibility = sharedSubject ? Visibility.Visible : Visibility.Collapsed;
-        Loaded += (_, _) =>
+        NameBox.Text = recording.Name;
+        Loaded += async (_, _) =>
         {
+            SaveButton.IsEnabled = false;
+            await SubjectPicker.InitializeAsync(workspace,
+                new(recording.SubjectCode, recording.SubjectName, recording.SubjectId, recording.SubjectSex, recording.AgeAtRecordingYears), recording);
+            SaveButton.IsEnabled = true;
             NameBox.Focus();
             NameBox.SelectAll();
         };
     }
 
     public string RecordingName => NameBox.Text.Trim();
-    public string SubjectCode => SubjectCodeBox.Text.Trim();
-    public string SubjectName => SubjectNameBox.Text.Trim();
+    public RecordingSubject Subject => SubjectPicker.Model.Selection;
 
     private void OnHeaderMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -45,6 +45,13 @@ public sealed partial class RenameRecordingDialog : Window
             return;
         }
 
+        try { _ = Subject; }
+        catch (Exception exception)
+        {
+            ValidationText.Text = exception.Message;
+            ValidationText.Visibility = Visibility.Visible;
+            return;
+        }
         DialogResult = true;
     }
 }

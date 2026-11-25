@@ -23,14 +23,16 @@ def test_project_hierarchy_uses_internal_subject_code_and_session_recording(tmp_
     assert project.status_code == 201
     project_id = project.json()["project_id"]
 
-    subject = client.post(f"/api/projects/{project_id}/subjects", json={"local_code": "S-001"})
+    subject = client.post(f"/api/projects/{project_id}/subjects", json={"local_code": "S-001", "sex": "female"})
     condition = client.post(f"/api/projects/{project_id}/conditions", json={"code": "rest", "label": "eyes open"})
     session = client.post(f"/api/projects/{project_id}/sessions", json={
         "subject_id": subject.json()["subject_id"], "condition_id": condition.json()["condition_id"],
-        "recording_id": recording_id, "label": "baseline",
+        "recording_id": recording_id, "label": "baseline", "age_at_recording_years": 25,
     })
 
     assert session.status_code == 201
+    assert session.json()["age_at_recording_years"] == 25
+    assert client.get(f"/api/projects/{project_id}/sessions").json()[0]["subject_sex"] == "female"
     assert client.get(f"/api/projects/{project_id}/recordings").json()["recording_ids"] == [recording_id]
     assert client.get(f"/api/projects/{project_id}/sessions").json()[0]["recording_id"] == recording_id
 

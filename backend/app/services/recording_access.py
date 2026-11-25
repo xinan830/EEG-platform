@@ -15,6 +15,7 @@ from typing import Any, Callable, Sequence
 import numpy as np
 
 from app.models.recording import RecordingSummary
+from app.scientific.contracts.preprocessing import BadChannelSpec
 from app.services.recording_samples import (
     EdfSampleReader,
     SampleReader,
@@ -131,6 +132,7 @@ class RecordingAccessSession:
         validate_source: Callable[[], None],
         *,
         serialize_reads: bool,
+        applied_bad_channel_spec: BadChannelSpec | None = None,
     ):
         if not np.isfinite(sampling_rate_hz) or sampling_rate_hz <= 0 or sample_count < 0:
             raise RecordingAccessError("RECORDING_METADATA_INVALID", "录音采样率或样本数无效。")
@@ -142,6 +144,9 @@ class RecordingAccessSession:
         self.sample_count = int(sample_count)
         self.channel_names = tuple(channel_names)
         self.events = tuple(events)
+        self.applied_bad_channel_spec = (
+            applied_bad_channel_spec.normalized() if applied_bad_channel_spec is not None else BadChannelSpec()
+        )
         self._reader = reader
         self._validate_source = validate_source
         self._read_lock = threading.RLock() if serialize_reads else None
@@ -237,48 +242,50 @@ class RecordingAccessService:
         self._file_identities = _FileIdentityCache()
 
     def open_session(
-        self,
-        recording: RecordingSummary,
-        *,
-        analysis_montage_id: str | None = None,
-        verify_content_hash: bool = True,
+        self, recording: RecordingSummary, *, analysis_montage_id: str | None = None,
+        verify_content_hash: bool = True, bad_channel_spec: Any = None, raw_unprojected: bool = False,
     ) -> RecordingAccessSession:
         if recording.extension == ".wpf":
-            return self._open_wpf(recording, analysis_montage_id)
-        return self._open_edf(recording, analysis_montage_id, verify_content_hash=verify_content_hash)
+            return self._open_wpf(recording, analysis_montage_id, bad_channel_spec=bad_channel_spec, raw_unprojected=raw_unprojected)
+        return self._open_edf(recording, analysis_montage_id, verify_content_hash=verify_content_hash, bad_channel_spec=bad_channel_spec, raw_unprojected=raw_unprojected)
 
-    def _open_wpf(self, recording: RecordingSummary, montage_id: str | None) -> RecordingAccessSession:
-        if recording.stored_name.startswith(("wpf:", "wpf-montage:")):
-            directory_name = recording.stored_name.split(":", 1)[1]
-        else:
-            directory_name = recording.stored_name
+    def _open_wpf(
+        self, recording: RecordingSummary, montage_id: str | None, *,
+        bad_channel_spec: Any = None, raw_unprojected: bool = False,
+    ) -> RecordingAccessSession:
+        directory_name = recording.stored_name.split(":", 1)[1] if recording.stored_name.startswith(("wpf:", "wpf-montage:")) else recording.stored_name
         root = Path(directory_name).expanduser().resolve()
         facts = self._wpf_facts.get(root, recording.source_sha256)
         reader = WpfSampleReader(facts)
-        signal_view_sha256 = None
-        if recording.stored_name.startswith("wpf-montage:"):
+        if any(not name.strip() for name in reader.names):
+            from app.services.bad_channel_reader import BadChannelExcludingSampleReader
+            labeled = [i for i, name in enumerate(reader.names) if name.strip()]
+            if labeled:
+                reader = BadChannelExcludingSampleReader(reader, labeled)
+        signal_view_sha256, channel_names = None, tuple(reader.names)
+        applied_bad = bad_channel_spec.normalized() if bad_channel_spec is not None else BadChannelSpec()
+        if not raw_unprojected and recording.stored_name.startswith("wpf-montage:"):
             from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader
-
-            view = self._montage_snapshots.resolve(
-                recording.id, root, montage_id or recording.selected_montage_id,
-            )
+            from app.services.bad_channel_reader import apply_bad_channels_to_montage_reader
+            view = self._montage_snapshots.resolve(recording.id, root, montage_id or recording.selected_montage_id)
+            reader, view = apply_bad_channels_to_montage_reader(reader, view, applied_bad)
             reader = AcquisitionMontageSampleReader(reader, view)
-            signal_view_sha256 = str(view.provenance.get("snapshot_sha256", "")) or None
-        identity = RecordingSourceIdentity(
-            recording.id, facts.source_sha256, recording.import_version, signal_view_sha256,
-        )
-
+            channel_names, signal_view_sha256 = reader.names, str(view.provenance.get("snapshot_sha256", "")) or None
+        elif applied_bad.is_active:
+            from app.services.bad_channel_reader import apply_bad_channels_to_raw_reader
+            reader, channel_names, signal_view_sha256 = apply_bad_channels_to_raw_reader(reader, applied_bad, channel_names=channel_names)
+        identity = RecordingSourceIdentity(recording.id, facts.source_sha256, recording.import_version, signal_view_sha256)
         def validate_source() -> None:
             if wpf_source_signature(root) != facts.source_signature:
                 raise RecordingAccessError("RECORDING_SOURCE_CHANGED", "WPF 录音源已变化，访问会话已失效。")
-
         return RecordingAccessSession(
-            identity, reader, facts.sampling_rate_hz, facts.sample_count, reader.names, (),
-            validate_source, serialize_reads=False,
+            identity, reader, facts.sampling_rate_hz, facts.sample_count, channel_names, (),
+            validate_source, serialize_reads=False, applied_bad_channel_spec=applied_bad,
         )
 
     def _open_edf(self, recording: RecordingSummary, montage_id: str | None,
-                  *, verify_content_hash: bool) -> RecordingAccessSession:
+                  *, verify_content_hash: bool, bad_channel_spec: Any = None,
+                  raw_unprojected: bool = False) -> RecordingAccessSession:
         import mne
 
         path = (self._storage_dir / recording.stored_name).resolve()
@@ -305,28 +312,35 @@ class RecordingAccessService:
             )
             reader = EdfSampleReader(raw)
             signal_view_sha256 = None
-            active_montage_id = montage_id or recording.selected_montage_id
+            active_montage_id = None if raw_unprojected else (montage_id or recording.selected_montage_id)
+            if raw_unprojected and recording.import_channel_configuration_snapshot_json and recording.import_channel_column_mapping_json:
+                from app.services.imported_analysis_signals import imported_source_channel_labels
+                channel_names = imported_source_channel_labels(recording)
+            elif raw_unprojected and recording.raw_channel_labels:
+                channel_names = tuple(recording.raw_channel_labels)
+            applied_bad = bad_channel_spec.normalized() if bad_channel_spec is not None else BadChannelSpec()
             if active_montage_id:
                 if not recording.import_montage_configuration_snapshot_json:
                     raise RecordingAccessError("ANALYSIS_MONTAGE_UNSUPPORTED", "该记录没有可验证的导联快照。")
                 from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader
-                from app.services.imported_analysis_signals import (
-                    imported_source_channel_labels,
-                    read_imported_acquisition_signal_view,
-                )
-                # EDF columns stay in source order; the verified import binding only
-                # supplies their historical names before explicit montage projection.
+                from app.services.bad_channel_reader import apply_bad_channels_to_montage_reader
+                from app.services.imported_analysis_signals import imported_source_channel_labels, read_imported_acquisition_signal_view
                 reader.names = imported_source_channel_labels(recording)
                 view = read_imported_acquisition_signal_view(recording, active_montage_id)
+                reader, view = apply_bad_channels_to_montage_reader(reader, view, applied_bad)
                 reader = AcquisitionMontageSampleReader(reader, view)
                 channel_names = reader.names
                 signal_view_sha256 = str(view.provenance.get("snapshot_sha256", "")) or None
-            identity = RecordingSourceIdentity(
-                recording.id, source_sha256, recording.import_version, signal_view_sha256,
-            )
+            elif applied_bad.is_active:
+                from app.services.bad_channel_reader import apply_bad_channels_to_raw_reader
+                reader, channel_names, signal_view_sha256 = apply_bad_channels_to_raw_reader(
+                    reader, applied_bad, channel_names=channel_names,
+                    channel_kinds=recording.channel_types if len(recording.channel_types) == len(channel_names) else None,
+                )
+            identity = RecordingSourceIdentity(recording.id, source_sha256, recording.import_version, signal_view_sha256)
             session = RecordingAccessSession(
                 identity, reader, sfreq, sample_count, channel_names, events,
-                lambda: _ensure_file_signature(path, signature), serialize_reads=True,
+                lambda: _ensure_file_signature(path, signature), serialize_reads=True, applied_bad_channel_spec=applied_bad,
             )
         except BaseException:
             raw.close()
@@ -359,10 +373,7 @@ def _sha256_file(path: Path) -> str:
 
 
 def _unavailable_intervals(
-    values: np.ndarray,
-    channels: Sequence[str],
-    start_sample: int,
-    source_gaps: Sequence[range],
+    values: np.ndarray, channels: Sequence[str], start_sample: int, source_gaps: Sequence[range],
 ) -> tuple[UnavailableSampleInterval, ...]:
     intervals: list[UnavailableSampleInterval] = []
     source_gap_mask = np.zeros(values.shape[0], dtype=bool) if source_gaps else None
@@ -379,9 +390,7 @@ def _unavailable_intervals(
         edges = np.diff(np.pad(missing, (1, 1)).astype(np.int8))
         starts, ends = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)
         intervals.extend(
-            UnavailableSampleInterval(
-                start_sample + int(left), start_sample + int(right), "missing_value", (channel,),
-            )
+            UnavailableSampleInterval(start_sample + int(left), start_sample + int(right), "missing_value", (channel,))
             for left, right in zip(starts, ends)
         )
     return tuple(intervals)

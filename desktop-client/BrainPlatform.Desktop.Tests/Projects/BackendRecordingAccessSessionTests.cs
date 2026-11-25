@@ -213,6 +213,10 @@ public sealed class BackendRecordingAccessSessionTests
 
     private sealed class FakeClient(Func<string, long, long, CancellationToken, Task<BackendRawSampleRange>> read) : IResearchProjectClient
     {
+        public Task<SubjectResolutionResponse> ResolveSubjectAsync(string projectId, CreateSubjectRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<BackendResearchSubject> UpdateSubjectAsync(string projectId, string subjectId, CreateSubjectRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<SubjectDeletionResponse> DeleteSubjectAsync(string projectId, string subjectId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<BackendResearchSession> BindSessionSubjectAsync(string projectId, string sessionId, BindResearchSessionRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<BackendResearchProject> EnsureProjectAsync(string projectId, string name, string description, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<BackendResearchSubject>> ListSubjectsAsync(string projectId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<BackendResearchSubject> CreateSubjectAsync(string projectId, string localCode, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -221,7 +225,7 @@ public sealed class BackendRecordingAccessSessionTests
         public Task<BackendResearchSession> RenameSessionAsync(string projectId, string sessionId, string name, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<BackendResearchSession> EditSessionAsync(string projectId, string sessionId, EditResearchSessionRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<BackendProjectRecordingDeletion> DeleteImportedRecordingAsync(string projectId, string sessionId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<BackendImportedRecording> ImportRecordingAsync(string projectId, string filePath, string? subjectId, string? newSubjectLocalCode, string? channelConfigurationSnapshotJson, IProgress<long>? progress, CancellationToken cancellationToken, string? newSubjectName = null) => throw new NotSupportedException();
+        public Task<BackendImportedRecording> ImportRecordingAsync(string projectId, string filePath, string? subjectId, string? newSubjectLocalCode, string? channelConfigurationSnapshotJson, IProgress<long>? progress, CancellationToken cancellationToken, string? newSubjectName = null, string? newSubjectSex = null, int? ageAtRecordingYears = null) => throw new NotSupportedException();
         public Task<BackendRecording> GetRecordingAsync(string recordingId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<BackendRawSampleRange> ReadRawSamplesAsync(string recordingId, long startSample, long endSample, CancellationToken cancellationToken) => read(recordingId, startSample, endSample, cancellationToken);
     }

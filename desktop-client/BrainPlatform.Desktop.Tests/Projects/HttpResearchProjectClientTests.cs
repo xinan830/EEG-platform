@@ -8,6 +8,77 @@ namespace BrainPlatform.Desktop.Tests.Projects;
 
 public sealed class HttpResearchProjectClientTests
 {
+    [Fact]
+    public async Task ImportAndRecordEditSendDemographicsUsingTheirCorrectOwners()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.edf");
+        await File.WriteAllBytesAsync(path, [1, 2, 3]);
+        using var http = new HttpClient(new StubHandler(async (request, token) =>
+        {
+            if (request.Method == HttpMethod.Patch)
+            {
+                using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+                Assert.Equal(26, json.RootElement.GetProperty("age_at_recording_years").GetInt32());
+                Assert.False(json.RootElement.TryGetProperty("sex", out _));
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new
+                { session_id = "s", project_id = "p", recording_id = "r", subject_id = "u", label = "record",
+                    created_at = "", subject_sex = "female", age_at_recording_years = 26 }) };
+            }
+            var body = await request.Content!.ReadAsStringAsync(token);
+            Assert.Contains("new_subject_sex", body);
+            Assert.Contains("female", body);
+            Assert.Contains("age_at_recording_years", body);
+            Assert.Contains("25", body);
+            return new HttpResponseMessage(HttpStatusCode.Created) { Content = JsonContent.Create(new
+            { project_id = "p", session_id = "s", subject_id = "u", recording_id = "r", original_name = "record.edf",
+                extension = ".edf", created_at = "", sfreq = 512, duration_s = 1, channels = new[] { "F3" },
+                channel_types = new[] { "eeg" }, channel_units = new[] { "V" }, source_sha256 = new string('a', 64), file_size_bytes = 3 }) };
+        })) { BaseAddress = new Uri("http://localhost/") };
+        try
+        {
+            var client = new HttpResearchProjectClient(http);
+            await client.ImportRecordingAsync("p", path, null, null, null, null, CancellationToken.None, "姓名", "female", 25);
+            var session = await client.BindSessionSubjectAsync("p", "s", new("record", "u", 26), CancellationToken.None);
+            Assert.Equal(26, session.AgeAtRecordingYears);
+            Assert.Equal("female", session.SubjectSex);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task SubjectManagementUsesTypedProjectRoutesAndExplicitIdentityBinding()
+    {
+        var calls = new List<string>();
+        using var http = new HttpClient(new StubHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            calls.Add(request.Method + " " + path);
+            if (path.EndsWith("/sessions/s"))
+            {
+                using var json = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                Assert.Equal(JsonValueKind.Null, json.RootElement.GetProperty("subject_id").ValueKind);
+                Assert.False(json.RootElement.TryGetProperty("subject_code", out _));
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new
+                { session_id = "s", project_id = "p", recording_id = "r", subject_id = (string?)null, label = "record", created_at = "" }) };
+            }
+            if (request.Method == HttpMethod.Delete)
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { subject_id = "u", detached_sessions = 2 }) };
+            using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            Assert.Equal("姓名", body.RootElement.GetProperty("name").GetString());
+            Assert.Equal("female", body.RootElement.GetProperty("sex").GetString());
+            var subject = new { subject_id = "u", project_id = "p", local_code = (string?)null, name = "姓名", sex = "female", created_at = "" };
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = path.EndsWith("/resolve") ? JsonContent.Create(new { subject }) : JsonContent.Create(subject) };
+        })) { BaseAddress = new Uri("http://localhost/") };
+        var client = new HttpResearchProjectClient(http);
+        Assert.Equal("female", (await client.ResolveSubjectAsync("p", new(null, "姓名", "female"), CancellationToken.None)).Subject!.Sex);
+        Assert.Equal("female", (await client.UpdateSubjectAsync("p", "u", new(null, "姓名", "female"), CancellationToken.None)).Sex);
+        Assert.Equal(2, (await client.DeleteSubjectAsync("p", "u", CancellationToken.None)).DetachedSessions);
+        Assert.Null((await client.BindSessionSubjectAsync("p", "s", new("record", null), CancellationToken.None)).SubjectId);
+        Assert.Equal(new[] { "POST /api/projects/p/subjects/resolve", "PATCH /api/projects/p/subjects/u",
+            "DELETE /api/projects/p/subjects/u", "PATCH /api/projects/p/sessions/s" }, calls);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("姓名")]

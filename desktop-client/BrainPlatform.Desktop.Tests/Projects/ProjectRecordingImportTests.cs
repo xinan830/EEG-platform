@@ -220,12 +220,12 @@ public sealed class ProjectRecordingImportTests
 
             BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(() =>
             {
-                var rename = new BrainPlatform.Desktop.Modules.Projects.Views.RenameRecordingDialog("  545456  ", "S001", "姓名");
+                var rename = new BrainPlatform.Desktop.Modules.Projects.Views.RenameRecordingDialog(workspace,
+                    new ProjectRecordingRow("s", "  545456  ", "", "", "", "", "已完成", ""));
                 var renameContent = Assert.IsAssignableFrom<System.Windows.FrameworkElement>(rename.Content);
                 renameContent.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
                 Assert.Equal("545456", rename.RecordingName);
-                Assert.Equal("S001", rename.SubjectCode);
-                Assert.Equal("姓名", rename.SubjectName);
+                Assert.NotNull(rename.FindName("SubjectPicker"));
                 Assert.True(renameContent.DesiredSize.Width >= 440);
                 Assert.True(renameContent.DesiredSize.Height >= 220);
 
@@ -234,12 +234,25 @@ public sealed class ProjectRecordingImportTests
                 importContent.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
                 Assert.True(importContent.DesiredSize.Width >= 496);
                 Assert.True(importContent.DesiredSize.Height >= 320);
-                var subjects = Assert.IsType<System.Windows.Controls.ComboBox>(import.FindName("SubjectsComboBox"));
+                var picker = Assert.IsType<BrainPlatform.Desktop.Modules.Projects.Views.SubjectSelector>(import.FindName("SubjectPicker"));
+                picker.InitializeAsync(workspace, new()).GetAwaiter().GetResult();
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.Background, new Action(() => frame.Continue = false));
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                var subjects = Assert.IsType<System.Windows.Controls.ComboBox>(picker.FindName("SubjectsComboBox"));
                 Assert.Equal("不关联受试者", Assert.IsType<BackendResearchSubject>(subjects.SelectedItem).DisplayText);
                 subjects.SelectedIndex = 1;
-                var nameInput = Assert.IsType<System.Windows.Controls.TextBox>(import.FindName("NewNameBox"));
+                var nameInput = Assert.IsType<System.Windows.Controls.TextBox>(picker.FindName("NewNameBox"));
                 Assert.False(nameInput.IsReadOnly);
                 nameInput.Text = "仅姓名";
+                var sexInput = Assert.IsType<System.Windows.Controls.ComboBox>(picker.FindName("SexComboBox"));
+                sexInput.SelectedValue = "female";
+                var ageInput = Assert.IsType<System.Windows.Controls.TextBox>(picker.FindName("AgeBox"));
+                ageInput.Text = "25";
+                var model = picker.Model;
+                Assert.Equal("female", model.Selection.Sex);
+                Assert.Equal(25, model.Selection.AgeAtRecordingYears);
             });
         }
         finally
@@ -285,6 +298,12 @@ public sealed class ProjectRecordingImportTests
                     ["F3"], ["eeg"], ["V"], new string('a', 64), 65536));
             };
 
+        public Task<SubjectResolutionResponse> ResolveSubjectAsync(string projectId, CreateSubjectRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult(new SubjectResolutionResponse(new("subject-1", projectId, request.LocalCode, "", request.Name)));
+        public Task<BackendResearchSubject> UpdateSubjectAsync(string projectId, string subjectId, CreateSubjectRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<SubjectDeletionResponse> DeleteSubjectAsync(string projectId, string subjectId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<BackendResearchSession> BindSessionSubjectAsync(string projectId, string sessionId, BindResearchSessionRequest request, CancellationToken cancellationToken) =>
+            EditSessionAsync(projectId, sessionId, new(request.Label, request.SubjectId is null ? "" : "S001", request.SubjectId is null ? "" : "姓名"), cancellationToken);
         public Task<BackendResearchProject> EnsureProjectAsync(string projectId, string name, string description, CancellationToken cancellationToken) =>
             Task.FromResult(new BackendResearchProject(projectId, name, description, "", ""));
         public Task<IReadOnlyList<BackendResearchSubject>> ListSubjectsAsync(string projectId, CancellationToken cancellationToken)
@@ -328,7 +347,7 @@ public sealed class ProjectRecordingImportTests
         }
         public Task<BackendImportedRecording> ImportRecordingAsync(string projectId, string filePath, string? subjectId,
             string? newSubjectLocalCode, string? channelConfigurationSnapshotJson, IProgress<long>? progress,
-            CancellationToken cancellationToken, string? newSubjectName = null)
+            CancellationToken cancellationToken, string? newSubjectName = null, string? newSubjectSex = null, int? ageAtRecordingYears = null)
         {
             LastNewSubjectName = newSubjectName;
             LastImportProjectId = projectId;

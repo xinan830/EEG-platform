@@ -71,7 +71,7 @@ def test_optional_subject_migration_preserves_existing_relationships(tmp_path):
         assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
         assert connection.execute("SELECT subject_id FROM sessions WHERE session_id = 's'").fetchone()[0] == 'u'
         connection.execute("UPDATE sessions SET subject_id = NULL WHERE session_id = 's'")
-        connection.execute("INSERT INTO subjects VALUES ('name','p',NULL,'now','仅姓名')")
+        connection.execute("INSERT INTO subjects(subject_id,project_id,local_code,created_at,name) VALUES ('name','p',NULL,'now','仅姓名')")
 
 
 def test_invalid_subject_requests_leave_file_catalog_and_sessions_unchanged(tmp_path):
@@ -107,3 +107,57 @@ def test_create_session_without_subject_and_explicit_existing_subject_import(tmp
     assert response.status_code == 201, response.json()
     assert response.json()['subject_id'] == subject['subject_id']
     assert projects.list_sessions(project)[-1].subject_name == '姓名'
+
+
+def test_shared_subject_identity_update_and_delete_detach_without_deleting_signals(tmp_path):
+    client, recordings, projects = _client(tmp_path)
+    project = client.put('/api/projects/desktop/subject-crud', json={'name': 'Study'}).json()['project_id']
+    endpoint = f'/api/projects/{project}/subjects'
+    assert client.post(endpoint + '/resolve', json={}).json() == {'subject': None}
+    first = client.post(endpoint + '/resolve', json={'local_code': ' S001 ', 'name': '姓名'}).json()['subject']
+    assert client.post(endpoint + '/resolve', json={'local_code': 'S001'}).json()['subject'] == first
+    assert client.post(endpoint + '/resolve', json={'local_code': 'S001', 'name': '别人'}).status_code == 409
+    names = [client.post(endpoint + '/resolve', json={'name': '同名'}).json()['subject']['subject_id'] for _ in range(2)]
+    assert names[0] != names[1]
+    source = _edf_bytes(tmp_path / 'subject-crud.edf')
+    imported = client.post(f'/api/projects/{project}/recordings/import',
+        data={'subject_id': first['subject_id']}, files={'file': ('subject-crud.edf', source)}).json()
+    before = recordings.require_recording(imported['recording_id'])
+    changed = client.patch(endpoint + '/' + first['subject_id'], json={'local_code': 'S002', 'name': '更名'})
+    assert changed.status_code == 200, changed.json()
+    assert changed.json()['subject_id'] == first['subject_id']
+    assert projects.list_sessions(project)[0].subject_code == 'S002'
+    session_url = f"/api/projects/{project}/sessions/{imported['session_id']}"
+    bound = client.patch(session_url, json={'label': '记录', 'subject_id': names[0]})
+    assert bound.status_code == 200, bound.json()
+    assert bound.json()['subject_id'] == names[0]
+    assert client.patch(session_url, json={'label': '记录'}).json()['subject_id'] == names[0]
+    assert client.patch(session_url, json={'label': '记录', 'subject_id': None}).json()['subject_id'] is None
+    assert client.patch(session_url, json={'label': '记录', 'subject_id': first['subject_id']}).status_code == 200
+    deleted = client.delete(endpoint + '/' + first['subject_id'])
+    assert deleted.status_code == 200, deleted.json()
+    assert deleted.json()['detached_sessions'] == 1
+    assert projects.list_sessions(project)[0].subject_id is None
+    assert recordings.require_recording(before.id) == before
+    assert (recordings.storage_dir / before.stored_name).read_bytes() == source
+    assert client.delete(endpoint + '/' + first['subject_id']).status_code == 404
+
+
+def test_subject_management_rejects_cross_project_duplicates_and_ambiguous_binding(tmp_path):
+    client, _, projects = _client(tmp_path)
+    for project in ['one', 'two']:
+        client.put(f'/api/projects/desktop/{project}', json={'name': project})
+    first = client.post('/api/projects/one/subjects', json={'local_code': 'S1'}).json()['subject_id']
+    second = client.post('/api/projects/one/subjects', json={'local_code': 'S2'}).json()['subject_id']
+    endpoint = f'/api/projects/one/subjects/{first}'
+    assert client.patch(endpoint, json={}).status_code == 422
+    assert client.patch(endpoint, json={'local_code': 'S2'}).status_code == 409
+    assert client.patch(f'/api/projects/two/subjects/{first}', json={'name': '改名'}).status_code == 404
+    assert client.delete(f'/api/projects/two/subjects/{first}').status_code == 404
+    source = _edf_bytes(tmp_path / 'cross.edf')
+    record = client.post('/api/projects/two/recordings/import', files={'file': ('cross.edf', source)}).json()
+    session = f"/api/projects/two/sessions/{record['session_id']}"
+    assert client.patch(session, json={'label': 'r', 'subject_id': first}).status_code == 409
+    assert client.patch(session, json={'label': 'r', 'subject_id': None, 'subject_code': '', 'subject_name': ''}).status_code == 422
+    assert projects.list_sessions('two')[0].subject_id is None
+    assert {s.subject_id for s in projects.list_subjects('one')} == {first, second}

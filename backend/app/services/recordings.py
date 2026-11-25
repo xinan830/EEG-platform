@@ -33,6 +33,8 @@ class RecordingService:
         self._filter_checkpoints = FilterCheckpointCache()
         self._analysis_preprocess_cache = AnalysisPreprocessCache()
         self._wpf_recording_facts = WpfRecordingFactsCache()
+        from app.services.ica_review_cache import IcaReviewCache
+        self.ica_review_cache = IcaReviewCache()
         self._continuous_preprocessing = ContinuousPreprocessingService(self, self._analysis_preprocess_cache)
         self._offline_scientific_preprocessing = OfflineScientificPreprocessingService(self._continuous_preprocessing)
         self._spectral_analysis = SpectralAnalysisService(self, self._continuous_preprocessing)
@@ -212,11 +214,12 @@ class RecordingService:
 
     def open_access_session(
         self, recording: RecordingSummary, *, analysis_montage_id: str | None = None,
-        verify_content_hash: bool = True,
+        verify_content_hash: bool = True, bad_channel_spec=None, raw_unprojected: bool = False,
     ):
         return self._recording_access.open_session(
             recording, analysis_montage_id=analysis_montage_id,
-            verify_content_hash=verify_content_hash,
+            verify_content_hash=verify_content_hash, bad_channel_spec=bad_channel_spec,
+            raw_unprojected=raw_unprojected,
         )
 
     def select_analysis_montage(self, recording: RecordingSummary, montage_id: str) -> RecordingSummary:
@@ -301,8 +304,15 @@ class RecordingService:
 
     def load_preprocessed_signals(self, recording: RecordingSummary, *, channels: list[str],
                                   low_hz: float, high_hz: float, notch_hz: float | None,
-                                  execution_context=None) -> PreprocessedRecording:
+                                  bad_channel_spec=None, artifact_rejection_spec=None,
+                                  artifact_removal_spec=None, execution_context=None) -> PreprocessedRecording:
         """Share continuous preparation of an ordered signal pair across window contexts."""
+        if any(spec is not None and spec.normalized().is_active for spec in (bad_channel_spec, artifact_rejection_spec, artifact_removal_spec)):
+            return self._offline_scientific_preprocessing.prepare_continuous(
+                recording, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+                execution_context=execution_context, bad_channel_spec=bad_channel_spec,
+                artifact_rejection_spec=artifact_rejection_spec, artifact_removal_spec=artifact_removal_spec,
+            )
         return self._continuous_preprocessing.load(
             recording, low_hz, high_hz, notch_hz, execution_context, channels,
             requested_channels_only=True)
@@ -324,10 +334,20 @@ class RecordingService:
         preprocessing_scope: str = "configured_continuous_before_slice",
         quality_policy: str = "strict",
         include_welch_segments: bool = False,
+        bad_channel_spec=None,
+        artifact_rejection_spec=None,
+        artifact_removal_spec=None,
         execution_context=None,
     ) -> dict:
         """Compatibility facade for the offline spectral analysis use case."""
-        return self._spectral_analysis.load_spectrum(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, preprocessing_scope=preprocessing_scope, quality_policy=quality_policy, include_welch_segments=include_welch_segments, execution_context=execution_context)
+        return self._spectral_analysis.load_spectrum(
+            recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+            filter_low_hz=filter_low_hz, filter_high_hz=filter_high_hz, output_low_hz=output_low_hz,
+            output_high_hz=output_high_hz, preprocessing_scope=preprocessing_scope, quality_policy=quality_policy,
+            include_welch_segments=include_welch_segments, bad_channel_spec=bad_channel_spec,
+            artifact_rejection_spec=artifact_rejection_spec, artifact_removal_spec=artifact_removal_spec,
+            execution_context=execution_context,
+        )
 
     def load_spectrogram(
         self,
@@ -341,10 +361,18 @@ class RecordingService:
         notch_hz: float | None = POWERLINE_NOTCH_HZ,
         output_low_hz: float | None = None,
         output_high_hz: float | None = None,
+        bad_channel_spec=None,
+        artifact_rejection_spec=None,
+        artifact_removal_spec=None,
         execution_context=None,
     ) -> dict:
         """Compatibility facade for the current bounded spectrogram analysis."""
-        return self._spectral_analysis.load_spectrogram(recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, output_low_hz=output_low_hz, output_high_hz=output_high_hz, execution_context=execution_context)
+        return self._spectral_analysis.load_spectrogram(
+            recording, start_s, window_s, channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+            output_low_hz=output_low_hz, output_high_hz=output_high_hz, bad_channel_spec=bad_channel_spec,
+            artifact_rejection_spec=artifact_rejection_spec, artifact_removal_spec=artifact_removal_spec,
+            execution_context=execution_context,
+        )
 
     def load_configured_spectrum(self, recording: RecordingSummary, config: AnalysisConfigRequest) -> dict:
         """Compatibility facade preserving configurable PSD API semantics."""
@@ -533,6 +561,7 @@ class RecordingService:
         self._filter_checkpoints.clear_recording(recording.id)
         self._analysis_preprocess_cache.clear_recording(recording.id)
         self._offline_scientific_preprocessing.invalidate_recording(recording.id)
+        self.ica_review_cache.invalidate_recording(recording.id)
         (self.storage_dir / recording.stored_name).unlink(missing_ok=True)
         with self._connect() as connection:
             connection.execute("DELETE FROM recordings WHERE id = ?", (recording.id,))

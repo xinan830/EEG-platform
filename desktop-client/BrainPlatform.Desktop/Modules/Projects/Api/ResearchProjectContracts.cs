@@ -14,14 +14,27 @@ public sealed record BackendResearchProject(
     [property: JsonPropertyName("created_at")] string CreatedAt,
     [property: JsonPropertyName("updated_at")] string UpdatedAt);
 
-public sealed record CreateSubjectRequest([property: JsonPropertyName("local_code")] string LocalCode);
+public sealed record CreateSubjectRequest(
+    [property: JsonPropertyName("local_code")] string? LocalCode,
+    [property: JsonPropertyName("name")] string Name = "",
+    [property: JsonPropertyName("sex")] string? Sex = null);
+
+public sealed record SubjectResolutionResponse([property: JsonPropertyName("subject")] BackendResearchSubject? Subject);
+public sealed record SubjectDeletionResponse(
+    [property: JsonPropertyName("subject_id")] string SubjectId,
+    [property: JsonPropertyName("detached_sessions")] int DetachedSessions);
+public sealed record BindResearchSessionRequest(
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("subject_id")] string? SubjectId,
+    [property: JsonPropertyName("age_at_recording_years")] int? AgeAtRecordingYears = null);
 
 public sealed record BackendResearchSubject(
     [property: JsonPropertyName("subject_id")] string SubjectId,
     [property: JsonPropertyName("project_id")] string ProjectId,
     [property: JsonPropertyName("local_code")] string? LocalCode,
     [property: JsonPropertyName("created_at")] string CreatedAt,
-    [property: JsonPropertyName("name")] string Name = "")
+    [property: JsonPropertyName("name")] string Name = "",
+    [property: JsonPropertyName("sex")] string? Sex = null)
 {
     public string DisplayText => new RecordingSubject(LocalCode ?? "", Name).DisplayText;
 }
@@ -30,7 +43,8 @@ public sealed record CreateResearchSessionRequest(
     [property: JsonPropertyName("subject_id")] string? SubjectId,
     [property: JsonPropertyName("recording_id")] string RecordingId,
     [property: JsonPropertyName("condition_id")] string? ConditionId = null,
-    [property: JsonPropertyName("label")] string Label = "");
+    [property: JsonPropertyName("label")] string Label = "",
+    [property: JsonPropertyName("age_at_recording_years")] int? AgeAtRecordingYears = null);
 
 public sealed record RenameResearchSessionRequest([property: JsonPropertyName("label")] string Label);
 public sealed record EditResearchSessionRequest(
@@ -47,7 +61,9 @@ public sealed record BackendResearchSession(
     [property: JsonPropertyName("label")] string Label,
     [property: JsonPropertyName("created_at")] string CreatedAt,
     [property: JsonPropertyName("subject_code")] string? SubjectCode = null,
-    [property: JsonPropertyName("subject_name")] string SubjectName = "");
+    [property: JsonPropertyName("subject_name")] string SubjectName = "",
+    [property: JsonPropertyName("subject_sex")] string? SubjectSex = null,
+    [property: JsonPropertyName("age_at_recording_years")] int? AgeAtRecordingYears = null);
 
 public sealed record BackendProjectRecordingDeletion(
     [property: JsonPropertyName("session_id")] string SessionId,

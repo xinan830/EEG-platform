@@ -4,10 +4,12 @@
 Import currently forces an unexplained subject identifier while the recording list never displays it. Acquisition, import and record editing need the same optional subject code/name behavior.
 
 ## What Changes
+- Add optional subject sex and optional age-at-recording (whole years, 0–150) across the shared selector. Age belongs to each recording Session/local management file, not the person directory; editing a subject never changes historical ages.
 - Make Session subject association nullable without creating placeholder people.
 - Accept optional subject code and name during import and acquisition, and allow record editing to set, change or clear them.
 - Display subject identity in project recording rows; preserve existing associations.
 - Keep subject data separate from immutable signal files and scientific provenance.
+- Use one project subject selector for import, acquisition and record editing, with optional selection and subject edit/delete actions. Bind local recordings by stable subject ID; deleting a subject clears associations while preserving recordings.
 
 ## Capabilities
 ### New Capabilities

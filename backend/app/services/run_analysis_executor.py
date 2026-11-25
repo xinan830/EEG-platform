@@ -81,7 +81,9 @@ class RunAnalysisExecutor:
         config = OfficialAlgorithmRunConfig.model_validate(resolved["config"])
         if self.algorithm_runtime is None:
             raise ValueError("algorithm runtime is not configured")
-        context = _RecordingAlgorithmContext(self.recordings, recording, resolved.get("execution_context"))
+        context = _RecordingAlgorithmContext(
+            self.recordings, recording, resolved.get("execution_context"), preprocessing=config.preprocessing,
+        )
         runtime_config = config.runtime_config()
         try:
             result = self.algorithm_runtime.execute(

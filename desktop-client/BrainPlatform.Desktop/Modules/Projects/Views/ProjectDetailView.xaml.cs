@@ -70,6 +70,9 @@ public partial class ProjectDetailView : UserControl
         Workspace.Acquisition.SelectedProject = project;
         Workspace.Acquisition.SubjectCode = string.Empty;
         Workspace.Acquisition.SubjectName = string.Empty;
+        Workspace.Acquisition.SubjectId = null;
+        Workspace.Acquisition.SubjectSex = null;
+        Workspace.Acquisition.AgeAtRecordingYears = null;
         (Window.GetWindow(this) as IDesktopNavigation)?.ShowAcquisitionPreparationView();
     }
 
@@ -158,10 +161,9 @@ public partial class ProjectDetailView : UserControl
     private async void OnRenameRecordingClick(object sender, RoutedEventArgs e)
     {
         if (GetRecordingFromMenu(sender) is not { } recording) return;
-        var dialog = new RenameRecordingDialog(recording.Name, recording.SubjectCode, recording.SubjectName,
-            recording.SourceKind == "backend") { Owner = Window.GetWindow(this) };
+        var dialog = new RenameRecordingDialog(Workspace.Projects, recording) { Owner = Window.GetWindow(this) };
         if (dialog.ShowDialog() != true) return;
-        try { await Workspace.Projects.EditRecordingAsync(recording, dialog.RecordingName, dialog.SubjectCode, dialog.SubjectName); }
+        try { await Workspace.Projects.EditRecordingAsync(recording, dialog.RecordingName, dialog.Subject); }
         catch (Exception exception) { Workspace.Notifications.PublishError(exception.Message); }
     }
 

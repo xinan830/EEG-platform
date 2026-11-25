@@ -16,7 +16,7 @@ _LOGGER = logging.getLogger("brain_platform.dynamic_window.tnk")
 class _RecordingAlgorithmContext:
     """Bounded signal access passed to a canonical algorithm module."""
 
-    def __init__(self, recordings: Any, recording: Any, execution_context: ExecutionControl | None = None) -> None:
+    def __init__(self, recordings: Any, recording: Any, execution_context: ExecutionControl | None = None, *, preprocessing: Any = None) -> None:
         self._recordings = recordings
         self._recording = recording
         self.id = recording.id
@@ -24,6 +24,10 @@ class _RecordingAlgorithmContext:
         self.sfreq_hz = float(getattr(recording, "sfreq_hz", None) or getattr(recording, "sfreq", None) or 0.0)
         self.duration_s = float(recording.duration_s or 0.0)
         self.execution_context = execution_context
+        self._preprocessing = preprocessing
+        self._bad_channel_spec, self._artifact_rejection_spec, self._artifact_removal_spec = (
+            preprocessing.to_specs() if preprocessing is not None else (None, None, None)
+        )
         self._prepared_faa_source: PreprocessedRecording | None = None
         self._access_session: Any = None
 
@@ -59,17 +63,18 @@ class _RecordingAlgorithmContext:
         start_s = request.start_sample / self.sfreq_hz
         window_s = (request.end_sample - request.start_sample) / self.sfreq_hz
         channels = [role_to_channel[role] for role in request.roles]
+        extra = (
+            {"bad_channel_spec": self._bad_channel_spec, "artifact_rejection_spec": self._artifact_rejection_spec,
+             "artifact_removal_spec": self._artifact_removal_spec}
+            if self._preprocessing is not None else {}
+        )
         payload = self._recordings.load_spectrum(
             self._recording, start_s, window_s, channels,
-            filter_low_hz=request.filter_low_hz,
-            filter_high_hz=request.filter_high_hz,
-            output_low_hz=request.output_low_hz,
-            output_high_hz=request.output_high_hz,
-            notch_hz=request.notch_hz,
-            preprocessing_scope=request.preprocessing_scope,
-            quality_policy=request.quality_policy,
-            include_welch_segments=include_welch_segments,
-            execution_context=self.execution_context,
+            filter_low_hz=request.filter_low_hz, filter_high_hz=request.filter_high_hz,
+            output_low_hz=request.output_low_hz, output_high_hz=request.output_high_hz,
+            notch_hz=request.notch_hz, preprocessing_scope=request.preprocessing_scope,
+            quality_policy=request.quality_policy, include_welch_segments=include_welch_segments,
+            execution_context=self.execution_context, **extra,
         )
         estimate = self._spectral_estimate(payload)
         estimate.evidence["typed_source_request"] = self._spectral_request_evidence(request, channels)
@@ -88,14 +93,16 @@ class _RecordingAlgorithmContext:
         start_s = request.start_sample / self.sfreq_hz
         window_s = (request.end_sample - request.start_sample) / self.sfreq_hz
         channels = [role_to_channel[role] for role in request.roles]
+        extra = (
+            {"bad_channel_spec": self._bad_channel_spec, "artifact_rejection_spec": self._artifact_rejection_spec,
+             "artifact_removal_spec": self._artifact_removal_spec}
+            if self._preprocessing is not None else {}
+        )
         payload = self._recordings.load_spectrogram(
             self._recording, start_s, window_s, channels,
-            low_hz=request.filter_low_hz,
-            high_hz=request.filter_high_hz,
-            output_low_hz=request.output_low_hz,
-            output_high_hz=request.output_high_hz,
-            notch_hz=request.notch_hz,
-            execution_context=self.execution_context,
+            low_hz=request.filter_low_hz, high_hz=request.filter_high_hz,
+            output_low_hz=request.output_low_hz, output_high_hz=request.output_high_hz,
+            notch_hz=request.notch_hz, execution_context=self.execution_context, **extra,
         )
         payload["typed_source_request"] = self._spectral_request_evidence(request, channels)
         return payload
@@ -242,12 +249,18 @@ class _RecordingAlgorithmContext:
         if end_index <= start_index:
             raise ValueError("FAA analysis range is outside recording duration")
         if low_hz is not None and high_hz is not None:
+            extra = (
+                {"bad_channel_spec": self._bad_channel_spec, "artifact_rejection_spec": self._artifact_rejection_spec,
+                 "artifact_removal_spec": self._artifact_removal_spec}
+                if self._preprocessing is not None else {}
+            )
             prepared = self._recordings.load_preprocessed_signals(
                 self._recording, channels=[f3_name, f4_name], low_hz=low_hz,
-                high_hz=high_hz, notch_hz=notch_hz, execution_context=self.execution_context)
+                high_hz=high_hz, notch_hz=notch_hz, execution_context=self.execution_context, **extra)
             # Keep mapped samples alive through this window even if the shared LRU evicts them.
             self._prepared_faa_source = prepared
-            pair = prepared.data[start_index:end_index]
+            prep_lookup = {name.casefold(): i for i, name in enumerate(prepared.channel_names)}
+            pair = prepared.data[start_index:end_index, [prep_lookup[f3_name.casefold()], prep_lookup[f4_name.casefold()]]]
         else:
             if self._access_session is None:
                 self._access_session = self._recordings.open_access_session(self._recording)

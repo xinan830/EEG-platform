@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.recordings import router as recordings_router
+from app.api.preprocessing import router as preprocessing_router
 from app.api.recording_signal_preview import router as signal_preview_router
 from app.api.recording_signal_export import router as signal_export_router
 from app.services.recording_signal_export import RecordingSignalExporter
@@ -165,6 +166,7 @@ app.state.result_scalars_service = ResultScalarsService(app.state.dynamic_window
 app.state.custom_frequency_inspection_service = CustomFrequencyInspectionService(app.state.dynamic_window_service)
 app.state.topomap_3d_service = Topomap3DService()
 app.include_router(recordings_router)
+app.include_router(preprocessing_router)
 app.include_router(signal_preview_router)
 app.include_router(signal_export_router)
 app.include_router(electrode_locations_router)

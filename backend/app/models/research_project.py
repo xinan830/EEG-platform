@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Annotated, Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+SubjectSex = Literal["male", "female", "other"]
+RecordingAge = Annotated[int, Field(strict=True, ge=0, le=150)]
 
 
 class ProjectCreateRequest(BaseModel):
@@ -21,6 +26,12 @@ class SubjectCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     local_code: str | None = Field(default=None, max_length=160)
     name: str = Field(default="", max_length=160)
+    sex: SubjectSex | None = None
+
+
+class SubjectDeletionResponse(BaseModel):
+    subject_id: str
+    detached_sessions: int
 
 
 class ConditionCreateRequest(BaseModel):
@@ -35,6 +46,7 @@ class SessionCreateRequest(BaseModel):
     recording_id: str = Field(min_length=1)
     condition_id: str | None = None
     label: str = Field(default="", max_length=4000)
+    age_at_recording_years: RecordingAge | None = None
 
 
 class SessionRenameRequest(BaseModel):
@@ -42,9 +54,13 @@ class SessionRenameRequest(BaseModel):
     label: str = Field(min_length=1, max_length=4000)
     subject_code: str | None = Field(default=None, max_length=160)
     subject_name: str | None = Field(default=None, max_length=160)
+    subject_id: str | None = Field(default=None, min_length=1)
+    age_at_recording_years: RecordingAge | None = None
 
     @model_validator(mode="after")
     def validate_subject_pair(self):
+        if "subject_id" in self.model_fields_set and {"subject_code", "subject_name"} & self.model_fields_set:
+            raise ValueError("subject identity and metadata are mutually exclusive")
         if len({"subject_code", "subject_name"} & self.model_fields_set) == 1:
             raise ValueError("subject code and name must be submitted together")
         return self
@@ -71,6 +87,11 @@ class Subject(BaseModel):
     local_code: str | None
     created_at: str
     name: str = ""
+    sex: SubjectSex | None = None
+
+
+class SubjectResolutionResponse(BaseModel):
+    subject: Subject | None
 
 
 class Condition(BaseModel):
@@ -91,6 +112,8 @@ class Session(BaseModel):
     created_at: str
     subject_code: str | None = None
     subject_name: str = ""
+    subject_sex: SubjectSex | None = None
+    age_at_recording_years: RecordingAge | None = None
 
 
 class ProjectRecordingDeletionResponse(BaseModel):

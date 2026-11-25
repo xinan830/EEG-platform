@@ -28,6 +28,18 @@ public sealed class HttpResearchProjectClient(HttpClient httpClient) : IResearch
         await SendAsync<List<BackendResearchSession>>(HttpMethod.Get, $"api/projects/{Escape(projectId)}/sessions", null, cancellationToken)
             .ConfigureAwait(false);
 
+    public Task<SubjectResolutionResponse> ResolveSubjectAsync(string projectId, CreateSubjectRequest request, CancellationToken cancellationToken) =>
+        SendAsync<SubjectResolutionResponse>(HttpMethod.Post, $"api/projects/{Escape(projectId)}/subjects/resolve", request, cancellationToken);
+
+    public Task<BackendResearchSubject> UpdateSubjectAsync(string projectId, string subjectId, CreateSubjectRequest request, CancellationToken cancellationToken) =>
+        SendAsync<BackendResearchSubject>(HttpMethod.Patch, $"api/projects/{Escape(projectId)}/subjects/{Escape(subjectId)}", request, cancellationToken);
+
+    public Task<SubjectDeletionResponse> DeleteSubjectAsync(string projectId, string subjectId, CancellationToken cancellationToken) =>
+        SendAsync<SubjectDeletionResponse>(HttpMethod.Delete, $"api/projects/{Escape(projectId)}/subjects/{Escape(subjectId)}", null, cancellationToken);
+
+    public Task<BackendResearchSession> BindSessionSubjectAsync(string projectId, string sessionId, BindResearchSessionRequest request, CancellationToken cancellationToken) =>
+        SendAsync<BackendResearchSession>(HttpMethod.Patch, $"api/projects/{Escape(projectId)}/sessions/{Escape(sessionId)}", request, cancellationToken);
+
     public Task<BackendResearchSession> CreateSessionAsync(string projectId, CreateResearchSessionRequest request, CancellationToken cancellationToken) =>
         SendAsync<BackendResearchSession>(HttpMethod.Post, $"api/projects/{Escape(projectId)}/sessions", request, cancellationToken);
 
@@ -44,7 +56,7 @@ public sealed class HttpResearchProjectClient(HttpClient httpClient) : IResearch
 
     public async Task<BackendImportedRecording> ImportRecordingAsync(string projectId, string filePath, string? subjectId,
         string? newSubjectLocalCode, string? channelConfigurationSnapshotJson, IProgress<long>? progress,
-        CancellationToken cancellationToken, string? newSubjectName = null)
+        CancellationToken cancellationToken, string? newSubjectName = null, string? newSubjectSex = null, int? ageAtRecordingYears = null)
     {
         using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
         using var content = new MultipartFormDataContent();
@@ -54,6 +66,9 @@ public sealed class HttpResearchProjectClient(HttpClient httpClient) : IResearch
         if (subjectId is not null) content.Add(new StringContent(subjectId), "subject_id");
         if (newSubjectLocalCode is not null) content.Add(new StringContent(newSubjectLocalCode), "new_subject_local_code");
         if (newSubjectName is not null) content.Add(new StringContent(newSubjectName), "new_subject_name");
+        if (newSubjectSex is not null) content.Add(new StringContent(newSubjectSex), "new_subject_sex");
+        if (ageAtRecordingYears is not null)
+            content.Add(new StringContent(ageAtRecordingYears.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "age_at_recording_years");
         if (channelConfigurationSnapshotJson is not null)
             content.Add(new StringContent(channelConfigurationSnapshotJson), "channel_configuration_snapshot_json");
         var channelIdentity = await ReadExportChannelIdentityAsync(filePath, cancellationToken).ConfigureAwait(false);

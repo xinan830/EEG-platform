@@ -4,6 +4,26 @@ namespace BrainPlatform.Desktop.Tests.Projects;
 
 public sealed class RecordingSubjectMetadataTests
 {
+    [Fact]
+    public async Task DemographicsRoundTripAndInvalidUpdatesPreserveMetadata()
+    {
+        var directory = Directory.CreateTempSubdirectory("subject-demographics-").FullName;
+        try
+        {
+            var subject = new RecordingSubject("S1", "姓名", "person", "female", 25);
+            await RecordingMetadataStore.SaveAsync(directory, "record", subject);
+            Assert.Equal(subject, RecordingMetadataStore.ReadSubject(directory));
+            var path = Path.Combine(directory, "recording-display.json");
+            var before = await File.ReadAllBytesAsync(path);
+            foreach (var invalid in new[] { subject with { AgeAtRecordingYears = -1 }, subject with { AgeAtRecordingYears = 151 }, subject with { Sex = "invalid" } })
+                await Assert.ThrowsAsync<InvalidOperationException>(() => RecordingMetadataStore.SaveAsync(directory, null, invalid));
+            Assert.Equal(before, await File.ReadAllBytesAsync(path));
+            await RecordingMetadataStore.SaveAsync(directory, null, new(AgeAtRecordingYears: 0));
+            Assert.Equal(0, RecordingMetadataStore.ReadSubject(directory).AgeAtRecordingYears);
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
     [Theory]
     [InlineData("", "", "未关联")]
     [InlineData("S001", "", "S001")]

@@ -34,8 +34,19 @@ def load_spectrogram(
     output_low_hz: float | None = None,
     output_high_hz: float | None = None,
     execution_context: Any = None,
+    bad_channel_spec: Any = None,
+    artifact_rejection_spec: Any = None,
+    artifact_removal_spec: Any = None,
 ) -> dict[str, object]:
     """Prepare only target plus context; output density is uV²/Hz."""
+    from app.scientific.contracts.preprocessing import (
+        ArtifactRejectionSpec,
+        ArtifactRemovalSpec,
+        BadChannelSpec,
+        OfflinePreprocessingSpec,
+        ScientificFilterSpec,
+    )
+
     output_low = float(output_low_hz if output_low_hz is not None else low_hz)
     output_high = float(output_high_hz if output_high_hz is not None else high_hz)
     context_s = stft_context_s(float(low_hz))
@@ -44,9 +55,15 @@ def load_spectrogram(
         raise ValueError("STFT 频率或时间范围无效")
     if notch_hz is not None and notch_hz not in (50.0, 60.0):
         raise ValueError("陷波仅支持关闭、50Hz 或 60Hz")
+    norm_bad = bad_channel_spec.normalized() if bad_channel_spec is not None else BadChannelSpec()
+    norm_art = artifact_rejection_spec.normalized() if artifact_rejection_spec is not None else ArtifactRejectionSpec()
+    norm_rem = artifact_removal_spec.normalized() if artifact_removal_spec is not None else ArtifactRemovalSpec()
     if execution_context is not None:
         execution_context.check_cancelled()
-    with recordings.open_access_session(recording, verify_content_hash=False) as session:
+    open_kwargs: dict[str, Any] = {"verify_content_hash": False}
+    if norm_bad.is_active:
+        open_kwargs["bad_channel_spec"] = norm_bad
+    with recordings.open_access_session(recording, **open_kwargs) as session:
         sfreq = float(session.sampling_rate_hz)
         selected = list(session.channel_names) if channels is None else channels
         validate_recording_analysis_input(
@@ -62,13 +79,32 @@ def load_spectrogram(
             raise ValueError("频谱分析窗口至少需要 4 秒")
         offline_prep = getattr(recordings, "offline_scientific_preprocessing", None)
         if offline_prep is not None:
+            full_spec = (
+                OfflinePreprocessingSpec(
+                    filter_spec=ScientificFilterSpec(
+                        low_hz=float(low_hz), high_hz=float(high_hz),
+                        notch_hz=None if notch_hz is None else float(notch_hz),
+                        filter_phase="zero_phase", scope="bounded_window_with_finite_context",
+                    ),
+                    bad_channels=norm_bad,
+                    artifact_rejection=norm_art,
+                    artifact_removal=norm_rem,
+                )
+                if (norm_bad.is_active or norm_art.is_active or norm_rem.is_active)
+                else None
+            )
             prepared = offline_prep.prepare_bounded_window(
                 session, start_sample=start_index, end_sample=stop_index,
                 channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
                 context_s=context_s, algorithm_version=STFT_PREPROCESSING_VERSION,
                 execution_context=execution_context,
+                preprocessing_spec=full_spec,
             )
         else:
+            if norm_rem.is_active:
+                raise ValueError(
+                    "ARTIFACT_REMOVAL_REQUIRES_CONTINUOUS_SCOPE: 离线去伪迹（EOG/SSP/ICA）需要整段连续预处理上下文，不支持在有界局部窗口中独立拟合"
+                )
             prepared = prepare_window(
                 session, start_sample=start_index, end_sample=stop_index,
                 channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,

@@ -34,9 +34,6 @@ public sealed partial class RecordingImportDialog : Window
         var hasSidecar = File.Exists(filePath + ".labels.json");
         FileMetaText.Text = $"{FormatSize(fileLength)}  ·  {(hasSidecar ? "检测到通道/导联侧车文件" : "纯 EDF/BDF 源文件")}";
 
-        SubjectsComboBox.Items.Add(new BackendResearchSubject("none", "", "不关联受试者", ""));
-        SubjectsComboBox.Items.Add(new BackendResearchSubject("", "", "填写受试者信息…", ""));
-        SubjectsComboBox.SelectedIndex = 0;
         Loaded += LoadSubjectsAsync;
     }
 
@@ -47,33 +44,9 @@ public sealed partial class RecordingImportDialog : Window
 
     private async void LoadSubjectsAsync(object sender, RoutedEventArgs e)
     {
-        SubjectsComboBox.Focus();
-        try
-        {
-            foreach (var subject in await workspace.ListSubjectsAsync(CancellationToken.None))
-                SubjectsComboBox.Items.Add(subject);
-            UpdateNewCodeVisibility();
-        }
-        catch (Exception exception)
-        {
-            SetStatus($"读取受试者列表失败：{exception.Message}", ErrorBrush);
-        }
-    }
-
-    private void OnSubjectSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateNewCodeVisibility();
-
-    private void OnNewCodeTextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (StatusText.Visibility == Visibility.Visible && StatusText.Foreground == ErrorBrush && !string.IsNullOrWhiteSpace(NewCodeBox.Text))
-            StatusText.Visibility = Visibility.Collapsed;
-    }
-
-    private void UpdateNewCodeVisibility()
-    {
-        var isNew = (SubjectsComboBox.SelectedItem as BackendResearchSubject)?.SubjectId == "";
-        NewSubjectPanel.Visibility = isNew ? Visibility.Visible : Visibility.Collapsed;
-        NewCodeBox.IsEnabled = isNew;
-        if (isNew && IsLoaded) NewCodeBox.Focus();
+        ImportButton.IsEnabled = false;
+        await SubjectPicker.InitializeAsync(workspace, new());
+        ImportButton.IsEnabled = true;
     }
 
     private void OnCloseOrCancelClick(object sender, RoutedEventArgs e)
@@ -95,8 +68,9 @@ public sealed partial class RecordingImportDialog : Window
             return;
         }
 
-        var selected = SubjectsComboBox.SelectedItem as BackendResearchSubject;
-        var isNewSubject = selected?.SubjectId == "";
+        RecordingSubject selected;
+        try { selected = SubjectPicker.Model.Selection; }
+        catch (Exception exception) { SetStatus(exception.Message, ErrorBrush); return; }
         uploadCancellation = new CancellationTokenSource();
         var maxBytes = Math.Max(1L, fileLength);
         UploadProgressBar.Maximum = maxBytes;
@@ -118,11 +92,12 @@ public sealed partial class RecordingImportDialog : Window
         {
             var result = await workspace.ImportRecordingAsync(
                 filePath,
-                isNewSubject || selected?.SubjectId == "none" ? null : selected?.SubjectId,
-                isNewSubject ? NewCodeBox.Text.Trim() : null,
+                selected.SubjectId,
+                selected.SubjectId is null ? selected.Code : null,
                 progress,
                 uploadCancellation.Token,
-                isNewSubject ? NewNameBox.Text.Trim() : null);
+                selected.SubjectId is null ? selected.Name : null,
+                selected.SubjectId is null ? selected.Sex : null, selected.AgeAtRecordingYears);
 
             importCompleted = true;
             UploadProgressBar.Value = maxBytes;
@@ -161,9 +136,7 @@ public sealed partial class RecordingImportDialog : Window
 
     private void SetControlsEnabled(bool enabled)
     {
-        SubjectsComboBox.IsEnabled = enabled;
-        NewCodeBox.IsEnabled = enabled && (SubjectsComboBox.SelectedItem as BackendResearchSubject)?.SubjectId == "";
-        NewNameBox.IsEnabled = NewCodeBox.IsEnabled;
+        SubjectPicker.IsEnabled = enabled;
         ImportButton.IsEnabled = enabled;
     }
 

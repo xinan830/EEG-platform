@@ -1,6 +1,7 @@
 <Window x:Class="BrainPlatform.Desktop.Modules.Projects.Views.RecordingImportDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:subjects="clr-namespace:BrainPlatform.Desktop.Modules.Projects.Views"
         Title="导入 EDF / BDF"
         SizeToContent="WidthAndHeight"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
@@ -105,52 +106,7 @@
                     </Grid>
                 </Border>
 
-                <!-- 受试者选择 -->
-                <TextBlock Text="受试者（选填）" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,0,0,8" />
-                <ComboBox x:Name="SubjectsComboBox" Style="{StaticResource AppRoundedFilterComboBoxStyle}"
-                          SelectionChanged="OnSubjectSelectionChanged">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-
-                <!-- 新受试者编号输入（仅选择“新建受试者编号…”时展示） -->
-                <StackPanel x:Name="NewSubjectPanel" Margin="0,14,0,0">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <TextBlock Text="受试者编号（选填）" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" />
-                    </StackPanel>
-                    <Border Style="{StaticResource ImportInputShellStyle}">
-                        <Grid VerticalAlignment="Center">
-                            <TextBox x:Name="NewCodeBox" BorderThickness="0" Background="Transparent"
-                                     FontSize="13.5" Foreground="#0F172A" VerticalAlignment="Center"
-                                     MaxLength="160" TextChanged="OnNewCodeTextChanged" />
-                            <TextBlock Text="例如：S-001（非可识别研究编号）" FontSize="13" Foreground="#94A3B8"
-                                       IsHitTestVisible="False" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Text, ElementName=NewCodeBox}" Value="">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
-                    </Border>
-                </StackPanel>
-
-                <TextBlock Text="编号和姓名均可留空，导入后也可在记录中补填。" Margin="0,8,0,0" Foreground="#64748B" FontSize="12" />
-
-                <StackPanel Margin="0,12,0,0" Visibility="{Binding Visibility, ElementName=NewSubjectPanel}">
-                    <TextBlock Text="受试者姓名（选填）" Margin="0,0,0,8" FontSize="13" Foreground="#1E293B" />
-                    <Border Style="{StaticResource ImportInputShellStyle}">
-                        <TextBox x:Name="NewNameBox" MaxLength="160" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" FontSize="13.5" />
-                    </Border>
-                </StackPanel>
+                <subjects:SubjectSelector x:Name="SubjectPicker" />
 
                 <!-- 进度条区域（仅上传中展示，避免静止灰色空槽） -->
                 <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" Margin="0,16,0,0">

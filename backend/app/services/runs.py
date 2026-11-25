@@ -305,6 +305,7 @@ class RunService:
                 "dynamic_window_s": raw.get("dynamic_window_s", 10),
                 "refresh_step_s": raw.get("refresh_step_s", 1),
                 "custom_frequency_range": raw.get("custom_frequency_range"),
+                "preprocessing": raw.get("preprocessing"),
             })
             config = config_model.model_dump(mode="json")
             requested_range = {"start_s": start, "end_s": end}
@@ -347,6 +348,8 @@ class RunService:
                 "preprocessing_scope": "bounded_window_with_finite_context",
                 "context_s": stft_context_s(1.0), "boundary_policy": "clamp_to_recording",
             })
+        if config.get("preprocessing") is not None:
+            filters = {**filters, "offline_preprocessing": config["preprocessing"]}
         signal_source = self.recordings.analysis_signal_provenance(recording)
         if signal_source["signal_mode"] == "acquisition_montage":
             definition = {**definition, "signal_source": signal_source}

@@ -47,7 +47,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionPreparationView.xaml": {
       "decision": "keep",
       "max_lines": 590,
-      "reason": "582-line acquisition preparation composition adds one optional subject code/name card. Metadata persistence and validation remain in focused storage and ViewModel owners. No polling, device or scientific logic enters XAML; preserve the existing preparation layout and reassess extracting preparation cards before further growth."
+      "reason": "567-line preparation composition replaces duplicate subject fields with the shared SubjectSelector. Subject directory, identity resolution, edit/delete and persistence stay in focused module owners; no signal or scientific logic enters XAML. Existing card extraction boundary remains unchanged."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionWorkspaceView.xaml": {
       "decision": "keep",
@@ -62,7 +62,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Projects/Views/ProjectDetailView.xaml": {
       "decision": "keep",
       "max_lines": 700,
-      "reason": "高风险规模评审：678 行项目详情组合，本次只在已有记录表头与行模板同步增加受试者列并更新编辑入口名称；受试者表单、持久化和 HTTP 校验在独立所有者，页面未新增状态或业务逻辑。保留两处相同列定义防止布局回归，下一次扩充前按项目信息卡和记录列表面板拆分，保持工作区状态唯一。"
+      "reason": "高风险规模评审：678 行项目详情组合，受试者列提示复用记录的性别与采集时年龄详情，未增加列或页面状态。受试者表单、持久化和 HTTP 校验在独立所有者。保留两处相同列定义防止布局回归，下一次扩充前按项目信息卡和记录列表面板拆分，保持工作区状态唯一。"
     },
     "desktop-client/BrainPlatform.Desktop/Shared/Controls/ScreenCalibrationView.xaml": {
       "decision": "split",
@@ -128,7 +128,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Projects/ViewModels/ProjectWorkspaceViewModel.cs": {
       "decision": "split",
         "max_lines": 540,
-        "reason": "当前 527 行，集中维护项目选择、筛选分页及 WPF 录制列表状态；EDF/BDF 同步与导入改名持久化位于现有 Import partial 和 API 适配器。本次仅在共同改名入口分发源类型并统一名称校验，保持一个工作区状态所有者；不为缩短行数机械搬移方法。后续扩展前先抽取录制目录呈现/分页职责。",
+        "reason": "537-line existing project/paging owner forwards stable SubjectId, optional sex and per-record age in recording rows and local metadata projection. Subject directory synchronization and selection lifecycle live in focused SubjectDirectory partial and SubjectSelectorViewModel. Keep the existing recording catalog/paging extraction plan; no new project lifecycle responsibilities.",
       "follow_up": "Extract the recording catalog row/paging presentation from project lifecycle coordination during separate project-workspace maintenance."
     },
     "desktop-client/BrainPlatform.Desktop/Assets/Topomap3D/connectome_layer.js": {
@@ -209,7 +209,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/ViewModels/AcquisitionWorkspaceViewModel.cs": {
       "decision": "split",
       "max_lines": 1220,
-      "reason": "Critical-size review: the 1200-line existing composition receives only impedance entry/lifecycle hooks and reuses finalized-recording presentation. Impedance reading, physical mapping, thresholds and window lifetime are in focused components. Keep the executable device/setup then event-command extraction plan; do not expand scientific or polling logic here.",
+      "reason": "Critical-size review: existing 1207-line acquisition composition validates shared optional demographics and forwards identity, sex and recording age in pre-start context, without new capture/network/scientific ownership. Subject selection and resolution stay in focused preparation/subject components. Preserve the executable device/setup then recording-event extraction plan; no further expansion here.",
       "follow_up": "Extract device-backed setup and range selection, then move recording-event commands into the existing event workflow boundary. Keep one runtime and device session and target a composition file below 400 lines."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Runtime/ConfiguredAcquisitionRuntime.cs": {
@@ -233,25 +233,31 @@
       "reason": "The acquisition lifecycle owner remains over 600 lines (843). It owns device lifecycle, sample-boundary serialization, and the live montage snapshot capture needed to keep waveform and algorithm batches on one revision. The live transport is created and closed at device stream boundaries; dispatchers own queueing and transport errors. Keep this cohesive lifecycle owner until the planned capture-loop and fault/stop boundaries can be extracted together.",
       "follow_up": "Extract capture-loop execution and fault/stop completion behind explicit lifecycle boundaries before further coordinator growth."
     },
+    "backend/app/scientific/artifact_removal.py": {
+      "decision": "keep",
+      "max_lines": 430,
+      "reason": "当前 413 行，纯科学层离线去伪迹模块（EOG 回归、MNE 公开 SSP 与可审查 Infomax ICA 拟合/复用），严格零服务/传输/持久化依赖且仅使用公开 MNE API。三类去伪迹共用代理通道解析、NaN 连续分段高通与结果证据模型，为 13 行超软上限机械拆分会打散同一科学契约；若后续新增第四类去伪迹算法前再按方法拆分子模块。"
+    },
     "backend/app/services/recordings.py": {
       "decision": "keep",
-      "max_lines": 590,
-      "reason": "RecordingService 负责 recording 注册、目录身份和访问服务委派，并持有 AnalysisMontageSnapshots 与有界 WPF facts/index 缓存；样本读取契约、格式适配、内容校验及通道投影位于独立 recording_access 模块。当前 537 行，本轮仅增加 FAA 连续源的类型化委派及共享源服务组装，滤波、缓存身份和生命周期归 ContinuousPreprocessingService；若继续增长则把注册/目录查询拆为独立服务，不在本文件加入显示或科学公式。"
+      "max_lines": 625,
+      "reason": "RecordingService 负责 recording 注册、目录身份、访问服务委派与缓存生命周期，并持有 AnalysisMontageSnapshots、有界 WPF facts/index 缓存与 ICA 审查缓存；样本读取、格式适配、坏导处理、坏段与去伪迹均在独立模块。本轮仅透传离线预处理规格及删除录音时的 ica_review_cache 失效调用；超过 600 行高风险评审结论：后续任何新职责必须将注册/目录查询与分析门面拆分为独立服务。",
+      "follow_up": "Extract recording catalog/registration persistence from the analysis facade methods before adding new methods to RecordingService."
     },
     "backend/app/persistence/migrations.py": {
       "decision": "keep",
       "max_lines": 450,
-      "reason": "顺序迁移是单一、可审计的历史数据库升级入口。此次增加按需动态窗口、租约 fencing 和活动 attempt 唯一索引，当前不超过 450 行；每项迁移保持独立函数，升级版本有显式测试，暂不打散历史顺序。"
+      "reason": "顺序迁移是单一、可审计的历史数据库升级入口，438 行。此次仅注册独立模块中的迁移 26，新增可空受试者性别与记录年龄；历史升级、重复执行、外键与数据保留有显式测试。保持 450 行上限，暂不打散历史顺序。"
     },
     "backend/app/services/spectral_analysis.py": {
       "decision": "keep",
       "max_lines": 550,
-      "reason": "当前 424 行，集中编排频谱请求、质量检查和响应 provenance；连续预处理及有界缓存复用已按职责抽至 ContinuousPreprocessingService，FAA 与 PSD 使用同一所有者。科学数学仍归 ScientificSpectralGateway，STFT 有限上下文读取归 spectrogram_source。保留同一频谱用例的校验和组装，继续扩展前复核其职责边界。"
+      "reason": "当前约 491 行，集中编排频谱请求、质量检查和响应 provenance；连续预处理、坏段/去伪迹与有界缓存复用均由独立模块拥有。本轮仅透传离线预处理规格与完整坏段证据；继续扩展前复核其职责边界。"
     },
     "backend/app/services/algorithm_recording_context.py": {
       "decision": "keep",
-      "max_lines": 420,
-      "reason": "当前 410 行，集中将算法的类型化信号/频谱请求适配到记录服务，并校验实际样本范围、单位和角色通道顺序；不实现算法公式。本轮删除上下文私有 FAA 源缓存，改委派共享连续源，仅持有活动窗口所需映射引用。保持输入适配与生命周期在同一所有者，后续扩展前按信号请求/频谱请求职责重新评估。"
+      "max_lines": 440,
+      "reason": "当前约 423 行，集中将官方算法的类型化信号/频谱请求适配到记录服务，并校验实际样本范围、单位和角色通道顺序；不实现算法公式。本轮仅将官方 Run 配置的离线预处理规格透传至 load_spectrum / load_spectrogram / load_preprocessed_signals；后续扩展前按信号请求/频谱请求职责重新评估。"
     },
     "backend/app/persistence/repositories/dynamic_attempt.py": {
       "decision": "keep",
@@ -408,7 +414,7 @@
     },
     "backend/app/services/recording_import.py": {
       "decision": "keep",
-      "reason": "Single use case boundary for staging, validating, and atomically publishing EDF/BDF imports; the imported sidecar verification remains part of that transaction. Current size is 410 lines, only slightly above the soft limit, and splitting would separate validation from the publication transaction. Reassess before further growth.",
+      "reason": "Single 404-line use case boundary for staging, validating and atomically publishing EDF/BDF imports. Optional subject sex and recording age join the existing publication transaction; validation stays in the shared subject service. Imported sidecar validation and rollback remain together. Reassess before further growth.",
       "max_lines": 420
     }
   }
