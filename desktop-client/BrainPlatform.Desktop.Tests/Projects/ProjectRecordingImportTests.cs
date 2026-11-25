@@ -7,6 +7,29 @@ namespace BrainPlatform.Desktop.Tests.Projects;
 public sealed class ProjectRecordingImportTests
 {
     [Fact]
+    public async Task OptionalSubjectImportAndEditRefreshTheList()
+    {
+        var root = Directory.CreateTempSubdirectory("subject-import-edit-").FullName;
+        try
+        {
+            var client = new FakeClient();
+            var workspace = await CreateWorkspaceAsync(root, client);
+            await workspace.ImportRecordingAsync("test.edf", null, null, null, CancellationToken.None, "仅姓名");
+            Assert.Null(client.LastSubjectId);
+            Assert.Null(client.LastNewSubjectLocalCode);
+            Assert.Equal("仅姓名", client.LastNewSubjectName);
+            await workspace.EditRecordingAsync(Assert.Single(workspace.Recordings), "record", " S001 ", " 姓名 ");
+            var row = Assert.Single(workspace.Recordings);
+            Assert.Equal("S001 · 姓名", row.SubjectText);
+            Assert.Equal("record", row.Name);
+            Assert.Same(row, Assert.Single(workspace.CompletedRecordings));
+            await workspace.EditRecordingAsync(row, "record", "", "");
+            Assert.Equal("未关联", Assert.Single(workspace.Recordings).SubjectText);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public async Task ImportUsesSelectedProjectAndSubjectThenRefreshesOnlyItsImportedRows()
     {
         var root = Path.Combine(Path.GetTempPath(), "brain-platform-import-vm", Guid.NewGuid().ToString("N"));
@@ -40,6 +63,57 @@ public sealed class ProjectRecordingImportTests
 
         Assert.Equal("project-one", Assert.Single(client.ListedSubjectProjects));
         Assert.Equal("subject-1", Assert.Single(subjects).SubjectId);
+    }
+
+    [Fact]
+    public async Task RenameImportedRecordingPersistsThroughRefreshAndRetainsSourceIdentity()
+    {
+        var root = Directory.CreateTempSubdirectory("import-rename-").FullName;
+        try
+        {
+            var client = new FakeClient();
+            var workspace = await CreateWorkspaceAsync(root, client);
+            await workspace.RefreshImportedRecordingsAsync();
+            var original = Assert.Single(workspace.Recordings);
+            workspace.SelectedRecording = original;
+            Assert.True(original.CanRename);
+
+            await workspace.RenameRecordingAsync(original, "  静息复测  ");
+
+            var renamed = Assert.Single(workspace.Recordings);
+            Assert.Equal(original with { Name = "静息复测" }, renamed);
+            Assert.Same(renamed, workspace.SelectedRecording);
+            Assert.Same(renamed, Assert.Single(workspace.CompletedRecordings));
+            Assert.Equal(("project-one", "session-one"), client.LastRename);
+            workspace.RefreshRecordings();
+            await workspace.RefreshImportedRecordingsAsync();
+            Assert.Equal("静息复测", Assert.Single(workspace.Recordings).Name);
+            Assert.Equal("recording-one", Assert.Single(workspace.Recordings).RecordingId);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task InvalidOrFailedImportedRenameKeepsTheOriginalRow()
+    {
+        var root = Directory.CreateTempSubdirectory("import-rename-fail-").FullName;
+        try
+        {
+            var client = new FakeClient();
+            var workspace = await CreateWorkspaceAsync(root, client);
+            await workspace.RefreshImportedRecordingsAsync();
+            var original = Assert.Single(workspace.Recordings);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.RenameRecordingAsync(original, " \t"));
+            Assert.Null(client.LastRename);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.RenameRecordingAsync(
+                original with { SessionId = "another-project" }, "invalid"));
+            Assert.Null(client.LastRename);
+            client.RenameFailure = new ResearchProjectApiException(HttpStatusCode.NotFound, "RECORDING_SESSION_NOT_FOUND", "记录不存在");
+            await Assert.ThrowsAsync<ResearchProjectApiException>(() => workspace.RenameRecordingAsync(original, "new name"));
+            Assert.Same(original, Assert.Single(workspace.Recordings));
+            Assert.Same(original, Assert.Single(workspace.CompletedRecordings));
+        }
+        finally { Directory.Delete(root, recursive: true); }
     }
 
     [Fact]
@@ -133,6 +207,47 @@ public sealed class ProjectRecordingImportTests
         Assert.Empty(workspace.Recordings);
     }
 
+    [Fact]
+    public async Task RefactoredRenameAndImportDialogsLoadXamlResourcesAndLayoutCleanly()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"eeg-dialog-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var edfPath = Path.Combine(root, "recording-review.edf");
+            await File.WriteAllBytesAsync(edfPath, new byte[2048]);
+            var workspace = await CreateWorkspaceAsync(root, new FakeClient());
+
+            BrainPlatform.Desktop.Tests.Shared.WpfTestApplication.Run(() =>
+            {
+                var rename = new BrainPlatform.Desktop.Modules.Projects.Views.RenameRecordingDialog("  545456  ", "S001", "姓名");
+                var renameContent = Assert.IsAssignableFrom<System.Windows.FrameworkElement>(rename.Content);
+                renameContent.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+                Assert.Equal("545456", rename.RecordingName);
+                Assert.Equal("S001", rename.SubjectCode);
+                Assert.Equal("姓名", rename.SubjectName);
+                Assert.True(renameContent.DesiredSize.Width >= 440);
+                Assert.True(renameContent.DesiredSize.Height >= 220);
+
+                var import = new BrainPlatform.Desktop.Modules.Projects.Views.RecordingImportDialog(workspace, edfPath);
+                var importContent = Assert.IsAssignableFrom<System.Windows.FrameworkElement>(import.Content);
+                importContent.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+                Assert.True(importContent.DesiredSize.Width >= 496);
+                Assert.True(importContent.DesiredSize.Height >= 320);
+                var subjects = Assert.IsType<System.Windows.Controls.ComboBox>(import.FindName("SubjectsComboBox"));
+                Assert.Equal("不关联受试者", Assert.IsType<BackendResearchSubject>(subjects.SelectedItem).DisplayText);
+                subjects.SelectedIndex = 1;
+                var nameInput = Assert.IsType<System.Windows.Controls.TextBox>(import.FindName("NewNameBox"));
+                Assert.False(nameInput.IsReadOnly);
+                nameInput.Text = "仅姓名";
+            });
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static async Task<ProjectWorkspaceViewModel> CreateWorkspaceAsync(string root, FakeClient client)
     {
         var projectDirectory = Path.Combine(root, "project-one");
@@ -151,10 +266,13 @@ public sealed class ProjectRecordingImportTests
         public string? LastImportProjectId { get; private set; }
         public string? LastSubjectId { get; private set; }
         public string? LastNewSubjectLocalCode { get; private set; }
+        public string? LastNewSubjectName { get; private set; }
         public List<string> ListedSessionProjects { get; } = [];
         public List<string> ListedSubjectProjects { get; } = [];
         public string? LastDeleteProjectId { get; private set; }
         public string? LastDeleteSessionId { get; private set; }
+        public (string, string)? LastRename { get; private set; }
+        public Exception? RenameFailure { get; set; }
         public Func<string, CancellationToken, Task<IReadOnlyList<BackendResearchSession>>> ListSessions { get; set; } =
             (projectId, _) => Task.FromResult<IReadOnlyList<BackendResearchSession>>([
                 new("session-one", projectId, "subject-1", "recording-one", null, "", "")]);
@@ -183,7 +301,26 @@ public sealed class ProjectRecordingImportTests
         }
         public Task<BackendResearchSession> CreateSessionAsync(string projectId, CreateResearchSessionRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+        public Task<BackendResearchSession> RenameSessionAsync(string projectId, string sessionId, string name, CancellationToken cancellationToken)
+        {
+            LastRename = (projectId, sessionId);
+            if (RenameFailure is not null) return Task.FromException<BackendResearchSession>(RenameFailure);
+            var renamed = new BackendResearchSession(sessionId, projectId, "subject-1", "recording-one", null, name, "");
+            ListSessions = (_, _) => Task.FromResult<IReadOnlyList<BackendResearchSession>>([renamed]);
+            return Task.FromResult(renamed);
+        }
         public Task<BackendProjectRecordingDeletion> DeleteImportedRecordingAsync(string projectId, string sessionId, CancellationToken cancellationToken)
+            => DeleteCore(projectId, sessionId);
+
+        public Task<BackendResearchSession> EditSessionAsync(string projectId, string sessionId, EditResearchSessionRequest request, CancellationToken cancellationToken)
+        {
+            var session = new BackendResearchSession(sessionId, projectId, "subject-1", "recording-one", null,
+                request.Label, "", request.SubjectCode, request.SubjectName);
+            ListSessions = (_, _) => Task.FromResult<IReadOnlyList<BackendResearchSession>>([session]);
+            return Task.FromResult(session);
+        }
+
+        private Task<BackendProjectRecordingDeletion> DeleteCore(string projectId, string sessionId)
         {
             LastDeleteProjectId = projectId;
             LastDeleteSessionId = sessionId;
@@ -191,8 +328,9 @@ public sealed class ProjectRecordingImportTests
         }
         public Task<BackendImportedRecording> ImportRecordingAsync(string projectId, string filePath, string? subjectId,
             string? newSubjectLocalCode, string? channelConfigurationSnapshotJson, IProgress<long>? progress,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, string? newSubjectName = null)
         {
+            LastNewSubjectName = newSubjectName;
             LastImportProjectId = projectId;
             LastSubjectId = subjectId;
             LastNewSubjectLocalCode = newSubjectLocalCode;

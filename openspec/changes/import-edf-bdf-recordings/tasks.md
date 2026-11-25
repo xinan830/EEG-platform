@@ -40,3 +40,10 @@
 - [x] 6.4 Resolve imported EEG channels and compatible montage inputs from validated snapshots, excluding non-EEG/disabled inputs according to the central channel projection; return structured unavailable reasons when requirements cannot be met.
 - [x] 6.5 Add desktop/backend integration tests proving an imported recording can request and render a supported algorithm window, with channel order, units, absolute sample bounds, source hash, and montage identity validated end to end.
 - [x] 6.6 Run focused backend and desktop test suites plus OpenSpec validation; inspect changed business-file sizes and document any remaining environment limitations.
+
+## 7. Imported recording names and export feedback
+
+- [x] 7.1 Persist imported recording display names in the owning project's Session label through a typed project-scoped update; reject empty names and cross-project requests without modifying source identities or bytes.
+- [x] 7.2 Enable the shared rename action for imported recordings and restore saved display names across project refreshes; retain local WPF rename behavior.
+- [x] 7.3 Remove export status text from the review toolbar and use existing operation notifications while retaining cancellation and failure feedback.
+- [x] 7.4 Verify backend rename contracts, desktop rename persistence and export lifecycle, file-size policy, and OpenSpec validation.

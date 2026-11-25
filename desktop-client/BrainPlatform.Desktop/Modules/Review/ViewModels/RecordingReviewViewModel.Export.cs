@@ -32,10 +32,12 @@ public sealed partial class RecordingReviewViewModel
             await RecordingReviewSignalExporter.ExportAsync(targetPath, format,
                 (stream, token) => client.DownloadRawSignalExportAsync(directory, format, stream, token), cancellation.Token);
             SignalExportStatus = "整段录音已导出。";
+            notifications?.PublishSuccess(SignalExportStatus);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
             SignalExportStatus = "导出已取消。";
+            if (!analysisLifetime.IsCancellationRequested) notifications?.PublishInformation(SignalExportStatus);
         }
         catch
         {

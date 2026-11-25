@@ -26,6 +26,18 @@ The system SHALL associate a Recording with a Project through a Session that ref
 
 ## ADDED Requirements
 
+### Requirement: Rename an imported project recording
+The system SHALL persist a nonblank imported recording display name in its owning Session without changing immutable recording metadata or source bytes.
+
+#### Scenario: Rename and reload an imported record
+- **WHEN** a user renames an imported recording in a project
+- **THEN** the Session label SHALL persist the trimmed name and subsequent project listings SHALL return it
+- **AND** the original filename, recording ID, hash, and channel/montage provenance SHALL remain unchanged
+
+#### Scenario: Reject invalid rename scope or name
+- **WHEN** a rename targets another project's Session or supplies an empty or whitespace-only name
+- **THEN** the system SHALL return a structured error and SHALL leave existing Session and Recording metadata unchanged
+
 ### Requirement: Resolve desktop project identity consistently
 The backend SHALL resolve a desktop project's stable identifier to the same backend Project on repeated import operations, without creating duplicate projects for that desktop project.
 

@@ -46,8 +46,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionPreparationView.xaml": {
       "decision": "keep",
-      "max_lines": 565,
-      "reason": "Presentation-only preparation layout adds the impedance entry beside the existing preview action (560 lines). Detection window, physical mapping, thresholds and native lifecycle remain in dedicated acquisition components; no new data or signal logic enters this markup."
+      "max_lines": 590,
+      "reason": "582-line acquisition preparation composition adds one optional subject code/name card. Metadata persistence and validation remain in focused storage and ViewModel owners. No polling, device or scientific logic enters XAML; preserve the existing preparation layout and reassess extracting preparation cards before further growth."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Acquisition/Views/AcquisitionWorkspaceView.xaml": {
       "decision": "keep",
@@ -62,7 +62,7 @@
     "desktop-client/BrainPlatform.Desktop/Modules/Projects/Views/ProjectDetailView.xaml": {
       "decision": "keep",
       "max_lines": 700,
-      "reason": "职责是项目详情及其采集/记录操作呈现，当前已超过 600 行。本次仅替换状态与操作色为共享主题资源，不增加页面职责；保持现有区域结构以避免纯样式变更触发机械拆分。后续增加详情功能前需先评估按面板拆分。"
+      "reason": "高风险规模评审：678 行项目详情组合，本次只在已有记录表头与行模板同步增加受试者列并更新编辑入口名称；受试者表单、持久化和 HTTP 校验在独立所有者，页面未新增状态或业务逻辑。保留两处相同列定义防止布局回归，下一次扩充前按项目信息卡和记录列表面板拆分，保持工作区状态唯一。"
     },
     "desktop-client/BrainPlatform.Desktop/Shared/Controls/ScreenCalibrationView.xaml": {
       "decision": "split",
@@ -127,8 +127,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Projects/ViewModels/ProjectWorkspaceViewModel.cs": {
       "decision": "split",
-      "max_lines": 520,
-      "reason": "当前 504 行，集中维护项目选择、筛选分页及 WPF 录制列表状态；EDF/BDF 同步已放在独立 partial 和 API 适配器。现有 partial 保持一个项目工作区状态所有者，允许本次 504 行并保持软上限登记；后续扩展前先抽取录制目录呈现/分页职责。",
+        "max_lines": 540,
+        "reason": "当前 527 行，集中维护项目选择、筛选分页及 WPF 录制列表状态；EDF/BDF 同步与导入改名持久化位于现有 Import partial 和 API 适配器。本次仅在共同改名入口分发源类型并统一名称校验，保持一个工作区状态所有者；不为缩短行数机械搬移方法。后续扩展前先抽取录制目录呈现/分页职责。",
       "follow_up": "Extract the recording catalog row/paging presentation from project lifecycle coordination during separate project-workspace maintenance."
     },
     "desktop-client/BrainPlatform.Desktop/Assets/Topomap3D/connectome_layer.js": {

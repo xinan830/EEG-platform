@@ -1,5 +1,15 @@
 # Spec Delta
 
+## ADDED Requirements
+
+### Requirement: Export feedback preserves review toolbar layout
+The desktop SHALL present recording export completion, cancellation, and errors through the existing operation notification system without inserting status text between toolbar buttons.
+
+#### Scenario: Export finishes or is cancelled
+- **WHEN** a recording export finishes or the user cancels it
+- **THEN** review SHALL show the corresponding operation notification and restore the export button
+- **AND** the toolbar button spacing SHALL remain unchanged
+
 ## MODIFIED Requirements
 
 ### Requirement: Project recordings open in an immersive review workspace
@@ -36,8 +46,10 @@ The desktop SHALL read the manifest channel table and sample-major float64/V chu
 - **THEN** the source reader SHALL return ordered V/float64 channel samples and the corresponding file-relative sample range without loading the full recording
 - **AND** any declared discontinuity SHALL remain explicit and SHALL NOT be bridged or filled with fabricated samples
 
+## ADDED Requirements
+
 ### Requirement: Imported recordings use the shared offline algorithm panels
-The desktop SHALL allow supported offline algorithms to run on imported EDF/BDF recordings through the existing backend algorithm APIs, using the imported recording's immutable backend recording ID and the same scientific definitions, parameter validation, and result presentation as WPF recordings. Registration metadata SHALL be source-neutral; imported recordings SHALL NOT require a WPF recording directory. Only validated imported EEG channel and montage provenance MAY be offered as algorithm inputs.
+The desktop SHALL run supported offline algorithms on imported EDF/BDF recordings through the existing backend APIs, with their immutable backend recording ID and the same scientific definitions, validation, and presentation as WPF recordings. Registration SHALL be source-neutral, without requiring a WPF directory. Only validated imported EEG channel and montage provenance MAY be offered as inputs.
 
 #### Scenario: Run an algorithm on an imported recording
 - **WHEN** a user opens an available offline algorithm for an imported recording with valid metadata
@@ -49,3 +61,8 @@ The desktop SHALL allow supported offline algorithms to run on imported EDF/BDF 
 - **WHEN** the selected algorithm's required channels, montage, duration, or metadata are unavailable
 - **THEN** the desktop SHALL expose a structured unavailable reason from the backend or input resolver
 - **AND** it SHALL NOT submit a fabricated, zero-filled, or silently remapped request
+
+#### Scenario: Imported recording review selector is isolated to imported montage snapshots
+- **WHEN** a user opens an imported EDF or BDF recording in review
+- **THEN** the montage selector SHALL offer only validated montage snapshots carried by that recording's own import provenance
+- **AND** it SHALL NOT mix in unrelated current workspace montage profiles or fabricated system presets

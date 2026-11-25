@@ -1,0 +1,196 @@
+<Window x:Class="BrainPlatform.Desktop.Modules.Projects.Views.RecordingImportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="导入 EDF / BDF"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/BrandColors.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/ControlStyles.xaml" />
+                <ResourceDictionary Source="/BrainPlatform.Desktop;component/Shared/Styles/WorkspaceStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="ImportInputShellStyle" TargetType="Border">
+                <Setter Property="Background" Value="#FFFFFF" />
+                <Setter Property="BorderBrush" Value="#CBD5E1" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Height" Value="38" />
+                <Setter Property="Padding" Value="12,0" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="BorderBrush" Value="#94A3B8" />
+                    </Trigger>
+                    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                        <Setter Property="BorderBrush" Value="{StaticResource BlueBrandPrimaryBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="Background" Value="#F8FAFC" />
+                        <Setter Property="BorderBrush" Value="#E2E8F0" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ImportProgressBarStyle" TargetType="ProgressBar">
+                <Setter Property="Height" Value="6" />
+                <Setter Property="Background" Value="#E2E8F0" />
+                <Setter Property="Foreground" Value="{StaticResource BlueBrandPrimaryBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ProgressBar">
+                            <Grid>
+                                <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="3" />
+                                <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
+                                        Background="{TemplateBinding Foreground}" CornerRadius="3" />
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Border Width="496" Background="#FFFFFF" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="12"
+            Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="22" ShadowDepth="4" Direction="270" Color="#000000" Opacity="0.16" />
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="1" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- 标题栏 -->
+            <Grid Grid.Row="0" Margin="24,20,18,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel MouseLeftButtonDown="OnHeaderMouseLeftButtonDown" Background="Transparent">
+                    <TextBlock Text="导入 EDF / BDF" FontSize="17" FontWeight="Bold" Foreground="#0F172A" />
+                    <TextBlock Text="将脑电文件校验后关联到当前研究项目与受试者。" Margin="0,4,0,0"
+                               FontSize="12.5" Foreground="#64748B" />
+                </StackPanel>
+                <Button Grid.Column="1" Style="{StaticResource ModernCloseCrossButtonStyle}"
+                        Click="OnCloseOrCancelClick" VerticalAlignment="Top" ToolTip="关闭" />
+            </Grid>
+
+            <!-- 表单主体 -->
+            <StackPanel Grid.Row="1" Margin="24,18,24,20">
+                <!-- 文件摘要卡片 -->
+                <Border Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,18">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Background="{StaticResource BlueBrandSoftBrush}" CornerRadius="6"
+                                Padding="9,5" Margin="0,0,12,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="FormatBadgeText" Text="EDF" FontSize="12" FontWeight="Bold"
+                                       Foreground="{StaticResource BlueBrandPrimaryBrush}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="FileNameText" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="FileMetaText" Margin="0,3,0,0" FontSize="12" Foreground="#64748B"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 受试者选择 -->
+                <TextBlock Text="受试者（选填）" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" Margin="0,0,0,8" />
+                <ComboBox x:Name="SubjectsComboBox" Style="{StaticResource AppRoundedFilterComboBoxStyle}"
+                          SelectionChanged="OnSubjectSelectionChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+
+                <!-- 新受试者编号输入（仅选择“新建受试者编号…”时展示） -->
+                <StackPanel x:Name="NewSubjectPanel" Margin="0,14,0,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="受试者编号（选填）" FontSize="13" FontWeight="SemiBold" Foreground="#1E293B" />
+                    </StackPanel>
+                    <Border Style="{StaticResource ImportInputShellStyle}">
+                        <Grid VerticalAlignment="Center">
+                            <TextBox x:Name="NewCodeBox" BorderThickness="0" Background="Transparent"
+                                     FontSize="13.5" Foreground="#0F172A" VerticalAlignment="Center"
+                                     MaxLength="160" TextChanged="OnNewCodeTextChanged" />
+                            <TextBlock Text="例如：S-001（非可识别研究编号）" FontSize="13" Foreground="#94A3B8"
+                                       IsHitTestVisible="False" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=NewCodeBox}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <TextBlock Text="编号和姓名均可留空，导入后也可在记录中补填。" Margin="0,8,0,0" Foreground="#64748B" FontSize="12" />
+
+                <StackPanel Margin="0,12,0,0" Visibility="{Binding Visibility, ElementName=NewSubjectPanel}">
+                    <TextBlock Text="受试者姓名（选填）" Margin="0,0,0,8" FontSize="13" Foreground="#1E293B" />
+                    <Border Style="{StaticResource ImportInputShellStyle}">
+                        <TextBox x:Name="NewNameBox" MaxLength="160" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" FontSize="13.5" />
+                    </Border>
+                </StackPanel>
+
+                <!-- 进度条区域（仅上传中展示，避免静止灰色空槽） -->
+                <StackPanel x:Name="ProgressPanel" Visibility="Collapsed" Margin="0,16,0,0">
+                    <Grid Margin="0,0,0,6">
+                        <TextBlock Text="上传并校验中" FontSize="12" Foreground="#475569" FontWeight="Medium" />
+                        <TextBlock x:Name="ProgressPercentText" Text="0%" FontSize="12" Foreground="#2563EB"
+                                   FontWeight="SemiBold" HorizontalAlignment="Right" />
+                    </Grid>
+                    <ProgressBar x:Name="UploadProgressBar" Style="{StaticResource ImportProgressBarStyle}" Minimum="0" Maximum="100" Value="0" />
+                </StackPanel>
+
+                <!-- 状态/错误提示 -->
+                <TextBlock x:Name="StatusText" Visibility="Collapsed" Margin="0,12,0,0"
+                           FontSize="12.5" Foreground="#64748B" TextWrapping="Wrap" />
+
+                <!-- 导入成功摘要卡片 -->
+                <Border x:Name="ResultCard" Visibility="Collapsed" Margin="0,12,0,0"
+                        Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="12,10">
+                    <StackPanel>
+                        <TextBlock x:Name="ResultFactsText" FontSize="12.5" FontWeight="SemiBold" Foreground="#0F172A"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="ResultChannelsText" Margin="0,5,0,0" FontSize="12" Foreground="#64748B"
+                                   TextWrapping="Wrap" LineHeight="18" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 分割线 -->
+            <Border Grid.Row="2" Height="1" Background="#F1F5F9" />
+
+            <!-- 底部操作栏（统一左取消、右主操作） -->
+            <Border Grid.Row="3" Padding="24,14,24,16" Background="#FFFFFF" CornerRadius="0,0,12,12">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="CloseButton" Content="取消" Width="88" Height="36" Padding="0" Margin="0,0,10,0"
+                            Click="OnCloseOrCancelClick" Style="{StaticResource ModernDialogSecondaryButtonStyle}" />
+                    <Button x:Name="ImportButton" Content="开始导入" Width="108" Height="36" Padding="0"
+                            IsDefault="True" Click="OnImportClick"
+                            Style="{StaticResource ModernDialogPrimaryButtonStyle}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

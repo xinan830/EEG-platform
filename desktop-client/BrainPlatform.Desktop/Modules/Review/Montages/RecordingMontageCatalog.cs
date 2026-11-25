@@ -78,7 +78,6 @@ public static class RecordingMontageCatalog
         var incompatible = new List<IncompatibleRecordingMontage>();
         var acquisitionMontage = ReadAcquisitionMontage(manifest, out var acquisitionStatus);
         var recordingSnapshot = ReadChannelConfigurationSnapshot(manifest);
-        var acquisitionMontageAdded = false;
         if (acquisitionMontage is not null)
         {
             var acquisitionError = RecordingMontageCompatibility.GetError(
@@ -90,26 +89,44 @@ public static class RecordingMontageCatalog
             }
         }
 
-        // Official presets are generated, not stored with user profiles. Use
-        // the recorded channel snapshot so current device edits cannot replace
-        // this recording's source mapping; all candidates still pass validation.
-        var systemProfiles = recordingSnapshot is null || rawProjection.Status != EegChannelProjectionStatus.Applied
-            ? Array.Empty<MontageProfile>()
-            : SystemMontageProfileFactory.Create(recordingSnapshot);
+        // Imported EDF/BDF recordings are strictly self-contained: only the
+        // validated montages carried by their own sidecar snapshots belong in
+        // the selector, never current system profiles or fabricated presets.
         var importedProfiles = ReadMontageCatalogueSnapshot(manifest);
-        foreach (var profile in MontageProfileCatalogue.Deduplicate(
-                     systemProfiles.Concat(importedProfiles).Concat(currentProfiles).Where(profile => profile is not null)))
+        var acquisitionMontageAdded = false;
+        IEnumerable<MontageProfile> candidates;
+        if (IsImportedRecording(manifest))
         {
-            // The current configuration can have the same identity as the
-            // recorded montage while differing in UI-only fields. The review
-            // selector must contain the exact recorded snapshot instance,
-            // otherwise its default SelectedItem has no matching list item.
-            if (acquisitionMontage is not null &&
-                string.Equals(profile.Id, acquisitionMontage.Id, StringComparison.Ordinal) &&
-                string.Equals(profile.Fingerprint, acquisitionMontage.Fingerprint, StringComparison.Ordinal))
+            candidates = (acquisitionMontage is null ? Array.Empty<MontageProfile>() : [acquisitionMontage])
+                .Concat(importedProfiles);
+        }
+        else
+        {
+            // Official presets are generated, not stored with user profiles. Use
+            // the recorded channel snapshot so current device edits cannot replace
+            // this recording's source mapping; all candidates still pass validation.
+            var systemProfiles = recordingSnapshot is null || rawProjection.Status != EegChannelProjectionStatus.Applied
+                ? Array.Empty<MontageProfile>()
+                : SystemMontageProfileFactory.Create(recordingSnapshot);
+            candidates = systemProfiles
+                .Concat(importedProfiles)
+                .Concat(currentProfiles);
+        }
+
+        foreach (var profile in MontageProfileCatalogue.Deduplicate(
+                     candidates.Where(profile => profile is not null)))
+        {
+            // Keep the exact recorded snapshot instance when a candidate represents
+            // the same montage without visual or formula changes, while still letting
+            // updated local revisions (e.g. edited trace colors) remain selectable.
+            if (ReferenceEquals(profile, acquisitionMontage) ||
+                (acquisitionMontage is not null && IsEquivalentRecordedMontage(profile, acquisitionMontage)))
             {
-                compatible.Add(new CompatibleRecordingMontage(acquisitionMontage));
-                acquisitionMontageAdded = true;
+                if (!acquisitionMontageAdded)
+                {
+                    compatible.Add(new CompatibleRecordingMontage(acquisitionMontage));
+                    acquisitionMontageAdded = true;
+                }
                 continue;
             }
 
@@ -233,6 +250,55 @@ public static class RecordingMontageCatalog
             return [];
         }
     }
+
+    private static bool IsEquivalentRecordedMontage(MontageProfile candidate, MontageProfile recorded)
+    {
+        if (string.Equals(candidate.Id, recorded.Id, StringComparison.Ordinal) &&
+            string.Equals(candidate.Fingerprint, recorded.Fingerprint, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        if (!string.Equals(candidate.Id, recorded.Id, StringComparison.Ordinal) &&
+            !(candidate.Source == MontageProfileSource.System &&
+              recorded.Source == MontageProfileSource.System &&
+              string.Equals(candidate.Name.Trim(), recorded.Name.Trim(), StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        if (candidate.DerivedChannels.Count != recorded.DerivedChannels.Count)
+        {
+            return false;
+        }
+
+        var candidateAverage = (candidate.AverageReferenceLabels ?? [])
+            .Select(label => label.Trim())
+            .OrderBy(label => label, StringComparer.OrdinalIgnoreCase);
+        var recordedAverage = (recorded.AverageReferenceLabels ?? [])
+            .Select(label => label.Trim())
+            .OrderBy(label => label, StringComparer.OrdinalIgnoreCase);
+        if (!candidateAverage.SequenceEqual(recordedAverage, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return candidate.DerivedChannels
+            .OrderBy(channel => channel.DisplayOrder)
+            .Zip(recorded.DerivedChannels.OrderBy(channel => channel.DisplayOrder))
+            .All(pair =>
+                pair.First.DisplayOrder == pair.Second.DisplayOrder &&
+                string.Equals(pair.First.Name.Trim(), pair.Second.Name.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(pair.First.PositiveLabel.Trim(), pair.Second.PositiveLabel.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                pair.First.NegativeKind == pair.Second.NegativeKind &&
+                string.Equals(pair.First.Color?.Trim(), pair.Second.Color?.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                pair.First.NegativeLabels.Select(label => label.Trim())
+                    .SequenceEqual(pair.Second.NegativeLabels.Select(label => label.Trim()), StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static bool IsImportedRecording(LocalRawRecordingManifest manifest) =>
+        string.Equals(manifest.PayloadFormat, "edf-bdf", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(manifest.DeviceId, "imported", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsSignalChannel(AcquisitionChannel channel) =>
         channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar;

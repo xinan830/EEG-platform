@@ -29,6 +29,8 @@ See `proposal.md` for motivation and `specs/` for user-visible behavior. The bac
 
 ## Risks / Trade-offs
 
+Imported recording display names are project Session labels, updated by a typed project/session-scoped PATCH. The immutable Recording filename, ID, hash, sample bytes, and channel/montage provenance remain source metadata. The project list uses a nonblank Session label and otherwise the original filename. Review export feedback uses the existing operation notification center rather than allocating horizontal toolbar space; the export button still exposes cancellation.
+
 - [A desktop project may have no backend Project row yet] → Resolve it idempotently using the stable desktop ID before import; reject mismatched subject/session ownership.
 - [A process can stop between moving a staged file and committing SQLite] → Publish only after validation, delete the final file on ordinary transaction failure, and reconcile unreferenced imported files during startup without touching referenced or legacy sources.
 - [EDF/BDF may contain discontinuities, mixed channel types, unsupported units, or duplicate normalized labels] → Preserve source order and raw labels, validate channel metadata explicitly, expose discontinuities as breaks, and return structured errors instead of silently coercing data.
@@ -42,6 +44,13 @@ See `proposal.md` for motivation and `specs/` for user-visible behavior. The bac
 No existing recording file or row is rewritten. Keep existing imported recording rows and standalone import clients readable. If a persisted desktop/backend project identity field is required, add it as an additive idempotent SQLite migration and backfill nothing by guessing; desktop projects synchronize on first use. Rollback removes the new desktop entry points and adapter while leaving registered source recordings and existing project Session records intact.
 
 ## Testing Strategy
+
+### Follow-up defect verification (2026-11-25)
+
+- Imported rename: the action was disabled for backend rows and the only implementation wrote a local display-name file. The project-scoped Session update now persists names; regression tests cover trimming, reload, shared-source isolation, immutable source metadata/bytes, blank/oversized requests, and cross-project rejection. Local WPF rename is separately covered.
+- Review export feedback: a horizontal toolbar TextBlock held completion text and widened the ribbon. Completion/cancellation now use the existing notification center; errors retain the existing error path. Tests cover success, failure, cancellation, close cleanup, preserving destinations, and adjacent toolbar controls.
+- Focused validation: 31 backend tests and 37 desktop tests passed; changed business-file size assessments and whitespace checks passed. Desktop tests build into `.tmp/import-rename-export-20261125`, avoiding the running application output.
+- Broader desktop run: 133 passed / 11 failed. Ten failures in event-window dimensions/text, analysis presentation, and playback dragging also reproduce against the earlier `.tmp/push-verification-20261125` build. One real HTTP export acceptance test requires externally configured source/output/backend variables and is not configured. These do not constitute a full-suite pass. No manual UI or amplifier validation was performed for these two UI/metadata fixes.
 
 - Backend: streaming/cancellation cleanup, size/hash integrity, metadata validation, structured failures, idempotent project resolution, subject/session ownership, and atomic recording/session publication.
 - Desktop: selected project/subject request payloads, cancellation and failure state, project list merge, review source routing, cache identity, and return-to-project behavior.

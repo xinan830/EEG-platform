@@ -482,7 +482,7 @@ def test_cross_project_subject_and_malformed_file_leave_no_partial_records(tmp_p
     assert not list(recordings.storage_dir.glob(".import-*.part"))
 
 
-def test_duplicate_new_subject_code_rolls_back_recording_and_session(tmp_path: Path):
+def test_existing_subject_code_reuses_identity_for_second_import(tmp_path: Path):
     client, recordings, _ = _client(tmp_path)
     project_id = client.put("/api/projects/desktop/duplicate", json={"name": "Study"}).json()["project_id"]
     source = _edf_bytes(tmp_path / "duplicate.edf")
@@ -492,11 +492,12 @@ def test_duplicate_new_subject_code_rolls_back_recording_and_session(tmp_path: P
                             data={"new_subject_local_code": "S-01"}, files={"file": ("second.edf", source)})
 
     assert first.status_code == 201
-    assert duplicate.status_code == 409 and duplicate.json()["code"] == "SUBJECT_CODE_CONFLICT"
-    assert len(recordings.list_recordings()) == 1
-    assert len(client.get(f"/api/projects/{project_id}/sessions").json()) == 1
+    assert duplicate.status_code == 201
+    assert duplicate.json()["subject_id"] == first.json()["subject_id"]
+    assert len(recordings.list_recordings()) == 2
+    assert len(client.get(f"/api/projects/{project_id}/sessions").json()) == 2
     assert len(client.get(f"/api/projects/{project_id}/subjects").json()) == 1
-    assert len(list(recordings.storage_dir.glob("*.edf"))) == 1
+    assert len(list(recordings.storage_dir.glob("*.edf"))) == 2
 
 
 def test_project_delete_removes_unreferenced_imported_recording(tmp_path: Path):

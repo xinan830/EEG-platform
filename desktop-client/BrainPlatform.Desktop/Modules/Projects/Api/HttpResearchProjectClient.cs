@@ -36,9 +36,15 @@ public sealed class HttpResearchProjectClient(HttpClient httpClient) : IResearch
         SendAsync<BackendProjectRecordingDeletion>(HttpMethod.Delete,
             $"api/projects/{Escape(projectId)}/sessions/{Escape(sessionId)}", null, cancellationToken);
 
+    public Task<BackendResearchSession> RenameSessionAsync(string projectId, string sessionId, string name,
+        CancellationToken cancellationToken) =>
+        SendAsync<BackendResearchSession>(HttpMethod.Patch,
+            $"api/projects/{Escape(projectId)}/sessions/{Escape(sessionId)}",
+            new RenameResearchSessionRequest(name), cancellationToken);
+
     public async Task<BackendImportedRecording> ImportRecordingAsync(string projectId, string filePath, string? subjectId,
         string? newSubjectLocalCode, string? channelConfigurationSnapshotJson, IProgress<long>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string? newSubjectName = null)
     {
         using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
         using var content = new MultipartFormDataContent();
@@ -47,6 +53,7 @@ public sealed class HttpResearchProjectClient(HttpClient httpClient) : IResearch
         content.Add(source, "file", Path.GetFileName(filePath));
         if (subjectId is not null) content.Add(new StringContent(subjectId), "subject_id");
         if (newSubjectLocalCode is not null) content.Add(new StringContent(newSubjectLocalCode), "new_subject_local_code");
+        if (newSubjectName is not null) content.Add(new StringContent(newSubjectName), "new_subject_name");
         if (channelConfigurationSnapshotJson is not null)
             content.Add(new StringContent(channelConfigurationSnapshotJson), "channel_configuration_snapshot_json");
         var channelIdentity = await ReadExportChannelIdentityAsync(filePath, cancellationToken).ConfigureAwait(false);
@@ -59,6 +66,11 @@ public sealed class HttpResearchProjectClient(HttpClient httpClient) : IResearch
         return await response.Content.ReadFromJsonAsync<BackendImportedRecording>(JsonOptions, cancellationToken).ConfigureAwait(false)
             ?? throw new ResearchProjectApiException(response.StatusCode, "EMPTY_RESPONSE", "项目服务返回了空响应。");
     }
+
+    public Task<BackendResearchSession> EditSessionAsync(string projectId, string sessionId,
+        EditResearchSessionRequest request, CancellationToken cancellationToken) =>
+        SendAsync<BackendResearchSession>(HttpMethod.Patch,
+            $"api/projects/{Escape(projectId)}/sessions/{Escape(sessionId)}", request, cancellationToken);
 
     private static async Task<string?> ReadExportChannelIdentityAsync(string filePath, CancellationToken cancellationToken)
     {

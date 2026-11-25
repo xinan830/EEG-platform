@@ -17,6 +17,7 @@ from app.models.recording import RecordingSummary
 from app.persistence import connect_database
 from app.services.recording_identity import RECORDING_IMPORT_VERSION, canonical_channel_label
 from app.services.recordings import RecordingService
+from app.services.research_subjects import SubjectBindingError, resolve_subject
 
 CHUNK_BYTES = 1024 * 1024
 
@@ -41,7 +42,7 @@ class StagedRecordingImport:
 class ImportedProjectRecording:
     recording: RecordingSummary
     session_id: str
-    subject_id: str
+    subject_id: str | None
     project_id: str
 
 
@@ -101,12 +102,11 @@ class EdfBdfImportService:
         *,
         subject_id: str | None = None,
         new_subject_local_code: str | None = None,
+        new_subject_name: str | None = None,
         channel_configuration_snapshot_json: str | None = None,
         export_channel_identity_json: str | None = None,
         check_cancelled: Callable[[], None] = lambda: None,
     ) -> ImportedProjectRecording:
-        if (subject_id is None) == (new_subject_local_code is None):
-            raise RecordingImportError("PROJECT_SUBJECT_REQUIRED", "请选择已有受试者或输入新的受试者编号。", 422)
         metadata = self._inspect(staged.path, channel_configuration_snapshot_json,
                                  export_channel_identity_json, staged.sha256)
         check_cancelled()
@@ -118,31 +118,22 @@ class EdfBdfImportService:
             with connect_database(self.database_path, foreign_keys=True) as connection:
                 if connection.execute("SELECT 1 FROM projects WHERE project_id = ?", (project_id,)).fetchone() is None:
                     raise RecordingImportError("PROJECT_NOT_FOUND", "目标项目不存在。", 404)
-                if subject_id is not None:
-                    subject = connection.execute(
-                        "SELECT subject_id FROM subjects WHERE subject_id = ? AND project_id = ?", (subject_id, project_id)
-                    ).fetchone()
-                    if subject is None:
-                        raise RecordingImportError("SUBJECT_PROJECT_MISMATCH", "受试者不属于当前项目。", 409)
-                else:
-                    if not subject_code:
-                        raise RecordingImportError("SUBJECT_CODE_INVALID", "受试者编号不能为空。", 422)
-                    subject_id = uuid4().hex
-                    connection.execute("INSERT INTO subjects VALUES (?, ?, ?, ?)",
-                                       (subject_id, project_id, subject_code, created_at))
+                subject_id = resolve_subject(connection, project_id, created_at, subject_id=subject_id,
+                                             code=subject_code, name=new_subject_name)
                 self._insert_recording(connection, recording_id, stored_name, staged, created_at, metadata)
                 connection.execute("INSERT INTO sessions VALUES (?, ?, ?, ?, NULL, '', ?)",
                                    (session_id, project_id, subject_id, recording_id, created_at))
                 connection.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (created_at, project_id))
                 check_cancelled()
+        except SubjectBindingError as exc:
+            destination.unlink(missing_ok=True)
+            raise RecordingImportError(exc.code, str(exc), exc.status_code) from exc
         except sqlite3.IntegrityError as exc:
             destination.unlink(missing_ok=True)
             raise RecordingImportError("SUBJECT_CODE_CONFLICT", "受试者编号已在当前项目中使用。", 409) from exc
         except BaseException:
             destination.unlink(missing_ok=True)
             raise
-        if subject_id is None:
-            raise AssertionError("validated project import must have a subject")
         return ImportedProjectRecording(self.recordings.require_recording(recording_id), session_id, subject_id, project_id)
 
     def _publish(self, staged: StagedRecordingImport, project_id: str | None,

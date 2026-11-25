@@ -35,11 +35,11 @@ def test_project_hierarchy_uses_internal_subject_code_and_session_recording(tmp_
     assert client.get(f"/api/projects/{project_id}/sessions").json()[0]["recording_id"] == recording_id
 
 
-def test_project_rejects_pii_and_duplicate_subject_code(tmp_path: Path):
+def test_project_accepts_optional_name_rejects_unrelated_pii_and_duplicate_code(tmp_path: Path):
     client, _ = _client(tmp_path)
     project_id = client.post("/api/projects", json={"name": "Study"}).json()["project_id"]
-    assert client.post(f"/api/projects/{project_id}/subjects", json={"local_code": "S-1", "name": "private"}).status_code == 422
-    assert client.post(f"/api/projects/{project_id}/subjects", json={"local_code": "S-1"}).status_code == 201
+    assert client.post(f"/api/projects/{project_id}/subjects", json={"local_code": "S-1", "address": "private"}).status_code == 422
+    assert client.post(f"/api/projects/{project_id}/subjects", json={"local_code": "S-1", "name": "自填姓名"}).status_code == 201
     duplicate = client.post(f"/api/projects/{project_id}/subjects", json={"local_code": "S-1"})
     assert duplicate.status_code == 409
     assert duplicate.json()["code"] == "SUBJECT_CODE_CONFLICT"

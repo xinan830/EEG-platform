@@ -1,4 +1,4 @@
-"""SQLite-backed local research projects without participant PII."""
+"""SQLite-backed local research projects and optional subject associations."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from app.models.research_project import (
 )
 from app.persistence import connect_database, migrate_database
 from app.persistence.clock import utc_now
+from app.services.research_subjects import edit_session_subject
 
 
 class ProjectConflictError(ValueError):
@@ -66,10 +67,14 @@ class ProjectService:
 
     def create_subject(self, project_id: str, request: SubjectCreateRequest) -> Subject:
         self._require_project(project_id)
-        subject = Subject(subject_id=uuid4().hex, project_id=project_id, local_code=request.local_code.strip(), created_at=utc_now())
+        subject = Subject(subject_id=uuid4().hex, project_id=project_id,
+                          local_code=(request.local_code or "").strip() or None, name=request.name.strip(), created_at=utc_now())
+        if not subject.local_code and not subject.name:
+            raise ValueError("受试者编号和姓名至少填写一项。")
         try:
             with self._connect() as connection:
-                connection.execute("INSERT INTO subjects VALUES (?, ?, ?, ?)", tuple(subject.model_dump().values()))
+                connection.execute("INSERT INTO subjects(subject_id, project_id, local_code, created_at, name) VALUES (?, ?, ?, ?, ?)",
+                                   (subject.subject_id, project_id, subject.local_code, subject.created_at, subject.name))
         except sqlite3.IntegrityError as exc:
             raise ProjectConflictError("subject local code already exists in this project") from exc
         return subject
@@ -98,7 +103,8 @@ class ProjectService:
 
     def create_session(self, project_id: str, request: SessionCreateRequest) -> Session:
         self._require_project(project_id)
-        self._require_project_value("subjects", "subject_id", request.subject_id, project_id)
+        if request.subject_id is not None:
+            self._require_project_value("subjects", "subject_id", request.subject_id, project_id)
         if request.condition_id:
             self._require_project_value("conditions", "condition_id", request.condition_id, project_id)
         self._require_recording(request.recording_id)
@@ -106,14 +112,18 @@ class ProjectService:
                           recording_id=request.recording_id, condition_id=request.condition_id,
                           label=request.label, created_at=utc_now())
         with self._connect() as connection:
-            connection.execute("INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?)", tuple(session.model_dump().values()))
+            connection.execute("INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?)",
+                               (session.session_id, project_id, session.subject_id, session.recording_id,
+                                session.condition_id, session.label, session.created_at))
             connection.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (session.created_at, project_id))
         return session
 
     def list_sessions(self, project_id: str) -> list[Session]:
         self._require_project(project_id)
         with self._connect() as connection:
-            rows = connection.execute("SELECT * FROM sessions WHERE project_id = ? ORDER BY created_at", (project_id,)).fetchall()
+            rows = connection.execute("""SELECT s.*, u.local_code AS subject_code, COALESCE(u.name, '') AS subject_name
+                FROM sessions s LEFT JOIN subjects u ON u.subject_id = s.subject_id
+                WHERE s.project_id = ? ORDER BY s.created_at""", (project_id,)).fetchall()
         return [Session(**dict(row)) for row in rows]
 
     def project_recording_ids(self, project_id: str) -> set[str]:
@@ -121,6 +131,36 @@ class ProjectService:
         with self._connect() as connection:
             rows = connection.execute("SELECT DISTINCT recording_id FROM sessions WHERE project_id = ?", (project_id,)).fetchall()
         return {str(row["recording_id"]) for row in rows}
+
+    def rename_session(self, project_id: str, session_id: str, label: str, *,
+                       subject_metadata: tuple[str | None, str | None] | None = None) -> Session:
+        """Rename a project recording without mutating its immutable source."""
+        normalized = label.strip()
+        if not normalized or len(normalized) > 4000:
+            raise ValueError("recording name must contain 1 to 4000 characters")
+        with self._connect() as connection:
+            current = connection.execute(
+                "SELECT subject_id FROM sessions WHERE session_id = ? AND project_id = ?",
+                (session_id, project_id)).fetchone()
+            if current is None:
+                raise KeyError("recording session not found")
+            if subject_metadata is not None:
+                subject_id = edit_session_subject(connection, project_id, current["subject_id"],
+                                                  utc_now(), *subject_metadata)
+                connection.execute("UPDATE sessions SET subject_id = ? WHERE session_id = ?", (subject_id, session_id))
+            result = connection.execute(
+                "UPDATE sessions SET label = ? WHERE session_id = ? AND project_id = ?",
+                (normalized, session_id, project_id),
+            )
+            if result.rowcount != 1:
+                raise KeyError("recording session not found")
+            connection.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (utc_now(), project_id))
+            row = connection.execute(
+                """SELECT s.*, u.local_code AS subject_code, COALESCE(u.name, '') AS subject_name
+                FROM sessions s LEFT JOIN subjects u ON u.subject_id = s.subject_id
+                WHERE s.session_id = ? AND s.project_id = ?""", (session_id, project_id),
+            ).fetchone()
+        return Session(**dict(row))
 
     def delete_imported_recording(self, project_id: str, session_id: str) -> str:
         """Remove an imported EDF/BDF recording from a project by deleting its Session link."""

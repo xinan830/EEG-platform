@@ -93,16 +93,20 @@ public sealed class BackendRecordingAccessSessionTests
             ImportMontageCatalogueSnapshotJson = JsonSerializer.Serialize(new[] { montage }),
         };
 
+        var externalProfile = new MontageProfile("workspace-other", "系统其他导联", "", MontageProfileSource.User,
+            "device", "fingerprint", channelSnapshot,
+            [new("F3-REF", "F3", MontageNegativeKind.OriginalHardwareReference, [], 0)],
+            1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, "other-fingerprint");
         var session = new BackendRecordingAccessSession(
             new FakeClient((_, _, _, _) => throw new NotSupportedException()), recording, Project());
-        var catalog = RecordingMontageCatalog.Build(session.Manifest, []);
+        var catalog = RecordingMontageCatalog.Build(session.Manifest, [externalProfile]);
 
         Assert.Equal(recording.ImportChannelConfigurationSnapshotJson,
             session.Manifest.HardwareConfiguration["channel_configuration_snapshot_json"]);
         Assert.Equal(recording.ImportMontageConfigurationSnapshotJson,
             session.Manifest.HardwareConfiguration["montage_configuration_snapshot_json"]);
         Assert.Equal("saved", catalog.AcquisitionMontage?.Id);
-        Assert.Contains(catalog.CompatibleViewingMontages, item => item.Profile.Id == "saved");
+        Assert.Equal(["saved"], catalog.CompatibleViewingMontages.Select(item => item.Profile.Id));
     }
 
     [Fact]
@@ -214,8 +218,10 @@ public sealed class BackendRecordingAccessSessionTests
         public Task<BackendResearchSubject> CreateSubjectAsync(string projectId, string localCode, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<BackendResearchSession>> ListSessionsAsync(string projectId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<BackendResearchSession> CreateSessionAsync(string projectId, CreateResearchSessionRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<BackendResearchSession> RenameSessionAsync(string projectId, string sessionId, string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<BackendResearchSession> EditSessionAsync(string projectId, string sessionId, EditResearchSessionRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<BackendProjectRecordingDeletion> DeleteImportedRecordingAsync(string projectId, string sessionId, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<BackendImportedRecording> ImportRecordingAsync(string projectId, string filePath, string? subjectId, string? newSubjectLocalCode, string? channelConfigurationSnapshotJson, IProgress<long>? progress, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<BackendImportedRecording> ImportRecordingAsync(string projectId, string filePath, string? subjectId, string? newSubjectLocalCode, string? channelConfigurationSnapshotJson, IProgress<long>? progress, CancellationToken cancellationToken, string? newSubjectName = null) => throw new NotSupportedException();
         public Task<BackendRecording> GetRecordingAsync(string recordingId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<BackendRawSampleRange> ReadRawSamplesAsync(string recordingId, long startSample, long endSample, CancellationToken cancellationToken) => read(recordingId, startSample, endSample, cancellationToken);
     }

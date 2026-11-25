@@ -19,23 +19,35 @@ public sealed record CreateSubjectRequest([property: JsonPropertyName("local_cod
 public sealed record BackendResearchSubject(
     [property: JsonPropertyName("subject_id")] string SubjectId,
     [property: JsonPropertyName("project_id")] string ProjectId,
-    [property: JsonPropertyName("local_code")] string LocalCode,
-    [property: JsonPropertyName("created_at")] string CreatedAt);
+    [property: JsonPropertyName("local_code")] string? LocalCode,
+    [property: JsonPropertyName("created_at")] string CreatedAt,
+    [property: JsonPropertyName("name")] string Name = "")
+{
+    public string DisplayText => new RecordingSubject(LocalCode ?? "", Name).DisplayText;
+}
 
 public sealed record CreateResearchSessionRequest(
-    [property: JsonPropertyName("subject_id")] string SubjectId,
+    [property: JsonPropertyName("subject_id")] string? SubjectId,
     [property: JsonPropertyName("recording_id")] string RecordingId,
     [property: JsonPropertyName("condition_id")] string? ConditionId = null,
     [property: JsonPropertyName("label")] string Label = "");
 
+public sealed record RenameResearchSessionRequest([property: JsonPropertyName("label")] string Label);
+public sealed record EditResearchSessionRequest(
+    [property: JsonPropertyName("label")] string Label,
+    [property: JsonPropertyName("subject_code")] string SubjectCode,
+    [property: JsonPropertyName("subject_name")] string SubjectName);
+
 public sealed record BackendResearchSession(
     [property: JsonPropertyName("session_id")] string SessionId,
     [property: JsonPropertyName("project_id")] string ProjectId,
-    [property: JsonPropertyName("subject_id")] string SubjectId,
+    [property: JsonPropertyName("subject_id")] string? SubjectId,
     [property: JsonPropertyName("recording_id")] string RecordingId,
     [property: JsonPropertyName("condition_id")] string? ConditionId,
     [property: JsonPropertyName("label")] string Label,
-    [property: JsonPropertyName("created_at")] string CreatedAt);
+    [property: JsonPropertyName("created_at")] string CreatedAt,
+    [property: JsonPropertyName("subject_code")] string? SubjectCode = null,
+    [property: JsonPropertyName("subject_name")] string SubjectName = "");
 
 public sealed record BackendProjectRecordingDeletion(
     [property: JsonPropertyName("session_id")] string SessionId,
@@ -45,7 +57,7 @@ public sealed record BackendProjectRecordingDeletion(
 public sealed record BackendImportedRecording(
     [property: JsonPropertyName("project_id")] string ProjectId,
     [property: JsonPropertyName("session_id")] string SessionId,
-    [property: JsonPropertyName("subject_id")] string SubjectId,
+    [property: JsonPropertyName("subject_id")] string? SubjectId,
     [property: JsonPropertyName("recording_id")] string RecordingId,
     [property: JsonPropertyName("original_name")] string OriginalName,
     [property: JsonPropertyName("extension")] string Extension,

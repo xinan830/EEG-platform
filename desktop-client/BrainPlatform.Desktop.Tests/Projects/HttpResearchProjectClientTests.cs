@@ -8,6 +8,62 @@ namespace BrainPlatform.Desktop.Tests.Projects;
 
 public sealed class HttpResearchProjectClientTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("姓名")]
+    public async Task ImportSupportsNoSubjectOrANameWithoutCode(string? subjectName)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.edf");
+        await File.WriteAllBytesAsync(path, [1, 2, 3]);
+        using var http = new HttpClient(new StubHandler(async (request, token) =>
+        {
+            var body = Encoding.UTF8.GetString(await request.Content!.ReadAsByteArrayAsync(token));
+            Assert.DoesNotContain("name=subject_id", body);
+            Assert.DoesNotContain("name=new_subject_local_code", body);
+            if (subjectName is null) Assert.DoesNotContain("new_subject_name", body);
+            else Assert.Contains(subjectName, body);
+            return new HttpResponseMessage(HttpStatusCode.Created) { Content = JsonContent.Create(new
+            {
+                project_id = "p", session_id = "s", subject_id = (string?)null, recording_id = "r",
+                original_name = "record.edf", extension = ".edf", created_at = "", sfreq = 512, duration_s = 1,
+                channels = new[] { "F3" }, channel_types = new[] { "eeg" }, channel_units = new[] { "V" },
+                source_sha256 = new string('a', 64), file_size_bytes = 3
+            }) };
+        })) { BaseAddress = new Uri("http://localhost/") };
+        try
+        {
+            var result = await new HttpResearchProjectClient(http).ImportRecordingAsync("p", path, null, null,
+                null, null, CancellationToken.None, subjectName);
+            Assert.Equal("r", result.RecordingId);
+            Assert.Null(result.SubjectId);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task EditSessionSendsOptionalSubjectFieldsAndReadsNullableSubject()
+    {
+        string? body = null;
+        using var http = new HttpClient(new StubHandler(request =>
+        {
+            Assert.Equal(HttpMethod.Patch, request.Method);
+            Assert.Equal("/api/projects/project-1/sessions/session-1", request.RequestUri!.AbsolutePath);
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new
+            {
+                session_id = "session-1", project_id = "project-1", subject_id = (string?)null,
+                recording_id = "recording-1", condition_id = (string?)null, label = "record", created_at = "",
+                subject_code = (string?)null, subject_name = ""
+            }) };
+        })) { BaseAddress = new Uri("http://localhost/") };
+        var result = await new HttpResearchProjectClient(http).EditSessionAsync("project-1", "session-1",
+            new EditResearchSessionRequest("record", "", ""), CancellationToken.None);
+        Assert.Null(result.SubjectId);
+        using var json = JsonDocument.Parse(body!);
+        Assert.Equal("", json.RootElement.GetProperty("subject_code").GetString());
+        Assert.Equal("", json.RootElement.GetProperty("subject_name").GetString());
+    }
+
     [Fact]
     public async Task EnsureProjectUsesStableIdAndExplicitJsonNames()
     {
@@ -77,6 +133,32 @@ public sealed class HttpResearchProjectClientTests
         Assert.Equal(HttpMethod.Delete, captured!.Method);
         Assert.Equal("/api/projects/project-1/sessions/session-1", captured.RequestUri!.AbsolutePath);
         Assert.True(result.RecordingDeleted);
+    }
+
+    [Fact]
+    public async Task RenameSessionPatchesOnlyTheProjectScopedDisplayName()
+    {
+        using var http = new HttpClient(new StubHandler(request =>
+        {
+            Assert.Equal(HttpMethod.Patch, request.Method);
+            Assert.Equal("/api/projects/project-1/sessions/session-1", request.RequestUri!.AbsolutePath);
+            using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+            Assert.Equal("复测", body.RootElement.GetProperty("label").GetString());
+            Assert.Single(body.RootElement.EnumerateObject());
+            Assert.Single(request.Headers.GetValues("X-Request-ID"));
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new { session_id = "session-1", project_id = "project-1",
+                    subject_id = "subject-1", recording_id = "recording-1", condition_id = (string?)null,
+                    label = "复测", created_at = "2026-11-25T00:00:00Z" }),
+            };
+        })) { BaseAddress = new Uri("http://localhost/") };
+
+        var result = await new HttpResearchProjectClient(http).RenameSessionAsync(
+            "project-1", "session-1", "复测", CancellationToken.None);
+
+        Assert.Equal("复测", result.Label);
+        Assert.Equal("recording-1", result.RecordingId);
     }
 
     [Fact]

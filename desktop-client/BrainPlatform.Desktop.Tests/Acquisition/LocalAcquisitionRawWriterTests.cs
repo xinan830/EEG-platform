@@ -15,10 +15,11 @@ public sealed class LocalAcquisitionRawWriterTests
             await using var writer = await factory.CreateAsync(
                 Guid.NewGuid(),
                 metadata,
-                new AcquisitionProjectContext("project", "P001", "Test", directory, "{}"),
+                new AcquisitionProjectContext("project", "P001", "Test", directory, "{}", "S001", "测试姓名"),
                 directory,
                 CancellationToken.None);
             var sessionDirectory = writer.RecordingDirectory;
+            Assert.Equal(new RecordingSubject("S001", "测试姓名"), RecordingMetadataStore.ReadSubject(sessionDirectory));
 
             await writer.AppendBatchAsync(Batch(0), CancellationToken.None);
             await writer.AppendGapAsync(new AcquisitionGap(2, 3, 2, DateTimeOffset.UtcNow), CancellationToken.None);
@@ -35,6 +36,7 @@ public sealed class LocalAcquisitionRawWriterTests
             Assert.Equal(2, firstChunk.ReadInt32());
             Assert.NotEqual(0, firstChunk.ReadInt64());
             using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(sessionDirectory, "manifest.json")));
+            Assert.False(manifest.RootElement.GetProperty("Project").TryGetProperty("SubjectName", out _));
             Assert.Equal("test", manifest.RootElement.GetProperty("HardwareConfiguration").GetProperty("source").GetString());
             var audit = await File.ReadAllTextAsync(Path.Combine(sessionDirectory, "audit.jsonl"));
             Assert.Contains("sample_gap", audit);

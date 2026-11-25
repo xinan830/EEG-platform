@@ -48,6 +48,8 @@ public sealed class LocalAcquisitionRawWriterFactory : IAcquisitionRawWriterFact
         AcquisitionProjectContext project, string directory, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(directory);
+        if (!string.IsNullOrWhiteSpace(project.SubjectCode) || !string.IsNullOrWhiteSpace(project.SubjectName))
+            await RecordingMetadataStore.SaveAsync(directory, null, new(project.SubjectCode, project.SubjectName), cancellationToken);
 
         var manifestPath = Path.Combine(directory, "manifest.json");
         var manifest = new LocalRawManifest(

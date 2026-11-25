@@ -8,11 +8,12 @@ from app.core.api_contract import error_response
 from app.models.recording import ImportedProjectRecordingResponse
 from app.models.research_project import (
     ConditionCreateRequest, DesktopProjectEnsureRequest, ProjectCreateRequest,
-    ProjectRecordingDeletionResponse, SessionCreateRequest, SubjectCreateRequest,
+    ProjectRecordingDeletionResponse, Session, SessionCreateRequest, SessionRenameRequest, SubjectCreateRequest,
 )
 from app.services.recording_import import EdfBdfImportService, RecordingImportError
 from app.api.recording_uploads import publish_upload, stage_upload
 from app.services.projects import ProjectConflictError, ProjectService
+from app.services.research_subjects import SubjectBindingError
 
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -76,6 +77,23 @@ def list_sessions(project_id: str, request: Request):
     return _read(request, lambda: _service(request).list_sessions(project_id))
 
 
+@router.patch("/{project_id}/sessions/{session_id}", response_model=Session)
+def rename_project_recording(project_id: str, session_id: str, payload: SessionRenameRequest, request: Request):
+    try:
+        metadata = (payload.subject_code, payload.subject_name) if {"subject_code", "subject_name"} & payload.model_fields_set else None
+        session = _service(request).rename_session(project_id, session_id, payload.label, subject_metadata=metadata)
+    except SubjectBindingError as exc:
+        return error_response(request, exc.status_code, exc.code, str(exc))
+    except KeyError:
+        return error_response(request, 404, "RECORDING_SESSION_NOT_FOUND", "项目中的记录不存在")
+    request.app.state.audit_service.record(
+        "recording.rename_project", str(getattr(request.state, "request_id", "unknown")),
+        recording_id=session.recording_id, session_id=session_id,
+        parameters={"project_id": project_id},
+    )
+    return session
+
+
 @router.delete("/{project_id}/sessions/{session_id}", response_model=ProjectRecordingDeletionResponse)
 def delete_project_recording(project_id: str, session_id: str, request: Request):
     try:
@@ -111,6 +129,7 @@ async def import_project_recording(
     file: UploadFile = File(...),
     subject_id: str | None = Form(None),
     new_subject_local_code: str | None = Form(None),
+    new_subject_name: str | None = Form(None),
     channel_configuration_snapshot_json: str | None = Form(None),
     export_channel_identity_json: str | None = Form(None),
 ):
@@ -120,6 +139,7 @@ async def import_project_recording(
         staged = await stage_upload(request, file, importer)
         result = await publish_upload(request, lambda check: importer.publish_project(
             staged, project_id, subject_id=subject_id, new_subject_local_code=new_subject_local_code,
+            new_subject_name=new_subject_name,
             channel_configuration_snapshot_json=channel_configuration_snapshot_json,
             export_channel_identity_json=export_channel_identity_json,
             check_cancelled=check,
@@ -171,3 +191,5 @@ def _mutate(request: Request, operation: Callable[[], object]):
     except KeyError as exc:
         code = "RECORDING_NOT_FOUND" if "recording" in str(exc) else "PROJECT_REFERENCE_NOT_FOUND"
         return error_response(request, 404, code, "项目关联资源不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "PROJECT_METADATA_INVALID", str(exc))

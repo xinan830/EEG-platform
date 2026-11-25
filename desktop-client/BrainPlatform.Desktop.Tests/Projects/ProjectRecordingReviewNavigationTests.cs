@@ -39,6 +39,37 @@ public sealed class ProjectRecordingReviewNavigationTests
         }
     }
 
+    [Fact]
+    public async Task LocalRecordingRenamePersistsWithoutChangingDirectoryOrSessionIdentity()
+    {
+        var root = Directory.CreateTempSubdirectory("local-recording-rename-").FullName;
+        try
+        {
+            var directory = Path.Combine(root, "project", "recordings", "recording");
+            Directory.CreateDirectory(directory);
+            WriteManifest(directory, Guid.NewGuid());
+            var manifest = await File.ReadAllBytesAsync(Path.Combine(directory, "manifest.json"));
+            var store = new ResearchProjectStore(Path.Combine(root, "projects.json"));
+            await store.SaveAsync(new ResearchProject("project", "P001", "项目", "", "", [], "tester",
+                Path.Combine(root, "project"), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow), CancellationToken.None);
+            var workspace = new ProjectWorkspaceViewModel(new OperationNotificationCenter(), store);
+            await workspace.RefreshAsync();
+            var original = Assert.Single(workspace.Recordings);
+
+            await workspace.RenameRecordingAsync(original, "  本地复测  ");
+            workspace.RefreshRecordings();
+
+            Assert.Equal(original with { Name = "本地复测" }, Assert.Single(workspace.Recordings));
+            await workspace.EditRecordingAsync(Assert.Single(workspace.Recordings), "本地复测", "S001", "姓名");
+            workspace.RefreshRecordings();
+            Assert.Equal("S001 · 姓名", Assert.Single(workspace.Recordings).SubjectText);
+            await workspace.RenameRecordingAsync(Assert.Single(workspace.Recordings), "再次命名");
+            Assert.Equal("S001 · 姓名", Assert.Single(workspace.Recordings).SubjectText);
+            Assert.Equal(manifest, await File.ReadAllBytesAsync(Path.Combine(directory, "manifest.json")));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     private static void WriteManifest(string directory, Guid sessionId)
     {
         var manifest = new

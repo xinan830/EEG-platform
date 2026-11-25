@@ -68,6 +68,8 @@ public partial class ProjectDetailView : UserControl
             return;
         }
         Workspace.Acquisition.SelectedProject = project;
+        Workspace.Acquisition.SubjectCode = string.Empty;
+        Workspace.Acquisition.SubjectName = string.Empty;
         (Window.GetWindow(this) as IDesktopNavigation)?.ShowAcquisitionPreparationView();
     }
 
@@ -147,7 +149,7 @@ public partial class ProjectDetailView : UserControl
         {
             if (sender is FrameworkElement { DataContext: ProjectRecordingRow recording } && menu.Items.Count > 0 &&
                 menu.Items[0] is MenuItem renameItem)
-                renameItem.IsEnabled = recording.CanRenameLocally;
+                renameItem.IsEnabled = recording.CanRename;
             menu.PlacementTarget = sender as UIElement;
             menu.IsOpen = true;
         }
@@ -156,30 +158,10 @@ public partial class ProjectDetailView : UserControl
     private async void OnRenameRecordingClick(object sender, RoutedEventArgs e)
     {
         if (GetRecordingFromMenu(sender) is not { } recording) return;
-        var input = new TextBox { Text = recording.Name, MinWidth = 300, Margin = new Thickness(0, 10, 0, 16) };
-        var dialog = new Window
-        {
-            Title = "编辑记录名称", Owner = Window.GetWindow(this), Width = 390, Height = 170,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize,
-            ShowInTaskbar = false,
-        };
-        var confirm = new Button { Content = "保存", Width = 78, IsDefault = true };
-        confirm.Click += (_, _) => dialog.DialogResult = true;
-        dialog.Content = new StackPanel
-        {
-            Margin = new Thickness(22),
-            Children =
-            {
-                new TextBlock { Text = "记录名称" }, input,
-                new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                    Children = { new Button { Content = "取消", Width = 78, IsCancel = true, Margin = new Thickness(0, 0, 8, 0) }, confirm },
-                },
-            },
-        };
+        var dialog = new RenameRecordingDialog(recording.Name, recording.SubjectCode, recording.SubjectName,
+            recording.SourceKind == "backend") { Owner = Window.GetWindow(this) };
         if (dialog.ShowDialog() != true) return;
-        try { await Workspace.Projects.RenameRecordingAsync(recording, input.Text); }
+        try { await Workspace.Projects.EditRecordingAsync(recording, dialog.RecordingName, dialog.SubjectCode, dialog.SubjectName); }
         catch (Exception exception) { Workspace.Notifications.PublishError(exception.Message); }
     }
 

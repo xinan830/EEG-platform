@@ -72,7 +72,9 @@ public sealed record AcquisitionProjectContext(
     string Number,
     string Name,
     string DirectoryPath,
-    string SnapshotJson)
+    string SnapshotJson,
+    [property: System.Text.Json.Serialization.JsonIgnore] string SubjectCode = "",
+    [property: System.Text.Json.Serialization.JsonIgnore] string SubjectName = "")
 {
     public string RecordingsDirectory => Path.Combine(DirectoryPath, "recordings");
 }

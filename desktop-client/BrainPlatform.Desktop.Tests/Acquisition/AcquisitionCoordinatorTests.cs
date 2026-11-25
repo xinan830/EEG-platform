@@ -141,7 +141,8 @@ public sealed class AcquisitionCoordinatorTests
         {
             var device = Assert.Single(await coordinator.DiscoverAsync(CancellationToken.None));
             var previewSessionId = await coordinator.StartPreviewAsync(
-                Request(device.DeviceId, directory),
+                Request(device.DeviceId, directory) with
+                { Project = new AcquisitionProjectContext("project", "P001", "Test", directory, "{}", "S001", "姓名") },
                 CancellationToken.None);
 
             Assert.Equal(AcquisitionState.Previewing, coordinator.State.State);
@@ -160,6 +161,8 @@ public sealed class AcquisitionCoordinatorTests
             Assert.NotEqual(previewSessionId, recordingSessionId);
             Assert.Equal(AcquisitionState.Recording, coordinator.State.State);
             Assert.Single(Directory.GetDirectories(Path.Combine(directory, "recordings")));
+            Assert.Equal(new RecordingSubject("S001", "姓名"),
+                RecordingMetadataStore.ReadSubject(coordinator.RecordingDirectory!));
             Assert.Single(coordinator.GetDisplaySnapshot());
             Assert.Equal(previewStartUtc, coordinator.StreamMetadata?.RecordingStartUtc);
             var recordingStartUtc = Assert.IsType<DateTimeOffset>(coordinator.RecordingStartUtc);

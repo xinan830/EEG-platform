@@ -172,6 +172,55 @@ public sealed class RecordingMontageCatalogTests
     }
 
     [Fact]
+    public void BuildIsolatesImportedRecordingsFromCurrentAndSystemProfiles()
+    {
+        var configuration = AntConfiguration();
+        var presets = SystemMontageProfileFactory.Create(configuration);
+        var importedOnly = presets.Single(profile => profile.Id == "system-ant-ref");
+        var extraCurrent = Profile("workspace-custom", "系统里别的导联", configuration,
+            MontageNegativeKind.OriginalHardwareReference);
+        var manifest = Manifest(configuration, JsonSerializer.Serialize(importedOnly), includeChannelSnapshot: true) with
+        {
+            PayloadFormat = "edf-bdf",
+            DeviceId = "imported",
+            HardwareConfiguration = new Dictionary<string, string>
+            {
+                ["channel_configuration_snapshot_json"] = JsonSerializer.Serialize(configuration),
+                ["montage_configuration_snapshot_json"] = JsonSerializer.Serialize(importedOnly),
+                ["montage_catalogue_snapshot_json"] = JsonSerializer.Serialize(new[] { importedOnly }),
+            },
+        };
+
+        var result = RecordingMontageCatalog.Build(manifest, presets.Append(extraCurrent));
+
+        var only = Assert.Single(result.CompatibleViewingMontages);
+        Assert.Equal("system-ant-ref", only.Profile.Id);
+        Assert.Same(result.AcquisitionMontage, only.Profile);
+        Assert.Empty(result.Incompatible);
+    }
+
+    [Fact]
+    public void BuildDoesNotDuplicateAcquisitionMontageWhenSystemPresetFingerprintDiffers()
+    {
+        var configuration = AntConfiguration();
+        var presets = SystemMontageProfileFactory.Create(configuration);
+        var acquisition = presets.Single(profile => profile.Id == "system-ant-ref") with
+        {
+            Fingerprint = "historical-exported-fingerprint",
+        };
+        var manifest = Manifest(configuration, JsonSerializer.Serialize(acquisition), includeChannelSnapshot: true);
+
+        var result = RecordingMontageCatalog.Build(manifest, presets);
+
+        var refEntries = result.CompatibleViewingMontages
+            .Where(item => item.Profile.Id == "system-ant-ref" || item.Profile.Name == acquisition.Name)
+            .ToArray();
+        var singleRef = Assert.Single(refEntries);
+        Assert.Same(result.AcquisitionMontage, singleRef.Profile);
+        Assert.Equal(presets.Count, result.CompatibleViewingMontages.Count);
+    }
+
+    [Fact]
     public void BuildRejectsSwappedNativeMappingEvenWhenLabelsArePresent()
     {
         var recordedConfiguration = ChannelConfiguration("F3", "F7");

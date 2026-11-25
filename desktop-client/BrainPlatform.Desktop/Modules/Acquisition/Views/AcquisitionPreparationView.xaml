@@ -27,7 +27,8 @@
                 <RowDefinition Height="Auto" /> <!-- 1. 页面标题、返回与说明 -->
                 <RowDefinition Height="Auto" /> <!-- 2. 双卡片区域（当前项目 + 设备状态） -->
                 <RowDefinition Height="Auto" /> <!-- 3. 配置设置卡片 -->
-                <RowDefinition Height="Auto" /> <!-- 4. 底部操作栏 -->
+                <RowDefinition Height="Auto" /> <!-- 4. 受试者信息 -->
+                <RowDefinition Height="Auto" /> <!-- 5. 底部操作栏 -->
             </Grid.RowDefinitions>
 
             <!-- 1. 返回操作与标题放在同一标题行 -->
@@ -459,7 +460,28 @@
             </Border>
 
             <!-- 5. 底部操作栏 -->
-            <Grid Grid.Row="3" Margin="0,4,0,16">
+            <Border Grid.Row="3" Background="White" BorderBrush="#E2E8F0" BorderThickness="1" CornerRadius="8" Padding="24" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="受试者信息（选填）" FontSize="16" FontWeight="Bold" Foreground="#0F172A" />
+                    <TextBlock Text="可以留空，录制完成后也可在记录中补填或修改。" FontSize="12.5" Foreground="#64748B" Margin="0,6,0,16" />
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="20" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="受试者编号" Foreground="#475569" Margin="0,0,0,8" />
+                            <TextBox Text="{Binding Acquisition.SubjectCode, UpdateSourceTrigger=PropertyChanged}"
+                                     MaxLength="160" Height="38" VerticalContentAlignment="Center" Padding="10,0"
+                                     AutomationProperties.Name="受试者编号（选填）" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="受试者姓名" Foreground="#475569" Margin="0,0,0,8" />
+                            <TextBox Text="{Binding Acquisition.SubjectName, UpdateSourceTrigger=PropertyChanged}"
+                                     MaxLength="160" Height="38" VerticalContentAlignment="Center" Padding="10,0"
+                                     AutomationProperties.Name="受试者姓名（选填）" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+            <Grid Grid.Row="4" Margin="0,4,0,16">
                 <!-- 左侧状态与提示信息 -->
                 <TextBlock Text="{Binding Acquisition.OperationMessage}" Foreground="#64748B"
                            FontSize="13.5" VerticalAlignment="Center" HorizontalAlignment="Left"

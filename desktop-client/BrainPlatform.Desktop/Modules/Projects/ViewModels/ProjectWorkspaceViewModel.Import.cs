@@ -16,17 +16,25 @@ public sealed partial class ProjectWorkspaceViewModel
             foreach (var session in sessions)
             {
                 if (SelectedProject?.Id != project.Id) return;
-                if (Recordings.Any(row => row.SessionId == session.SessionId)) continue;
+                var existing = Recordings.FirstOrDefault(row => row.SourceKind == "backend" && row.SessionId == session.SessionId);
+                if (existing is not null)
+                {
+                    ReplaceImportedRecording(existing, string.IsNullOrWhiteSpace(session.Label) ? existing.Name : session.Label,
+                        session.SubjectCode ?? "", session.SubjectName);
+                    continue;
+                }
                 var recording = await backendClient.GetRecordingAsync(session.RecordingId, cancellationToken);
                 if (SelectedProject?.Id != project.Id) return;
                 if (recording.Extension is not (".edf" or ".bdf")) continue;
                 var created = DateTimeOffset.TryParse(recording.CreatedAt, out var parsed) ? parsed : DateTimeOffset.MinValue;
-                var row = new ProjectRecordingRow(session.SessionId, recording.OriginalName,
+                var row = new ProjectRecordingRow(session.SessionId,
+                    string.IsNullOrWhiteSpace(session.Label) ? recording.OriginalName : session.Label,
                     created == DateTimeOffset.MinValue ? "未知" : created.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
                     TimeSpan.FromSeconds(recording.DurationSeconds ?? 0).ToString(@"hh\:mm\:ss"),
                     $"{recording.SamplingRateHz:0.##} Hz", $"{recording.Channels.Count} 信号通道", "已完成", string.Empty,
                     created == DateTimeOffset.MinValue ? null : created, recording.Id, "backend", recording.SourceSha256,
-                    recording.Channels, (int)Math.Round(recording.SamplingRateHz ?? 0), recording.DurationSeconds ?? 0);
+                    recording.Channels, (int)Math.Round(recording.SamplingRateHz ?? 0), recording.DurationSeconds ?? 0,
+                    session.SubjectCode ?? "", session.SubjectName);
                 Recordings.Add(row);
                 CompletedRecordings.Add(row);
             }
@@ -37,7 +45,7 @@ public sealed partial class ProjectWorkspaceViewModel
     }
 
     public async Task<BackendImportedRecording> ImportRecordingAsync(string filePath, string? subjectId,
-        string? newSubjectLocalCode, IProgress<long>? progress, CancellationToken cancellationToken)
+        string? newSubjectLocalCode, IProgress<long>? progress, CancellationToken cancellationToken, string? newSubjectName = null)
     {
         var project = SelectedProject ?? throw new InvalidOperationException("请先选择项目。");
         var client = backendClient ?? throw new InvalidOperationException("项目导入服务尚未连接后端。");
@@ -46,10 +54,32 @@ public sealed partial class ProjectWorkspaceViewModel
             ? JsonSerializer.Serialize(profile)
             : null;
         var imported = await client.ImportRecordingAsync(backendProject.ProjectId, filePath, subjectId,
-            newSubjectLocalCode, snapshot, progress, cancellationToken);
+            newSubjectLocalCode, snapshot, progress, cancellationToken, newSubjectName);
         await RefreshImportedRecordingsAsync(cancellationToken);
         SelectedRecording = Recordings.FirstOrDefault(row => row.RecordingId == imported.RecordingId);
         return imported;
+    }
+
+    private async Task RenameImportedRecordingAsync(ProjectRecordingRow recording, string displayName)
+    {
+        var project = SelectedProject ?? throw new InvalidOperationException("请先选择项目。");
+        if (!Recordings.Contains(recording)) throw new InvalidOperationException("这条记录不属于当前项目。");
+        var client = backendClient ?? throw new InvalidOperationException("项目服务尚未连接后端。");
+        var session = await client.RenameSessionAsync(project.Id, recording.SessionId, displayName, CancellationToken.None);
+        if (SelectedProject?.Id != project.Id) return;
+        var current = Recordings.FirstOrDefault(row => row.SourceKind == "backend" && row.SessionId == session.SessionId);
+        if (current is not null) ReplaceImportedRecording(current, session.Label);
+        ApplyRecordingPage();
+    }
+
+    private void ReplaceImportedRecording(ProjectRecordingRow recording, string name, string? subjectCode = null, string? subjectName = null)
+    {
+        var renamed = recording with { Name = name, SubjectCode = subjectCode ?? recording.SubjectCode, SubjectName = subjectName ?? recording.SubjectName };
+        if (recording == renamed) return;
+        Recordings[Recordings.IndexOf(recording)] = renamed;
+        var completedIndex = CompletedRecordings.IndexOf(recording);
+        if (completedIndex >= 0) CompletedRecordings[completedIndex] = renamed;
+        if (SelectedRecording == recording) SelectedRecording = renamed;
     }
 
     public async Task<IReadOnlyList<BackendResearchSubject>> ListSubjectsAsync(CancellationToken cancellationToken)

@@ -346,7 +346,9 @@ public partial class MainWindow : Window, IDesktopNavigation
                 workspace.Notifications.PublishWarning($"历史导联引用无法登记，记录仍可查看：{exception.Message}");
             }
         }
-        var catalog = RecordingMontageCatalog.Build(loadedRecording.Manifest, profiles);
+        var catalog = RecordingMontageCatalog.Build(
+            loadedRecording.Manifest,
+            recording.SourceKind == "backend" ? [] : profiles);
         var playbackCoordinator = new RecordingPlaybackTimeCoordinator(
             loadedRecording.Manifest.SessionId.ToString("N"),
             loadedRecording.Manifest.SamplingRateHz,

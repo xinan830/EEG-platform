@@ -31,6 +31,14 @@ After a successful import, the desktop SHALL show the recording under its select
 - **WHEN** the user chooses review for a successfully imported recording
 - **THEN** the review workspace SHALL open that recording and retain the owning project context when returning
 
+### Requirement: Edit imported recording display names
+The desktop SHALL enable the recording rename action for imported EDF/BDF entries, persist the name through the project Session API, and display the saved name after refresh.
+
+#### Scenario: Save a project recording name
+- **WHEN** a user saves a valid new name for an imported project recording
+- **THEN** the project list SHALL show the persisted Session label after refresh
+- **AND** a failed save SHALL retain the previous displayed name
+
 ### Requirement: Fail or cancel import without partial project records
 Import SHALL support cancellation and SHALL publish the recording and Session association only after the source file and metadata have been validated successfully.
 

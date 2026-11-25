@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .database import connect_database
+from .optional_subject_migration import migration_025_optional_subjects
 from .analysis_montage_migration import migration_022_analysis_montage_snapshots
 from .recording_channel_binding_migration import (
     migration_023_recording_channel_bindings, migration_024_recording_montage_bindings,
@@ -372,6 +373,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(22, "analysis-montage-snapshots", migration_022_analysis_montage_snapshots),
     Migration(23, "recording-channel-bindings", migration_023_recording_channel_bindings),
     Migration(24, "recording-montage-bindings", migration_024_recording_montage_bindings),
+    Migration(25, "optional-recording-subjects", migration_025_optional_subjects),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

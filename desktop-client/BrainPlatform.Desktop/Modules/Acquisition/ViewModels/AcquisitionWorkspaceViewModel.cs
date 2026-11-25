@@ -737,6 +737,8 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
         {
             throw new InvalidOperationException("所选项目没有有效的项目目录，请先打开项目设置修正。");
         }
+        if (SubjectCode.Trim().Length > 160 || SubjectName.Trim().Length > 160)
+            throw new InvalidOperationException("受试者编号和姓名不能超过 160 个字符。");
 
         // Only mutate session display state after all preparation checks pass.
         channelMapping.ApplyConfiguration(channelSnapshot);
@@ -781,7 +783,7 @@ public sealed partial class AcquisitionWorkspaceViewModel : ObservableObject, IA
             project.Number,
             project.Name,
             project.DirectoryPath,
-            JsonSerializer.Serialize(project));
+            JsonSerializer.Serialize(project), SubjectCode.Trim(), SubjectName.Trim());
         await runtime.StartPreviewAsync(new AcquisitionStreamRequest(device.DeviceId, samplingRateHz, projectContext), montage,
             CancellationToken.None);
         ApplyStreamMetadata();

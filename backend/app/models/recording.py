@@ -36,7 +36,7 @@ class RecordingSummary:
 class ImportedProjectRecordingResponse(BaseModel):
     project_id: str
     session_id: str
-    subject_id: str
+    subject_id: str | None
     recording_id: str
     original_name: str
     extension: str

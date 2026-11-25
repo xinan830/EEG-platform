@@ -20,12 +20,15 @@ public sealed record ProjectRecordingRow(
     string? SourceSha256 = null,
     IReadOnlyList<string>? Channels = null,
     int SamplingRateHz = 0,
-    double DurationSeconds = 0)
+    double DurationSeconds = 0,
+    string SubjectCode = "",
+    string SubjectName = "")
 {
+    public string SubjectText => new RecordingSubject(SubjectCode, SubjectName).DisplayText;
     public bool CanReview => (SourceKind == "backend" || Directory.Exists(RecordingDirectory)) &&
                              Status is "已完成" or "已中止";
     public bool CanManage => SourceKind is "wpf" or "backend";
-    public bool CanRenameLocally => SourceKind == "wpf";
+    public bool CanRename => CanManage;
 }
 
 public sealed partial class ProjectWorkspaceViewModel : ObservableObject
@@ -297,6 +300,7 @@ public sealed partial class ProjectWorkspaceViewModel : ObservableObject
 
         foreach (var recording in recordingCatalog.Read(SelectedProject.RecordingsDirectory))
         {
+            var subject = RecordingMetadataStore.ReadSubject(recording.RecordingDirectory);
             Recordings.Add(new ProjectRecordingRow(
                 recording.SessionId,
                 ReadDisplayName(recording.RecordingDirectory, $"采集_{recording.RecordingStartUtc.ToLocalTime():yyyyMMdd_HHmmss}"),
@@ -306,7 +310,8 @@ public sealed partial class ProjectWorkspaceViewModel : ObservableObject
                 $"{recording.SignalChannelCount} 信号通道",
                 recording.Status,
                 recording.RecordingDirectory,
-                recording.RecordingStartUtc));
+                recording.RecordingStartUtc,
+                SubjectCode: subject.Code, SubjectName: subject.Name));
             if (Recordings[^1].Status == "已完成")
             {
                 CompletedRecordings.Add(Recordings[^1]);
@@ -323,10 +328,17 @@ public sealed partial class ProjectWorkspaceViewModel : ObservableObject
     {
         var displayName = name.Trim();
         if (string.IsNullOrWhiteSpace(displayName)) throw new InvalidOperationException("记录名称不能为空。");
-        EnsureRecordingBelongsToSelectedProject(recording);
-        var path = Path.Combine(recording.RecordingDirectory, "recording-display.json");
-        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { displayName }));
-        RefreshRecordings();
+        if (displayName.Length > 4000) throw new InvalidOperationException("记录名称不能超过 4000 个字符。");
+        if (recording.SourceKind == "backend")
+            await RenameImportedRecordingAsync(recording, displayName);
+        else
+        {
+            EnsureRecordingBelongsToSelectedProject(recording);
+            await RecordingMetadataStore.SaveAsync(recording.RecordingDirectory, displayName,
+                RecordingMetadataStore.ReadSubject(recording.RecordingDirectory));
+            RefreshRecordings();
+            await RefreshImportedRecordingsAsync();
+        }
         notifications.PublishSuccess($"已将记录重命名为“{displayName}”。");
     }
 
