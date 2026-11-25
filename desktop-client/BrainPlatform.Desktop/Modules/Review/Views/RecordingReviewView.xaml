@@ -26,6 +26,7 @@
             <DataTemplate x:Key="TnkPanelTemplate"><analysis:ReviewTnkAnalysisPanel /></DataTemplate>
             <DataTemplate x:Key="SpectralValuesPanelTemplate"><analysis:ReviewSpectralValuesPanel /></DataTemplate>
             <DataTemplate x:Key="CustomFrequencyInspectionPanelTemplate"><analysis:ReviewCustomFrequencyInspectionPanel /></DataTemplate>
+            <DataTemplate x:Key="PreprocessingPanelTemplate"><analysis:ReviewPreprocessingPanel /></DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -36,6 +37,7 @@
                 <MenuItem Header="返回项目" Click="OnBackClick" />
             </MenuItem>
             <MenuItem Header="算法">
+                <MenuItem Header="科学预处理（坏导/坏段/ICA）" Command="{Binding OpenPreprocessingCommand}" />
                 <MenuItem Header="RBP 相对频段功率" Command="{Binding OpenRbpAnalysisCommand}" />
                 <MenuItem Header="PSD 功率谱密度" Command="{Binding OpenPsdAnalysisCommand}" />
                 <MenuItem Header="频段数值核查" Command="{Binding OpenSpectralValuesCommand}" />
@@ -69,6 +71,7 @@
                                                 ToolTip="显示真实采样点；缩小视图下采样点过密时自动隐藏圆点" />
                         <analysis:ReviewAnnotationTool x:Name="AnnotationTool" />
                         <controls:EegToolButton Content="测量" Glyph="&#xED5E;" ToolTip="测量波幅与周期" />
+                        <controls:EegToolButton Content="科学预处理" Glyph="&#xE9E9;" Command="{Binding OpenPreprocessingCommand}" ToolTip="坏导检测与插值、坏段质控、ICA 成分审查与叠图对比" />
                         <controls:EegToolButton Content="RBP 算法" IconSource="pack://application:,,,/Assets/AlgorithmIcons/rbp.png" Command="{Binding OpenRbpAnalysisCommand}"
                                                 ToolTip="打开相对频段功率算法面板" />
                         <controls:EegToolButton Content="PSD" IconSource="pack://application:,,,/Assets/AlgorithmIcons/psd.png" Command="{Binding OpenPsdAnalysisCommand}"

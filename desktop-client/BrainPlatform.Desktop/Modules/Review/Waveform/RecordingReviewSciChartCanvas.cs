@@ -230,6 +230,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             UpdateVisibleRange(viewModel);
             UpdatePlaybackCursor(viewModel);
             eventMarkers.Update(viewModel);
+            UpdatePreprocessingOnViewportChanged(viewModel);
             RefreshSampleMarkers(renderedFrame, viewModel);
             // Playback moves the axis every render tick. Do not cancel and
             // restart an optional display-level read for each tick; the
@@ -272,6 +273,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             renderedDisplayFrame = null;
             CancelDisplayFrameLoad();
             eventMarkers.Clear();
+            ClearPreprocessingVisuals();
             playbackCursor.Visibility = Visibility.Collapsed;
             return;
         }
@@ -306,6 +308,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         RefreshSampleMarkers(frame, viewModel);
         UpdatePlaybackCursor(viewModel);
         eventMarkers.Rebuild(viewModel);
+        RefreshPreprocessingVisuals(viewModel);
         if (renderedDisplayFrame is { } display &&
             HasSameFrameData(displayAttemptFrame, frame) &&
             Math.Abs(display.WindowStartSeconds - (viewModel?.ViewportStartSeconds ?? double.NaN)) < 0.000_001)
@@ -464,20 +467,11 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             surface.RenderableSeries.Add(lineSeries);
             traceSeries.Add(new TraceSeries(data, lineSeries));
             labels.RowDefinitions.Add(new RowDefinition());
-            var label = new TextBlock
-            {
-                Text = names[index],
-                FontSize = 11.5,
-                FontWeight = FontWeights.Medium,
-                Foreground = new SolidColorBrush(traceColor),
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0),
-            };
+            var label = CreateChannelLabelCell(names[index], traceColor);
             Grid.SetRow(label, index);
             labels.Children.Add(label);
         }
+        preprocessingOverlay.EnsureSeries(names.Count);
         sampleMarkerLayer.EnsureSeries(names, colors);
     }
 
@@ -565,6 +559,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
     private void ClearSeries()
     {
         sampleMarkerLayer.Clear();
+        ClearPreprocessingVisuals();
         foreach (var series in traceSeries)
         {
             series.Data.Clear();
