@@ -41,7 +41,7 @@ internal sealed class ReviewPreprocessingOverlayLayer
             {
                 DataSeries = data,
                 Stroke = CleanedDarkColor,
-                StrokeThickness = 1.35,
+                StrokeThickness = 2,
                 DrawNaNAs = LineDrawMode.Gaps,
                 IsVisible = false,
             };
@@ -88,25 +88,25 @@ internal sealed class ReviewPreprocessingOverlayLayer
             if (overlayActive)
             {
                 baseSeries[i].Stroke = DimmedOriginalColor;
-                baseSeries[i].StrokeThickness = 1.0;
+                baseSeries[i].StrokeThickness = 1;
                 baseSeries[i].StrokeDashArray = null;
             }
             else if (badge.State == ChannelVisualPreprocessingState.Interpolated)
             {
                 baseSeries[i].Stroke = InterpolatedCyanColor;
-                baseSeries[i].StrokeThickness = 1.2;
+                baseSeries[i].StrokeThickness = 2;
                 baseSeries[i].StrokeDashArray = InterpolatedDash;
             }
             else if (badge.State == ChannelVisualPreprocessingState.Excluded)
             {
                 baseSeries[i].Stroke = DimmedOriginalColor;
-                baseSeries[i].StrokeThickness = 0.9;
+                baseSeries[i].StrokeThickness = 1;
                 baseSeries[i].StrokeDashArray = InterpolatedDash;
             }
             else
             {
                 baseSeries[i].Stroke = baseColor;
-                baseSeries[i].StrokeThickness = 1.0;
+                baseSeries[i].StrokeThickness = 1;
                 baseSeries[i].StrokeDashArray = null;
             }
         }
@@ -145,7 +145,7 @@ internal sealed class ReviewPreprocessingOverlayLayer
             var isInterpolated = interpolatedSet.Contains(ch) ||
                                  (prep?.ResolveChannelBadge(ch).State == ChannelVisualPreprocessingState.Interpolated);
             ov.LineSeries.Stroke = isInterpolated ? InterpolatedCyanColor : CleanedDarkColor;
-            ov.LineSeries.StrokeThickness = isInterpolated ? 1.45 : 1.3;
+            ov.LineSeries.StrokeThickness = 2;
             ov.LineSeries.StrokeDashArray = isInterpolated ? InterpolatedDash : null;
             using (ov.Data.SuspendUpdates())
             {

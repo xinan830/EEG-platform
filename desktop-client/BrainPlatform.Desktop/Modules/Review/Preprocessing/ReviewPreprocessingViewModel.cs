@@ -48,12 +48,8 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
 
         InspectBadChannelsCommand = new AsyncRelayCommand(InspectBadChannelsAsync, ReportError);
         InspectArtifactSegmentsCommand = new AsyncRelayCommand(InspectArtifactSegmentsAsync, ReportError);
-        JumpToSegmentCommand = new RelayCommand(param =>
-        {
-            if (param is ArtifactSegmentRowViewModel seg)
-                seekToSeconds(Math.Max(0, seg.StartSeconds - 0.5));
-        });
-        ResetAllCommand = new RelayCommand(_ => ResetAll());
+        JumpToSegmentCommand = new SegmentJumpCommand(seekToSeconds);
+        ResetAllCommand = new RelayCommand(ResetAll);
     }
 
     public event EventHandler? VisualStateChanged;
@@ -254,7 +250,7 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
                 ArtifactSegments.Add(new ArtifactSegmentRowViewModel(seg));
 
             ArtifactMarkers = ArtifactSegments.Select(s => s.ToMarker()).ToArray();
-            CleanRatioSummary = $"干净率 {response.CleanRatio * 100:0.1}% · 检出 {response.Segments.Count} 段坏段（{ReviewPreprocessingProjection.FormatMuscleStatus(response.MuscleCheckStatus)}）";
+            CleanRatioSummary = $"干净率 {response.CleanRatio * 100:0.0}% · 检出 {response.Segments.Count} 段坏段（{ReviewPreprocessingProjection.FormatMuscleStatus(response.MuscleCheckStatus)}）";
             if (response.Segments.Count > 0 && ArtifactPolicy == "none")
             {
                 artifactPolicy = "reject";
@@ -426,5 +422,16 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
     {
         IsBusy = false;
         StatusMessage = $"操作失败：{ex.Message}";
+    }
+
+    private sealed class SegmentJumpCommand(Action<double> seek) : ICommand
+    {
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+        public bool CanExecute(object? parameter) => parameter is ArtifactSegmentRowViewModel;
+        public void Execute(object? parameter)
+        {
+            if (parameter is ArtifactSegmentRowViewModel seg)
+                seek(Math.Max(0, seg.StartSeconds - 0.5));
+        }
     }
 }

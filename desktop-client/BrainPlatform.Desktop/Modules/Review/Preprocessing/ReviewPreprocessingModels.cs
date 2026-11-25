@@ -61,7 +61,7 @@ public sealed class BadChannelRowViewModel : ObservableObject
     {
         "flatline" => "平线/断连",
         "extreme_amplitude" => "极端幅值",
-        "high_frequency_noise" => "高频噪声",
+        "high_frequency_noise" or "high_freq_noise" => "高频噪声",
         "low_neighbor_correlation" => "邻域失相关",
         "excessive_nan_ratio" => "缺值过多",
         _ => code,
@@ -150,7 +150,7 @@ public sealed class IcaComponentCardViewModel : ObservableObject
         else
             ScoreBadgeText = item.EogScore is { } eogVal ? $"EOG r={eogVal:+0.00;-0.00}" : "脑电/其他成分";
 
-        EvrText = $"解释方差 {item.ExplainedVarianceRatio * 100:0.1}%";
+        EvrText = $"解释方差 {item.ExplainedVarianceRatio * 100:0.0}%";
     }
 
     public int ComponentIndex { get; }

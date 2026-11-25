@@ -416,6 +416,11 @@
       "decision": "keep",
       "reason": "Single 404-line use case boundary for staging, validating and atomically publishing EDF/BDF imports. Optional subject sex and recording age join the existing publication transaction; validation stays in the shared subject service. Imported sidecar validation and rollback remain together. Reassess before further growth.",
       "max_lines": 420
+    },
+    "desktop-client/BrainPlatform.Desktop/Modules/Review/Preprocessing/ReviewPreprocessingViewModel.cs": {
+      "decision": "keep",
+      "max_lines": 450,
+      "reason": "当前 437 行，集中拥有回放页离线科学预处理面板的交互状态（坏导、坏段、ICA 审查指纹与叠图对比窗口加载）；纯 DTO 组装与徽章投影已提取至 ReviewPreprocessingProjection.cs（139 行）。保持单一预处理状态所有者避免状态分裂，继续扩展前重新评估。"
     }
   }
 }

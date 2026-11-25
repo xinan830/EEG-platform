@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Review.Preprocessing;
 
@@ -22,7 +23,7 @@ public sealed partial class RecordingReviewViewModel
             seconds => _ = SeekAsync(seconds),
             () => (ViewportStartSeconds, VisibleDurationSeconds, HighPassHz, LowPassHz, NotchHz > 0 ? NotchHz : null));
         Preprocessing.ConfigurationChanged += OnPreprocessingConfigurationChanged;
-        OpenPreprocessingCommand = new RelayCommand(_ => TogglePreprocessingPanel());
+        OpenPreprocessingCommand = new RelayCommand(TogglePreprocessingPanel);
     }
 
     private void TogglePreprocessingPanel()
@@ -47,20 +48,9 @@ public sealed partial class RecordingReviewViewModel
             if (analysisRecordingDirectory is null)
                 throw new InvalidOperationException("当前回溯记录缺少可用于科学预处理的本地目录。");
             var montages = montageSelection.AvailableMontages.ToArray();
-            var coordinator = analysisCoordinators.Values.FirstOrDefault();
-            if (coordinator is not null)
-            {
-                analysisRecording = await coordinator.RegisterAsync(analysisRecordingDirectory, cancellationToken, montages);
-            }
-            else if (preprocessingAlgorithmClient is not null)
-            {
-                analysisRecording = await preprocessingAlgorithmClient.RegisterWpfRecordingAsync(
-                    analysisRecordingDirectory, cancellationToken, montages);
-            }
-            else
-            {
-                throw new InvalidOperationException("当前回放页未配置后端算法客户端。");
-            }
+            var coordinator = analysisCoordinators.Values.FirstOrDefault()
+                ?? throw new InvalidOperationException("当前回放页未配置后端算法协调器。");
+            analysisRecording = await coordinator.RegisterAsync(analysisRecordingDirectory, cancellationToken, montages);
         }
 
         var selection = montageSelection.Capture();
@@ -68,12 +58,18 @@ public sealed partial class RecordingReviewViewModel
         return (analysisRecording.Id, montage?.Id, analysisRecording.DurationSeconds ?? DurationSeconds);
     }
 
-    private void AttachActivePreprocessing(Dictionary<string, object?> config, string algorithmId)
+    private JsonElement AttachActivePreprocessing(JsonElement config, string algorithmId)
     {
         var allowArtifactRemoval = algorithmId is not ("stft" or "tnk_biofeedback");
         var preprocessing = Preprocessing.BuildAlgorithmConfigDictionary(allowArtifactRemoval);
-        if (preprocessing is not null)
-            config["preprocessing"] = preprocessing;
+        if (preprocessing is null || config.ValueKind != JsonValueKind.Object)
+            return config;
+
+        var merged = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var prop in config.EnumerateObject())
+            merged[prop.Name] = prop.Value;
+        merged["preprocessing"] = preprocessing;
+        return JsonSerializer.SerializeToElement(merged);
     }
 
     private void DisposePreprocessing()

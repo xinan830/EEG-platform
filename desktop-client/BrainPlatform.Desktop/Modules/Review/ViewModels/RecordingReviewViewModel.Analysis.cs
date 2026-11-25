@@ -111,7 +111,7 @@ public sealed partial class RecordingReviewViewModel
                 var duration = analysisRecording.DurationSeconds ?? DurationSeconds;
                 var rate = analysisRecording.SamplingRateHz ?? samplingRateHz;
                 var config = panel.BuildConfigurationForSelection(duration, rate, selection, montage);
-                AttachActivePreprocessing(config, sourceId);
+                config = AttachActivePreprocessing(config, sourceId);
                 if (selection.Revision != montageSelection.Revision) return;
                 if (rbpAlgorithm is not null) AttachSpectralRbp(rbpAlgorithm, selection, montage);
                 var request = new AnalysisRunRequest(analysisRecording.Id, "official_algorithm", config);

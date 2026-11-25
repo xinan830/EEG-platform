@@ -31,7 +31,7 @@ public sealed partial class RecordingReviewViewModel
         CustomFrequencyInspection.InitializeChannels(PsdParameters.Channels);
         var config = analysisPanels["rbp"].BuildConfigurationForSelection(
             recording.DurationSeconds ?? DurationSeconds, recording.SamplingRateHz ?? samplingRateHz, selection, montage);
-        AttachActivePreprocessing(config, "rbp");
+        config = AttachActivePreprocessing(config, "rbp");
         if (RbpParameters.WindowSeconds != PsdParameters.WindowSeconds || RbpParameters.StepSeconds != PsdParameters.StepSeconds)
             throw new InvalidOperationException("现有 PSD/RBP 目录窗口设置不一致，不能合并数值。");
         if (!RbpParameters.ResolveAnalysisChannels(montage).SequenceEqual(PsdParameters.Channels, StringComparer.Ordinal))
