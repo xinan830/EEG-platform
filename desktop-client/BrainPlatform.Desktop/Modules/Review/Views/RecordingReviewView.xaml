@@ -263,6 +263,7 @@
                                         <Setter Property="ContentTemplate" Value="{StaticResource CustomFrequencyInspectionPanelTemplate}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Scalar}"><Setter Property="ContentTemplate" Value="{StaticResource ScalarPanelTemplate}" /></DataTrigger>
+                                    <DataTrigger Binding="{Binding ActiveAnalysisPanelKind}" Value="{x:Static reviewAnalysis:ReviewAnalysisPanelKind.Preprocessing}"><Setter Property="ContentTemplate" Value="{StaticResource PreprocessingPanelTemplate}" /></DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </ContentControl.Style>
@@ -446,6 +447,7 @@
 
                 <!-- 中间：时间轴拖动滑轨 -->
                 <review:ReviewTimelineNavigator x:Name="TimelineNavigator" Grid.Column="2" Height="26" VerticalAlignment="Center"
+                    ArtifactMarkers="{Binding Preprocessing.ArtifactMarkers, Mode=OneWay}"
                     TimeDisplay="{Binding TimeDisplay, Mode=OneWay}"
                     TimeDisplayMode="{Binding TimeDisplay.EffectiveMode, Mode=OneWay}"
                     RecordingStartUtc="{Binding RecordingStartUtc, Mode=OneWay}"
