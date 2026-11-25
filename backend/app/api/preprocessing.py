@@ -2,53 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Query, Request
-from pydantic import BaseModel, Field
 
 from app.core.api_contract import error_response
-from app.models.analysis_config import OfflinePreprocessingRequest
+from app.models.preprocessing_preview import (
+    PreprocessingPreviewWindowRequest,
+    PreprocessingPreviewWindowResponse,
+)
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, ArtifactRemovalSpec, BadChannelSpec
 from app.services.artifact_inspection import inspect_recording_artifact_segments, inspect_recording_ica_components
 from app.services.bad_channel_reader import inspect_recording_bad_channels
 from app.services.preprocessing_preview import build_preprocessing_preview_window
+from app.services.preview_envelope import PreviewEnvelopeLimitError
 from app.services.recordings import RecordingService
-
-
-class PreprocessingPreviewWindowRequest(BaseModel):
-    start_s: float = Field(ge=0.0)
-    window_s: float = Field(gt=0.0, le=120.0)
-    montage_id: Optional[str] = None
-    low_hz: float = Field(default=1.0, gt=0.0)
-    high_hz: float = Field(default=50.0, gt=0.0)
-    notch_hz: Optional[float] = 50.0
-    max_points: int = Field(default=1200, ge=64, le=4000)
-    preprocessing: OfflinePreprocessingRequest = Field(default_factory=OfflinePreprocessingRequest)
-
-
-class PreviewDisplayCompression(BaseModel):
-    method: Literal["finite_run_min_max_envelope_v1"]
-    scientific_resampling: Literal[False]
-    target_points_per_channel: int
-    gap_boundaries_may_exceed_target: bool
-
-
-class PreprocessingPreviewWindowResponse(BaseModel):
-    """Read-only display envelope: absolute-second per-channel coordinates and microvolts."""
-    recording_id: str
-    montage_id: Optional[str]
-    start_s: float
-    end_s: float
-    sfreq_hz: float
-    channels: list[str]
-    interpolated_channels: list[str]
-    excluded_channels: list[str]
-    trace_times_s: dict[str, list[float]]
-    traces_uv: dict[str, list[float | None]]
-    display_compression: PreviewDisplayCompression
-    ica_model_reused: bool
-    artifact_removal_status: str
 
 
 router = APIRouter(prefix="/api/recordings", tags=["preprocessing"])
@@ -100,8 +68,12 @@ def inspect_artifact_segments(
     muscle_zscore_threshold: Optional[float] = Query(4.0, gt=0.0),
     bad_channels: Optional[str] = Query(None),
     bad_channel_policy: str = Query("none"),
+    low_hz: float = Query(1.0, gt=0.0),
+    high_hz: float = Query(50.0, gt=0.0),
+    notch_hz: Optional[float] = Query(50.0, ge=0.0),
+    notch_q: float = Query(30.0, gt=0.0),
 ) -> dict:
-    """Screen bounded EEG segments for amplitude-PTP and MNE muscle z-score artifacts."""
+    """Return a bounded projection of the shared continuous artifact detection report."""
     try:
         service = _service(request)
         recording = service.require_recording(recording_id)
@@ -120,6 +92,7 @@ def inspect_artifact_segments(
             montage_id=montage_id,
             bad_channel_spec=bad_spec,
             artifact_spec=art_spec,
+            low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz or None, notch_q=notch_q,
         )
         _record_audit(request, "preprocessing.inspect_artifact_segments", recording_id, {
             "start_s": payload["start_s"],
@@ -127,6 +100,8 @@ def inspect_artifact_segments(
             "montage_id": montage_id,
             "segment_count": len(payload["segments"]),
             "clean_ratio": payload["clean_ratio"],
+            "inspection_filter": payload["inspection_filter"],
+            "detection_scope": payload["detection_scope"],
         })
         return payload
     except KeyError:
@@ -222,12 +197,15 @@ def preview_preprocessed_window(
             low_hz=body.low_hz,
             high_hz=body.high_hz,
             notch_hz=body.notch_hz,
+            notch_q=body.notch_q,
             bad_channel_spec=bad_spec,
             artifact_rejection_spec=art_spec,
             artifact_removal_spec=rem_spec,
             max_points=body.max_points,
         )
         return payload
+    except PreviewEnvelopeLimitError as exc:
+        return error_response(request, 422, "PREPROCESSING_PREVIEW_LIMIT_EXCEEDED", str(exc))
     except KeyError:
         return error_response(request, 404, "RECORDING_NOT_FOUND", "录制文件不存在")
     except ValueError as exc:

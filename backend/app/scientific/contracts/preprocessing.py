@@ -16,6 +16,7 @@ LIVE_SPECTRAL_LOW_HZ = 1.0
 LIVE_SPECTRAL_HIGH_HZ = 50.0
 DEFAULT_NOTCH_Q = float(ANALYSIS_CONTRACT["notch_quality_factor"])
 STANDARD_MONTAGE_NAME = "colin27_1020"
+ARTIFACT_DETECTION_VERSION = 'continuous-artifact-report-v3-exact-ptp'
 
 BadChannelPolicy = Literal["none", "exclude", "interpolate"]
 _VALID_BAD_CHANNEL_POLICIES = frozenset({"none", "exclude", "interpolate"})
@@ -239,6 +240,7 @@ class ArtifactRejectionSpec:
             {
                 "policy": norm.policy,
                 "peak_to_peak_uv": None if norm.peak_to_peak_uv is None else round(norm.peak_to_peak_uv, 6),
+                "detection_version": ARTIFACT_DETECTION_VERSION,
                 "amplitude_window_s": round(norm.amplitude_window_s, 6),
                 "muscle_zscore_threshold": (
                     None if norm.muscle_zscore_threshold is None else round(norm.muscle_zscore_threshold, 6)

@@ -65,7 +65,8 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
                       high_hz: float, notch_hz: float | None, notch_q: float = 30.0,
                       channels: list[str] | None = None, execution_context: ExecutionControl | None = None,
                       bad_channel_spec: Any = None, artifact_rejection_spec: Any = None,
-                      artifact_removal_spec: Any = None) -> PreprocessedRecording:
+                      artifact_removal_spec: Any = None,
+                      annotated_source: PreprocessedRecording | None = None) -> PreprocessedRecording:
     policy = getattr(execution_context, "preparation_resource_policy", None)
     owner = MappedArrays() if policy is None else MappedArrays(policy)
     session = None
@@ -85,19 +86,32 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
         lookup = {name.casefold(): name for name in session.channel_names}
         names = tuple(session.channel_names) if channels is None else tuple(lookup[name.casefold()] for name in channels)
         shape = (session.sample_count, len(names))
-        source = owner.allocate(shape)
         target = owner.allocate(shape)
         block_samples = max(1, min(65536, (8 * 1024**2) // (8 * len(names))))
-        for start in range(0, session.sample_count, block_samples):
-            check_cancelled()
-            stop = min(start + block_samples, session.sample_count)
-            source[start:stop] = session.read_samples(
-                start, stop, names, check_cancelled=check_cancelled,
-            ).values_v
-        preprocess_blocks(source, target, session.sampling_rate_hz, owner.allocate,
-                          low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-                          notch_q=notch_q, check_cancelled=check_cancelled, release=owner.release,
-                          block_samples=block_samples)
+        source = None
+        if annotated_source is not None:
+            if (annotated_source.channel_names != names or annotated_source.data.shape != shape
+                    or annotated_source.sfreq != session.sampling_rate_hz
+                    or annotated_source.source_identity != session.identity
+                    or annotated_source.artifact_report is None):
+                raise ValueError('ARTIFACT_REPORT_SOURCE_MISMATCH: 坏段报告与当前输入不一致')
+            for start in range(0, session.sample_count, block_samples):
+                check_cancelled()
+                stop = min(start + block_samples, session.sample_count)
+                target[start:stop] = annotated_source.data[start:stop]
+        else:
+            source = owner.allocate(shape)
+            for start in range(0, session.sample_count, block_samples):
+                check_cancelled()
+                stop = min(start + block_samples, session.sample_count)
+                source[start:stop] = session.read_samples(
+                    start, stop, names, check_cancelled=check_cancelled,
+                ).values_v
+            preprocess_blocks(source, target, session.sampling_rate_hz, owner.allocate,
+                              low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+                              notch_q=notch_q, check_cancelled=check_cancelled, release=owner.release,
+                              block_samples=block_samples)
+        report = annotated_source.artifact_report if annotated_source is not None else None
         artifact_intervals: tuple[Any, ...] = ()
         if artifact_rejection_spec is not None and artifact_rejection_spec.normalized().is_active:
             from app.scientific.artifact_segments import apply_artifact_rejection_mask, detect_artifact_segments
@@ -108,21 +122,22 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
             # and broadband source for muscle z-score so 110-140 Hz EMG is never attenuated.
             ptp_source = target
             wide_hi = min(45.0, (session.sampling_rate_hz / 2.0) - 1.5)
-            if norm_art.peak_to_peak_uv is not None and high_hz < 45.0 and wide_hi > max(high_hz, 1.0):
+            if report is None and norm_art.peak_to_peak_uv is not None and high_hz < 45.0 and wide_hi > max(high_hz, 1.0):
                 from app.scientific.primitives import detrend_and_filter_for_inspection
 
                 ptp_source, _ = detrend_and_filter_for_inspection(
                     source, session.sampling_rate_hz,
                     low_hz=min(low_hz, 0.5), high_hz=wide_hi, notch_hz=notch_hz, notch_q=notch_q,
                 )
-            report = detect_artifact_segments(
+            report = report or detect_artifact_segments(
                 ptp_source, session.sampling_rate_hz, names, norm_art,
                 muscle_values_v=source, valid_channel_names=session.channel_names,
             )
             artifact_intervals = report.segments
             if norm_art.policy == "reject" and artifact_intervals:
                 apply_artifact_rejection_mask(target, artifact_intervals, names, in_place=True)
-        owner.release(source)
+        if source is not None:
+            owner.release(source)
         artifact_removal_evidence: dict[str, object] | None = None
         if artifact_removal_spec is not None and artifact_removal_spec.normalized().is_active:
             from app.scientific.artifact_removal import apply_offline_artifact_removal, fit_ica_model
@@ -183,6 +198,8 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
             target, session.sampling_rate_hz, names, owner,
             artifact_intervals=artifact_intervals,
             artifact_removal_evidence=artifact_removal_evidence,
+            artifact_report=report,
+            source_identity=session.identity,
         )
     except BaseException:
         owner.close()

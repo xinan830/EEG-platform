@@ -7,12 +7,17 @@ public sealed partial class RecordingReviewViewModel
     private Task? playbackLoadTask;
     private readonly LatestThrottledTask viewportLoader = new(TimeSpan.FromMilliseconds(50));
     private bool isTimelineDragging;
+    private bool resumePlaybackAfterTimelineDrag;
     private double? pendingPreviewViewportStart;
 
     public void BeginTimelineDrag()
     {
-        if (isTimelineDragging) return;
+        if (isTimelineDragging || isDisposing) return;
         isTimelineDragging = true;
+        resumePlaybackAfterTimelineDrag = playback.IsPlaying;
+        var wasCompleted = playback.IsCompleted;
+        playback.Pause();
+        PublishPlaybackChanges(resumePlaybackAfterTimelineDrag, wasCompleted);
         analysisBinding?.SetPlaybackActive(false, playback.Snapshot.Generation);
         CancelSpectralWindowLoad();
         if (IsSpectralInspectionPanelOpen)
@@ -28,6 +33,13 @@ public sealed partial class RecordingReviewViewModel
     {
         if (!isTimelineDragging) return;
         isTimelineDragging = false;
+        var shouldResume = resumePlaybackAfterTimelineDrag;
+        resumePlaybackAfterTimelineDrag = false;
+        if (isDisposing) return;
+        var wasPlaying = playback.IsPlaying;
+        var wasCompleted = playback.IsCompleted;
+        if (shouldResume && !playback.IsCompleted) playback.Play();
+        PublishPlaybackChanges(wasPlaying, wasCompleted);
         if (IsSpectralInspectionPanelOpen) _ = RequestSpectralWindowAsync(PositionSeconds);
         else analysisBinding?.OnCursorDragCompleted(PositionSeconds, playback.Snapshot.Generation);
         analysisBinding?.SetPlaybackActive(playback.IsPlaying, playback.Snapshot.Generation);
@@ -96,7 +108,7 @@ public sealed partial class RecordingReviewViewModel
     {
         var wasPlaying = playback.IsPlaying;
         var wasCompleted = playback.IsCompleted;
-        if (isDisposing || !playback.Update()) return;
+        if (isDisposing || isTimelineDragging || !playback.Update()) return;
         UpdateViewportStart(GetFollowViewportStart(playback.PositionSeconds));
         RaisePropertyChanged(nameof(PositionSeconds));
         RaisePropertyChanged(nameof(PositionTimeText));

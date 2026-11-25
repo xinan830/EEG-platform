@@ -6,11 +6,15 @@ from collections import OrderedDict
 from concurrent.futures import Future
 from dataclasses import dataclass
 from threading import RLock
-from typing import Any, Callable
+from typing import Any, Callable, TYPE_CHECKING
 
 import numpy as np
 
 from app.services.prepared_source_contract import PreparedSourceContract
+
+if TYPE_CHECKING:
+    from app.scientific.artifact_segments import ArtifactSegmentReport
+    from app.services.recording_access import RecordingSourceIdentity
 
 
 @dataclass(frozen=True)
@@ -22,6 +26,8 @@ class PreprocessedRecording:
     contract: PreparedSourceContract | None = None
     artifact_intervals: tuple[Any, ...] = ()
     artifact_removal_evidence: dict[str, object] | None = None
+    artifact_report: ArtifactSegmentReport | None = None
+    source_identity: RecordingSourceIdentity | None = None
 
 
 @dataclass(frozen=True)

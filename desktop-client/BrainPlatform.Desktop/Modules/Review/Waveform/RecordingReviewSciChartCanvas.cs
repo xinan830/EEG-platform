@@ -82,6 +82,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         {
             var viewModel = DataContext as RecordingReviewViewModel;
             viewModel?.UpdateViewportWidth(chartHost.ActualWidth);
+            viewModel?.Preprocessing.UpdatePlotWidth(WaveformPlotLayout.GetPlotArea(surface).Width);
             ApplyFrame(viewModel?.CurrentFrame, viewModel);
             RefreshSampleMarkers(renderedFrame, viewModel);
         };
@@ -414,6 +415,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
             screenScale.MillimetersPerDipY);
         using (surface.SuspendUpdates())
         {
+            var hideOrdinary = viewModel.Preprocessing.CanDisplayScientificComparison(frame.OutputChannelNames);
             for (var traceIndex = 0; traceIndex < traceSeries.Count && traceIndex < frame.Traces.Count; traceIndex++)
             {
                 var baseline = frame.OutputChannelNames.Count - traceIndex - 0.5;
@@ -425,12 +427,18 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
                     traceSeries[traceIndex].Data.Clear();
                     traceSeries[traceIndex].Data.Append(trace.XSeconds.ToArray(), y);
                 }
+                traceSeries[traceIndex].LineSeries.IsVisible = !hideOrdinary;
             }
         }
     }
 
     private void RefreshSampleMarkers(RecordingReviewFrame? frame, RecordingReviewViewModel? viewModel)
     {
+        if (frame is not null && viewModel?.Preprocessing.CanDisplayScientificComparison(frame.OutputChannelNames) == true)
+        {
+            sampleMarkerLayer.Clear();
+            return;
+        }
         sampleMarkerLayer.Refresh(
             frame, viewModel, xAxis.VisibleRange as DoubleRange,
             WaveformPlotLayout.GetPlotArea(surface), screenScale, IsPointLineModeEnabled);

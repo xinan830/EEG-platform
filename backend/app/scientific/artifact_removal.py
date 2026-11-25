@@ -6,7 +6,7 @@ All inputs/outputs are sample-major float64 arrays in SI volts (V); NaN gaps are
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Sequence
 import warnings
 
@@ -14,7 +14,8 @@ import mne
 import numpy as np
 from scipy import signal
 
-from app.scientific.contracts.artifact_removal import ArtifactRemovalSpec
+from app.scientific.contracts.artifact_removal import ARTIFACT_REMOVAL_APPLICATION_VERSION, ArtifactRemovalSpec
+from app.scientific.artifact_removal_validity import build_application_validity
 
 
 _DEDICATED_EOG_CANDIDATES = ("veog", "heog", "eog", "eog1", "eog2")
@@ -65,15 +66,18 @@ class ArtifactRemovalResult:
     regression_weights: dict[str, list[float]] | None = None
     ica_fit_fingerprint: str | None = None
     ica_model_reused: bool = False
+    application_validity: dict[str, object] | None = None
 
     def to_evidence(self) -> dict[str, object]:
         return {
             "method": self.method, "applied": self.applied, "status": self.status, "mne_version": mne.__version__,
+            "application_version": ARTIFACT_REMOVAL_APPLICATION_VERSION,
             "eog_channels_used": list(self.eog_channels_used), "eog_channel_source": self.eog_channel_source,
             "ecg_channels_used": list(self.ecg_channels_used), "excluded_components": list(self.excluded_components),
             "component_scores": list(self.component_scores), "ssp_projectors_applied": self.ssp_projectors_applied,
             "eog_events_detected": self.eog_events_detected, "regression_weights": self.regression_weights,
             "ica_fit_fingerprint": self.ica_fit_fingerprint, "ica_model_reused": self.ica_model_reused,
+            "application_validity": self.application_validity,
         }
 
 
@@ -373,10 +377,14 @@ def apply_offline_artifact_removal(
 
     if not norm.is_active:
         return ArtifactRemovalResult(data_v=data.copy(), method="none", applied=False, status="disabled")
+
+    def with_validity(result: ArtifactRemovalResult) -> ArtifactRemovalResult:
+        return replace(result, application_validity=build_application_validity(data, result.data_v, names, rate))
+
     if norm.method == "eog_regression":
-        return _apply_eog_regression(data, rate, names, norm)
+        return with_validity(_apply_eog_regression(data, rate, names, norm))
     if norm.method == "ssp_eog":
-        return _apply_ssp_eog(data, rate, names, norm)
+        return with_validity(_apply_ssp_eog(data, rate, names, norm))
 
     reused = prefitted_ica is not None
     fitted = prefitted_ica if prefitted_ica is not None else fit_ica_model(data, rate, names, norm)
@@ -390,12 +398,12 @@ def apply_offline_artifact_removal(
     table = tuple({**row, "excluded": int(row["component_index"]) in excluded} for row in fitted.component_scores)
 
     if not excluded:
-        return ArtifactRemovalResult(
+        return with_validity(ArtifactRemovalResult(
             data_v=data.copy(), method="ica_infomax", applied=False, status="skipped_no_artifact_components",
             eog_channels_used=fitted.eog_channels_used, eog_channel_source=fitted.eog_channel_source,
             ecg_channels_used=fitted.ecg_channels_used, excluded_components=(), component_scores=table,
             ica_fit_fingerprint=ica_fit_fingerprint, ica_model_reused=reused,
-        )
+        ))
 
     output = data.copy()
     finite_rows = np.all(np.isfinite(data), axis=1)
@@ -405,9 +413,9 @@ def apply_offline_artifact_removal(
     ica_copy.apply(raw_apply, verbose=False)
     output[finite_rows] = raw_apply.get_data().T
     output[~finite_rows] = np.nan
-    return ArtifactRemovalResult(
+    return with_validity(ArtifactRemovalResult(
         data_v=output, method="ica_infomax", applied=True, status="applied",
         eog_channels_used=fitted.eog_channels_used, eog_channel_source=fitted.eog_channel_source,
         ecg_channels_used=fitted.ecg_channels_used, excluded_components=excluded, component_scores=table,
         ica_fit_fingerprint=ica_fit_fingerprint, ica_model_reused=reused,
-    )
+    ))

@@ -8,6 +8,13 @@ public sealed partial class ReviewPreprocessingViewModel
     private CancellationTokenSource? inspectionCts;
     private long inspectionGeneration;
 
+    private void InvalidateArtifactInspection()
+    {
+        ArtifactSegments.Clear();
+        ArtifactMarkers = [];
+        CleanRatioSummary = "检测输入已变更，请重新扫描坏段";
+    }
+
     private readonly record struct InspectionOperation(long Generation, long Revision, CancellationToken Token);
 
     private InspectionOperation BeginInspection()
@@ -71,12 +78,14 @@ public sealed partial class ReviewPreprocessingViewModel
                 (BadChannelPolicy != "none" && !previousBads.SetEquals(SelectedBadChannels));
             if (inputsChanged)
             {
+                InvalidateArtifactInspection();
                 InvalidateIcaFingerprint("坏导输入已变更，需重新审查 ICA 成分");
                 NotifyConfigAndVisuals();
             }
             else
             {
                 RaisePropertyChanged(nameof(SelectedBadChannels));
+                RaisePipelineNodeProperties();
                 VisualStateChanged?.Invoke(this, EventArgs.Empty);
             }
         }
@@ -90,7 +99,7 @@ public sealed partial class ReviewPreprocessingViewModel
         var client = RequireClient();
         var operation = BeginInspection();
         var token = operation.Token;
-        StatusMessage = "正在扫描爆幅峰峰值与 MNE 宽带肌电坏段…";
+        StatusMessage = "正在准备整段科学信号并读取统一坏段报告（1–50 Hz + 50 Hz 陷波）…";
         try
         {
             var (recId, montageId, duration) = await ensureBackendRecordingAsync(token);
@@ -103,7 +112,7 @@ public sealed partial class ReviewPreprocessingViewModel
                 ArtifactSegments.Add(new ArtifactSegmentRowViewModel(seg));
 
             ArtifactMarkers = ArtifactSegments.Select(s => s.ToMarker()).ToArray();
-            CleanRatioSummary = $"已扫描 {response.StartSeconds:0.###}–{response.EndSeconds:0.###} s · 干净率 {response.CleanRatio * 100:0.0}% · 检出 {response.Segments.Count} 段坏段（{ReviewPreprocessingProjection.FormatMuscleStatus(response.MuscleCheckStatus)}）";
+            CleanRatioSummary = $"整段统一检测 · 当前列出 {response.StartSeconds:0.###}–{response.EndSeconds:0.###} s · 干净率 {response.CleanRatio * 100:0.0}% · 检出 {response.Segments.Count} 段坏段（{ReviewPreprocessingProjection.FormatMuscleStatus(response.MuscleCheckStatus)}）";
             if (response.Segments.Count > 0 && ArtifactPolicy == "none")
             {
                 ArtifactPolicy = "reject";
@@ -111,6 +120,7 @@ public sealed partial class ReviewPreprocessingViewModel
             StatusMessage = response.Segments.Count == 0
                 ? $"坏段扫描完成：{response.StartSeconds:0.###}–{response.EndSeconds:0.###} s 范围内未检出超限坏段。"
                 : $"坏段扫描完成（{response.StartSeconds:0.###}–{response.EndSeconds:0.###} s）：检出 {response.Segments.Count} 段，点击列表可一键跳转定位。";
+            RaisePipelineNodeProperties();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception) when (token.IsCancellationRequested) { }
@@ -169,6 +179,7 @@ public sealed partial class ReviewPreprocessingViewModel
             throw new InvalidOperationException("ICA 选择与当前已审查模型不匹配，请重新审查。");
         icaFitFingerprint = fitFingerprint;
         confirmedIcaExcluded = excludedIndices.Distinct().OrderBy(i => i).ToArray();
+        icaInvalidatedPendingReview = false;
         removalMethod = "ica_infomax";
         RaisePropertyChanged(nameof(RemovalMethod));
         RaisePropertyChanged(nameof(IcaFitFingerprint));

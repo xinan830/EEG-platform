@@ -2,18 +2,19 @@ using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
 using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.Preprocessing;
+using BrainPlatform.Desktop.Modules.Review.Analysis;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
 
 /// <summary>Integrates interactive offline scientific preprocessing inspection and downstream algorithm injection into Review.</summary>
 public sealed partial class RecordingReviewViewModel
 {
-    private const string PreprocessingPanelId = "preprocessing";
     private IAlgorithmClient? preprocessingAlgorithmClient;
+
+    public event EventHandler? OpenPreprocessingRequested;
 
     public ReviewPreprocessingViewModel Preprocessing { get; private set; } = null!;
     public System.Windows.Input.ICommand OpenPreprocessingCommand { get; private set; } = null!;
-    public bool IsPreprocessingPanelOpen => activeAnalysisId == PreprocessingPanelId;
 
     private void InitializePreprocessing(IAlgorithmClient? algorithmClient)
     {
@@ -22,25 +23,34 @@ public sealed partial class RecordingReviewViewModel
             EnsureBackendRecordingForPreprocessingAsync,
             () => preprocessingAlgorithmClient as IPreprocessingClient,
             seconds => _ = SeekAsync(seconds),
-            () => (ViewportStartSeconds, VisibleDurationSeconds, HighPassHz, LowPassHz, NotchHz > 0 ? NotchHz : null));
+            () => (ViewportStartSeconds, VisibleDurationSeconds, HighPassHz, LowPassHz, NotchHz > 0 ? NotchHz : null),
+            () => new PreprocessingRecordingContext(
+                RecordingName,
+                SourceChannelCount,
+                SamplingRateHz,
+                DurationSeconds,
+                montageSelection.Capture().SelectedMontage?.Name ?? AcquisitionMontage?.Name ?? "原始采集导联",
+                HighPassHz,
+                LowPassHz,
+                NotchHz),
+            () => CurrentFrame?.OutputChannelNames ?? []);
         Preprocessing.ConfigurationChanged += OnPreprocessingConfigurationChanged;
         montageSelection.SelectionChanged += OnPreprocessingMontageChanged;
         PropertyChanged += OnPreprocessingViewportChanged;
-        OpenPreprocessingCommand = new RelayCommand(TogglePreprocessingPanel);
+        OpenPreprocessingCommand = new RelayCommand(() => OpenPreprocessingRequested?.Invoke(this, EventArgs.Empty));
     }
 
-    private void TogglePreprocessingPanel()
+    private void OnPreprocessingMontageChanged(object? sender, EventArgs e)
     {
-        if (IsPreprocessingPanelOpen)
-            _ = CloseAnalysisAsync();
-        else
-            SetActiveAnalysis(PreprocessingPanelId);
+        Preprocessing.RefreshContextMetadata();
+        Preprocessing.InvalidateSignalInputs();
     }
-
-    private void OnPreprocessingMontageChanged(object? sender, EventArgs e) => Preprocessing.InvalidateSignalInputs();
 
     private void OnPreprocessingViewportChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(HighPassHz) or nameof(LowPassHz) or nameof(NotchHz))
+            Preprocessing.RefreshContextMetadata();
+
         if (e.PropertyName is nameof(ViewportStartSeconds) or nameof(VisibleDurationSeconds) &&
             !IsPlaying && Preprocessing.IsOverlayCompareEnabled)
             _ = Preprocessing.RefreshOverlayWindowAsync();
@@ -48,7 +58,7 @@ public sealed partial class RecordingReviewViewModel
 
     private void OnPreprocessingConfigurationChanged(object? sender, EventArgs e)
     {
-        if (activeAnalysisId is not null && !IsPreprocessingPanelOpen)
+        if (activeAnalysisId is not null)
             InvalidateAnalysisConfiguration();
     }
 
@@ -67,6 +77,9 @@ public sealed partial class RecordingReviewViewModel
 
         var selection = montageSelection.Capture();
         var montage = ResolveAnalysisMontage(analysisRecording, selection.SelectedMontage);
+        if (selection.SelectedMontage is not null && montage is null)
+            throw new ReviewInputMappingException("montage_snapshot_unavailable",
+                "后端没有当前导联快照，科学对比不可用。", "montage");
         return (analysisRecording.Id, montage?.Id, analysisRecording.DurationSeconds ?? DurationSeconds);
     }
 

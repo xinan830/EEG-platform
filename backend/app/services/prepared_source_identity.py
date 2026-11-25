@@ -2,6 +2,7 @@
 
 from app.core.provenance import implementation_version, sha256_json
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
+from app.scientific.contracts.preprocessing import ARTIFACT_DETECTION_VERSION
 
 
 def prepared_source_identity(recordings, recording, *, low_hz, high_hz, notch_hz, notch_q,
@@ -31,6 +32,7 @@ def prepared_source_identity(recordings, recording, *, low_hz, high_hz, notch_hz
         or preprocessing_spec.artifact_removal.normalized().is_active
     ):
         payload["offline_preprocessing_spec"] = preprocessing_spec.to_evidence()
+        payload['artifact_detection_version'] = ARTIFACT_DETECTION_VERSION
     elif bad_channel_spec is not None and bad_channel_spec.normalized().is_active:
         payload["bad_channels"] = bad_channel_spec.normalized().to_evidence()
     return sha256_json(payload)

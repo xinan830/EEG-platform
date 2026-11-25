@@ -29,15 +29,19 @@ def test_preview_preserves_narrow_gaps_extrema_and_channel_specific_times():
     values[42:45, 1] = np.nan
     before = values.copy()
     result = preview(values)
-    assert None in result["traces_uv"]["CH0"]
-    assert 150.0 in result["traces_uv"]["CH0"]
-    assert -120.0 in result["traces_uv"]["CH0"]
-    for channel in result["channels"]:
-        times = result["trace_times_s"][channel]
-        trace = result["traces_uv"][channel]
+    proc = result["processed"]
+    base = result["baseline"]
+    assert result["schema_version"] == "scientific-preview-comparison-v1"
+    assert None in proc["traces_uv"]["CH0"]
+    assert 150.0 in proc["traces_uv"]["CH0"]
+    assert -120.0 in proc["traces_uv"]["CH0"]
+    assert base["traces_uv"] == proc["traces_uv"]
+    for channel in proc["channels"]:
+        times = proc["trace_times_s"][channel]
+        trace = proc["traces_uv"][channel]
         assert len(times) == len(trace)
         assert np.all(np.diff(times) > 0)
-    assert result["display_compression"]["method"] == "finite_run_min_max_envelope_v1"
+    assert result["display_compression"]["method"] == "paired_finite_run_min_max_envelope_v1"
     assert result["display_compression"]["scientific_resampling"] is False
     np.testing.assert_array_equal(values, before)
 
@@ -45,10 +49,11 @@ def test_preview_preserves_narrow_gaps_extrema_and_channel_specific_times():
 def test_preview_keeps_absolute_time_and_high_frequency_envelope():
     values = (np.sin(2 * np.pi * 40 * np.arange(60000) / 1000) * 1e-6)[:, None]
     result = preview(values, max_points=100, start_s=3)
-    trace = result["traces_uv"]["CH0"]
+    proc = result["processed"]
+    trace = proc["traces_uv"]["CH0"]
     assert max(trace) > 0.99 and min(trace) < -0.99
-    assert result["trace_times_s"]["CH0"][0] == 3
-    assert result["trace_times_s"]["CH0"][-1] == 59.999
+    assert proc["trace_times_s"]["CH0"][0] == 3
+    assert proc["trace_times_s"]["CH0"][-1] == 59.999
     assert len(trace) <= 100
 
 
@@ -89,5 +94,6 @@ def test_preview_retains_all_gaps_even_when_mandatory_boundaries_exceed_point_ta
     values = np.ones((100, 1)) * 1e-6
     values[1::2] = np.nan
     result = preview(values, max_points=16)
-    assert result["traces_uv"]["CH0"].count(None) == 50
-    assert len(result["trace_times_s"]["CH0"]) == 100
+    proc = result["processed"]
+    assert proc["traces_uv"]["CH0"].count(None) == 50
+    assert len(proc["trace_times_s"]["CH0"]) == 100

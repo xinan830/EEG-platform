@@ -79,4 +79,15 @@ def build_cache_key(
 def with_offline_preprocessing(filters: dict, config: dict) -> dict:
     """Use identical effective preprocessing evidence in full and on-demand identities."""
     preprocessing = config.get("preprocessing")
-    return {**filters, "offline_preprocessing": preprocessing} if preprocessing is not None else filters
+    if preprocessing is None:
+        return filters
+    result = {**filters, "offline_preprocessing": preprocessing}
+    if preprocessing.get('artifact_rejection', {}).get('policy', 'none') != 'none':
+        from app.scientific.contracts.preprocessing import ARTIFACT_DETECTION_VERSION
+
+        result['artifact_detection_version'] = ARTIFACT_DETECTION_VERSION
+    if preprocessing.get('artifact_removal', {}).get('method', 'none') != 'none':
+        from app.scientific.contracts.artifact_removal import ARTIFACT_REMOVAL_APPLICATION_VERSION
+
+        result['artifact_removal_application_version'] = ARTIFACT_REMOVAL_APPLICATION_VERSION
+    return result

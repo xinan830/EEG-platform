@@ -10,14 +10,15 @@ namespace BrainPlatform.Desktop.Tests.Review;
 
 public sealed class RecordingReviewSignalExporterTests
 {
-    [Fact]
+    [ConfiguredExportFact]
     public async Task Provided_recording_exports_through_real_http_client_when_acceptance_is_configured()
     {
         var directory = Environment.GetEnvironmentVariable("BRAIN_PLATFORM_EXPORT_RECORDING");
         var output = Environment.GetEnvironmentVariable("BRAIN_PLATFORM_EXPORT_OUTPUT");
         var endpoint = Environment.GetEnvironmentVariable("BRAIN_PLATFORM_EXPORT_BACKEND");
-        if (string.IsNullOrWhiteSpace(directory) || string.IsNullOrWhiteSpace(output) || string.IsNullOrWhiteSpace(endpoint))
-            throw Xunit.Sdk.SkipException.ForSkip("Configure recording, output and backend to run real HTTP acceptance.");
+        Assert.False(string.IsNullOrWhiteSpace(directory), "BRAIN_PLATFORM_EXPORT_RECORDING is required.");
+        Assert.False(string.IsNullOrWhiteSpace(output), "BRAIN_PLATFORM_EXPORT_OUTPUT is required.");
+        Assert.False(string.IsNullOrWhiteSpace(endpoint), "BRAIN_PLATFORM_EXPORT_BACKEND is required.");
         Directory.CreateDirectory(output);
         using var http = new HttpClient { BaseAddress = new Uri(endpoint) };
         var client = new HttpAlgorithmClient(http);

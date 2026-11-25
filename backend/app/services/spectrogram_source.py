@@ -93,6 +93,7 @@ def load_spectrogram(
             context_s=context_s, algorithm_version=STFT_PREPROCESSING_VERSION,
             execution_context=execution_context,
             preprocessing_spec=full_spec,
+            recording=recording,
         )
     names = list(prepared.channel_names)
     actual_start = start_index / sfreq

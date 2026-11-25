@@ -87,8 +87,11 @@ public sealed record ReviewScientificConfigurationSnapshot(
     {
         foreach (var property in requested.EnumerateObject())
         {
-            if (!NormalizedConfiguration.TryGetProperty(property.Name, out var value) ||
-                !ReviewJsonValueComparer.Equivalent(value, property.Value)) return false;
+            if (!NormalizedConfiguration.TryGetProperty(property.Name, out var value)) return false;
+            var matches = string.Equals(property.Name, "preprocessing", StringComparison.Ordinal)
+                ? ReviewJsonValueComparer.ContainsRequestedObject(value, property.Value)
+                : ReviewJsonValueComparer.Equivalent(value, property.Value);
+            if (!matches) return false;
         }
         return true;
     }
@@ -96,6 +99,22 @@ public sealed record ReviewScientificConfigurationSnapshot(
 
 internal static class ReviewJsonValueComparer
 {
+    public static bool ContainsRequestedObject(JsonElement actual, JsonElement requested)
+    {
+        if (actual.ValueKind != JsonValueKind.Object || requested.ValueKind != JsonValueKind.Object)
+            return Equivalent(actual, requested);
+        foreach (var property in requested.EnumerateObject())
+        {
+            if (!actual.TryGetProperty(property.Name, out var actualValue)) return false;
+            if (property.Value.ValueKind == JsonValueKind.Object)
+            {
+                if (!ContainsRequestedObject(actualValue, property.Value)) return false;
+            }
+            else if (!Equivalent(actualValue, property.Value)) return false;
+        }
+        return true;
+    }
+
     public static bool Equivalent(JsonElement left, JsonElement right)
     {
         if (left.ValueKind != right.ValueKind) return false;

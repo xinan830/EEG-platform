@@ -8,7 +8,7 @@ import time
 import numpy as np
 
 from app.core.provenance import implementation_version
-from app.scientific.contracts.preprocessing import OfflinePreprocessingSpec
+from app.scientific.contracts.preprocessing import ArtifactRemovalSpec, OfflinePreprocessingSpec
 from app.services.ica_review_cache import IcaReviewCache
 from app.algorithm_runtime.execution_control import ExecutionControl
 from app.models.recording import RecordingSummary
@@ -39,7 +39,7 @@ class ContinuousPreprocessingService:
     def load(self, recording: RecordingSummary, preprocessing_spec: OfflinePreprocessingSpec,
              execution_context: ExecutionControl | None = None,
              channels: list[str] | None = None, *,
-             requested_channels_only: bool = False) -> PreprocessedRecording:
+             requested_channels_only: bool = False, _notify_prepared: bool = True) -> PreprocessedRecording:
         """Execute the facade's validated effective specification without reinterpreting it."""
         from app.services.mapped_preprocessing import mapped_preprocess
         from app.services.prepared_source_identity import prepared_source_identity
@@ -66,6 +66,9 @@ class ContinuousPreprocessingService:
                 if all_channel_bytes > policy.max_preparation_bytes:
                     available = {name.casefold(): name for name in recording.channels}
                     selected_channels = tuple(available[item.casefold()] for item in channels)
+        # Artifact z-scores and interval boundaries belong to the complete channel population.
+        if art_active:
+            selected_channels = None
         effective_notch_q = float(filters.notch_q)
         signal_provenance = self.recordings.analysis_signal_provenance(recording)
         identity = prepared_source_identity(self.recordings, recording, low_hz=low_hz,
@@ -107,6 +110,14 @@ class ContinuousPreprocessingService:
                 recording.id, identity, lookup.miss_reason,
             )
         def create_preprocessed() -> PreprocessedRecording:
+            annotated = None
+            if art_active and (norm_art.policy != 'annotate' or rem_active):
+                annotated = self.load(
+                    recording, replace(preprocessing_spec,
+                        artifact_rejection=replace(norm_art, policy='annotate'),
+                        artifact_removal=ArtifactRemovalSpec()), execution_context,
+                    _notify_prepared=False,
+                )
             prepared = mapped_preprocess(
                 self.recordings, recording, low_hz=low_hz, high_hz=high_hz,
                 notch_hz=notch_hz, notch_q=effective_notch_q,
@@ -115,6 +126,7 @@ class ContinuousPreprocessingService:
                 bad_channel_spec=norm_bad if bad_active else None,
                 artifact_rejection_spec=norm_art if art_active else None,
                 artifact_removal_spec=norm_rem if rem_active else None,
+                annotated_source=annotated,
             )
             if expected_contract is not None:
                 actual_contract = replace(
@@ -128,7 +140,7 @@ class ContinuousPreprocessingService:
             recording.id, identity, create_preprocessed, expected_contract=expected_contract,
         )
         completed = getattr(execution_context, "source_preparation_completed", None)
-        if completed is not None:
+        if completed is not None and _notify_prepared:
             completed()
         logger.info(
             "continuous_source_perf recording_id=%s request_id=%s window_id=%s identity=%s "

@@ -9,5 +9,4 @@ public enum ReviewAnalysisPanelKind
     Tnk,
     SpectralValues,
     CustomFrequencyInspection,
-    Preprocessing,
 }

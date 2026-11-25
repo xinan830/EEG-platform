@@ -31,10 +31,14 @@ internal static class ReviewPreprocessingProjection
         string badChannelPolicy,
         PreprocessingPreviewWindowResponse? preview)
     {
+        if (badChannelPolicy == "exclude" &&
+            preview?.Processed.ExcludedOutputChannels.Contains(displayedChannelName, StringComparer.OrdinalIgnoreCase) == true)
+            return new ChannelVisualBadge(ChannelVisualPreprocessingState.Excluded,
+                "该输出依赖已排除的电极或参考输入；浅灰为科学滤波基线，处理后输出已排除，原始记录未改变。");
         if (badChannelPolicy == "interpolate" &&
-            preview?.InterpolatedChannels.Contains(displayedChannelName, StringComparer.OrdinalIgnoreCase) == true)
+            preview?.Processed.InterpolatedChannels.Contains(displayedChannelName, StringComparer.OrdinalIgnoreCase) == true)
             return new ChannelVisualBadge(ChannelVisualPreprocessingState.Interpolated,
-                "科学预览已应用球面样条插值；该输出依赖插值后的电极输入，原始记录未改变。");
+                "科学对比已应用球面样条插值；该输出依赖插值后的电极输入，原始记录未改变。");
         var baseName = StripMontageSuffix(displayedChannelName);
         var row = rows.FirstOrDefault(item =>
             string.Equals(item.Channel, displayedChannelName, StringComparison.OrdinalIgnoreCase) ||
@@ -42,11 +46,6 @@ internal static class ReviewPreprocessingProjection
         if (row is null || (!row.IsSelected && !row.IsBadCandidate))
             return new ChannelVisualBadge(ChannelVisualPreprocessingState.Normal, "");
 
-        if (row.IsSelected && badChannelPolicy == "exclude" &&
-            preview?.ExcludedChannels.Contains(row.Channel, StringComparer.OrdinalIgnoreCase) == true)
-            return new ChannelVisualBadge(
-                ChannelVisualPreprocessingState.Excluded,
-                $"已排除坏导（原因：{row.ReasonsSummary}）\n{row.MetricsSummary}");
         return new ChannelVisualBadge(
             ChannelVisualPreprocessingState.CandidateBad,
             $"疑似坏导：{row.ReasonsSummary}\n{row.MetricsSummary}\n{row.InterpolationHint}" +
@@ -107,18 +106,24 @@ internal static class ReviewPreprocessingProjection
             {
                 ["policy"] = payload.ArtifactRejection.Policy,
                 ["peak_to_peak_uv"] = payload.ArtifactRejection.PeakToPeakUv,
+                ["amplitude_window_s"] = 0.5,
                 ["muscle_zscore_threshold"] = payload.ArtifactRejection.MuscleZScoreThreshold,
+                ["min_duration_s"] = 0.1,
+                ["pad_s"] = 0.1,
+                ["manual_segments"] = Array.Empty<object>(),
             },
             ["artifact_removal"] = new Dictionary<string, object?>
             {
                 ["method"] = payload.ArtifactRemoval.Method,
                 ["eog_channels"] = payload.ArtifactRemoval.EogChannels,
+                ["ecg_channels"] = Array.Empty<string>(),
                 ["allow_frontal_eog_proxy"] = payload.ArtifactRemoval.AllowFrontalEogProxy,
                 ["ica_n_components"] = payload.ArtifactRemoval.IcaComponentCount,
                 ["ica_eog_threshold"] = payload.ArtifactRemoval.IcaEogThreshold,
                 ["ica_exclude_components"] = payload.ArtifactRemoval.IcaExcludeComponents,
                 ["ica_fit_fingerprint"] = payload.ArtifactRemoval.IcaFitFingerprint,
                 ["ssp_n_eeg"] = payload.ArtifactRemoval.SspEegCount,
+                ["random_state"] = 42,
             },
         };
     }
@@ -133,6 +138,23 @@ internal static class ReviewPreprocessingProjection
         "skipped_low_sampling_rate" => "采样率过低已跳过肌电",
         _ => status,
     };
+
+    public static string FormatArtifactRemovalValidityNote(ArtifactRemovalValidity? validity)
+    {
+        if (validity is not { Intervals.Count: > 0 }) return string.Empty;
+        var missing = validity.Intervals
+            .SelectMany(row => row.MissingInputChannels)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var additionalCount = validity.Intervals
+            .SelectMany(row => row.AdditionalUnavailableChannels)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        var missingLabel = missing.Length == 0 ? "输入通道" : string.Join("、", missing);
+        return additionalCount > 0
+            ? $" · 去伪迹重建不可用（因 {missingLabel} 缺口致另 {additionalCount} 路不可用，非新增坏段）"
+            : $" · 去伪迹重建不可用（因 {missingLabel} 缺口，非新增坏段）";
+    }
 
     private static string StripMontageSuffix(string label)
     {

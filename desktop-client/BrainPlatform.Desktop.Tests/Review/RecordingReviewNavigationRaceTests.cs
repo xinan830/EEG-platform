@@ -75,6 +75,7 @@ public sealed partial class RecordingReviewViewModelTests
         await vm.SeekAsync(50);
         if (wasPlaying) vm.TogglePlayback();
         vm.BeginTimelineDrag();
+        vm.BeginTimelineDrag();
         Assert.False(vm.IsPlaying);
         vm.PreviewSeek(55);
         now = 10;
@@ -87,6 +88,36 @@ public sealed partial class RecordingReviewViewModelTests
         now = 11;
         vm.TickPlayback();
         Assert.Equal(wasPlaying ? 36 : 35, vm.PositionSeconds);
+    }
+
+    [Fact]
+    public async Task Dragging_to_recording_end_does_not_restart_from_zero()
+    {
+        var configuration = Configuration();
+        await using var vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100),
+            NavigationCatalog(Profile("REF", configuration)));
+        await vm.InitializeAsync();
+        vm.TogglePlayback();
+        vm.BeginTimelineDrag();
+        vm.PreviewSeek(vm.DurationSeconds);
+        vm.EndTimelineDrag();
+        Assert.Equal(vm.DurationSeconds, vm.PositionSeconds);
+        Assert.True(vm.IsCompleted);
+        Assert.False(vm.IsPlaying);
+    }
+
+    [Fact]
+    public async Task Closing_during_drag_does_not_resume_the_disposed_clock()
+    {
+        var configuration = Configuration();
+        var vm = new RecordingReviewViewModel(new FakeReader(Manifest(configuration), 100),
+            NavigationCatalog(Profile("REF", configuration)));
+        await vm.InitializeAsync();
+        vm.TogglePlayback();
+        vm.BeginTimelineDrag();
+        await vm.DisposeAsync();
+        vm.EndTimelineDrag();
+        Assert.False(vm.IsPlaying);
     }
 
     [Fact]

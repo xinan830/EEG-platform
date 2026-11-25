@@ -13,6 +13,7 @@ import warnings
 
 import mne
 import numpy as np
+from scipy.ndimage import maximum_filter1d, minimum_filter1d
 
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec
 
@@ -96,31 +97,23 @@ def _detect_amplitude_ptp_segments(
     offset: int,
 ) -> list[ArtifactSegment]:
     n_samples, n_channels = data_v.shape
-    if n_samples == 0 or n_channels == 0:
+    if n_samples < 2 or n_channels == 0:
         return []
     win = max(2, min(n_samples, int(round(window_s * sfreq_hz))))
-    step = max(1, win // 4)
-    flagged_by_channel: dict[int, list[tuple[int, int, float]]] = {}
-    starts = list(range(0, max(1, n_samples - win + 1), step))
-    if starts[-1] + win < n_samples:
-        starts.append(n_samples - win)
-
-    for w_start in starts:
-        w_end = min(n_samples, w_start + win)
-        chunk = data_v[w_start:w_end]
-        for ch_idx in range(n_channels):
-            col = chunk[:, ch_idx]
-            finite = col[np.isfinite(col)]
-            if finite.size < 2:
-                continue
-            ptp = float(np.max(finite) - np.min(finite))
-            if ptp > threshold_v:
-                flagged_by_channel.setdefault(ch_idx, []).append((w_start, w_end, ptp * 1e6))
-
     results: list[ArtifactSegment] = []
-    for ch_idx in sorted(flagged_by_channel):
+    for ch_idx in range(n_channels):
+        col = data_v[:, ch_idx]
+        finite = np.isfinite(col)
+        # Evaluate [start, start + win) at every origin; discard incomplete tail windows.
+        maxima = maximum_filter1d(np.where(finite, col, -np.inf), win, origin=-(win // 2),
+                                  mode='constant', cval=-np.inf)
+        minima = minimum_filter1d(np.where(finite, col, np.inf), win, origin=-(win // 2),
+                                  mode='constant', cval=np.inf)
+        ptp = maxima[:n_samples - win + 1] - minima[:n_samples - win + 1]
         merged_ch: list[tuple[int, int, float]] = []
-        for start, end, peak_uv in flagged_by_channel[ch_idx]:
+        for start, stop in _contiguous_true_runs(ptp > threshold_v):
+            end = stop + win - 1
+            peak_uv = float(np.max(ptp[start:stop])) * 1e6
             if merged_ch and start <= merged_ch[-1][1]:
                 prev_s, prev_e, prev_peak = merged_ch[-1]
                 merged_ch[-1] = (prev_s, max(prev_e, end), max(prev_peak, peak_uv))

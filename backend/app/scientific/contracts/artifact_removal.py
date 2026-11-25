@@ -11,6 +11,7 @@ from typing import Literal
 
 ArtifactRemovalMethod = Literal["none", "eog_regression", "ssp_eog", "ica_infomax"]
 _VALID_METHODS = frozenset({"none", "eog_regression", "ssp_eog", "ica_infomax"})
+ARTIFACT_REMOVAL_APPLICATION_VERSION = "artifact-removal-application-v2-validity"
 
 
 def _dedupe_labels(labels: tuple[str, ...]) -> tuple[str, ...]:
@@ -92,6 +93,7 @@ class ArtifactRemovalSpec:
             return "none"
         payload = json.dumps(
             {
+                "application_version": ARTIFACT_REMOVAL_APPLICATION_VERSION,
                 "method": norm.method,
                 "eog_channels": sorted(ch.casefold() for ch in norm.eog_channels),
                 "ecg_channels": sorted(ch.casefold() for ch in norm.ecg_channels),
@@ -113,6 +115,7 @@ class ArtifactRemovalSpec:
     def to_evidence(self) -> dict[str, object]:
         norm = self.normalized()
         return {
+            **({"application_version": ARTIFACT_REMOVAL_APPLICATION_VERSION} if norm.is_active else {}),
             "method": norm.method,
             "eog_channels": list(norm.eog_channels),
             "ecg_channels": list(norm.ecg_channels),

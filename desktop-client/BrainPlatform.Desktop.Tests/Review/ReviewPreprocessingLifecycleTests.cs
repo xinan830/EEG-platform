@@ -66,7 +66,7 @@ public sealed partial class ReviewPreprocessingTests
         client.FailPreview = true;
         await vm.RefreshOverlayWindowAsync();
         Assert.Null(vm.CurrentOverlayWindow);
-        Assert.Contains("失败", vm.OverlayStatusText);
+        Assert.Contains("不可用", vm.OverlayStatusText);
     }
 
     [Fact]
@@ -186,7 +186,10 @@ public sealed partial class ReviewPreprocessingTests
         preview.Validate();
         Assert.Throws<InvalidOperationException>(() => (preview with
         {
-            TraceTimesSeconds = new Dictionary<string, IReadOnlyList<double>> { ["Fp1"] = [10.0] },
+            Processed = preview.Processed with
+            {
+                TraceTimesSeconds = new Dictionary<string, IReadOnlyList<double>> { ["Fp1"] = [10.0], ["C4"] = [10.0] },
+            },
         }).Validate());
         Assert.Throws<InvalidOperationException>(() => (preview with
         {
@@ -195,9 +198,13 @@ public sealed partial class ReviewPreprocessingTests
         Assert.Contains("STFT", vm.ArtifactRemovalScopeNotice);
         Assert.Contains("TNK", vm.ArtifactRemovalScopeNotice);
         Assert.Contains("不应用 ICA", vm.ArtifactRemovalScopeNotice);
-        var panel = System.Xml.Linq.XDocument.Load(Path.Combine(AppContext.BaseDirectory,
-            "Fixtures", "ReviewPreprocessingPanel.xaml"));
-        Assert.Contains(panel.Descendants(), element => element.Name.LocalName == "TextBlock" &&
+        var pipelineDialog = System.Xml.Linq.XDocument.Load(Path.Combine(AppContext.BaseDirectory,
+            "Fixtures", "PreprocessingPipelineDialog.xaml"));
+        Assert.Contains(pipelineDialog.Descendants(), element => element.Name.LocalName == "TextBlock" &&
+            (string?)element.Attribute("Text") == "{Binding ArtifactRemovalScopeNotice}");
+        var removalDialog = System.Xml.Linq.XDocument.Load(Path.Combine(AppContext.BaseDirectory,
+            "Fixtures", "ArtifactRemovalStepDialog.xaml"));
+        Assert.Contains(removalDialog.Descendants(), element => element.Name.LocalName == "TextBlock" &&
             (string?)element.Attribute("Text") == "{Binding ArtifactRemovalScopeNotice}");
     }
 
@@ -217,7 +224,7 @@ public sealed partial class ReviewPreprocessingTests
         client.PreviewRelease.SetResult();
         await Task.WhenAll(old, current);
         Assert.Equal(20, vm.CurrentOverlayWindow!.StartSeconds);
-        Assert.Equal(20, vm.CurrentOverlayWindow.TraceTimesSeconds["Fp1"][0]);
+        Assert.Equal(20, vm.CurrentOverlayWindow.Processed.TraceTimesSeconds["Fp1"][0]);
     }
 
     [Fact]

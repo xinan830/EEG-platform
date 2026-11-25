@@ -34,7 +34,7 @@ public sealed partial class RecordingReviewViewModelTests
             {
                 var button = Find<Button>(tool, "AnnotationButton");
                 Assert.True(button.IsEnabled);
-                Assert.Equal("事件标记", button.Content);
+                Assert.Equal("事件标注", button.Content);
                 Assert.Null(button.Command);
                 button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 PumpAnnotationUi();
@@ -42,88 +42,80 @@ public sealed partial class RecordingReviewViewModelTests
                 var panel = Assert.Single(window.OwnedWindows.OfType<ReviewAnnotationWindow>());
                 Assert.True(tool.IsOpen);
                 Assert.True(panel.IsVisible);
-                Assert.Equal("事件标记", panel.Title);
-                var sectionTitles = AnnotationVisualChildren(panel).OfType<TextBlock>().Select(label => label.Text).ToArray();
-                Assert.True(Array.IndexOf(sectionTitles, "已标记事件") < Array.IndexOf(sectionTitles, "添加新事件"));
-                Assert.DoesNotContain("当前回溯位置", sectionTitles);
-                Assert.Equal(Visibility.Visible, Find<Border>(panel, "HistoryEmptyState").Visibility);
-                Assert.Equal(Visibility.Collapsed, Find<StackPanel>(panel, "HistoryControls").Visibility);
+                Assert.Equal("事件标注", panel.Title);
                 Assert.True(window.IsEnabled);
                 Assert.Same(window, panel.Owner);
                 Assert.Same(model, panel.DataContext);
                 Assert.Empty(model.RecordingEvents);
-                Assert.False(Find<Button>(panel, "MarkButton").IsEnabled);
-                Assert.False(Find<Button>(panel, "WaveformAddButton").IsEnabled);
-                Assert.Equal("AddEventTimeText", Find<TextBox>(panel, "AddTimeBox").GetBindingExpression(TextBox.TextProperty)!.ParentBinding.Path.Path);
-                Assert.False(Find<Button>(panel, "JumpButton").IsEnabled);
-                Assert.False(Find<Button>(panel, "EditButton").IsEnabled);
-                Assert.False(Find<Button>(panel, "DeleteButton").IsEnabled);
+                var history = Find<ListBox>(panel, "HistoryList");
+                var grid = Find<BrainPlatform.Desktop.Modules.Events.Views.EventAnnotationGridControl>(panel, "EventGrid");
+                Assert.Same(model.RecordingEventOptions, history.ItemsSource);
+                Assert.Same(model.EventGridTiles, grid.Tiles);
+                Assert.True(grid.HasNoTiles);
+                Assert.Equal(Visibility.Visible, Find<Border>(panel, "HistoryEmptyState").Visibility);
+                Assert.Equal(Visibility.Collapsed, history.Visibility);
+                Assert.Equal(Visibility.Visible, Find<Grid>(panel, "EventListPanel").Visibility);
+                Assert.Equal(Visibility.Collapsed, Find<ScrollViewer>(panel, "AnnotateEditPanel").Visibility);
+                Find<RadioButton>(panel, "AnnotateEditTab").IsChecked = true;
+                PumpAnnotationUi();
+                Assert.Equal(Visibility.Collapsed, Find<Grid>(panel, "EventListPanel").Visibility);
+                Assert.Equal(Visibility.Visible, Find<ScrollViewer>(panel, "AnnotateEditPanel").Visibility);
 
                 var definition = new EventDefinition("definition", "EO", "睁眼", "", "#2563EB",
                     true, null, ShortcutScope.Review, EventDefinitionSource.User, 1,
                     DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
                 model.EnabledEventDefinitions.Add(definition);
-                var selector = Find<ComboBox>(panel, "DefinitionSelector");
-                selector.IsDropDownOpen = true;
+                model.SyncEventGridTiles();
+                Find<RadioButton>(panel, "EventListTab").IsChecked = true;
+                Find<RadioButton>(panel, "AnnotateEditTab").IsChecked = true;
                 PumpAnnotationUi();
-                selector.SelectedItem = definition;
-                selector.IsDropDownOpen = false;
-                PumpAnnotationUi();
-                Assert.True(tool.IsOpen);
-                Assert.Equal(definition.Id, model.SelectedEventDefinitionId);
-                Assert.Contains(AnnotationVisualChildren(selector).OfType<TextBlock>(), label => label.Text == "睁眼");
-                Assert.True(Find<Button>(panel, "MarkButton").IsEnabled);
-                Assert.Equal(Visibility.Collapsed, Find<TextBlock>(panel, "DefinitionEmptyHint").Visibility);
-                Assert.Same(model.MarkSelectedEventCommand, Find<Button>(panel, "MarkButton").Command);
+                Assert.False(grid.HasNoTiles);
+                Assert.Equal(definition, Assert.Single(grid.Tiles!).Definition);
 
                 var manual = new RecordingEvent("manual", "recording", definition.Id,
                     new EventDefinitionSnapshot("EO", "睁眼", "#2563EB", 1),
                     EventSource.ManualButton, "review", null, 500, 0,
                     DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
                 model.RecordingEventOptions.Add(new RecordingEventOption(manual, "00:01 睁眼", "睁眼"));
-                var history = Find<ComboBox>(panel, "HistorySelector");
-                history.IsDropDownOpen = true;
-                PumpAnnotationUi();
+                Find<RadioButton>(panel, "EventListTab").IsChecked = true;
                 history.SelectedIndex = 0;
-                history.IsDropDownOpen = false;
                 PumpAnnotationUi();
-                Assert.True(tool.IsOpen);
                 Assert.Same(manual, model.SelectedRecordingEvent);
                 Assert.Equal(Visibility.Collapsed, Find<Border>(panel, "HistoryEmptyState").Visibility);
-                Assert.Equal(Visibility.Visible, Find<StackPanel>(panel, "HistoryControls").Visibility);
-                Assert.True(Find<Button>(panel, "EditButton").IsEnabled);
-                Assert.True(Find<Button>(panel, "DeleteButton").IsEnabled);
-                var editButton = Find<Button>(panel, "EditButton");
-                model.OpenEventEditorCommand.Execute(null);
+                Assert.Equal(Visibility.Visible, history.Visibility);
+                Button RowAction(string text) => Assert.Single(AnnotationVisualChildren(history).OfType<Button>(),
+                    item => Equals(item.Content, text));
+                Assert.True(RowAction("定位").IsEnabled);
+                Assert.True(RowAction("编辑").IsEnabled);
+                Assert.True(RowAction("删除").IsEnabled);
+                RowAction("编辑").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 PumpAnnotationUi();
-                Assert.Equal(Visibility.Visible, Find<StackPanel>(panel, "EventEditor").Visibility);
+                Assert.True(model.IsEventEditorOpen);
+                Assert.True(Find<RadioButton>(panel, "AnnotateEditTab").IsChecked);
+                Assert.Equal(Visibility.Visible, Find<Border>(panel, "EventEditor").Visibility);
                 Assert.Equal(1, model.EditEventStartSeconds);
                 Assert.Equal("00:00:01.000", Find<TextBox>(panel, "EditTimeBox").Text);
                 Assert.Same(model.BeginWaveformMoveCommand, Find<Button>(panel, "WaveformMoveButton").Command);
-                Assert.Equal(Color.FromRgb(219, 234, 254), Assert.IsType<SolidColorBrush>(editButton.Background).Color);
                 model.BeginEventPlacement(true);
-                model.OpenEventEditorCommand.Execute(null);
+                model.CloseEventEditorCommand.Execute(null);
                 PumpAnnotationUi();
-                Assert.Equal(Visibility.Collapsed, Find<StackPanel>(panel, "EventEditor").Visibility);
                 Assert.False(model.IsEventEditorOpen);
                 Assert.False(model.IsEventPlacementActive);
-                Assert.NotEqual(Color.FromRgb(219, 234, 254), Assert.IsType<SolidColorBrush>(editButton.Background).Color);
-                model.OpenEventEditorCommand.Execute(null);
-                PumpAnnotationUi();
-                Assert.DoesNotContain(AnnotationVisualChildren(panel).OfType<TextBlock>(),
-                    label => label.Text is "起始时间" or "持续时间");
+                Assert.Equal(Visibility.Collapsed, Find<Border>(panel, "EventEditor").Visibility);
 
-                model.SelectedRecordingEvent = manual with { Source = EventSource.ImportedAnnotation };
+                var imported = manual with { Id = "imported", Source = EventSource.ImportedAnnotation };
+                model.RecordingEventOptions.Clear();
+                model.RecordingEventOptions.Add(new RecordingEventOption(imported, "00:01 睁眼", "睁眼"));
+                Find<RadioButton>(panel, "EventListTab").IsChecked = true;
+                history.SelectedIndex = 0;
                 PumpAnnotationUi();
-                Assert.False(Find<Button>(panel, "EditButton").IsEnabled);
-                Assert.False(Find<Button>(panel, "DeleteButton").IsEnabled);
+                Assert.Same(imported, model.SelectedRecordingEvent);
+                Assert.False(RowAction("编辑").IsEnabled);
+                Assert.False(RowAction("删除").IsEnabled);
                 Assert.False(model.OpenEventEditorCommand.CanExecute(null));
-                Assert.Equal(Visibility.Collapsed, Find<StackPanel>(panel, "EventEditor").Visibility);
 
-                // Re-activation keeps the same window and editing state until explicitly closed.
                 button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 PumpAnnotationUi();
-                Assert.True(tool.IsOpen);
                 Assert.Same(panel, Assert.Single(window.OwnedWindows.OfType<ReviewAnnotationWindow>()));
                 Find<Button>(panel, "CloseButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Assert.False(tool.IsOpen);
@@ -150,7 +142,7 @@ public sealed partial class RecordingReviewViewModelTests
                 Assert.Equal(WindowStyle.None, panel.WindowStyle);
                 var chrome = WindowChrome.GetWindowChrome(panel);
                 Assert.NotNull(chrome);
-                Assert.Equal(46, chrome.CaptionHeight);
+                Assert.Equal(48, chrome.CaptionHeight);
                 Assert.True(chrome.ResizeBorderThickness.Left > 0);
                 Assert.True(WindowChrome.GetIsHitTestVisibleInChrome(Find<Button>(panel, "CloseButton")));
                 Assert.Equal(ResizeMode.CanResize, panel.ResizeMode);
@@ -266,6 +258,7 @@ public sealed partial class RecordingReviewViewModelTests
                 model.EnabledEventDefinitions.Add(new EventDefinition("eo", "EO", "睁眼", "", "#2563EB",
                     true, null, ShortcutScope.Review, EventDefinitionSource.User, 1,
                     DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+                model.SyncEventGridTiles();
                 model.SelectedEventDefinitionId = "eo";
                 var item = new RecordingEvent("preview", "recording", "eo",
                     new EventDefinitionSnapshot("EO", "睁眼", "#2563EB", 1),
@@ -284,13 +277,14 @@ public sealed partial class RecordingReviewViewModelTests
                 if (editing)
                 {
                     panel.Height = 850;
+                    Find<RadioButton>(panel, "AnnotateEditTab").IsChecked = true;
                     model.IsEventEditorOpen = true;
                     model.EditEventNote = "睁眼事件，可输入时间或在波形上改位";
                     model.BeginEventPlacement(true);
                     PumpAnnotationUi();
                 }
                 var surface = Find<Border>(panel, "PanelSurface");
-                Assert.InRange(surface.ActualWidth, 378, 390);
+                Assert.InRange(surface.ActualWidth, 410, 422);
                 Assert.InRange(surface.ActualHeight, 250, 850);
                 Assert.Equal(hasEvents ? Visibility.Collapsed : Visibility.Visible, Find<Border>(panel, "HistoryEmptyState").Visibility);
                 var bitmap = new RenderTargetBitmap((int)Math.Ceiling(surface.ActualWidth * scale),

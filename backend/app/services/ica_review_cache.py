@@ -9,6 +9,7 @@ from threading import RLock
 from typing import Any, Sequence
 
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, ArtifactRemovalSpec, BadChannelSpec
+from app.scientific.contracts.preprocessing import ARTIFACT_DETECTION_VERSION
 
 
 def compute_ica_fit_fingerprint(
@@ -38,6 +39,7 @@ def compute_ica_fit_fingerprint(
     payload = json.dumps(
         {
             "version": "ica-fit-v1",
+            "artifact_detection_version": ARTIFACT_DETECTION_VERSION if norm_art.is_active else None,
             "recording_id": str(recording_id),
             "source_sha256": str(source_sha256),
             "signal_view_sha256": str(signal_view_sha256 or ""),

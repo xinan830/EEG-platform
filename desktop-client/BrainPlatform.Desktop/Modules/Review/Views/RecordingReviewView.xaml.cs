@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using Microsoft.Win32;
 using BrainPlatform.Desktop.Modules.Events.Views;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
+using BrainPlatform.Desktop.Modules.Review.Views.Preprocessing;
 using BrainPlatform.Desktop.Modules.Montages.Views;
 
 namespace BrainPlatform.Desktop.Modules.Review.Views;
@@ -15,12 +16,15 @@ public partial class RecordingReviewView : UserControl
 {
     private readonly ReviewPlaybackTickDiagnostics playbackTickDiagnostics = new();
     private ReviewResourceMonitor? resourceMonitor;
+    private RecordingReviewViewModel? subscribedPreprocessingViewModel;
+    private PreprocessingPipelineDialog? preprocessingDialog;
 
     public RecordingReviewView()
     {
         InitializeComponent();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        DataContextChanged += OnReviewDataContextChanged;
     }
 
     public static readonly DependencyProperty IsDataInfoOpenProperty =
@@ -74,6 +78,7 @@ public partial class RecordingReviewView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        AttachPreprocessingDialogTrigger(ViewModel);
         CompositionTarget.Rendering += OnPlaybackRendering;
         if (ReviewPerformanceDiagnostics.Enabled && resourceMonitor is null)
         {
@@ -102,10 +107,52 @@ public partial class RecordingReviewView : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        AttachPreprocessingDialogTrigger(null);
+        ClosePreprocessingDialog();
         resourceMonitor?.Dispose();
         resourceMonitor = null;
         ViewModel?.EndTimelineDrag();
         CompositionTarget.Rendering -= OnPlaybackRendering;
+    }
+
+    private void OnReviewDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsLoaded) AttachPreprocessingDialogTrigger(ViewModel);
+    }
+
+    private void AttachPreprocessingDialogTrigger(RecordingReviewViewModel? viewModel)
+    {
+        if (ReferenceEquals(subscribedPreprocessingViewModel, viewModel)) return;
+        if (subscribedPreprocessingViewModel is not null)
+            subscribedPreprocessingViewModel.OpenPreprocessingRequested -= OnOpenPreprocessingRequested;
+        subscribedPreprocessingViewModel = viewModel;
+        if (subscribedPreprocessingViewModel is not null)
+            subscribedPreprocessingViewModel.OpenPreprocessingRequested += OnOpenPreprocessingRequested;
+    }
+
+    private void OnOpenPreprocessingRequested(object? sender, EventArgs e)
+    {
+        if (ViewModel is not { } viewModel) return;
+        if (preprocessingDialog is { IsLoaded: true })
+        {
+            if (preprocessingDialog.WindowState == WindowState.Minimized)
+                preprocessingDialog.WindowState = WindowState.Normal;
+            preprocessingDialog.Activate();
+            return;
+        }
+        preprocessingDialog = new PreprocessingPipelineDialog(viewModel.Preprocessing)
+        {
+            Owner = Window.GetWindow(this),
+        };
+        preprocessingDialog.Closed += (_, _) => preprocessingDialog = null;
+        preprocessingDialog.Show();
+    }
+
+    private void ClosePreprocessingDialog()
+    {
+        if (preprocessingDialog is { IsLoaded: true } dialog)
+            dialog.Close();
+        preprocessingDialog = null;
     }
 
     private void OnPlaybackRendering(object? sender, EventArgs e)

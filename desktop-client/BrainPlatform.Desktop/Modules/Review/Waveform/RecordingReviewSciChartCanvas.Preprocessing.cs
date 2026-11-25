@@ -17,6 +17,7 @@ public sealed partial class RecordingReviewSciChartCanvas
         artifactSegments = new ReviewArtifactSegmentLayer(surface, chartHost);
         preprocessingOverlay = new ReviewPreprocessingOverlayLayer(surface);
         chartHost.Children.Add(artifactSegments.Canvas);
+        chartHost.Children.Add(preprocessingOverlay.LegendElement);
     }
 
     private void SubscribePreprocessing(RecordingReviewViewModel? viewModel)
@@ -75,15 +76,17 @@ public sealed partial class RecordingReviewSciChartCanvas
     private void RefreshPreprocessingVisuals(RecordingReviewViewModel? viewModel)
     {
         artifactSegments.Rebuild(viewModel);
-        var plotHeight = WaveformPlotLayout.GetPlotArea(surface).Height;
+        var plotArea = WaveformPlotLayout.GetPlotArea(surface);
+        viewModel?.Preprocessing.UpdatePlotWidth(plotArea.Width);
         preprocessingOverlay.ApplyVisuals(
             viewModel,
             activeLabels,
             renderedFrame?.OutputChannelColors,
             traceSeries.Select(item => item.LineSeries).ToArray(),
             labels,
-            plotHeight,
+            plotArea.Height,
             screenScale);
+        RefreshSampleMarkers(renderedFrame, viewModel);
     }
 
     private void UpdatePreprocessingOnViewportChanged(RecordingReviewViewModel? viewModel)

@@ -5,58 +5,112 @@ using System.Windows.Shapes;
 using SciChart.Charting.Model.DataSeries;
 using SciChart.Charting.Visuals;
 using SciChart.Charting.Visuals.RenderableSeries;
-using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.Preprocessing;
 using BrainPlatform.Desktop.Modules.Review.ViewModels;
 using BrainPlatform.Desktop.Shared.Waveform;
 
 namespace BrainPlatform.Desktop.Modules.Review.Waveform;
 
-/// <summary>Renders cleaned-signal overlay traces (with cyan dashed style for interpolated bad channels) and bad-channel badges.</summary>
+/// <summary>Renders mutually-exclusive paired scientific comparison traces (light-gray baseline + dark-gray processed) and floating legend.</summary>
 internal sealed class ReviewPreprocessingOverlayLayer
 {
-    private static readonly Color DimmedOriginalColor = Color.FromRgb(203, 213, 225);
-    private static readonly Color InterpolatedCyanColor = Color.FromRgb(8, 145, 178);
-    private static readonly Color CleanedDarkColor = Color.FromRgb(15, 23, 42);
+    private static readonly Color ScientificBaselineGray = Color.FromRgb(186, 198, 212);
+    private static readonly Color ScientificProcessedDark = Color.FromRgb(15, 23, 42);
+    private static readonly Color AlertAmberColor = Color.FromRgb(217, 119, 6);
+    private static readonly Color BrandBlueColor = Color.FromRgb(37, 99, 235);
     private static readonly double[] InterpolatedDash = [5, 3];
 
     private readonly SciChartSurface surface;
-    private readonly List<OverlaySeries> overlaySeries = [];
+    private readonly List<OverlaySeries> baselineSeries = [];
+    private readonly List<OverlaySeries> processedSeries = [];
+    private readonly Border legendBorder;
+    private readonly StackPanel baselineSwatch;
+    private readonly TextBlock legendText;
 
     public ReviewPreprocessingOverlayLayer(SciChartSurface surface)
     {
         this.surface = surface;
+        baselineSwatch = CreateSwatch(ScientificBaselineGray, "浅灰 科学滤波基线");
+        legendText = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        var content = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        content.Children.Add(baselineSwatch);
+        content.Children.Add(CreateSwatch(ScientificProcessedDark, "深灰 科学处理后"));
+        content.Children.Add(legendText);
+
+        legendBorder = new Border
+        {
+            Child = content,
+            Background = new SolidColorBrush(Color.FromArgb(242, 255, 255, 255)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(226, 232, 240)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(10, 5, 10, 5),
+            Margin = new Thickness(0, 8, 12, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            IsHitTestVisible = false,
+            Visibility = Visibility.Collapsed,
+        };
     }
+
+    public UIElement LegendElement => legendBorder;
 
     public void EnsureSeries(int channelCount)
     {
-        foreach (var item in overlaySeries)
+        foreach (var item in baselineSeries)
             surface.RenderableSeries.Remove(item.LineSeries);
-        overlaySeries.Clear();
+        foreach (var item in processedSeries)
+            surface.RenderableSeries.Remove(item.LineSeries);
+        baselineSeries.Clear();
+        processedSeries.Clear();
 
         for (var i = 0; i < channelCount; i++)
         {
-            var data = new XyDataSeries<double, double>();
-            var line = new FastLineRenderableSeries
+            var baseData = new XyDataSeries<double, double>();
+            var baseLine = new FastLineRenderableSeries
             {
-                DataSeries = data,
-                Stroke = CleanedDarkColor,
-                StrokeThickness = 2,
+                DataSeries = baseData,
+                Stroke = ScientificBaselineGray,
+                StrokeThickness = 1,
                 DrawNaNAs = LineDrawMode.Gaps,
                 IsVisible = false,
             };
-            surface.RenderableSeries.Add(line);
-            overlaySeries.Add(new OverlaySeries(data, line));
+            surface.RenderableSeries.Add(baseLine);
+            baselineSeries.Add(new OverlaySeries(baseData, baseLine));
+
+            var procData = new XyDataSeries<double, double>();
+            var procLine = new FastLineRenderableSeries
+            {
+                DataSeries = procData,
+                Stroke = ScientificProcessedDark,
+                StrokeThickness = 1,
+                DrawNaNAs = LineDrawMode.Gaps,
+                IsVisible = false,
+            };
+            surface.RenderableSeries.Add(procLine);
+            processedSeries.Add(new OverlaySeries(procData, procLine));
         }
     }
 
     public void Clear()
     {
-        foreach (var item in overlaySeries)
+        foreach (var item in baselineSeries)
         {
             item.Data.Clear();
             item.LineSeries.IsVisible = false;
         }
+        foreach (var item in processedSeries)
+        {
+            item.Data.Clear();
+            item.LineSeries.IsVisible = false;
+        }
+        legendBorder.Visibility = Visibility.Collapsed;
     }
 
     public void ApplyVisuals(
@@ -69,36 +123,24 @@ internal sealed class ReviewPreprocessingOverlayLayer
         ScreenScaleContext screenScale)
     {
         var prep = viewModel?.Preprocessing;
-        var overlayActive = viewModel?.IsPlaying != true &&
-            prep is { IsOverlayCompareEnabled: true, CurrentOverlayWindow: not null };
-        var overlayWindow = overlayActive ? prep!.CurrentOverlayWindow! : null;
-        var interpolatedSet = overlayWindow is not null
-            ? overlayWindow.InterpolatedChannels.ToHashSet(StringComparer.OrdinalIgnoreCase)
-            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var comparisonReady = prep?.CanDisplayScientificComparison(channelNames) == true &&
+            baselineSeries.Count >= channelNames.Count && processedSeries.Count >= channelNames.Count;
+        var overlayWindow = comparisonReady ? prep!.CurrentOverlayWindow! : null;
 
-        // 1. Update left channel rail badges & tooltips + base trace appearance.
         UpdateChannelBadges(labelsGrid, channelNames, configuredColors, prep);
 
         var traceCount = Math.Min(channelNames.Count, baseSeries.Count);
         for (var i = 0; i < traceCount; i++)
         {
             var baseColor = WaveformTraceColors.ToColor(configuredColors?.ElementAtOrDefault(i), i);
-            if (overlayActive)
-            {
-                baseSeries[i].Stroke = DimmedOriginalColor;
-                baseSeries[i].StrokeThickness = 1;
-                baseSeries[i].StrokeDashArray = null;
-            }
-            else
-            {
-                baseSeries[i].Stroke = baseColor;
-                baseSeries[i].StrokeThickness = 1;
-                baseSeries[i].StrokeDashArray = null;
-            }
+            baseSeries[i].Stroke = baseColor;
+            baseSeries[i].StrokeThickness = 1;
+            baseSeries[i].StrokeDashArray = null;
+            // Mutually exclusive: hide ordinary colored series when paired scientific comparison is ready.
+            baseSeries[i].IsVisible = !comparisonReady;
         }
 
-        // 2. Populate cleaned overlay traces when overlay compare is enabled.
-        if (!overlayActive || overlayWindow is null || overlaySeries.Count < traceCount)
+        if (!comparisonReady || overlayWindow is null || baselineSeries.Count < traceCount || processedSeries.Count < traceCount)
         {
             Clear();
             return;
@@ -110,35 +152,54 @@ internal sealed class ReviewPreprocessingOverlayLayer
 
         for (var i = 0; i < traceCount; i++)
         {
-            var ch = channelNames[i];
-            var ov = overlaySeries[i];
-            if (!TryGetTrace(overlayWindow.TracesUv, ch, out var valuesUv) || valuesUv is null || valuesUv.Count == 0 ||
-                !TryGetTrace(overlayWindow.TraceTimesSeconds, ch, out var times) || times is null)
-            {
-                ov.Data.Clear();
-                ov.LineSeries.IsVisible = false;
-                continue;
-            }
-            var baseline = traceCount - i - 0.5;
-            var count = times.Count;
-            var xs = new double[count];
-            var ys = new double[count];
-            for (var k = 0; k < count; k++)
-            {
-                xs[k] = times[k];
-                ys[k] = valuesUv[k] is { } uv ? baseline + uv * displayScale : double.NaN;
-            }
-            var isInterpolated = interpolatedSet.Contains(ch);
-            ov.LineSeries.Stroke = isInterpolated ? InterpolatedCyanColor : CleanedDarkColor;
-            ov.LineSeries.StrokeThickness = 2;
-            ov.LineSeries.StrokeDashArray = isInterpolated ? InterpolatedDash : null;
-            using (ov.Data.SuspendUpdates())
-            {
-                ov.Data.Clear();
-                ov.Data.Append(xs, ys);
-            }
-            ov.LineSeries.IsVisible = true;
+            var projected = ReviewPreprocessingOverlayProjection.ProjectRow(
+                overlayWindow, channelNames[i], i, traceCount, displayScale);
+            ApplySeriesData(baselineSeries[i], projected.DrawBaseline, projected.BaselineX, projected.BaselineY, dash: null);
+            ApplySeriesData(processedSeries[i], projected.DrawProcessed, projected.ProcessedX, projected.ProcessedY,
+                dash: projected.IsInterpolated ? InterpolatedDash : null);
         }
+
+        baselineSwatch.Visibility = overlayWindow.EnhancedPreprocessingActive ? Visibility.Visible : Visibility.Collapsed;
+        legendText.Text = overlayWindow.EnhancedPreprocessingActive
+            ? "· 零相位 1–50 Hz，陷波 50 Hz（Q=30）；顶部滤波仅用于彩色阅图"
+            : "· 仅基础科学滤波（零相位 1–50 Hz，陷波 50 Hz Q=30，增强全关前后一致）；顶部滤波仅用于彩色阅图";
+        legendBorder.Visibility = Visibility.Visible;
+    }
+
+    private static void ApplySeriesData(OverlaySeries series, bool visible, double[]? xs, double[]? ys, double[]? dash)
+    {
+        if (!visible || xs is null || ys is null || xs.Length == 0)
+        {
+            series.Data.Clear();
+            series.LineSeries.IsVisible = false;
+            return;
+        }
+        series.LineSeries.StrokeDashArray = dash;
+        using (series.Data.SuspendUpdates())
+        {
+            series.Data.Clear();
+            series.Data.Append(xs, ys);
+        }
+        series.LineSeries.IsVisible = true;
+    }
+
+    private static StackPanel CreateSwatch(Color color, string label)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
+        panel.Children.Add(new Border
+        {
+            Width = 14, Height = 2, CornerRadius = new CornerRadius(1),
+            Background = new SolidColorBrush(color),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 5, 0),
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = label, FontSize = 11, FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(15, 23, 42)),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        return panel;
     }
 
     private static void UpdateChannelBadges(
@@ -164,16 +225,16 @@ internal sealed class ReviewPreprocessingOverlayLayer
                 {
                     case ChannelVisualPreprocessingState.CandidateBad:
                     case ChannelVisualPreprocessingState.Excluded:
-                        dot.Fill = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+                        dot.Fill = new SolidColorBrush(AlertAmberColor);
                         dot.Visibility = Visibility.Visible;
                         text.Foreground = new SolidColorBrush(badge.State == ChannelVisualPreprocessingState.Excluded
                             ? Color.FromRgb(148, 163, 184)
-                            : Color.FromRgb(185, 28, 28));
+                            : Color.FromRgb(180, 83, 9));
                         break;
                     case ChannelVisualPreprocessingState.Interpolated:
-                        dot.Fill = new SolidColorBrush(InterpolatedCyanColor);
+                        dot.Fill = new SolidColorBrush(BrandBlueColor);
                         dot.Visibility = Visibility.Visible;
-                        text.Foreground = new SolidColorBrush(InterpolatedCyanColor);
+                        text.Foreground = new SolidColorBrush(BrandBlueColor);
                         break;
                     default:
                         dot.Visibility = Visibility.Collapsed;
@@ -182,24 +243,6 @@ internal sealed class ReviewPreprocessingOverlayLayer
                 }
             }
         }
-    }
-
-    private static bool TryGetTrace<T>(
-        IReadOnlyDictionary<string, IReadOnlyList<T>> traces,
-        string channelName,
-        out IReadOnlyList<T>? trace)
-    {
-        if (traces.TryGetValue(channelName, out trace)) return true;
-        foreach (var pair in traces)
-        {
-            if (string.Equals(pair.Key, channelName, StringComparison.OrdinalIgnoreCase))
-            {
-                trace = pair.Value;
-                return true;
-            }
-        }
-        trace = null;
-        return false;
     }
 
     private sealed record OverlaySeries(XyDataSeries<double, double> Data, FastLineRenderableSeries LineSeries);

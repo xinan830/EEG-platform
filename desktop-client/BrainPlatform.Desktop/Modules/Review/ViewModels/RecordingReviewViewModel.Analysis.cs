@@ -46,7 +46,6 @@ public sealed partial class RecordingReviewViewModel
         foreach (var panel in analysisPanels.Values) panel.Apply(null, PositionSeconds);
         RaisePropertyChanged(nameof(AnalysisPanelStartSeconds));
         RaisePropertyChanged(nameof(IsAnalysisPanelOpen));
-        RaisePropertyChanged(nameof(IsPreprocessingPanelOpen));
         RaisePropertyChanged(nameof(IsSpectralValuesPanelOpen));
         RaisePropertyChanged(nameof(IsCustomFrequencyInspectionPanelOpen));
         RaisePropertyChanged(nameof(IsRbpAnalysisPanelOpen));
@@ -195,7 +194,7 @@ public sealed partial class RecordingReviewViewModel
         foreach (var panel in analysisPanels.Values) panel.Apply(null, PositionSeconds);
         AnalysisPreparationText = "参数已改变，等待自动分析。";
         RaiseAnalysisPropertiesChanged();
-        if (activeAnalysisId is not { } algorithmId || IsPreprocessingPanelOpen || analysisLifetime.IsCancellationRequested) return;
+        if (activeAnalysisId is not { } algorithmId || analysisLifetime.IsCancellationRequested) return;
         var revision = analysisConfigurationRevision;
         analysisUpdater.Schedule(TimeSpan.FromMilliseconds(300), async token =>
         {

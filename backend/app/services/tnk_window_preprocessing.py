@@ -52,4 +52,5 @@ def prepare_tnk_window(
             algorithm_version=TNK_WINDOW_PREPROCESSING_VERSION,
             execution_context=execution_context,
             preprocessing_spec=full_spec,
+            recording=recording,
         )

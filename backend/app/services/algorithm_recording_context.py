@@ -248,6 +248,7 @@ class _RecordingAlgorithmContext:
         end_index = min(int(round(self.duration_s * sfreq)), int(round(end_s * sfreq)))
         if end_index <= start_index:
             raise ValueError("FAA analysis range is outside recording duration")
+        removal_evidence = None
         if low_hz is not None and high_hz is not None:
             extra = (
                 {"bad_channel_spec": self._bad_channel_spec, "artifact_rejection_spec": self._artifact_rejection_spec,
@@ -261,6 +262,14 @@ class _RecordingAlgorithmContext:
             self._prepared_faa_source = prepared
             prep_lookup = {name.casefold(): i for i, name in enumerate(prepared.channel_names)}
             pair = prepared.data[start_index:end_index, [prep_lookup[f3_name.casefold()], prep_lookup[f4_name.casefold()]]]
+            if prepared.artifact_removal_evidence is not None:
+                from app.scientific.artifact_removal_validity import project_application_validity
+
+                removal_evidence = {**prepared.artifact_removal_evidence,
+                    "application_validity": project_application_validity(
+                        prepared.artifact_removal_evidence.get("application_validity"),
+                        start_index, end_index, [f3_name, f4_name]),
+                }
         else:
             if self._access_session is None:
                 self._access_session = self._recordings.open_access_session(self._recording)
@@ -292,6 +301,8 @@ class _RecordingAlgorithmContext:
                 "frequency_resolution_hz": 1.0 / 2.0,
             },
         }
+        if removal_evidence is not None:
+            evidence["artifact_removal"] = removal_evidence
         return pair[:, 0], pair[:, 1], float(sfreq), evidence
 
     def load_signal_source(

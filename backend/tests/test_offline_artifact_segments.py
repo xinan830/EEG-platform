@@ -143,7 +143,7 @@ def test_offline_preprocessing_continuous_and_bounded_window_reject_artifacts_wi
 
     with recordings.open_access_session(recording) as session:
         clean_window = preproc.prepare_bounded_window(
-            session, start_sample=500, end_sample=1500, channels=["F3"],
+            session, recording=recording, start_sample=500, end_sample=1500, channels=["F3"],
             low_hz=1.0, high_hz=45.0, notch_hz=50.0, context_s=0.5, algorithm_version="stft-v1",
             preprocessing_spec=spec_reject,
         )
@@ -151,7 +151,7 @@ def test_offline_preprocessing_continuous_and_bounded_window_reject_artifacts_wi
 
         with pytest.raises(SpectralQualityGateError) as exc_info:
             preproc.prepare_bounded_window(
-                session, start_sample=2200, end_sample=3200, channels=["F3"],
+                session, recording=recording, start_sample=2200, end_sample=3200, channels=["F3"],
                 low_hz=1.0, high_hz=45.0, notch_hz=50.0, context_s=0.5, algorithm_version="stft-v1",
                 preprocessing_spec=spec_reject,
             )
@@ -161,7 +161,7 @@ def test_offline_preprocessing_continuous_and_bounded_window_reject_artifacts_wi
         assert detail["evidence"]["artifact_intervals"]
 
         annotated_dirty = preproc.prepare_bounded_window(
-            session, start_sample=2200, end_sample=3200, channels=["F3"],
+            session, recording=recording, start_sample=2200, end_sample=3200, channels=["F3"],
             low_hz=1.0, high_hz=45.0, notch_hz=50.0, context_s=0.5, algorithm_version="stft-v1",
             preprocessing_spec=spec_annotate,
         )
@@ -174,7 +174,7 @@ def test_offline_preprocessing_continuous_and_bounded_window_reject_artifacts_wi
         spec_muscle_reject = OfflinePreprocessingSpec(f_narrow, BadChannelSpec(), art_muscle_only).validate(float(sfreq))
         with pytest.raises(SpectralQualityGateError) as muscle_exc:
             preproc.prepare_bounded_window(
-                session, start_sample=3000, end_sample=5500, channels=["Fp1", "Fp2", "F3", "F4"],
+                session, recording=recording, start_sample=3000, end_sample=5500, channels=["Fp1", "Fp2", "F3", "F4"],
                 low_hz=1.0, high_hz=30.0, notch_hz=50.0, context_s=0.5, algorithm_version="stft-v1",
                 preprocessing_spec=spec_muscle_reject,
             )
@@ -222,7 +222,7 @@ def test_manual_artifact_unknown_channel_raises_and_narrow_band_ptp_preserves_bu
         spec_narrow = OfflinePreprocessingSpec(f_narrow, BadChannelSpec(), art_ptp).validate(sfreq)
         with pytest.raises(SpectralQualityGateError) as narrow_exc:
             preproc.prepare_bounded_window(
-                session, start_sample=400, end_sample=1400, channels=["F3"],
+                session, recording=recording, start_sample=400, end_sample=1400, channels=["F3"],
                 low_hz=0.5, high_hz=8.0, notch_hz=None, context_s=0.5, algorithm_version="tnk-v1",
                 preprocessing_spec=spec_narrow,
             )

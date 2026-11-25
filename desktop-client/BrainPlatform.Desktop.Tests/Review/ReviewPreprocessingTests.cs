@@ -114,11 +114,150 @@ public sealed partial class ReviewPreprocessingTests
         await vm.RefreshOverlayWindowAsync();
 
         Assert.NotNull(vm.CurrentOverlayWindow);
-        Assert.True(vm.CurrentOverlayWindow!.IcaModelReused);
+        Assert.False(vm.CurrentOverlayWindow!.EnhancedPreprocessingActive);
+        Assert.Contains("增强处理全关", vm.OverlayStatusText);
+        Assert.True(vm.IsScientificComparisonReady);
+
+        var ica = await vm.InspectIcaForDialogAsync();
+        vm.ConfirmIcaSelection([0], ica.IcaFitFingerprint);
+        await vm.RefreshOverlayWindowAsync();
+
+        Assert.NotNull(vm.CurrentOverlayWindow);
+        Assert.True(vm.CurrentOverlayWindow!.EnhancedPreprocessingActive);
+        Assert.True(vm.CurrentOverlayWindow!.Processed.IcaModelReused);
         Assert.Contains("复用已审查 ICA 模型", vm.OverlayStatusText);
 
         vm.IsOverlayCompareEnabled = false;
         Assert.Null(vm.CurrentOverlayWindow);
+        Assert.False(vm.IsScientificComparisonReady);
+    }
+
+    [Fact]
+    public async Task PipelineFlowchart_UpdatesNodeStatesBadgesAndMetadataSummaries()
+    {
+        var fakeClient = new FakePreprocessingClient();
+        using var vm = new ReviewPreprocessingViewModel(
+            _ => Task.FromResult<(string, string?, double)>(("rec-1", "montage-avg", 300.0)),
+            () => fakeClient,
+            _ => { },
+            () => (0, 10, 1, 30, 50),
+            () => new PreprocessingRecordingContext("受试者01", 32, 500, 300.0, "平均参考 (CAR)", 1.0, 30.0, 50.0));
+
+        Assert.Equal("32 导 · 500 Hz · 05:00", vm.InputNodeSummary);
+        Assert.Equal("平均参考 (CAR) · 零相位带通/陷波", vm.MontageNodeSummary);
+        Assert.Equal("inactive", vm.BadChannelNodeState);
+        Assert.Equal("跳过", vm.BadChannelNodeBadge);
+        Assert.Equal("inactive", vm.ArtifactNodeState);
+        Assert.Equal("inactive", vm.RemovalNodeState);
+
+        await vm.InspectBadChannelsAsync();
+        Assert.Equal("active", vm.BadChannelNodeState);
+        Assert.Equal("3D 插值 · 1 导", vm.BadChannelNodeBadge);
+        Assert.True(vm.IsBadChannelPolicyInterpolate);
+
+        vm.IsBadChannelPolicyExclude = true;
+        Assert.Equal("exclude", vm.BadChannelPolicy);
+        Assert.Equal("CAR 排除 · 1 导", vm.BadChannelNodeBadge);
+
+        await vm.InspectArtifactSegmentsAsync();
+        Assert.Equal("active", vm.ArtifactNodeState);
+        Assert.Equal("掩膜排除 · 2 段", vm.ArtifactNodeBadge);
+        Assert.True(vm.IsArtifactPolicyReject);
+
+        vm.IsRemovalIca = true;
+        Assert.Equal("warning", vm.RemovalNodeState);
+        Assert.Equal("待拟合审查", vm.RemovalNodeBadge);
+
+        var ica = await vm.InspectIcaForDialogAsync();
+        vm.ConfirmIcaSelection([0], ica.IcaFitFingerprint);
+        Assert.Equal("active", vm.RemovalNodeState);
+        Assert.Equal("ICA 剔除 · 1 成分", vm.RemovalNodeBadge);
+        Assert.Contains("坏导:1(排除)", vm.RibbonToolTipText);
+
+        vm.ResetAll();
+        Assert.Equal("inactive", vm.BadChannelNodeState);
+        Assert.Equal("inactive", vm.ArtifactNodeState);
+        Assert.Equal("inactive", vm.RemovalNodeState);
+    }
+
+    [Fact]
+    public async Task AnalysisSnapshot_BindsBackendNormalizedPreprocessingDefaultsAndRejectsTamperedValues()
+    {
+        var fakeClient = new FakePreprocessingClient();
+        using var vm = CreateViewModel(fakeClient, out _);
+        await vm.InspectArtifactSegmentsAsync();
+        var ica = await vm.InspectIcaForDialogAsync();
+        vm.ConfirmIcaSelection([0], ica.IcaFitFingerprint);
+
+        var prep = vm.BuildAlgorithmConfigDictionary(allowArtifactRemoval: true);
+        var requestConfig = System.Text.Json.JsonSerializer.SerializeToElement(new Dictionary<string, object?>
+        {
+            ["algorithm_id"] = "rbp",
+            ["mode"] = "dynamic",
+            ["channel"] = "Fp1",
+            ["time"] = new Dictionary<string, object?> { ["start_s"] = 0.0, ["end_s"] = 60.0 },
+            ["preprocessing"] = prep,
+        });
+        var recording = new RegisteredRecording(
+            "rec-1", "demo", ".edf", "2026-11-25T00:00:00Z", 500, 60.0, ["Fp1", "C4"], "abc123");
+        var snapshot = BrainPlatform.Desktop.Modules.Review.Analysis.ReviewAnalysisSnapshot.From(
+            new AnalysisRunRequest("rec-1", "official_algorithm", requestConfig), recording, 0);
+
+        // Simulate backend OfficialAlgorithmRunConfig.model_dump(mode="json") with additional server defaults.
+        var canonical = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object?>
+        {
+            ["scientific_configuration_contract"] = "scientific-config-v1",
+            ["config"] = new Dictionary<string, object?>
+            {
+                ["algorithm_id"] = "rbp",
+                ["scientific_version"] = "2.0.8",
+                ["mode"] = "dynamic",
+                ["channel"] = "Fp1",
+                ["dynamic_window_s"] = 10.0,
+                ["refresh_step_s"] = 1.0,
+                ["time"] = new Dictionary<string, object?> { ["start_s"] = 0.0, ["end_s"] = 60.0 },
+                ["preprocessing"] = new Dictionary<string, object?>
+                {
+                    ["bad_channels"] = new Dictionary<string, object?> { ["policy"] = "none", ["channels"] = Array.Empty<string>() },
+                    ["artifact_rejection"] = new Dictionary<string, object?>
+                    {
+                        ["policy"] = "reject",
+                        ["peak_to_peak_uv"] = 300.0,
+                        ["amplitude_window_s"] = 0.5,
+                        ["muscle_zscore_threshold"] = 4.0,
+                        ["min_duration_s"] = 0.1,
+                        ["pad_s"] = 0.1,
+                        ["manual_segments"] = Array.Empty<object>(),
+                    },
+                    ["artifact_removal"] = new Dictionary<string, object?>
+                    {
+                        ["method"] = "ica_infomax",
+                        ["eog_channels"] = Array.Empty<string>(),
+                        ["ecg_channels"] = Array.Empty<string>(),
+                        ["allow_frontal_eog_proxy"] = true,
+                        ["ica_n_components"] = 15,
+                        ["ica_eog_threshold"] = 0.7,
+                        ["ica_exclude_components"] = new[] { 0 },
+                        ["ica_fit_fingerprint"] = "fp_abc123456789",
+                        ["ssp_n_eeg"] = 1,
+                        ["random_state"] = 42,
+                        ["future_server_default"] = "ok",
+                    },
+                },
+            },
+            ["context"] = new Dictionary<string, object?> { ["sampling_rate_hz"] = 500.0 },
+        });
+        var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+
+        var bound = snapshot.BindScientificConfiguration(canonical, sha);
+        Assert.NotNull(bound.ScientificConfiguration);
+
+        // Tampering with an explicitly requested preprocessing value must still be rejected.
+        var tampered = canonical.Replace("fp_abc123456789", "fp_wrong");
+        var tamperedSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(tampered))).ToLowerInvariant();
+        Assert.Throws<InvalidOperationException>(() => snapshot.BindScientificConfiguration(tampered, tamperedSha));
     }
 
     private static ReviewPreprocessingViewModel CreateViewModel(
@@ -229,28 +368,65 @@ public sealed partial class ReviewPreprocessingTests
         }
 
         public virtual Task<PreprocessingPreviewWindowResponse> PreviewPreprocessedWindowAsync(
-            string recordingId, PreprocessingPreviewWindowRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(new PreprocessingPreviewWindowResponse(
+            string recordingId, PreprocessingPreviewWindowRequest request, CancellationToken cancellationToken)
+        {
+            var sfreq = 500.0;
+            var startSample = (long)Math.Floor(request.StartSeconds * sfreq);
+            var endSample = startSample + Math.Max(1L, (long)Math.Round(request.WindowSeconds * sfreq));
+            var startS = Math.Round(startSample / sfreq, 6);
+            var endS = Math.Round(endSample / sfreq, 6);
+            var midS = Math.Round((startS + endS) / 2.0, 6);
+            var lastS = Math.Round((endSample - 1) / sfreq, 6);
+            var enhanced = request.Preprocessing.BadChannels.Policy != "none" ||
+                           request.Preprocessing.ArtifactRejection.Policy != "none" ||
+                           request.Preprocessing.ArtifactRemoval.Method != "none";
+            var times = new Dictionary<string, IReadOnlyList<double>>
+            {
+                ["Fp1"] = [startS, midS, lastS],
+                ["C4"] = [startS, midS, lastS],
+            };
+            var baseTraces = new Dictionary<string, IReadOnlyList<double?>>
+            {
+                ["Fp1"] = [10.0, -5.0, 8.0],
+                ["C4"] = [4.0, 2.0, -3.0],
+            };
+            var procTraces = enhanced
+                ? new Dictionary<string, IReadOnlyList<double?>>
+                {
+                    ["Fp1"] = [9.5, -4.5, 7.5],
+                    ["C4"] = [3.5, 1.8, -2.5],
+                }
+                : baseTraces;
+            return Task.FromResult(new PreprocessingPreviewWindowResponse(
+                SchemaVersion: PreprocessingPreviewWindowResponse.CurrentSchemaVersion,
                 RecordingId: recordingId,
+                SourceSha256: "source-sha",
                 MontageId: request.MontageId,
-                StartSeconds: request.StartSeconds,
-                EndSeconds: request.StartSeconds + request.WindowSeconds,
-                SamplingRateHz: 500,
-                Channels: ["Fp1", "C4"],
-                InterpolatedChannels: ["C4"],
-                ExcludedChannels: [],
-                TraceTimesSeconds: new Dictionary<string, IReadOnlyList<double>>
-                {
-                    ["Fp1"] = [request.StartSeconds, request.StartSeconds + 0.5, request.StartSeconds + 1],
-                    ["C4"] = [request.StartSeconds, request.StartSeconds + 0.4, request.StartSeconds + 1],
-                },
-                TracesUv: new Dictionary<string, IReadOnlyList<double?>>
-                {
-                    ["Fp1"] = [10.0, -5.0, 8.0],
-                    ["C4"] = [4.0, 2.0, -3.0],
-                },
-                IcaModelReused: true,
-                ArtifactRemovalStatus: "applied",
-                DisplayCompression: new PreviewDisplayCompression("finite_run_min_max_envelope_v1", false, 1000, true)));
+                MontageSnapshotSha256: "montage-sha",
+                StartSample: startSample,
+                EndSample: endSample,
+                StartSeconds: startS,
+                EndSeconds: endS,
+                SamplingRateHz: sfreq,
+                Unit: "µV",
+                CommonFilter: new PreviewFilterEvidence(
+                    "whole_recording_before_window_slice", "zero_phase",
+                    [request.LowHz, request.HighHz], request.NotchHz, request.NotchQ, "fp_filter_1_50"),
+                EnhancedPreprocessingActive: enhanced,
+                DisplayCompression: new PreviewDisplayCompression(
+                    PreprocessingPreviewWindowResponse.PairedCompressionMethod, false, request.MaxPoints, true),
+                Baseline: new PreviewBaselineSide("scientific_baseline", ["Fp1", "C4"], times, baseTraces),
+                Processed: new PreviewProcessedSide(
+                    Role: "scientific_processed",
+                    Channels: ["Fp1", "C4"],
+                    ExcludedOutputChannels: [],
+                    InterpolatedChannels: ["C4"],
+                    ExcludedChannels: [],
+                    TraceTimesSeconds: times,
+                    TracesUv: procTraces,
+                    IcaModelReused: true,
+                    ArtifactRemovalStatus: enhanced ? "applied" : "skipped",
+                    ArtifactRemovalValidity: null)));
+        }
     }
 }

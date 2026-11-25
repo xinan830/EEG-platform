@@ -153,8 +153,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Waveform/RecordingReviewSciChartCanvas.cs": {
       "decision": "split",
-      "max_lines": 580,
-      "reason": "576 lines. Trace projection and event/lifecycle visuals have focused owners. Event pointer handling and preview are isolated in RecordingReviewSciChartCanvas.EventPlacement; the main canvas only connects lifecycle and property changes. The remaining chart binding, layout and viewport concerns reuse the existing samples, filters and montage mapping.",
+      "max_lines": 590,
+      "reason": "586 lines after paired-preview integration. Scientific projection and visual ownership remain in the preprocessing partial and overlay; this file only applies the shared channel-compatible comparison predicate when asynchronous ordinary frames or sample markers render. No new scientific calculation or filtering is added. Retain the existing split decision; do not mechanically extract these two guard expressions.",
       "follow_up": "Split chart binding and viewport concerns from the canvas only when a concrete review behavior needs another owner."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Montages/Views/MontageDetailView.xaml": {
@@ -236,7 +236,7 @@
     "backend/app/scientific/artifact_removal.py": {
       "decision": "keep",
       "max_lines": 430,
-      "reason": "当前 413 行，纯科学层离线去伪迹模块（EOG 回归、MNE 公开 SSP 与可审查 Infomax ICA 拟合/复用），严格零服务/传输/持久化依赖且仅使用公开 MNE API。三类去伪迹共用代理通道解析、NaN 连续分段高通与结果证据模型，为 13 行超软上限机械拆分会打散同一科学契约；若后续新增第四类去伪迹算法前再按方法拆分子模块。"
+      "reason": "当前 421 行，纯科学层离线去伪迹模块（EOG 回归、MNE 公开 SSP 与可审查 Infomax ICA 拟合/复用），严格零服务/传输/持久化依赖且仅使用公开 MNE API。三类去伪迹共用代理通道解析、NaN 连续分段高通与结果证据模型；精确缺失输入/重建可用性由独立纯科学模块拥有，本模块仅统一附加证据。保留 430 行评审上限，若新增第四类算法再按方法拆分。"
     },
     "backend/app/scientific/artifact_segments.py": {
       "decision": "keep",
@@ -257,12 +257,12 @@
     "backend/app/services/spectral_analysis.py": {
       "decision": "keep",
       "max_lines": 550,
-      "reason": "当前约 491 行，集中编排频谱请求、质量检查和响应 provenance；连续预处理、坏段/去伪迹与有界缓存复用均由独立模块拥有。本轮仅透传离线预处理规格与完整坏段证据；继续扩展前复核其职责边界。"
+      "reason": "当前 494 行，集中编排频谱请求、质量检查和响应 provenance；连续预处理、坏段/去伪迹与有界缓存复用均由独立模块拥有。本轮将共享去伪迹可用性投影到请求窗口/通道，并在成功和质量门失败证据中保留来源；不实现重建公式。继续扩展前复核职责边界。"
     },
     "backend/app/services/algorithm_recording_context.py": {
       "decision": "keep",
       "max_lines": 440,
-      "reason": "当前约 423 行，集中将官方算法的类型化信号/频谱请求适配到记录服务，并校验实际样本范围、单位和角色通道顺序；不实现算法公式。本轮仅将官方 Run 配置的离线预处理规格透传至 load_spectrum / load_spectrogram / load_preprocessed_signals；后续扩展前按信号请求/频谱请求职责重新评估。"
+      "reason": "当前 434 行，集中将官方算法的类型化信号/频谱请求适配到记录服务，并校验实际样本范围、单位和角色通道顺序；不实现算法公式。本轮为 FAA 连续信号入口透传共享去伪迹可用性证据，复用科学层投影而不复制掩码逻辑；保持 440 行上限，后续扩展前按信号请求/频谱请求职责重新评估。"
     },
     "backend/app/persistence/repositories/dynamic_attempt.py": {
       "decision": "keep",

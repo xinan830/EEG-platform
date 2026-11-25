@@ -32,7 +32,7 @@ def test_interpolated_outputs_follow_positive_and_reference_dependencies(names, 
         recordings, SimpleNamespace(id="rec"), start_s=0, window_s=1,
         bad_channel_spec=BadChannelSpec(policy="interpolate", channels=("C4",)),
     )
-    assert result["interpolated_channels"] == expected
+    assert result["processed"]["interpolated_channels"] == expected
 
 
 class IdentityIca:

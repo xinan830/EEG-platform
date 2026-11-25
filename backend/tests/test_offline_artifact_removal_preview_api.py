@@ -88,12 +88,26 @@ def test_step3_end_to_end_ica_api_continuous_pipeline_composition_and_bounded_wi
     )
     assert prev_resp.status_code == 200, prev_resp.text
     prev_body = prev_resp.json()
-    assert prev_body["ica_model_reused"] is True
-    assert "O2" in prev_body["excluded_channels"]
-    assert prev_body["display_compression"]["method"] == "finite_run_min_max_envelope_v1"
-    for channel in prev_body["channels"]:
-        assert len(prev_body["trace_times_s"][channel]) == len(prev_body["traces_uv"][channel])
-    assert any(v is None for v in prev_body["traces_uv"]["F3"])  # burst around 5.5s..6.0s preserved as null/NaN!
+    assert prev_body["schema_version"] == "scientific-preview-comparison-v1"
+    assert prev_body["enhanced_preprocessing_active"] is True
+    proc = prev_body["processed"]
+    base = prev_body["baseline"]
+    validity = proc["artifact_removal_validity"]
+    assert validity["start_sample"] == 1250 and validity["end_sample"] == 2500
+    assert validity["additional_unavailable_channel_samples"] > 0
+    assert any("C3" in row["missing_input_channels"] and "F3" in row["additional_unavailable_channels"]
+               for row in validity["intervals"])
+    assert all(5 <= row["start_s"] < row["end_s"] <= 10 for row in validity["intervals"])
+    assert proc["ica_model_reused"] is True
+    assert "O2" in proc["excluded_channels"]
+    assert "O2" in proc["excluded_output_channels"]
+    assert "O2" in base["channels"] and "O2" not in proc["channels"]
+    assert prev_body["display_compression"]["method"] == "paired_finite_run_min_max_envelope_v1"
+    for channel in proc["channels"]:
+        assert len(proc["trace_times_s"][channel]) == len(proc["traces_uv"][channel])
+        assert proc["trace_times_s"][channel] == base["trace_times_s"][channel]
+    assert any(v is None for v in proc["traces_uv"]["F3"])  # burst around 5.5s..6.0s preserved as null/NaN!
+    assert all(v is not None for v in base["traces_uv"]["F3"])  # baseline keeps untreated signal!
 
     # Re-calling inspection with same settings hits the ICA review cache immediately.
     ica_resp2 = client.get(
@@ -144,6 +158,8 @@ def test_step3_end_to_end_ica_api_continuous_pipeline_composition_and_bounded_wi
     assert cleaned_ev["ica_fit_fingerprint"] == fit_fp
     assert cleaned_ev["ica_model_reused"] is True
     assert cleaned_ev["excluded_components"] == rec_ics
+    assert cleaned_ev["application_validity"]["channels"] == ["F3", "O1"]
+    assert cleaned_ev["application_validity"]["intervals"] == []
     # Blink delta power (1-4 Hz) on F3 drops sharply while posterior alpha (8-13 Hz) on O1 is preserved.
     assert psd_cleaned.json()["band_power"]["F3"]["delta"] < psd_base.json()["band_power"]["F3"]["delta"] * 0.50
 

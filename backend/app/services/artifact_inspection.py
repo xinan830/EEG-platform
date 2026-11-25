@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+from dataclasses import replace
 from app.scientific.primitives import detrend_and_filter_for_inspection
 
-from app.scientific.artifact_segments import detect_artifact_segments
+from app.scientific.artifact_reports import ARTIFACT_DETECTION_VERSION, project_artifact_report
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, BadChannelSpec
 
 
@@ -18,67 +19,47 @@ def inspect_recording_artifact_segments(
     montage_id: str | None = None,
     bad_channel_spec: BadChannelSpec | None = None,
     artifact_spec: ArtifactRejectionSpec | None = None,
-    low_hz: float | None = 0.5,
-    high_hz: float | None = 45.0,
+    low_hz: float = 1.0,
+    high_hz: float = 50.0,
     notch_hz: float | None = 50.0,
+    notch_q: float = 30.0,
     max_cells: int = 4_000_000,
 ) -> dict[str, object]:
-    """Screen a bounded recording span for amplitude-PTP and MNE muscle z-score artifacts."""
-    spec = (artifact_spec or ArtifactRejectionSpec(policy="annotate")).normalized()
-    if not spec.is_active:
-        spec = ArtifactRejectionSpec(
-            policy="annotate",
-            peak_to_peak_uv=spec.peak_to_peak_uv,
-            amplitude_window_s=spec.amplitude_window_s,
-            muscle_zscore_threshold=spec.muscle_zscore_threshold,
-            min_duration_s=spec.min_duration_s,
-            pad_s=spec.pad_s,
-            manual_segments=spec.manual_segments,
-        ).normalized()
+    """Project the authoritative pre-removal report onto a bounded absolute span."""
+    from app.scientific.contracts.preprocessing import OfflinePreprocessingSpec, ScientificFilterSpec
 
+    spec = replace(artifact_spec or ArtifactRejectionSpec(), policy='annotate').normalized()
     target_recording = recording
-    raw_unprojected = montage_id is None
     if montage_id is not None:
         target_recording = recordings.select_analysis_montage(recording, montage_id)
-
-    norm_bad = bad_channel_spec.normalized() if bad_channel_spec is not None else None
-    with recordings.open_access_session(
-        target_recording,
-        bad_channel_spec=norm_bad if (norm_bad is not None and norm_bad.is_active) else None,
-        raw_unprojected=raw_unprojected,
-    ) as session:
-        sfreq = float(session.sampling_rate_hz)
-        total = int(session.sample_count)
-        start_sample = max(0, min(total, int(round(float(start_s) * sfreq))))
-        requested_samples = max(1, int(round(float(duration_s) * sfreq)))
-        max_samples = max(1, max_cells // max(1, len(session.channel_names)))
-        end_sample = min(total, start_sample + min(requested_samples, max_samples))
-        if end_sample <= start_sample:
-            raise ValueError("坏段检测时间窗超出录音有效范围")
-        block = session.read_samples(start_sample, end_sample)
-        eeg_band, broadband = detrend_and_filter_for_inspection(
-            block.values_v, sfreq, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-        )
-        report = detect_artifact_segments(
-            eeg_band,
-            sfreq,
-            block.channel_names,
-            spec,
-            start_sample_offset=start_sample,
-            muscle_values_v=broadband,
-        )
-
+    norm_bad = bad_channel_spec.normalized() if bad_channel_spec is not None else BadChannelSpec()
+    filters = ScientificFilterSpec(low_hz, high_hz, notch_hz, notch_q,
+                                 scope='whole_recording_before_window_slice')
+    prepared = recordings.offline_scientific_preprocessing.prepare_continuous(
+        target_recording, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+        preprocessing_spec=OfflinePreprocessingSpec(filters, norm_bad, spec),
+    )
+    sfreq, total = prepared.sfreq, len(prepared.data)
+    start_sample = max(0, min(total, int(np.floor(float(start_s) * sfreq))))
+    requested_samples = max(1, int(round(float(duration_s) * sfreq)))
+    max_samples = max(1, max_cells // max(1, len(prepared.channel_names)))
+    end_sample = min(total, start_sample + min(requested_samples, max_samples))
+    if end_sample <= start_sample:
+        raise ValueError('坏段检测时间窗超出录音有效范围')
+    report = project_artifact_report(prepared.artifact_report, start_sample, end_sample)
     payload = report.to_dict()
     payload.update({
-        "recording_id": recording.id,
-        "montage_id": montage_id,
-        "signal_mode": "raw_unprojected" if raw_unprojected else "montage_projected",
-        "channels": list(block.channel_names),
-        "bad_channels": norm_bad.to_evidence() if norm_bad is not None else BadChannelSpec().to_evidence(),
-        "spec": spec.to_evidence(),
-        "inspection_filter": {"low_hz": low_hz, "high_hz": high_hz, "notch_hz": notch_hz},
-        "start_s": round(start_sample / sfreq, 6),
-        "end_s": round(end_sample / sfreq, 6),
+        'recording_id': recording.id, 'montage_id': montage_id,
+        'signal_mode': 'montage_projected' if target_recording.selected_montage_id or target_recording.stored_name.startswith('wpf-montage:') else 'raw_unprojected',
+        'channels': list(prepared.channel_names), 'bad_channels': norm_bad.to_evidence(),
+        'spec': spec.to_evidence(),
+        'inspection_filter': {'low_hz': low_hz, 'high_hz': high_hz, 'notch_hz': notch_hz, 'notch_q': notch_q},
+        'detection_scope': {
+            'version': ARTIFACT_DETECTION_VERSION, 'scope': 'whole_recording_before_window_slice',
+            'start_sample': 0, 'end_sample': total, 'channels': list(prepared.channel_names),
+            'prepared_source_identity': prepared.contract.identity,
+        },
+        'start_s': round(start_sample / sfreq, 6), 'end_s': round(end_sample / sfreq, 6),
     })
     return payload
 

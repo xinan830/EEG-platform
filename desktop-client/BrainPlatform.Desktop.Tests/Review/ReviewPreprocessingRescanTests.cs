@@ -95,13 +95,31 @@ public sealed partial class ReviewPreprocessingTests
             string recordingId, BrainPlatform.Desktop.Modules.Algorithms.Contracts.PreprocessingPreviewWindowRequest request, CancellationToken cancellationToken)
         {
             var preview = await base.PreviewPreprocessedWindowAsync(recordingId, request, cancellationToken);
+            var times = new Dictionary<string, IReadOnlyList<double>>
+            {
+                ["F4-C4"] = preview.Baseline.TraceTimesSeconds["Fp1"],
+                ["F3-AVG"] = preview.Baseline.TraceTimesSeconds["C4"],
+            };
+            var baseTraces = new Dictionary<string, IReadOnlyList<double?>>
+            {
+                ["F4-C4"] = preview.Baseline.TracesUv["Fp1"],
+                ["F3-AVG"] = preview.Baseline.TracesUv["C4"],
+            };
+            var procTraces = new Dictionary<string, IReadOnlyList<double?>>
+            {
+                ["F4-C4"] = preview.Processed.TracesUv["Fp1"],
+                ["F3-AVG"] = preview.Processed.TracesUv["C4"],
+            };
             return preview with
             {
-                Channels = ["F4-C4", "F3-AVG"], InterpolatedChannels = ["F4-C4", "F3-AVG"],
-                TraceTimesSeconds = new Dictionary<string, IReadOnlyList<double>>
-                { ["F4-C4"] = preview.TraceTimesSeconds["Fp1"], ["F3-AVG"] = preview.TraceTimesSeconds["C4"] },
-                TracesUv = new Dictionary<string, IReadOnlyList<double?>>
-                { ["F4-C4"] = preview.TracesUv["Fp1"], ["F3-AVG"] = preview.TracesUv["C4"] },
+                Baseline = preview.Baseline with { Channels = ["F4-C4", "F3-AVG"], TraceTimesSeconds = times, TracesUv = baseTraces },
+                Processed = preview.Processed with
+                {
+                    Channels = ["F4-C4", "F3-AVG"],
+                    InterpolatedChannels = ["F4-C4", "F3-AVG"],
+                    TraceTimesSeconds = times,
+                    TracesUv = procTraces,
+                },
             };
         }
     }

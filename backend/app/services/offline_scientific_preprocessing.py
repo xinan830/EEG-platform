@@ -10,6 +10,7 @@ Display waveform filtering remains completely decoupled and never feeds this lay
 from __future__ import annotations
 
 from collections import OrderedDict
+from dataclasses import replace
 from concurrent.futures import Future
 from threading import RLock
 from typing import Any
@@ -133,6 +134,7 @@ class OfflineScientificPreprocessingService:
         execution_context: Any = None,
         artifact_rejection_spec: ArtifactRejectionSpec | None = None,
         preprocessing_spec: OfflinePreprocessingSpec | None = None,
+        recording: RecordingSummary | None = None,
     ) -> PreparedWindow:
         """Finite-context zero-phase window preparation driven by OfflinePreprocessingSpec."""
         if execution_context is not None:
@@ -169,6 +171,13 @@ class OfflineScientificPreprocessingService:
         high_hz = resolved_spec.filter_spec.high_hz
         notch_hz = resolved_spec.filter_spec.notch_hz
         notch_q = resolved_spec.filter_spec.notch_q
+        if resolved_spec.artifact_rejection.is_active:
+            if recording is None:
+                raise ValueError('ARTIFACT_QC_RECORDING_REQUIRED: 有界坏段质控需要完整录音上下文')
+            if (recording.id != session.identity.recording_id
+                    or recording.source_sha256 != session.identity.source_sha256
+                    or recording.import_version != session.identity.import_version):
+                raise ValueError('ARTIFACT_REPORT_SOURCE_MISMATCH: 坏段报告与窗口输入不一致')
         key = self._window_cache_key(
             session,
             start_sample=start_sample,
@@ -179,18 +188,12 @@ class OfflineScientificPreprocessingService:
             algorithm_version=algorithm_version,
         )
         if key is None:
-            broadband_sink: list[Any] | None = [] if resolved_spec.artifact_rejection.is_active else None
             prepared = prepare_window(
                 session, start_sample=start_sample, end_sample=end_sample, channels=channels,
                 low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=notch_q, context_s=context_s,
                 algorithm_version=algorithm_version, execution_context=execution_context,
-                broadband_sink=broadband_sink,
             )
-            apply_window_artifact_qc(
-                prepared, resolved_spec, start_sample=start_sample, end_sample=end_sample,
-                broadband_v=broadband_sink[0] if broadband_sink else None,
-                valid_channel_names=session.channel_names,
-            )
+            self._apply_window_qc(prepared, resolved_spec, recording, session, start_sample, end_sample, execution_context)
             prepared.evidence["offline_preprocessing_spec"] = resolved_spec.to_evidence()
             prepared.data.flags.writeable = False
             return prepared
@@ -231,18 +234,12 @@ class OfflineScientificPreprocessingService:
                 return result
 
             try:
-                broadband_sink: list[Any] | None = [] if resolved_spec.artifact_rejection.is_active else None
                 prepared = prepare_window(
                     session, start_sample=start_sample, end_sample=end_sample, channels=channels,
                     low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=notch_q, context_s=context_s,
                     algorithm_version=algorithm_version, execution_context=execution_context,
-                    broadband_sink=broadband_sink,
                 )
-                apply_window_artifact_qc(
-                    prepared, resolved_spec, start_sample=start_sample, end_sample=end_sample,
-                    broadband_v=broadband_sink[0] if broadband_sink else None,
-                    valid_channel_names=session.channel_names,
-                )
+                self._apply_window_qc(prepared, resolved_spec, recording, session, start_sample, end_sample, execution_context)
                 prepared.evidence["offline_preprocessing_spec"] = resolved_spec.to_evidence()
                 prepared.data.flags.writeable = False
             except Exception as exc:
@@ -271,6 +268,29 @@ class OfflineScientificPreprocessingService:
                         self._window_entries.popitem(last=False)
             future.set_result(prepared)
             return prepared
+
+    def _apply_window_qc(
+        self, prepared: PreparedWindow, spec: OfflinePreprocessingSpec,
+        recording: RecordingSummary | None, session: RecordingAccessSession,
+        start_sample: int, end_sample: int, execution_context: Any,
+    ) -> None:
+        if not spec.artifact_rejection.is_active:
+            return
+        if recording is None:
+            raise ValueError('ARTIFACT_QC_RECORDING_REQUIRED: 有界坏段质控需要完整录音上下文')
+        annotated = self.prepare_continuous(
+            recording, low_hz=spec.filter_spec.low_hz, high_hz=spec.filter_spec.high_hz,
+            notch_hz=spec.filter_spec.notch_hz, execution_context=execution_context,
+            preprocessing_spec=replace(spec,
+                filter_spec=replace(spec.filter_spec, scope='whole_recording_before_window_slice'),
+                artifact_rejection=replace(spec.artifact_rejection, policy='annotate')),
+        )
+        if (annotated.sfreq != session.sampling_rate_hz or len(annotated.data) != session.sample_count
+                or annotated.channel_names != tuple(session.channel_names)
+                or annotated.source_identity != session.identity):
+            raise ValueError('ARTIFACT_REPORT_SOURCE_MISMATCH: 坏段报告与窗口输入不一致')
+        apply_window_artifact_qc(prepared, spec, start_sample=start_sample, end_sample=end_sample,
+                                 annotated_source=annotated)
 
     def invalidate_recording(self, recording_id: str) -> int:
         self._continuous.invalidate_recording(recording_id)

@@ -221,6 +221,14 @@ class SpectralAnalysisService:
             len(filtered_all), start_index + int(round(float(window_s) * sfreq)),
         )
         window = filtered_all[start_index:stop_index, :][:, indexes]
+        if bounded_evidence and bounded_evidence.get("artifact_removal"):
+            from app.scientific.artifact_removal_validity import project_application_validity
+
+            removal = bounded_evidence["artifact_removal"]
+            bounded_evidence = {**bounded_evidence, "artifact_removal": {**removal,
+                "application_validity": project_application_validity(
+                    removal.get("application_validity"), start_index, stop_index, requested_names),
+            }}
         if len(window) < int(round(float(ANALYSIS_CONTRACT["welch_segment_s"]) * sfreq)):
             raise ValueError("频谱分析窗口至少需要 4 秒")
         # Keep the standard 1-30 Hz bands available as evidence even when the
@@ -247,7 +255,7 @@ class SpectralAnalysisService:
                 "clean_ratio": spectrum.signal_quality,
                 "gate_failed": spectrum.gate_failed,
                 "rejected_reasons": list(spectrum.rejected_reasons),
-                "evidence": dict(spectrum.evidence),
+                "evidence": {**spectrum.evidence, "preprocessing": bounded_evidence},
             })
         psd_uv = spectrum.psd * 1e12
         absolute = {

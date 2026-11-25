@@ -10,6 +10,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
 {
     private readonly Func<CancellationToken, Task<(string RecordingId, string? MontageId, double DurationSeconds)>> ensureBackendRecordingAsync;
     private readonly Func<IPreprocessingClient?> resolveClient;
+    private readonly Func<IReadOnlyList<string>>? getDisplayedChannels;
     private readonly Action<double> seekToSeconds;
     private readonly Func<(double StartSeconds, double WindowSeconds, double LowHz, double HighHz, double? NotchHz)> getViewportContext;
     private readonly CancellationTokenSource lifetime = new();
@@ -34,19 +35,23 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
     private string icaSummaryText = "尚未进行 ICA 成分审查";
     private bool isOverlayCompareEnabled;
     private PreprocessingPreviewWindowResponse? currentOverlayWindow;
-    private string overlayStatusText = "关闭（当前显示本地回放波形）";
+    private string overlayStatusText = "关闭（当前显示普通彩色阅图）";
     private IReadOnlyList<ArtifactTimelineMarker> artifactMarkers = [];
 
     public ReviewPreprocessingViewModel(
         Func<CancellationToken, Task<(string RecordingId, string? MontageId, double DurationSeconds)>> ensureBackendRecordingAsync,
         Func<IPreprocessingClient?> resolveClient,
         Action<double> seekToSeconds,
-        Func<(double StartSeconds, double WindowSeconds, double LowHz, double HighHz, double? NotchHz)> getViewportContext)
+        Func<(double StartSeconds, double WindowSeconds, double LowHz, double HighHz, double? NotchHz)> getViewportContext,
+        Func<PreprocessingRecordingContext>? getRecordingContext = null,
+        Func<IReadOnlyList<string>>? getDisplayedChannels = null)
     {
         this.ensureBackendRecordingAsync = ensureBackendRecordingAsync;
         this.resolveClient = resolveClient;
         this.seekToSeconds = seekToSeconds;
         this.getViewportContext = getViewportContext;
+        this.getRecordingContext = getRecordingContext;
+        this.getDisplayedChannels = getDisplayedChannels;
 
         InspectBadChannelsCommand = new AsyncRelayCommand(InspectBadChannelsAsync, ReportError);
         InspectArtifactSegmentsCommand = new AsyncRelayCommand(InspectArtifactSegmentsAsync, ReportError);
@@ -93,6 +98,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         set
         {
             if (!SetProperty(ref badChannelPolicy, value)) return;
+            InvalidateArtifactInspection();
             InvalidateIcaFingerprint("坏导策略已变更，需重新审查 ICA 成分");
             NotifyConfigAndVisuals();
         }
@@ -115,6 +121,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         set
         {
             if (!SetProperty(ref peakToPeakUv, Math.Clamp(value, 50, 2000))) return;
+            InvalidateArtifactInspection();
             InvalidateIcaFingerprint("爆幅阈值已变更，需重新审查 ICA 成分");
             NotifyConfigAndVisuals();
         }
@@ -126,6 +133,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         set
         {
             if (!SetProperty(ref muscleZScoreThreshold, Math.Clamp(value, 1.5, 12.0))) return;
+            InvalidateArtifactInspection();
             InvalidateIcaFingerprint("肌电阈值已变更，需重新审查 ICA 成分");
             NotifyConfigAndVisuals();
         }
@@ -183,13 +191,11 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
             if (!value)
             {
                 ClearOverlayWindow();
-                OverlayStatusText = "关闭（当前显示本地回放波形）";
-                RaisePropertyChanged(nameof(CurrentOverlayWindow));
-                VisualStateChanged?.Invoke(this, EventArgs.Empty);
+                OverlayStatusText = "关闭（当前显示普通彩色阅图）";
             }
             else
             {
-                OverlayStatusText = "正在加载清洗后波形对比…";
+                OverlayStatusText = "科学对比加载中（零相位 1–50 Hz，陷波 50 Hz Q=30）…";
                 _ = RefreshOverlayWindowAsync();
             }
         }
@@ -220,7 +226,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
 
     public void ResetAll()
     {
-        InvalidateIcaFingerprint("尚未进行 ICA 成分审查");
+        InvalidateIcaFingerprint("尚未进行 ICA 成分审查", markPendingReview: false);
         BadChannelRows.Clear();
         badChannelPolicy = "none";
         artifactPolicy = "none";
@@ -233,7 +239,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         ArtifactMarkers = [];
         CleanRatioSummary = "尚未扫描坏段";
         IcaSummaryText = "尚未进行 ICA 成分审查";
-        OverlayStatusText = "关闭（当前显示本地回放波形）";
+        OverlayStatusText = "关闭（当前显示普通彩色阅图）";
         StatusMessage = "已重置全部离线科学预处理配置。";
         RaisePropertyChanged(nameof(BadChannelPolicy));
         RaisePropertyChanged(nameof(ArtifactPolicy));
@@ -268,11 +274,12 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
 
     private void OnBadChannelSelectionChanged()
     {
+        InvalidateArtifactInspection();
         InvalidateIcaFingerprint("坏导勾选已变更，需重新审查 ICA 成分");
         NotifyConfigAndVisuals();
     }
 
-    private void InvalidateIcaFingerprint(string reason)
+    private void InvalidateIcaFingerprint(string reason, bool markPendingReview = true)
     {
         var hadReview = pendingIca is not null || icaFitFingerprint is not null || IcaComponents.Count > 0;
         CancelInspection();
@@ -280,6 +287,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         IcaComponents.Clear();
         icaFitFingerprint = null;
         confirmedIcaExcluded = null;
+        icaInvalidatedPendingReview = markPendingReview && hadReview;
         if (hadReview) IcaSummaryText = reason;
         RaisePropertyChanged(nameof(IcaFitFingerprint));
         RaisePropertyChanged(nameof(ConfirmedIcaExcluded));
@@ -293,6 +301,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         RaisePropertyChanged(nameof(HasAnyActivePreprocessing));
         RaisePropertyChanged(nameof(ActiveSummaryBadge));
         RaisePropertyChanged(nameof(SelectedBadChannels));
+        RaisePipelineNodeProperties();
         VisualStateChanged?.Invoke(this, EventArgs.Empty);
         ConfigurationChanged?.Invoke(this, EventArgs.Empty);
         if (IsOverlayCompareEnabled)

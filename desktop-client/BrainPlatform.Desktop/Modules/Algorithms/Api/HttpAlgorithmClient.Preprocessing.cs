@@ -36,6 +36,7 @@ public sealed partial class HttpAlgorithmClient : IPreprocessingClient
             $"start_s={Fmt(startSeconds)}",
             $"duration_s={Fmt(Math.Clamp(durationSeconds, 1, 600))}",
             $"bad_channel_policy={Uri.EscapeDataString(badChannelPolicy)}",
+            "low_hz=1&high_hz=50&notch_hz=50&notch_q=30",
         };
         if (!string.IsNullOrWhiteSpace(montageId))
             parts.Add($"montage_id={Uri.EscapeDataString(montageId)}");
