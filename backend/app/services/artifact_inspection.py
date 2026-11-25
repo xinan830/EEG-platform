@@ -16,6 +16,7 @@ def detrend_and_filter_for_inspection(
     low_hz: float | None = 0.5,
     high_hz: float | None = 45.0,
     notch_hz: float | None = 50.0,
+    notch_q: float = 30.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return (bandpassed_for_eeg_v, broadband_notched_for_emg_v) preserving NaN gaps."""
     data = np.asarray(values_v, dtype=np.float64)
@@ -45,7 +46,7 @@ def detrend_and_filter_for_inspection(
         sos_hp = signal.butter(4, low_hz, btype="highpass", fs=sfreq_hz, output="sos")
         broadband = _apply_columnwise(broadband, lambda x: signal.sosfiltfilt(sos_hp, x))
     if notch_hz is not None and 1.0 < notch_hz < nyquist - 1.0:
-        b_n, a_n = signal.iirnotch(notch_hz, 30.0, fs=sfreq_hz)
+        b_n, a_n = signal.iirnotch(notch_hz, float(notch_q), fs=sfreq_hz)
         broadband = _apply_columnwise(broadband, lambda x: signal.filtfilt(b_n, a_n, x))
 
     eeg_band = broadband

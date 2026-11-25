@@ -238,6 +238,11 @@
       "max_lines": 430,
       "reason": "当前 413 行，纯科学层离线去伪迹模块（EOG 回归、MNE 公开 SSP 与可审查 Infomax ICA 拟合/复用），严格零服务/传输/持久化依赖且仅使用公开 MNE API。三类去伪迹共用代理通道解析、NaN 连续分段高通与结果证据模型，为 13 行超软上限机械拆分会打散同一科学契约；若后续新增第四类去伪迹算法前再按方法拆分子模块。"
     },
+    "backend/app/scientific/artifact_segments.py": {
+      "decision": "keep",
+      "max_lines": 425,
+      "reason": "当前 410 行，纯科学层离线坏段检测与掩码模块（按通道爆幅 PTP、MNE 宽带肌电 z-score、手动坏段校验与不跨通道误伤的区间合并），严格零服务/传输/持久化依赖。本次修复按通道精确合并与全局通道集校验后超出 400 行软目标 10 行，保留同一科学契约避免机械拆分；若后续新增第四类坏段检测器前再拆分子模块。"
+    },
     "backend/app/services/recordings.py": {
       "decision": "keep",
       "max_lines": 625,

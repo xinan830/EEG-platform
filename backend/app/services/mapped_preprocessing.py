@@ -109,10 +109,11 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
 
                 ptp_source, _ = detrend_and_filter_for_inspection(
                     source, session.sampling_rate_hz,
-                    low_hz=min(low_hz, 0.5), high_hz=wide_hi, notch_hz=notch_hz,
+                    low_hz=min(low_hz, 0.5), high_hz=wide_hi, notch_hz=notch_hz, notch_q=notch_q,
                 )
             report = detect_artifact_segments(
-                ptp_source, session.sampling_rate_hz, names, norm_art, muscle_values_v=source,
+                ptp_source, session.sampling_rate_hz, names, norm_art,
+                muscle_values_v=source, valid_channel_names=session.channel_names,
             )
             artifact_intervals = report.segments
             if norm_art.policy == "reject" and artifact_intervals:
@@ -139,6 +140,7 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
                     low_hz=low_hz,
                     high_hz=high_hz,
                     notch_hz=notch_hz,
+                    notch_q=notch_q,
                     bad_channel_spec=bad_channel_spec,
                     artifact_rejection_spec=artifact_rejection_spec,
                     removal_spec=norm_rem,

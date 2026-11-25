@@ -60,8 +60,14 @@ class ContinuousPreprocessingService:
                 if all_channel_bytes > policy.max_preparation_bytes:
                     available = {name.casefold(): name for name in recording.channels}
                     selected_channels = tuple(available[item.casefold()] for item in channels)
+        effective_notch_q = (
+            float(preprocessing_spec.filter_spec.notch_q)
+            if preprocessing_spec is not None
+            else POWERLINE_NOTCH_Q
+        )
+        signal_provenance = self.recordings.analysis_signal_provenance(recording)
         identity = prepared_source_identity(self.recordings, recording, low_hz=low_hz,
-            high_hz=high_hz, notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
+            high_hz=high_hz, notch_hz=notch_hz, notch_q=effective_notch_q,
             channel_names=selected_channels, bad_channel_spec=norm_bad,
             preprocessing_spec=preprocessing_spec)
         expected_contract = None
@@ -69,8 +75,11 @@ class ContinuousPreprocessingService:
             sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
             contract_channels = selected_channels or tuple(recording.channels)
             if bad_active and norm_bad.policy == "exclude" and selected_channels is None:
-                bad_folded = {label.casefold() for label in norm_bad.channels}
-                contract_channels = tuple(ch for ch in contract_channels if ch.casefold() not in bad_folded)
+                from app.services.bad_channel_reader import predict_excluded_output_channels
+
+                contract_channels = predict_excluded_output_channels(
+                    contract_channels, norm_bad, signal_provenance,
+                )
             expected_contract = PreparedSourceContract(
                 schema_version="prepared-source-v1", identity=identity, status="ready",
                 sample_rate_hz=float(recording.sfreq),
@@ -84,11 +93,7 @@ class ContinuousPreprocessingService:
                     "PSD full/on-demand rtol=1e-12, atol=1e-24 V^2/Hz"
                 ),
                 filter_phase="zero_phase",
-                reference_semantics=str(
-                    self.recordings.analysis_signal_provenance(recording).get(
-                        "analysis_reference", "as_recorded"
-                    )
-                ),
+                reference_semantics=str(signal_provenance.get("analysis_reference", "as_recorded")),
                 gap_policy="preserve",
                 boundary_policy="valid_only",
                 implementation_identity=implementation_version(),
@@ -102,7 +107,7 @@ class ContinuousPreprocessingService:
         def create_preprocessed() -> PreprocessedRecording:
             prepared = mapped_preprocess(
                 self.recordings, recording, low_hz=low_hz, high_hz=high_hz,
-                notch_hz=notch_hz, notch_q=POWERLINE_NOTCH_Q,
+                notch_hz=notch_hz, notch_q=effective_notch_q,
                 channels=list(selected_channels) if selected_channels is not None else None,
                 execution_context=execution_context,
                 bad_channel_spec=norm_bad if bad_active else None,

@@ -282,6 +282,37 @@ def apply_bad_channel_policy_to_montage_view(
     return AcquisitionSignalView(tuple(kept_signals), provenance)
 
 
+def predict_excluded_output_channels(
+    channel_names: Sequence[str],
+    bad_spec: BadChannelSpec,
+    signal_provenance: dict[str, object] | None = None,
+) -> tuple[str, ...]:
+    """Predict output channels remaining after applying bad-channel exclusion before re-referencing."""
+    norm = bad_spec.normalized()
+    if not norm.is_active or norm.policy != "exclude":
+        return tuple(channel_names)
+    bad_folded = {label.casefold() for label in norm.channels}
+    formulas = (signal_provenance or {}).get("formulas")
+    if isinstance(formulas, list) and formulas:
+        kept: list[str] = []
+        for entry in formulas:
+            if not isinstance(entry, dict):
+                continue
+            name = str(entry.get("name", ""))
+            positive = str(entry.get("positive", ""))
+            kind = str(entry.get("negative_kind", "")).casefold()
+            negatives = [str(label) for label in (entry.get("negative_labels") or ())]
+            if positive.casefold() in bad_folded:
+                continue
+            if kind == "mean":
+                if len([lbl for lbl in negatives if lbl.casefold() not in bad_folded]) >= 2:
+                    kept.append(name)
+            elif not any(lbl.casefold() in bad_folded for lbl in negatives):
+                kept.append(name)
+        return tuple(kept)
+    return tuple(ch for ch in channel_names if ch.casefold() not in bad_folded)
+
+
 def _combined_view_sha256(base_sha256: object, bad_info: dict[str, object]) -> str:
     payload = json.dumps(
         {"base_snapshot_sha256": str(base_sha256 or ""), "bad_channel_handling": bad_info},

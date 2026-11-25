@@ -156,6 +156,7 @@ class OfflineScientificPreprocessingService:
         low_hz = resolved_spec.filter_spec.low_hz
         high_hz = resolved_spec.filter_spec.high_hz
         notch_hz = resolved_spec.filter_spec.notch_hz
+        notch_q = resolved_spec.filter_spec.notch_q
         key = self._window_cache_key(
             session,
             start_sample=start_sample,
@@ -169,13 +170,14 @@ class OfflineScientificPreprocessingService:
             broadband_sink: list[Any] | None = [] if resolved_spec.artifact_rejection.is_active else None
             prepared = prepare_window(
                 session, start_sample=start_sample, end_sample=end_sample, channels=channels,
-                low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, context_s=context_s,
+                low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=notch_q, context_s=context_s,
                 algorithm_version=algorithm_version, execution_context=execution_context,
                 broadband_sink=broadband_sink,
             )
             self._apply_window_artifact_qc(
                 prepared, resolved_spec, start_sample=start_sample, end_sample=end_sample,
                 broadband_v=broadband_sink[0] if broadband_sink else None,
+                valid_channel_names=session.channel_names,
             )
             prepared.evidence["offline_preprocessing_spec"] = resolved_spec.to_evidence()
             prepared.data.flags.writeable = False
@@ -220,13 +222,14 @@ class OfflineScientificPreprocessingService:
                 broadband_sink: list[Any] | None = [] if resolved_spec.artifact_rejection.is_active else None
                 prepared = prepare_window(
                     session, start_sample=start_sample, end_sample=end_sample, channels=channels,
-                    low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, context_s=context_s,
+                    low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=notch_q, context_s=context_s,
                     algorithm_version=algorithm_version, execution_context=execution_context,
                     broadband_sink=broadband_sink,
                 )
                 self._apply_window_artifact_qc(
                     prepared, resolved_spec, start_sample=start_sample, end_sample=end_sample,
                     broadband_v=broadband_sink[0] if broadband_sink else None,
+                    valid_channel_names=session.channel_names,
                 )
                 prepared.evidence["offline_preprocessing_spec"] = resolved_spec.to_evidence()
                 prepared.data.flags.writeable = False
@@ -290,6 +293,7 @@ class OfflineScientificPreprocessingService:
         start_sample: int,
         end_sample: int,
         broadband_v: Any = None,
+        valid_channel_names: Any = None,
     ) -> None:
         art_spec = spec.artifact_rejection
         if not art_spec.is_active:
@@ -307,6 +311,7 @@ class OfflineScientificPreprocessingService:
                     low_hz=min(spec.filter_spec.low_hz, 0.5),
                     high_hz=wide_hi,
                     notch_hz=spec.filter_spec.notch_hz,
+                    notch_q=spec.filter_spec.notch_q,
                 )
                 ptp_source = "wideband_detrended_0.5_45hz"
         report = detect_artifact_segments(
@@ -316,6 +321,7 @@ class OfflineScientificPreprocessingService:
             art_spec,
             start_sample_offset=start_sample,
             muscle_values_v=broadband_v if broadband_v is not None else prepared.data,
+            valid_channel_names=valid_channel_names,
         )
         report_dict = report.to_dict()
         report_dict["qc_inputs"] = {

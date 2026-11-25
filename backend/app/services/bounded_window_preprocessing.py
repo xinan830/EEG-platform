@@ -23,6 +23,7 @@ def prepare_window(
     session: RecordingAccessSession, *, start_sample: int, end_sample: int,
     channels: list[str] | None, low_hz: float, high_hz: float,
     notch_hz: float | None, context_s: float, algorithm_version: str,
+    notch_q: float = 30.0,
     execution_context: Any = None,
     broadband_sink: list[np.ndarray] | None = None,
 ) -> PreparedWindow:
@@ -78,7 +79,7 @@ def prepare_window(
         check()
     filtered = preprocess_offline(
         block.values_v, session.sampling_rate_hz,
-        low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+        low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz, notch_q=notch_q,
     )
     offset = start_sample - read_start
     cropped = np.asarray(filtered[offset:offset + end_sample - start_sample], dtype=np.float64)

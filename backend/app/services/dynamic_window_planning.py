@@ -145,6 +145,9 @@ class DynamicWindowPlanner:
             # snapshot and the public canonical configuration payload.
             signal_source = {key: value for key, value in signal_source.items() if key != "montage_label"}
             execution_snapshot = module.execution_snapshot(typed_config)
+            filters = execution_snapshot.filters
+            if config.get("preprocessing") is not None:
+                filters = {**filters, "offline_preprocessing": config["preprocessing"]}
             channel_mapping = {
                 "channels": module.requested_channels(typed_config),
                 "signal_source": signal_source,
@@ -156,7 +159,7 @@ class DynamicWindowPlanner:
                 sampling_rate_hz=inputs.sfreq_hz,
                 signal_mapping=channel_mapping,
                 reference=reference,
-                filters=execution_snapshot.filters,
+                filters=filters,
                 quality_rules=execution_snapshot.quality_rules,
                 window=execution_snapshot.window,
                 window_policy_version=capability.window_policy_version,

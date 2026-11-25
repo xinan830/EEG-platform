@@ -100,8 +100,7 @@ def _detect_amplitude_ptp_segments(
         return []
     win = max(2, min(n_samples, int(round(window_s * sfreq_hz))))
     step = max(1, win // 4)
-    flagged_windows: list[tuple[int, int, set[int], float]] = []
-
+    flagged_by_channel: dict[int, list[tuple[int, int, float]]] = {}
     starts = list(range(0, max(1, n_samples - win + 1), step))
     if starts[-1] + win < n_samples:
         starts.append(n_samples - win)
@@ -109,8 +108,6 @@ def _detect_amplitude_ptp_segments(
     for w_start in starts:
         w_end = min(n_samples, w_start + win)
         chunk = data_v[w_start:w_end]
-        bad_cols: set[int] = set()
-        peak_uv = 0.0
         for ch_idx in range(n_channels):
             col = chunk[:, ch_idx]
             finite = col[np.isfinite(col)]
@@ -118,36 +115,29 @@ def _detect_amplitude_ptp_segments(
                 continue
             ptp = float(np.max(finite) - np.min(finite))
             if ptp > threshold_v:
-                bad_cols.add(ch_idx)
-                peak_uv = max(peak_uv, ptp * 1e6)
-        if bad_cols:
-            flagged_windows.append((w_start, w_end, bad_cols, peak_uv))
-
-    if not flagged_windows:
-        return []
-
-    merged: list[tuple[int, int, set[int], float]] = []
-    for start, end, cols, peak_uv in flagged_windows:
-        if merged and start <= merged[-1][1]:
-            prev_s, prev_e, prev_cols, prev_peak = merged[-1]
-            merged[-1] = (prev_s, max(prev_e, end), prev_cols | cols, max(prev_peak, peak_uv))
-        else:
-            merged.append((start, end, set(cols), peak_uv))
+                flagged_by_channel.setdefault(ch_idx, []).append((w_start, w_end, ptp * 1e6))
 
     results: list[ArtifactSegment] = []
-    for start, end, cols, peak_uv in merged:
-        if end - start < min_duration_samples:
-            continue
-        padded_s = max(0, start - pad_samples)
-        padded_e = min(n_samples, end + pad_samples)
-        ordered_channels = tuple(channel_names[idx] for idx in sorted(cols))
-        results.append(ArtifactSegment(
-            start_sample=offset + padded_s,
-            end_sample=offset + padded_e,
-            reason="amplitude_ptp",
-            channels=ordered_channels,
-            peak_metric=peak_uv,
-        ))
+    for ch_idx in sorted(flagged_by_channel):
+        merged_ch: list[tuple[int, int, float]] = []
+        for start, end, peak_uv in flagged_by_channel[ch_idx]:
+            if merged_ch and start <= merged_ch[-1][1]:
+                prev_s, prev_e, prev_peak = merged_ch[-1]
+                merged_ch[-1] = (prev_s, max(prev_e, end), max(prev_peak, peak_uv))
+            else:
+                merged_ch.append((start, end, peak_uv))
+        for start, end, peak_uv in merged_ch:
+            if end - start < min_duration_samples:
+                continue
+            padded_s = max(0, start - pad_samples)
+            padded_e = min(n_samples, end + pad_samples)
+            results.append(ArtifactSegment(
+                start_sample=offset + padded_s,
+                end_sample=offset + padded_e,
+                reason="amplitude_ptp",
+                channels=(channel_names[ch_idx],),
+                peak_metric=peak_uv,
+            ))
     return results
 
 
@@ -206,31 +196,51 @@ def _detect_muscle_segments_mne(
 
 
 def _merge_segments(segments: Sequence[ArtifactSegment]) -> tuple[ArtifactSegment, ...]:
+    """Merge overlapping segments ONLY within the same (reason, channel-set) to avoid cross-channel contamination."""
     if not segments:
         return ()
-    ordered = sorted(segments, key=lambda item: (item.start_sample, item.end_sample, item.reason))
-    merged: list[ArtifactSegment] = [ordered[0]]
-    for seg in ordered[1:]:
-        prev = merged[-1]
-        if seg.reason == prev.reason and seg.start_sample <= prev.end_sample:
-            combined_channels = (
-                () if (not prev.channels or not seg.channels)
-                else tuple(dict.fromkeys((*prev.channels, *seg.channels)))
-            )
-            peak = max(
-                (v for v in (prev.peak_metric, seg.peak_metric) if v is not None),
-                default=None,
-            )
-            merged[-1] = ArtifactSegment(
-                start_sample=prev.start_sample,
-                end_sample=max(prev.end_sample, seg.end_sample),
-                reason=prev.reason,
-                channels=combined_channels,
-                peak_metric=peak,
-            )
-        else:
-            merged.append(seg)
-    return tuple(merged)
+    by_scope: dict[tuple[str, tuple[str, ...]], list[ArtifactSegment]] = {}
+    for seg in segments:
+        ch_key = () if not seg.channels else tuple(sorted({ch.casefold() for ch in seg.channels}))
+        by_scope.setdefault((seg.reason, ch_key), []).append(seg)
+
+    scope_merged: list[ArtifactSegment] = []
+    for group in by_scope.values():
+        group.sort(key=lambda item: (item.start_sample, item.end_sample))
+        acc: list[ArtifactSegment] = [group[0]]
+        for seg in group[1:]:
+            prev = acc[-1]
+            if seg.start_sample <= prev.end_sample:
+                peak = max((v for v in (prev.peak_metric, seg.peak_metric) if v is not None), default=None)
+                acc[-1] = ArtifactSegment(
+                    start_sample=prev.start_sample,
+                    end_sample=max(prev.end_sample, seg.end_sample),
+                    reason=prev.reason,
+                    channels=prev.channels,
+                    peak_metric=peak,
+                )
+            else:
+                acc.append(seg)
+        scope_merged.extend(acc)
+
+    # Combine segments only when they share the exact same [start, end) and reason (never widens any channel span).
+    by_exact_span: dict[tuple[int, int, str], ArtifactSegment] = {}
+    for seg in sorted(scope_merged, key=lambda item: (item.start_sample, item.end_sample, item.reason, item.channels)):
+        key = (seg.start_sample, seg.end_sample, seg.reason)
+        existing = by_exact_span.get(key)
+        if existing is None:
+            by_exact_span[key] = seg
+            continue
+        combined_chs = () if (not existing.channels or not seg.channels) else tuple(dict.fromkeys((*existing.channels, *seg.channels)))
+        peak = max((v for v in (existing.peak_metric, seg.peak_metric) if v is not None), default=None)
+        by_exact_span[key] = ArtifactSegment(
+            start_sample=existing.start_sample,
+            end_sample=existing.end_sample,
+            reason=existing.reason,
+            channels=combined_chs,
+            peak_metric=peak,
+        )
+    return tuple(sorted(by_exact_span.values(), key=lambda item: (item.start_sample, item.end_sample, item.reason, item.channels)))
 
 
 def detect_artifact_segments(
@@ -241,6 +251,7 @@ def detect_artifact_segments(
     *,
     start_sample_offset: int = 0,
     muscle_values_v: np.ndarray | None = None,
+    valid_channel_names: Sequence[str] | None = None,
 ) -> ArtifactSegmentReport:
     """Detect amplitude-PTP, MNE muscle z-score, and manual bad segments on sample-major V data.
 
@@ -296,15 +307,24 @@ def detect_artifact_segments(
 
     window_end = offset + n_samples
     channel_lookup = {name.casefold(): name for name in names}
+    valid_lookup = (
+        channel_lookup
+        if valid_channel_names is None
+        else {str(name).casefold(): str(name) for name in valid_channel_names}
+    )
     for manual in norm.manual_segments:
         canonical_chs: tuple[str, ...] = ()
         if manual.channels:
             resolved_chs: list[str] = []
             for ch in manual.channels:
-                matched = channel_lookup.get(ch.casefold())
-                if matched is None:
+                folded = ch.casefold()
+                if folded not in valid_lookup:
                     raise ValueError(f"ARTIFACT_SEGMENT_CHANNEL_NOT_FOUND: 手动坏段指定的通道 {ch} 不存在于当前信号中")
-                resolved_chs.append(matched)
+                matched = channel_lookup.get(folded)
+                if matched is not None:
+                    resolved_chs.append(matched)
+            if not resolved_chs:
+                continue
             canonical_chs = tuple(resolved_chs)
         clipped_s = max(offset, manual.start_sample)
         clipped_e = min(window_end, manual.end_sample)
