@@ -11,6 +11,7 @@ from .spectral import (
 from .gateway import DEFAULT_SPECTRAL_GATEWAY, ScientificSpectralGateway
 from .fourier import RealFourierTransform, real_fft
 from .block_filter import preprocess_blocks
+from .inspection_filter import detrend_and_filter_for_inspection
 
 __all__ = [
     "SpectralEstimate",
@@ -24,4 +25,5 @@ __all__ = [
     "RealFourierTransform",
     "real_fft",
     "preprocess_blocks",
+    "detrend_and_filter_for_inspection",
 ]

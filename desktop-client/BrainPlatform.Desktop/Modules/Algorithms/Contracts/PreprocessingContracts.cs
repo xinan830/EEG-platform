@@ -57,8 +57,26 @@ public sealed record IcaComponentItem(
     [property: JsonPropertyName("recommended_exclude")] bool RecommendedExclude,
     [property: JsonPropertyName("excluded")] bool Excluded,
     [property: JsonPropertyName("topomap")] TopomapField? Topomap = null,
-    [property: JsonPropertyName("preview_waveform")] IReadOnlyList<double>? PreviewWaveform = null,
-    [property: JsonPropertyName("preview_duration_s")] double PreviewDurationSeconds = 0);
+    [property: JsonPropertyName("preview_waveform")] IReadOnlyList<double?>? PreviewWaveform = null,
+    [property: JsonPropertyName("preview_duration_s")] double PreviewDurationSeconds = 0,
+    [property: JsonPropertyName("preview_times_s")] IReadOnlyList<double>? PreviewTimesSeconds = null,
+    [property: JsonPropertyName("preview_unit")] string? PreviewUnit = null,
+    [property: JsonPropertyName("preview_compression")] PreviewDisplayCompression? PreviewCompression = null)
+{
+    public void ValidatePreview()
+    {
+        if (PreviewWaveform is not { Count: > 0 } values) return;
+        if (PreviewTimesSeconds is not { } times || times.Count != values.Count ||
+            !double.IsFinite(PreviewDurationSeconds) || PreviewDurationSeconds <= 0 ||
+            PreviewUnit != "z-score" || PreviewCompression is not
+                { Method: "finite_run_min_max_envelope_v1", ScientificResampling: false })
+            throw new InvalidOperationException("ICA 预览的时间、单位或包络契约无效。");
+        for (var i = 0; i < times.Count; i++)
+            if (!double.IsFinite(times[i]) || times[i] < 0 || times[i] >= PreviewDurationSeconds ||
+                (i > 0 && times[i] <= times[i - 1]) || (values[i] is { } value && !double.IsFinite(value)))
+                throw new InvalidOperationException("ICA 预览包含无效坐标或数值。");
+    }
+}
 
 public sealed record IcaInspectionResponse(
     [property: JsonPropertyName("recording_id")] string RecordingId,
@@ -119,7 +137,36 @@ public sealed record PreprocessingPreviewWindowResponse(
     [property: JsonPropertyName("channels")] IReadOnlyList<string> Channels,
     [property: JsonPropertyName("interpolated_channels")] IReadOnlyList<string> InterpolatedChannels,
     [property: JsonPropertyName("excluded_channels")] IReadOnlyList<string> ExcludedChannels,
-    [property: JsonPropertyName("times_s")] IReadOnlyList<double> TimesSeconds,
+    [property: JsonPropertyName("trace_times_s")] IReadOnlyDictionary<string, IReadOnlyList<double>> TraceTimesSeconds,
     [property: JsonPropertyName("traces_uv")] IReadOnlyDictionary<string, IReadOnlyList<double?>> TracesUv,
     [property: JsonPropertyName("ica_model_reused")] bool IcaModelReused,
-    [property: JsonPropertyName("artifact_removal_status")] string ArtifactRemovalStatus);
+    [property: JsonPropertyName("artifact_removal_status")] string ArtifactRemovalStatus,
+    [property: JsonPropertyName("display_compression")] PreviewDisplayCompression DisplayCompression)
+{
+    public void Validate()
+    {
+        if (DisplayCompression is not { Method: "finite_run_min_max_envelope_v1", ScientificResampling: false } ||
+            Channels is null || TraceTimesSeconds is null || TracesUv is null ||
+            !double.IsFinite(StartSeconds) || !double.IsFinite(EndSeconds) || EndSeconds <= StartSeconds ||
+            !double.IsFinite(SamplingRateHz) || SamplingRateHz <= 0 ||
+            Channels.Distinct(StringComparer.OrdinalIgnoreCase).Count() != Channels.Count)
+            throw new InvalidOperationException("科学预览的压缩、时间或通道契约无效。");
+        foreach (var channel in Channels)
+        {
+            if (!TraceTimesSeconds.TryGetValue(channel, out var times) ||
+                !TracesUv.TryGetValue(channel, out var values) || times.Count != values.Count || times.Count == 0)
+                throw new InvalidOperationException("科学预览的通道时间与样本长度不一致。");
+            for (var i = 0; i < times.Count; i++)
+                if (!double.IsFinite(times[i]) || times[i] < StartSeconds - 0.000001 ||
+                    times[i] >= EndSeconds + 0.000001 || (i > 0 && times[i] <= times[i - 1]) ||
+                    (values[i] is { } value && !double.IsFinite(value)))
+                    throw new InvalidOperationException("科学预览包含无效的绝对时间或样本。");
+        }
+    }
+}
+
+public sealed record PreviewDisplayCompression(
+    [property: JsonPropertyName("method")] string Method,
+    [property: JsonPropertyName("scientific_resampling")] bool ScientificResampling,
+    [property: JsonPropertyName("target_points_per_channel")] int TargetPointsPerChannel,
+    [property: JsonPropertyName("gap_boundaries_may_exceed_target")] bool GapBoundariesMayExceedTarget);

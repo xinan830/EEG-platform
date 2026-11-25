@@ -6,7 +6,7 @@ using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 namespace BrainPlatform.Desktop.Modules.Review.Preprocessing;
 
 /// <summary>Owns offline scientific preprocessing inspection, confirmed configuration, and overlay preview for Review.</summary>
-public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
+public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDisposable
 {
     private readonly Func<CancellationToken, Task<(string RecordingId, string? MontageId, double DurationSeconds)>> ensureBackendRecordingAsync;
     private readonly Func<IPreprocessingClient?> resolveClient;
@@ -27,7 +27,9 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
     private bool allowFrontalEogProxy = true;
     private int icaComponentCount = 15;
     private string? icaFitFingerprint;
-    private string? icaEogChannelSource;
+    private IcaInspectionResponse? pendingIca;
+    private long pendingIcaRevision;
+    private long configurationRevision;
     private IReadOnlyList<int>? confirmedIcaExcluded;
     private string icaSummaryText = "尚未进行 ICA 成分审查";
     private bool isOverlayCompareEnabled;
@@ -69,6 +71,7 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
     public string CleanRatioSummary { get => cleanRatioSummary; private set => SetProperty(ref cleanRatioSummary, value); }
     public string IcaSummaryText { get => icaSummaryText; private set => SetProperty(ref icaSummaryText, value); }
     public string OverlayStatusText { get => overlayStatusText; private set => SetProperty(ref overlayStatusText, value); }
+    public string ArtifactRemovalScopeNotice => "STFT 时频图与 TNK 有界分析仅应用坏导/坏段策略，不应用 ICA、SSP 或 EOG 去伪迹，与清洗预览的输入不同。";
     public string? IcaFitFingerprint => icaFitFingerprint;
     public IReadOnlyList<int>? ConfirmedIcaExcluded => confirmedIcaExcluded;
     public PreprocessingPreviewWindowResponse? CurrentOverlayWindow => currentOverlayWindow;
@@ -179,8 +182,7 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
             if (!SetProperty(ref isOverlayCompareEnabled, value)) return;
             if (!value)
             {
-                overlayLoadCts?.Cancel();
-                currentOverlayWindow = null;
+                ClearOverlayWindow();
                 OverlayStatusText = "关闭（当前显示本地回放波形）";
                 RaisePropertyChanged(nameof(CurrentOverlayWindow));
                 VisualStateChanged?.Invoke(this, EventArgs.Empty);
@@ -205,148 +207,7 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
         BadChannelPolicy, SelectedBadChannels.Count, ArtifactPolicy, RemovalMethod, icaFitFingerprint, confirmedIcaExcluded);
 
     public ChannelVisualBadge ResolveChannelBadge(string displayedChannelName) =>
-        ReviewPreprocessingProjection.ResolveChannelBadge(displayedChannelName, BadChannelRows, BadChannelPolicy);
-
-    public async Task InspectBadChannelsAsync()
-    {
-        var client = RequireClient();
-        IsBusy = true;
-        StatusMessage = "正在扫描原始未投影 EEG 通道的坏导指标…";
-        try
-        {
-            var (recId, _, duration) = await ensureBackendRecordingAsync(lifetime.Token);
-            var response = await client.InspectBadChannelsAsync(recId, 0, Math.Min(Math.Max(duration, 4), 180), lifetime.Token);
-            BadChannelRows.Clear();
-            foreach (var item in response.Channels)
-                BadChannelRows.Add(new BadChannelRowViewModel(item, OnBadChannelSelectionChanged));
-
-            if (response.RecommendedBadChannels.Count > 0 && BadChannelPolicy == "none")
-            {
-                var allCanInterp = response.Channels.Where(c => c.IsBad).All(c => c.CanInterpolate);
-                badChannelPolicy = allCanInterp ? "interpolate" : "exclude";
-                RaisePropertyChanged(nameof(BadChannelPolicy));
-            }
-            StatusMessage = response.RecommendedBadChannels.Count == 0
-                ? $"坏导体检完成（{response.Channels.Count} 导）：未发现坏导。"
-                : $"坏导体检完成：建议处理 {response.RecommendedBadChannels.Count} 路坏导（{string.Join(", ", response.RecommendedBadChannels)}）。";
-            NotifyConfigAndVisuals();
-        }
-        finally { IsBusy = false; }
-    }
-
-    public async Task InspectArtifactSegmentsAsync()
-    {
-        var client = RequireClient();
-        IsBusy = true;
-        StatusMessage = "正在扫描爆幅峰峰值与 MNE 宽带肌电坏段…";
-        try
-        {
-            var (recId, montageId, duration) = await ensureBackendRecordingAsync(lifetime.Token);
-            var response = await client.InspectArtifactSegmentsAsync(
-                recId, 0, Math.Min(Math.Max(duration, 4), 180), montageId,
-                PeakToPeakUv, MuscleZScoreThreshold, SelectedBadChannels, BadChannelPolicy, lifetime.Token);
-            ArtifactSegments.Clear();
-            foreach (var seg in response.Segments)
-                ArtifactSegments.Add(new ArtifactSegmentRowViewModel(seg));
-
-            ArtifactMarkers = ArtifactSegments.Select(s => s.ToMarker()).ToArray();
-            CleanRatioSummary = $"干净率 {response.CleanRatio * 100:0.0}% · 检出 {response.Segments.Count} 段坏段（{ReviewPreprocessingProjection.FormatMuscleStatus(response.MuscleCheckStatus)}）";
-            if (response.Segments.Count > 0 && ArtifactPolicy == "none")
-            {
-                artifactPolicy = "reject";
-                RaisePropertyChanged(nameof(ArtifactPolicy));
-            }
-            StatusMessage = response.Segments.Count == 0
-                ? "坏段扫描完成：整段信号干净，无超限坏段。"
-                : $"坏段扫描完成：检出 {response.Segments.Count} 段，点击列表可一键跳转定位。";
-            NotifyConfigAndVisuals();
-        }
-        finally { IsBusy = false; }
-    }
-
-    public async Task<IcaInspectionResponse> InspectIcaForDialogAsync()
-    {
-        var client = RequireClient();
-        IsBusy = true;
-        StatusMessage = "正在整段连续拟合 Infomax ICA 并生成各成分 2D 头皮热力图与波形（约 5~20 秒）…";
-        try
-        {
-            var (recId, montageId, _) = await ensureBackendRecordingAsync(lifetime.Token);
-            var response = await client.InspectIcaComponentsAsync(
-                recId, montageId, lowHz: 1.0, highHz: 50.0, notchHz: 50.0,
-                badChannels: SelectedBadChannels, badChannelPolicy: BadChannelPolicy,
-                artifactPolicy: ArtifactPolicy, peakToPeakUv: PeakToPeakUv,
-                muscleZScoreThreshold: MuscleZScoreThreshold,
-                allowFrontalEogProxy: AllowFrontalEogProxy,
-                icaComponentCount: IcaComponentCount, icaEogThreshold: 0.7,
-                cancellationToken: lifetime.Token);
-
-            IcaComponents.Clear();
-            var preselected = (confirmedIcaExcluded is not null && string.Equals(icaFitFingerprint, response.IcaFitFingerprint, StringComparison.Ordinal))
-                ? confirmedIcaExcluded.ToHashSet()
-                : response.RecommendedExcludeComponents.ToHashSet();
-            foreach (var comp in response.Components)
-                IcaComponents.Add(new IcaComponentCardViewModel(comp, preselected.Contains(comp.ComponentIndex)));
-
-            icaFitFingerprint = response.IcaFitFingerprint;
-            icaEogChannelSource = response.EogChannelSource;
-            RaisePropertyChanged(nameof(IcaFitFingerprint));
-            StatusMessage = $"ICA 拟合完成（共 {response.ComponentCount} 个成分，建议剔除：{ReviewPreprocessingProjection.FormatComponentList(response.RecommendedExcludeComponents)}）。";
-            return response;
-        }
-        finally { IsBusy = false; }
-    }
-
-    public void ConfirmIcaSelection(IReadOnlyList<int> excludedIndices, string? fitFingerprint)
-    {
-        icaFitFingerprint = fitFingerprint;
-        confirmedIcaExcluded = excludedIndices.Distinct().OrderBy(i => i).ToArray();
-        removalMethod = "ica_infomax";
-        RaisePropertyChanged(nameof(RemovalMethod));
-        RaisePropertyChanged(nameof(IcaFitFingerprint));
-        RaisePropertyChanged(nameof(ConfirmedIcaExcluded));
-        var proxyNote = icaEogChannelSource == "frontal_eeg_proxy" ? "（前额代理）" : "";
-        IcaSummaryText = $"已确认剔除 {ReviewPreprocessingProjection.FormatComponentList(confirmedIcaExcluded)}{proxyNote} · 指纹 {fitFingerprint?[..Math.Min(8, fitFingerprint.Length)]}";
-        StatusMessage = $"ICA 成分选择已锁定（{IcaSummaryText}），后续 PSD/RBP 等算法将直接复用模型。";
-        NotifyConfigAndVisuals();
-    }
-
-    public async Task RefreshOverlayWindowAsync()
-    {
-        if (!IsOverlayCompareEnabled) return;
-        var client = resolveClient();
-        if (client is null)
-        {
-            OverlayStatusText = "当前会话未连接后端，无法加载叠图对比。";
-            return;
-        }
-        overlayLoadCts?.Cancel();
-        overlayLoadCts?.Dispose();
-        overlayLoadCts = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-        var token = overlayLoadCts.Token;
-        try
-        {
-            await Task.Delay(80, token);
-            var (recId, montageId, _) = await ensureBackendRecordingAsync(token);
-            var (startS, windowS, _, _, _) = getViewportContext();
-            var request = new PreprocessingPreviewWindowRequest(
-                StartSeconds: Math.Max(0, startS),
-                WindowSeconds: Math.Clamp(windowS, 1, 60),
-                MontageId: montageId,
-                LowHz: 1.0, HighHz: 50.0, NotchHz: 50.0, MaxPoints: 1000,
-                Preprocessing: BuildPayload(allowArtifactRemoval: true));
-            var response = await client.PreviewPreprocessedWindowAsync(recId, request, token);
-            if (token.IsCancellationRequested) return;
-            currentOverlayWindow = response;
-            OverlayStatusText = response.IcaModelReused
-                ? "叠图对比已开启（复用已审查 ICA 模型 · 浅灰=原波形，深色=清洗后，青虚线=插值修复）"
-                : "叠图对比已开启（浅灰=原波形，深色=清洗后，青虚线=插值修复）";
-            RaisePropertyChanged(nameof(CurrentOverlayWindow));
-            VisualStateChanged?.Invoke(this, EventArgs.Empty);
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception ex) { OverlayStatusText = $"叠图加载失败：{ex.Message}"; }
-    }
+        ReviewPreprocessingProjection.ResolveChannelBadge(displayedChannelName, BadChannelRows, BadChannelPolicy, CurrentOverlayWindow);
 
     public OfflinePreprocessingConfigPayload BuildPayload(bool allowArtifactRemoval) =>
         ReviewPreprocessingProjection.BuildPayload(
@@ -359,6 +220,8 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
 
     public void ResetAll()
     {
+        InvalidateIcaFingerprint("尚未进行 ICA 成分审查");
+        BadChannelRows.Clear();
         badChannelPolicy = "none";
         artifactPolicy = "none";
         removalMethod = "none";
@@ -377,12 +240,15 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
         RaisePropertyChanged(nameof(RemovalMethod));
         RaisePropertyChanged(nameof(IsOverlayCompareEnabled));
         RaisePropertyChanged(nameof(CurrentOverlayWindow));
+        RaisePropertyChanged(nameof(IcaFitFingerprint));
+        RaisePropertyChanged(nameof(ConfirmedIcaExcluded));
         NotifyConfigAndVisuals();
     }
 
     public void Dispose()
     {
-        overlayLoadCts?.Cancel();
+        CancelInspection();
+        ClearOverlayWindow();
         overlayLoadCts?.Dispose();
         lifetime.Cancel();
         lifetime.Dispose();
@@ -390,6 +256,15 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
 
     private IPreprocessingClient RequireClient() =>
         resolveClient() ?? throw new InvalidOperationException("当前回放未连接后端预处理服务。");
+
+    public void InvalidateSignalInputs()
+    {
+        InvalidateIcaFingerprint("导联或输入信号已变更，需重新审查 ICA 成分");
+        ArtifactSegments.Clear();
+        ArtifactMarkers = [];
+        CleanRatioSummary = "输入已变更，请重新扫描坏段";
+        NotifyConfigAndVisuals();
+    }
 
     private void OnBadChannelSelectionChanged()
     {
@@ -399,16 +274,22 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
 
     private void InvalidateIcaFingerprint(string reason)
     {
-        if (string.IsNullOrWhiteSpace(icaFitFingerprint)) return;
+        var hadReview = pendingIca is not null || icaFitFingerprint is not null || IcaComponents.Count > 0;
+        CancelInspection();
+        pendingIca = null;
+        IcaComponents.Clear();
         icaFitFingerprint = null;
         confirmedIcaExcluded = null;
-        IcaSummaryText = reason;
+        if (hadReview) IcaSummaryText = reason;
         RaisePropertyChanged(nameof(IcaFitFingerprint));
         RaisePropertyChanged(nameof(ConfirmedIcaExcluded));
     }
 
     private void NotifyConfigAndVisuals()
     {
+        configurationRevision++;
+        CancelInspection();
+        ClearOverlayWindow();
         RaisePropertyChanged(nameof(HasAnyActivePreprocessing));
         RaisePropertyChanged(nameof(ActiveSummaryBadge));
         RaisePropertyChanged(nameof(SelectedBadChannels));
@@ -420,6 +301,7 @@ public sealed class ReviewPreprocessingViewModel : ObservableObject, IDisposable
 
     private void ReportError(Exception ex)
     {
+        if (ex is OperationCanceledException) return;
         IsBusy = false;
         StatusMessage = $"操作失败：{ex.Message}";
     }

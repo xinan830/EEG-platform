@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.Preprocessing;
 
 namespace BrainPlatform.Desktop.Modules.Review.ViewModels;
@@ -23,6 +24,8 @@ public sealed partial class RecordingReviewViewModel
             seconds => _ = SeekAsync(seconds),
             () => (ViewportStartSeconds, VisibleDurationSeconds, HighPassHz, LowPassHz, NotchHz > 0 ? NotchHz : null));
         Preprocessing.ConfigurationChanged += OnPreprocessingConfigurationChanged;
+        montageSelection.SelectionChanged += OnPreprocessingMontageChanged;
+        PropertyChanged += OnPreprocessingViewportChanged;
         OpenPreprocessingCommand = new RelayCommand(TogglePreprocessingPanel);
     }
 
@@ -32,6 +35,15 @@ public sealed partial class RecordingReviewViewModel
             _ = CloseAnalysisAsync();
         else
             SetActiveAnalysis(PreprocessingPanelId);
+    }
+
+    private void OnPreprocessingMontageChanged(object? sender, EventArgs e) => Preprocessing.InvalidateSignalInputs();
+
+    private void OnPreprocessingViewportChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ViewportStartSeconds) or nameof(VisibleDurationSeconds) &&
+            !IsPlaying && Preprocessing.IsOverlayCompareEnabled)
+            _ = Preprocessing.RefreshOverlayWindowAsync();
     }
 
     private void OnPreprocessingConfigurationChanged(object? sender, EventArgs e)
@@ -58,10 +70,9 @@ public sealed partial class RecordingReviewViewModel
         return (analysisRecording.Id, montage?.Id, analysisRecording.DurationSeconds ?? DurationSeconds);
     }
 
-    private JsonElement AttachActivePreprocessing(JsonElement config, string algorithmId)
+    private JsonElement AttachActivePreprocessing(JsonElement config, AlgorithmCatalogItem algorithm)
     {
-        var allowArtifactRemoval = algorithmId is not ("stft" or "tnk_biofeedback");
-        var preprocessing = Preprocessing.BuildAlgorithmConfigDictionary(allowArtifactRemoval);
+        var preprocessing = Preprocessing.BuildAlgorithmConfigDictionary(algorithm.SupportsArtifactRemoval);
         if (preprocessing is null || config.ValueKind != JsonValueKind.Object)
             return config;
 
@@ -76,6 +87,8 @@ public sealed partial class RecordingReviewViewModel
     {
         if (Preprocessing is null) return;
         Preprocessing.ConfigurationChanged -= OnPreprocessingConfigurationChanged;
+        montageSelection.SelectionChanged -= OnPreprocessingMontageChanged;
+        PropertyChanged -= OnPreprocessingViewportChanged;
         Preprocessing.Dispose();
     }
 }

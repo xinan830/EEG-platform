@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
@@ -25,6 +25,30 @@ class PreprocessingPreviewWindowRequest(BaseModel):
     notch_hz: Optional[float] = 50.0
     max_points: int = Field(default=1200, ge=64, le=4000)
     preprocessing: OfflinePreprocessingRequest = Field(default_factory=OfflinePreprocessingRequest)
+
+
+class PreviewDisplayCompression(BaseModel):
+    method: Literal["finite_run_min_max_envelope_v1"]
+    scientific_resampling: Literal[False]
+    target_points_per_channel: int
+    gap_boundaries_may_exceed_target: bool
+
+
+class PreprocessingPreviewWindowResponse(BaseModel):
+    """Read-only display envelope: absolute-second per-channel coordinates and microvolts."""
+    recording_id: str
+    montage_id: Optional[str]
+    start_s: float
+    end_s: float
+    sfreq_hz: float
+    channels: list[str]
+    interpolated_channels: list[str]
+    excluded_channels: list[str]
+    trace_times_s: dict[str, list[float]]
+    traces_uv: dict[str, list[float | None]]
+    display_compression: PreviewDisplayCompression
+    ica_model_reused: bool
+    artifact_removal_status: str
 
 
 router = APIRouter(prefix="/api/recordings", tags=["preprocessing"])
@@ -178,13 +202,13 @@ def inspect_ica_components_endpoint(
         return error_response(request, 422, "ICA_INSPECTION_INVALID", str(exc))
 
 
-@router.post("/{recording_id}/preprocessing/preview-window")
+@router.post("/{recording_id}/preprocessing/preview-window", response_model=PreprocessingPreviewWindowResponse)
 def preview_preprocessed_window(
     recording_id: str,
     request: Request,
     body: PreprocessingPreviewWindowRequest,
 ) -> dict:
-    """Return a downsampled cleaned viewport window (uV) for read-only overlay comparison."""
+    """Return gap-preserving display envelopes (uV), not resampled scientific signals."""
     try:
         service = _service(request)
         recording = service.require_recording(recording_id)

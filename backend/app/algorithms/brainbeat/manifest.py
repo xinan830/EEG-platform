@@ -23,7 +23,7 @@ def _manifest(*, algorithm_id: str, display_name: str, abbreviation: str,
         dynamic_policy=_WINDOW_POLICY.model_copy(deep=True),
         signal_requirements=SignalRequirements(
             input_roles=["Fz", "Pz"], representation="spectrum", source_shape="paired",
-            preprocessing_scope="configured_continuous_before_slice",
+            preprocessing_scope="configured_continuous_before_slice", supports_artifact_removal=True,
         ),
         dynamic_capabilities=official_dynamic_capabilities(
             full_to_preview=False,

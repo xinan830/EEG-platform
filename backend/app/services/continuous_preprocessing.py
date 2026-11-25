@@ -1,50 +1,56 @@
 """Shared identity-validated continuous EEG preparation; windows only slice its output."""
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
+from collections.abc import Callable
 import logging
 import time
-from typing import Any
 
 import numpy as np
 
 from app.core.provenance import implementation_version
-from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
+from app.scientific.contracts.preprocessing import OfflinePreprocessingSpec
+from app.services.ica_review_cache import IcaReviewCache
 from app.algorithm_runtime.execution_control import ExecutionControl
 from app.models.recording import RecordingSummary
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
 from app.services.prepared_source_contract import PreparedSourceContract
 
 logger = logging.getLogger("brain_platform.continuous_preprocessing")
-POWERLINE_NOTCH_Q = float(ANALYSIS_CONTRACT["notch_quality_factor"])
+
+
+@dataclass(frozen=True)
+class PreprocessingRecordingAccess:
+    open_access_session: Callable
+    analysis_signal_provenance: Callable
+    ica_review_cache: IcaReviewCache
 
 
 class ContinuousPreprocessingService:
     """Own bounded reusable V/float64 sources across independent algorithm contexts."""
 
-    def __init__(self, recordings: Any, preprocess_cache: AnalysisPreprocessCache):
+    def __init__(self, recordings: PreprocessingRecordingAccess, preprocess_cache: AnalysisPreprocessCache):
         self.recordings = recordings
         self.preprocess_cache = preprocess_cache
 
-    def load(self, recording: RecordingSummary, low_hz: float, high_hz: float,
-             notch_hz: float | None, execution_context: ExecutionControl | None,
+    def invalidate_recording(self, recording_id: str) -> None:
+        self.preprocess_cache.clear_recording(recording_id)
+        self.recordings.ica_review_cache.invalidate_recording(recording_id)
+
+    def load(self, recording: RecordingSummary, preprocessing_spec: OfflinePreprocessingSpec,
+             execution_context: ExecutionControl | None = None,
              channels: list[str] | None = None, *,
-             requested_channels_only: bool = False,
-             bad_channel_spec: Any = None,
-             preprocessing_spec: Any = None) -> PreprocessedRecording:
-        """Prepare continuously once per scientific identity, retaining existing resource limits."""
+             requested_channels_only: bool = False) -> PreprocessedRecording:
+        """Execute the facade's validated effective specification without reinterpreting it."""
         from app.services.mapped_preprocessing import mapped_preprocess
         from app.services.prepared_source_identity import prepared_source_identity
 
         started = time.perf_counter()
-        raw_bad = preprocessing_spec.bad_channels if preprocessing_spec is not None else bad_channel_spec
-        norm_bad = raw_bad.normalized() if raw_bad is not None else None
-        bad_active = bool(norm_bad is not None and norm_bad.is_active)
-        raw_art = preprocessing_spec.artifact_rejection if preprocessing_spec is not None else None
-        norm_art = raw_art.normalized() if raw_art is not None else None
-        art_active = bool(norm_art is not None and norm_art.is_active)
-        raw_rem = preprocessing_spec.artifact_removal if preprocessing_spec is not None else None
-        norm_rem = raw_rem.normalized() if raw_rem is not None else None
-        rem_active = bool(norm_rem is not None and norm_rem.is_active)
+        filters = preprocessing_spec.filter_spec
+        low_hz, high_hz, notch_hz = filters.low_hz, filters.high_hz, filters.notch_hz
+        norm_bad, norm_art, norm_rem = (preprocessing_spec.bad_channels,
+                                       preprocessing_spec.artifact_rejection,
+                                       preprocessing_spec.artifact_removal)
+        bad_active, art_active, rem_active = norm_bad.is_active, norm_art.is_active, norm_rem.is_active
         selected_channels = None
         if channels and (requested_channels_only or getattr(execution_context, "select_requested_channels", False)):
             # An explicit projection policy may opt into a smaller source.
@@ -60,11 +66,7 @@ class ContinuousPreprocessingService:
                 if all_channel_bytes > policy.max_preparation_bytes:
                     available = {name.casefold(): name for name in recording.channels}
                     selected_channels = tuple(available[item.casefold()] for item in channels)
-        effective_notch_q = (
-            float(preprocessing_spec.filter_spec.notch_q)
-            if preprocessing_spec is not None
-            else POWERLINE_NOTCH_Q
-        )
+        effective_notch_q = float(filters.notch_q)
         signal_provenance = self.recordings.analysis_signal_provenance(recording)
         identity = prepared_source_identity(self.recordings, recording, low_hz=low_hz,
             high_hz=high_hz, notch_hz=notch_hz, notch_q=effective_notch_q,

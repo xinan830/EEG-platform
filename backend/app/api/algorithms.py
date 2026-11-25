@@ -49,6 +49,8 @@ def _official_items(request: Request) -> list[dict[str, object]]:
             "output_schema": manifest.output_schema,
             "output_contract": manifest.output_contract.model_dump(mode="json"),
             "dynamic_policy": manifest.dynamic_policy.model_dump(mode="json"),
+            "signal_requirements": (manifest.signal_requirements.model_dump(mode="json")
+                                    if manifest.signal_requirements is not None else None),
             "dynamic_capabilities": (
                 manifest.dynamic_capabilities.model_dump(mode="json")
                 if manifest.dynamic_capabilities is not None else None

@@ -10,10 +10,17 @@ import numpy as np
 
 from app.scientific.contracts.preprocessing import ArtifactRejectionSpec, ArtifactRemovalSpec, BadChannelSpec
 from app.services.electrode_locations import resolve_electrode_labels
+from app.services.preview_envelope import build_preview_envelope, preview_envelope_indices
 
 
-def _strip_montage_suffix(label: str) -> str:
-    return label.split("-", 1)[0].strip()
+def _scalp_label(label: str, formulas: dict[str, dict[str, object]] | None = None) -> str:
+    formula = (formulas or {}).get(label.casefold())
+    if formula is not None:
+        return str(formula["positive"]).strip() if str(formula.get("negative_kind", "")).casefold() in {
+            "originalhardwarereference", "mean",
+        } else ""
+    parts = label.rsplit("-", 1)
+    return parts[0].strip() if len(parts) == 1 or parts[1].strip().casefold() in {"ref", "avg"} else ""
 
 
 def _build_idw_grid(points: list[tuple[str, float, float, float]], grid_size: int = 33, head_radius: float = 1.0) -> dict[str, object]:
@@ -52,6 +59,7 @@ def _build_ic_topomap_field(
     resolved_coords: dict[str, tuple[float, float]],
     *,
     grid_size: int = 33,
+    formulas: dict[str, dict[str, object]] | None = None,
 ) -> dict[str, object]:
     # Normalize weights symmetrically to [-1, 1] for crisp bipolar scalp heatmap display.
     peak = float(np.max(np.abs(weights))) if weights.size > 0 else 0.0
@@ -64,7 +72,7 @@ def _build_ic_topomap_field(
     excluded: list[str] = []
 
     for ch_name, val in zip(channel_names, scaled, strict=True):
-        base_label = _strip_montage_suffix(str(ch_name))
+        base_label = _scalp_label(str(ch_name), formulas)
         xy = resolved_coords.get(base_label.casefold())
         num = float(val) if math.isfinite(float(val)) else None
         if xy is None or num is None:
@@ -72,7 +80,8 @@ def _build_ic_topomap_field(
             points.append({
                 "channel": str(ch_name), "electrode_label": base_label or None,
                 "x": None, "y": None, "value": num, "status": "excluded",
-                "reason": "electrode_location_unavailable", "quality_status": "unknown", "quality_reasons": [],
+                "reason": "electrode_location_unavailable" if base_label else "bipolar_or_derived_output_has_no_spatial_rule",
+                "quality_status": "unknown", "quality_reasons": [],
             })
             continue
         x, y = xy
@@ -120,11 +129,13 @@ def attach_ica_component_visuals(
     preview_seconds: float = 10.0,
     preview_points: int = 240,
     grid_size: int = 33,
+    signal_provenance: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    """Enrich ICA inspection components with 2D scalp topomaps and downsampled IC waveforms."""
+    """Enrich ICA inspection with scalp maps and dimensionless display envelopes."""
     names = tuple(fitted_ica.channel_names)
     mixing = np.asarray(fitted_ica.ica.get_components(), dtype=np.float64)
-    base_labels = [_strip_montage_suffix(name) for name in names]
+    formulas = {str(row["name"]).casefold(): row for row in (signal_provenance or {}).get("formulas", [])}
+    base_labels = [label for name in names if (label := _scalp_label(name, formulas))]
     resolved_coords: dict[str, tuple[float, float]] = {}
     for item in resolve_electrode_labels(base_labels):
         coords = item.get("map_coordinates")
@@ -133,33 +144,38 @@ def attach_ica_component_visuals(
             if math.isfinite(x) and math.isfinite(y):
                 resolved_coords[str(item.get("requested_label", "")).casefold()] = (x, y)
 
-    # Extract up to preview_seconds of finite source activations via MNE's public get_sources().
-    finite_mask = np.all(np.isfinite(data_v), axis=1)
-    finite_block = data_v[finite_mask]
-    max_samples = max(16, int(round(preview_seconds * float(fitted_ica.sampling_rate_hz))))
-    snippet = finite_block[:max_samples]
-    preview_duration_s = round(snippet.shape[0] / float(fitted_ica.sampling_rate_hz), 3) if snippet.size else 0.0
-    sources_ds: np.ndarray | None = None
-    if snippet.shape[0] >= 16:
-        raw_snip = mne.io.RawArray(np.ascontiguousarray(snippet.T, dtype=np.float64), fitted_ica.info, verbose=False)
-        src_arr = np.asarray(fitted_ica.ica.get_sources(raw_snip).get_data(), dtype=np.float64)
-        idx = np.linspace(0, src_arr.shape[1] - 1, num=min(preview_points, src_arr.shape[1]), dtype=int)
-        sources_ds = src_arr[:, idx]
+    sfreq = float(fitted_ica.sampling_rate_hz)
+    snippet = data_v[:max(16, int(round(preview_seconds * sfreq)))]
+    finite_mask = np.all(np.isfinite(snippet), axis=1)
+    sources = np.full((mixing.shape[1], len(snippet)), np.nan, dtype=np.float64)
+    if finite_mask.any():
+        # ICA source projection is pointwise; scatter finite projections back to the original timeline.
+        raw_snip = mne.io.RawArray(np.ascontiguousarray(snippet[finite_mask].T), fitted_ica.info, verbose=False)
+        sources[:, finite_mask] = fitted_ica.ica.get_sources(raw_snip).get_data()
+    preview_duration_s = round(len(snippet) / sfreq, 6)
 
     enriched: list[dict[str, object]] = []
     for row in report.get("components", []):
         comp_idx = int(row["component_index"])
-        topo = _build_ic_topomap_field(comp_idx, names, mixing[:, comp_idx], resolved_coords, grid_size=grid_size)
-        wave: list[float] = []
-        if sources_ds is not None and comp_idx < sources_ds.shape[0]:
-            sig = sources_ds[comp_idx]
-            std = float(np.std(sig))
-            normed = (sig - float(np.mean(sig))) / std if std > 1e-12 else sig * 0.0
-            wave = [round(float(v), 4) for v in normed]
+        topo = _build_ic_topomap_field(comp_idx, names, mixing[:, comp_idx], resolved_coords,
+                                       grid_size=grid_size, formulas=formulas)
+        sig = sources[comp_idx]
+        finite = sig[np.isfinite(sig)]
+        if finite.size:
+            std = float(np.std(finite))
+            sig = (sig - float(np.mean(finite))) / std if std > 1e-12 else sig * 0.0
+        indices = preview_envelope_indices(sig, target_points=preview_points)
+        wave = [round(float(sig[i]), 4) if np.isfinite(sig[i]) else None for i in indices]
         enriched.append({
             **row,
             "topomap": topo,
             "preview_waveform": wave,
+            "preview_times_s": [round(i / sfreq, 6) for i in indices],
+            "preview_unit": "z-score",
+            "preview_compression": {
+                "method": "finite_run_min_max_envelope_v1", "scientific_resampling": False,
+                "target_points_per_channel": preview_points, "gap_boundaries_may_exceed_target": True,
+            },
             "preview_duration_s": preview_duration_s,
         })
     report["components"] = enriched
@@ -181,7 +197,7 @@ def build_preprocessing_preview_window(
     artifact_removal_spec: ArtifactRemovalSpec | None = None,
     max_points: int = 1200,
 ) -> dict[str, object]:
-    """Return a downsampled cleaned viewport window (uV, NaN -> null) reusing continuous/ICA caches."""
+    """Return per-channel display envelopes (absolute seconds, uV, gaps as null)."""
     target_recording = recording
     if montage_id is not None:
         target_recording = recordings.select_analysis_montage(recording, montage_id)
@@ -207,23 +223,27 @@ def build_preprocessing_preview_window(
         raise ValueError("预览窗口超出录音范围")
 
     window_data = np.asarray(prepared.data[s_idx:e_idx], dtype=np.float64)
-    n_pts = window_data.shape[0]
-    if n_pts > max_points:
-        sample_idx = np.linspace(0, n_pts - 1, num=max_points, dtype=int)
-    else:
-        sample_idx = np.arange(n_pts, dtype=int)
-
-    times_s = [round((s_idx + int(i)) / sfreq, 6) for i in sample_idx]
+    trace_times_s: dict[str, list[float]] = {}
     traces_uv: dict[str, list[float | None]] = {}
     for col_i, ch_name in enumerate(prepared.channel_names):
-        vals = window_data[sample_idx, col_i] * 1e6
-        traces_uv[str(ch_name)] = [round(float(v), 4) if math.isfinite(float(v)) else None for v in vals]
+        times, values = build_preview_envelope(
+            window_data[:, col_i], start_sample=s_idx, sfreq=sfreq, target_points=max_points,
+        )
+        trace_times_s[str(ch_name)] = times
+        traces_uv[str(ch_name)] = values
 
     bad_set = {ch.casefold() for ch in norm_bad.channels}
+    provenance = recordings.analysis_signal_provenance(target_recording) if norm_bad.policy == "interpolate" else {}
+    formulas = {str(row["name"]).casefold(): row for row in (provenance or {}).get("formulas", [])}
+
+    def depends_on_interpolated_input(channel: str) -> bool:
+        formula = formulas.get(channel.casefold())
+        inputs = [formula["positive"], *formula.get("negative_labels", [])] if formula else [channel]
+        return any(str(label).casefold() in bad_set for label in inputs)
+
     interpolated = [
         str(ch) for ch in prepared.channel_names
-        if norm_bad.policy == "interpolate"
-        and (ch.casefold() in bad_set or _strip_montage_suffix(str(ch)).casefold() in bad_set)
+        if norm_bad.policy == "interpolate" and depends_on_interpolated_input(str(ch))
     ]
     excluded = list(norm_bad.channels) if norm_bad.policy == "exclude" else []
     rem_ev = prepared.artifact_removal_evidence or {}
@@ -236,7 +256,11 @@ def build_preprocessing_preview_window(
         "channels": list(prepared.channel_names),
         "interpolated_channels": interpolated,
         "excluded_channels": excluded,
-        "times_s": times_s,
+        "trace_times_s": trace_times_s,
+        "display_compression": {
+            "method": "finite_run_min_max_envelope_v1", "scientific_resampling": False,
+            "target_points_per_channel": max_points, "gap_boundaries_may_exceed_target": True,
+        },
         "traces_uv": traces_uv,
         "ica_model_reused": bool(rem_ev.get("ica_model_reused", False)),
         "artifact_removal_status": str(rem_ev.get("status", "disabled")),

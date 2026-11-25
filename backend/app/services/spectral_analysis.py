@@ -22,7 +22,7 @@ from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY, ScientificSpectr
 from app.models.analysis_config import AnalysisConfigRequest
 from app.models.recording import RecordingSummary
 from app.services.analysis_preprocess_cache import PreprocessedRecording
-from app.services.continuous_preprocessing import ContinuousPreprocessingService
+from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
 from app.services.analysis_input_validation import validate_recording_analysis_input
 
 
@@ -76,9 +76,9 @@ def _configured_provenance(payload: dict[str, object], *, mode: str, requested_t
 class SpectralAnalysisService:
     """Compute frozen PSD and spectrogram contracts from one recording loader."""
 
-    def __init__(self, recordings: Any, continuous_preprocessing: ContinuousPreprocessingService, spectral_gateway: ScientificSpectralGateway | None = None):
+    def __init__(self, recordings: Any, offline_preprocessing: OfflineScientificPreprocessingService, spectral_gateway: ScientificSpectralGateway | None = None):
         self.recordings = recordings
-        self.continuous_preprocessing = continuous_preprocessing
+        self.offline_preprocessing = offline_preprocessing
         self.spectral_gateway = spectral_gateway or DEFAULT_SPECTRAL_GATEWAY
 
     def load_spectrum(
@@ -154,21 +154,16 @@ class SpectralAnalysisService:
                 spec is not None and spec.normalized().is_active
                 for spec in (bad_channel_spec, artifact_rejection_spec, artifact_removal_spec)
             )
-            offline_prep = getattr(self.recordings, "offline_scientific_preprocessing", None)
             if _preprocessed is not None:
                 cached = _preprocessed
-            elif has_offline_specs and offline_prep is not None:
-                cached = offline_prep.prepare_continuous(
+            else:
+                cached = self.offline_preprocessing.prepare_continuous(
                     recording, low_hz=filter_low_hz, high_hz=filter_high_hz, notch_hz=notch_hz,
                     execution_context=execution_context, channels=channels,
                     bad_channel_spec=bad_channel_spec,
                     artifact_rejection_spec=artifact_rejection_spec,
                     artifact_removal_spec=artifact_removal_spec,
                 )
-            else:
-                cached = self.continuous_preprocessing.load(
-                    recording, filter_low_hz, filter_high_hz, notch_hz, execution_context,
-                    channels=channels)
             filtered_all, sfreq, names = cached.data, cached.sfreq, list(cached.channel_names)
             if has_offline_specs or cached.artifact_intervals or cached.artifact_removal_evidence is not None:
                 total_samples = int(len(filtered_all))

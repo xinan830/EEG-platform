@@ -25,7 +25,7 @@ public sealed class BadChannelRowViewModel : ObservableObject
 {
     private bool isSelected;
 
-    public BadChannelRowViewModel(BadChannelInspectionItem item, Action onSelectionChanged)
+    public BadChannelRowViewModel(BadChannelInspectionItem item, Action onSelectionChanged, bool? initialSelected = null)
     {
         Channel = item.Channel;
         IsBadCandidate = item.IsBad;
@@ -34,7 +34,7 @@ public sealed class BadChannelRowViewModel : ObservableObject
         ReasonsSummary = item.Reasons.Count == 0 ? "正常" : string.Join(" / ", item.Reasons.Select(FormatReason));
         MetricsSummary = $"RMS {item.RmsUv ?? 0:0.0} µV · 高频比 {item.HfPowerRatio ?? 0:0.00} · 邻域相关 {item.MaxNeighborCorrelation ?? 0:0.00}";
         InterpolationHint = item.CanInterpolate ? "支持 3D 球面样条插值" : $"不可插值（{FormatInterpReason(item.InterpolationUnavailableReason)}）";
-        isSelected = item.IsBad;
+        isSelected = initialSelected ?? item.IsBad;
         OnSelectionChangedCallback = onSelectionChanged;
     }
 
@@ -132,6 +132,7 @@ public sealed class IcaComponentCardViewModel : ObservableObject
 
     public IcaComponentCardViewModel(IcaComponentItem item, bool initialExcluded)
     {
+        item.ValidatePreview();
         ComponentIndex = item.ComponentIndex;
         Title = $"IC{item.ComponentIndex:00}";
         EogScore = item.EogScore;
@@ -139,7 +140,8 @@ public sealed class IcaComponentCardViewModel : ObservableObject
         ExplainedVarianceRatio = item.ExplainedVarianceRatio;
         RecommendedExclude = item.RecommendedExclude;
         Topomap = item.Topomap;
-        PreviewWaveform = item.PreviewWaveform ?? [];
+        PreviewWaveform = item.PreviewWaveform?.Select(value => value ?? double.NaN).ToArray() ?? [];
+        PreviewTimesSeconds = item.PreviewTimesSeconds ?? [];
         PreviewDurationSeconds = item.PreviewDurationSeconds;
         isExcluded = initialExcluded;
 
@@ -163,6 +165,7 @@ public sealed class IcaComponentCardViewModel : ObservableObject
     public string EvrText { get; }
     public TopomapField? Topomap { get; }
     public IReadOnlyList<double> PreviewWaveform { get; }
+    public IReadOnlyList<double> PreviewTimesSeconds { get; }
     public double PreviewDurationSeconds { get; }
 
     public bool IsExcluded

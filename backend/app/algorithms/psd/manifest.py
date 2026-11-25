@@ -12,7 +12,7 @@ MANIFEST = AlgorithmManifest(
     implementation_identity="psd-runtime-v6-shared-1-50-notch",
     supported_modes=["static", "dynamic"],
     dynamic_policy=DynamicAnalysisPolicy(default_window_s=10.0),
-    signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="channel_set", preprocessing_scope="configured_continuous_before_slice"),
+    signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="channel_set", preprocessing_scope="configured_continuous_before_slice", supports_artifact_removal=True),
     dynamic_capabilities=official_dynamic_capabilities(
         full_to_preview=True,
         combined_evidence=["backend/tests/test_official_combined_strategies.py", "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"],

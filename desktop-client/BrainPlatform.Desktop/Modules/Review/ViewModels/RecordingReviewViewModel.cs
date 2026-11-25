@@ -448,6 +448,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     private void OnSessionChanged(object? sender, EventArgs e)
     {
+        Preprocessing.SetDisplayMontageCompatible(session.TemporaryMontageProfile is null &&
+            session.CurrentFrame?.HasTemporaryMontage != true);
         RaisePropertyChanged(nameof(AcquisitionMontageText));
         RaisePropertyChanged(nameof(CurrentViewingMontage));
         if (!ReferenceEquals(publishedFrame, session.CurrentFrame))
@@ -484,6 +486,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
 
     private void PublishPlaybackChanges(bool wasPlaying, bool wasCompleted)
     {
+        Preprocessing.SetPlaybackActive(IsPlaying);
         if (wasPlaying != IsPlaying) RaisePropertyChanged(nameof(IsPlaying));
         if (wasCompleted != IsCompleted) RaisePropertyChanged(nameof(IsCompleted));
         TnkAnalysis.SetCursor(PositionSeconds);

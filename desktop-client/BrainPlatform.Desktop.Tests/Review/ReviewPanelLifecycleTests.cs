@@ -309,6 +309,7 @@ public sealed partial class RecordingReviewViewModelTests
         public int Loads { get; private set; }
         public bool FailNextWindow { get; set; }
         public IReadOnlyList<HistoricalMontageDescriptor>? MontageCatalogue { get; init; }
+        public bool SupportsArtifactRemoval { get; init; }
         public List<JsonElement> Configurations { get; } = [];
 
         public Task<RegisteredRecording> RegisterAsync(string directory, CancellationToken cancellationToken,
@@ -333,7 +334,8 @@ public sealed partial class RecordingReviewViewModelTests
                 default, algorithmId == "theta_beta"
                     ? new DynamicAnalysisPolicy(20, [20, 30], 20, 1, false)
                     : new DynamicAnalysisPolicy(4, [5], 5, 1, true),
-                "available", true, "definition", "1", "impl");
+                "available", true, "definition", "1", "impl",
+                SignalRequirements: JsonSerializer.SerializeToElement(new { supports_artifact_removal = SupportsArtifactRemoval }));
         }
 
         public async Task<WindowPreviewResponse> LoadOnDemandAsync(string recordingId, AnalysisRunRequest request,

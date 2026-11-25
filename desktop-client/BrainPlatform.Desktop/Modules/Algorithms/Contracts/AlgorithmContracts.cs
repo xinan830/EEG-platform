@@ -24,8 +24,14 @@ public sealed record AlgorithmCatalogItem(
     [property: JsonPropertyName("definition_version")] string? DefinitionVersion,
     [property: JsonPropertyName("implementation_identity")] string? ImplementationIdentity,
     [property: JsonPropertyName("dynamic_capabilities")] JsonElement DynamicCapabilities = default,
-    [property: JsonPropertyName("group")] string? Group = null)
+    [property: JsonPropertyName("group")] string? Group = null,
+    [property: JsonPropertyName("signal_requirements")] JsonElement SignalRequirements = default)
 {
+    public bool SupportsArtifactRemoval =>
+        SignalRequirements.ValueKind == JsonValueKind.Object &&
+        SignalRequirements.TryGetProperty("supports_artifact_removal", out var supported) &&
+        supported.ValueKind == JsonValueKind.True;
+
     public bool SupportsDeclaredOnDemand =>
         HasDeclaredImplementation("on_demand");
 

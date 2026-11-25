@@ -74,3 +74,9 @@ def build_cache_key(
         "implementation_build": implementation_build,
         "actual_range": actual_range,
     })
+
+
+def with_offline_preprocessing(filters: dict, config: dict) -> dict:
+    """Use identical effective preprocessing evidence in full and on-demand identities."""
+    preprocessing = config.get("preprocessing")
+    return {**filters, "offline_preprocessing": preprocessing} if preprocessing is not None else filters

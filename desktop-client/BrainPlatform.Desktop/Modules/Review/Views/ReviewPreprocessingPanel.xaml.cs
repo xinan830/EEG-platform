@@ -26,7 +26,9 @@ public partial class ReviewPreprocessingPanel : UserControl
             {
                 prep.ConfirmIcaSelection(dialog.SelectedExcludedComponents, response.IcaFitFingerprint);
             }
+            else prep.CancelIcaReview();
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             MessageBox.Show(

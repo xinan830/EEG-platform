@@ -149,6 +149,7 @@ class SignalRequirements(BaseModel):
         "bounded_window_with_finite_context",
     ]
     missing_sample_policy: Literal["preserve_nan", "reject"] = "preserve_nan"
+    supports_artifact_removal: bool = False
 
 
 class AlgorithmOutputField(BaseModel):

@@ -1,6 +1,5 @@
 from app.models.recording import RecordingSummary
-from app.services.analysis_preprocess_cache import AnalysisPreprocessCache
-from app.services.continuous_preprocessing import ContinuousPreprocessingService
+from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
 
 import numpy as np
 import pytest
@@ -27,10 +26,8 @@ def _context(pair: np.ndarray, sfreq: float) -> _RecordingAlgorithmContext:
         channels=("F3", "F4"), sfreq=sfreq, duration_s=len(pair) / sfreq,
         source_sha256="fixture-source")
     source = Source()
-    preprocessing = ContinuousPreprocessingService(source, AnalysisPreprocessCache())
-    source.load_preprocessed_signals = lambda recording, **options: preprocessing.load(
-        recording, options["low_hz"], options["high_hz"], options["notch_hz"],
-        options["execution_context"], options["channels"], requested_channels_only=True)
+    preprocessing = OfflineScientificPreprocessingService.for_recording_access(source.open_access_session, source.analysis_signal_provenance)
+    source.load_preprocessed_signals = lambda recording, **options: preprocessing.prepare_continuous(recording, **options, requested_channels_only=True)
     return _RecordingAlgorithmContext(source, recording)
 
 

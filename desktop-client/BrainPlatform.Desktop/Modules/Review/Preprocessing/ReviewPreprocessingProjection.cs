@@ -28,8 +28,13 @@ internal static class ReviewPreprocessingProjection
     public static ChannelVisualBadge ResolveChannelBadge(
         string displayedChannelName,
         IReadOnlyList<BadChannelRowViewModel> rows,
-        string badChannelPolicy)
+        string badChannelPolicy,
+        PreprocessingPreviewWindowResponse? preview)
     {
+        if (badChannelPolicy == "interpolate" &&
+            preview?.InterpolatedChannels.Contains(displayedChannelName, StringComparer.OrdinalIgnoreCase) == true)
+            return new ChannelVisualBadge(ChannelVisualPreprocessingState.Interpolated,
+                "科学预览已应用球面样条插值；该输出依赖插值后的电极输入，原始记录未改变。");
         var baseName = StripMontageSuffix(displayedChannelName);
         var row = rows.FirstOrDefault(item =>
             string.Equals(item.Channel, displayedChannelName, StringComparison.OrdinalIgnoreCase) ||
@@ -37,17 +42,15 @@ internal static class ReviewPreprocessingProjection
         if (row is null || (!row.IsSelected && !row.IsBadCandidate))
             return new ChannelVisualBadge(ChannelVisualPreprocessingState.Normal, "");
 
-        if (row.IsSelected && badChannelPolicy == "interpolate")
-            return new ChannelVisualBadge(
-                ChannelVisualPreprocessingState.Interpolated,
-                $"已球面样条插值修复（原因：{row.ReasonsSummary}）\n{row.MetricsSummary}");
-        if (row.IsSelected && badChannelPolicy == "exclude")
+        if (row.IsSelected && badChannelPolicy == "exclude" &&
+            preview?.ExcludedChannels.Contains(row.Channel, StringComparer.OrdinalIgnoreCase) == true)
             return new ChannelVisualBadge(
                 ChannelVisualPreprocessingState.Excluded,
                 $"已排除坏导（原因：{row.ReasonsSummary}）\n{row.MetricsSummary}");
         return new ChannelVisualBadge(
             ChannelVisualPreprocessingState.CandidateBad,
-            $"疑似坏导：{row.ReasonsSummary}\n{row.MetricsSummary}\n{row.InterpolationHint}");
+            $"疑似坏导：{row.ReasonsSummary}\n{row.MetricsSummary}\n{row.InterpolationHint}" +
+            (row.IsSelected && badChannelPolicy != "none" ? "\n已选择处理策略，待预览验证；原始波形未改变。" : ""));
     }
 
     public static OfflinePreprocessingConfigPayload BuildPayload(

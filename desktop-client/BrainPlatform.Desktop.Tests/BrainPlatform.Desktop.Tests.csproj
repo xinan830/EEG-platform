@@ -25,6 +25,10 @@
           Link="Fixtures\review_cursor_samples.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\BrainPlatform.Desktop\Modules\Review\Views\RecordingReviewView.xaml"
           Link="Fixtures\RecordingReviewView.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\BrainPlatform.Desktop\Modules\Review\Views\ReviewPreprocessingPanel.xaml"
+          Link="Fixtures\ReviewPreprocessingPanel.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\BrainPlatform.Desktop\Modules\Review\Views\IcaReviewDialog.xaml"
+          Link="Fixtures\IcaReviewDialog.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

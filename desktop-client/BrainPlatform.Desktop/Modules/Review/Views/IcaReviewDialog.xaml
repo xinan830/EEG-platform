@@ -91,7 +91,8 @@
                                 </Border>
 
                                 <!-- 10 秒成分时间波形迷你图 -->
-                                <prep:IcSparklineControl Samples="{Binding PreviewWaveform}" Height="36" Margin="0,0,0,4" />
+                                <prep:IcSparklineControl Samples="{Binding PreviewWaveform}" TimesSeconds="{Binding PreviewTimesSeconds}"
+                                                         DurationSeconds="{Binding PreviewDurationSeconds}" Height="36" Margin="0,0,0,4" />
 
                                 <TextBlock Text="{Binding EvrText}" FontSize="11" Foreground="#64748B" HorizontalAlignment="Right" />
                             </StackPanel>

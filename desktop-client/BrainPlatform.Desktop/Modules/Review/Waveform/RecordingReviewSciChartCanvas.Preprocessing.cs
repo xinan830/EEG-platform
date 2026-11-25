@@ -89,8 +89,6 @@ public sealed partial class RecordingReviewSciChartCanvas
     private void UpdatePreprocessingOnViewportChanged(RecordingReviewViewModel? viewModel)
     {
         artifactSegments.UpdatePositions();
-        if (viewModel is { IsPlaying: false, Preprocessing.IsOverlayCompareEnabled: true })
-            _ = viewModel.Preprocessing.RefreshOverlayWindowAsync();
     }
 
     private void ClearPreprocessingVisuals()

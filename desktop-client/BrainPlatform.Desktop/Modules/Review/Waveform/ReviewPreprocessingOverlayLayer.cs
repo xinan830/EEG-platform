@@ -69,7 +69,8 @@ internal sealed class ReviewPreprocessingOverlayLayer
         ScreenScaleContext screenScale)
     {
         var prep = viewModel?.Preprocessing;
-        var overlayActive = prep is { IsOverlayCompareEnabled: true, CurrentOverlayWindow: not null };
+        var overlayActive = viewModel?.IsPlaying != true &&
+            prep is { IsOverlayCompareEnabled: true, CurrentOverlayWindow: not null };
         var overlayWindow = overlayActive ? prep!.CurrentOverlayWindow! : null;
         var interpolatedSet = overlayWindow is not null
             ? overlayWindow.InterpolatedChannels.ToHashSet(StringComparer.OrdinalIgnoreCase)
@@ -82,26 +83,11 @@ internal sealed class ReviewPreprocessingOverlayLayer
         for (var i = 0; i < traceCount; i++)
         {
             var baseColor = WaveformTraceColors.ToColor(configuredColors?.ElementAtOrDefault(i), i);
-            var badge = prep?.ResolveChannelBadge(channelNames[i])
-                        ?? new ChannelVisualBadge(ChannelVisualPreprocessingState.Normal, "");
-
             if (overlayActive)
             {
                 baseSeries[i].Stroke = DimmedOriginalColor;
                 baseSeries[i].StrokeThickness = 1;
                 baseSeries[i].StrokeDashArray = null;
-            }
-            else if (badge.State == ChannelVisualPreprocessingState.Interpolated)
-            {
-                baseSeries[i].Stroke = InterpolatedCyanColor;
-                baseSeries[i].StrokeThickness = 2;
-                baseSeries[i].StrokeDashArray = InterpolatedDash;
-            }
-            else if (badge.State == ChannelVisualPreprocessingState.Excluded)
-            {
-                baseSeries[i].Stroke = DimmedOriginalColor;
-                baseSeries[i].StrokeThickness = 1;
-                baseSeries[i].StrokeDashArray = InterpolatedDash;
             }
             else
             {
@@ -121,20 +107,20 @@ internal sealed class ReviewPreprocessingOverlayLayer
         var sensitivity = viewModel?.SensitivityMicrovoltsPerMillimeter ?? 10.0;
         var displayScale = ScreenScaleCalculator.VerticalDisplayScale(
             traceCount, plotHeight, sensitivity, screenScale.MillimetersPerDipY);
-        var times = overlayWindow.TimesSeconds;
 
         for (var i = 0; i < traceCount; i++)
         {
             var ch = channelNames[i];
             var ov = overlaySeries[i];
-            if (!TryGetTrace(overlayWindow.TracesUv, ch, out var valuesUv) || valuesUv is null || valuesUv.Count == 0)
+            if (!TryGetTrace(overlayWindow.TracesUv, ch, out var valuesUv) || valuesUv is null || valuesUv.Count == 0 ||
+                !TryGetTrace(overlayWindow.TraceTimesSeconds, ch, out var times) || times is null)
             {
                 ov.Data.Clear();
                 ov.LineSeries.IsVisible = false;
                 continue;
             }
             var baseline = traceCount - i - 0.5;
-            var count = Math.Min(times.Count, valuesUv.Count);
+            var count = times.Count;
             var xs = new double[count];
             var ys = new double[count];
             for (var k = 0; k < count; k++)
@@ -142,8 +128,7 @@ internal sealed class ReviewPreprocessingOverlayLayer
                 xs[k] = times[k];
                 ys[k] = valuesUv[k] is { } uv ? baseline + uv * displayScale : double.NaN;
             }
-            var isInterpolated = interpolatedSet.Contains(ch) ||
-                                 (prep?.ResolveChannelBadge(ch).State == ChannelVisualPreprocessingState.Interpolated);
+            var isInterpolated = interpolatedSet.Contains(ch);
             ov.LineSeries.Stroke = isInterpolated ? InterpolatedCyanColor : CleanedDarkColor;
             ov.LineSeries.StrokeThickness = 2;
             ov.LineSeries.StrokeDashArray = isInterpolated ? InterpolatedDash : null;
@@ -199,10 +184,10 @@ internal sealed class ReviewPreprocessingOverlayLayer
         }
     }
 
-    private static bool TryGetTrace(
-        IReadOnlyDictionary<string, IReadOnlyList<double?>> traces,
+    private static bool TryGetTrace<T>(
+        IReadOnlyDictionary<string, IReadOnlyList<T>> traces,
         string channelName,
-        out IReadOnlyList<double?>? trace)
+        out IReadOnlyList<T>? trace)
     {
         if (traces.TryGetValue(channelName, out trace)) return true;
         foreach (var pair in traces)

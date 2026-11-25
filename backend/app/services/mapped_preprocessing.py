@@ -69,6 +69,10 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
     policy = getattr(execution_context, "preparation_resource_policy", None)
     owner = MappedArrays() if policy is None else MappedArrays(policy)
     session = None
+    ica_cache = (getattr(recordings, "ica_review_cache", None)
+                 if getattr(artifact_removal_spec, "method", None) == "ica_infomax" else None)
+    recording_id = str(getattr(recording, "id", ""))
+    ica_token = ica_cache.publication_token(recording_id) if ica_cache is not None else None
     def check_cancelled():
         if execution_context is not None:
             execution_context.check_cancelled()
@@ -105,7 +109,7 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
             ptp_source = target
             wide_hi = min(45.0, (session.sampling_rate_hz / 2.0) - 1.5)
             if norm_art.peak_to_peak_uv is not None and high_hz < 45.0 and wide_hi > max(high_hz, 1.0):
-                from app.services.artifact_inspection import detrend_and_filter_for_inspection
+                from app.scientific.primitives import detrend_and_filter_for_inspection
 
                 ptp_source, _ = detrend_and_filter_for_inspection(
                     source, session.sampling_rate_hz,
@@ -149,11 +153,10 @@ def mapped_preprocess(recordings: Any, recording: Any, *, low_hz: float,
                     raise ValueError(
                         "ICA_FIT_FINGERPRINT_MISMATCH: 请求应用的 ICA 审查指纹与当前前置预处理状态（导联/滤波/坏导/坏段/成分数）不一致，请重新审查 ICA 成分"
                     )
-                ica_cache = getattr(recordings, "ica_review_cache", None)
                 prefitted_ica = ica_cache.get(ica_fit_fp) if ica_cache is not None else None
                 if prefitted_ica is None and ica_cache is not None:
                     fitted = fit_ica_model(target, session.sampling_rate_hz, names, norm_rem)
-                    ica_cache.put(ica_fit_fp, fitted, recording_id=getattr(recording, "id", ""))
+                    ica_cache.put(ica_fit_fp, fitted, recording_id=recording_id, token=ica_token)
                     removal_result = apply_offline_artifact_removal(
                         target, session.sampling_rate_hz, names, norm_rem,
                         prefitted_ica=fitted, ica_fit_fingerprint=ica_fit_fp,

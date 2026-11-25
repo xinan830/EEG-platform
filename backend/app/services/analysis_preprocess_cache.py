@@ -35,7 +35,7 @@ class PreparedSourceCacheLookup:
 
 
 class AnalysisPreprocessCache:
-    """Small LRU cache; entries are immutable by convention after insertion."""
+    """Small LRU cache publishing read-only prepared samples."""
 
     def __init__(self, max_entries: int = 2, max_resident_bytes: int = 128 * 1024 * 1024):
         if max_entries < 1 or max_resident_bytes < 1:
@@ -68,6 +68,7 @@ class AnalysisPreprocessCache:
 
     def put(self, recording_id: str, algorithm_version: str, value: PreprocessedRecording) -> None:
         key = (recording_id, algorithm_version)
+        value.data.flags.writeable = False
         with self._lock:
             self._entries[key] = value
             self._entries.move_to_end(key)
@@ -122,7 +123,11 @@ class AnalysisPreprocessCache:
 
         try:
             value = factory()
-            self.put(recording_id, algorithm_version, value)
+            value.data.flags.writeable = False
+            with self._lock:
+                if self._inflight.get(key) is pending:
+                    self.put(recording_id, algorithm_version, value)
+                    self._inflight.pop(key, None)
             pending.set_result(value)
             return value
         except BaseException as error:
@@ -141,3 +146,6 @@ class AnalysisPreprocessCache:
         with self._lock:
             for key in [key for key in self._entries if key[0] == recording_id]:
                 self._entries.pop(key, None)
+            # Existing consumers can finish, but new requests must not join old work.
+            for key in [key for key in self._inflight if key[0] == recording_id]:
+                self._inflight.pop(key, None)

@@ -14,6 +14,26 @@ public sealed class IcSparklineControl : FrameworkElement
         nameof(StrokeBrush), typeof(Brush), typeof(IcSparklineControl),
         new FrameworkPropertyMetadata(new SolidColorBrush(Color.FromRgb(37, 99, 235)), FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty TimesSecondsProperty = DependencyProperty.Register(
+        nameof(TimesSeconds), typeof(IReadOnlyList<double>), typeof(IcSparklineControl),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty DurationSecondsProperty = DependencyProperty.Register(
+        nameof(DurationSeconds), typeof(double), typeof(IcSparklineControl),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public double DurationSeconds
+    {
+        get => (double)GetValue(DurationSecondsProperty);
+        set => SetValue(DurationSecondsProperty, value);
+    }
+
+    public IReadOnlyList<double>? TimesSeconds
+    {
+        get => (IReadOnlyList<double>?)GetValue(TimesSecondsProperty);
+        set => SetValue(TimesSecondsProperty, value);
+    }
+
     public IReadOnlyList<double>? Samples
     {
         get => (IReadOnlyList<double>?)GetValue(SamplesProperty);
@@ -39,7 +59,8 @@ public sealed class IcSparklineControl : FrameworkElement
         var midY = h * 0.5;
         dc.DrawLine(new Pen(new SolidColorBrush(Color.FromRgb(226, 232, 240)), 0.75), new Point(2, midY), new Point(w - 2, midY));
 
-        if (Samples is not { Count: >= 2 } data) return;
+        if (Samples is not { Count: >= 2 } data || TimesSeconds is not { } times ||
+            times.Count != data.Count || !double.IsFinite(DurationSeconds) || DurationSeconds <= 0) return;
         var peak = 0.0;
         for (var i = 0; i < data.Count; i++)
         {
@@ -51,14 +72,14 @@ public sealed class IcSparklineControl : FrameworkElement
         var geom = new StreamGeometry();
         using (var ctx = geom.Open())
         {
-            var xStep = (w - 6) / (data.Count - 1);
+            var xScale = (w - 6) / DurationSeconds;
             var yScale = (h - 8) * 0.48 / peak;
             var started = false;
             for (var i = 0; i < data.Count; i++)
             {
                 var v = data[i];
                 if (!double.IsFinite(v)) { started = false; continue; }
-                var pt = new Point(3 + i * xStep, midY - v * yScale);
+                var pt = new Point(3 + times[i] * xScale, midY - v * yScale);
                 if (!started) { ctx.BeginFigure(pt, false, false); started = true; }
                 else ctx.LineTo(pt, true, false);
             }

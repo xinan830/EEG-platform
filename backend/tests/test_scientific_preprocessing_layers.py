@@ -215,7 +215,7 @@ def test_offline_bounded_window_cache_tracks_real_recording_identity_and_coalesc
                 unavailable_intervals=(),
             )
 
-    service = OfflineScientificPreprocessingService(continuous=SimpleNamespace(), max_window_entries=8)
+    service = OfflineScientificPreprocessingService(continuous=SimpleNamespace(invalidate_recording=lambda _: None), max_window_entries=8)
     id_v1 = RecordingSourceIdentity("rec-1", source_sha256="sha-aaa", import_version="v1", signal_view_sha256="view-1")
 
     # 1. Concurrent identical requests coalesce into ONE disk read + ONE filter call

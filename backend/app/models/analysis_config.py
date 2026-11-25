@@ -91,6 +91,11 @@ class OfflinePreprocessingRequest(BaseModel):
     artifact_rejection: ArtifactRejectionRequest = Field(default_factory=ArtifactRejectionRequest)
     artifact_removal: ArtifactRemovalRequest = Field(default_factory=ArtifactRemovalRequest)
 
+    def validate_capabilities(self, signal_requirements) -> None:
+        if (self.artifact_removal.to_spec().is_active and
+                (signal_requirements is None or not signal_requirements.supports_artifact_removal)):
+            raise ValueError("ARTIFACT_REMOVAL_REQUIRES_CONTINUOUS_SCOPE: 当前算法未声明连续去伪迹支持")
+
     def to_specs(self) -> tuple[BadChannelSpec, ArtifactRejectionSpec, ArtifactRemovalSpec]:
         return (
             self.bad_channels.to_spec(),

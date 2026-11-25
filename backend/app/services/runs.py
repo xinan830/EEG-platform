@@ -10,6 +10,7 @@ import numpy as np
 
 from app.core.config import ARTIFACTS_DIR, DATABASE_PATH
 from app.core.provenance import (
+    with_offline_preprocessing,
     execution_environment,
     implementation_version,
     sha256_json,
@@ -218,6 +219,8 @@ class RunService:
             official_config = OfficialAlgorithmRunConfig.model_validate(request.config)
             montage_snapshot = official_config.montage_snapshot()
             module = self.algorithm_runtime_registry.get_current(official_config.algorithm_id)
+            if official_config.preprocessing is not None:
+                official_config.preprocessing.validate_capabilities(module.manifest.signal_requirements)
             if (official_config.scientific_version is not None and
                     official_config.scientific_version != module.manifest.scientific_version):
                 raise RetiredAlgorithmVersionError(
@@ -348,8 +351,7 @@ class RunService:
                 "preprocessing_scope": "bounded_window_with_finite_context",
                 "context_s": stft_context_s(1.0), "boundary_policy": "clamp_to_recording",
             })
-        if config.get("preprocessing") is not None:
-            filters = {**filters, "offline_preprocessing": config["preprocessing"]}
+        filters = with_offline_preprocessing(filters, config)
         signal_source = self.recordings.analysis_signal_provenance(recording)
         if signal_source["signal_mode"] == "acquisition_montage":
             definition = {**definition, "signal_source": signal_source}

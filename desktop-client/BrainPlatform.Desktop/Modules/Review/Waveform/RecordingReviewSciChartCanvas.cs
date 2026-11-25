@@ -241,6 +241,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         else if (e.PropertyName == nameof(RecordingReviewViewModel.IsPlaying))
         {
             if (sender is not RecordingReviewViewModel viewModel) return;
+            RefreshPreprocessingVisuals(viewModel);
             if (viewModel.IsPlaying)
             {
                 CancelDisplayFrameLoad();

@@ -5,6 +5,18 @@ namespace BrainPlatform.Desktop.Tests.Algorithms;
 
 public sealed class AlgorithmCatalogCapabilityTests
 {
+    [Theory]
+    [InlineData("{\"supports_artifact_removal\":true}", true)]
+    [InlineData("{\"supports_artifact_removal\":false}", false)]
+    [InlineData("{\"supports_artifact_removal\":\"true\"}", false)]
+    [InlineData("{}", false)]
+    public void Artifact_removal_requires_an_explicit_backend_declaration(string requirements, bool expected)
+    {
+        var item = Catalog("{}") with { SignalRequirements = JsonDocument.Parse(requirements).RootElement };
+        Assert.Equal(expected, item.SupportsArtifactRemoval);
+        Assert.False(Catalog("{}").SupportsArtifactRemoval);
+    }
+
     [Fact]
     public void Directional_reuse_requires_an_explicit_implemented_catalog_declaration()
     {

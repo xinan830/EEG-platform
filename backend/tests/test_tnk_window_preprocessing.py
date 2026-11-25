@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from app.services.tnk_window_preprocessing import prepare_tnk_window
+from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
 
 
 class _Session:
@@ -36,6 +37,8 @@ class _Session:
 class _Recordings:
     def __init__(self, session):
         self.session = session
+        self.offline_scientific_preprocessing = OfflineScientificPreprocessingService.for_recording_access(
+            self.open_access_session, lambda _: {})
 
     def open_access_session(self, recording, **kwargs):
         assert kwargs == {"verify_content_hash": False}

@@ -1,6 +1,5 @@
 from app.models.recording import RecordingSummary
-from app.services.analysis_preprocess_cache import AnalysisPreprocessCache
-from app.services.continuous_preprocessing import ContinuousPreprocessingService
+from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
 
 import numpy as np
 import pytest
@@ -50,10 +49,8 @@ def source_context(pair, sfreq):
         channels=("F3", "F4"), sfreq=sfreq, duration_s=len(pair) / sfreq,
         source_sha256="fixture-source")
     source = Source()
-    preprocessing = ContinuousPreprocessingService(source, AnalysisPreprocessCache())
-    source.load_preprocessed_signals = lambda recording, **options: preprocessing.load(
-        recording, options["low_hz"], options["high_hz"], options["notch_hz"],
-        options["execution_context"], options["channels"], requested_channels_only=True)
+    preprocessing = OfflineScientificPreprocessingService.for_recording_access(source.open_access_session, source.analysis_signal_provenance)
+    source.load_preprocessed_signals = lambda recording, **options: preprocessing.prepare_continuous(recording, **options, requested_channels_only=True)
     return _RecordingAlgorithmContext(source, recording)
 
 
@@ -114,8 +111,10 @@ def test_prepared_contract_uses_volts_even_when_edf_header_reports_microvolts():
 
     recording = RecordingSummary("edf-uv", "test", "test", ".edf", "now", sfreq=sfreq,
         duration_s=len(values_v) / sfreq, channels=("F3", "F4"), channel_units=("uV", "uV"))
-    prepared = ContinuousPreprocessingService(Source(), AnalysisPreprocessCache()).load(
-        recording, 1, 40, None, None, ["F3"], requested_channels_only=True)
+    source = Source()
+    prepared = OfflineScientificPreprocessingService.for_recording_access(
+        source.open_access_session, source.analysis_signal_provenance).prepare_continuous(
+        recording, low_hz=1, high_hz=40, notch_hz=None, channels=["F3"], requested_channels_only=True)
 
     assert prepared.contract is not None
     assert prepared.contract.channel_units == ("V",)

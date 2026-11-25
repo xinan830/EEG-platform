@@ -16,6 +16,7 @@ from app.algorithm_runtime.on_demand import DynamicSessionIdentity, DynamicWindo
 from app.algorithm_runtime.on_demand_registry import DynamicWindowCapabilityRegistry
 from app.algorithm_runtime.registry import AlgorithmRegistry
 from app.core.performance_trace import measure_performance
+from app.core.provenance import with_offline_preprocessing
 from app.models.official_algorithm_run import OfficialAlgorithmRunConfig
 from app.persistence.repositories.dynamic_window import DynamicSessionRecord, DynamicWindowRecord, DynamicWindowRepository
 from app.services.algorithm_recording_context import _RecordingAlgorithmContext
@@ -76,6 +77,8 @@ class DynamicWindowPlanner:
         if not recording.source_sha256 or not recording.sfreq or not recording.duration_s:
             raise ValueError("recording scientific identity or metadata is unavailable")
         official = OfficialAlgorithmRunConfig.model_validate(self._official_payload(payload))
+        if official.preprocessing is not None:
+            official.preprocessing.validate_capabilities(module.manifest.signal_requirements)
         typed_config = module.config_model.model_validate(official.runtime_config())
         typed_config = self._runtime_validate(module, typed_config)
         montage_snapshot = official.montage_snapshot()
@@ -146,8 +149,7 @@ class DynamicWindowPlanner:
             signal_source = {key: value for key, value in signal_source.items() if key != "montage_label"}
             execution_snapshot = module.execution_snapshot(typed_config)
             filters = execution_snapshot.filters
-            if config.get("preprocessing") is not None:
-                filters = {**filters, "offline_preprocessing": config["preprocessing"]}
+            filters = with_offline_preprocessing(filters, config)
             channel_mapping = {
                 "channels": module.requested_channels(typed_config),
                 "signal_source": signal_source,

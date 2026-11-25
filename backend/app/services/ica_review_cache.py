@@ -70,6 +70,11 @@ class IcaReviewCache:
         self._max_entries = max(1, int(max_entries))
         self._lock = RLock()
         self._entries: OrderedDict[str, tuple[str, Any]] = OrderedDict()
+        self._recording_tokens: dict[str, object] = {}
+
+    def publication_token(self, recording_id: str) -> object:
+        with self._lock:
+            return self._recording_tokens.setdefault(str(recording_id), object())
 
     def get(self, fingerprint: str) -> Any | None:
         with self._lock:
@@ -79,8 +84,10 @@ class IcaReviewCache:
             self._entries.move_to_end(fingerprint)
             return entry[1]
 
-    def put(self, fingerprint: str, model: Any, *, recording_id: str) -> None:
+    def put(self, fingerprint: str, model: Any, *, recording_id: str, token: object) -> None:
         with self._lock:
+            if self._recording_tokens.get(str(recording_id)) is not token:
+                return
             self._entries[fingerprint] = (str(recording_id), model)
             self._entries.move_to_end(fingerprint)
             while len(self._entries) > self._max_entries:
@@ -88,6 +95,7 @@ class IcaReviewCache:
 
     def invalidate_recording(self, recording_id: str) -> int:
         with self._lock:
+            self._recording_tokens.pop(str(recording_id), None)
             keys = [fp for fp, (rec_id, _model) in self._entries.items() if rec_id == recording_id]
             for fp in keys:
                 self._entries.pop(fp, None)
@@ -96,3 +104,4 @@ class IcaReviewCache:
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
+            self._recording_tokens.clear()

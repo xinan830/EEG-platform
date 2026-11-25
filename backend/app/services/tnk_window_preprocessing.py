@@ -9,7 +9,7 @@ from app.scientific.contracts.preprocessing import (
     OfflinePreprocessingSpec,
     ScientificFilterSpec,
 )
-from app.services.bounded_window_preprocessing import PreparedWindow, prepare_window
+from app.services.bounded_window_preprocessing import PreparedWindow
 
 
 TNK_WINDOW_PREPROCESSING_VERSION = "tnk-window-spectral-v1"
@@ -26,7 +26,7 @@ def prepare_tnk_window(
     artifact_removal_spec: ArtifactRemovalSpec | None = None,
 ) -> PreparedWindow:
     """Read only TNK's target plus its existing two-second context."""
-    offline_prep = getattr(recordings, "offline_scientific_preprocessing", None)
+    offline_prep = recordings.offline_scientific_preprocessing
     norm_bad = bad_channel_spec.normalized() if bad_channel_spec is not None else BadChannelSpec()
     norm_art = artifact_rejection_spec.normalized() if artifact_rejection_spec is not None else ArtifactRejectionSpec()
     norm_rem = artifact_removal_spec.normalized() if artifact_removal_spec is not None else ArtifactRemovalSpec()
@@ -35,37 +35,21 @@ def prepare_tnk_window(
     if norm_bad.is_active:
         open_kwargs["bad_channel_spec"] = norm_bad
     with recordings.open_access_session(recording, **open_kwargs) as session:
-        if offline_prep is not None:
-            full_spec = (
-                OfflinePreprocessingSpec(
-                    filter_spec=ScientificFilterSpec(
-                        low_hz=float(low_hz), high_hz=float(high_hz),
-                        notch_hz=None if notch_hz is None else float(notch_hz),
-                        filter_phase="zero_phase", scope="bounded_window_with_finite_context",
-                    ),
-                    bad_channels=norm_bad,
-                    artifact_rejection=norm_art,
-                    artifact_removal=norm_rem,
-                )
-                if (norm_bad.is_active or norm_art.is_active or norm_rem.is_active)
-                else None
-            )
-            return offline_prep.prepare_bounded_window(
-                session, start_sample=start_sample, end_sample=end_sample,
-                channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-                context_s=TNK_FILTER_CONTEXT_S,
-                algorithm_version=TNK_WINDOW_PREPROCESSING_VERSION,
-                execution_context=execution_context,
-                preprocessing_spec=full_spec,
-            )
-        if norm_rem.is_active:
-            raise ValueError(
-                "ARTIFACT_REMOVAL_REQUIRES_CONTINUOUS_SCOPE: 离线去伪迹（EOG/SSP/ICA）需要整段连续预处理上下文，不支持在有界局部窗口中独立拟合"
-            )
-        return prepare_window(
+        full_spec = OfflinePreprocessingSpec(
+            filter_spec=ScientificFilterSpec(
+                low_hz=float(low_hz), high_hz=float(high_hz),
+                notch_hz=None if notch_hz is None else float(notch_hz),
+                filter_phase="zero_phase", scope="bounded_window_with_finite_context",
+            ),
+                bad_channels=norm_bad,
+                artifact_rejection=norm_art,
+                artifact_removal=norm_rem,
+        )
+        return offline_prep.prepare_bounded_window(
             session, start_sample=start_sample, end_sample=end_sample,
             channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
             context_s=TNK_FILTER_CONTEXT_S,
             algorithm_version=TNK_WINDOW_PREPROCESSING_VERSION,
             execution_context=execution_context,
+            preprocessing_spec=full_spec,
         )

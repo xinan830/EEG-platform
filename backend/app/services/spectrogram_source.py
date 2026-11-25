@@ -11,7 +11,6 @@ from app.scientific.contracts.spectrogram import (
 from app.scientific.primitives import ScientificSpectralGateway
 from app.scientific.quality import SpectralQualityGateError
 from app.services.analysis_input_validation import validate_recording_analysis_input
-from app.services.bounded_window_preprocessing import prepare_window
 
 
 FREQUENCY_BANDS = {
@@ -77,40 +76,24 @@ def load_spectrogram(
         stop_index = min(session.sample_count, start_index + int(round(float(window_s) * sfreq)))
         if stop_index - start_index < int(round(4.0 * sfreq)):
             raise ValueError("频谱分析窗口至少需要 4 秒")
-        offline_prep = getattr(recordings, "offline_scientific_preprocessing", None)
-        if offline_prep is not None:
-            full_spec = (
-                OfflinePreprocessingSpec(
-                    filter_spec=ScientificFilterSpec(
-                        low_hz=float(low_hz), high_hz=float(high_hz),
-                        notch_hz=None if notch_hz is None else float(notch_hz),
-                        filter_phase="zero_phase", scope="bounded_window_with_finite_context",
-                    ),
-                    bad_channels=norm_bad,
-                    artifact_rejection=norm_art,
-                    artifact_removal=norm_rem,
-                )
-                if (norm_bad.is_active or norm_art.is_active or norm_rem.is_active)
-                else None
-            )
-            prepared = offline_prep.prepare_bounded_window(
-                session, start_sample=start_index, end_sample=stop_index,
-                channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-                context_s=context_s, algorithm_version=STFT_PREPROCESSING_VERSION,
-                execution_context=execution_context,
-                preprocessing_spec=full_spec,
-            )
-        else:
-            if norm_rem.is_active:
-                raise ValueError(
-                    "ARTIFACT_REMOVAL_REQUIRES_CONTINUOUS_SCOPE: 离线去伪迹（EOG/SSP/ICA）需要整段连续预处理上下文，不支持在有界局部窗口中独立拟合"
-                )
-            prepared = prepare_window(
-                session, start_sample=start_index, end_sample=stop_index,
-                channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-                context_s=context_s, algorithm_version=STFT_PREPROCESSING_VERSION,
-                execution_context=execution_context,
-            )
+        offline_prep = recordings.offline_scientific_preprocessing
+        full_spec = OfflinePreprocessingSpec(
+            filter_spec=ScientificFilterSpec(
+                low_hz=float(low_hz), high_hz=float(high_hz),
+                notch_hz=None if notch_hz is None else float(notch_hz),
+                filter_phase="zero_phase", scope="bounded_window_with_finite_context",
+            ),
+                bad_channels=norm_bad,
+                artifact_rejection=norm_art,
+                artifact_removal=norm_rem,
+        )
+        prepared = offline_prep.prepare_bounded_window(
+            session, start_sample=start_index, end_sample=stop_index,
+            channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+            context_s=context_s, algorithm_version=STFT_PREPROCESSING_VERSION,
+            execution_context=execution_context,
+            preprocessing_spec=full_spec,
+        )
     names = list(prepared.channel_names)
     actual_start = start_index / sfreq
     # Preserve the existing aggregate Welch gate before per-row STFT quality.

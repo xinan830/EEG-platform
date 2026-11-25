@@ -9,8 +9,7 @@ from app.core.config import ALLOWED_EXTENSIONS, DATABASE_PATH, RECORDINGS_DIR, e
 from app.models.recording import RecordingSummary
 from app.models.analysis_config import AnalysisConfigRequest
 from app.services.filter_checkpoint_cache import FilterCheckpointCache
-from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
-from app.services.continuous_preprocessing import ContinuousPreprocessingService
+from app.services.analysis_preprocess_cache import PreprocessedRecording
 from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
 from app.persistence import connect_database, migrate_database
 from app.services.recording_identity import (
@@ -31,13 +30,11 @@ class RecordingService:
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         self._filter_checkpoints = FilterCheckpointCache()
-        self._analysis_preprocess_cache = AnalysisPreprocessCache()
         self._wpf_recording_facts = WpfRecordingFactsCache()
-        from app.services.ica_review_cache import IcaReviewCache
-        self.ica_review_cache = IcaReviewCache()
-        self._continuous_preprocessing = ContinuousPreprocessingService(self, self._analysis_preprocess_cache)
-        self._offline_scientific_preprocessing = OfflineScientificPreprocessingService(self._continuous_preprocessing)
-        self._spectral_analysis = SpectralAnalysisService(self, self._continuous_preprocessing)
+        self._offline_scientific_preprocessing = OfflineScientificPreprocessingService.for_recording_access(
+            lambda *args, **kwargs: self.open_access_session(*args, **kwargs),
+            lambda recording: self.analysis_signal_provenance(recording))
+        self._spectral_analysis = SpectralAnalysisService(self, self._offline_scientific_preprocessing)
         from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
         self._analysis_montage_snapshots = AnalysisMontageSnapshots(self.database_path)
         self._recording_access = RecordingAccessService(self.storage_dir, self._wpf_recording_facts,
@@ -307,15 +304,15 @@ class RecordingService:
                                   bad_channel_spec=None, artifact_rejection_spec=None,
                                   artifact_removal_spec=None, execution_context=None) -> PreprocessedRecording:
         """Share continuous preparation of an ordered signal pair across window contexts."""
-        if any(spec is not None and spec.normalized().is_active for spec in (bad_channel_spec, artifact_rejection_spec, artifact_removal_spec)):
-            return self._offline_scientific_preprocessing.prepare_continuous(
-                recording, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-                execution_context=execution_context, bad_channel_spec=bad_channel_spec,
-                artifact_rejection_spec=artifact_rejection_spec, artifact_removal_spec=artifact_removal_spec,
-            )
-        return self._continuous_preprocessing.load(
-            recording, low_hz, high_hz, notch_hz, execution_context, channels,
-            requested_channels_only=True)
+        has_policies = any(spec is not None and spec.normalized().is_active
+                           for spec in (bad_channel_spec, artifact_rejection_spec, artifact_removal_spec))
+        return self._offline_scientific_preprocessing.prepare_continuous(
+            recording, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+            execution_context=execution_context, channels=None if has_policies else channels,
+            requested_channels_only=not has_policies,
+            bad_channel_spec=bad_channel_spec, artifact_rejection_spec=artifact_rejection_spec,
+            artifact_removal_spec=artifact_removal_spec,
+        )
 
     def load_spectrum(
         self,
@@ -554,14 +551,20 @@ class RecordingService:
             raw.close()
 
     @property
+    def ica_review_cache(self):
+        return self._offline_scientific_preprocessing.ica_review_cache
+
+    @property
+    def _analysis_preprocess_cache(self):
+        return self._offline_scientific_preprocessing.prepared_cache
+
+    @property
     def offline_scientific_preprocessing(self) -> OfflineScientificPreprocessingService:
         return self._offline_scientific_preprocessing
 
     def _delete_recording(self, recording: RecordingSummary) -> None:
         self._filter_checkpoints.clear_recording(recording.id)
-        self._analysis_preprocess_cache.clear_recording(recording.id)
         self._offline_scientific_preprocessing.invalidate_recording(recording.id)
-        self.ica_review_cache.invalidate_recording(recording.id)
         (self.storage_dir / recording.stored_name).unlink(missing_ok=True)
         with self._connect() as connection:
             connection.execute("DELETE FROM recordings WHERE id = ?", (recording.id,))

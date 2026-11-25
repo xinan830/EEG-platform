@@ -8,6 +8,27 @@ namespace BrainPlatform.Desktop.Tests.Review;
 
 public sealed partial class RecordingReviewViewModelTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Review_preprocessing_uses_catalog_capabilities_for_the_same_algorithm(bool supportsRemoval)
+    {
+        var provider = new PanelProvider("rbp") { SupportsArtifactRemoval = supportsRemoval };
+        var catalog = new RecordingMontageCatalogResult(null, AcquisitionMontageStatus.MissingSnapshot,
+            new RawSignalViewDefinition(["F3", "F7"]), [], []);
+        await using var vm = new RecordingReviewViewModel(new FakeReader(Manifest(Configuration()), 100), catalog,
+            recordingDirectory: "_temp/preprocessing-capability-fixture", analysisCoordinators: [new ReviewAnalysisCoordinator(provider)]);
+        await vm.InitializeAsync();
+        vm.Preprocessing.RemovalMethod = "ssp_eog";
+        await vm.SeekAsync(10);
+        await vm.OpenAnalysisAsync("rbp");
+        var config = Assert.Single(provider.Configurations);
+        if (supportsRemoval)
+            Assert.Equal("ssp_eog", config.GetProperty("preprocessing").GetProperty("artifact_removal").GetProperty("method").GetString());
+        else
+            Assert.False(config.TryGetProperty("preprocessing", out _));
+    }
+
     [Fact]
     public async Task Imported_recording_descriptor_drives_review_rbp_window_without_wpf_registration()
     {
@@ -45,8 +66,12 @@ public sealed partial class RecordingReviewViewModelTests
         Assert.Equal(1, provider.Loads);
         Assert.True(vm.IsAnalysisAttached);
 
-        // Switching to Raw signal view on the same imported recording uses raw enabled EEG channels.
+        var preprocessingChanges = 0;
+        vm.Preprocessing.ConfigurationChanged += (_, _) => preprocessingChanges++;
+        // Switching to Raw invalidates the shared scientific input state as well.
         await vm.SelectViewingMontageAsync(null);
+        Assert.Equal(1, preprocessingChanges);
+        Assert.Null(vm.Preprocessing.IcaFitFingerprint);
         await vm.OpenAnalysisAsync("rbp");
         var rawConfig = provider.Configurations.Last();
         Assert.Equal("F3", rawConfig.GetProperty("channel").GetString());

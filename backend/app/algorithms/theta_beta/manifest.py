@@ -20,7 +20,7 @@ MANIFEST = AlgorithmManifest(
         refresh_step_options_s=[1.0, 2.0, 5.0],
         allow_warmup=False,
     ),
-    signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="single", preprocessing_scope="module_defined"),
+    signal_requirements=SignalRequirements(input_roles=["channel"], representation="spectrum", source_shape="single", preprocessing_scope="module_defined", supports_artifact_removal=True),
     dynamic_capabilities=official_dynamic_capabilities(
         full_to_preview=True,
         combined_evidence=["backend/tests/test_official_combined_strategies.py", "desktop-client/BrainPlatform.Desktop.Tests/Algorithms/OfficialCombinedStrategyTests.cs"],

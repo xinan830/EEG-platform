@@ -5,7 +5,7 @@ using Xunit;
 
 namespace BrainPlatform.Desktop.Tests.Review;
 
-public sealed class ReviewPreprocessingTests
+public sealed partial class ReviewPreprocessingTests
 {
     [Fact]
     public async Task BadChannelInspection_ResolvesCandidateInterpolatedAndExcludedBadgesAcrossMontageSuffixes()
@@ -20,14 +20,14 @@ public sealed class ReviewPreprocessingTests
         Assert.Equal(["C4"], vm.SelectedBadChannels);
 
         var interpBadge = vm.ResolveChannelBadge("C4-AVG");
-        Assert.Equal(ChannelVisualPreprocessingState.Interpolated, interpBadge.State);
-        Assert.Contains("球面样条插值修复", interpBadge.Tooltip);
+        Assert.Equal(ChannelVisualPreprocessingState.CandidateBad, interpBadge.State);
+        Assert.Contains("待预览验证", interpBadge.Tooltip);
         Assert.Contains("高频噪声", interpBadge.Tooltip);
 
         vm.BadChannelPolicy = "exclude";
         var excludedBadge = vm.ResolveChannelBadge("C4-REF");
-        Assert.Equal(ChannelVisualPreprocessingState.Excluded, excludedBadge.State);
-        Assert.Contains("已排除坏导", excludedBadge.Tooltip);
+        Assert.Equal(ChannelVisualPreprocessingState.CandidateBad, excludedBadge.State);
+        Assert.Contains("待预览验证", excludedBadge.Tooltip);
 
         vm.BadChannelPolicy = "none";
         var candidateBadge = vm.ResolveChannelBadge("C4");
@@ -134,9 +134,9 @@ public sealed class ReviewPreprocessingTests
             () => (10.0, 10.0, 1.0, 30.0, 50.0));
     }
 
-    private sealed class FakePreprocessingClient : IPreprocessingClient
+    private class FakePreprocessingClient : IPreprocessingClient
     {
-        public Task<BadChannelInspectionResponse> InspectBadChannelsAsync(
+        public virtual Task<BadChannelInspectionResponse> InspectBadChannelsAsync(
             string recordingId, double startSeconds, double windowSeconds, CancellationToken cancellationToken) =>
             Task.FromResult(new BadChannelInspectionResponse(
                 RecordingId: recordingId,
@@ -152,7 +152,7 @@ public sealed class ReviewPreprocessingTests
                     new BadChannelInspectionItem("O1", true, false, [], 0.0, 18.4, 75.0, 42.0, 17.5, 0.04, 0.81, true, null),
                 ]));
 
-        public Task<ArtifactSegmentInspectionResponse> InspectArtifactSegmentsAsync(
+        public virtual Task<ArtifactSegmentInspectionResponse> InspectArtifactSegmentsAsync(
             string recordingId, double startSeconds, double windowSeconds, string? montageId,
             double? peakToPeakUv, double? muscleZScoreThreshold, IReadOnlyList<string>? badChannels,
             string badChannelPolicy, CancellationToken cancellationToken) =>
@@ -172,7 +172,7 @@ public sealed class ReviewPreprocessingTests
                     new ArtifactSegmentItem(10000, 10160, 20.0, 20.32, 0.32, "muscle_zscore", ["T7", "T8"], 5.2),
                 ]));
 
-        public Task<IcaInspectionResponse> InspectIcaComponentsAsync(
+        public virtual Task<IcaInspectionResponse> InspectIcaComponentsAsync(
             string recordingId, string? montageId, double lowHz, double highHz, double? notchHz,
             IReadOnlyList<string>? badChannels, string badChannelPolicy, string artifactPolicy,
             double? peakToPeakUv, double? muscleZScoreThreshold, bool allowFrontalEogProxy,
@@ -221,12 +221,14 @@ public sealed class ReviewPreprocessingTests
                 CanApplyToContinuous: true,
                 Components:
                 [
-                    new IcaComponentItem(0, 0.91, null, 0.24, true, true, topomap, [0.0, 0.5, -0.4, 0.8], 10.0),
-                    new IcaComponentItem(1, 0.12, null, 0.11, false, false, topomap, [0.1, -0.1, 0.05, -0.05], 10.0),
+                    new IcaComponentItem(0, 0.91, null, 0.24, true, true, topomap, [0.0, 0.5, -0.4, 0.8], 10.0,
+                        [0, 0.17, 0.9, 9.998], "z-score", new PreviewDisplayCompression("finite_run_min_max_envelope_v1", false, 240, true)),
+                    new IcaComponentItem(1, 0.12, null, 0.11, false, false, topomap, [0.1, -0.1, 0.05, -0.05], 10.0,
+                        [0, 0.2, 0.95, 9.998], "z-score", new PreviewDisplayCompression("finite_run_min_max_envelope_v1", false, 240, true)),
                 ]));
         }
 
-        public Task<PreprocessingPreviewWindowResponse> PreviewPreprocessedWindowAsync(
+        public virtual Task<PreprocessingPreviewWindowResponse> PreviewPreprocessedWindowAsync(
             string recordingId, PreprocessingPreviewWindowRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(new PreprocessingPreviewWindowResponse(
                 RecordingId: recordingId,
@@ -237,13 +239,18 @@ public sealed class ReviewPreprocessingTests
                 Channels: ["Fp1", "C4"],
                 InterpolatedChannels: ["C4"],
                 ExcludedChannels: [],
-                TimesSeconds: [10.0, 10.5, 11.0],
+                TraceTimesSeconds: new Dictionary<string, IReadOnlyList<double>>
+                {
+                    ["Fp1"] = [request.StartSeconds, request.StartSeconds + 0.5, request.StartSeconds + 1],
+                    ["C4"] = [request.StartSeconds, request.StartSeconds + 0.4, request.StartSeconds + 1],
+                },
                 TracesUv: new Dictionary<string, IReadOnlyList<double?>>
                 {
                     ["Fp1"] = [10.0, -5.0, 8.0],
                     ["C4"] = [4.0, 2.0, -3.0],
                 },
                 IcaModelReused: true,
-                ArtifactRemovalStatus: "applied"));
+                ArtifactRemovalStatus: "applied",
+                DisplayCompression: new PreviewDisplayCompression("finite_run_min_max_envelope_v1", false, 1000, true)));
     }
 }
