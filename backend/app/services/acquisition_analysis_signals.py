@@ -178,6 +178,15 @@ def read_acquisition_signal_view(
 ) -> AcquisitionSignalView:
     try:
         manifest = json.loads((Path(directory) / "manifest.json").read_text(encoding="utf-8"))
+        return _read_acquisition_signal_view(manifest, montage_id, profile_snapshot=profile_snapshot)
+    except (OSError, KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise WpfRecordingError("ACQUISITION_MONTAGE_UNVERIFIABLE", f"采集导联快照无法验证，不能用于分析：{exc}") from exc
+
+
+def _read_acquisition_signal_view(
+    manifest: dict, montage_id: str | None = None, *, profile_snapshot: dict | None = None,
+) -> AcquisitionSignalView:
+    try:
         hardware = _field(manifest, "HardwareConfiguration", {})
         montage = json.loads(hardware["montage_configuration_snapshot_json"])
         raw_catalogue = hardware.get("montage_catalogue_snapshot_json")
@@ -186,6 +195,8 @@ def read_acquisition_signal_view(
         elif montage_id and raw_catalogue:
             profiles = json.loads(raw_catalogue)
             selected = next((profile for profile in profiles if str(_field(profile, "Id", "")) == montage_id), None)
+            if selected is None and montage_id == str(_field(montage, "Id", "")):
+                selected = montage
             if selected is None:
                 raise ValueError("requested historical montage is not present")
             montage = selected
@@ -303,8 +314,8 @@ def read_acquisition_signal_view(
             "map_positions": map_positions,
             "formulas": [{"name": s.name, "positive": s.positive, "negative_kind": s.kind, "negative_labels": list(s.negatives)} for s in signals],
         })
-    except (OSError, KeyError, TypeError, ValueError, AttributeError) as exc:
-        raise WpfRecordingError("ACQUISITION_MONTAGE_UNVERIFIABLE", f"采集导联快照无法验证，不能用于分析：{exc}") from exc
+    except (OSError, KeyError, TypeError, ValueError, AttributeError):
+        raise
 
 
 class AcquisitionMontageSampleReader:

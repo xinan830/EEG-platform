@@ -59,6 +59,27 @@ public sealed class HttpResearchProjectClientTests
     }
 
     [Fact]
+    public async Task DeleteImportedRecordingDeletesProjectSessionAndReadsStorageOutcome()
+    {
+        HttpRequestMessage? captured = null;
+        using var http = new HttpClient(new StubHandler(request =>
+        {
+            captured = request;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new { session_id = "session-1", recording_id = "recording-1", recording_deleted = true }),
+            };
+        })) { BaseAddress = new Uri("http://localhost/") };
+
+        var result = await new HttpResearchProjectClient(http).DeleteImportedRecordingAsync(
+            "project-1", "session-1", CancellationToken.None);
+
+        Assert.Equal(HttpMethod.Delete, captured!.Method);
+        Assert.Equal("/api/projects/project-1/sessions/session-1", captured.RequestUri!.AbsolutePath);
+        Assert.True(result.RecordingDeleted);
+    }
+
+    [Fact]
     public async Task StructuredErrorsKeepBackendCodeAndStatus()
     {
         using var http = new HttpClient(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.Conflict)
@@ -102,19 +123,77 @@ public sealed class HttpResearchProjectClientTests
 
         try
         {
+            const string snapshot = "{\"Channels\":[]}";
             var result = await new HttpResearchProjectClient(http).ImportRecordingAsync("project-1", path, "subject-1", null,
-                new InlineProgress(progress.Add), CancellationToken.None);
+                snapshot, new InlineProgress(progress.Add), CancellationToken.None);
 
             Assert.Equal("/api/projects/project-1/recordings/import", captured!.RequestUri!.AbsolutePath);
             Assert.Equal("multipart/form-data", captured.Content!.Headers.ContentType!.MediaType);
             Assert.Contains(Path.GetFileName(path), Encoding.UTF8.GetString(requestBody!));
             Assert.Contains("subject-1", Encoding.UTF8.GetString(requestBody!));
+            Assert.Contains("channel_configuration_snapshot_json", Encoding.UTF8.GetString(requestBody!));
             Assert.True(requestBody.AsSpan().IndexOf(fileBytes) >= 0);
             Assert.Contains(4096L, progress);
             Assert.Equal(["F3", "C3"], result.Channels);
             Assert.Equal("session-1", result.SessionId);
         }
         finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task ProjectImportUploadsOnlyBoundedChannelIdentityFromAdjacentSidecar()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.edf");
+        var sidecarPath = path + ".labels.json";
+        await File.WriteAllBytesAsync(path, [1, 2, 3]);
+        await File.WriteAllTextAsync(sidecarPath, """
+            {"exported_signal_sha256":"abc","hardware":{"channel_configuration_snapshot_json":{"Channels":[]}},
+             "channels":[{"export_label":"CH0001","source_label":"Fz","native_channel_index":8,"kind":"2"}],
+             "events":[{"large":"ignored"}]}
+            """);
+        string? requestBody = null;
+        using var http = new HttpClient(new StubHandler(async (request, token) =>
+        {
+            requestBody = Encoding.UTF8.GetString(await request.Content!.ReadAsByteArrayAsync(token));
+            return new HttpResponseMessage(HttpStatusCode.Created)
+            {
+                Content = JsonContent.Create(new
+                {
+                    project_id = "project-1", session_id = "session-1", subject_id = "subject-1",
+                    recording_id = "recording-1", original_name = Path.GetFileName(path), extension = ".edf",
+                    created_at = "2026-11-24T00:00:00Z", sfreq = 512, duration_s = 8,
+                    channels = new[] { "Fz" }, channel_types = new[] { "eeg" },
+                    channel_units = new[] { "V" }, source_sha256 = new string('a', 64), file_size_bytes = 3,
+                }),
+            };
+        })) { BaseAddress = new Uri("http://localhost/") };
+
+        try
+        {
+            await new HttpResearchProjectClient(http).ImportRecordingAsync("project-1", path, "subject-1", null,
+                null, null, CancellationToken.None);
+            using var request = JsonDocument.Parse(ExtractMultipartField(requestBody!, "export_channel_identity_json"));
+            Assert.Equal("abc", request.RootElement.GetProperty("exported_signal_sha256").GetString());
+            Assert.True(request.RootElement.TryGetProperty("channel_configuration_snapshot_json", out _));
+            Assert.False(request.RootElement.ToString().Contains("events", StringComparison.Ordinal));
+        }
+        finally
+        {
+            File.Delete(path);
+            File.Delete(sidecarPath);
+        }
+    }
+
+    private static string ExtractMultipartField(string body, string field)
+    {
+        var start = body.IndexOf(field, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"multipart field {field} was not found: {body}");
+        start = body.IndexOf("\r\n\r\n", start + field.Length, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"multipart field {field} has no header terminator");
+        start += 4;
+        var end = body.IndexOf("\r\n--", start, StringComparison.Ordinal);
+        Assert.True(end >= start, $"multipart field {field} was not terminated");
+        return body[start..end];
     }
 
     private sealed class StubHandler : HttpMessageHandler

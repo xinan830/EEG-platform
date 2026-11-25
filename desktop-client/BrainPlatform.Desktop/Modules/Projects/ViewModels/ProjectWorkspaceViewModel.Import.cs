@@ -1,4 +1,6 @@
 using BrainPlatform.Desktop.Modules.Projects.Api;
+using BrainPlatform.Desktop.Modules.Channels.Stores;
+using System.Text.Json;
 
 namespace BrainPlatform.Desktop.Modules.Projects.ViewModels;
 
@@ -40,8 +42,11 @@ public sealed partial class ProjectWorkspaceViewModel
         var project = SelectedProject ?? throw new InvalidOperationException("请先选择项目。");
         var client = backendClient ?? throw new InvalidOperationException("项目导入服务尚未连接后端。");
         var backendProject = await client.EnsureProjectAsync(project.Id, project.Name, project.Description, cancellationToken);
+        var snapshot = new ActiveChannelConfigurationStore().TryLoadMostRecentlyApplied(out var profile)
+            ? JsonSerializer.Serialize(profile)
+            : null;
         var imported = await client.ImportRecordingAsync(backendProject.ProjectId, filePath, subjectId,
-            newSubjectLocalCode, progress, cancellationToken);
+            newSubjectLocalCode, snapshot, progress, cancellationToken);
         await RefreshImportedRecordingsAsync(cancellationToken);
         SelectedRecording = Recordings.FirstOrDefault(row => row.RecordingId == imported.RecordingId);
         return imported;

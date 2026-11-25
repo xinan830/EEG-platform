@@ -11,6 +11,7 @@ from app.models.analysis_config import AnalysisConfigRequest
 from app.services.filter_checkpoint_cache import FilterCheckpointCache
 from app.services.analysis_preprocess_cache import AnalysisPreprocessCache, PreprocessedRecording
 from app.services.continuous_preprocessing import ContinuousPreprocessingService
+from app.services.offline_scientific_preprocessing import OfflineScientificPreprocessingService
 from app.persistence import connect_database, migrate_database
 from app.services.recording_identity import (
     RECORDING_IMPORT_VERSION,
@@ -33,6 +34,7 @@ class RecordingService:
         self._analysis_preprocess_cache = AnalysisPreprocessCache()
         self._wpf_recording_facts = WpfRecordingFactsCache()
         self._continuous_preprocessing = ContinuousPreprocessingService(self, self._analysis_preprocess_cache)
+        self._offline_scientific_preprocessing = OfflineScientificPreprocessingService(self._continuous_preprocessing)
         self._spectral_analysis = SpectralAnalysisService(self, self._continuous_preprocessing)
         from app.services.analysis_montage_snapshots import AnalysisMontageSnapshots
         self._analysis_montage_snapshots = AnalysisMontageSnapshots(self.database_path)
@@ -199,8 +201,13 @@ class RecordingService:
         if summary.stored_name.startswith("wpf-montage:"):
             directory = summary.stored_name.removeprefix("wpf-montage:")
             catalogue = self._analysis_montage_snapshots.catalogue(summary.id, directory)
-            return RecordingSummary(**{**summary.__dict__, "montage_catalogue": catalogue})
-        return summary
+            return RecordingSummary(**{
+                **summary.__dict__,
+                "analysis_channels": summary.channels,
+                "montage_catalogue": catalogue,
+            })
+        from app.services.imported_analysis_signals import enrich_imported_recording_summary
+        return enrich_imported_recording_summary(summary)
 
 
     def open_access_session(
@@ -214,10 +221,14 @@ class RecordingService:
 
     def select_analysis_montage(self, recording: RecordingSummary, montage_id: str) -> RecordingSummary:
         """Validate a registered montage snapshot and bind its output channels."""
-        if not recording.stored_name.startswith("wpf-montage:"):
-            raise ValueError("ANALYSIS_MONTAGE_UNSUPPORTED: 该记录不支持采集导联投影")
-        directory = recording.stored_name.removeprefix("wpf-montage:")
-        view = self._analysis_montage_snapshots.resolve(recording.id, directory, montage_id)
+        if recording.stored_name.startswith("wpf-montage:"):
+            directory = recording.stored_name.removeprefix("wpf-montage:")
+            view = self._analysis_montage_snapshots.resolve(recording.id, directory, montage_id)
+        elif recording.import_montage_configuration_snapshot_json:
+            from app.services.imported_analysis_signals import read_imported_acquisition_signal_view
+            view = read_imported_acquisition_signal_view(recording, montage_id)
+        else:
+            raise ValueError("ANALYSIS_MONTAGE_UNSUPPORTED: 该记录没有可验证的导联快照")
         return RecordingSummary(**{
             **recording.__dict__,
             "channels": tuple(signal.name for signal in view.signals),
@@ -230,6 +241,11 @@ class RecordingService:
         if recording.stored_name.startswith("wpf-montage:"):
             return self._analysis_montage_snapshots.resolve(
                 recording.id, recording.stored_name.removeprefix("wpf-montage:"), recording.selected_montage_id,
+            ).provenance
+        if recording.import_montage_configuration_snapshot_json and recording.selected_montage_id:
+            from app.services.imported_analysis_signals import read_imported_acquisition_signal_view
+            return read_imported_acquisition_signal_view(
+                recording, recording.selected_montage_id,
             ).provenance
         return {"signal_mode": "raw", "analysis_reference": "original_recording_no_software_rereference"}
 
@@ -509,12 +525,39 @@ class RecordingService:
         finally:
             raw.close()
 
+    @property
+    def offline_scientific_preprocessing(self) -> OfflineScientificPreprocessingService:
+        return self._offline_scientific_preprocessing
+
     def _delete_recording(self, recording: RecordingSummary) -> None:
         self._filter_checkpoints.clear_recording(recording.id)
         self._analysis_preprocess_cache.clear_recording(recording.id)
+        self._offline_scientific_preprocessing.invalidate_recording(recording.id)
         (self.storage_dir / recording.stored_name).unlink(missing_ok=True)
         with self._connect() as connection:
             connection.execute("DELETE FROM recordings WHERE id = ?", (recording.id,))
+
+    def delete_import_if_unreferenced(self, recording_id: str) -> bool:
+        """Delete an imported EDF/BDF blob only after its project and analysis references are gone."""
+        recording = self.require_recording(recording_id)
+        if recording.extension.casefold() not in {".edf", ".bdf"}:
+            return False
+        with self._connect() as connection:
+            tables = {row["name"] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+            for table in ("sessions", "analyses", "analysis_runs", "event_markers", "report_snapshots",
+                          "dynamic_analysis_sessions", "batch_run_items"):
+                if table in tables and connection.execute(
+                    f"SELECT 1 FROM {table} WHERE recording_id = ? LIMIT 1", (recording_id,)
+                ).fetchone() is not None:
+                    return False
+        source = (self.storage_dir / recording.stored_name).resolve()
+        if source.parent != self.storage_dir.resolve() or not source.is_file():
+            return False
+        try:
+            self._delete_recording(recording)
+            return True
+        except OSError:
+            return False
 
     @staticmethod
     def _row_to_summary(row: sqlite3.Row) -> RecordingSummary:
@@ -527,6 +570,7 @@ class RecordingService:
             sfreq=row["sfreq"],
             duration_s=row["duration_s"],
             channels=tuple(json.loads(row["channels_json"])),
+            analysis_channels=(),
             source_sha256=row["source_sha256"],
             file_size_bytes=row["file_size_bytes"],
             raw_channel_labels=tuple(json.loads(row["raw_channel_labels_json"] or "[]")),
@@ -534,4 +578,9 @@ class RecordingService:
             channel_types=tuple(json.loads(row["channel_types_json"] or "[]")),
             channel_units=tuple(json.loads(row["channel_units_json"] or "[]")),
             import_version=row["import_version"],
+            import_channel_configuration_snapshot_json=row["import_channel_configuration_snapshot_json"],
+            import_channel_column_mapping_json=row["import_channel_column_mapping_json"],
+            import_acquisition_montage_snapshot_json=row["import_acquisition_montage_snapshot_json"],
+            import_montage_configuration_snapshot_json=row["import_montage_configuration_snapshot_json"],
+            import_montage_catalogue_snapshot_json=row["import_montage_catalogue_snapshot_json"],
         )

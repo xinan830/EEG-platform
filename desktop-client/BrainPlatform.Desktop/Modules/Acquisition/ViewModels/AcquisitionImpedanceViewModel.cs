@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Threading;
+using BrainPlatform.Desktop.Modules.Channels.Services;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
@@ -12,6 +13,7 @@ public sealed class AcquisitionImpedanceViewModel : ObservableObject, IDisposabl
     private readonly Dispatcher dispatcher;
     private readonly DispatcherTimer timer;
     private readonly Dictionary<ImpedanceChannelIdentity, ImpedanceElectrodeRow> rowsByIdentity = [];
+    private readonly HashSet<ImpedanceChannelIdentity> enabledChannels;
     private long lastCommunicationTick = Environment.TickCount64;
     private double colorScaleMaximumKiloOhms = 20;
     private string lowColor = "#16A34A";
@@ -27,7 +29,22 @@ public sealed class AcquisitionImpedanceViewModel : ObservableObject, IDisposabl
         this.physical = physical;
         this.sessionId = sessionId;
         this.dispatcher = dispatcher;
+        var configuredChannels = physical.Channels.Select(channel => new AcquisitionChannel(
+            channel.NativeChannelIndex, channel.NativeChannelIndex, channel.ElectrodeLabel, channel.ExpectedKind, "V"));
+        var enabledReferences = EnabledEegChannelProjection.Project(physical, configuredChannels).Channels
+            .Where(channel => channel.Kind == AcquisitionChannelKind.Reference)
+            .Select(channel => new ImpedanceChannelIdentity(channel.NativeChannelIndex, channel.Kind))
+            .ToArray();
+        enabledChannels = enabledReferences.ToHashSet();
+        foreach (var identity in enabledReferences)
+        {
+            var row = ImpedanceElectrodeRow.Create(identity, physical);
+            rowsByIdentity.Add(identity, row);
+            Rows.Add(row);
+        }
+        SelectedRow = Rows.FirstOrDefault();
         runtime.ImpedanceUpdated += OnUpdated;
+        runtime.ImpedanceStreamOpened += OnStreamOpened;
         runtime.DeviceModeChanged += OnModeChanged;
         timer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => RefreshPresentation(rebuildScale: false), dispatcher);
         timer.Start();
@@ -88,6 +105,7 @@ public sealed class AcquisitionImpedanceViewModel : ObservableObject, IDisposabl
             foreach (var reading in snapshot.Readings)
             {
                 var identity = new ImpedanceChannelIdentity(reading.NativeChannelIndex, reading.Kind);
+                if (!enabledChannels.Contains(identity)) continue;
                 if (!rowsByIdentity.TryGetValue(identity, out var row))
                 {
                     row = ImpedanceElectrodeRow.Create(reading, physical);
@@ -103,6 +121,17 @@ public sealed class AcquisitionImpedanceViewModel : ObservableObject, IDisposabl
 
     private void OnModeChanged(object? sender, AcquisitionDeviceModeSnapshot mode) =>
         _ = dispatcher.InvokeAsync(() => { if (!disposed) RefreshPresentation(rebuildScale: false); });
+
+    private void OnStreamOpened(object? sender, ImpedanceStreamMetadata metadata)
+    {
+        if (metadata.UnavailableRequestedChannels is not { } unavailable || unavailable.Count == 0) return;
+        _ = dispatcher.InvokeAsync(() =>
+        {
+            if (disposed || runtime.DeviceMode.DetectionSessionId != sessionId) return;
+            foreach (var identity in unavailable)
+                if (rowsByIdentity.TryGetValue(identity, out var row)) row.MarkUnavailable();
+        });
+    }
 
     private void RefreshPresentation(bool rebuildScale)
     {
@@ -124,6 +153,7 @@ public sealed class AcquisitionImpedanceViewModel : ObservableObject, IDisposabl
         disposed = true;
         timer.Stop();
         runtime.ImpedanceUpdated -= OnUpdated;
+        runtime.ImpedanceStreamOpened -= OnStreamOpened;
         runtime.DeviceModeChanged -= OnModeChanged;
     }
 }

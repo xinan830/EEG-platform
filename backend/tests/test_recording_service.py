@@ -54,3 +54,18 @@ def test_missing_legacy_source_remains_readable_with_unavailable_identity(tmp_pa
     assert reloaded.id == item.id
     assert reloaded.source_sha256 is None
     assert reloaded.file_size_bytes is None
+
+
+def test_legacy_recording_with_incomplete_channel_types_remains_readable(tmp_path: Path):
+    service = RecordingService(tmp_path / "recordings", tmp_path / "catalog.sqlite3")
+    item = service.create_recording("legacy.edf", ".edf", b"legacy-bytes")
+    with service._connect() as connection:
+        connection.execute(
+            "UPDATE recordings SET channels_json = ?, channel_types_json = ? WHERE id = ?",
+            ('["Fz", "Pz"]', '["eeg"]', item.id),
+        )
+
+    recording = service.require_recording(item.id)
+
+    assert recording.channels == ("Fz", "Pz")
+    assert recording.analysis_channels == ("Fz", "Pz")

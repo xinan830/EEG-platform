@@ -239,12 +239,16 @@ class RunService:
             unknown = [item for item in requested_channels if item.casefold() not in available_channels]
             if unknown:
                 raise ValueError(f"official analysis channel does not exist: {unknown[0]}")
+            from app.services.imported_analysis_signals import validate_imported_raw_analysis_channels
+            validate_imported_raw_analysis_channels(recording, requested_channels)
             channels = requested_channels
             if montage_snapshot is not None:
                 catalogue = {str(item.get("id")): item for item in getattr(recording, "montage_catalogue", ())}
                 profile = catalogue.get(str(montage_snapshot["id"]))
                 if profile is None:
                     raise ValueError("ANALYSIS_MONTAGE_NOT_IN_RECORDING: 所选导联配置不属于该记录的历史目录")
+                if profile.get("available") is False:
+                    raise ValueError(f"ANALYSIS_MONTAGE_UNAVAILABLE: 所选导联不可用（{profile.get('unavailable_reason') or 'required_input_channel_disabled'}）")
                 if montage_snapshot.get("revision") != profile.get("revision") or montage_snapshot.get("fingerprint") != profile.get("fingerprint"):
                     raise ValueError("ANALYSIS_MONTAGE_STALE: 所选导联配置版本或指纹与记录快照不一致")
                 available_outputs = {str(item.get("id")): item for item in profile.get("outputs", []) if item.get("available", False)}

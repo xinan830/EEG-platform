@@ -35,3 +35,17 @@ The desktop SHALL read the manifest channel table and sample-major float64/V chu
 - **WHEN** review requests a bounded time window from an imported EDF or BDF source
 - **THEN** the source reader SHALL return ordered V/float64 channel samples and the corresponding file-relative sample range without loading the full recording
 - **AND** any declared discontinuity SHALL remain explicit and SHALL NOT be bridged or filled with fabricated samples
+
+### Requirement: Imported recordings use the shared offline algorithm panels
+The desktop SHALL allow supported offline algorithms to run on imported EDF/BDF recordings through the existing backend algorithm APIs, using the imported recording's immutable backend recording ID and the same scientific definitions, parameter validation, and result presentation as WPF recordings. Registration metadata SHALL be source-neutral; imported recordings SHALL NOT require a WPF recording directory. Only validated imported EEG channel and montage provenance MAY be offered as algorithm inputs.
+
+#### Scenario: Run an algorithm on an imported recording
+- **WHEN** a user opens an available offline algorithm for an imported recording with valid metadata
+- **THEN** the desktop SHALL build the same typed algorithm configuration used for WPF recordings
+- **AND** it SHALL submit bounded-window requests using the backend recording ID
+- **AND** it SHALL display the backend result using the existing algorithm panel
+
+#### Scenario: Imported recording lacks required algorithm inputs
+- **WHEN** the selected algorithm's required channels, montage, duration, or metadata are unavailable
+- **THEN** the desktop SHALL expose a structured unavailable reason from the backend or input resolver
+- **AND** it SHALL NOT submit a fabricated, zero-filled, or silently remapped request

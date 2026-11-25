@@ -31,6 +31,11 @@ public sealed record OperationConfirmationRequest(string TitleText, string Messa
         $"确定要删除数据记录“{recordingName}”吗？数据会移到当前项目的 .trash 回收目录，可手动恢复。",
         "确认删除");
 
+    public static OperationConfirmationRequest DeleteImportedRecording(string recordingName) => new(
+        "确认删除导入记录",
+        $"确定从当前项目删除“{recordingName}”吗？如果原始文件仍被其他项目或分析引用，系统会保留文件。",
+        "确认删除");
+
     public static OperationConfirmationRequest DeleteChannelConfiguration(string name) => new(
         "确认删除通道配置",
         $"确定要删除通道配置“{name}”吗？删除后不能用于新建导联或后续采集。",

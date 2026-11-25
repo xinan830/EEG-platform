@@ -8,6 +8,7 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
     private double? resistanceOhms;
     private ImpedanceReadingStatus status = ImpedanceReadingStatus.Missing;
     private bool stale;
+    private bool unavailable;
     private ImpedanceColorScale? scale;
     public ImpedanceElectrodeRow(ImpedanceChannelIdentity identity, string label, ElectrodeMapPosition? position)
     {
@@ -23,7 +24,7 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
         ResistanceKiloOhms is { } k && k <= scale.Maximum;
     public string NativeIdentityText => $"{Identity.Kind} · #{Identity.NativeChannelIndex}";
     public string ValueText => resistanceOhms is { } value ? (value / 1000d).ToString("0.0", CultureInfo.CurrentCulture) : "—";
-    public string StatusText => stale ? "通信超时，数值已过期" : status switch
+    public string StatusText => unavailable ? "设备未返回该通道" : stale ? "通信超时，数值已过期" : status switch
     {
         ImpedanceReadingStatus.Missing => "等待测量",
         ImpedanceReadingStatus.Invalid => "SDK 返回无效数值",
@@ -38,6 +39,7 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
 
     public void Update(ImpedanceReading reading)
     {
+        unavailable = false;
         resistanceOhms = reading.ResistanceOhms;
         status = reading.Status;
         stale = false;
@@ -50,6 +52,14 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
         stale = isStale;
         Notify();
     }
+
+    public void MarkUnavailable()
+    {
+        unavailable = true;
+        resistanceOhms = null;
+        stale = false;
+        Notify();
+    }
     private void Notify()
     {
         foreach (var property in new[] { nameof(ValueText), nameof(StatusText), nameof(Color),
@@ -58,15 +68,25 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
 
     public static ImpedanceElectrodeRow Create(ImpedanceReading reading, ChannelConfigurationProfile physical)
     {
-        var entry = physical.Channels.FirstOrDefault(channel => channel.NativeChannelIndex == reading.NativeChannelIndex &&
-            channel.ExpectedKind == reading.Kind);
-        var label = reading.Kind switch
+        var row = Create(new ImpedanceChannelIdentity(reading.NativeChannelIndex, reading.Kind), physical, reading.Label);
+        row.Update(reading);
+        return row;
+    }
+
+    public static ImpedanceElectrodeRow Create(
+        ImpedanceChannelIdentity identity,
+        ChannelConfigurationProfile physical,
+        string? sdkLabel = null)
+    {
+        var entry = physical.Channels.FirstOrDefault(channel => channel.NativeChannelIndex == identity.NativeChannelIndex &&
+            channel.ExpectedKind == identity.Kind);
+        var label = identity.Kind switch
         {
             AcquisitionChannelKind.ImpedanceReference => "REF",
             AcquisitionChannelKind.ImpedanceGround => "GND",
-            _ => entry?.ElectrodeLabel ?? reading.Label ?? $"输入 {reading.NativeChannelIndex}",
+            _ => entry?.ElectrodeLabel ?? sdkLabel ?? $"输入 {identity.NativeChannelIndex}",
         };
-        var position = reading.Kind switch
+        var position = identity.Kind switch
         {
             AcquisitionChannelKind.ImpedanceReference => physical.ReferenceMapPosition is { } reference
                 ? ElectrodeMapDefaults.ReferenceForDisplay(reference) : null,
@@ -75,6 +95,6 @@ public sealed class ImpedanceElectrodeRow : ObservableObject
         };
         if (position is not null && (!double.IsFinite(position.X) || !double.IsFinite(position.Y) ||
             position.X * position.X + position.Y * position.Y > 1)) position = null;
-        return new(new(reading.NativeChannelIndex, reading.Kind), label, position);
+        return new(identity, label, position);
     }
 }

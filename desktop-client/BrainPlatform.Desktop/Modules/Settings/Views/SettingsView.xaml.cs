@@ -41,4 +41,12 @@ public partial class SettingsView : UserControl
             navigation.ShowEventListView();
         }
     }
+
+    private void OnOpenBrainImagingHubClick(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this) is IDesktopNavigation navigation)
+        {
+            navigation.ShowBrainImagingHubView();
+        }
+    }
 }

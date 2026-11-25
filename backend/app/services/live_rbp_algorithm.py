@@ -10,8 +10,10 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
 
 from app.algorithms.rbp.official import RBP_BANDS, five_band_shares
 from app.scientific.contracts.analysis import ANALYSIS_CONTRACT
+from app.scientific.contracts.preprocessing import live_spectral_filter_spec
 from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY
 from app.services.live_analysis_contracts import LiveWindowPlan
+from app.services.live_scientific_preprocessing import LiveScientificPreprocessingService
 from app.services.sample_access_contract import SampleBlock
 from app.services.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessSession
 
@@ -68,6 +70,9 @@ class LiveRbpAlgorithm:
     scientific_identity = "rbp-live-v1"
     implementation_identity = "rbp-live-window-v1"
 
+    def __init__(self, preprocessor: LiveScientificPreprocessingService | None = None) -> None:
+        self._preprocessor = preprocessor or LiveScientificPreprocessingService()
+
     def configure(
         self, source: LiveRecordingAccessSession, config: dict[str, JsonValue]
     ) -> tuple[LiveRbpConfig, LiveWindowPlan]:
@@ -115,13 +120,10 @@ class LiveRbpAlgorithm:
                 provenance=LiveRbpAlgorithm._provenance(config, block, "window_unavailable"),
             )
         try:
-            prepared = DEFAULT_SPECTRAL_GATEWAY.preprocess(
-                block.values_v, block.sampling_rate_hz, low_hz=1.0, high_hz=50.0,
-                notch_hz=config.notch_hz,
-                notch_q=float(ANALYSIS_CONTRACT["notch_quality_factor"]),
-            )
+            spec = live_spectral_filter_spec(config.notch_hz)
+            prepared_window = self._preprocessor.prepare_window(session_id, block, spec)
             spectrum = DEFAULT_SPECTRAL_GATEWAY.welch_annotated_channels(
-                prepared, block.sampling_rate_hz, low_hz=1.0, high_hz=50.0,
+                prepared_window.values_v, block.sampling_rate_hz, low_hz=spec.low_hz, high_hz=spec.high_hz,
             )
         except ValueError as exc:
             return LiveRbpResult(

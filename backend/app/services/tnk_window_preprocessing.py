@@ -16,7 +16,16 @@ def prepare_tnk_window(
     execution_context: Any = None,
 ) -> PreparedWindow:
     """Read only TNK's target plus its existing two-second context."""
+    offline_prep = getattr(recordings, "offline_scientific_preprocessing", None)
     with recordings.open_access_session(recording, verify_content_hash=False) as session:
+        if offline_prep is not None:
+            return offline_prep.prepare_bounded_window(
+                session, start_sample=start_sample, end_sample=end_sample,
+                channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+                context_s=TNK_FILTER_CONTEXT_S,
+                algorithm_version=TNK_WINDOW_PREPROCESSING_VERSION,
+                execution_context=execution_context,
+            )
         return prepare_window(
             session, start_sample=start_sample, end_sample=end_sample,
             channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,

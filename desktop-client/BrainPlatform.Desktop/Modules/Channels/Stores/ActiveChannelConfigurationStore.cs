@@ -46,6 +46,24 @@ public sealed class ActiveChannelConfigurationStore
         }
     }
 
+    public bool TryLoadMostRecentlyApplied(out ChannelConfigurationProfile profile)
+    {
+        profile = default!;
+        if (!File.Exists(path)) return false;
+        try
+        {
+            var all = JsonSerializer.Deserialize<Dictionary<string, ActiveChannelConfiguration>>(File.ReadAllText(path)) ?? [];
+            var latest = all.Values.OrderByDescending(item => item.AppliedAtUtc).FirstOrDefault();
+            if (latest is null) return false;
+            profile = latest.Profile;
+            return true;
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("Local active channel configurations are not valid JSON.", exception);
+        }
+    }
+
     public async Task SaveAsync(ChannelConfigurationProfile profile, CancellationToken cancellationToken)
     {
         var directory = Path.GetDirectoryName(path) ?? throw new InvalidOperationException("Active configuration path has no directory.");

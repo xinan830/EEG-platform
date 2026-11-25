@@ -9,6 +9,7 @@ public interface IDesktopNavigation
     void ShowMontageListView();
     void ShowMontageDetailView(bool newProfile = false, bool preserveDraft = false);
     void ShowScreenCalibrationView();
+    void ShowBrainImagingHubView();
     void ShowEventListView(bool refreshDefinitions = true);
     void ShowEventDefinitionEditorView(
         BrainPlatform.Desktop.Modules.Events.Domain.EventDefinition? definition = null);

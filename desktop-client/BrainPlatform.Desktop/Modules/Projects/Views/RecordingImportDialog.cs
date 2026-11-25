@@ -11,7 +11,7 @@ internal sealed class RecordingImportDialog : Window
     private readonly ProjectWorkspaceViewModel workspace;
     private readonly string filePath;
     private readonly ComboBox subjects = new() { MinWidth = 260, DisplayMemberPath = nameof(BackendResearchSubject.LocalCode) };
-    private readonly TextBox newCode = new() { MinWidth = 260, IsEnabled = false };
+    private readonly TextBox newCode = new() { MinWidth = 260, IsEnabled = true };
     private readonly ProgressBar progressBar = new() { Height = 12, Minimum = 0 };
     private readonly TextBlock status = new() { Foreground = System.Windows.Media.Brushes.SlateGray };
     private readonly TextBlock resultSummary = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
@@ -40,7 +40,7 @@ internal sealed class RecordingImportDialog : Window
     {
         subjects.Items.Add(new BackendResearchSubject("", "", "新建受试者编号…", ""));
         subjects.SelectedIndex = 0;
-        subjects.SelectionChanged += (_, _) => newCode.IsEnabled = subjects.SelectedIndex == 0;
+        subjects.SelectionChanged += (_, _) => UpdateNewCodeInput();
         importButton.Click += ImportAsync;
         closeButton.Click += (_, _) =>
         {
@@ -72,12 +72,16 @@ internal sealed class RecordingImportDialog : Window
 
     private async void LoadSubjectsAsync(object sender, RoutedEventArgs e)
     {
+        newCode.Focus();
         try
         {
             foreach (var subject in await workspace.ListSubjectsAsync(CancellationToken.None)) subjects.Items.Add(subject);
+            UpdateNewCodeInput();
         }
         catch (Exception exception) { status.Text = $"读取受试者列表失败：{exception.Message}"; }
     }
+
+    private void UpdateNewCodeInput() => newCode.IsEnabled = (subjects.SelectedItem as BackendResearchSubject)?.SubjectId == "";
 
     private async void ImportAsync(object sender, RoutedEventArgs e)
     {

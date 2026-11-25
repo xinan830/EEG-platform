@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.Waveform;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
 using BrainPlatform.Desktop.Modules.Montages.Domain;
@@ -78,7 +79,8 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
         RecordingTimeDisplaySettings? timeDisplaySettings = null,
         RecordingPlaybackTimeCoordinator? playbackCoordinator = null,
         IAlgorithmClient? algorithmClient = null,
-        BrainPlatform.Desktop.Modules.Review.Export.IRecordingSignalExportClient? signalExportClient = null)
+        BrainPlatform.Desktop.Modules.Review.Export.IRecordingSignalExportClient? signalExportClient = null,
+        RegisteredRecording? registeredAnalysisRecording = null)
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(catalog);
@@ -120,6 +122,7 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
                 item => item.CreateCoordinator(algorithmClient), StringComparer.Ordinal);
         analysisCoordinator = this.analysisCoordinators.Values.FirstOrDefault();
         analysisRecordingDirectory = recordingDirectory;
+        analysisRecording = registeredAnalysisRecording;
         this.signalExportClient = signalExportClient ?? algorithmClient as BrainPlatform.Desktop.Modules.Review.Export.IRecordingSignalExportClient;
         InitializeEventCommands();
         OpenRbpAnalysisCommand = new AsyncRelayCommand(() => OpenAnalysisAsync("rbp"), ReportCommandError);

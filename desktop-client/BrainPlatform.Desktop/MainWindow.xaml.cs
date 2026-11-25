@@ -10,6 +10,7 @@ using EventDefinitionEditorView = BrainPlatform.Desktop.Modules.Events.Views.Eve
 using RecordingReviewView = BrainPlatform.Desktop.Modules.Review.Views.RecordingReviewView;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
 using BrainPlatform.Desktop.Modules.Projects.Api;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
 namespace BrainPlatform.Desktop;
 
@@ -24,6 +25,7 @@ public partial class MainWindow : Window, IDesktopNavigation
     private ProjectDetailView? projectDetailView;
     private SettingsView? settingsView;
     private ScreenCalibrationView? screenCalibrationView;
+    private BrainImagingHubView? brainImagingHubView;
     private ChannelListView? channelListView;
     private ChannelDetailView? channelDetailView;
     private MontageListView? montageListView;
@@ -133,6 +135,16 @@ public partial class MainWindow : Window, IDesktopNavigation
         SetImmersiveChrome(false);
         screenCalibrationView ??= new ScreenCalibrationView();
         MainContentHost.Content = screenCalibrationView;
+        SelectNavigation(NavSettingsBtn);
+    }
+
+    public void ShowBrainImagingHubView()
+    {
+        SetImmersiveChrome(false);
+        brainImagingHubView ??= new BrainImagingHubView();
+        brainImagingHubView.DataContext = DataContext;
+        brainImagingHubView.RefreshElectrodeLabels();
+        MainContentHost.Content = brainImagingHubView;
         SelectNavigation(NavSettingsBtn);
     }
 
@@ -310,6 +322,7 @@ public partial class MainWindow : Window, IDesktopNavigation
             throw new InvalidOperationException("工作区尚未初始化，无法打开录音回溯。");
 
         IRecordingAccessSession loadedRecording;
+        RegisteredRecording? registeredAnalysisRecording = null;
         if (recording.SourceKind == "backend")
         {
             var client = workspace.ResearchProjectClient;
@@ -317,6 +330,7 @@ public partial class MainWindow : Window, IDesktopNavigation
             var backendProject = await client.EnsureProjectAsync(project.Id, project.Name, project.Description, CancellationToken.None);
             var backendRecording = await client.GetRecordingAsync(recording.RecordingId!, CancellationToken.None);
             loadedRecording = new BackendRecordingAccessSession(client, backendRecording, backendProject);
+            registeredAnalysisRecording = backendRecording.ToAnalysisDescriptor();
         }
         else
         {
@@ -341,17 +355,11 @@ public partial class MainWindow : Window, IDesktopNavigation
         try
         {
             viewModel = new RecordingReviewViewModel(
-                loadedRecording,
-                catalog,
-                recordingName: recording.Name,
-                projectName: loadedRecording.Manifest.Project.Name,
-                filter: recordingReviewFilter,
-                recordingDirectory: recording.SourceKind == "backend" ? null : recording.RecordingDirectory,
-                eventDefinitionService: (DataContext as DesktopWorkspaceViewModel)?.Acquisition.EventDefinitionService,
-                notifications: (DataContext as DesktopWorkspaceViewModel)?.Notifications,
-                algorithmClient: workspace.Algorithms,
-                timeDisplaySettings: (DataContext as DesktopWorkspaceViewModel)?.TimeDisplaySettings,
-                playbackCoordinator: playbackCoordinator);
+                loadedRecording, catalog, recordingName: recording.Name, projectName: loadedRecording.Manifest.Project.Name,
+                filter: recordingReviewFilter, recordingDirectory: recording.SourceKind == "backend" ? null : recording.RecordingDirectory,
+                eventDefinitionService: workspace.Acquisition.EventDefinitionService, notifications: workspace.Notifications,
+                algorithmClient: workspace.Algorithms, registeredAnalysisRecording: registeredAnalysisRecording,
+                timeDisplaySettings: workspace.TimeDisplaySettings, playbackCoordinator: playbackCoordinator);
             await viewModel.InitializeAsync();
         }
         catch

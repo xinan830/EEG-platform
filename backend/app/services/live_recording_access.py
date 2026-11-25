@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Callable, Sequence
 
 import numpy as np
@@ -23,6 +23,7 @@ class LiveSourceIdentity:
     acquisition_session_id: str
     stream_revision: str
     schema_revision: str
+    montage_revision: int = 0
 
 
 @dataclass(frozen=True)
@@ -217,7 +218,7 @@ class LiveRecordingAccessSession:
                         for left, right in zip(starts, ends)
                     )
             block = SampleBlock(
-                self.identity,
+                replace(self.identity, montage_revision=montage_revision),
                 start_sample,
                 end_sample,
                 self.sampling_rate_hz,

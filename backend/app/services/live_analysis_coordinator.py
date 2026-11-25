@@ -13,6 +13,7 @@ from app.services.live_analysis_contracts import (
     LiveAnalysisAlgorithm, LiveAnalysisAlgorithmRegistry, LiveAnalysisEnvelope, LiveWindowPlan,
 )
 from app.services.live_recording_access import LiveRecordingAccessError, LiveRecordingAccessSession
+from app.services.live_scientific_preprocessing import LiveScientificPreprocessingService
 
 
 logger = logging.getLogger(__name__)
@@ -41,15 +42,25 @@ class LiveAnalysisCoordinator:
     running work; scientific calls already running may finish but cannot publish.
     """
 
-    def __init__(self, registry: LiveAnalysisAlgorithmRegistry, max_workers: int = 4) -> None:
+    def __init__(
+        self,
+        registry: LiveAnalysisAlgorithmRegistry,
+        max_workers: int = 4,
+        preprocessor: LiveScientificPreprocessingService | None = None,
+    ) -> None:
         if max_workers <= 0:
             raise ValueError("max_workers must be positive")
         self._registry = registry
+        self._preprocessor = preprocessor
         self._sessions: dict[tuple[str, str], _LiveAlgorithmSession] = {}
         self._lock = RLock()
         self._workers = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="live-analysis")
         self._slots = BoundedSemaphore(max_workers)
         self._closed = False
+
+    @property
+    def preprocessor(self) -> LiveScientificPreprocessingService | None:
+        return self._preprocessor
 
     def start(
         self, session_id: str, source: LiveRecordingAccessSession,
@@ -99,11 +110,15 @@ class LiveAnalysisCoordinator:
             for key in list(self._sessions):
                 if key[0] == session_id:
                     self.stop(*key)
+            if self._preprocessor is not None:
+                self._preprocessor.invalidate_session(session_id)
 
     def close_all(self) -> None:
         with self._lock:
             for key in list(self._sessions):
                 self.stop(*key)
+            if self._preprocessor is not None:
+                self._preprocessor.clear()
 
     def shutdown(self) -> None:
         with self._lock:

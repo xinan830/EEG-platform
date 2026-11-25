@@ -6,7 +6,10 @@ from fastapi import APIRouter, File, Form, Request, UploadFile, status
 
 from app.core.api_contract import error_response
 from app.models.recording import ImportedProjectRecordingResponse
-from app.models.research_project import ConditionCreateRequest, DesktopProjectEnsureRequest, ProjectCreateRequest, SessionCreateRequest, SubjectCreateRequest
+from app.models.research_project import (
+    ConditionCreateRequest, DesktopProjectEnsureRequest, ProjectCreateRequest,
+    ProjectRecordingDeletionResponse, SessionCreateRequest, SubjectCreateRequest,
+)
 from app.services.recording_import import EdfBdfImportService, RecordingImportError
 from app.api.recording_uploads import publish_upload, stage_upload
 from app.services.projects import ProjectConflictError, ProjectService
@@ -73,6 +76,25 @@ def list_sessions(project_id: str, request: Request):
     return _read(request, lambda: _service(request).list_sessions(project_id))
 
 
+@router.delete("/{project_id}/sessions/{session_id}", response_model=ProjectRecordingDeletionResponse)
+def delete_project_recording(project_id: str, session_id: str, request: Request):
+    try:
+        recording_id = _service(request).delete_imported_recording(project_id, session_id)
+        recording_deleted = request.app.state.recording_service.delete_import_if_unreferenced(recording_id)
+    except KeyError:
+        return error_response(request, 404, "RECORDING_SESSION_NOT_FOUND", "项目中的导入记录不存在")
+    except ValueError as exc:
+        return error_response(request, 422, "RECORDING_DELETE_UNSUPPORTED", str(exc))
+    request.app.state.audit_service.record(
+        "recording.delete_project", str(getattr(request.state, "request_id", "unknown")),
+        recording_id=recording_id, session_id=session_id,
+        parameters={"project_id": project_id, "recording_deleted": recording_deleted},
+    )
+    return ProjectRecordingDeletionResponse(
+        session_id=session_id, recording_id=recording_id, recording_deleted=recording_deleted,
+    )
+
+
 @router.get("/{project_id}/recordings")
 def list_project_recordings(project_id: str, request: Request):
     try:
@@ -89,6 +111,8 @@ async def import_project_recording(
     file: UploadFile = File(...),
     subject_id: str | None = Form(None),
     new_subject_local_code: str | None = Form(None),
+    channel_configuration_snapshot_json: str | None = Form(None),
+    export_channel_identity_json: str | None = Form(None),
 ):
     staged = None
     try:
@@ -96,6 +120,8 @@ async def import_project_recording(
         staged = await stage_upload(request, file, importer)
         result = await publish_upload(request, lambda check: importer.publish_project(
             staged, project_id, subject_id=subject_id, new_subject_local_code=new_subject_local_code,
+            channel_configuration_snapshot_json=channel_configuration_snapshot_json,
+            export_channel_identity_json=export_channel_identity_json,
             check_cancelled=check,
         ))
     except RecordingImportError as exc:
@@ -117,9 +143,15 @@ async def import_project_recording(
         project_id=result.project_id, session_id=result.session_id, subject_id=result.subject_id,
         recording_id=recording.id, original_name=recording.original_name, extension=recording.extension,
         created_at=recording.created_at, sfreq=recording.sfreq, duration_s=recording.duration_s,
-        channels=list(recording.channels), channel_types=list(recording.channel_types),
+        channels=list(recording.channels), analysis_channels=list(recording.analysis_channels),
+        channel_types=list(recording.channel_types),
         channel_units=list(recording.channel_units), source_sha256=recording.source_sha256,
         file_size_bytes=recording.file_size_bytes,
+        import_channel_configuration_snapshot_json=recording.import_channel_configuration_snapshot_json,
+        import_channel_column_mapping_json=recording.import_channel_column_mapping_json,
+        import_acquisition_montage_snapshot_json=recording.import_acquisition_montage_snapshot_json,
+        import_montage_configuration_snapshot_json=recording.import_montage_configuration_snapshot_json,
+        import_montage_catalogue_snapshot_json=recording.import_montage_catalogue_snapshot_json,
     )
 
 

@@ -26,13 +26,11 @@ public static class MontageDisplayProjector
         var definitions = montage?.DerivedChannels
             .OrderBy(channel => channel.DisplayOrder)
             .ToArray()
-            ?? manifest.Channels
-                .Where(IsSignalChannel)
+            ?? RecordingMontageCatalog.ProjectRawSignalChannels(manifest).Channels
                 .Where(channel => !string.IsNullOrWhiteSpace(channel.Label))
-                .OrderBy(channel => channel.StreamIndex)
                 .Select(channel => new DerivedMontageChannel(
-                    channel.Label!,
-                    channel.Label!,
+                    channel.Label,
+                    channel.Label,
                     MontageNegativeKind.OriginalHardwareReference,
                     [],
                     channel.StreamIndex))

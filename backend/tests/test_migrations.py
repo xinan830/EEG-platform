@@ -59,6 +59,21 @@ def test_failed_migration_rolls_back_schema_and_version(tmp_path: Path):
     assert get_schema_version(database) == CURRENT_SCHEMA_VERSION
 
 
+def test_migration_22_to_23_adds_nullable_import_binding_columns(tmp_path: Path):
+    database = tmp_path / "channel-binding.sqlite3"
+    migrate_database(database)
+    with sqlite3.connect(database) as connection:
+        connection.execute("ALTER TABLE recordings DROP COLUMN import_channel_configuration_snapshot_json")
+        connection.execute("ALTER TABLE recordings DROP COLUMN import_channel_column_mapping_json")
+        connection.execute("UPDATE schema_metadata SET value = '22' WHERE key = 'schema_version'")
+
+    assert migrate_database(database) == 23
+    with sqlite3.connect(database) as connection:
+        columns = {row[1]: row for row in connection.execute("PRAGMA table_info(recordings)")}
+    assert columns["import_channel_configuration_snapshot_json"][3] == 0
+    assert columns["import_channel_column_mapping_json"][3] == 0
+
+
 def test_shared_connection_policy_preserves_row_access_and_opt_in_foreign_keys(tmp_path: Path):
     database = tmp_path / "connections.sqlite3"
     with connect_database(database, foreign_keys=True) as connection:

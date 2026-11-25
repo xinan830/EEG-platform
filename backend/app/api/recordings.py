@@ -3,7 +3,7 @@ import json
 from typing import Optional
 
 import numpy as np
-from fastapi import APIRouter, File, Query, Request, UploadFile, status
+from fastapi import APIRouter, File, Form, Query, Request, UploadFile, status
 from pydantic import TypeAdapter, ValidationError
 
 from app.models.recording import RawSampleRangeResponse, RecordingSummary
@@ -60,12 +60,19 @@ def _record_audit(request: Request, action: str, recording_id: str, parameters: 
 
 
 @router.post("/import", status_code=status.HTTP_201_CREATED)
-async def import_recording(request: Request, file: UploadFile = File(...)) -> dict:
+async def import_recording(
+    request: Request,
+    file: UploadFile = File(...),
+    channel_configuration_snapshot_json: str | None = Form(None),
+    export_channel_identity_json: str | None = Form(None),
+) -> dict:
     staged = None
     try:
         importer = EdfBdfImportService(_service(request))
         staged = await stage_upload(request, file, importer)
-        recording = await publish_upload(request, lambda check: importer.publish_standalone(staged, check))
+        recording = await publish_upload(request, lambda check: importer.publish_standalone(
+            staged, check, channel_configuration_snapshot_json, export_channel_identity_json
+        ))
     except RecordingImportError as exc:
         return error_response(request, exc.status_code, exc.code, str(exc))
     except OSError:

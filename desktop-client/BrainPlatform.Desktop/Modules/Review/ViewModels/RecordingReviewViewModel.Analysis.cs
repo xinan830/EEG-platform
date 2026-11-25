@@ -80,10 +80,13 @@ public sealed partial class RecordingReviewViewModel
                 analysisCoordinator = analysisCoordinators[sourceId];
                 SubscribeTnkPlaybackEvents(analysisCoordinator);
                 AnalysisPreparationText = $"正在准备 {analysisCoordinator.AlgorithmDisplayName}…";
-                if (analysisRecordingDirectory is null)
-                    throw new InvalidOperationException("当前回溯记录不支持算法注册。");
-                analysisRecording ??= await analysisCoordinator.RegisterAsync(analysisRecordingDirectory, token,
-                    montageSelection.AvailableMontages.ToArray());
+                if (analysisRecording is null)
+                {
+                    if (analysisRecordingDirectory is null)
+                        throw new InvalidOperationException("当前回溯记录缺少可用于算法分析的来源身份。");
+                    analysisRecording = await analysisCoordinator.RegisterAsync(analysisRecordingDirectory, token,
+                        montageSelection.AvailableMontages.ToArray());
+                }
                 token.ThrowIfCancellationRequested();
                 var algorithm = await analysisCoordinator.GetAlgorithmAsync(token);
                 var rbpAlgorithm = IsSpectralInspectionPanelOpen

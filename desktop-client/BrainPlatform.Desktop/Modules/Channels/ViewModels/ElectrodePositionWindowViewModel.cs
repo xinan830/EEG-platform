@@ -15,7 +15,7 @@ public sealed class ElectrodePositionWindowViewModel : ObservableObject, IDispos
     private string? modelError;
     private bool isModelLoading;
     private PositionView selectedView;
-    private enum PositionView { TwoDimensional, ThreeDimensional, Topographic, ThreeDimensionalTopographic }
+    private enum PositionView { TwoDimensional, ThreeDimensional }
 
     public ElectrodePositionWindowViewModel(ChannelConfigurationWorkspaceViewModel channelConfigurations,
         IElectrodeLocationClient? electrodeLocationClient)
@@ -81,30 +81,12 @@ public sealed class ElectrodePositionWindowViewModel : ObservableObject, IDispos
         set { if (value) SelectView(PositionView.TwoDimensional); }
     }
 
-    public bool IsTopographic
-    {
-        get => selectedView == PositionView.Topographic;
-        set { if (value) SelectView(PositionView.Topographic); }
-    }
-
-    public bool IsThreeDimensionalTopographic
-    {
-        get => selectedView == PositionView.ThreeDimensionalTopographic;
-        set { if (value) SelectView(PositionView.ThreeDimensionalTopographic); }
-    }
-
-    public bool IsAnyThreeDimensional =>
-        selectedView is PositionView.ThreeDimensional or PositionView.ThreeDimensionalTopographic;
-
     private void SelectView(PositionView view)
     {
         if (selectedView == view) return;
         selectedView = view;
         RaisePropertyChanged(nameof(IsTwoDimensional));
         RaisePropertyChanged(nameof(IsThreeDimensional));
-        RaisePropertyChanged(nameof(IsTopographic));
-        RaisePropertyChanged(nameof(IsThreeDimensionalTopographic));
-        RaisePropertyChanged(nameof(IsAnyThreeDimensional));
         RaisePropertyChanged(nameof(PositionViewHint));
     }
 
@@ -133,14 +115,11 @@ public sealed class ElectrodePositionWindowViewModel : ObservableObject, IDispos
     {
         get
         {
-            if (IsTopographic) return "黑点：已配置电极位置 · 地形图只读，不显示功率或阻抗插值。位置调整请切换到 2D。";
-            if (!IsAnyThreeDimensional)
+            if (!IsThreeDimensional)
                 return "蓝色：标准模板位置 · 橙色：手动 EEG 示意位置 · 紫色：REF · 绿色：GND。仅 2D 位置可编辑。";
             if (!string.IsNullOrWhiteSpace(ModelError)) return ModelError;
             if (IsModelLoading) return "正在加载标准 3D 头模和电极位置。";
             if (Model is null) return ModelStatusText;
-            if (IsThreeDimensionalTopographic)
-                return "3D 地形图视觉预览（示意分布，非真实采集/回溯数据）· 头皮平滑插值，面部与颈部自动遮罩隔离；右上角可切换脑区分布与色带。";
             var available = Model.ElectrodeLocations
                 .SelectMany(site => new[] { site.Channel, site.CanonicalChannel })
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);

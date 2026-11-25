@@ -67,3 +67,9 @@ class Session(BaseModel):
     condition_id: str | None = None
     label: str
     created_at: str
+
+
+class ProjectRecordingDeletionResponse(BaseModel):
+    session_id: str
+    recording_id: str
+    recording_deleted: bool

@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from fractions import Fraction
+import hashlib
 import json
 import logging
 import math
@@ -147,6 +148,7 @@ class RecordingSignalExporter:
             if signature != wpf_source_signature(root) or event_signature != (event_path.read_bytes() if event_path.exists() else None):
                 raise SignalExportError("RECORDING_EXPORT_SOURCE_CHANGED", "导出期间录音或事件发生变化，请重试。")
             metadata = {"schema_version": "recording-signal-export-v2", "recording_id": recording.id,
+                        "exported_signal_sha256": _file_sha256(signal),
                         "source_sha256": facts.source_sha256, "session_id": facts.session_id,
                         "recording_start_utc": facts.recording_start_utc, "first_sample_counter": reader.first_counter,
                         "sample_count": facts.sample_count, "sampling_rate_hz": facts.sampling_rate_hz,
@@ -175,6 +177,8 @@ class RecordingSignalExporter:
                     Fraction(str(sampling_rate_hz))):
                 raise SignalExportError("RECORDING_EXPORT_HEADER_MISMATCH", "EDF/BDF 实际样本数、采样率或通道数不一致，未交付文件。")
             for index, mapping in enumerate(mappings):
+                if reader.getLabel(index).strip() != mapping["export_label"]:
+                    raise SignalExportError("RECORDING_EXPORT_HEADER_MISMATCH", "EDF/BDF 实际通道标签与身份侧车不一致，未交付文件。")
                 minimum = float(reader.getPhysicalMinimum(index))
                 maximum = float(reader.getPhysicalMaximum(index))
                 digital_minimum = int(reader.getDigitalMinimum(index))
@@ -185,6 +189,7 @@ class RecordingSignalExporter:
                 mapping["physical_minimum_uv"] = minimum
                 mapping["physical_maximum_uv"] = maximum
                 mapping["quantization_step_uv"] = (maximum - minimum) / (digital_maximum - digital_minimum)
+
 
     @staticmethod
     def _ranges(reader, indexes, check):
@@ -232,3 +237,11 @@ class RecordingSignalExporter:
                 if writer.writeAnnotation(event["start_sample"] / reader.sfreq,
                                           event["duration_samples"] / reader.sfreq, event["name"]) != 0:
                     raise OSError("EDF/BDF 事件写入失败。")
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for block in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()

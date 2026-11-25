@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Channels.Services;
 using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Review.Montages;
@@ -25,14 +26,26 @@ public sealed record RecordingMontageCatalogResult(
     AcquisitionMontageStatus AcquisitionMontageStatus,
     RawSignalViewDefinition RawSignalView,
     IReadOnlyList<CompatibleRecordingMontage> CompatibleViewingMontages,
-    IReadOnlyList<IncompatibleRecordingMontage> Incompatible)
+    IReadOnlyList<IncompatibleRecordingMontage> Incompatible,
+    EegChannelProjectionStatus ChannelProjectionStatus = EegChannelProjectionStatus.Applied)
 {
+    public bool IsChannelProjectionUnavailable =>
+        ChannelProjectionStatus == EegChannelProjectionStatus.InvalidSnapshot;
+
     public string AcquisitionMontageStatusText => AcquisitionMontageStatus switch
     {
         AcquisitionMontageStatus.Available => AcquisitionMontage?.Name ?? "已记录导联",
         AcquisitionMontageStatus.MissingSnapshot => "采集时未记录导联快照",
         AcquisitionMontageStatus.InvalidSnapshot => "采集时导联快照不可读取",
         _ => "采集导联不可用",
+    };
+
+    public string ChannelProjectionStatusText => ChannelProjectionStatus switch
+    {
+        EegChannelProjectionStatus.Applied => "已应用记录通道显示配置",
+        EegChannelProjectionStatus.MissingSnapshot => "未记录通道配置快照，按原始 EEG 通道显示",
+        EegChannelProjectionStatus.InvalidSnapshot => "通道配置快照无效，未回退显示全通道",
+        _ => "通道投影不可用",
     };
 }
 
@@ -49,14 +62,12 @@ public static class RecordingMontageCatalog
     {
         ArgumentNullException.ThrowIfNull(manifest);
         ArgumentNullException.ThrowIfNull(currentProfiles);
-        var signalChannels = manifest.Channels
-            .Where(IsSignalChannel)
-            .ToArray();
+        var signalChannels = manifest.Channels.Where(IsSignalChannel).ToArray();
+        var rawProjection = ProjectRawSignalChannels(manifest);
         var rawSignalView = new RawSignalViewDefinition(
-            signalChannels
-                .Select(channel => channel.Label?.Trim())
+            rawProjection.Channels
+                .Select(channel => channel.Label)
                 .Where(label => !string.IsNullOrWhiteSpace(label))
-                .Select(label => label!)
                 .ToArray());
         var labelMap = signalChannels
             .Where(channel => !string.IsNullOrWhiteSpace(channel.Label))
@@ -82,11 +93,12 @@ public static class RecordingMontageCatalog
         // Official presets are generated, not stored with user profiles. Use
         // the recorded channel snapshot so current device edits cannot replace
         // this recording's source mapping; all candidates still pass validation.
-        var systemProfiles = recordingSnapshot is null
+        var systemProfiles = recordingSnapshot is null || rawProjection.Status != EegChannelProjectionStatus.Applied
             ? Array.Empty<MontageProfile>()
             : SystemMontageProfileFactory.Create(recordingSnapshot);
+        var importedProfiles = ReadMontageCatalogueSnapshot(manifest);
         foreach (var profile in MontageProfileCatalogue.Deduplicate(
-                     systemProfiles.Concat(currentProfiles).Where(profile => profile is not null)))
+                     systemProfiles.Concat(importedProfiles).Concat(currentProfiles).Where(profile => profile is not null)))
         {
             // The current configuration can have the same identity as the
             // recorded montage while differing in UI-only fields. The review
@@ -122,7 +134,31 @@ public static class RecordingMontageCatalog
             acquisitionStatus,
             rawSignalView,
             compatible,
-            incompatible);
+            incompatible,
+            rawProjection.Status);
+    }
+
+    internal static EegChannelProjectionResult ProjectRawSignalChannels(LocalRawRecordingManifest manifest)
+    {
+        var hasSnapshot = manifest.HardwareConfiguration.TryGetValue(
+            "channel_configuration_snapshot_json", out var snapshotJson);
+        if (!hasSnapshot || string.IsNullOrWhiteSpace(snapshotJson))
+        {
+            return EnabledEegChannelProjection.PreserveSourceChannels(
+                EegChannelProjectionStatus.MissingSnapshot, manifest.Channels);
+        }
+
+        try
+        {
+            var snapshot = JsonSerializer.Deserialize<ChannelConfigurationProfile>(snapshotJson, JsonOptions);
+            return snapshot is null
+                ? EnabledEegChannelProjection.InvalidSnapshot()
+                : EnabledEegChannelProjection.Project(snapshot, manifest.Channels);
+        }
+        catch (JsonException)
+        {
+            return EnabledEegChannelProjection.InvalidSnapshot();
+        }
     }
 
     private static ChannelConfigurationProfile? ReadChannelConfigurationSnapshot(
@@ -175,6 +211,26 @@ public static class RecordingMontageCatalog
         {
             status = AcquisitionMontageStatus.InvalidSnapshot;
             return null;
+        }
+    }
+
+    private static IReadOnlyList<MontageProfile> ReadMontageCatalogueSnapshot(
+        LocalRawRecordingManifest manifest)
+    {
+        if (!manifest.HardwareConfiguration.TryGetValue(
+                "montage_catalogue_snapshot_json", out var snapshotJson) ||
+            string.IsNullOrWhiteSpace(snapshotJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<MontageProfile>>(snapshotJson, JsonOptions) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
         }
     }
 

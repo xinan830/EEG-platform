@@ -30,3 +30,13 @@
 - [x] 5.1 Verify project return navigation, imported row refresh, cancellation, corrupt-file handling, and concurrent import behavior with focused backend and desktop integration tests.
 - [x] 5.2 Run OpenSpec validation and all focused backend/desktop tests; record any environment-limited checks and inspect changed business-file sizes, adding code-size policy reviews where required.
 - [x] 5.3 Update the current user-facing import/review documentation and verify documented import, cancellation, and review behavior matches the implementation.
+- [x] 5.4 Support deletion of imported project Session links with guarded source cleanup, and restore export-sidecar identity when disabled inputs have no electrode label; verify referenced sources are retained and round-trip mappings stay aligned.
+
+## 6. Imported provenance and offline algorithm execution
+
+- [x] 6.1 Add contract tests for complete sidecar round-trip: hash, channel configuration, source-column/native-index mapping, acquisition montage, and montage configuration; verify absent sidecar is treated as plain EDF/BDF and malformed present sidecar rejects atomically.
+- [x] 6.2 Persist and return the validated montage snapshots with imported recording metadata using an additive migration; preserve source column order and do not rewrite raw signal bytes.
+- [x] 6.3 Replace the review algorithm panel's WPF-directory-only registration assumption with a source-neutral typed descriptor; construct imported descriptors from backend recording metadata and keep the backend recording ID as execution identity.
+- [x] 6.4 Resolve imported EEG channels and compatible montage inputs from validated snapshots, excluding non-EEG/disabled inputs according to the central channel projection; return structured unavailable reasons when requirements cannot be met.
+- [x] 6.5 Add desktop/backend integration tests proving an imported recording can request and render a supported algorithm window, with channel order, units, absolute sample bounds, source hash, and montage identity validated end to end.
+- [x] 6.6 Run focused backend and desktop test suites plus OpenSpec validation; inspect changed business-file sizes and document any remaining environment limitations.

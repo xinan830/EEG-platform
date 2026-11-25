@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-24
+goal: Prevent disabled channels from appearing while preserving original
+  recording sample matrices and column order.

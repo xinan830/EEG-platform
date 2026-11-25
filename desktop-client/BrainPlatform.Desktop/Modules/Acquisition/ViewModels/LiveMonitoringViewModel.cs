@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.Windows.Threading;
+using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Channels.Services;
 using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
@@ -28,6 +30,7 @@ public sealed partial class LiveMonitoringViewModel : ObservableObject, IDisposa
     private bool awaitingFirstBatchAfterRecordingPause;
     private readonly List<LiveDisplayCounterAdjustment> displayCounterAdjustments = [];
     private IReadOnlyDictionary<int, ConfiguredDisplayChannel> configuredChannels = new Dictionary<int, ConfiguredDisplayChannel>();
+    private ChannelConfigurationProfile? channelConfigurationSnapshot;
     private MontageProfile? montageProfile;
 
     public LiveMonitoringViewModel(
@@ -286,11 +289,19 @@ public sealed partial class LiveMonitoringViewModel : ObservableObject, IDisposa
 
     public void ConfigureChannels(IEnumerable<ChannelLabelMappingRow> rows)
     {
-        configuredChannels = rows
+        var configuredRows = rows.ToArray();
+        configuredChannels = configuredRows
             .Where(row => !string.IsNullOrWhiteSpace(row.ElectrodeLabel))
             .ToDictionary(
                 row => row.NativeChannelIndex,
                 row => new ConfiguredDisplayChannel(row.ElectrodeLabel.Trim(), row.Role, row.IsSelectedForDisplay));
+        channelConfigurationSnapshot = new ChannelConfigurationProfile(
+            "live-monitor", "Live monitor", string.Empty, ChannelConfigurationSource.System, "live-monitor",
+            configuredRows.Where(row => row.IsEegInput).Select(row => new ChannelConfigurationEntry(
+                row.NativeChannelIndex,
+                Enum.TryParse<AcquisitionChannelKind>(row.Role, true, out var kind) ? kind : AcquisitionChannelKind.Unknown,
+                row.ElectrodeLabel.Trim(), row.IsSelectedForDisplay, row.DisplayOrder)).ToArray(),
+            DateTimeOffset.MinValue, DateTimeOffset.MinValue);
         ReplaceChannels(streamMetadata);
         RaisePropertyChanged(nameof(VisibleChannelLabels));
     }
@@ -553,25 +564,18 @@ public sealed partial class LiveMonitoringViewModel : ObservableObject, IDisposa
             return;
         }
 
-        var candidates = metadata.Channels
-            .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
-            .ToArray();
+        var projection = EnabledEegChannelProjection.Project(channelConfigurationSnapshot, metadata.Channels);
         var defaultVisibleCount = 0;
-        foreach (var channel in candidates)
+        foreach (var channel in projection.Channels)
         {
-            var isConfigured = configuredChannels.TryGetValue(channel.NativeChannelIndex, out var configured);
-            var visible = isConfigured
-                ? configured!.IsSelectedForDisplay
-                : configuredChannels.Count > 0
-                    ? false
-                : existingVisibility.TryGetValue(channel.NativeChannelIndex, out var saved)
-                    ? saved
-                    : defaultVisibleCount++ < 8;
+            var visible = existingVisibility.TryGetValue(channel.NativeChannelIndex, out var saved)
+                ? saved
+                : defaultVisibleCount++ < 8;
             Channels.Add(new LiveDisplayChannel(
                 channel.StreamIndex,
                 channel.NativeChannelIndex,
-                isConfigured ? configured!.Label : channel.Label ?? $"CH {channel.NativeChannelIndex}",
-                isConfigured ? configured!.Kind : channel.Kind.ToString(),
+                channel.Label,
+                channel.Kind.ToString(),
                 visible));
         }
     }

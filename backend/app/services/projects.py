@@ -122,6 +122,24 @@ class ProjectService:
             rows = connection.execute("SELECT DISTINCT recording_id FROM sessions WHERE project_id = ?", (project_id,)).fetchall()
         return {str(row["recording_id"]) for row in rows}
 
+    def delete_imported_recording(self, project_id: str, session_id: str) -> str:
+        """Remove an imported EDF/BDF recording from a project by deleting its Session link."""
+        self._require_project(project_id)
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT s.recording_id, r.extension FROM sessions s
+                   JOIN recordings r ON r.id = s.recording_id
+                   WHERE s.session_id = ? AND s.project_id = ?""",
+                (session_id, project_id),
+            ).fetchone()
+            if row is None:
+                raise KeyError("recording session not found")
+            if str(row["extension"]).casefold() not in {".edf", ".bdf"}:
+                raise ValueError("only imported EDF/BDF recordings can be deleted here")
+            connection.execute("DELETE FROM sessions WHERE session_id = ? AND project_id = ?", (session_id, project_id))
+            connection.execute("UPDATE projects SET updated_at = ? WHERE project_id = ?", (utc_now(), project_id))
+        return str(row["recording_id"])
+
     def _require_project(self, project_id: str) -> None:
         if self.get(project_id) is None:
             raise KeyError("project not found")

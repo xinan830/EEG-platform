@@ -13,7 +13,8 @@ internal static class ReviewSpectralFixture
 
     internal static WindowPreviewResponse Window(string algorithm, long cursor = 10000,
         JsonElement? config = null, string[]? channels = null, double overlap = 0.5,
-        string quality = "clean", string filter = "same", string source = "sha")
+        string quality = "clean", string filter = "same", string source = "sha",
+        string recordingId = "registered")
     {
         channels ??= ChannelNames;
         var canonical = JsonSerializer.Serialize(new
@@ -31,7 +32,7 @@ internal static class ReviewSpectralFixture
         });
         var identity = Json(new
         {
-            recording_id = "registered", source_sha256 = source, algorithm_id = algorithm,
+            recording_id = recordingId, source_sha256 = source, algorithm_id = algorithm,
             definition_id = "definition", definition_version = "1", definition_sha256 = "def-sha",
             implementation_build = "build", scientific_version = "fixture-v1", implementation_identity = "impl",
             configuration_sha256 = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant(),
@@ -46,9 +47,19 @@ internal static class ReviewSpectralFixture
             metadata[band] = Json(new { unit = "ratio" });
             metadata[band + "_absolute_power"] = Json(new { unit = "uV^2" });
         }
-        return new WindowPreviewResponse("session-" + algorithm, "registered", cursor, cursor / 500d,
+        var axes = new Dictionary<string, JsonElement>
+        {
+            ["time_s"] = Json(new[] { cursor / 500d }),
+            ["channel_index"] = Json(Enumerable.Range(0, channels.Length)),
+        };
+        var axisMetadata = new Dictionary<string, JsonElement>
+        {
+            ["time_s"] = Json(new { unit = "s" }),
+            ["channel_index"] = Json(new { unit = "index" }),
+        };
+        return new WindowPreviewResponse("session-" + algorithm, recordingId, cursor, cursor / 500d,
             "available", [], new WindowPreviewWindow($"{algorithm}-{cursor}", 0, cursor - 5000, cursor,
-                "Ready", quality, []), false, null, null, null, null, arrays, metadata, "fixture-v1", "build",
+                "Ready", quality, []), false, null, null, axes, axisMetadata, arrays, metadata, "fixture-v1", "build",
             identity, canonical, Json(new { extensions = new
             {
                 channel_order = new { channels }, channel_quality = new { by_channel = channels.ToDictionary(

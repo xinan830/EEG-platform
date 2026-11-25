@@ -59,6 +59,23 @@ public sealed class ProjectRecordingImportTests
     }
 
     [Fact]
+    public async Task DeleteImportedRecordingUsesBackendSessionAndRemovesProjectRow()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "brain-platform-import-delete", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var client = new FakeClient();
+        var workspace = await CreateWorkspaceAsync(root, client);
+        await workspace.RefreshImportedRecordingsAsync();
+        var imported = Assert.Single(workspace.Recordings, row => row.SourceKind == "backend");
+
+        await workspace.DeleteRecordingAsync(imported);
+
+        Assert.Equal(("project-one", "session-one"), (client.LastDeleteProjectId, client.LastDeleteSessionId));
+        Assert.DoesNotContain(imported, workspace.Recordings);
+        Assert.DoesNotContain(imported, workspace.CompletedRecordings);
+    }
+
+    [Fact]
     public async Task StaleProjectRefreshCannotAddRowsAfterTheUserSwitchesProjects()
     {
         var root = Path.Combine(Path.GetTempPath(), "brain-platform-import-project-race", Guid.NewGuid().ToString("N"));
@@ -99,7 +116,7 @@ public sealed class ProjectRecordingImportTests
         Directory.CreateDirectory(root);
         var client = new FakeClient();
         var workspace = await CreateWorkspaceAsync(root, client);
-        client.Import = (_, _, _, _, _, token) => Task.FromCanceled<BackendImportedRecording>(token);
+        client.Import = (_, _, _, _, _, _, token) => Task.FromCanceled<BackendImportedRecording>(token);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
 
@@ -107,7 +124,7 @@ public sealed class ProjectRecordingImportTests
             "test.edf", "subject-1", null, null, cancellation.Token));
         Assert.Empty(workspace.Recordings);
 
-        client.Import = (_, _, _, _, _, _) => Task.FromException<BackendImportedRecording>(
+        client.Import = (_, _, _, _, _, _, _) => Task.FromException<BackendImportedRecording>(
             new ResearchProjectApiException(HttpStatusCode.UnprocessableEntity, "EDF_INVALID", "文件无效"));
         var error = await Assert.ThrowsAsync<ResearchProjectApiException>(() => workspace.ImportRecordingAsync(
             "test.edf", "subject-1", null, null, CancellationToken.None));
@@ -136,11 +153,13 @@ public sealed class ProjectRecordingImportTests
         public string? LastNewSubjectLocalCode { get; private set; }
         public List<string> ListedSessionProjects { get; } = [];
         public List<string> ListedSubjectProjects { get; } = [];
+        public string? LastDeleteProjectId { get; private set; }
+        public string? LastDeleteSessionId { get; private set; }
         public Func<string, CancellationToken, Task<IReadOnlyList<BackendResearchSession>>> ListSessions { get; set; } =
             (projectId, _) => Task.FromResult<IReadOnlyList<BackendResearchSession>>([
                 new("session-one", projectId, "subject-1", "recording-one", null, "", "")]);
-        public Func<string, string, string?, string?, IProgress<long>?, CancellationToken, Task<BackendImportedRecording>> Import { get; set; } =
-            (_, _, _, _, progress, _) =>
+        public Func<string, string, string?, string?, string?, IProgress<long>?, CancellationToken, Task<BackendImportedRecording>> Import { get; set; } =
+            (_, _, _, _, _, progress, _) =>
             {
                 progress?.Report(65536);
                 return Task.FromResult(new BackendImportedRecording("project-one", "session-one", "subject-1",
@@ -164,13 +183,21 @@ public sealed class ProjectRecordingImportTests
         }
         public Task<BackendResearchSession> CreateSessionAsync(string projectId, CreateResearchSessionRequest request, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+        public Task<BackendProjectRecordingDeletion> DeleteImportedRecordingAsync(string projectId, string sessionId, CancellationToken cancellationToken)
+        {
+            LastDeleteProjectId = projectId;
+            LastDeleteSessionId = sessionId;
+            return Task.FromResult(new BackendProjectRecordingDeletion(sessionId, "recording-one", true));
+        }
         public Task<BackendImportedRecording> ImportRecordingAsync(string projectId, string filePath, string? subjectId,
-            string? newSubjectLocalCode, IProgress<long>? progress, CancellationToken cancellationToken)
+            string? newSubjectLocalCode, string? channelConfigurationSnapshotJson, IProgress<long>? progress,
+            CancellationToken cancellationToken)
         {
             LastImportProjectId = projectId;
             LastSubjectId = subjectId;
             LastNewSubjectLocalCode = newSubjectLocalCode;
-            return Import(projectId, filePath, subjectId, newSubjectLocalCode, progress, cancellationToken);
+            return Import(projectId, filePath, subjectId, newSubjectLocalCode, channelConfigurationSnapshotJson,
+                progress, cancellationToken);
         }
         public Task<BackendRecording> GetRecordingAsync(string recordingId, CancellationToken cancellationToken) =>
             Task.FromResult(new BackendRecording(recordingId, "test.edf", ".edf", "2026-11-24T00:00:00Z", 512, 10,

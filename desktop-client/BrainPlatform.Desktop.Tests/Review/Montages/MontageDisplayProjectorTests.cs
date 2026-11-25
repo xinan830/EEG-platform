@@ -1,4 +1,7 @@
 
+using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Acquisition.Contracts;
+
 namespace BrainPlatform.Desktop.Tests.Review;
 
 public sealed class MontageDisplayProjectorTests
@@ -72,6 +75,35 @@ public sealed class MontageDisplayProjectorTests
         Assert.Equal(["F3-M1", "F4-M1"], saved[0].Channels.Select(channel => channel.Label));
         Assert.Equal(6e-6, withTemporary[0].Channels[0].Values[0], precision: 12);
         Assert.Equal(5e-6, withTemporary[0].Channels[0].Values[1], precision: 12);
+    }
+
+    [Fact]
+    public void RawProjectionFiltersDisabledChannelsAndKeepsOriginalSampleColumns()
+    {
+        var configuration = Configuration("F3", "F4", "Cz") with
+        {
+            Channels =
+            [
+                new(0, AcquisitionChannelKind.Reference, "F3", true, 1),
+                new(1, AcquisitionChannelKind.Reference, "F4", false, 2),
+                new(2, AcquisitionChannelKind.Reference, "Cz", true, 0),
+            ],
+        };
+        var manifest = Manifest(configuration) with
+        {
+            HardwareConfiguration = new Dictionary<string, string>
+            {
+                ["channel_configuration_snapshot_json"] = JsonSerializer.Serialize(configuration),
+            },
+        };
+        var window = new RecordingReviewWindow(0, 0, 0.002,
+            [new RecordingReviewSegment(0, 2, 4, [10, 20, 30, 999, 11, 21, 31, 999])]);
+
+        var result = MontageDisplayProjector.Project(window, manifest, null);
+
+        Assert.Equal(["Cz", "F3"], result[0].Channels.Select(channel => channel.Label));
+        Assert.Equal([30d, 31d], result[0].Channels[0].Values);
+        Assert.Equal([10d, 11d], result[0].Channels[1].Values);
     }
 
     private static LocalRawRecordingManifest Manifest(ChannelConfigurationProfile configuration) => new(

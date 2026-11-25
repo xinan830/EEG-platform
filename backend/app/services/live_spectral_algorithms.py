@@ -3,11 +3,13 @@
 import numpy as np
 from pydantic import BaseModel, Field
 
+from app.scientific.contracts.preprocessing import live_spectral_filter_spec
 from app.scientific.contracts.spectrogram import STFT_DB_UNIT, density_uv_to_db
 from app.scientific.primitives import DEFAULT_SPECTRAL_GATEWAY
 from app.services.live_analysis_contracts import LiveWindowPlan
 from app.services.live_rbp_algorithm import LiveRbpConfig
 from app.services.live_recording_access import LiveRecordingAccessError
+from app.services.live_scientific_preprocessing import LiveScientificPreprocessingService
 
 
 class LiveSpectrumResult(BaseModel):
@@ -29,10 +31,11 @@ def finite_rows(values: np.ndarray) -> list[list[float | None]]:
 
 
 class LiveSpectrumAlgorithm:
-    def __init__(self, algorithm_id: str):
+    def __init__(self, algorithm_id: str, preprocessor: LiveScientificPreprocessingService | None = None):
         self.algorithm_id = algorithm_id
         self.scientific_identity = {"psd": "psd-live-welch-v1", "stft": "stft-live-v1"}[algorithm_id]
         self.implementation_identity = "live-spectrum-window-v1"
+        self._preprocessor = preprocessor or LiveScientificPreprocessingService()
 
     def configure(self, source, config):
         requested = LiveRbpConfig.model_validate(config)
@@ -51,7 +54,8 @@ class LiveSpectrumAlgorithm:
     def calculate(self, session_id, block, config, session_first_sample):
         gateway = DEFAULT_SPECTRAL_GATEWAY
         rate = block.sampling_rate_hz
-        prepared = gateway.preprocess(block.values_v, rate, low_hz=1, high_hz=50, notch_hz=config.notch_hz)
+        spec = live_spectral_filter_spec(config.notch_hz)
+        prepared = self._preprocessor.prepare_window(session_id, block, spec).values_v
         times = []
         quality = {}
         channels = list(block.channel_names)

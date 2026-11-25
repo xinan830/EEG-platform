@@ -49,6 +49,7 @@ from app.services.live_recording_access import LiveRecordingAccessService
 from app.services.live_analysis_contracts import LiveAnalysisAlgorithmRegistry
 from app.services.live_analysis_coordinator import LiveAnalysisCoordinator
 from app.services.live_rbp_algorithm import LiveRbpAlgorithm
+from app.services.live_scientific_preprocessing import LiveScientificPreprocessingService
 from app.services.live_spectral_algorithms import LiveSpectrumAlgorithm
 from app.services.live_topomap_algorithm import LiveTopomapAlgorithm
 from app.services.on_demand_dynamic import DynamicWindowService
@@ -130,11 +131,16 @@ app.state.algorithm_preset_service = AlgorithmPresetService(
 )
 app.state.live_filter_service = LiveFilterService()
 app.state.live_recording_access_service = LiveRecordingAccessService()
+app.state.live_scientific_preprocessing_service = LiveScientificPreprocessingService()
 app.state.live_analysis_coordinator = LiveAnalysisCoordinator(
     LiveAnalysisAlgorithmRegistry((
-        LiveRbpAlgorithm(), LiveSpectrumAlgorithm("psd"), LiveSpectrumAlgorithm("stft"),
-        LiveTopomapAlgorithm("rbp"), LiveTopomapAlgorithm("psd"),
-    ))
+        LiveRbpAlgorithm(preprocessor=app.state.live_scientific_preprocessing_service),
+        LiveSpectrumAlgorithm("psd", preprocessor=app.state.live_scientific_preprocessing_service),
+        LiveSpectrumAlgorithm("stft", preprocessor=app.state.live_scientific_preprocessing_service),
+        LiveTopomapAlgorithm("rbp", preprocessor=app.state.live_scientific_preprocessing_service),
+        LiveTopomapAlgorithm("psd", preprocessor=app.state.live_scientific_preprocessing_service),
+    )),
+    preprocessor=app.state.live_scientific_preprocessing_service,
 )
 app.state.dynamic_window_service = DynamicWindowService(
     app.state.recording_service,

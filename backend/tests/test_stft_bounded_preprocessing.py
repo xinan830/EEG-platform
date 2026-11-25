@@ -180,7 +180,12 @@ def test_three_strategies_match_real_bounded_source(tmp_path, monkeypatch):
     for key in static.arrays:
         np.testing.assert_array_equal(static.arrays[key], full.arrays[key][0])
         np.testing.assert_array_equal(static.arrays[key], window.arrays[key])
-    assert [reader.reads for reader in readers] == [[(19400, 21600, (0,))]] * 3
+    # All three execution strategies share the same bounded-window scientific preprocessing
+    # cache entry, reading and zero-phase filtering the bounded context (19400..21600) once.
+    assert [reader.reads for reader in readers] == [[(19400, 21600, (0,))], [], []]
+    assert service.offline_scientific_preprocessing.window_cache_stats() == {
+        "hits": 2, "misses": 1, "coalesced": 0, "entries": 1,
+    }
 
 
 @pytest.mark.parametrize("damage", ["old_scope", "old_version", "read_range"])

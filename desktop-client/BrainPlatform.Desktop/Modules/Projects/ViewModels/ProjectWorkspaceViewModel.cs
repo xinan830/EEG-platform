@@ -24,7 +24,8 @@ public sealed record ProjectRecordingRow(
 {
     public bool CanReview => (SourceKind == "backend" || Directory.Exists(RecordingDirectory)) &&
                              Status is "已完成" or "已中止";
-    public bool CanManageLocally => SourceKind == "wpf";
+    public bool CanManage => SourceKind is "wpf" or "backend";
+    public bool CanRenameLocally => SourceKind == "wpf";
 }
 
 public sealed partial class ProjectWorkspaceViewModel : ObservableObject
@@ -331,6 +332,21 @@ public sealed partial class ProjectWorkspaceViewModel : ObservableObject
 
     public async Task DeleteRecordingAsync(ProjectRecordingRow recording)
     {
+        if (recording.SourceKind == "backend")
+        {
+            var backendProject = SelectedProject ?? throw new InvalidOperationException("请先选择项目。");
+            var client = backendClient ?? throw new InvalidOperationException("项目服务尚未连接后端。");
+            var result = await client.DeleteImportedRecordingAsync(backendProject.Id, recording.SessionId, CancellationToken.None);
+            if (SelectedRecording == recording) SelectedRecording = null;
+            Recordings.Remove(recording);
+            CompletedRecordings.Remove(recording);
+            ApplyRecordingPage();
+            notifications.PublishSuccess(result.RecordingDeleted
+                ? $"已删除导入记录“{recording.Name}”及其原始文件。"
+                : $"已从项目移除导入记录“{recording.Name}”；原始文件仍有其他引用或无法安全删除，因此已保留。");
+            return;
+        }
+
         EnsureRecordingBelongsToSelectedProject(recording);
         var project = SelectedProject!;
         var trashRoot = Path.Combine(project.DirectoryPath, ".trash", "recordings");

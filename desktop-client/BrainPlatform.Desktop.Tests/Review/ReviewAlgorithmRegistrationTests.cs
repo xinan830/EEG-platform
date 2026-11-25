@@ -1,4 +1,6 @@
+using System.Text.Json;
 using BrainPlatform.Desktop.Modules.Algorithms.Api;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 using BrainPlatform.Desktop.Modules.Review.Analysis;
 using System.Xml.Linq;
 
@@ -6,6 +8,51 @@ namespace BrainPlatform.Desktop.Tests.Review;
 
 public sealed partial class RecordingReviewViewModelTests
 {
+    [Fact]
+    public async Task Imported_recording_descriptor_drives_review_rbp_window_without_wpf_registration()
+    {
+        var configuration = Configuration();
+        var manifest = Manifest(configuration);
+        var profile = Profile("saved-montage", configuration);
+        var montage = new HistoricalMontageDescriptor("saved-montage", "r1", "fingerprint", "Saved", true,
+            true, null, [new("F3-REF", "F3-REF", "F3", "V", true, null)], "saved-montage");
+        var recording = new RegisteredRecording(manifest.SessionId.ToString("N"), "imported.edf", ".edf",
+            "2026-11-24T00:00:00Z", 500, 100, ["F3"], "sha", [montage]);
+        var catalog = new RecordingMontageCatalogResult(profile, AcquisitionMontageStatus.Available,
+            new RawSignalViewDefinition(["F3"]), [new CompatibleRecordingMontage(profile)], []);
+        var provider = new PanelProvider("rbp") { MontageCatalogue = [montage] };
+        await using var vm = new RecordingReviewViewModel(new FakeReader(manifest, 100), catalog,
+            analysisCoordinators: [new ReviewAnalysisCoordinator(provider)], registeredAnalysisRecording: recording);
+        await vm.InitializeAsync();
+        await vm.SeekAsync(10);
+
+        await vm.OpenAnalysisAsync("rbp");
+
+        var config = Assert.Single(provider.Configurations);
+        Assert.Equal("F3-REF", config.GetProperty("channel").GetString());
+        Assert.Equal("saved-montage", config.GetProperty("analysis_montage_id").GetString());
+        Assert.True(vm.CurrentAnalysisWindow is not null,
+            $"{vm.AnalysisPreparationText} {vm.AnalysisStatusText} loads={provider.Loads}");
+        Assert.Equal(recording.Id, vm.CurrentAnalysisWindow!.RecordingId);
+        Assert.Equal(0, vm.CurrentAnalysisWindow.Window!.StartSample);
+        Assert.Equal(5000, vm.CurrentAnalysisWindow.Window.EndSample);
+        Assert.Equal("sha", vm.CurrentAnalysisWindow.BackendIdentity!.Value.GetProperty("source_sha256").GetString());
+        Assert.Equal("ratio", vm.CurrentAnalysisWindow.ArrayMetadata!["alpha"].GetProperty("unit").GetString());
+        using var configJson = JsonDocument.Parse(vm.CurrentAnalysisWindow.ScientificConfigurationJson!);
+        Assert.Equal(["F3-REF"], configJson.RootElement.GetProperty("context").GetProperty("signal_mapping")
+            .GetProperty("channels").EnumerateArray().Select(channel => channel.GetString()!).ToArray());
+        Assert.Equal(0, provider.Registrations);
+        Assert.Equal(1, provider.Loads);
+        Assert.True(vm.IsAnalysisAttached);
+
+        // Switching to Raw signal view on the same imported recording uses raw enabled EEG channels.
+        await vm.SelectViewingMontageAsync(null);
+        await vm.OpenAnalysisAsync("rbp");
+        var rawConfig = provider.Configurations.Last();
+        Assert.Equal("F3", rawConfig.GetProperty("channel").GetString());
+        Assert.False(rawConfig.TryGetProperty("analysis_montage_id", out var rawMontageId) && rawMontageId.ValueKind != JsonValueKind.Null);
+    }
+
     [Fact]
     public async Task Registered_panels_create_their_own_adapters_and_preserve_specialized_capabilities()
     {

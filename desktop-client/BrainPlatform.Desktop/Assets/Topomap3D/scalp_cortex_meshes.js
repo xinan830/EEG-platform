@@ -122,7 +122,7 @@ export function createFrostedScalpMaterial() {
         vec3 col = mix(baseCol, uRimCol, fresnel * 0.55) + vec3(spec);
         float dome = smoothstep(-0.08, 0.14, vLocalY);
         float faceAlpha = clamp(0.56 + fresnel * 0.34, 0.54, 0.90);
-        float domeAlpha = clamp(0.18 + fresnel * 0.58, 0.16, 0.78);
+        float domeAlpha = clamp(0.07 + fresnel * 0.56, 0.06, 0.72);
         gl_FragColor = vec4(col, mix(faceAlpha, domeAlpha, dome));
       }
     `,

@@ -99,3 +99,25 @@ def test_faa_gap_is_unavailable_not_zero():
         assert result.failure is not None
     finally:
         context.close()
+
+
+def test_prepared_contract_uses_volts_even_when_edf_header_reports_microvolts():
+    sfreq = 100
+    values_v = np.random.default_rng(3).normal(0, 10e-6, (2000, 2))
+
+    class Source:
+        def open_access_session(self, recording, *, analysis_montage_id=None):
+            return array_access_session(recording, values_v, sfreq, ["F3", "F4"])
+
+        def analysis_signal_provenance(self, _recording):
+            return {"analysis_reference": "as_recorded"}
+
+    recording = RecordingSummary("edf-uv", "test", "test", ".edf", "now", sfreq=sfreq,
+        duration_s=len(values_v) / sfreq, channels=("F3", "F4"), channel_units=("uV", "uV"))
+    prepared = ContinuousPreprocessingService(Source(), AnalysisPreprocessCache()).load(
+        recording, 1, 40, None, None, ["F3"], requested_channels_only=True)
+
+    assert prepared.contract is not None
+    assert prepared.contract.channel_units == ("V",)
+    assert np.max(np.abs(prepared.data)) < 1e-3
+    prepared.owner.close()

@@ -25,11 +25,9 @@ public sealed class ElectrodePositionWindowTests(WpfApplicationFixture applicati
     });
 
     [Theory]
-    [InlineData(820, 620, false)]
-    [InlineData(1536, 864, false)]
-    [InlineData(820, 620, true)]
-    [InlineData(1536, 864, true)]
-    public void WindowRendersElectrodeLayoutWithoutRefPzOverlap(int width, int height, bool topographic) => application.Run(() =>
+    [InlineData(820, 620)]
+    [InlineData(1536, 864)]
+    public void WindowRendersElectrodeLayoutWithoutRefPzOverlap(int width, int height) => application.Run(() =>
     {
         var configuration = new ChannelConfigurationWorkspaceViewModel(new ChannelMappingViewModel());
         // Standard template positions are a display-only fixture; no device is opened.
@@ -54,18 +52,16 @@ public sealed class ElectrodePositionWindowTests(WpfApplicationFixture applicati
         var window = new ElectrodePositionWindow { DataContext = model };
         var content = (FrameworkElement)window.Content;
         var tabs = Descendants(content).OfType<RadioButton>().ToArray();
-        Assert.Equal(new[] { "2D", "3D", "地形图", "3D 地形图" }, tabs.Select(tab => tab.Content).Cast<string>());
+        Assert.Equal(new[] { "2D", "3D" }, tabs.Select(tab => tab.Content).Cast<string>());
         content.Measure(new Size(width, height));
         content.Arrange(new Rect(0, 0, width, height));
         content.UpdateLayout();
-        if (topographic) SelectTab(tabs, "地形图");
-        content.UpdateLayout();
         var map = Descendants(content).OfType<ElectrodePositionMap>().Single();
-        Assert.Equal(topographic, model.IsTopographic);
-        Assert.Equal(topographic, map.IsTopographic);
-        Assert.Equal(!topographic, map.IsHitTestVisible);
+        Assert.True(model.IsTwoDimensional);
+        Assert.False(map.IsTopographic);
+        Assert.True(map.IsHitTestVisible);
         var reset = Descendants(content).OfType<Button>().Single(button => Equals(button.Content, "恢复默认位置"));
-        Assert.Equal(!topographic, reset.IsEnabled);
+        Assert.True(reset.IsEnabled);
         Assert.True(map.ActualWidth > 400);
         var bounds = ElectrodePositionMap.GetHeadBounds(map.ActualWidth, map.ActualHeight);
         var points = ElectrodeMapProjection.ProjectWithHardwareLandmarks(map.Rows!, map.ReferencePosition, map.GroundPosition);
@@ -79,16 +75,9 @@ public sealed class ElectrodePositionWindowTests(WpfApplicationFixture applicati
         bitmap.Render(content);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var output = File.Create(Path.Combine(Path.GetTempPath(), $"eeg-electrode-position-{width}-{(topographic ? "topographic" : "2d")}.png"));
+        using var output = File.Create(Path.Combine(Path.GetTempPath(), $"eeg-electrode-position-{width}-2d.png"));
         encoder.Save(output);
-        if (topographic)
-        {
-            SelectTab(tabs, "2D");
-            Assert.False(map.IsTopographic);
-            Assert.True(map.IsHitTestVisible);
-            Assert.True(reset.IsEnabled);
-            Assert.Equal(new ElectrodeMapPosition(0.0036, 0.4514), configuration.DraftHardwareLandmarks.ReferencePosition);
-        }
+        Assert.Equal(new ElectrodeMapPosition(0.0036, 0.4514), configuration.DraftHardwareLandmarks.ReferencePosition);
         window.Close();
     });
 

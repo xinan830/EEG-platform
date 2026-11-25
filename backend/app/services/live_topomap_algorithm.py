@@ -6,6 +6,7 @@ from app.models.topomap import TopomapField
 from app.services.acquisition_analysis_signals import _materialize_template_positions
 from app.services.live_rbp_algorithm import LiveRbpAlgorithm, LiveRbpConfig
 from app.services.live_recording_access import LiveRecordingAccessError
+from app.services.live_scientific_preprocessing import LiveScientificPreprocessingService
 from app.services.live_spectral_algorithms import LiveSpectrumAlgorithm
 from app.services.result_scalar_inputs import RESULT_SCALAR_ADAPTERS
 from app.services.topomap import TopomapService
@@ -49,9 +50,13 @@ class LiveMapResult(BaseModel):
 
 
 class LiveTopomapAlgorithm:
-    def __init__(self, metric: str):
+    def __init__(self, metric: str, preprocessor: LiveScientificPreprocessingService | None = None):
         self.algorithm_id = f"{metric}-topomap"
-        self.spectrum = {"rbp": LiveRbpAlgorithm, "psd": lambda: LiveSpectrumAlgorithm("psd")}[metric]()
+        self.spectrum = (
+            LiveRbpAlgorithm(preprocessor=preprocessor)
+            if metric == "rbp"
+            else LiveSpectrumAlgorithm("psd", preprocessor=preprocessor)
+        )
         self.scientific_identity = self.spectrum.scientific_identity
         self.implementation_identity = "live-topomap-window-v1"
         self.adapter = RESULT_SCALAR_ADAPTERS[metric]

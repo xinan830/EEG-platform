@@ -405,6 +405,11 @@
       "decision": "keep",
       "max_lines": 422,
       "reason": "单一可复现资产构建流水线，统一读取 fsaverage 图谱、对齐标准头模坐标、验证解剖覆盖并输出带哈希元数据的打包文件；拆分会分散同一坐标与资产契约。"
+    },
+    "backend/app/services/recording_import.py": {
+      "decision": "keep",
+      "reason": "Single use case boundary for staging, validating, and atomically publishing EDF/BDF imports; the imported sidecar verification remains part of that transaction. Current size is 410 lines, only slightly above the soft limit, and splitting would separate validation from the publication transaction. Reassess before further growth.",
+      "max_lines": 420
     }
   }
 }

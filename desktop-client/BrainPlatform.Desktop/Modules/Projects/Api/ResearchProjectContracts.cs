@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using BrainPlatform.Desktop.Modules.Algorithms.Contracts;
 
 namespace BrainPlatform.Desktop.Modules.Projects.Api;
 
@@ -36,6 +37,11 @@ public sealed record BackendResearchSession(
     [property: JsonPropertyName("label")] string Label,
     [property: JsonPropertyName("created_at")] string CreatedAt);
 
+public sealed record BackendProjectRecordingDeletion(
+    [property: JsonPropertyName("session_id")] string SessionId,
+    [property: JsonPropertyName("recording_id")] string RecordingId,
+    [property: JsonPropertyName("recording_deleted")] bool RecordingDeleted);
+
 public sealed record BackendImportedRecording(
     [property: JsonPropertyName("project_id")] string ProjectId,
     [property: JsonPropertyName("session_id")] string SessionId,
@@ -50,7 +56,13 @@ public sealed record BackendImportedRecording(
     [property: JsonPropertyName("channel_types")] IReadOnlyList<string> ChannelTypes,
     [property: JsonPropertyName("channel_units")] IReadOnlyList<string> ChannelUnits,
     [property: JsonPropertyName("source_sha256")] string SourceSha256,
-    [property: JsonPropertyName("file_size_bytes")] long FileSizeBytes);
+    [property: JsonPropertyName("file_size_bytes")] long FileSizeBytes,
+    [property: JsonPropertyName("analysis_channels")] IReadOnlyList<string>? AnalysisChannels = null,
+    [property: JsonPropertyName("import_channel_configuration_snapshot_json")] string? ImportChannelConfigurationSnapshotJson = null,
+    [property: JsonPropertyName("import_channel_column_mapping_json")] string? ImportChannelColumnMappingJson = null,
+    [property: JsonPropertyName("import_acquisition_montage_snapshot_json")] string? ImportAcquisitionMontageSnapshotJson = null,
+    [property: JsonPropertyName("import_montage_configuration_snapshot_json")] string? ImportMontageConfigurationSnapshotJson = null,
+    [property: JsonPropertyName("import_montage_catalogue_snapshot_json")] string? ImportMontageCatalogueSnapshotJson = null);
 
 public sealed record BackendRecording(
     [property: JsonPropertyName("id")] string Id,
@@ -63,7 +75,21 @@ public sealed record BackendRecording(
     [property: JsonPropertyName("channel_types")] IReadOnlyList<string> ChannelTypes,
     [property: JsonPropertyName("channel_units")] IReadOnlyList<string> ChannelUnits,
     [property: JsonPropertyName("source_sha256")] string? SourceSha256,
-    [property: JsonPropertyName("file_size_bytes")] long? FileSizeBytes);
+    [property: JsonPropertyName("file_size_bytes")] long? FileSizeBytes,
+    [property: JsonPropertyName("import_channel_configuration_snapshot_json")] string? ImportChannelConfigurationSnapshotJson = null,
+    [property: JsonPropertyName("import_channel_column_mapping_json")] string? ImportChannelColumnMappingJson = null,
+    [property: JsonPropertyName("import_acquisition_montage_snapshot_json")] string? ImportAcquisitionMontageSnapshotJson = null,
+    [property: JsonPropertyName("import_montage_configuration_snapshot_json")] string? ImportMontageConfigurationSnapshotJson = null,
+    [property: JsonPropertyName("import_montage_catalogue_snapshot_json")] string? ImportMontageCatalogueSnapshotJson = null,
+    [property: JsonPropertyName("analysis_channels")] IReadOnlyList<string>? AnalysisChannels = null,
+    [property: JsonPropertyName("montage_catalogue")] IReadOnlyList<HistoricalMontageDescriptor>? MontageCatalogue = null)
+{
+    public RegisteredRecording ToAnalysisDescriptor() => new(
+        Id, OriginalName, Extension, CreatedAt, SamplingRateHz, DurationSeconds,
+        AnalysisChannels ?? Channels.Where((_, index) =>
+            string.Equals(ChannelTypes.ElementAtOrDefault(index), "eeg", StringComparison.OrdinalIgnoreCase)).ToArray(),
+        SourceSha256, MontageCatalogue);
+}
 
 public sealed record BackendRawSampleRange(
     [property: JsonPropertyName("recording_id")] string RecordingId,

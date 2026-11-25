@@ -46,7 +46,8 @@ public sealed record ImpedanceStreamRequest(
 public sealed record ImpedanceStreamMetadata(
     string DeviceId,
     string DeviceName,
-    IReadOnlyList<ImpedanceChannel> Channels)
+    IReadOnlyList<ImpedanceChannel> Channels,
+    IReadOnlyList<ImpedanceChannelIdentity>? UnavailableRequestedChannels = null)
 {
     public void Validate()
     {
@@ -60,6 +61,10 @@ public sealed record ImpedanceStreamMetadata(
             throw new ArgumentException("Each impedance channel requires a native identity and impedance role.", nameof(Channels));
         if (Channels.Select(channel => new ImpedanceChannelIdentity(channel.NativeChannelIndex, channel.Kind)).Distinct().Count() != Channels.Count)
             throw new ArgumentException("Physical impedance identities must be unique.", nameof(Channels));
+        if (UnavailableRequestedChannels?.Any(channel => channel is null || channel.NativeChannelIndex < 0 ||
+            channel.Kind != AcquisitionChannelKind.Reference) == true ||
+            UnavailableRequestedChannels?.Distinct().Count() != UnavailableRequestedChannels?.Count)
+            throw new ArgumentException("Unavailable impedance identities must be unique physical reference inputs.", nameof(UnavailableRequestedChannels));
     }
 }
 

@@ -1,0 +1,202 @@
+<UserControl x:Class="BrainPlatform.Desktop.Modules.Settings.Views.BrainImagingHubView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:topomap="clr-namespace:BrainPlatform.Desktop.Shared.Controls.Topomap"
+             Background="#F8FAFC">
+
+    <UserControl.Resources>
+        <Style x:Key="CategoryHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="Margin" Value="8,14,8,6" />
+        </Style>
+
+        <Style x:Key="ImagingNavItemStyle" TargetType="RadioButton">
+            <Setter Property="GroupName" Value="BrainImagingViews" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="ItemBorder"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="9"
+                                Padding="11,9">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="ActiveBar"
+                                        Grid.Column="0"
+                                        Width="3"
+                                        CornerRadius="2"
+                                        Background="Transparent"
+                                        Margin="0,2,0,2" />
+                                <ContentPresenter Grid.Column="1" Margin="8,0,0,0" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#F1F5F9" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="#EFF6FF" />
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="#BFDBFE" />
+                                <Setter TargetName="ActiveBar" Property="Background" Value="#2563EB" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="24,18,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 顶部返回与标题栏 -->
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <Button Content="‹  返回设置"
+                        Click="OnBackClick"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Foreground="#475569"
+                        HorizontalAlignment="Left"
+                        Padding="0"
+                        FontSize="13"
+                        Cursor="Hand" />
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="脑影像视图中心" FontSize="22" FontWeight="Bold" Foreground="#0F172A" VerticalAlignment="Center" />
+                    <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="10" Padding="9,2" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="ActiveCategoryBadge" Text="地形图与皮层图谱" FontSize="11.5" FontWeight="SemiBold" Foreground="#2563EB" />
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock x:Name="ActiveViewSummary"
+                       Grid.Column="1"
+                       Text="高精度 fsaverage 折叠皮层连续电位分布，支持色带与分布场景切换。"
+                       FontSize="12.5"
+                       Foreground="#64748B"
+                       VerticalAlignment="Bottom"
+                       HorizontalAlignment="Right"
+                       Margin="20,0,4,2"
+                       TextTrimming="CharacterEllipsis" />
+        </Grid>
+
+        <!-- 主内容区：左侧分类导航 + 右侧 3D/MRI 视口 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="244" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧分类视图目录 -->
+            <Border Grid.Column="0"
+                    Background="#FFFFFF"
+                    BorderBrush="#E2E8F0"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="10,6,10,12">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="CategoryNavPanel">
+                        <TextBlock Text="地形图与皮层图谱" Style="{StaticResource CategoryHeaderStyle}" Margin="8,8,8,6" />
+
+                        <RadioButton x:Name="NavCortex" Tag="cortex" IsChecked="True"
+                                     Style="{StaticResource ImagingNavItemStyle}" Checked="OnModeItemChecked">
+                            <StackPanel>
+                                <TextBlock Text="皮层投影" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="折叠皮层连续电位分布" FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton x:Name="NavAtlas" Tag="atlas"
+                                     Style="{StaticResource ImagingNavItemStyle}" Checked="OnModeItemChecked">
+                            <StackPanel>
+                                <TextBlock Text="脑区图谱" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="脑叶 / DK-68 / Yeo-7 分区" FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton x:Name="NavScalp" Tag="scalp"
+                                     Style="{StaticResource ImagingNavItemStyle}" Checked="OnModeItemChecked">
+                            <StackPanel>
+                                <TextBlock Text="头皮地形图" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="3D 真实头皮连续电位" FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <TextBlock Text="脑网络与溯源分析" Style="{StaticResource CategoryHeaderStyle}" />
+
+                        <RadioButton x:Name="NavConnectome" Tag="connectome"
+                                     Style="{StaticResource ImagingNavItemStyle}" Checked="OnModeItemChecked">
+                            <StackPanel>
+                                <TextBlock Text="功能连接" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="3D 玻璃脑连线与枢纽聚光" FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton x:Name="NavSource" Tag="source"
+                                     Style="{StaticResource ImagingNavItemStyle}" Checked="OnModeItemChecked">
+                            <StackPanel>
+                                <TextBlock Text="源定位 (sLORETA)" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="3D 偶极子 · 皮层热区 · MRI 联动" FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <TextBlock Text="多模态结构影像" Style="{StaticResource CategoryHeaderStyle}" />
+
+                        <RadioButton x:Name="NavTractography" Tag="tractography"
+                                     Style="{StaticResource ImagingNavItemStyle}" Checked="OnModeItemChecked">
+                            <StackPanel>
+                                <TextBlock Text="白质纤维 (DTI)" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="方向着色纤维束 · 支持 .tck/.trk" FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+
+                        <RadioButton x:Name="NavMri" Tag="mri"
+                                     Style="{StaticResource ImagingNavItemStyle}" Checked="OnModeItemChecked">
+                            <StackPanel>
+                                <TextBlock Text="MRI 切片与剖面" FontSize="13.5" FontWeight="SemiBold" Foreground="#0F172A" />
+                                <TextBlock Text="0.74mm 四视图 · 支持 .nii.gz" FontSize="11.5" Foreground="#64748B" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <!-- 右侧三维与核磁主视口 -->
+            <Border Grid.Column="2"
+                    Background="#FFFFFF"
+                    BorderBrush="#E2E8F0"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    ClipToBounds="True">
+                <topomap:Topomap3DWebView x:Name="ImagingViewer"
+                                          IsHeatmapPreview="True"
+                                          EnablePreviewLabModes="True"
+                                          HideInternalModeTabs="True"
+                                          ExternalMode="cortex"
+                                          ActiveModeChanged="OnViewerActiveModeChanged"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch" />
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

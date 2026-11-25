@@ -145,6 +145,9 @@ public partial class ProjectDetailView : UserControl
     {
         if (sender is Button { ContextMenu: { } menu })
         {
+            if (sender is FrameworkElement { DataContext: ProjectRecordingRow recording } && menu.Items.Count > 0 &&
+                menu.Items[0] is MenuItem renameItem)
+                renameItem.IsEnabled = recording.CanRenameLocally;
             menu.PlacementTarget = sender as UIElement;
             menu.IsOpen = true;
         }
@@ -185,7 +188,9 @@ public partial class ProjectDetailView : UserControl
         if (GetRecordingFromMenu(sender) is not { } recording) return;
         if (!OperationConfirmationDialog.Confirm(
                 Window.GetWindow(this),
-                OperationConfirmationRequest.DeleteRecording(recording.Name))) return;
+                recording.SourceKind == "backend"
+                    ? OperationConfirmationRequest.DeleteImportedRecording(recording.Name)
+                    : OperationConfirmationRequest.DeleteRecording(recording.Name))) return;
         try { await Workspace.Projects.DeleteRecordingAsync(recording); }
         catch (Exception exception) { Workspace.Notifications.PublishError(exception.Message); }
     }

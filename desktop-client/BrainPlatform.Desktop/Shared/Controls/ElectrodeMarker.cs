@@ -54,9 +54,11 @@ public sealed class ElectrodeMarker : Button
         var foreground = fill is SolidColorBrush solid &&
             0.2126 * solid.Color.R + 0.7152 * solid.Color.G + 0.0722 * solid.Color.B < 135
             ? Brushes.White : Brushes.Black;
+        if (diameter <= 4) return;
         var fontSize = Math.Clamp(diameter * 0.36, 8, 14);
         var text = Text(label, fontSize, foreground, pixelsPerDip);
-        if (text.Width > diameter - 4) text.SetFontSize(fontSize * (diameter - 4) / text.Width);
+        if (text.Width > diameter - 4)
+            text.SetFontSize(Math.Max(1, fontSize * (diameter - 4) / text.Width));
         context.DrawText(text, new Point(center.X - text.Width / 2, center.Y - text.Height / 2));
         if (!string.IsNullOrWhiteSpace(reading))
         {

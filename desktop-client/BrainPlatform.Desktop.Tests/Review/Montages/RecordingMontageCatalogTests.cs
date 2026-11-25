@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BrainPlatform.Desktop.Modules.Channels.Services;
 
 namespace BrainPlatform.Desktop.Tests.Review;
 
@@ -147,6 +148,27 @@ public sealed class RecordingMontageCatalogTests
         Assert.Equal(AcquisitionMontageStatus.MissingSnapshot, result.AcquisitionMontageStatus);
         Assert.Contains("未记录", result.AcquisitionMontageStatusText);
         Assert.Equal(2, result.RawSignalView.ChannelLabels.Count);
+        Assert.Equal(EegChannelProjectionStatus.MissingSnapshot, result.ChannelProjectionStatus);
+    }
+
+    [Fact]
+    public void BuildMarksInvalidChannelSnapshotUnavailableInsteadOfExposingAllRawChannels()
+    {
+        var channelConfiguration = ChannelConfiguration("F3", "F4");
+        var manifest = Manifest(channelConfiguration) with
+        {
+            HardwareConfiguration = new Dictionary<string, string>
+            {
+                ["channel_configuration_snapshot_json"] = "{corrupt-json",
+            },
+        };
+
+        var result = RecordingMontageCatalog.Build(manifest, []);
+
+        Assert.Equal(EegChannelProjectionStatus.InvalidSnapshot, result.ChannelProjectionStatus);
+        Assert.True(result.IsChannelProjectionUnavailable);
+        Assert.Empty(result.RawSignalView.ChannelLabels);
+        Assert.Empty(result.CompatibleViewingMontages);
     }
 
     [Fact]

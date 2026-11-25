@@ -194,12 +194,13 @@ public sealed class LiveSpectralPresentationTests
                 new(12, AcquisitionChannelKind.Reference, "F3", true, 0, ManualMapPosition: new(-0.3, 0.4)),
                 new(14, AcquisitionChannelKind.Reference, "C3", false, 1),
                 new(15, AcquisitionChannelKind.Bipolar, "F4", true, 2, ManualMapPosition: new(0.3, 0.4)),
+                new(16, AcquisitionChannelKind.Reference, "Fz", false, 3),
             ], DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
         var stream = new AcquisitionStreamMetadata("device", "device", 512,
             [new(0, 12, "F3", AcquisitionChannelKind.Reference, "V"),
              new(1, 14, "C3", AcquisitionChannelKind.Reference, "V"),
              new(2, 15, "F4", AcquisitionChannelKind.Bipolar, "V"),
-             new(3, 16, null, AcquisitionChannelKind.Reference, "V"),
+             new(3, 16, "Fz", AcquisitionChannelKind.Reference, "V"),
              new(4, 17, "Counter", AcquisitionChannelKind.SampleCounter, "count")],
             4, DateTimeOffset.UnixEpoch)
         {
@@ -211,10 +212,11 @@ public sealed class LiveSpectralPresentationTests
         var config = LiveSpectralPresentation.MapConfig(stream, "psd.band-mean-density.alpha");
         var positions = config.GetProperty("positions");
         Assert.Equal(-0.3, positions.GetProperty("F3").GetProperty("x").GetDouble());
-        Assert.False(positions.GetProperty("C3").GetProperty("enabled").GetBoolean());
+        Assert.False(positions.TryGetProperty("C3", out _));
         Assert.False(positions.TryGetProperty("F4", out _));
-        Assert.Equal(new[] { "F3", "C3" }, config.GetProperty("spectrum").GetProperty("channels")
+        Assert.Equal(new[] { "F3" }, config.GetProperty("spectrum").GetProperty("channels")
             .EnumerateArray().Select(channel => channel.GetString()));
+        Assert.Equal(new[] { "F3", "F4" }, LiveSpectralPresentation.AnalysisChannelNames(stream));
     }
 
     private static LiveAnalysisUpdate Update(string algorithm, string payload) =>

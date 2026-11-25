@@ -89,6 +89,17 @@ public sealed class ImpedancePresentationTests(WpfApplicationFixture application
     }
 
     [Fact]
+    public void UnavailableConfiguredElectrodeStaysVisibleWithoutInventingAReading()
+    {
+        var row = ImpedanceElectrodeRow.Create(new ImpedanceChannelIdentity(21, AcquisitionChannelKind.Reference), Physical());
+        row.MarkUnavailable();
+
+        Assert.Equal("—", row.ValueText);
+        Assert.Equal("设备未返回该通道", row.StatusText);
+        Assert.Equal("#94A3B8", row.Color);
+    }
+
+    [Fact]
     public void PhysicalMapUsesRoleAndIndex_AndNeverInventsRefGroundCoordinates()
     {
         var physical = Physical();
@@ -176,6 +187,7 @@ public sealed class ImpedancePresentationTests(WpfApplicationFixture application
         using var model = new AcquisitionImpedanceViewModel(runtime, Physical(), Guid.NewGuid(), System.Windows.Threading.Dispatcher.CurrentDispatcher);
         var window = new AcquisitionImpedanceWindow(model, runtime, () => Task.CompletedTask, null);
         // Synthetic positions exercise dense layout only; they are never acquisition defaults.
+        model.Rows.Clear();
         for (var i = 0; i < 32; i++)
         {
             var angle = i * Math.PI * (3 - Math.Sqrt(5));

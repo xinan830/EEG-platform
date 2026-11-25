@@ -606,7 +606,7 @@
                                                         <Path Data="M 1,8 L 4,8 L 6,3 L 9,13 L 12,6 L 14,10 L 16,8 L 19,8"
                                                               Width="15" Height="13" Stretch="Uniform" Stroke="{StaticResource BlueBrandPrimaryBrush}" StrokeThickness="1.5" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                                                     </Button>
-                                                    <Button Style="{StaticResource RowActionIconBtn}" ToolTip="更多选项" Click="OnOpenRecordingMoreMenuClick" IsEnabled="{Binding CanManageLocally}">
+                                                    <Button Style="{StaticResource RowActionIconBtn}" ToolTip="更多选项" Click="OnOpenRecordingMoreMenuClick" IsEnabled="{Binding CanManage}">
                                                         <Button.ContextMenu>
                                                             <ContextMenu Style="{StaticResource ModernContextMenuStyle}">
                                                                 <MenuItem Style="{StaticResource ModernMenuItemStyle}" Header="编辑记录名称" Click="OnRenameRecordingClick">

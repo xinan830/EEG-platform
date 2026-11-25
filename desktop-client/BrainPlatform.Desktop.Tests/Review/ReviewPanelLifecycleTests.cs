@@ -348,6 +348,9 @@ public sealed partial class RecordingReviewViewModelTests
             }
             if (deferWindow || Interlocked.Decrement(ref deferredWindowLoadsRemaining) >= 0)
                 await WaitIgnoringCancellation(cancellationToken);
+            if (algorithmId == "rbp")
+                return ReviewSpectralFixture.Window("rbp", cursorSample, request.Config, ["F3-REF"],
+                    source: "sha", recordingId: recordingId);
             var canonical = JsonSerializer.Serialize(new
                 { scientific_configuration_contract = "scientific-config-v1", config = request.Config, context = new { } });
             var identity = JsonSerializer.SerializeToElement(new

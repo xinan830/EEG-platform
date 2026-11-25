@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Windows;
+using BrainPlatform.Desktop.Modules.Channels.Services;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.ViewModels;
 
@@ -33,8 +34,11 @@ public sealed partial class AcquisitionWorkspaceViewModel
             var previousState = runtime.State.State;
             var physical = GetImpedancePhysicalSnapshot();
             var device = SelectedDevice ?? throw new InvalidOperationException("请先检测并选择放大器。");
-            var identities = physical.Channels.Where(channel => channel.ExpectedKind == AcquisitionChannelKind.Reference)
-                .Select(channel => new ImpedanceChannelIdentity(channel.NativeChannelIndex, channel.ExpectedKind)).ToArray();
+            var configuredChannels = physical.Channels.Select(channel => new AcquisitionChannel(
+                channel.NativeChannelIndex, channel.NativeChannelIndex, channel.ElectrodeLabel, channel.ExpectedKind, "V"));
+            var identities = EnabledEegChannelProjection.Project(physical, configuredChannels).Channels
+                .Where(channel => channel.Kind == AcquisitionChannelKind.Reference)
+                .Select(channel => new ImpedanceChannelIdentity(channel.NativeChannelIndex, channel.Kind)).ToArray();
             var capabilities = device.ChannelCapabilities ?? [];
             if (identities.Length == 0 || identities.Any(identity => !capabilities.Any(channel =>
                 channel.NativeChannelIndex == identity.NativeChannelIndex && channel.Kind == identity.Kind)))

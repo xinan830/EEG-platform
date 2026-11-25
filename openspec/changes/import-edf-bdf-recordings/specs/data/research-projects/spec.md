@@ -18,6 +18,12 @@ The system SHALL associate a Recording with a Project through a Session that ref
 - **WHEN** an import references a Subject or Session belonging to another Project
 - **THEN** the system SHALL reject the association with a structured error and SHALL NOT create a cross-project Session
 
+#### Scenario: Delete an imported recording from a project
+- **WHEN** a user deletes an imported EDF/BDF recording from its project
+- **THEN** the system SHALL remove that Project's Session association
+- **AND** it SHALL delete the stored source only when no other Session or persisted analysis data references the recording
+- **AND** it SHALL preserve the recording when another reference still depends on it
+
 ## ADDED Requirements
 
 ### Requirement: Resolve desktop project identity consistently

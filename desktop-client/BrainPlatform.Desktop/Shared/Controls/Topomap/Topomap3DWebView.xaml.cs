@@ -57,6 +57,14 @@ public partial class Topomap3DWebView : UserControl
         nameof(EnablePreviewLabModes), typeof(bool), typeof(Topomap3DWebView),
         new PropertyMetadata(false, OnSceneInputChanged));
 
+    public static readonly DependencyProperty HideInternalModeTabsProperty = DependencyProperty.Register(
+        nameof(HideInternalModeTabs), typeof(bool), typeof(Topomap3DWebView),
+        new PropertyMetadata(false, OnSceneInputChanged));
+
+    public static readonly DependencyProperty ExternalModeProperty = DependencyProperty.Register(
+        nameof(ExternalMode), typeof(string), typeof(Topomap3DWebView),
+        new PropertyMetadata(null, OnExternalModeChanged));
+
     private CancellationTokenSource? syncCts;
     private bool initStarted;
     private bool viewerReady;
@@ -67,6 +75,7 @@ public partial class Topomap3DWebView : UserControl
 
     public event EventHandler? SwitchTo2DRequested;
     public event EventHandler? FallbackActivated;
+    public event EventHandler<string>? ActiveModeChanged;
 
     public bool IsUsingFallback => usingFallback;
 
@@ -132,8 +141,23 @@ public partial class Topomap3DWebView : UserControl
         set => SetValue(EnablePreviewLabModesProperty, value);
     }
 
+    public bool HideInternalModeTabs
+    {
+        get => (bool)GetValue(HideInternalModeTabsProperty);
+        set => SetValue(HideInternalModeTabsProperty, value);
+    }
+
+    public string? ExternalMode
+    {
+        get => (string?)GetValue(ExternalModeProperty);
+        set => SetValue(ExternalModeProperty, value);
+    }
+
     private static void OnSceneInputChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((Topomap3DWebView)d).ScheduleSync();
+
+    private static void OnExternalModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((Topomap3DWebView)d).PostExternalMode();
 
     private static void OnSelectedElectrodeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -233,6 +257,15 @@ public partial class Topomap3DWebView : UserControl
             {
                 SwitchTo2DRequested?.Invoke(this, EventArgs.Empty);
             }
+            else if (string.Equals(msgType, "modeChanged", StringComparison.Ordinal) &&
+                     doc.RootElement.TryGetProperty("mode", out var modeEl))
+            {
+                var mode = modeEl.GetString();
+                if (!string.IsNullOrWhiteSpace(mode))
+                {
+                    ActiveModeChanged?.Invoke(this, mode);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -283,7 +316,9 @@ public partial class Topomap3DWebView : UserControl
         var showDim = ShowDimensionSwitcher;
         var windowText = WindowText;
         var enableLabModes = EnablePreviewLabModes;
-        _ = SyncSceneAsync(scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes, cts, cts.Token);
+        var hideInternalTabs = HideInternalModeTabs;
+        var externalMode = ExternalMode;
+        _ = SyncSceneAsync(scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes, hideInternalTabs, externalMode, cts, cts.Token);
     }
 
     private async Task SyncSceneAsync(
@@ -295,6 +330,8 @@ public partial class Topomap3DWebView : UserControl
         bool showDim,
         string? windowText,
         bool enableLabModes,
+        bool hideInternalTabs,
+        string? externalMode,
         CancellationTokenSource owner,
         CancellationToken token)
     {
@@ -331,7 +368,7 @@ public partial class Topomap3DWebView : UserControl
             }
 
             var sceneMessage = Topomap3DWebPayloadBuilder.BuildSceneStateJson(
-                scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes);
+                scalp, labels, field, scaleState, isPreview, showDim, windowText, enableLabModes, hideInternalTabs, externalMode);
             WebView.CoreWebView2.PostWebMessageAsJson(sceneMessage);
             PostSelectedElectrode();
         }
@@ -341,6 +378,15 @@ public partial class Topomap3DWebView : UserControl
             if (token.IsCancellationRequested || !ReferenceEquals(syncCts, owner)) return;
             DesktopLog.Error("topomap_3d_webview_sync_failed", ex);
         }
+    }
+
+    private void PostExternalMode()
+    {
+        if (!viewerReady || usingFallback || WebView.CoreWebView2 is null || string.IsNullOrWhiteSpace(ExternalMode)) return;
+        var msg = JsonSerializer.Serialize(
+            new { type = "setMode", mode = ExternalMode.Trim() },
+            Topomap3DWebPayloadBuilder.CamelJsonOptions);
+        WebView.CoreWebView2.PostWebMessageAsJson(msg);
     }
 
     private void PostSelectedElectrode()

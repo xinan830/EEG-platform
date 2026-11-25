@@ -60,12 +60,21 @@ def load_spectrogram(
         stop_index = min(session.sample_count, start_index + int(round(float(window_s) * sfreq)))
         if stop_index - start_index < int(round(4.0 * sfreq)):
             raise ValueError("频谱分析窗口至少需要 4 秒")
-        prepared = prepare_window(
-            session, start_sample=start_index, end_sample=stop_index,
-            channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
-            context_s=context_s, algorithm_version=STFT_PREPROCESSING_VERSION,
-            execution_context=execution_context,
-        )
+        offline_prep = getattr(recordings, "offline_scientific_preprocessing", None)
+        if offline_prep is not None:
+            prepared = offline_prep.prepare_bounded_window(
+                session, start_sample=start_index, end_sample=stop_index,
+                channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+                context_s=context_s, algorithm_version=STFT_PREPROCESSING_VERSION,
+                execution_context=execution_context,
+            )
+        else:
+            prepared = prepare_window(
+                session, start_sample=start_index, end_sample=stop_index,
+                channels=channels, low_hz=low_hz, high_hz=high_hz, notch_hz=notch_hz,
+                context_s=context_s, algorithm_version=STFT_PREPROCESSING_VERSION,
+                execution_context=execution_context,
+            )
     names = list(prepared.channel_names)
     actual_start = start_index / sfreq
     # Preserve the existing aggregate Welch gate before per-row STFT quality.

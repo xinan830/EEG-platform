@@ -4,6 +4,9 @@ import numpy as np
 import pytest
 
 from app.algorithm_runtime.on_demand import DynamicWindowResponse
+from app.bootstrap import build_builtin_registry
+from app.services.on_demand_dynamic import DynamicWindowService
+from app.services.scientific_compute_coordinator import ScientificComputeCoordinator
 from on_demand_fixtures import configure_api, source_hashes
 
 
@@ -52,16 +55,120 @@ def test_full_and_on_demand_keep_healthy_channel_when_peer_has_invalid_power(tmp
         client.close()
 
 
-def wait_window(client, window_id):
+def wait_window(client, window_id, *, project_id=None):
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
-        response = client.get(f"/api/analysis-windows/{window_id}")
+        params = {"project_id": project_id} if project_id else None
+        response = client.get(f"/api/analysis-windows/{window_id}", params=params)
         assert response.status_code == 200, response.text
         value = response.json()
         if value["state"] not in {"queued", "preparing_source", "computing_window"}:
             return value
         time.sleep(0.01)
     pytest.fail("RBP window did not finish")
+
+
+def test_imported_edf_runs_ready_rbp_window_with_verified_montage(tmp_path):
+    import hashlib
+    import json
+
+    from test_recording_import import _client, _edf_bytes
+
+    client, recordings, _ = _client(tmp_path)
+    coordinator = ScientificComputeCoordinator()
+    windows = DynamicWindowService(
+        recordings, build_builtin_registry(), recordings.database_path, tmp_path / "artifacts",
+        compute_coordinator=coordinator,
+    )
+    client.app.state.dynamic_window_service = windows
+    project_id = client.put("/api/projects/desktop/imported-live-rbp", json={"name": "Study"}).json()["project_id"]
+    source = _edf_bytes(tmp_path / "imported.edf", ("CH0001", "CH0002"), sample_frequency=200,
+                        sample_count=6000)
+    channel_snapshot = {
+        "Id": "channel-config", "DeviceSignature": "ant-layout",
+        "HardwareReferenceElectrodeLocation": "REF", "HardwareGroundElectrodeLocation": "GND",
+        "Channels": [
+            {"NativeChannelIndex": 8, "ExpectedKind": 2, "ElectrodeLabel": "Fz",
+             "IsSelectedForDisplay": True, "DisplayOrder": 0},
+            {"NativeChannelIndex": 3, "ExpectedKind": 2, "ElectrodeLabel": "Pz",
+             "IsSelectedForDisplay": True, "DisplayOrder": 1},
+        ],
+    }
+    montage = {
+        "Id": "saved-montage", "DeviceSignature": "ant-layout",
+        "ChannelConfigurationSnapshot": channel_snapshot, "AverageReferenceLabels": [],
+        "DerivedChannels": [{"Name": "Fz-REF", "PositiveLabel": "Fz", "NegativeKind": 0,
+                             "NegativeLabels": [], "DisplayOrder": 0}],
+    }
+    identity = {
+        "exported_signal_sha256": hashlib.sha256(source).hexdigest(),
+        "channel_configuration_snapshot_json": channel_snapshot,
+        "channels": [
+            {"export_label": "CH0001", "source_label": "Fz", "native_channel_index": 8, "kind": "2"},
+            {"export_label": "CH0002", "source_label": "Pz", "native_channel_index": 3, "kind": "2"},
+        ],
+        "hardware": {
+            "acquisition_montage_snapshot_json": {"Id": "saved-montage"},
+            "montage_configuration_snapshot_json": montage,
+            "montage_catalogue_snapshot_json": [montage],
+        },
+    }
+    try:
+        imported = client.post(
+            f"/api/projects/{project_id}/recordings/import",
+            data={"new_subject_local_code": "S-01", "export_channel_identity_json": json.dumps(identity)},
+            files={"file": ("imported.edf", source)},
+        )
+        assert imported.status_code == 201, imported.text
+        recording = recordings.require_recording(imported.json()["recording_id"])
+        raw_response = client.get(
+            f"/api/recordings/{recording.id}/raw-samples",
+            params={"start_sample": 0, "end_sample": 10},
+        )
+        assert raw_response.status_code == 200, raw_response.text
+        assert raw_response.json()["channels"] == ["Fz", "Pz"]
+        profile = recording.montage_catalogue[0]
+        config = {
+            "algorithm_id": "rbp", "channel": "Fz-REF", "channels": ["Fz-REF"], "mode": "dynamic",
+            "time": {"start_s": 0, "end_s": 30}, "dynamic_window_s": 10, "refresh_step_s": 1,
+            "analysis_montage_id": profile["id"], "analysis_montage_revision": profile["revision"],
+            "analysis_montage_fingerprint": profile["fingerprint"],
+            "analysis_montage_outputs": [{"role": "Fz", "output": "Fz-REF", "unit": "V"}],
+        }
+        ensured = client.post("/api/analysis-windows/ensure", json={
+            "recording_id": recording.id, "project_id": project_id, "algorithm_id": "rbp", "config": config,
+            "cursor_sample": 6000, "request_id": "imported-edf-rbp-window",
+        })
+        assert ensured.status_code in {200, 202}, ensured.text
+        window = wait_window(client, ensured.json()["window_id"], project_id=project_id)
+        DynamicWindowResponse.model_validate(window)
+        assert window["state"] == "ready", window
+        assert window["identity"]["recording_id"] == recording.id
+        assert window["identity"]["source_sha256"] == hashlib.sha256(source).hexdigest()
+        assert window["range"]["start_sample"] == 4000
+        assert window["range"]["end_sample"] == 6000
+        assert window["range"]["start_s"] == 20
+        assert window["range"]["end_s"] == 30
+        assert window["result"]["evidence"]["extensions"]["channel_order"]["channels"] == ["Fz-REF"]
+        assert window["result"]["array_units"]["alpha"] == "ratio"
+        assert window["result"]["provenance"]["preprocessing_scope"] == "whole_recording_before_window_slice"
+        configuration = json.loads(window["scientific_configuration_json"])
+        assert configuration["config"]["analysis_montage_id"] == "saved-montage"
+        assert configuration["context"]["signal_mapping"]["channels"] == ["Fz-REF"]
+        assert configuration["context"]["signal_mapping"]["analysis_montage"]["id"] == "saved-montage"
+        raw_ensured = client.post("/api/analysis-windows/ensure", json={
+            "recording_id": recording.id, "project_id": project_id, "algorithm_id": "rbp",
+            "config": {"algorithm_id": "rbp", "channel": "Fz", "channels": ["Fz"], "mode": "dynamic",
+                       "time": {"start_s": 0, "end_s": 30}, "dynamic_window_s": 10, "refresh_step_s": 1},
+            "cursor_sample": 6000, "request_id": "imported-edf-raw-rbp-window",
+        })
+        assert raw_ensured.status_code in {200, 202}, raw_ensured.text
+        raw_window = wait_window(client, raw_ensured.json()["window_id"], project_id=project_id)
+        assert raw_window["state"] == "ready", raw_window
+        assert raw_window["result"]["evidence"]["extensions"]["channel_order"]["channels"] == ["Fz"]
+    finally:
+        windows.close(wait=True)
+        client.close()
 
 
 @pytest.mark.parametrize("gap,rejected", [(False, False), (True, False), (False, True)])

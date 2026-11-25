@@ -25,25 +25,37 @@ export function createSurfaceRecolorer() {
     }
     const weights = new Float32Array(vCount * mCount);
     const aoLinear = new Float32Array(vCount);
-    const sigma = 0.22, twoSigSq = 2 * sigma * sigma, sigSq = sigma * sigma;
-    const ex = new Float32Array(mCount), ey = new Float32Array(mCount), ez = new Float32Array(mCount);
+    // Project each scalp electrode radially onto its nearest cortical gyrus anchor so the
+    // scalp-to-cortex gap (~1.5 cm) never dilutes focal peaks relative to the 2D topomap.
+    const cx = new Float32Array(mCount), cy = new Float32Array(mCount), cz = new Float32Array(mCount);
     for (let m = 0; m < mCount; m++) {
-      ex[m] = electrodes[m].pos.x; ey[m] = electrodes[m].pos.y; ez[m] = electrodes[m].pos.z;
+      const ex = electrodes[m].pos.x, ey = electrodes[m].pos.y, ez = electrodes[m].pos.z;
+      let bestD2 = Infinity, bestIdx = 0;
+      for (let i = 0; i < vCount; i += 2) {
+        const dx = normVerts[i * 3] - ex, dy = normVerts[i * 3 + 1] - ey, dz = normVerts[i * 3 + 2] - ez;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 < bestD2) { bestD2 = d2; bestIdx = i; }
+      }
+      cx[m] = normVerts[bestIdx * 3];
+      cy[m] = normVerts[bestIdx * 3 + 1];
+      cz[m] = normVerts[bestIdx * 3 + 2];
     }
+    const epsSq = 0.0022;
     for (let i = 0; i < vCount; i++) {
       const px = normVerts[i * 3], py = normVerts[i * 3 + 1], pz = normVerts[i * 3 + 2];
       const row = i * mCount;
       let wSum = 0;
       for (let m = 0; m < mCount; m++) {
-        const dx = px - ex[m], dy = py - ey[m], dz = pz - ez[m];
+        const dx = px - cx[m], dy = py - cy[m], dz = pz - cz[m];
         const d2 = dx * dx + dy * dy + dz * dz;
-        const w = Math.exp(-d2 / twoSigSq) + 0.12 / Math.pow(d2 + sigSq, 1.5);
+        const t = d2 + epsSq;
+        const w = 1.0 / (t * t);
         weights[row + m] = w;
         wSum += w;
       }
       const invW = wSum > 1e-9 ? 1 / wSum : 0;
       for (let m = 0; m < mCount; m++) weights[row + m] *= invW;
-      const ao = 1.0 - 0.34 * Math.max(0, Math.min(1, (sulc[i] + 0.18) * 0.60));
+      const ao = 1.0 - 0.30 * Math.max(0, Math.min(1, (sulc[i] + 0.18) * 0.60));
       aoLinear[i] = Math.pow(ao, 2.2);
     }
     cortexRbfCache = { key: layoutKey, vCount, mCount, weights, aoLinear };
@@ -139,7 +151,7 @@ export function createSurfaceRecolorer() {
 
     const weights = new Float32Array(vCount * mCount);
     const mask = new Float32Array(vCount);
-    const sigma = 0.145, twoSigSq = 2 * sigma * sigma, sigSq = sigma * sigma;
+    const epsSq = 0.0008;
     for (let i = 0; i < vCount; i++) {
       const px = normVerts[i * 3], py = normVerts[i * 3 + 1], pz = normVerts[i * 3 + 2];
       const row = i * mCount;
@@ -148,7 +160,8 @@ export function createSurfaceRecolorer() {
         const dx = px - ex[m], dy = py - ey[m], dz = pz - ez[m];
         const d2 = dx * dx + dy * dy + dz * dz;
         if (d2 < minD2) minD2 = d2;
-        const w = Math.exp(-d2 / twoSigSq) + 0.14 / Math.pow(d2 + sigSq, 1.5);
+        const t = d2 + epsSq;
+        const w = 1.0 / (t * t);
         weights[row + m] = w;
         wSum += w;
       }

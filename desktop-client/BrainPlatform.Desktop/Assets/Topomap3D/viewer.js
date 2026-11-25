@@ -16,6 +16,7 @@ const state = {
   isRealField: false,
   isPreviewHeatmap: false,
   enableLabModes: false,
+  hideInternalModeTabs: false,
   showDimSwitcher: false,
   mriJumpFromSource: false,
   scalpData: null,
@@ -109,12 +110,31 @@ function updateTractBarUI(stats) {
   document.getElementById("tract-bundle-select").classList.toggle("hidden", state.mode !== "tractography" || custom);
 }
 
+function switchMode(nextMode, { notifyHost = true } = {}) {
+  if (!nextMode) return;
+  if (nextMode !== "mri") state.mriJumpFromSource = false;
+  state.mode = nextMode;
+  state.hoveredRegionId = -1;
+  state.pinnedRegionId = -1;
+  state.hoveredDipole = null;
+  if (nextMode === "source" && cortexMesh) {
+    const p = ensureSourceLayer().getPreset();
+    rig.startCameraAnim(p.yaw, p.pitch);
+  } else if (nextMode === "tractography") {
+    rig.startCameraAnim(0.68, 0.24);
+  }
+  applyModeVisibility();
+  recolorActiveSurfaces();
+  if (notifyHost) window.chrome?.webview?.postMessage({ type: "modeChanged", mode: state.mode });
+}
+
 async function jumpSourceToMri(dipole) {
   if (!dipole) return;
   state.mriJumpFromSource = true;
   state.mode = "mri";
   tooltip.style.display = "none";
   applyModeVisibility();
+  window.chrome?.webview?.postMessage({ type: "modeChanged", mode: "mri" });
   await mriPanel.jumpToMni(dipole.mni, `${dipole.id} ${dipole.name.replace(/^[^·]+·\s*/, "")}`);
 }
 
@@ -216,7 +236,7 @@ function applyModeVisibility() {
   document.getElementById("mode-tract-btn").classList.toggle("hidden", !state.enableLabModes);
   document.getElementById("mode-mri-btn").classList.toggle("hidden", !state.enableLabModes);
   document.querySelectorAll("#mode-group .seg-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.mode === state.mode));
-  document.getElementById("mode-group").classList.toggle("hidden", state.mode === "electrodes");
+  document.getElementById("mode-group").classList.toggle("hidden", state.mode === "electrodes" || state.hideInternalModeTabs);
   document.getElementById("atlas-select").classList.toggle("hidden", state.mode !== "atlas");
   document.getElementById("atlas-card").classList.toggle("hidden", state.mode !== "atlas");
   document.getElementById("connectome-bar").classList.toggle("hidden", !isConnectome);
@@ -231,7 +251,7 @@ function applyModeVisibility() {
   document.getElementById("mri-clip-btn").classList.toggle("hidden", !isMri);
   document.getElementById("mri-atlas-btn").classList.toggle("hidden", !isMri);
   document.getElementById("mri-open-btn").classList.toggle("hidden", !isMri);
-  document.getElementById("hint-pill").classList.toggle("hidden", isMri);
+  document.getElementById("hint-pill").classList.toggle("hidden", isMri || isConnectome || isSource || isTract);
   document.getElementById("mri-coord-pill").classList.toggle("hidden", !isMri);
 
   const showHeatUi = !isMri && (state.mode === "cortex" || state.mode === "scalp" || isConnectome || isSource);
@@ -395,22 +415,7 @@ host.addEventListener("wheel", (ev) => {
 
 // --- UI Button Wiring ---
 document.querySelectorAll("#mode-group .seg-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const nextMode = btn.dataset.mode;
-    if (nextMode !== "mri") state.mriJumpFromSource = false;
-    state.mode = nextMode;
-    state.hoveredRegionId = -1;
-    state.pinnedRegionId = -1;
-    state.hoveredDipole = null;
-    if (nextMode === "source" && cortexMesh) {
-      const p = ensureSourceLayer().getPreset();
-      rig.startCameraAnim(p.yaw, p.pitch);
-    } else if (nextMode === "tractography") {
-      rig.startCameraAnim(0.68, 0.24);
-    }
-    applyModeVisibility();
-    recolorActiveSurfaces();
-  });
+  btn.addEventListener("click", () => switchMode(btn.dataset.mode));
 });
 
 document.getElementById("atlas-select").addEventListener("change", (ev) => {
@@ -490,10 +495,7 @@ document.getElementById("tract-reset-file-btn").addEventListener("click", () => 
 });
 
 document.getElementById("mri-back-source-btn").addEventListener("click", () => {
-  state.mriJumpFromSource = false;
-  state.mode = "source";
-  applyModeVisibility();
-  recolorActiveSurfaces();
+  switchMode("source");
 });
 
 document.getElementById("connectome-threshold").addEventListener("input", (ev) => {
@@ -552,6 +554,7 @@ window.chrome?.webview?.addEventListener("message", (ev) => {
     state.isRealField = !!msg.isRealField;
     state.isPreviewHeatmap = !!msg.isPreviewHeatmap;
     state.enableLabModes = !!msg.enableLabModes;
+    state.hideInternalModeTabs = !!msg.hideInternalModeTabs;
     state.showDimSwitcher = !!msg.showDimSwitcher;
     if (msg.forcedMode) state.mode = msg.forcedMode;
     else if (!state.isRealField && !state.isPreviewHeatmap) state.mode = "electrodes";
@@ -572,6 +575,8 @@ window.chrome?.webview?.addEventListener("message", (ev) => {
     if (layoutChanged) recolorer.invalidateAll();
     applyModeVisibility();
     recolorActiveSurfaces();
+  } else if (msg.type === "setMode") {
+    switchMode(msg.mode, { notifyHost: false });
   } else if (msg.type === "selectElectrode") {
     rig.selectElectrode(msg.label, state.mode);
   }

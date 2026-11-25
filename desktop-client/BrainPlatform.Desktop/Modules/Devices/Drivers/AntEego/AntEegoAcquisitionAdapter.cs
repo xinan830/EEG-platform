@@ -164,12 +164,24 @@ public sealed class AntEegoAcquisitionAdapter : IAcquisitionDeviceAdapter, IAcqu
                         "The impedance stream channel list does not match its reported channel count.");
                 }
 
-                var metadata = AntEegoImpedanceContractMapper.CreateMetadata(
-                    request.DeviceId,
-                    string.IsNullOrWhiteSpace(amplifier.Serial) ? "ANT/eego amplifier" : $"ANT/eego {amplifier.Serial}",
-                    request.Channels,
-                    actualChannels,
-                    options.ChannelLabelsByNativeIndex);
+                ImpedanceStreamMetadata metadata;
+                try
+                {
+                    metadata = AntEegoImpedanceContractMapper.CreateMetadata(
+                        request.DeviceId,
+                        string.IsNullOrWhiteSpace(amplifier.Serial) ? "ANT/eego amplifier" : $"ANT/eego {amplifier.Serial}",
+                        request.Channels,
+                        actualChannels,
+                        options.ChannelLabelsByNativeIndex);
+                    if (metadata.UnavailableRequestedChannels is { Count: > 0 } unavailable)
+                        DesktopLog.Warning($"ant_eego_impedance_channels_unavailable detection_session_id={request.DetectionSessionId:N} " +
+                            $"channels={string.Join(",", unavailable.Select(channel => $"{channel.Kind}:{channel.NativeChannelIndex}"))}");
+                }
+                catch (AntEegoSdkException exception)
+                {
+                    DesktopLog.Error($"ant_eego_impedance_contract_failed detection_session_id={request.DetectionSessionId:N}", exception);
+                    throw;
+                }
                 DesktopLog.Info($"ant_eego_impedance_open detection_session_id={request.DetectionSessionId:N} " +
                     $"sdk_version={AntEegoNativeApi.ExpectedSdkVersion} channels=" +
                     string.Join(",", metadata.Channels.Select(channel => $"{channel.StreamIndex}:{channel.Kind}:{channel.NativeChannelIndex}")));

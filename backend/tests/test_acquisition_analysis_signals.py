@@ -7,7 +7,13 @@ import numpy as np
 import pytest
 
 from app.models.run import RunCreateRequest
-from app.services.acquisition_analysis_signals import historical_montage_catalogue, read_acquisition_signal_view
+from app.services.acquisition_analysis_signals import (
+    AcquisitionMontageSampleReader, historical_montage_catalogue,
+    read_acquisition_signal_view,
+)
+from app.services.imported_analysis_signals import (
+    imported_montage_catalogue, read_imported_acquisition_signal_view,
+)
 from app.services.recordings import RecordingService
 from app.services.runs import RunService
 from app.services.wpf_recording import WpfRecordingError
@@ -227,7 +233,7 @@ def test_official_algorithms_use_registered_montage_signals(tmp_path, algorithm_
     config = {
         "algorithm_id": algorithm_id, "mode": mode,
         "time": {"start_s": 0, "end_s": 12},
-        "dynamic_window_s": 20 if algorithm_id == "iapf" and mode == "dynamic" else 5,
+        "dynamic_window_s": 20 if algorithm_id in {"iapf", "theta_beta"} and mode == "dynamic" else 5,
         "refresh_step_s": 1,
     }
     if algorithm_id == "psd":
@@ -321,6 +327,132 @@ def test_historical_catalogue_projects_selected_profile_from_same_raw_channels(t
         reference_indexes = [0, 1, 2] if reference_kind == 2 else [1]
         np.testing.assert_allclose(session.read_samples(0, 10).values_v[:, 0], values[:10, 0] - values[:10, reference_indexes].mean(axis=1))
     assert {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in source_paths} == source_checksums
+
+
+def test_imported_recording_restores_montage_catalogue_and_projects_source_columns(tmp_path):
+    root = tmp_path / "recording"
+    _, manifest = fixture_recording(root)
+    hardware = manifest["HardwareConfiguration"]
+    default = json.loads(hardware["montage_configuration_snapshot_json"])
+    alternate = {**default, "Id": "saved-bipolar", "DerivedChannels": [row("F3", 1, ("F7",))]}
+    channel_snapshot = json.loads(hardware["channel_configuration_snapshot_json"])
+    channel_snapshot["Channels"] = [
+        {**channel, "IsSelectedForDisplay": True} for channel in channel_snapshot["Channels"]
+    ]
+    recording = type("Imported", (), {
+        "import_channel_configuration_snapshot_json": json.dumps(channel_snapshot),
+        "import_channel_column_mapping_json": json.dumps([
+            {"source_column": index, "native_channel_index": index} for index in range(3)]),
+        "import_acquisition_montage_snapshot_json": None,
+        "import_montage_configuration_snapshot_json": json.dumps(default),
+        "import_montage_catalogue_snapshot_json": json.dumps([default, alternate]),
+        "raw_channel_labels": ("F3", "F7", "Cz"),
+        "channels": ("F3", "F7", "Cz"),
+        "channel_types": ("eeg", "eeg", "eeg"),
+    })()
+
+    catalogue = imported_montage_catalogue(recording)
+    assert [item["id"] for item in catalogue] == ["saved-montage", "saved-bipolar"]
+    assert [item["is_acquisition_default"] for item in catalogue] == [True, False]
+    view = read_imported_acquisition_signal_view(recording, "saved-bipolar")
+
+    class Reader:
+        names = ("F3", "F7", "Cz")
+        sfreq = 200
+        sample_count = 2400
+
+        def read(self, start, stop, channels=None, check_cancelled=None):
+            return np.column_stack((np.full(stop - start, 10e-6), np.full(stop - start, 3e-6)))
+
+        def source_gaps(self, start, stop):
+            return ()
+
+        def close(self):
+            pass
+
+    projected = AcquisitionMontageSampleReader(Reader(), view)
+    assert projected.names == ("F3-F7",)
+    np.testing.assert_allclose(projected.read(0, 4)[:, 0], 7e-6)
+
+
+def test_imported_montage_marks_outputs_unavailable_when_inputs_are_disabled(tmp_path):
+    root = tmp_path / "recording"
+    _, manifest = fixture_recording(root)
+    channel_snapshot = json.loads(manifest["HardwareConfiguration"]["channel_configuration_snapshot_json"])
+    channel_snapshot["Channels"] = [
+        {**channel, "IsSelectedForDisplay": channel["ElectrodeLabel"] != "F7"}
+        for channel in channel_snapshot["Channels"]
+    ]
+    profile = json.loads(manifest["HardwareConfiguration"]["montage_configuration_snapshot_json"])
+    profile["ChannelConfigurationSnapshot"] = channel_snapshot
+    recording = type("Imported", (), {
+        "import_channel_configuration_snapshot_json": json.dumps(channel_snapshot),
+        "import_channel_column_mapping_json": json.dumps([
+            {"source_column": index, "native_channel_index": index} for index in range(3)]),
+        "import_acquisition_montage_snapshot_json": None,
+        "import_montage_configuration_snapshot_json": json.dumps(profile),
+        "import_montage_catalogue_snapshot_json": None,
+        "raw_channel_labels": ("F3", "F7", "Cz"),
+        "channels": ("F3", "F7", "Cz"),
+        "channel_types": ("eeg", "eeg", "eeg"),
+    })()
+
+    catalogue = imported_montage_catalogue(recording)
+
+    assert [item["available"] for item in catalogue[0]["outputs"]] == [False, True]
+    assert catalogue[0]["outputs"][0]["unavailable_reason"] == "required_input_channel_disabled"
+    assert catalogue[0]["available"] is True
+
+
+def test_imported_montage_catalogue_resolves_base_profile_not_in_catalogue_and_marks_all_disabled(tmp_path):
+    root = tmp_path / "recording"
+    _, manifest = fixture_recording(root)
+    hardware = manifest["HardwareConfiguration"]
+    base = json.loads(hardware["montage_configuration_snapshot_json"])
+    alternate = {**base, "Id": "saved-bipolar", "DerivedChannels": [row("F3", 1, ("F7",))]}
+    channel_snapshot = json.loads(hardware["channel_configuration_snapshot_json"])
+    channel_snapshot["Channels"] = [
+        {**channel, "IsSelectedForDisplay": channel["ElectrodeLabel"] != "F7"}
+        for channel in channel_snapshot["Channels"]
+    ]
+    base["ChannelConfigurationSnapshot"] = channel_snapshot
+    alternate["ChannelConfigurationSnapshot"] = channel_snapshot
+    recording = type("Imported", (), {
+        "import_channel_configuration_snapshot_json": json.dumps(channel_snapshot),
+        "import_channel_column_mapping_json": json.dumps([
+            {"source_column": index, "native_channel_index": index} for index in range(3)]),
+        "import_acquisition_montage_snapshot_json": None,
+        "import_montage_configuration_snapshot_json": json.dumps(base),
+        # Catalogue intentionally omits base profile to verify fallback resolution.
+        "import_montage_catalogue_snapshot_json": json.dumps([alternate]),
+        "raw_channel_labels": ("F3", "F7", "Cz"),
+        "channels": ("F3", "F7", "Cz"),
+        "channel_types": ("eeg", "eeg", "eeg"),
+    })()
+
+    catalogue = imported_montage_catalogue(recording)
+
+    assert [item["id"] for item in catalogue] == ["saved-montage", "saved-bipolar"]
+    assert catalogue[0]["available"] is True
+    assert catalogue[1]["available"] is False
+    assert catalogue[1]["unavailable_reason"] == "required_input_channel_disabled"
+    base_view = read_imported_acquisition_signal_view(recording, "saved-montage")
+    assert base_view.provenance["montage_id"] == "saved-montage"
+
+
+def test_imported_analysis_signals_imports_cleanly_before_acquisition_module():
+    import subprocess
+    import sys
+
+    backend_dir = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-c", "import app.services.imported_analysis_signals; import app.services.recordings"],
+        cwd=backend_dir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_catalogue_hides_same_projection_written_under_different_ids(tmp_path):

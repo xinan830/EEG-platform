@@ -8,6 +8,7 @@ See `proposal.md` for motivation and `specs/` for user-visible behavior. The bac
 
 **Goals:**
 - Reuse the current EDF/BDF parser, immutable recording identity, review presentation, and offline algorithm execution.
+- Run offline algorithms against imported backend recordings through their existing recording IDs and preserve verified channel/montage provenance end to end.
 - Keep file transfer and sample access bounded and cancellable.
 - Make every imported recording discoverable in its desktop project and traceable through a project Session.
 
@@ -23,6 +24,8 @@ See `proposal.md` for motivation and `specs/` for user-visible behavior. The bac
 4. **Keep the standalone import contract compatible.** Add a project-scoped import operation for desktop use instead of changing existing standalone request semantics. Existing callers keep their response and behavior; the new operation returns a structured recording/session result.
 5. **Add an EDF/BDF review access adapter, not a second review UI.** Expose bounded raw sample-range reads from the backend recording access layer in V/float64 and source channel order. Adapt those reads to the review source contract, keeping the existing filtering, frame construction, chart, event/time presentation, and algorithm panels. Do not feed display-filtered µV data back through review filtering.
 6. **Merge imported Session rows with local WPF rows in the project catalog.** Imported rows carry backend recording and Session identities; WPF rows retain their local directory identity and access path. Review and deletion actions dispatch by source kind. Moving a project to trash removes only local association metadata; it does not silently delete globally identified source files.
+7. **Keep review algorithm registration source-neutral.** WPF recordings continue to register from their local directory. Imported recordings are described from the already-registered backend recording metadata and use that immutable backend recording ID directly for algorithm window requests; they must not fabricate a WPF directory or re-register/copy the source. Both paths produce the same typed review algorithm input descriptor, with ordered EEG channels, sample rate, duration, verified source hash, and only validated montage snapshots. Missing or mismatched provenance is reported explicitly and never inferred from display labels.
+8. **Round-trip the complete supported provenance envelope.** The importer validates the sidecar hash against the uploaded EDF/BDF bytes, then validates and persists channel configuration, source-column mapping, acquisition-montage snapshot, and montage-configuration snapshot as one envelope. If the sidecar is absent, process the file as ordinary EDF/BDF; if present but malformed, mismatched, or internally inconsistent, reject the import with a structured error. Keep file column order and sample bytes unchanged.
 
 ## Risks / Trade-offs
 
@@ -30,6 +33,8 @@ See `proposal.md` for motivation and `specs/` for user-visible behavior. The bac
 - [A process can stop between moving a staged file and committing SQLite] → Publish only after validation, delete the final file on ordinary transaction failure, and reconcile unreferenced imported files during startup without touching referenced or legacy sources.
 - [EDF/BDF may contain discontinuities, mixed channel types, unsupported units, or duplicate normalized labels] → Preserve source order and raw labels, validate channel metadata explicitly, expose discontinuities as breaks, and return structured errors instead of silently coercing data.
 - [Review is currently coupled to WPF manifest metadata in several caches] → Introduce the smallest source-neutral metadata boundary needed by the adapter and include EDF identity, source hash, rate, channel schema, and filter contract in derived-cache keys.
+- [Imported records currently lack a local manifest and cannot enter the existing registration path] → Build the shared review analysis descriptor from backend recording metadata and keep the backend ID as the execution identity; reject unavailable metadata before sending algorithm requests.
+- [Sidecars currently restore only part of channel identity] → Validate the complete provenance envelope before database publication and add round-trip tests for each preserved snapshot and hash mismatch.
 - [Large files can exhaust disk even with bounded RAM] → Propagate cancellation, handle disk-full errors with staging cleanup, and expose transfer progress; a fixed format-specific size ceiling is not introduced without a product requirement.
 
 ## Migration Plan

@@ -4,6 +4,7 @@ using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Psd;
 using BrainPlatform.Desktop.Modules.Algorithms.ViewModels.Stft;
 using BrainPlatform.Desktop.Modules.Acquisition.Runtime;
 using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Channels.Services;
 using BrainPlatform.Desktop.Modules.Montages.Domain;
 
 namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
@@ -11,10 +12,9 @@ namespace BrainPlatform.Desktop.Modules.Acquisition.Analysis;
 internal static class LiveSpectralPresentation
 {
     internal static IReadOnlyList<string> AnalysisChannelNames(AcquisitionStreamMetadata stream) =>
-        stream.Channels
-            .Where(channel => channel.Kind is AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar)
+        ProjectStreamChannels(stream).Channels
             .Where(channel => !string.IsNullOrWhiteSpace(channel.Label))
-            .Select(ChannelName)
+            .Select(channel => channel.Label)
             .ToArray();
 
     internal static IReadOnlyList<string> AnalysisChannelNames(LiveMontageSnapshot montage) => montage.OrderedChannelNames;
@@ -26,25 +26,24 @@ internal static class LiveSpectralPresentation
 
     internal static JsonElement MapConfig(AcquisitionStreamMetadata stream, IReadOnlyList<string> fieldIds)
     {
-        var channels = stream.Channels
+        var projection = ProjectStreamChannels(stream);
+        if (projection.Status == EegChannelProjectionStatus.InvalidSnapshot)
+            throw new InvalidOperationException("当前采集会话的通道配置快照无效，不能回退到全通道地形图。");
+        var channels = projection.Channels
             .Where(channel => channel.Kind == AcquisitionChannelKind.Reference)
             .Where(channel => !string.IsNullOrWhiteSpace(channel.Label))
             .ToArray();
         if (channels.Length == 0) throw new InvalidOperationException("当前采集会话没有可用于地形图的单电极通道。");
 
         var positions = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-        if (stream.HardwareConfiguration.TryGetValue("channel_configuration_snapshot_json", out var snapshot) &&
-            JsonSerializer.Deserialize<ChannelConfigurationProfile>(snapshot) is { } profile)
+        if (projection.Status == EegChannelProjectionStatus.Applied && TryReadChannelSnapshot(stream, out var profile))
         {
             var byIndex = profile.Channels.ToDictionary(channel => channel.NativeChannelIndex);
             foreach (var channel in channels)
             {
-                var name = ChannelName(channel);
-                if (!byIndex.TryGetValue(channel.NativeChannelIndex, out var entry) ||
-                    entry.ExpectedKind != AcquisitionChannelKind.Reference ||
-                    !string.Equals(name, entry.ElectrodeLabel.Trim(), StringComparison.OrdinalIgnoreCase))
+                if (!byIndex.TryGetValue(channel.NativeChannelIndex, out var entry))
                     continue;
-                positions.Add(name, new
+                positions.Add(channel.Label, new
                 {
                     x = entry.ManualMapPosition?.X ?? entry.ElectrodeLocation?.MapX,
                     y = entry.ManualMapPosition?.Y ?? entry.ElectrodeLocation?.MapY,
@@ -54,7 +53,7 @@ internal static class LiveSpectralPresentation
         }
         return JsonSerializer.SerializeToElement(new
         {
-            spectrum = LiveRbpPresentation.Config(channels.Select(ChannelName).ToArray()),
+            spectrum = LiveRbpPresentation.Config(channels.Select(channel => channel.Label).ToArray()),
             field_ids = fieldIds,
             positions,
         });
@@ -102,6 +101,44 @@ internal static class LiveSpectralPresentation
 
     internal static JsonElement MapConfig(AcquisitionStreamMetadata stream, string fieldId) =>
         MapConfig(stream, [fieldId]);
+
+    private static EegChannelProjectionResult ProjectStreamChannels(AcquisitionStreamMetadata stream)
+    {
+        if (!stream.HardwareConfiguration.TryGetValue("channel_configuration_snapshot_json", out var snapshot) ||
+            string.IsNullOrWhiteSpace(snapshot))
+        {
+            return EnabledEegChannelProjection.PreserveSourceChannels(
+                EegChannelProjectionStatus.MissingSnapshot, stream.Channels);
+        }
+
+        try
+        {
+            var profile = JsonSerializer.Deserialize<ChannelConfigurationProfile>(snapshot);
+            return profile is null
+                ? EnabledEegChannelProjection.InvalidSnapshot()
+                : EnabledEegChannelProjection.Project(profile, stream.Channels);
+        }
+        catch (JsonException)
+        {
+            return EnabledEegChannelProjection.InvalidSnapshot();
+        }
+    }
+
+    private static bool TryReadChannelSnapshot(AcquisitionStreamMetadata stream, out ChannelConfigurationProfile profile)
+    {
+        profile = null!;
+        if (!stream.HardwareConfiguration.TryGetValue("channel_configuration_snapshot_json", out var snapshot) ||
+            string.IsNullOrWhiteSpace(snapshot)) return false;
+        try
+        {
+            profile = JsonSerializer.Deserialize<ChannelConfigurationProfile>(snapshot)!;
+            return profile is not null;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 
     internal static JsonElement RbpTopomapConfig(AcquisitionStreamMetadata stream, LiveMontageSnapshot? montage,
         IReadOnlyList<string> fieldIds) => montage is { }

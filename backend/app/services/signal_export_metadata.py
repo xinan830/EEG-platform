@@ -60,7 +60,8 @@ def hardware_metadata(manifest: dict) -> dict:
     hardware = manifest.get("HardwareConfiguration", {})
     allowed = {"hardware_reference_electrode_location", "hardware_ground_electrode_location",
                "channel_configuration_snapshot_json", "acquisition_montage_snapshot_json",
-               "montage_configuration_snapshot_json", "channel_configuration_id", "channel_configuration_name",
+               "montage_configuration_snapshot_json", "montage_catalogue_snapshot_json",
+               "channel_configuration_id", "channel_configuration_name",
                "montage_configuration_id", "montage_configuration_name", "hardware_reference_role",
                "hardware_ground_role", "reference_range_v", "bipolar_range_v", "sdk_version", "vendor", "model",
                "sampling_rate_hz", "reference", "ground"}

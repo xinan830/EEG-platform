@@ -25,6 +25,12 @@ class RecordingSummary:
     # Empty means the record is readable but intentionally non-switchable.
     montage_catalogue: tuple[dict[str, object], ...] = ()
     selected_montage_id: str | None = None
+    import_channel_configuration_snapshot_json: str | None = None
+    import_channel_column_mapping_json: str | None = None
+    import_acquisition_montage_snapshot_json: str | None = None
+    import_montage_configuration_snapshot_json: str | None = None
+    import_montage_catalogue_snapshot_json: str | None = None
+    analysis_channels: tuple[str, ...] = ()
 
 
 class ImportedProjectRecordingResponse(BaseModel):
@@ -38,10 +44,16 @@ class ImportedProjectRecordingResponse(BaseModel):
     sfreq: float
     duration_s: float
     channels: list[str]
+    analysis_channels: list[str] = []
     channel_types: list[str]
     channel_units: list[str]
     source_sha256: str
     file_size_bytes: int
+    import_channel_configuration_snapshot_json: str | None = None
+    import_channel_column_mapping_json: str | None = None
+    import_acquisition_montage_snapshot_json: str | None = None
+    import_montage_configuration_snapshot_json: str | None = None
+    import_montage_catalogue_snapshot_json: str | None = None
 
 
 class RawSampleRangeResponse(BaseModel):

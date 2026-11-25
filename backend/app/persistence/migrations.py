@@ -9,6 +9,9 @@ from pathlib import Path
 
 from .database import connect_database
 from .analysis_montage_migration import migration_022_analysis_montage_snapshots
+from .recording_channel_binding_migration import (
+    migration_023_recording_channel_bindings, migration_024_recording_montage_bindings,
+)
 from .dynamic_identity_migration import migration_019_dynamic_resolved_identity
 from .on_demand_migrations import migration_020_dynamic_producer_metadata
 from .on_demand_migrations import (
@@ -367,6 +370,8 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(20, "dynamic-producer-metadata", migration_020_dynamic_producer_metadata),
     Migration(21, "repair-dynamic-producer-metadata", migration_021_repair_dynamic_producer_metadata),
     Migration(22, "analysis-montage-snapshots", migration_022_analysis_montage_snapshots),
+    Migration(23, "recording-channel-bindings", migration_023_recording_channel_bindings),
+    Migration(24, "recording-montage-bindings", migration_024_recording_montage_bindings),
 )
 CURRENT_SCHEMA_VERSION = MIGRATIONS[-1].version
 

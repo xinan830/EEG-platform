@@ -245,7 +245,7 @@ class RecordingAccessService:
     ) -> RecordingAccessSession:
         if recording.extension == ".wpf":
             return self._open_wpf(recording, analysis_montage_id)
-        return self._open_edf(recording, verify_content_hash=verify_content_hash)
+        return self._open_edf(recording, analysis_montage_id, verify_content_hash=verify_content_hash)
 
     def _open_wpf(self, recording: RecordingSummary, montage_id: str | None) -> RecordingAccessSession:
         if recording.stored_name.startswith(("wpf:", "wpf-montage:")):
@@ -277,7 +277,8 @@ class RecordingAccessService:
             validate_source, serialize_reads=False,
         )
 
-    def _open_edf(self, recording: RecordingSummary, *, verify_content_hash: bool) -> RecordingAccessSession:
+    def _open_edf(self, recording: RecordingSummary, montage_id: str | None,
+                  *, verify_content_hash: bool) -> RecordingAccessSession:
         import mne
 
         path = (self._storage_dir / recording.stored_name).resolve()
@@ -290,18 +291,39 @@ class RecordingAccessService:
         raw = reader_factory(path, preload=False, verbose=False)
         try:
             sfreq = float(raw.info["sfreq"])
-            channel_names = tuple(raw.ch_names)
+            source_channel_names = tuple(raw.ch_names)
+            if (recording.raw_channel_labels and recording.raw_channel_labels != source_channel_names):
+                raise RecordingAccessError(
+                    "RECORDING_CHANNEL_METADATA_MISMATCH",
+                    "EDF/BDF 原始通道标签或顺序与导入时记录的来源身份不一致。",
+                )
+            channel_names = tuple(recording.channels)
             sample_count = int(raw.n_times)
             events = tuple(
                 {"elapsed_s": float(onset), "label": str(label)}
                 for onset, label in zip(raw.annotations.onset, raw.annotations.description)
             )
-            identity = RecordingSourceIdentity(
-                recording.id,
-                source_sha256,
-                recording.import_version,
-            )
             reader = EdfSampleReader(raw)
+            signal_view_sha256 = None
+            active_montage_id = montage_id or recording.selected_montage_id
+            if active_montage_id:
+                if not recording.import_montage_configuration_snapshot_json:
+                    raise RecordingAccessError("ANALYSIS_MONTAGE_UNSUPPORTED", "该记录没有可验证的导联快照。")
+                from app.services.acquisition_analysis_signals import AcquisitionMontageSampleReader
+                from app.services.imported_analysis_signals import (
+                    imported_source_channel_labels,
+                    read_imported_acquisition_signal_view,
+                )
+                # EDF columns stay in source order; the verified import binding only
+                # supplies their historical names before explicit montage projection.
+                reader.names = imported_source_channel_labels(recording)
+                view = read_imported_acquisition_signal_view(recording, active_montage_id)
+                reader = AcquisitionMontageSampleReader(reader, view)
+                channel_names = reader.names
+                signal_view_sha256 = str(view.provenance.get("snapshot_sha256", "")) or None
+            identity = RecordingSourceIdentity(
+                recording.id, source_sha256, recording.import_version, signal_view_sha256,
+            )
             session = RecordingAccessSession(
                 identity, reader, sfreq, sample_count, channel_names, events,
                 lambda: _ensure_file_signature(path, signature), serialize_reads=True,

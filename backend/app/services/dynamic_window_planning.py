@@ -84,6 +84,8 @@ class DynamicWindowPlanner:
             profile = catalogue.get(str(montage_snapshot["id"]))
             if profile is None:
                 raise ValueError("ANALYSIS_MONTAGE_NOT_IN_RECORDING: 所选导联配置不属于该记录的历史目录")
+            if profile.get("available") is False:
+                raise ValueError(f"ANALYSIS_MONTAGE_UNAVAILABLE: 所选导联不可用（{profile.get('unavailable_reason') or 'required_input_channel_disabled'}）")
             if montage_snapshot.get("revision") != profile.get("revision") or montage_snapshot.get("fingerprint") != profile.get("fingerprint"):
                 raise ValueError("ANALYSIS_MONTAGE_STALE: 所选导联配置版本或指纹与记录快照不一致")
             montage_snapshot = {
@@ -111,6 +113,9 @@ class DynamicWindowPlanner:
             if any(channel.casefold() not in {item.casefold() for item in outputs} for channel in requested):
                 raise ValueError("ANALYSIS_MONTAGE_ROLE_UNRESOLVED: 算法输入未解析到所选历史导联输出")
             recording = self.recordings.select_analysis_montage(recording, str(montage_snapshot["id"]))
+        else:
+            from app.services.imported_analysis_signals import validate_imported_raw_analysis_channels
+            validate_imported_raw_analysis_channels(recording, module.requested_channels(typed_config))
         context = _RecordingAlgorithmContext(self.recordings, recording)
         try:
             input_resolution_started = time.perf_counter()

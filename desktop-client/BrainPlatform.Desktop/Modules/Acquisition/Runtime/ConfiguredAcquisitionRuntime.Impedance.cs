@@ -12,6 +12,7 @@ public sealed partial class ConfiguredAcquisitionRuntime
     private volatile AcquisitionDeviceModeSnapshot impedanceMode = new(AcquisitionDeviceMode.Idle, null, "设备空闲");
     public event EventHandler<AcquisitionDeviceModeSnapshot>? DeviceModeChanged;
     public event EventHandler<ImpedanceSnapshot>? ImpedanceUpdated;
+    public event EventHandler<ImpedanceStreamMetadata>? ImpedanceStreamOpened;
     public AcquisitionDeviceModeSnapshot DeviceMode => impedanceMode.Mode != AcquisitionDeviceMode.Idle
         ? impedanceMode
         : new(IsEegActive ? AcquisitionDeviceMode.Eeg : AcquisitionDeviceMode.Idle, null, State.Detail);
@@ -52,6 +53,7 @@ public sealed partial class ConfiguredAcquisitionRuntime
             impedanceSession = new ImpedanceReadingSession(stream, request.DetectionSessionId);
             impedanceSession.Updated += ForwardImpedance;
             impedanceSession.Failed += OnImpedanceFailed;
+            ImpedanceStreamOpened?.Invoke(this, stream.Metadata);
             SetImpedanceMode(AcquisitionDeviceMode.Impedance, request.DetectionSessionId, "阻抗检测中 · EEG 已停止");
             impedanceSession.Start();
         }

@@ -56,14 +56,13 @@ class ContinuousPreprocessingService:
         if recording.sfreq is not None and recording.duration_s is not None and recording.channels:
             sample_count = int(round(float(recording.duration_s) * float(recording.sfreq)))
             contract_channels = selected_channels or tuple(recording.channels)
-            unit_lookup = dict(zip(recording.channels, recording.channel_units or ("V",) * len(recording.channels)))
             expected_contract = PreparedSourceContract(
                 schema_version="prepared-source-v1", identity=identity, status="ready",
                 sample_rate_hz=float(recording.sfreq),
                 prepared_start_sample=0, prepared_end_sample=sample_count,
                 valid_start_sample=0, valid_end_sample=sample_count,
                 channel_names=contract_channels,
-                channel_units=tuple(unit_lookup[name] for name in contract_channels),
+                channel_units=("V",) * len(contract_channels),
                 preprocessing_manifest=identity, numerical_tolerance=1e-12,
                 numerical_tolerance_evidence=(
                     "continuous FAA samples rtol=1e-11, atol=1e-18 V; "

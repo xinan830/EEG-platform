@@ -20,7 +20,9 @@ internal static class Topomap3DWebPayloadBuilder
         bool isPreview,
         bool showDim,
         string? windowText,
-        bool enableLabModes = false)
+        bool enableLabModes = false,
+        bool hideInternalModeTabs = false,
+        string? forcedMode = null)
     {
         var electrodes = new List<object>();
         object scaleInfo;
@@ -124,6 +126,8 @@ internal static class Topomap3DWebPayloadBuilder
             isRealField,
             isPreviewHeatmap = isPreview,
             enableLabModes,
+            hideInternalModeTabs,
+            forcedMode = string.IsNullOrWhiteSpace(forcedMode) ? null : forcedMode.Trim(),
             showDimSwitcher = showDim,
             windowText = string.IsNullOrWhiteSpace(windowText) ? null : windowText.Trim(),
             scaleInfo,

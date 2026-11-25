@@ -1,4 +1,8 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using BrainPlatform.Desktop.Modules.Acquisition.Contracts;
+using BrainPlatform.Desktop.Modules.Channels.Domain;
+using BrainPlatform.Desktop.Modules.Channels.Services;
 using BrainPlatform.Desktop.Modules.Projects.ViewModels;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
 using BrainPlatform.Desktop.Modules.Review.Playback;
@@ -7,9 +11,11 @@ namespace BrainPlatform.Desktop.Modules.Projects.Api;
 
 internal sealed class BackendRecordingAccessSession : IRecordingAccessSession
 {
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly IResearchProjectClient client;
     private readonly int sampleCount;
     private readonly IReadOnlyList<AcquisitionChannel> channels;
+    private readonly IReadOnlyList<string> sourceChannelLabels;
 
     public BackendRecordingAccessSession(IResearchProjectClient client, BackendRecording recording,
         BackendResearchProject project)
@@ -30,15 +36,26 @@ internal sealed class BackendRecordingAccessSession : IRecordingAccessSession
             exactSampleCount > int.MaxValue || Math.Abs(exactSampleCount - Math.Round(exactSampleCount)) > 1e-6)
             throw new RecordingReadException("RECORDING_METADATA_INVALID", "导入记录的采样范围无法精确映射到当前阅图时间轴。");
         sampleCount = checked((int)Math.Round(exactSampleCount));
-        channels = recording.Channels.Select((name, index) => new AcquisitionChannel(index, index, name,
-            string.Equals(recording.ChannelTypes.ElementAtOrDefault(index), "eeg", StringComparison.OrdinalIgnoreCase)
-                ? AcquisitionChannelKind.Bipolar : AcquisitionChannelKind.Unknown,
-            "V")).ToArray();
+        var binding = ReadImportBinding(recording);
+        sourceChannelLabels = recording.Channels;
+        channels = recording.Channels.Select((name, index) =>
+        {
+            var configured = binding.Profile?.Channels.FirstOrDefault(channel =>
+                binding.NativeIndexes.TryGetValue(index, out var nativeIndex) && channel.NativeChannelIndex == nativeIndex);
+            var isEeg = string.Equals(recording.ChannelTypes.ElementAtOrDefault(index), "eeg", StringComparison.OrdinalIgnoreCase);
+            return new AcquisitionChannel(index, configured?.NativeChannelIndex ?? index,
+                string.IsNullOrWhiteSpace(configured?.ElectrodeLabel) ? name : configured.ElectrodeLabel.Trim(),
+                configured?.ExpectedKind ?? (isEeg ? AcquisitionChannelKind.Bipolar : AcquisitionChannelKind.Unknown),
+                "V");
+        }).ToArray();
+        if (binding.Profile is not null &&
+            EnabledEegChannelProjection.Project(binding.Profile, channels).Status != EegChannelProjectionStatus.Applied)
+            throw new RecordingReadException("IMPORT_CHANNEL_BINDING_INVALID", "导入记录的通道配置快照与文件通道不匹配，无法安全恢复通道视图。");
         var createdAt = DateTimeOffset.TryParse(recording.CreatedAt, out var created) ? created : DateTimeOffset.UnixEpoch;
         Manifest = new LocalRawRecordingManifest(recordingId, "edf-bdf", "V", "imported", recording.Extension,
             sfreq, -1, createdAt, channels,
             new AcquisitionProjectContext(project.ProjectId, string.Empty, project.Name, string.Empty, string.Empty),
-            new Dictionary<string, string>());
+            ImportedHardwareConfiguration(recording));
         DurationSeconds = sampleCount / (double)sfreq;
         Metadata = new RecordingAccessMetadata(recordingId, recording.SourceSha256 ?? recording.Id, sfreq, 0,
             sampleCount - 1L, [], Manifest);
@@ -87,7 +104,7 @@ internal sealed class BackendRecordingAccessSession : IRecordingAccessSession
         if (!string.Equals(block.RecordingId, Manifest.SessionId.ToString("N"), StringComparison.OrdinalIgnoreCase) ||
             block.StartSample != start || block.EndSample != end ||
             Math.Abs(block.SamplingRateHz - Metadata.SamplingRateHz) > 1e-9 ||
-            !block.Channels.SequenceEqual(channels.Select(channel => channel.Label), StringComparer.Ordinal) ||
+            !block.Channels.SequenceEqual(sourceChannelLabels, StringComparer.Ordinal) ||
             block.ChannelUnits.Count != channels.Count || block.ChannelUnits.Any(unit => unit != "V") ||
             block.ValuesVolts.Count != end - start || block.ValuesVolts.Any(row => row.Count != channels.Count))
             throw new RecordingReadException("RAW_SAMPLE_CONTRACT_INVALID", "后端返回的样本范围或通道契约与导入记录不一致。");
@@ -96,6 +113,64 @@ internal sealed class BackendRecordingAccessSession : IRecordingAccessSession
                 interval.EndSample <= interval.StartSample))
             throw new RecordingReadException("RAW_SAMPLE_GAP_INVALID", "后端返回的不可用样本区间无效。");
     }
+
+    private static (ChannelConfigurationProfile? Profile, Dictionary<int, int> NativeIndexes) ReadImportBinding(
+        BackendRecording recording)
+    {
+        var hasSnapshot = !string.IsNullOrWhiteSpace(recording.ImportChannelConfigurationSnapshotJson);
+        var hasMapping = !string.IsNullOrWhiteSpace(recording.ImportChannelColumnMappingJson);
+        if (!hasSnapshot && !hasMapping) return (null, []);
+        if (!hasSnapshot || !hasMapping)
+            throw new RecordingReadException("IMPORT_CHANNEL_BINDING_INVALID", "导入记录缺少完整的通道配置或列映射快照，无法安全恢复通道视图。");
+        try
+        {
+            var profile = JsonSerializer.Deserialize<ChannelConfigurationProfile>(
+                recording.ImportChannelConfigurationSnapshotJson!, JsonOptions);
+            var mapping = JsonSerializer.Deserialize<List<ImportChannelColumnMapping>>(
+                recording.ImportChannelColumnMappingJson!, JsonOptions);
+            if (profile?.Channels is null || mapping is null)
+                throw new RecordingReadException("IMPORT_CHANNEL_BINDING_INVALID", "导入记录的通道配置或列映射快照为空。");
+            var nativeIndexes = mapping.ToDictionary(item => item.SourceColumn, item => item.NativeChannelIndex);
+            var eegColumns = recording.ChannelTypes.Select((type, index) => (type, index))
+                .Where(item => string.Equals(item.type, "eeg", StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.index).ToArray();
+            if (nativeIndexes.Count != mapping.Count || mapping.Any(item => item.SourceColumn < 0 ||
+                    item.SourceColumn >= recording.Channels.Count || item.NativeChannelIndex < 0) ||
+                mapping.Select(item => item.NativeChannelIndex).Distinct().Count() != mapping.Count ||
+                !eegColumns.Order().SequenceEqual(nativeIndexes.Keys.Order()))
+                throw new RecordingReadException("IMPORT_CHANNEL_BINDING_INVALID", "导入记录的列映射与文件 EEG 通道不一致。");
+            foreach (var (_, nativeIndex) in nativeIndexes)
+            {
+                var configured = profile.Channels.SingleOrDefault(item => item.NativeChannelIndex == nativeIndex);
+                if (configured is null || configured.ExpectedKind is not (AcquisitionChannelKind.Reference or AcquisitionChannelKind.Bipolar))
+                    throw new RecordingReadException("IMPORT_CHANNEL_BINDING_INVALID", "导入记录的通道配置索引或通道类型无效。");
+            }
+            return (profile, nativeIndexes);
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException or InvalidOperationException)
+        {
+            throw new RecordingReadException("IMPORT_CHANNEL_BINDING_INVALID", "导入记录的通道配置或列映射快照格式无效。", exception);
+        }
+    }
+
+    private static IReadOnlyDictionary<string, string> ImportedHardwareConfiguration(BackendRecording recording)
+    {
+        var hardware = new Dictionary<string, string>();
+        Add("channel_configuration_snapshot_json", recording.ImportChannelConfigurationSnapshotJson);
+        Add("acquisition_montage_snapshot_json", recording.ImportAcquisitionMontageSnapshotJson);
+        Add("montage_configuration_snapshot_json", recording.ImportMontageConfigurationSnapshotJson);
+        Add("montage_catalogue_snapshot_json", recording.ImportMontageCatalogueSnapshotJson);
+        return hardware;
+
+        void Add(string key, string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value)) hardware[key] = value;
+        }
+    }
+
+    private sealed record ImportChannelColumnMapping(
+        [property: JsonPropertyName("source_column")] int SourceColumn,
+        [property: JsonPropertyName("native_channel_index")] int NativeChannelIndex);
 
     private static void AppendSegments(List<RecordingReviewSegment> destination, BackendRawSampleRange block,
         IReadOnlyList<int> selected)
