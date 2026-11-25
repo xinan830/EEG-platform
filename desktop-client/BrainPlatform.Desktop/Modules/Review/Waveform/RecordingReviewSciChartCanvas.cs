@@ -74,6 +74,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         Grid.SetColumn(labels, 0);
         chartHost.Children.Add(surface);
         chartHost.Children.Add(emptyMessage);
+        InitializePreprocessingLayers();
         chartHost.Children.Add(eventMarkers.Canvas);
         chartHost.Children.Add(playbackCursor);
         InitializeEventPlacement();
@@ -96,6 +97,7 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         {
             SyncLabelPlotArea();
             UpdatePlaybackCursor(DataContext as RecordingReviewViewModel);
+            artifactSegments.UpdatePositions();
         };
     }
 
@@ -179,12 +181,16 @@ public sealed partial class RecordingReviewSciChartCanvas : UserControl
         if (viewModel is not null)
         {
             viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            SubscribePreprocessing(viewModel);
         }
     }
 
     private void Unsubscribe(RecordingReviewViewModel? viewModel = null)
     {
-        (viewModel ?? DataContext as RecordingReviewViewModel)?.PropertyChanged -= OnViewModelPropertyChanged;
+        var target = viewModel ?? DataContext as RecordingReviewViewModel;
+        if (target is null) return;
+        target.PropertyChanged -= OnViewModelPropertyChanged;
+        UnsubscribePreprocessing(target);
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
