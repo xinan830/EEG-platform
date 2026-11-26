@@ -11,5 +11,7 @@
     <ProjectReference Include="../BrainPlatform.Desktop/BrainPlatform.Desktop.csproj" />
     <Compile Include="../BrainPlatform.Desktop/GlobalUsings.cs" Link="GlobalUsings.cs" />
     <EmbeddedResource Include="../BrainPlatform.Desktop/App.xaml" LogicalName="ProductionApp.xaml" />
+    <Resource Include="../BrainPlatform.Desktop/Assets/*.png" Link="Assets/%(Filename)%(Extension)" />
+    <Resource Include="../BrainPlatform.Desktop/Assets/AlgorithmIcons/*.png" Link="Assets/AlgorithmIcons/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

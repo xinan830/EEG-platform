@@ -15,6 +15,12 @@ internal static class Program
     [STAThread]
     public static void Main()
     {
+        var scenario = Environment.GetEnvironmentVariable("BRAIN_UI_TEST_SCENARIO");
+        if (scenario is "review-startup" or "review-startup-close")
+        {
+            ReviewStartupProbe.Run(closeDuringLoad: scenario == "review-startup-close");
+            return;
+        }
         var root = Path.Combine(Path.GetTempPath(), "brain-platform-ui-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnMainWindowClose };

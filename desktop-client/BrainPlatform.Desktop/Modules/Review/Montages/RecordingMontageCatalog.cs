@@ -76,7 +76,7 @@ public static class RecordingMontageCatalog
 
         var compatible = new List<CompatibleRecordingMontage>();
         var incompatible = new List<IncompatibleRecordingMontage>();
-        var acquisitionMontage = ReadAcquisitionMontage(manifest, out var acquisitionStatus);
+        var acquisitionMontage = ReadAcquisitionMontage(manifest, out var acquisitionStatus, incompatible);
         var recordingSnapshot = ReadChannelConfigurationSnapshot(manifest);
         if (acquisitionMontage is not null)
         {
@@ -92,7 +92,7 @@ public static class RecordingMontageCatalog
         // Imported EDF/BDF recordings are strictly self-contained: only the
         // validated montages carried by their own sidecar snapshots belong in
         // the selector, never current system profiles or fabricated presets.
-        var importedProfiles = ReadMontageCatalogueSnapshot(manifest);
+        var importedProfiles = ReadMontageCatalogueSnapshot(manifest, incompatible);
         var acquisitionMontageAdded = false;
         IEnumerable<MontageProfile> candidates;
         if (IsImportedRecording(manifest))
@@ -201,7 +201,8 @@ public static class RecordingMontageCatalog
 
     private static MontageProfile? ReadAcquisitionMontage(
         LocalRawRecordingManifest manifest,
-        out AcquisitionMontageStatus status)
+        out AcquisitionMontageStatus status,
+        List<IncompatibleRecordingMontage> incompatible)
     {
         status = AcquisitionMontageStatus.MissingSnapshot;
         if (!manifest.HardwareConfiguration.TryGetValue(
@@ -214,25 +215,23 @@ public static class RecordingMontageCatalog
 
         try
         {
-            var profile = JsonSerializer.Deserialize<MontageProfile>(snapshotJson, JsonOptions);
-            if (profile is null || string.IsNullOrWhiteSpace(profile.Id) || profile.DerivedChannels.Count == 0)
-            {
-                status = AcquisitionMontageStatus.InvalidSnapshot;
-                return null;
-            }
+            var profile = RecordingMontageSnapshot.Resolve(
+                JsonSerializer.Deserialize<MontageProfile>(snapshotJson, JsonOptions));
 
             status = AcquisitionMontageStatus.Available;
             return profile;
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
             status = AcquisitionMontageStatus.InvalidSnapshot;
+            incompatible.Add(new IncompatibleRecordingMontage("recorded-acquisition", "采集导联", exception.Message));
             return null;
         }
     }
 
     private static IReadOnlyList<MontageProfile> ReadMontageCatalogueSnapshot(
-        LocalRawRecordingManifest manifest)
+        LocalRawRecordingManifest manifest,
+        List<IncompatibleRecordingMontage> incompatible)
     {
         if (!manifest.HardwareConfiguration.TryGetValue(
                 "montage_catalogue_snapshot_json", out var snapshotJson) ||
@@ -243,10 +242,26 @@ public static class RecordingMontageCatalog
 
         try
         {
-            return JsonSerializer.Deserialize<List<MontageProfile>>(snapshotJson, JsonOptions) ?? [];
+            using var document = JsonDocument.Parse(snapshotJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+                throw new JsonException("导联目录快照必须为数组。");
+            var profiles = new List<MontageProfile>();
+            foreach (var entry in document.RootElement.EnumerateArray())
+            {
+                try
+                {
+                    profiles.Add(RecordingMontageSnapshot.Resolve(entry.Deserialize<MontageProfile>(JsonOptions)));
+                }
+                catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+                {
+                    incompatible.Add(new IncompatibleRecordingMontage("imported-entry", "导入导联", exception.Message));
+                }
+            }
+            return profiles;
         }
-        catch (JsonException)
+        catch (JsonException exception)
         {
+            incompatible.Add(new IncompatibleRecordingMontage("imported-catalogue", "导入导联目录", exception.Message));
             return [];
         }
     }

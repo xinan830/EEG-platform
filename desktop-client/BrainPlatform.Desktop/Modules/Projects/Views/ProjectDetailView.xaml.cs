@@ -137,6 +137,8 @@ public partial class ProjectDetailView : UserControl
 
     private async Task OpenReviewAsync(ProjectRecordingRow recording)
     {
+        if (!IsEnabled) return;
+        IsEnabled = false;
         try
         {
             Workspace.Projects.SelectedRecording = recording;
@@ -144,6 +146,7 @@ public partial class ProjectDetailView : UserControl
                 await navigation.ShowRecordingReviewViewAsync(recording, Workspace.MontageConfigurations.Profiles);
         }
         catch (Exception exception) { Workspace.Notifications.PublishError(exception.Message); }
+        finally { IsEnabled = true; }
     }
 
     private void OnOpenRecordingMoreMenuClick(object sender, RoutedEventArgs e)

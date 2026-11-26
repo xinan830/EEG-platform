@@ -9,6 +9,7 @@ public enum ReviewPreparationPhase
     FilteringTarget,
     Complete,
     Failed,
+    ReadingSource,
 }
 
 public sealed record ReviewPreparationState(

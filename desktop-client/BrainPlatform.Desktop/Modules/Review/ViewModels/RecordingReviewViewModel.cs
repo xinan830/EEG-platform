@@ -366,8 +366,11 @@ public sealed partial class RecordingReviewViewModel : ObservableObject, IAsyncD
     public async Task InitializeAsync()
     {
         await session.InitializeAsync();
+        if (isDisposing) return;
         await LoadEventsAsync();
+        if (isDisposing) return;
         await LoadEnabledDefinitionsAsync();
+        if (isDisposing) return;
         UpdateViewportStart(session.ViewportStartSeconds);
     }
 

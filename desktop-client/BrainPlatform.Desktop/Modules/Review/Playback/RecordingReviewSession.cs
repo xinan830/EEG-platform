@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using BrainPlatform.Desktop.Infrastructure.Diagnostics;
 using BrainPlatform.Desktop.Modules.Review.Diagnostics;
 using BrainPlatform.Desktop.Modules.Review.Waveform;
 using BrainPlatform.Desktop.Modules.Recordings.Access;
@@ -201,6 +202,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         catch (Exception) when (requestRevision != Volatile.Read(ref revision)) { return false; }
         catch (Exception exception) when (requestRevision == Volatile.Read(ref revision))
         {
+            DesktopLog.Error($"review_navigation_failed recording_id={reader.Manifest.SessionId:N} review_session_id={ReviewSessionId:N} generation={requestRevision} target_s={targetPosition:R} viewport_start_s={targetViewportStart:R}", exception);
             StatusText = $"回溯跳转失败：{exception.Message}";
             return false;
         }
@@ -400,6 +402,7 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         catch (Exception) when (requestRevision != Volatile.Read(ref revision)) { return; }
         catch (Exception exception) when (requestRevision == Volatile.Read(ref revision))
         {
+            DesktopLog.Error($"review_read_failed recording_id={reader.Manifest.SessionId:N} review_session_id={ReviewSessionId:N} generation={requestRevision} cache_start_s={cacheStartSeconds:R}", exception);
             StatusText = $"回溯读取失败：{exception.Message}";
         }
         finally
@@ -482,10 +485,12 @@ public sealed class RecordingReviewSession : IAsyncDisposable
         PreparationState = state;
         StatusText = state.Phase switch
         {
+            ReviewPreparationPhase.ReadingSource => "正在读取目标原始波形…",
             ReviewPreparationPhase.PreparingHistory when state.Progress is { } progress =>
                 $"正在准备精确滤波历史… {progress:P0}",
             ReviewPreparationPhase.PreparingHistory => "正在准备精确滤波历史…",
             ReviewPreparationPhase.FilteringTarget => "正在生成目标滤波波形…",
+            ReviewPreparationPhase.Complete => "正在准备显示波形…",
             ReviewPreparationPhase.Failed => $"精确滤波准备失败：{state.Failure}",
             _ => StatusText,
         };

@@ -245,6 +245,9 @@ internal sealed class ReviewSourceLoader : IAsyncDisposable
             return cached;
         }
 
+        var firstCounter = reader.FirstSampleCounter + key.StartSampleOffset;
+        progress(new ReviewPreparationState(ReviewPreparationPhase.ReadingSource,
+            firstCounter, firstCounter, firstCounter + key.SampleCount));
         var raw = await ReadRawAsync(startSeconds, startSeconds + durationSeconds, token);
         if (raw.Segments.Count == 0)
         {

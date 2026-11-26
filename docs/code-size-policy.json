@@ -214,8 +214,8 @@
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Review/Playback/RecordingReviewSession.cs": {
       "decision": "keep",
-      "max_lines": 570,
-      "reason": "One bounded review-window state machine owns navigation, cancellation and frame publication. The temporary whole-profile override reuses the same projector with full fingerprint identities, revision-fenced prefetch and in-memory-only display frames. Raw/filter source work remains in ReviewSourceLoader; no algorithm selection ownership is added."
+      "max_lines": 580,
+      "reason": "One bounded review-window state machine owns navigation, cancellation, frame publication and structured foreground failure diagnostics. Three lines add recording/session/generation/absolute-target exception logs at the existing catches; source work remains in ReviewSourceLoader and snapshot validation in RecordingMontageSnapshot. The temporary profile override retains fingerprint identities and revision fencing; no scientific processing is added."
     },
     "desktop-client/BrainPlatform.Desktop/Modules/Events/Views/EventDefinitionEditorView.xaml": {
       "decision": "split",

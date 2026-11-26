@@ -7,6 +7,7 @@ import json
 import logging
 import math
 import time
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -234,9 +235,17 @@ def _read_acquisition_signal_view(
                 raise ValueError("hardware reference/ground mismatch")
         bound_channels = _field(bound, "Channels")
         manifest_channels = _field(manifest, "Channels")
+        bound_by_label, actual_by_label, history_by_native = defaultdict(list), defaultdict(list), defaultdict(list)
+        for channel in bound_channels:
+            bound_by_label[str(_field(channel, "ElectrodeLabel", "")).strip().casefold()].append(channel)
+        for channel in manifest_channels:
+            actual_by_label[str(_field(channel, "Label", "")).strip().casefold()].append(channel)
+        for channel in _field(recorded, "Channels"):
+            history_by_native[int(_field(channel, "NativeChannelIndex"))].append(channel)
         average = tuple(str(label).strip() for label in _field(montage, "AverageReferenceLabels", []) or [])
         signals = []
         sources = {}
+        validated_sources = {}
         names, orders = set(), set()
         for row in sorted(rows, key=lambda item: int(_field(item, "DisplayOrder"))):
             name = str(_field(row, "Name", "")).strip()
@@ -264,13 +273,16 @@ def _read_acquisition_signal_view(
             if kind == "channel" and positive.casefold() == negatives[0].casefold():
                 raise ValueError("positive and negative sources are identical")
             for label in (positive, *negatives):
-                candidates = [ch for ch in bound_channels if str(_field(ch, "ElectrodeLabel", "")).strip().casefold() == label.casefold()]
-                actual = [ch for ch in manifest_channels if str(_field(ch, "Label", "")).strip().casefold() == label.casefold()]
+                folded = label.casefold()
+                if folded in validated_sources:
+                    sources[label] = validated_sources[folded]
+                    continue
+                candidates, actual = bound_by_label[folded], actual_by_label[folded]
                 if len(candidates) != 1 or len(actual) != 1:
                     raise ValueError(f"source {label}: missing/ambiguous mapping")
                 target, source = candidates[0], actual[0]
                 native = int(_field(target, "NativeChannelIndex"))
-                history = [ch for ch in _field(recorded, "Channels") if int(_field(ch, "NativeChannelIndex")) == native]
+                history = history_by_native[native]
                 if len(history) != 1:
                     raise ValueError(f"source {label}: missing/ambiguous historical input")
                 historical = history[0]
@@ -283,6 +295,7 @@ def _read_acquisition_signal_view(
                     or _field(source, "Unit") != "V"):
                     raise ValueError(f"source {label}: historical/native/type/unit mismatch")
                 sources[label] = {"native_channel_index": native, "stream_index": int(_field(source, "StreamIndex")), "unit": "V", "kind": expected_kind}
+                validated_sources[folded] = sources[label]
             signals.append(AcquisitionSignal(name, positive, negatives, kind))
         canonical = json.dumps({"montage": montage, "channel_snapshot": recorded}, sort_keys=True, ensure_ascii=False)
         map_positions = {
