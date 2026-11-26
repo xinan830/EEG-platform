@@ -101,9 +101,9 @@ public sealed partial class ReviewPreprocessingViewModel
     {
         ClearOverlayWindow();
         if (!IsOverlayCompareEnabled || lifetime.IsCancellationRequested) return;
-        if (AreScientificInputsBlocked)
+        if (ScientificInputBlockReason() is { } reason)
         {
-            OverlayStatusText = HasUnsavedChannelIdentities ? "通道身份尚未保存，科学对比已暂停。" : ReferenceValidationMessage!;
+            OverlayStatusText = reason;
             return;
         }
         if (!IsDisplayMontageCompatible || isPlaybackActive)

@@ -22,6 +22,50 @@ def save(service, recording, **roles):
         channels=[ChannelIdentitySelection(name=name, identity=role) for name, role in roles.items()]))
 
 
+def test_automatic_ecg_requires_explicit_choice_when_multiple_identities_exist(tmp_path):
+    from app.services.recording_channel_roles import resolve_removal_references
+    service, recording, _ = make_recording(tmp_path)
+    save(service, recording, AUX_Eye="ecg")
+    recording = service.require_recording(recording.id)
+    spec = ArtifactRemovalSpec(method="ica_infomax")
+    with pytest.raises(ValueError, match="检测到多路专用 ECG.*指定一路"):
+        resolve_removal_references(service, recording, spec)
+    explicit = resolve_removal_references(service, recording, replace(spec, ecg_channels=("aux_heart",)))
+    assert explicit.ecg_channels == ("AUX_Heart",)
+    for method in ("none", "ssp_eog", "eog_regression"):
+        assert resolve_removal_references(service, recording, replace(spec, method=method)).ecg_channels == ()
+
+
+def test_ambiguous_ecg_http_review_and_preview_return_actionable_error(tmp_path):
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.services.audit import AuditService
+    service, recording, _ = make_recording(tmp_path)
+    save(service, recording, AUX_Eye="ecg")
+    app.state.recording_service = service
+    app.state.audit_service = AuditService(service.database_path)
+    with TestClient(app) as client:
+        route = f"/api/recordings/{recording.id}/preprocessing"
+        review = client.get(route + "/ica-components", params={"ica_n_components": 3})
+        preview = client.post(route + "/preview-window", json={
+            "start_s": 0, "window_s": 3, "preprocessing": {
+                "artifact_removal": {"method": "ica_infomax", "ica_n_components": 3}}})
+        for response in (review, preview):
+            assert response.status_code == 422, response.text
+            assert "检测到多路专用 ECG" in response.text
+            assert "指定一路" in response.text
+        chosen = client.get(route + "/ica-components", params={
+            "ica_n_components": 3, "ecg_channels": "AUX_Heart", "low_hz": 1, "high_hz": 50})
+        assert chosen.status_code == 200, chosen.text
+        assert chosen.json()["ecg_channels_used"] == ["AUX_Heart"]
+        applied = client.post(route + "/preview-window", json={
+            "start_s": 0, "window_s": 3, "preprocessing": {
+                "artifact_removal": {"method": "ica_infomax", "ica_n_components": 3,
+                    "ecg_channels": ["AUX_Heart"], "ica_exclude_components": [],
+                    "ica_fit_fingerprint": chosen.json()["ica_fit_fingerprint"]}}})
+        assert applied.status_code == 200, applied.text
+
+
 @pytest.mark.parametrize("montage", [False, True])
 @pytest.mark.parametrize("with_ecg", [False, True])
 def test_auto_and_explicit_eeg_proxies_have_identical_ica_inputs_scores_and_output(tmp_path, montage, with_ecg):

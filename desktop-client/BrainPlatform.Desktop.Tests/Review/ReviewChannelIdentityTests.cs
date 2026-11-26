@@ -90,6 +90,7 @@ public sealed partial class ReviewPreprocessingTests
         var client = new IdentityClient { DelayIca = true };
         using var vm = CreateViewModel(client, out _);
         await vm.LoadReferenceChannelsAsync();
+        vm.RemovalMethod = "ica_infomax";
         vm.SelectedEcgChannel = "Fp1";
         Assert.True(vm.AreScientificInputsBlocked);
         Assert.Throws<InvalidOperationException>(() => vm.BuildPayload(true));
@@ -104,17 +105,120 @@ public sealed partial class ReviewPreprocessingTests
         Assert.Empty(vm.IcaComponents);
     }
 
+    [Theory]
+    [InlineData("none")]
+    [InlineData("ssp_eog")]
+    [InlineData("eog_regression")]
+    public async Task InactiveEcgIdentityDoesNotBlockOtherMethods_ButIcaFitStillValidates(string method)
+    {
+        var client = new IdentityClient();
+        using var vm = CreateViewModel(client, out _);
+        await vm.LoadReferenceChannelsAsync();
+        vm.RemovalMethod = "ica_infomax";
+        vm.SelectedEcgChannel = "Fp1";
+        Assert.True(vm.AreScientificInputsBlocked);
+        vm.IsOverlayCompareEnabled = true;
+        vm.RemovalMethod = method;
+        Assert.False(vm.AreScientificInputsBlocked);
+        Assert.DoesNotContain("必须选择专用 ECG", vm.ReferenceStatusText);
+        Assert.Empty(vm.BuildPayload(true).ArtifactRemoval.EcgChannels!);
+        await vm.RefreshOverlayWindowAsync();
+        Assert.NotNull(vm.CurrentOverlayWindow);
+        await Assert.ThrowsAsync<InvalidOperationException>(vm.InspectIcaForDialogAsync);
+        Assert.False(client.Started.Task.IsCompleted);
+        vm.RemovalMethod = "ica_infomax";
+        Assert.True(vm.AreScientificInputsBlocked);
+        Assert.Null(vm.CurrentOverlayWindow);
+        Assert.Contains("必须选择专用 ECG", vm.OverlayStatusText);
+        vm.SelectedEcgChannel = "ECG1";
+        Assert.False(vm.AreScientificInputsBlocked);
+        vm.IsOverlayCompareEnabled = false;
+    }
+
+    [Fact]
+    public async Task UnsavedIdentityUsesSameBlockingReasonImmediatelyAndAfterPreviewRefresh()
+    {
+        using var vm = CreateViewModel(new IdentityClient(), out _);
+        await vm.LoadReferenceChannelsAsync();
+        vm.IsOverlayCompareEnabled = true;
+        await vm.RefreshOverlayWindowAsync();
+        vm.ReferenceChannels.Single(row => row.Name == "Fp1").Identity = "eog";
+        Assert.False(vm.HasReferenceSelectionConflict);
+        Assert.Null(vm.CurrentOverlayWindow);
+        var error = Assert.Throws<InvalidOperationException>(() => vm.BuildPayload(true));
+        Assert.Contains("尚未保存", error.Message);
+        Assert.Equal(error.Message, vm.OverlayStatusText);
+        Assert.Equal(error.Message, vm.ReferenceStatusText);
+        await vm.RefreshOverlayWindowAsync();
+        Assert.Equal(error.Message, vm.OverlayStatusText);
+        await vm.SaveChannelIdentitiesAsync();
+        Assert.False(vm.AreScientificInputsBlocked);
+        await vm.RefreshOverlayWindowAsync();
+        Assert.NotNull(vm.CurrentOverlayWindow);
+        vm.IsOverlayCompareEnabled = false;
+    }
+
+    [Fact]
+    public async Task SwitchingMethodDiscardsPendingIcaWithoutBlockingTheNewMethod()
+    {
+        var client = new IdentityClient { DelayIca = true };
+        using var vm = CreateViewModel(client, out _);
+        await vm.LoadReferenceChannelsAsync();
+        vm.RemovalMethod = "ica_infomax";
+        vm.SelectedEcgChannel = "ECG1";
+        var pending = vm.InspectIcaForDialogAsync();
+        await client.Started.Task;
+        try
+        {
+            vm.RemovalMethod = "none";
+            Assert.False(vm.AreScientificInputsBlocked);
+            Assert.Equal("none", vm.BuildPayload(true).ArtifactRemoval.Method);
+        }
+        finally { client.Release.TrySetResult(); }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        Assert.Empty(vm.IcaComponents);
+        Assert.Null(vm.IcaFitFingerprint);
+    }
+
+    [Fact]
+    public async Task MultipleDedicatedEcgRequiresSelectionOnlyForIca()
+    {
+        var client = new IdentityClient { MultipleEcg = true };
+        using var vm = CreateViewModel(client, out _);
+        await vm.LoadReferenceChannelsAsync();
+        Assert.False(vm.AreScientificInputsBlocked);
+        await Assert.ThrowsAsync<InvalidOperationException>(vm.InspectIcaForDialogAsync);
+        Assert.False(client.Started.Task.IsCompleted);
+        vm.RemovalMethod = "ica_infomax";
+        Assert.True(vm.AreScientificInputsBlocked);
+        Assert.Contains("指定一路", vm.ReferenceStatusText);
+        vm.SelectedEcgChannel = "ECG2";
+        Assert.False(vm.AreScientificInputsBlocked);
+        var report = await vm.InspectIcaForDialogAsync();
+        vm.ConfirmIcaSelection([0], report.IcaFitFingerprint);
+        Assert.Equal(new[] { "ECG2" }, vm.BuildPayload(true).ArtifactRemoval.EcgChannels);
+        vm.SelectedEcgChannel = "";
+        Assert.Null(vm.IcaFitFingerprint);
+        Assert.True(vm.AreScientificInputsBlocked);
+        vm.RemovalMethod = "none";
+        Assert.False(vm.AreScientificInputsBlocked);
+        vm.ReferenceChannels[0].Identity = "eog";
+        Assert.True(vm.AreScientificInputsBlocked);
+    }
+
     private sealed class IdentityClient : FakePreprocessingClient, BrainPlatform.Desktop.Modules.Algorithms.Api.IPreprocessingClient
     {
         private ArtifactReferenceCatalogue catalogue = new("rec-1", 500, 30000,
             [new("Fp1", "V", "eeg"), new("EOG1", "V", "eog"), new("ECG1", "V", "ecg")], "source-hash");
         public bool FailSave { get; init; }
+        public bool MultipleEcg { get; init; }
         public bool DelayIca { get; init; }
         public int PreviewRequests { get; private set; }
         public ChannelIdentityUpdate? Saved { get; private set; }
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public override Task<ArtifactReferenceCatalogue> GetArtifactReferenceChannelsAsync(string id, CancellationToken token) => Task.FromResult(catalogue);
+        public override Task<ArtifactReferenceCatalogue> GetArtifactReferenceChannelsAsync(string id, CancellationToken token) =>
+            Task.FromResult(MultipleEcg ? catalogue with { Channels = [.. catalogue.Channels, new("ECG2", "V", "ecg")] } : catalogue);
         public Task<ArtifactReferenceCatalogue> SaveChannelIdentitiesAsync(string id, ChannelIdentityUpdate update, CancellationToken token = default)
         {
             if (FailSave) throw new IOException("disk full");

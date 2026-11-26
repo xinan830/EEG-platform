@@ -138,7 +138,7 @@ public sealed partial class ReviewPreprocessingViewModel
 
     public async Task<IcaInspectionResponse> InspectIcaForDialogAsync()
     {
-        ValidateReferenceSelection();
+        ValidateReferenceSelection(forIca: true);
         var client = RequireClient();
         pendingIca = null;
         var operation = BeginInspection();

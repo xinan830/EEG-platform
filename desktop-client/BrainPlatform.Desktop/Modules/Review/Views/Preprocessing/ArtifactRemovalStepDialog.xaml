@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="05 · 眼电 / 心电去伪迹与 ICA 审查"
-        Width="740" Height="560" MinWidth="660" MinHeight="480"
+        Width="740" Height="640" MinWidth="660" MinHeight="480"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         Background="#F6F8FB">
     <Window.Resources>
@@ -94,7 +94,7 @@
                         <TextBlock Text="通道身份与评分用途（来自当前录音）" FontSize="13" Foreground="#334155" FontWeight="SemiBold" Margin="0,0,0,8" />
                         <TextBlock Text="先按实际接线确认身份并保存；勾选眼电用途不会改变通道身份。EEG 代理仍参与脑电拟合，专用 EOG/ECG 独立处理。" FontSize="12" Foreground="#64748B" TextWrapping="Wrap" Margin="0,0,0,8" />
                         <TextBlock Text="眼电 EOG：可多选" FontSize="12" Foreground="#475569" Margin="0,0,0,5" />
-                        <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
                             <ItemsControl x:Name="EogReferenceChoices" ItemsSource="{Binding ReferenceChannels}">
                                 <ItemsControl.ItemTemplate><DataTemplate>
                                     <Grid Margin="0,3"><Grid.ColumnDefinitions>

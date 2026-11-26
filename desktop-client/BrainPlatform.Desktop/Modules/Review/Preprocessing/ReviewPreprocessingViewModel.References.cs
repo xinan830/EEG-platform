@@ -37,13 +37,20 @@ public sealed partial class ReviewPreprocessingViewModel
     private string referenceSourceSha256 = "";
     private bool hasUnsavedChannelIdentities;
     public bool HasUnsavedChannelIdentities => hasUnsavedChannelIdentities;
-    public bool AreScientificInputsBlocked => HasUnsavedChannelIdentities || ReferenceValidationMessage is not null;
-    private string? ReferenceValidationMessage => HasReferenceSelectionConflict
-        ? "参考冲突：同一路不能同时作为眼电和心电参考，请重新选择。"
-        : ReferenceChannels.Any(row => row.IsEog && row.Identity is not ("eeg" or "eog"))
-            ? "眼电评分请选择 EEG 代理或专用 EOG，并保存身份。"
-            : ReferenceChannels.Any(row => SelectedEcgChannels.Contains(row.Name) && row.Identity != "ecg")
-                ? "心电评分必须选择专用 ECG，并保存身份。" : null;
+    public bool AreScientificInputsBlocked => ScientificInputBlockReason() is not null;
+    private string? ScientificInputBlockReason(bool forIca = false)
+    {
+        if (HasUnsavedChannelIdentities) return "通道身份尚未保存，请先保存身份配置。";
+        if (HasReferenceSelectionConflict) return "参考冲突：同一路不能同时作为眼电和心电参考，请重新选择。";
+        if (ReferenceChannels.Any(row => row.IsEog && row.Identity is not ("eeg" or "eog")))
+            return "眼电评分请选择 EEG 代理或专用 EOG，并保存身份。";
+        if (!IsRemovalIca && !forIca) return null;
+        if (ReferenceChannels.Any(row => SelectedEcgChannels.Contains(row.Name) && row.Identity != "ecg"))
+            return "心电评分必须选择专用 ECG，并保存身份。";
+        if (SelectedEcgChannels.Count == 0 && ReferenceChannels.Count(row => row.Identity == "ecg") > 1)
+            return "检测到多路专用 ECG，请在心电评分中指定一路";
+        return null;
+    }
     public System.Windows.Input.ICommand SaveChannelIdentitiesCommand { get; private set; } = null!;
     private string referenceStatusText = "可选择记录中的专用眼电、心电通道；留空使用现有自动识别策略。";
     public ObservableCollection<ArtifactReferenceChoice> ReferenceChannels { get; } = [];
@@ -101,9 +108,7 @@ public sealed partial class ReviewPreprocessingViewModel
             }
             finally { isUpdatingReferenceChoices = false; }
             RaisePropertyChanged(nameof(SelectedEcgChannel));
-            ReferenceStatusText = HasReferenceSelectionConflict
-                ? "参考冲突：同一路不能同时作为眼电和心电参考，请重新选择。"
-                : $"已读取 {ReferenceChannels.Count} 路原始电压信号。请按实际接线选择，名称不代表生理用途。";
+            UpdateReferenceValidationState();
             if (!chosen.SetEquals(SelectedEogChannels) || ecg != selectedEcgChannel) ReferenceSelectionChanged();
         }
         catch (OperationCanceledException) { }
@@ -114,24 +119,28 @@ public sealed partial class ReviewPreprocessingViewModel
 
     private void ReferenceSelectionChanged()
     {
-        RaisePropertyChanged(nameof(HasReferenceSelectionConflict));
-        RaisePropertyChanged(nameof(AreScientificInputsBlocked));
-        ReferenceStatusText = ReferenceValidationMessage ??
-            $"眼电：{string.Join(", ", SelectedEogChannels.DefaultIfEmpty("自动 / 代理"))}；心电：{string.Join(", ", SelectedEcgChannels.DefaultIfEmpty("自动识别"))}";
         InvalidateIcaFingerprint("辅助通道已变更，需重新审查 ICA 成分");
         InvalidateArtifactInspection();
-        if (AreScientificInputsBlocked)
-        {
-            StatusMessage = ReferenceStatusText;
-            if (IsOverlayCompareEnabled) OverlayStatusText = "眼电与心电参考冲突，科学对比已暂停，请重新选择。";
-        }
         NotifyConfigAndVisuals();
     }
 
-    private void ValidateReferenceSelection()
+    private void UpdateReferenceValidationState()
     {
-        if (HasUnsavedChannelIdentities) throw new InvalidOperationException("通道身份尚未保存，请先保存身份配置。");
-        if (ReferenceValidationMessage is { } error) throw new InvalidOperationException(error);
+        RaisePropertyChanged(nameof(HasReferenceSelectionConflict));
+        RaisePropertyChanged(nameof(AreScientificInputsBlocked));
+        var reason = ScientificInputBlockReason();
+        ReferenceStatusText = reason ??
+            $"眼电：{string.Join(", ", SelectedEogChannels.DefaultIfEmpty("自动 / 代理"))}；心电：{string.Join(", ", SelectedEcgChannels.DefaultIfEmpty("自动识别"))}";
+        if (reason is not null)
+        {
+            StatusMessage = reason;
+            if (IsOverlayCompareEnabled) OverlayStatusText = reason;
+        }
+    }
+
+    private void ValidateReferenceSelection(bool forIca = false)
+    {
+        if (ScientificInputBlockReason(forIca) is { } error) throw new InvalidOperationException(error);
     }
 
     private void ResetReferenceChannels()
@@ -159,7 +168,6 @@ public sealed partial class ReviewPreprocessingViewModel
         RaisePropertyChanged(nameof(HasUnsavedChannelIdentities));
         RaisePropertyChanged(nameof(AreScientificInputsBlocked));
         ReferenceSelectionChanged();
-        ReferenceStatusText = "身份已修改，请先保存；科学预览和算法已暂停。";
     }
 
     public async Task SaveChannelIdentitiesAsync()
@@ -178,7 +186,8 @@ public sealed partial class ReviewPreprocessingViewModel
             RaisePropertyChanged(nameof(HasUnsavedChannelIdentities));
             RaisePropertyChanged(nameof(AreScientificInputsBlocked));
             ReferenceSelectionChanged();
-            ReferenceStatusText = "通道身份已保存到当前录音；EEG 代理保留脑电身份，专用 EOG/ECG 独立处理。";
+            if (!AreScientificInputsBlocked)
+                ReferenceStatusText = "通道身份已保存到当前录音；EEG 代理保留脑电身份，专用 EOG/ECG 独立处理。";
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { ReferenceStatusText = $"身份保存失败：{ex.Message}"; }

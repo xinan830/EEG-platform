@@ -232,4 +232,6 @@ def resolve_removal_references(recordings, recording, spec):
         eog = tuple(aliases.get(name.casefold(), name) for name in eog)
     ecg = (tuple(canonical.get(name.casefold(), name) for name in spec.ecg_channels) or tuple(
         name for name, (role, _) in roles.items() if role == "ecg")) if spec.method == "ica_infomax" else ()
+    if not spec.ecg_channels and len(ecg) > 1:
+        raise ValueError("ARTIFACT_REFERENCE_INVALID: 检测到多路专用 ECG，请在心电评分中指定一路")
     return replace(spec, eog_channels=eog, ecg_channels=ecg).normalized()

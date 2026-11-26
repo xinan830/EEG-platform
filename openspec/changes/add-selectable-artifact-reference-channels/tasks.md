@@ -11,3 +11,6 @@
 - [x] 10. Resolve automatic and manual EEG proxies through one effective scientific path without removing EEG inputs.
 - [x] 11. Add per-recording identity controls, propagate confirmed reference roles and invalidate stale work.
 - [x] 12. Verify proxy equivalence, dedicated-channel isolation, persistence/roundtrip, desktop behavior and document limits.
+- [x] 13. Reject ambiguous automatic ECG references with actionable guidance at the shared resolver.
+- [x] 14. Validate ECG identities for the method being executed and unify scientific blocking reasons.
+- [x] 15. Improve channel-list space and verify mode transitions, pending work, API errors and UI bindings.

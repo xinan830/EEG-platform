@@ -110,19 +110,28 @@ public sealed partial class ReviewPreprocessingTests
         {
             try
             {
-                using var vm = CreateViewModel(new ReferenceClient(), out _);
+                using var vm = CreateViewModel(new ReferenceClient { ExtraEegCount = 28 }, out _);
                 vm.LoadReferenceChannelsAsync().GetAwaiter().GetResult();
                 vm.RemovalMethod = "ica_infomax";
                 var dialog = new BrainPlatform.Desktop.Modules.Review.Views.Preprocessing.ArtifactRemovalStepDialog(vm);
                 try
                 {
                     var surface = (System.Windows.FrameworkElement)dialog.Content;
-                    surface.Measure(new System.Windows.Size(740, 560));
-                    surface.Arrange(new System.Windows.Rect(0, 0, 740, 560));
+                    surface.Measure(new System.Windows.Size(740, 640));
+                    surface.Arrange(new System.Windows.Rect(0, 0, 740, 640));
                     surface.UpdateLayout();
                     var ecg = (System.Windows.Controls.ComboBox)dialog.FindName("EcgReferenceChoice");
                     var eog = (System.Windows.Controls.ItemsControl)dialog.FindName("EogReferenceChoices");
-                    Assert.Equal(4, eog.Items.Count);
+                    Assert.Equal(32, eog.Items.Count);
+                    var list = ReferenceVisuals<System.Windows.Controls.ScrollViewer>(surface)
+                        .Single(viewer => ReferenceEquals(viewer.Content, eog));
+                    Assert.InRange(list.ActualHeight, 200, 220);
+                    Assert.True(list.ScrollableHeight > 0);
+                    list.ScrollToEnd();
+                    surface.UpdateLayout();
+                    Assert.True(list.VerticalOffset > 0);
+                    list.ScrollToHome();
+                    surface.UpdateLayout();
                     Assert.True(ecg.IsEnabled);
                     Assert.Same(dialog.FindResource("AppRoundedFilterComboBoxStyle"), ecg.Style);
                     Assert.Equal("", ecg.SelectedItem);
@@ -146,7 +155,7 @@ public sealed partial class ReviewPreprocessingTests
                     var path = Environment.GetEnvironmentVariable("ARTIFACT_REFERENCE_PREVIEW_PATH");
                     if (path is not null)
                     {
-                        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(740, 560, 96, 96,
+                        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(740, 640, 96, 96,
                             System.Windows.Media.PixelFormats.Pbgra32);
                         bitmap.Render(surface);
                         var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
@@ -154,6 +163,12 @@ public sealed partial class ReviewPreprocessingTests
                         using var stream = File.Create(path);
                         encoder.Save(stream);
                     }
+                    surface.Measure(new System.Windows.Size(660, 480));
+                    surface.Arrange(new System.Windows.Rect(0, 0, 660, 480));
+                    surface.UpdateLayout();
+                    var body = ReferenceVisuals<System.Windows.Controls.ScrollViewer>(surface)
+                        .Single(viewer => viewer.Content is System.Windows.Controls.StackPanel);
+                    Assert.True(body.ScrollableHeight > 0);
                 }
                 finally { dialog.Close(); }
             }
@@ -179,6 +194,7 @@ public sealed partial class ReviewPreprocessingTests
     {
         public bool DelayDiscovery { get; init; }
         public bool MissingReference { get; set; }
+        public int ExtraEegCount { get; init; }
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IReadOnlyList<string>? Eog { get; private set; }
@@ -191,6 +207,9 @@ public sealed partial class ReviewPreprocessingTests
             Started.TrySetResult();
             if (DelayDiscovery) await Release.Task;
             var catalogue = await base.GetArtifactReferenceChannelsAsync(recordingId, cancellationToken);
+            if (ExtraEegCount > 0)
+                catalogue = catalogue with { Channels = [.. catalogue.Channels, .. Enumerable.Range(1, ExtraEegCount)
+                    .Select(i => new ArtifactReferenceChannel($"EEG{i}", "V", "eeg"))] };
             return MissingReference ? catalogue with { Channels = catalogue.Channels.Where(c => c.Name != "EOG1").ToArray() } : catalogue;
         }
 

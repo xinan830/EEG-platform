@@ -57,6 +57,18 @@ Changing reference selection SHALL invalidate pending and confirmed ICA choices 
 - **WHEN** no explicit ECG source is selected
 - **THEN** the rounded selector displays an explicit automatic-selection label while retaining the existing empty selection in the request contract
 
+#### Scenario: Multiple dedicated ECG sources are available
+- **WHEN** ICA is requested without an explicit ECG selection and multiple sources have dedicated ECG identity
+- **THEN** review and execution require an explicit single selection with actionable guidance instead of choosing by file order
+
+#### Scenario: An inactive ECG choice has incompatible identity
+- **WHEN** an invalid ECG identity was selected and the user switches away from ICA
+- **THEN** that inactive ECG identity check no longer blocks other methods, while explicit ICA fitting still validates it and unsaved identities or cross-role overlap remain blocked
+
+#### Scenario: Identity editing pauses scientific comparison
+- **WHEN** identity changes have not been saved
+- **THEN** comparison immediately displays the same unsaved-identity reason as payload validation, rather than reporting an EOG/ECG conflict
+
 ### Requirement: Physiological identity is separate from scoring use
 Each recorded voltage source SHALL have a source-bound identity: EEG, dedicated EOG, dedicated ECG or unconfirmed. Review SHALL allow saving that declaration for the current recording. Scoring selection SHALL NOT change identity. Dedicated and unconfirmed sources SHALL stay outside scientific EEG even when removal is disabled. Recorded EEG membership SHALL NOT be inferred solely from channel names.
 

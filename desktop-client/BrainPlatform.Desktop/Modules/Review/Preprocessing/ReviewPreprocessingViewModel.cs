@@ -306,6 +306,7 @@ public sealed partial class ReviewPreprocessingViewModel : ObservableObject, IDi
         configurationRevision++;
         CancelInspection();
         ClearOverlayWindow();
+        UpdateReferenceValidationState();
         RaisePropertyChanged(nameof(HasAnyActivePreprocessing));
         RaisePropertyChanged(nameof(ActiveSummaryBadge));
         RaisePropertyChanged(nameof(SelectedBadChannels));
